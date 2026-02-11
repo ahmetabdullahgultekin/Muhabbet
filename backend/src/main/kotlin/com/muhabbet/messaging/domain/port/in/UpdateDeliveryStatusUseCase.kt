@@ -5,4 +5,5 @@ import java.util.UUID
 
 interface UpdateDeliveryStatusUseCase {
     fun updateStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
+    fun markConversationRead(conversationId: UUID, userId: UUID)
 }

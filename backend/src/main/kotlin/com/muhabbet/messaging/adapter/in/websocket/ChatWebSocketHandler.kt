@@ -131,7 +131,14 @@ class ChatWebSocketHandler(
             com.muhabbet.shared.model.MessageStatus.READ -> DeliveryStatus.READ
             else -> return
         }
-        updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
+        if (status == DeliveryStatus.READ) {
+            // Mark ALL messages in the conversation as read (not just one)
+            updateDeliveryStatusUseCase.markConversationRead(
+                UUID.fromString(msg.conversationId), userId
+            )
+        } else {
+            updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
+        }
     }
 
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {

@@ -246,6 +246,13 @@ open class MessagingService(
         log.debug("Delivery status updated: msg={}, user={}, status={}", messageId, userId, status)
     }
 
+    @Transactional
+    override fun markConversationRead(conversationId: UUID, userId: UUID) {
+        messageRepository.markConversationRead(conversationId, userId)
+        conversationRepository.updateLastReadAt(conversationId, userId, Instant.now())
+        log.debug("Conversation marked as read: conv={}, user={}", conversationId, userId)
+    }
+
     private fun sortUuids(a: UUID, b: UUID): Pair<UUID, UUID> {
         return if (a.toString() < b.toString()) Pair(a, b) else Pair(b, a)
     }

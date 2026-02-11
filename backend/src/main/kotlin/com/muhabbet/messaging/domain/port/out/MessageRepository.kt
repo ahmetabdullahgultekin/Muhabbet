@@ -19,6 +19,7 @@ interface MessageRepository {
     fun findUndeliveredForUser(userId: UUID, since: Instant?): List<Message>
     fun saveDeliveryStatus(status: MessageDeliveryStatus)
     fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
+    fun markConversationRead(conversationId: UUID, userId: UUID)
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
     fun getLastMessage(conversationId: UUID): Message?
 }

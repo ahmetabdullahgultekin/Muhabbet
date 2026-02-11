@@ -54,6 +54,10 @@ class MessagePersistenceAdapter(
         deliveryStatusRepo.save(entity)
     }
 
+    override fun markConversationRead(conversationId: UUID, userId: UUID) {
+        deliveryStatusRepo.markAllAsRead(conversationId, userId, DeliveryStatus.READ, Instant.now())
+    }
+
     override fun getUnreadCount(conversationId: UUID, userId: UUID): Int =
         deliveryStatusRepo.countUnread(conversationId, userId, DeliveryStatus.READ)
 
