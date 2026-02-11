@@ -39,10 +39,12 @@ class WsClient(private val apiClient: ApiClient) {
     private suspend fun connectInternal(token: String) {
         while (shouldReconnect) {
             try {
+                println("MUHABBET WS: Connecting...")
                 session = apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
                     parameter("token", token)
                 }
                 reconnectAttempt = 0
+                println("MUHABBET WS: Connected!")
 
                 session?.let { ws ->
                     for (frame in ws.incoming) {
@@ -51,23 +53,32 @@ class WsClient(private val apiClient: ApiClient) {
                             try {
                                 val message = wsJson.decodeFromString<WsMessage>(text)
                                 _incoming.emit(message)
-                            } catch (_: Exception) { }
+                            } catch (e: Exception) {
+                                println("MUHABBET WS: Parse error: ${e.message}")
+                            }
                         }
                     }
                 }
-            } catch (_: Exception) { }
+                println("MUHABBET WS: Session closed, will reconnect")
+            } catch (e: Exception) {
+                println("MUHABBET WS: Connection error: ${e.message}")
+            }
 
+            session = null
             if (shouldReconnect) {
                 reconnectAttempt++
                 val backoff = minOf(1000L * (1L shl minOf(reconnectAttempt, 5)), 30_000L)
+                println("MUHABBET WS: Reconnecting in ${backoff}ms (attempt $reconnectAttempt)")
                 delay(backoff)
             }
         }
     }
 
     suspend fun send(message: WsMessage) {
+        val currentSession = session
+            ?: throw Exception("WebSocket not connected")
         val json = wsJson.encodeToString(message)
-        session?.outgoing?.send(Frame.Text(json))
+        currentSession.outgoing.send(Frame.Text(json))
     }
 
     fun disconnect() {

@@ -368,12 +368,11 @@ fun ChatScreen(
                                         contentType = ContentType.TEXT
                                     )
                                 )
-                            } catch (_: Exception) {
-                                // Mark as failed if WS send fails
-                                messages = messages.map { msg ->
-                                    if (msg.id == messageId) msg.copy(status = MessageStatus.SENDING)
-                                    else msg
-                                }
+                            } catch (e: Exception) {
+                                println("MUHABBET: Send failed: ${e.message}")
+                                // Remove the optimistic message since it couldn't be sent
+                                messages = messages.filter { it.id != messageId }
+                                snackbarHostState.showSnackbar(errorSendMsg)
                             }
                         }
                     },
