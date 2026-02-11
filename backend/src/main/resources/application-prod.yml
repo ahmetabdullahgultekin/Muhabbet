@@ -14,6 +14,12 @@ logging:
   pattern:
     console: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","logger":"%logger{36}","thread":"%thread","message":"%msg"}%n'
 
+management:
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
 sentry:
   dsn: ${SENTRY_DSN:}
 
