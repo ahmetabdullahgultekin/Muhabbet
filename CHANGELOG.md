@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Mobile App (Weeks 3-4)
+- **Auth flow**: Phone input → OTP verify → auto-login with platform detection (expect/actual)
+- **Conversation list**: Real-time WS updates, pull-to-refresh, unread badges, participant name resolution
+- **Chat screen**: Real-time messaging via WebSocket, message status ticks (clock→single→double→blue), message pagination (cursor-based scroll-to-top), typing indicator send/receive
+- **Settings screen**: Profile edit (displayName + about), app version, logout with confirmation dialog
+- **Dark mode**: Auto-detects system theme, full light/dark color schemes
+- **Contacts sync**: Android permission flow, device contact reading, SHA-256 phone hash, backend sync endpoint
+- **Navigation**: Decompose-based (Root → Auth/Main → Conversations/Chat/Settings/NewConversation)
+- **DI**: Koin modules for platform-specific implementations (TokenStorage, ContactsProvider, PlatformInfo)
+- **Test Bot**: Python script (`infra/scripts/test_bot.py`) for automated WS message testing
+
+### Fixed — Backend (Weeks 3-4)
+- **Participant data**: ConversationController now populates displayName/phoneNumber from UserRepository (was hardcoded null)
+- **Unread badge**: READ ack now bulk-updates ALL unread messages via `markConversationRead()` (was single message only)
+- **Typing broadcast**: Backend now forwards typing indicators to conversation members via PresenceUpdate (was TODO/log-only)
+
 ### Added — Messaging Module (Week 2)
 - **Domain models**: Conversation, ConversationMember, Message, MessageDeliveryStatus with enums (ConversationType, MemberRole, ContentType, DeliveryStatus)
 - **Domain events**: MessageSentEvent, MessageDeliveredEvent

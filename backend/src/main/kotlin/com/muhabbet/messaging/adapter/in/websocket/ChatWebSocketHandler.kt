@@ -5,6 +5,8 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
@@ -25,7 +27,8 @@ class ChatWebSocketHandler(
     private val jwtProvider: JwtProvider,
     private val sessionManager: WebSocketSessionManager,
     private val sendMessageUseCase: SendMessageUseCase,
-    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
+    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
+    private val conversationRepository: ConversationRepository
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -142,8 +145,23 @@ class ChatWebSocketHandler(
     }
 
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
-        // TODO: broadcast typing indicator to conversation members
-        log.debug("Typing indicator: userId={}, conv={}, isTyping={}", userId, msg.conversationId, msg.isTyping)
+        val conversationId = UUID.fromString(msg.conversationId)
+        val members = conversationRepository.findMembersByConversationId(conversationId)
+        val recipientIds = members.map { it.userId }.filter { it != userId }
+
+        val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
+        val presenceUpdate = WsMessage.PresenceUpdate(
+            userId = userId.toString(),
+            conversationId = msg.conversationId,
+            status = status
+        )
+        val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
+
+        recipientIds.forEach { recipientId ->
+            if (sessionManager.isOnline(recipientId)) {
+                sessionManager.sendToUser(recipientId, json)
+            }
+        }
     }
 
     private fun sendPong(session: WebSocketSession) {

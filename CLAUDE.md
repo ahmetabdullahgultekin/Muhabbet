@@ -138,10 +138,12 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 MVP — solo engineer. Focus on shipping 1:1 messaging first:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
 2. ~~1:1 messaging (WebSocket)~~ — **DONE**
-3. Media sharing (images)
-4. Contacts sync
-5. Push notifications
-6. Presence (online/typing)
+3. ~~Mobile app (CMP Android)~~ — **DONE** (auth, chat, settings, dark mode, pull-to-refresh, pagination)
+4. ~~Contacts sync~~ — **DONE** (Android; iOS stubbed)
+5. ~~Typing indicators~~ — **DONE** (send, receive, backend broadcast)
+6. Media sharing (images) — PLANNED
+7. Push notifications — PLANNED
+8. Presence (online/last seen) — PLANNED
 
 E2E encryption deferred to Phase 2 (TLS-only for MVP).
 
@@ -172,3 +174,21 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
 - **Phone numbers for testing**: Never use real-looking Turkish numbers. Prefix `+90500` is safe (unallocated by BTK)
 - **serializer<Any>()** doesn't work well in KMP for API responses — always use the concrete type (e.g., `patch<UserProfile>`)
 - **ADB serial != device name**: ADB shows serial number (e.g., `MVFUC6GMNNINAU5D`), not model name
+- **WsClient.send() was a silent no-op**: `session?.outgoing?.send()` does nothing when session is null — must throw instead so callers can handle the error. Fixed to `session ?: throw Exception("WebSocket not connected")`
+- **Unread badge never cleared**: Backend `updateDeliveryStatus` only updated ONE message. READ ack should bulk-update ALL unread messages via `markConversationRead()` + update `last_read_at` on `conversation_members`
+- **Backend ConversationController was returning null for participant data**: Must inject `UserRepository` and lookup user displayName/phoneNumber when building `ParticipantResponse`
+- **JWT for scripts/bots**: JWT must include `iss: "muhabbet"` claim (validated by `requireIssuer`). Use HMAC-SHA with `JWT_SECRET` env var
+- **Test Bot script**: `infra/scripts/test_bot.py` — Python script that connects as Test Bot via WS and auto-replies. Requires `pip install PyJWT websockets`
+- **Python on Windows**: Console encoding breaks with emojis — use `sys.stdout.reconfigure(encoding="utf-8")` and `PYTHONUNBUFFERED=1` for background execution
+- **WsMessage type discriminators** (critical — JSON `type` field values from `@SerialName`):
+  - `message.send` = SendMessage (client→server)
+  - `message.ack` = AckMessage (client→server)
+  - `presence.typing` = TypingIndicator (client→server)
+  - `presence.online` = GoOnline (client→server)
+  - `message.new` = NewMessage (server→client, broadcast)
+  - `message.status` = StatusUpdate (server→client)
+  - `ack` = ServerAck (server→client, response to send)
+  - `error` = Error (server→client)
+  - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
+- **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
+- **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever

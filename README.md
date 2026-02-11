@@ -35,9 +35,11 @@ muhabbet/
 | Users | Done | `GET /api/v1/users/me`, `PATCH /api/v1/users/me` |
 | Messaging | Done | `POST /api/v1/conversations`, `GET /api/v1/conversations`, `GET /api/v1/conversations/{id}/messages` |
 | WebSocket | Done | `wss://host/ws?token={jwt}` — SendMessage, AckMessage, TypingIndicator, Ping/Pong |
+| Contacts | Done | `POST /api/v1/contacts/sync` — phone hash matching |
 | Media | Planned | Upload/download via MinIO |
-| Presence | Planned | Online/typing indicators |
+| Presence | In Progress | Typing indicators (done), online/last seen (planned) |
 | Notification | Planned | Push via FCM |
+| Mobile | Done | CMP Android app — auth, messaging, settings, dark mode, contacts |
 
 ## Quick Start
 
