@@ -29,6 +29,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.platform.getDeviceModel
+import com.muhabbet.app.platform.getPlatformName
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
@@ -157,8 +159,8 @@ fun OtpVerifyScreen(
                         val result = authRepository.verifyOtp(
                             phoneNumber = phoneNumber,
                             otp = otp,
-                            deviceName = "Android",
-                            platform = "android"
+                            deviceName = getDeviceModel(),
+                            platform = getPlatformName()
                         )
                         onOtpVerified(result.isNewUser)
                     } catch (e: Exception) {

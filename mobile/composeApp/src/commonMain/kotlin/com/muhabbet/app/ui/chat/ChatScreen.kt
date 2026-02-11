@@ -33,6 +33,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -53,7 +55,11 @@ import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.shared.model.PresenceStatus
+import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -73,10 +79,22 @@ fun ChatScreen(
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
     var messageText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
+    var isLoadingMore by remember { mutableStateOf(false) }
     var nextCursor by remember { mutableStateOf<String?>(null) }
+    var peerTyping by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val currentUserId = tokenStorage.getUserId()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val errorLoadMsg = stringResource(Res.string.error_load_messages)
+    val errorSendMsg = stringResource(Res.string.error_send_failed)
+    val typingText = stringResource(Res.string.chat_typing)
+
+    // Typing indicator state
+    var typingJob by remember { mutableStateOf<Job?>(null) }
+    var isTypingSent by remember { mutableStateOf(false) }
+    var typingDismissJob by remember { mutableStateOf<Job?>(null) }
 
     // Load initial messages
     LaunchedEffect(conversationId) {
@@ -84,26 +102,82 @@ fun ChatScreen(
             val result = messageRepository.getMessages(conversationId)
             messages = result.items.reversed() // oldest first
             nextCursor = result.nextCursor
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
         isLoading = false
     }
 
-    // Listen for real-time messages
+    // Listen for real-time WS messages
     LaunchedEffect(conversationId) {
         wsClient.incoming.collect { wsMessage ->
-            if (wsMessage is WsMessage.NewMessage && wsMessage.conversationId == conversationId) {
-                val now = kotlinx.datetime.Clock.System.now()
-                val serverTs = kotlinx.datetime.Instant.fromEpochMilliseconds(wsMessage.serverTimestamp)
-                val newMsg = Message(
-                    id = wsMessage.messageId,
-                    conversationId = wsMessage.conversationId,
-                    senderId = wsMessage.senderId,
-                    contentType = wsMessage.contentType,
-                    content = wsMessage.content,
-                    serverTimestamp = serverTs,
-                    clientTimestamp = now
-                )
-                messages = messages + newMsg
+            when (wsMessage) {
+                is WsMessage.NewMessage -> {
+                    if (wsMessage.conversationId == conversationId) {
+                        val now = kotlinx.datetime.Clock.System.now()
+                        val serverTs = kotlinx.datetime.Instant.fromEpochMilliseconds(wsMessage.serverTimestamp)
+                        val newMsg = Message(
+                            id = wsMessage.messageId,
+                            conversationId = wsMessage.conversationId,
+                            senderId = wsMessage.senderId,
+                            contentType = wsMessage.contentType,
+                            content = wsMessage.content,
+                            serverTimestamp = serverTs,
+                            clientTimestamp = now
+                        )
+                        messages = messages + newMsg
+                        // Send DELIVERED ack
+                        if (wsMessage.senderId != currentUserId) {
+                            wsClient.send(
+                                WsMessage.AckMessage(
+                                    messageId = wsMessage.messageId,
+                                    conversationId = wsMessage.conversationId,
+                                    status = MessageStatus.DELIVERED
+                                )
+                            )
+                        }
+                    }
+                }
+                is WsMessage.ServerAck -> {
+                    if (wsMessage.status == AckStatus.OK) {
+                        messages = messages.map { msg ->
+                            if (msg.id == wsMessage.messageId) {
+                                val ts = wsMessage.serverTimestamp?.let {
+                                    kotlinx.datetime.Instant.fromEpochMilliseconds(it)
+                                }
+                                msg.copy(
+                                    status = MessageStatus.SENT,
+                                    serverTimestamp = ts ?: msg.serverTimestamp
+                                )
+                            } else msg
+                        }
+                    } else {
+                        scope.launch { snackbarHostState.showSnackbar(errorSendMsg) }
+                    }
+                }
+                is WsMessage.StatusUpdate -> {
+                    if (wsMessage.conversationId == conversationId) {
+                        messages = messages.map { msg ->
+                            if (msg.id == wsMessage.messageId) {
+                                msg.copy(status = wsMessage.status)
+                            } else msg
+                        }
+                    }
+                }
+                is WsMessage.PresenceUpdate -> {
+                    if (wsMessage.conversationId == conversationId &&
+                        wsMessage.status == PresenceStatus.TYPING &&
+                        wsMessage.userId != currentUserId
+                    ) {
+                        peerTyping = true
+                        typingDismissJob?.cancel()
+                        typingDismissJob = scope.launch {
+                            delay(3000)
+                            peerTyping = false
+                        }
+                    }
+                }
+                else -> {}
             }
         }
     }
@@ -115,10 +189,35 @@ fun ChatScreen(
         }
     }
 
+    // Pagination — load older messages when scrolled to top
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        if (listState.firstVisibleItemIndex <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
+            isLoadingMore = true
+            try {
+                val result = messageRepository.getMessages(conversationId, cursor = nextCursor)
+                val olderMessages = result.items.reversed()
+                messages = olderMessages + messages
+                nextCursor = result.nextCursor
+            } catch (_: Exception) { }
+            isLoadingMore = false
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(conversationName) },
+                title = {
+                    Column {
+                        Text(conversationName)
+                        if (peerTyping) {
+                            Text(
+                                text = typingText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -133,7 +232,8 @@ fun ChatScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).imePadding()
@@ -148,6 +248,16 @@ fun ChatScreen(
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    if (isLoadingMore) {
+                        item(key = "loading_more") {
+                            Box(
+                                Modifier.fillMaxWidth().padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
+                        }
+                    }
                     items(messages, key = { it.id }) { message ->
                         MessageBubble(
                             message = message,
@@ -164,7 +274,24 @@ fun ChatScreen(
             ) {
                 OutlinedTextField(
                     value = messageText,
-                    onValueChange = { messageText = it },
+                    onValueChange = { newText ->
+                        messageText = newText
+                        // Send typing indicator
+                        if (newText.isNotEmpty()) {
+                            if (!isTypingSent) {
+                                scope.launch {
+                                    wsClient.send(WsMessage.TypingIndicator(conversationId, true))
+                                }
+                                isTypingSent = true
+                            }
+                            typingJob?.cancel()
+                            typingJob = scope.launch {
+                                delay(3000)
+                                wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                                isTypingSent = false
+                            }
+                        }
+                    },
                     placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
                     modifier = Modifier.weight(1f),
                     maxLines = 4,
@@ -178,6 +305,14 @@ fun ChatScreen(
                         if (messageText.isBlank()) return@FilledIconButton
                         val text = messageText
                         messageText = ""
+                        // Cancel typing indicator
+                        typingJob?.cancel()
+                        if (isTypingSent) {
+                            scope.launch {
+                                wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                            }
+                            isTypingSent = false
+                        }
                         scope.launch {
                             val messageId = generateMessageId()
                             val requestId = generateMessageId()

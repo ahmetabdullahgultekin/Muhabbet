@@ -5,6 +5,10 @@
     <string name="chat_default_name">Sohbet</string>
     <string name="unknown">Bilinmeyen</string>
     <string name="error_generic">Bir hata oluştu</string>
+    <string name="error_network">Bağlantı hatası. Lütfen tekrar deneyin.</string>
+    <string name="error_load_conversations">Konuşmalar yüklenemedi</string>
+    <string name="error_load_messages">Mesajlar yüklenemedi</string>
+    <string name="error_send_failed">Mesaj gönderilemedi</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -40,9 +44,35 @@
 
     <!-- ChatScreen -->
     <string name="chat_message_placeholder">Mesaj yazın...</string>
+    <string name="chat_typing">yazıyor...</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">Yeni Konuşma</string>
     <string name="new_conversation_contacts_required">Rehber erişimi gerekli</string>
     <string name="new_conversation_contacts_hint">Muhabbet kullanan kişilerinizi görmek için rehber erişimi verin</string>
+
+    <!-- Logout Dialog -->
+    <string name="logout_confirm_title">Çıkış Yap</string>
+    <string name="logout_confirm_message">Hesabınızdan çıkış yapmak istediğinize emin misiniz?</string>
+    <string name="logout_confirm_yes">Çıkış Yap</string>
+    <string name="logout_confirm_no">İptal</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_profile_section">Profil</string>
+    <string name="settings_display_name">Görünen ad</string>
+    <string name="settings_about">Hakkında</string>
+    <string name="settings_about_placeholder">Muhabbet kullanıyorum</string>
+    <string name="settings_save">Kaydet</string>
+    <string name="settings_app_section">Uygulama</string>
+    <string name="settings_version">Sürüm</string>
+    <string name="settings_logout">Çıkış Yap</string>
+    <string name="settings_profile_updated">Profil güncellendi</string>
+
+    <!-- Contacts -->
+    <string name="contacts_grant_access">Rehber Erişimi Ver</string>
+    <string name="contacts_permission_denied">Rehber erişimi reddedildi. Kişilerinizi görmek için ayarlardan izin verin.</string>
+    <string name="contacts_syncing">Kişiler eşleştiriliyor...</string>
+    <string name="contacts_none_found">Muhabbet kullanan kişi bulunamadı</string>
+    <string name="contacts_search_placeholder">Kişi ara...</string>
 </resources>

@@ -5,6 +5,10 @@
     <string name="chat_default_name">Chat</string>
     <string name="unknown">Unknown</string>
     <string name="error_generic">An error occurred</string>
+    <string name="error_network">Connection error. Please try again.</string>
+    <string name="error_load_conversations">Failed to load conversations</string>
+    <string name="error_load_messages">Failed to load messages</string>
+    <string name="error_send_failed">Failed to send message</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -40,9 +44,35 @@
 
     <!-- ChatScreen -->
     <string name="chat_message_placeholder">Type a message...</string>
+    <string name="chat_typing">typing...</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">New Conversation</string>
     <string name="new_conversation_contacts_required">Contacts access required</string>
     <string name="new_conversation_contacts_hint">Grant contacts access to see people using Muhabbet</string>
+
+    <!-- Logout Dialog -->
+    <string name="logout_confirm_title">Log Out</string>
+    <string name="logout_confirm_message">Are you sure you want to log out?</string>
+    <string name="logout_confirm_yes">Log Out</string>
+    <string name="logout_confirm_no">Cancel</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_profile_section">Profile</string>
+    <string name="settings_display_name">Display name</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_placeholder">Using Muhabbet</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_app_section">App</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_logout">Log Out</string>
+    <string name="settings_profile_updated">Profile updated</string>
+
+    <!-- Contacts -->
+    <string name="contacts_grant_access">Grant Access</string>
+    <string name="contacts_permission_denied">Contacts access denied. Enable in system settings to see your contacts.</string>
+    <string name="contacts_syncing">Syncing contacts...</string>
+    <string name="contacts_none_found">No contacts found using Muhabbet</string>
+    <string name="contacts_search_placeholder">Search contacts...</string>
 </resources>
