@@ -3,6 +3,9 @@ FROM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /app
 
+# Skip mobile module in Docker build (no Android SDK available)
+ENV SKIP_MOBILE=true
+
 # Copy Gradle files first (cache dependencies layer)
 COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY gradle/ gradle/
@@ -24,6 +27,9 @@ RUN ./gradlew :backend:bootJar --no-daemon -x test
 FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -r muhabbet && useradd -r -g muhabbet muhabbet

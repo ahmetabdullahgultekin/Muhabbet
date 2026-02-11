@@ -1,0 +1,16 @@
+# HTTP-only config for initial SSL certificate acquisition.
+# Used temporarily during first deployment — replaced by default.conf after certbot runs.
+server {
+    listen 80;
+    server_name muhabbet.rollingcatsoftware.com;
+
+    # Let's Encrypt ACME challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Return 503 for everything else (service not ready yet)
+    location / {
+        return 503;
+    }
+}

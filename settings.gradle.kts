@@ -17,4 +17,6 @@ dependencyResolutionManagement {
 
 include(":backend")
 include(":shared")
-include(":mobile:composeApp")
+if (System.getenv("SKIP_MOBILE") != "true") {
+    include(":mobile:composeApp")
+}

@@ -21,13 +21,11 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       JWT_SECRET: ${JWT_SECRET}
-      NETGSM_USERCODE: ${NETGSM_USERCODE}
-      NETGSM_PASSWORD: ${NETGSM_PASSWORD}
-      FCM_ENABLED: "true"
-      FCM_CREDENTIALS_PATH: /app/firebase-adminsdk.json
-      SENTRY_DSN: ${SENTRY_DSN}
-    volumes:
-      - ../firebase-adminsdk.json:/app/firebase-adminsdk.json:ro
+      OTP_MOCK_ENABLED: "true"
+      NETGSM_USERCODE: ${NETGSM_USERCODE:-}
+      NETGSM_PASSWORD: ${NETGSM_PASSWORD:-}
+      FCM_ENABLED: "false"
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy
