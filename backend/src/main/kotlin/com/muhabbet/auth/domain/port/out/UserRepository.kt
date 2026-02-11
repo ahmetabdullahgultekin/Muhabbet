@@ -6,6 +6,7 @@ import java.util.UUID
 interface UserRepository {
     fun findByPhoneNumber(phoneNumber: String): User?
     fun findById(id: UUID): User?
+    fun findAllByIds(ids: List<UUID>): List<User>
     fun save(user: User): User
     fun existsByPhoneNumber(phoneNumber: String): Boolean
 }

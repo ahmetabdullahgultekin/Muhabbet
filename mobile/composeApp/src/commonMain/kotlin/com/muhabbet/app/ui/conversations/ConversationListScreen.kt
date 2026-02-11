@@ -162,9 +162,12 @@ fun ConversationListScreen(
             } else {
                 LazyColumn {
                     items(conversations, key = { it.id }) { conv ->
-                        val resolvedName = conv.name ?: conv.participants
+                        val otherParticipant = conv.participants
                             .firstOrNull { it.userId != currentUserId }
-                            ?.displayName ?: defaultChatName
+                        val resolvedName = conv.name
+                            ?: otherParticipant?.displayName
+                            ?: otherParticipant?.phoneNumber
+                            ?: defaultChatName
                         ConversationItem(
                             conversation = conv,
                             displayName = resolvedName,

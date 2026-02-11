@@ -122,6 +122,7 @@ data class ConversationResponse(
 data class ParticipantResponse(
     val userId: String,
     val displayName: String?,
+    val phoneNumber: String? = null,
     val avatarUrl: String?,
     val role: MemberRole,
     val isOnline: Boolean

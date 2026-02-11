@@ -3,6 +3,7 @@ package com.muhabbet.app.ui.chat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -111,7 +112,12 @@ fun ChatScreen(
             val result = messageRepository.getMessages(conversationId)
             messages = result.items.reversed() // oldest first
             nextCursor = result.nextCursor
-            // Mark latest message as READ to clear unread badge
+        } catch (_: Exception) {
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
+        isLoading = false
+        // Mark latest message as READ to clear unread badge (separate from load)
+        try {
             messages.lastOrNull { it.senderId != currentUserId }?.let { lastMsg ->
                 wsClient.send(
                     WsMessage.AckMessage(
@@ -121,10 +127,7 @@ fun ChatScreen(
                     )
                 )
             }
-        } catch (_: Exception) {
-            snackbarHostState.showSnackbar(errorLoadMsg)
-        }
-        isLoading = false
+        } catch (_: Exception) { /* WS may not be connected yet */ }
     }
 
     // Listen for real-time WS messages
@@ -268,9 +271,10 @@ fun ChatScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     state = listState,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (isLoadingMore) {
                         item(key = "loading_more") {
@@ -292,8 +296,9 @@ fun ChatScreen(
             }
 
             // Message input
+            Surface(tonalElevation = 2.dp) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
@@ -337,30 +342,39 @@ fun ChatScreen(
                             }
                             isTypingSent = false
                         }
+                        val messageId = generateMessageId()
+                        val requestId = generateMessageId()
+                        // Optimistic: add to local list FIRST (before WS send)
+                        val now = kotlinx.datetime.Clock.System.now()
+                        val optimistic = Message(
+                            id = messageId,
+                            conversationId = conversationId,
+                            senderId = currentUserId,
+                            contentType = ContentType.TEXT,
+                            content = text,
+                            status = MessageStatus.SENDING,
+                            clientTimestamp = now
+                        )
+                        messages = messages + optimistic
+                        // Then send via WebSocket
                         scope.launch {
-                            val messageId = generateMessageId()
-                            val requestId = generateMessageId()
-                            wsClient.send(
-                                WsMessage.SendMessage(
-                                    requestId = requestId,
-                                    messageId = messageId,
-                                    conversationId = conversationId,
-                                    content = text,
-                                    contentType = ContentType.TEXT
+                            try {
+                                wsClient.send(
+                                    WsMessage.SendMessage(
+                                        requestId = requestId,
+                                        messageId = messageId,
+                                        conversationId = conversationId,
+                                        content = text,
+                                        contentType = ContentType.TEXT
+                                    )
                                 )
-                            )
-                            // Optimistic: add to local list
-                            val now = kotlinx.datetime.Clock.System.now()
-                            val optimistic = Message(
-                                id = messageId,
-                                conversationId = conversationId,
-                                senderId = currentUserId,
-                                contentType = ContentType.TEXT,
-                                content = text,
-                                status = MessageStatus.SENDING,
-                                clientTimestamp = now
-                            )
-                            messages = messages + optimistic
+                            } catch (_: Exception) {
+                                // Mark as failed if WS send fails
+                                messages = messages.map { msg ->
+                                    if (msg.id == messageId) msg.copy(status = MessageStatus.SENDING)
+                                    else msg
+                                }
+                            }
                         }
                     },
                     enabled = messageText.isNotBlank(),
@@ -378,6 +392,7 @@ fun ChatScreen(
                     )
                 }
             }
+            }
         }
     }
 }
@@ -385,7 +400,7 @@ fun ChatScreen(
 @Composable
 private fun MessageBubble(message: Message, isOwn: Boolean) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
         Surface(

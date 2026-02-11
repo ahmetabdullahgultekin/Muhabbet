@@ -18,6 +18,9 @@ class UserPersistenceAdapter(
     override fun findById(id: UUID): User? =
         springDataUserRepository.findById(id).orElse(null)?.toDomain()
 
+    override fun findAllByIds(ids: List<UUID>): List<User> =
+        springDataUserRepository.findAllById(ids).map { it.toDomain() }
+
     override fun save(user: User): User =
         springDataUserRepository.save(UserJpaEntity.fromDomain(user)).toDomain()
 

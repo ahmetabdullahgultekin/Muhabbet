@@ -9,6 +9,7 @@ import com.muhabbet.shared.dto.CreateConversationRequest
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole as SharedMemberRole
+import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -24,7 +25,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/conversations")
 class ConversationController(
     private val createConversationUseCase: CreateConversationUseCase,
-    private val getConversationsUseCase: GetConversationsUseCase
+    private val getConversationsUseCase: GetConversationsUseCase,
+    private val userRepository: UserRepository
 ) {
 
     @PostMapping
@@ -43,16 +45,21 @@ class ConversationController(
             name = request.name
         )
 
+        val memberUserIds = result.members.map { it.userId }
+        val usersMap = userRepository.findAllByIds(memberUserIds).associateBy { it.id }
+
         val response = ConversationResponse(
             id = result.conversation.id.toString(),
             type = request.type,
             name = result.conversation.name,
             avatarUrl = result.conversation.avatarUrl,
             participants = result.members.map { m ->
+                val user = usersMap[m.userId]
                 ParticipantResponse(
                     userId = m.userId.toString(),
-                    displayName = null,
-                    avatarUrl = null,
+                    displayName = user?.displayName,
+                    phoneNumber = user?.phoneNumber,
+                    avatarUrl = user?.avatarUrl,
                     role = SharedMemberRole.valueOf(m.role.name),
                     isOnline = false
                 )
@@ -74,6 +81,9 @@ class ConversationController(
         val userId = AuthenticatedUser.currentUserId()
         val page = getConversationsUseCase.getConversations(userId, cursor, limit)
 
+        val allParticipantIds = page.items.flatMap { it.participantIds }.distinct()
+        val usersMap = userRepository.findAllByIds(allParticipantIds).associateBy { it.id }
+
         val items = page.items.map { summary ->
             ConversationResponse(
                 id = summary.conversationId.toString(),
@@ -81,10 +91,12 @@ class ConversationController(
                 name = summary.name,
                 avatarUrl = summary.avatarUrl,
                 participants = summary.participantIds.map { pid ->
+                    val user = usersMap[pid]
                     ParticipantResponse(
                         userId = pid.toString(),
-                        displayName = null,
-                        avatarUrl = null,
+                        displayName = user?.displayName,
+                        phoneNumber = user?.phoneNumber,
+                        avatarUrl = user?.avatarUrl,
                         role = SharedMemberRole.MEMBER,
                         isOnline = false
                     )
