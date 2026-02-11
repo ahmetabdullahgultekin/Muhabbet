@@ -41,7 +41,7 @@ module/
 
 ### Modules
 - `auth` — **DONE** — OTP via MockOtpSender (Netgsm later), JWT HS256, device management, phone hash for contact sync
-- `messaging` — **IN PROGRESS** — Send/receive messages, delivery status, conversation management
+- `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination
 - `media` — PLANNED — Upload/download via MinIO (S3 API), thumbnail generation
 - `presence` — PLANNED — Online/offline tracking, typing indicators (Redis-backed)
 - `notification` — PLANNED — Push notifications via FCM
@@ -137,7 +137,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 ## Current Phase
 MVP — solo engineer. Focus on shipping 1:1 messaging first:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
-2. 1:1 messaging (WebSocket) — **IN PROGRESS**
+2. ~~1:1 messaging (WebSocket)~~ — **DONE**
 3. Media sharing (images)
 4. Contacts sync
 5. Push notifications

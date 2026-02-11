@@ -33,8 +33,8 @@ muhabbet/
 |--------|--------|-----------|
 | Auth | Done | `POST /api/v1/auth/otp/request`, `otp/verify`, `token/refresh`, `logout` |
 | Users | Done | `GET /api/v1/users/me`, `PATCH /api/v1/users/me` |
-| Messaging | In Progress | Conversations CRUD, message history |
-| WebSocket | In Progress | Real-time messaging |
+| Messaging | Done | `POST /api/v1/conversations`, `GET /api/v1/conversations`, `GET /api/v1/conversations/{id}/messages` |
+| WebSocket | Done | `wss://host/ws?token={jwt}` — SendMessage, AckMessage, TypingIndicator, Ping/Pong |
 | Media | Planned | Upload/download via MinIO |
 | Presence | Planned | Online/typing indicators |
 | Notification | Planned | Push via FCM |

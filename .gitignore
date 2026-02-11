@@ -15,7 +15,7 @@ build/
 *.class
 *.jar
 *.war
-out/
+/out/
 
 # ─── Spring Boot ──────────────────────────
 application-local.yml

@@ -7,9 +7,14 @@ import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
+import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.service.MessagingService
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -48,5 +53,20 @@ class AppConfig {
         otpCooldownSeconds = otpProperties.cooldownSeconds,
         otpMaxAttempts = otpProperties.maxAttempts,
         refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry
+    )
+
+    @Bean
+    fun messagingService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        userRepository: UserRepository,
+        messageBroadcaster: MessageBroadcaster,
+        eventPublisher: ApplicationEventPublisher
+    ): MessagingService = MessagingService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        userRepository = userRepository,
+        messageBroadcaster = messageBroadcaster,
+        eventPublisher = eventPublisher
     )
 }
