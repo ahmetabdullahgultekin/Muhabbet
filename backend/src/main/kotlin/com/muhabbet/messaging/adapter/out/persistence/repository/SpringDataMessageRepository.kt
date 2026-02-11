@@ -14,11 +14,21 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         SELECT m FROM MessageJpaEntity m
         WHERE m.conversationId = :conversationId
           AND m.isDeleted = false
-          AND (:before IS NULL OR m.serverTimestamp < :before)
+          AND m.serverTimestamp < :before
         ORDER BY m.serverTimestamp DESC
         """
     )
-    fun findByConversationIdBefore(conversationId: UUID, before: Instant?, pageable: Pageable): List<MessageJpaEntity>
+    fun findByConversationIdBefore(conversationId: UUID, before: Instant, pageable: Pageable): List<MessageJpaEntity>
+
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.conversationId = :conversationId
+          AND m.isDeleted = false
+        ORDER BY m.serverTimestamp DESC
+        """
+    )
+    fun findByConversationIdLatest(conversationId: UUID, pageable: Pageable): List<MessageJpaEntity>
 
     @Query(
         """

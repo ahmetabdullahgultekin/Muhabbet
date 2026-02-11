@@ -28,9 +28,15 @@ class MessagePersistenceAdapter(
     override fun existsById(id: UUID): Boolean =
         messageRepo.existsById(id)
 
-    override fun findByConversationId(conversationId: UUID, before: Instant?, limit: Int): List<Message> =
-        messageRepo.findByConversationIdBefore(conversationId, before, PageRequest.of(0, limit))
-            .map { it.toDomain() }
+    override fun findByConversationId(conversationId: UUID, before: Instant?, limit: Int): List<Message> {
+        val pageable = PageRequest.of(0, limit)
+        val entities = if (before != null) {
+            messageRepo.findByConversationIdBefore(conversationId, before, pageable)
+        } else {
+            messageRepo.findByConversationIdLatest(conversationId, pageable)
+        }
+        return entities.map { it.toDomain() }
+    }
 
     override fun findUndeliveredForUser(userId: UUID, since: Instant?): List<Message> {
         // This will be used by WebSocket reconnect — implemented when WS is added
@@ -49,7 +55,7 @@ class MessagePersistenceAdapter(
     }
 
     override fun getUnreadCount(conversationId: UUID, userId: UUID): Int =
-        deliveryStatusRepo.countUnread(conversationId, userId)
+        deliveryStatusRepo.countUnread(conversationId, userId, DeliveryStatus.READ)
 
     override fun getLastMessage(conversationId: UUID): Message? =
         messageRepo.findLastByConversationId(conversationId)?.toDomain()
