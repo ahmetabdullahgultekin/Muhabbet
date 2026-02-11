@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <!-- Common -->
+    <string name="app_name">Muhabbet</string>
+    <string name="chat_default_name">Chat</string>
+    <string name="unknown">Unknown</string>
+    <string name="error_generic">An error occurred</string>
+
+    <!-- PhoneInputScreen -->
+    <string name="phone_title">Muhabbet</string>
+    <string name="phone_subtitle">Enter your phone number</string>
+    <string name="phone_label">Phone number</string>
+    <string name="phone_placeholder">+905XXXXXXXXX</string>
+    <string name="phone_continue">Continue</string>
+    <string name="phone_invalid">Invalid phone number</string>
+
+    <!-- OtpVerifyScreen -->
+    <string name="otp_title">Verification Code</string>
+    <string name="otp_subtitle">Enter the 6-digit code sent to %1$s</string>
+    <string name="otp_label">Verification code</string>
+    <string name="otp_placeholder">000000</string>
+    <string name="otp_verify">Verify</string>
+    <string name="otp_countdown">Code valid for: %1$s</string>
+    <string name="otp_expired">Code has expired</string>
+    <string name="otp_resend">Resend</string>
+    <string name="otp_verify_failed">Verification failed</string>
+    <string name="otp_change_number">Change Number</string>
+
+    <!-- ProfileSetupScreen -->
+    <string name="profile_title">Create Your Profile</string>
+    <string name="profile_subtitle">Enter a name so your friends can recognize you</string>
+    <string name="profile_name_label">Display name</string>
+    <string name="profile_name_error">Display name must be 1-64 characters</string>
+    <string name="profile_start">Get Started</string>
+    <string name="profile_update_failed">Profile update failed</string>
+
+    <!-- ConversationListScreen -->
+    <string name="conversations_empty_title">No conversations yet</string>
+    <string name="conversations_empty_subtitle">Tap the + button to start a new conversation</string>
+
+    <!-- ChatScreen -->
+    <string name="chat_message_placeholder">Type a message...</string>
+
+    <!-- NewConversationScreen -->
+    <string name="new_conversation_title">New Conversation</string>
+    <string name="new_conversation_contacts_required">Contacts access required</string>
+    <string name="new_conversation_contacts_hint">Grant contacts access to see people using Muhabbet</string>
+</resources>

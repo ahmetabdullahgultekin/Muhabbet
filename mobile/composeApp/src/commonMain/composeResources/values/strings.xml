@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <!-- Common -->
+    <string name="app_name">Muhabbet</string>
+    <string name="chat_default_name">Sohbet</string>
+    <string name="unknown">Bilinmeyen</string>
+    <string name="error_generic">Bir hata oluştu</string>
+
+    <!-- PhoneInputScreen -->
+    <string name="phone_title">Muhabbet</string>
+    <string name="phone_subtitle">Telefon numaranızı girin</string>
+    <string name="phone_label">Telefon numarası</string>
+    <string name="phone_placeholder">+905XXXXXXXXX</string>
+    <string name="phone_continue">Devam Et</string>
+    <string name="phone_invalid">Geçersiz telefon numarası</string>
+
+    <!-- OtpVerifyScreen -->
+    <string name="otp_title">Doğrulama Kodu</string>
+    <string name="otp_subtitle">%1$s numarasına gönderilen 6 haneli kodu girin</string>
+    <string name="otp_label">Doğrulama kodu</string>
+    <string name="otp_placeholder">000000</string>
+    <string name="otp_verify">Doğrula</string>
+    <string name="otp_countdown">Kod geçerliliği: %1$s</string>
+    <string name="otp_expired">Kodun süresi doldu</string>
+    <string name="otp_resend">Tekrar Gönder</string>
+    <string name="otp_verify_failed">Doğrulama başarısız</string>
+    <string name="otp_change_number">Numarayı Değiştir</string>
+
+    <!-- ProfileSetupScreen -->
+    <string name="profile_title">Profilinizi Oluşturun</string>
+    <string name="profile_subtitle">Arkadaşlarınızın sizi tanıyabilmesi için bir isim girin</string>
+    <string name="profile_name_label">Görünen ad</string>
+    <string name="profile_name_error">Görünen ad 1-64 karakter olmalı</string>
+    <string name="profile_start">Başla</string>
+    <string name="profile_update_failed">Profil güncelleme başarısız</string>
+
+    <!-- ConversationListScreen -->
+    <string name="conversations_empty_title">Henüz konuşma yok</string>
+    <string name="conversations_empty_subtitle">Yeni bir konuşma başlatmak için + butonuna basın</string>
+
+    <!-- ChatScreen -->
+    <string name="chat_message_placeholder">Mesaj yazın...</string>
+
+    <!-- NewConversationScreen -->
+    <string name="new_conversation_title">Yeni Konuşma</string>
+    <string name="new_conversation_contacts_required">Rehber erişimi gerekli</string>
+    <string name="new_conversation_contacts_hint">Muhabbet kullanan kişilerinizi görmek için rehber erişimi verin</string>
+</resources>
