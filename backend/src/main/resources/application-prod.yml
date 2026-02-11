@@ -14,8 +14,11 @@ logging:
   pattern:
     console: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","logger":"%logger{36}","thread":"%thread","message":"%msg"}%n'
 
+sentry:
+  dsn: ${SENTRY_DSN:}
+
 muhabbet:
   otp:
-    mock-enabled: false
+    mock-enabled: ${OTP_MOCK_ENABLED:false}
   fcm:
-    enabled: true
+    enabled: ${FCM_ENABLED:false}
