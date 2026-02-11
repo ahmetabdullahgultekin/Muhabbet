@@ -72,7 +72,7 @@ class AuthRepository(
     }
 
     suspend fun updateProfile(displayName: String? = null, about: String? = null) {
-        apiClient.patch<Any>("/api/v1/users/me", UpdateProfileRequest(displayName = displayName, about = about))
+        apiClient.patch<UserProfile>("/api/v1/users/me", UpdateProfileRequest(displayName = displayName, about = about))
     }
 
     fun logout() {

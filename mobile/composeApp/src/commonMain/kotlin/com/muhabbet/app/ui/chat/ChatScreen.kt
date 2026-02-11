@@ -49,6 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.snapshotFlow
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.MessageRepository
@@ -61,6 +63,8 @@ import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -84,8 +88,13 @@ fun ChatScreen(
     var peerTyping by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    val currentUserId = tokenStorage.getUserId()
+    val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Debug: log currentUserId
+    LaunchedEffect(Unit) {
+        println("ChatScreen: currentUserId=$currentUserId")
+    }
 
     val errorLoadMsg = stringResource(Res.string.error_load_messages)
     val errorSendMsg = stringResource(Res.string.error_send_failed)
@@ -102,6 +111,16 @@ fun ChatScreen(
             val result = messageRepository.getMessages(conversationId)
             messages = result.items.reversed() // oldest first
             nextCursor = result.nextCursor
+            // Mark latest message as READ to clear unread badge
+            messages.lastOrNull { it.senderId != currentUserId }?.let { lastMsg ->
+                wsClient.send(
+                    WsMessage.AckMessage(
+                        messageId = lastMsg.id,
+                        conversationId = conversationId,
+                        status = MessageStatus.READ
+                    )
+                )
+            }
         } catch (_: Exception) {
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
@@ -114,6 +133,8 @@ fun ChatScreen(
             when (wsMessage) {
                 is WsMessage.NewMessage -> {
                     if (wsMessage.conversationId == conversationId) {
+                        // Skip if already in list (optimistic add for own messages)
+                        if (messages.any { it.id == wsMessage.messageId }) return@collect
                         val now = kotlinx.datetime.Clock.System.now()
                         val serverTs = kotlinx.datetime.Instant.fromEpochMilliseconds(wsMessage.serverTimestamp)
                         val newMsg = Message(
@@ -126,13 +147,13 @@ fun ChatScreen(
                             clientTimestamp = now
                         )
                         messages = messages + newMsg
-                        // Send DELIVERED ack
+                        // Send READ ack (user is actively viewing this chat)
                         if (wsMessage.senderId != currentUserId) {
                             wsClient.send(
                                 WsMessage.AckMessage(
                                     messageId = wsMessage.messageId,
                                     conversationId = wsMessage.conversationId,
-                                    status = MessageStatus.DELIVERED
+                                    status = MessageStatus.READ
                                 )
                             )
                         }
@@ -189,18 +210,21 @@ fun ChatScreen(
         }
     }
 
-    // Pagination — load older messages when scrolled to top
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        if (listState.firstVisibleItemIndex <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
-            isLoadingMore = true
-            try {
-                val result = messageRepository.getMessages(conversationId, cursor = nextCursor)
-                val olderMessages = result.items.reversed()
-                messages = olderMessages + messages
-                nextCursor = result.nextCursor
-            } catch (_: Exception) { }
-            isLoadingMore = false
-        }
+    // Pagination — auto-load older messages when scrolled to top (WhatsApp-style)
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .collect { firstVisible ->
+                if (firstVisible <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
+                    isLoadingMore = true
+                    try {
+                        val result = messageRepository.getMessages(conversationId, cursor = nextCursor)
+                        val olderMessages = result.items.reversed()
+                        messages = olderMessages + messages
+                        nextCursor = result.nextCursor
+                    } catch (_: Exception) { }
+                    isLoadingMore = false
+                }
+            }
     }
 
     Scaffold(
@@ -330,7 +354,7 @@ fun ChatScreen(
                             val optimistic = Message(
                                 id = messageId,
                                 conversationId = conversationId,
-                                senderId = currentUserId ?: "",
+                                senderId = currentUserId,
                                 contentType = ContentType.TEXT,
                                 content = text,
                                 status = MessageStatus.SENDING,
@@ -361,7 +385,7 @@ fun ChatScreen(
 @Composable
 private fun MessageBubble(message: Message, isOwn: Boolean) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
         Surface(
@@ -373,27 +397,32 @@ private fun MessageBubble(message: Message, isOwn: Boolean) {
             ),
             color = if (isOwn) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.widthIn(max = 280.dp)
+            tonalElevation = if (isOwn) 0.dp else 1.dp,
+            shadowElevation = 1.dp,
+            modifier = Modifier.widthIn(min = 80.dp, max = 300.dp)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)) {
                 Text(
                     text = message.content,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = if (isOwn) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(Modifier.height(2.dp))
 
                 // Timestamp + delivery status row
                 Row(
                     modifier = Modifier.align(Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     val timestamp = message.serverTimestamp ?: message.clientTimestamp
                     Text(
                         text = formatMessageTime(timestamp),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
 
                     if (isOwn) {
@@ -421,12 +450,8 @@ private fun MessageBubble(message: Message, isOwn: Boolean) {
 }
 
 private fun formatMessageTime(instant: kotlinx.datetime.Instant): String {
-    // Format as HH:mm using epoch math (KMP-compatible)
-    val epochSeconds = instant.epochSeconds
-    val totalMinutes = epochSeconds / 60
-    val hours = ((totalMinutes / 60) % 24).toInt()
-    val minutes = (totalMinutes % 60).toInt()
-    return "${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
+    val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
+    return "${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
 }
 
 private fun generateMessageId(): String {

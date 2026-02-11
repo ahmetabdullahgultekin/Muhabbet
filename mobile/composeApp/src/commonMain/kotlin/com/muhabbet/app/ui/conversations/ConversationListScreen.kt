@@ -34,13 +34,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,13 +46,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -66,13 +64,13 @@ fun ConversationListScreen(
     onSettings: () -> Unit,
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
-    wsClient: WsClient = koinInject()
+    wsClient: WsClient = koinInject(),
+    tokenStorage: TokenStorage = koinInject()
 ) {
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var isRefreshing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    val currentUserId = remember { tokenStorage.getUserId() ?: "" }
 
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_load_conversations)
@@ -137,52 +135,42 @@ fun ConversationListScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else {
-                PullToRefreshBox(
-                    isRefreshing = isRefreshing,
-                    onRefresh = {
-                        isRefreshing = true
-                        scope.launch {
-                            loadConversations()
-                            isRefreshing = false
-                        }
-                    }
+            } else if (conversations.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (conversations.isEmpty()) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ChatBubbleOutline,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                stringResource(Res.string.conversations_empty_title),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                stringResource(Res.string.conversations_empty_subtitle),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        LazyColumn {
-                            items(conversations, key = { it.id }) { conv ->
-                                ConversationItem(
-                                    conversation = conv,
-                                    defaultName = defaultChatName,
-                                    onClick = { onConversationClick(conv.id, conv.name ?: defaultChatName) }
-                                )
-                                HorizontalDivider()
-                            }
-                        }
+                    Icon(
+                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        stringResource(Res.string.conversations_empty_title),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(Res.string.conversations_empty_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn {
+                    items(conversations, key = { it.id }) { conv ->
+                        val resolvedName = conv.name ?: conv.participants
+                            .firstOrNull { it.userId != currentUserId }
+                            ?.displayName ?: defaultChatName
+                        ConversationItem(
+                            conversation = conv,
+                            displayName = resolvedName,
+                            onClick = { onConversationClick(conv.id, resolvedName) }
+                        )
+                        HorizontalDivider()
                     }
                 }
             }
@@ -193,7 +181,7 @@ fun ConversationListScreen(
 @Composable
 private fun ConversationItem(
     conversation: ConversationResponse,
-    defaultName: String,
+    displayName: String,
     onClick: () -> Unit
 ) {
     Row(
@@ -209,7 +197,7 @@ private fun ConversationItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = (conversation.name ?: "?").take(1).uppercase(),
+                    text = displayName.take(1).uppercase(),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -220,7 +208,7 @@ private fun ConversationItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = conversation.name ?: defaultName,
+                text = displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
