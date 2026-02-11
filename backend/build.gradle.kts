@@ -47,6 +47,12 @@ dependencies {
     // MinIO (S3-compatible media storage)
     implementation("io.minio:minio:8.5.14")
 
+    // Firebase Cloud Messaging
+    implementation("com.google.firebase:firebase-admin:9.4.2")
+
+    // Twilio SMS
+    implementation("com.twilio.sdk:twilio:10.6.4")
+
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("io.sentry:sentry-spring-boot-starter-jakarta:7.19.1")

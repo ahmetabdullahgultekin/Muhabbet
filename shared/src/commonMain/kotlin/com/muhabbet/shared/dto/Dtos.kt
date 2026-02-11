@@ -29,7 +29,8 @@ data class RequestOtpRequest(
 @Serializable
 data class RequestOtpResponse(
     val ttlSeconds: Int,                // OTP validity duration
-    val retryAfterSeconds: Int          // cooldown before next request
+    val retryAfterSeconds: Int,         // cooldown before next request
+    val mockCode: String? = null        // OTP code returned only in mock/dev mode
 )
 
 @Serializable
@@ -48,6 +49,13 @@ data class AuthTokenResponse(
     val userId: String,
     val deviceId: String,
     val isNewUser: Boolean
+)
+
+@Serializable
+data class FirebaseVerifyRequest(
+    val idToken: String,
+    val deviceName: String,
+    val platform: String
 )
 
 @Serializable
@@ -79,6 +87,13 @@ data class MatchedContact(
     val phoneHash: String,
     val displayName: String?,
     val avatarUrl: String?
+)
+
+// ─── Device DTOs ─────────────────────────────────────────
+
+@Serializable
+data class RegisterPushTokenRequest(
+    val pushToken: String
 )
 
 // ─── Conversation DTOs ───────────────────────────────────

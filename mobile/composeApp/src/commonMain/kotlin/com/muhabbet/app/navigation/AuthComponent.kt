@@ -34,8 +34,12 @@ class AuthComponent(
     )
 
     @OptIn(DelicateDecomposeApi::class)
-    fun onPhoneSubmitted(phoneNumber: String) {
-        navigation.push(Config.OtpVerify(phoneNumber))
+    fun onPhoneSubmitted(
+        phoneNumber: String,
+        mockCode: String? = null,
+        firebaseVerificationId: String? = null
+    ) {
+        navigation.push(Config.OtpVerify(phoneNumber, mockCode, firebaseVerificationId))
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -58,7 +62,11 @@ class AuthComponent(
     @Serializable
     sealed interface Config {
         @Serializable data object PhoneInput : Config
-        @Serializable data class OtpVerify(val phoneNumber: String) : Config
+        @Serializable data class OtpVerify(
+            val phoneNumber: String,
+            val mockCode: String? = null,
+            val firebaseVerificationId: String? = null
+        ) : Config
         @Serializable data object ProfileSetup : Config
     }
 }
@@ -71,10 +79,15 @@ fun AuthContent(component: AuthComponent) {
     ) { child ->
         when (val config = child.instance) {
             is AuthComponent.Config.PhoneInput -> PhoneInputScreen(
-                onPhoneSubmitted = component::onPhoneSubmitted
+                onPhoneSubmitted = { phone, mockCode, firebaseVerificationId ->
+                    component.onPhoneSubmitted(phone, mockCode, firebaseVerificationId)
+                },
+                onFirebaseAutoVerified = { isNewUser -> component.onOtpVerified(isNewUser) }
             )
             is AuthComponent.Config.OtpVerify -> OtpVerifyScreen(
                 phoneNumber = config.phoneNumber,
+                mockCode = config.mockCode,
+                firebaseVerificationId = config.firebaseVerificationId,
                 onOtpVerified = component::onOtpVerified,
                 onBack = component::onBackFromOtp
             )

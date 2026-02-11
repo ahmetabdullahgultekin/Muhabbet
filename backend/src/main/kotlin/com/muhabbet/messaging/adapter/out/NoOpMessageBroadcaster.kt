@@ -1,9 +1,11 @@
 package com.muhabbet.messaging.adapter.out
 
+import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
+import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
@@ -14,7 +16,9 @@ import java.util.UUID
 
 @Component
 class WebSocketMessageBroadcaster(
-    private val sessionManager: WebSocketSessionManager
+    private val sessionManager: WebSocketSessionManager,
+    private val deviceRepository: DeviceRepository,
+    private val pushNotificationPort: PushNotificationPort
 ) : MessageBroadcaster {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -41,7 +45,24 @@ class WebSocketMessageBroadcaster(
                 log.debug("Message {} delivered to online user {}", message.id, recipientId)
             } else {
                 log.debug("User {} offline, message {} queued in DB", recipientId, message.id)
+                sendPushToOfflineUser(recipientId, message)
             }
+        }
+    }
+
+    private fun sendPushToOfflineUser(recipientId: UUID, message: Message) {
+        val devices = deviceRepository.findByUserId(recipientId)
+        devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
+            pushNotificationPort.sendPush(
+                pushToken = device.pushToken!!,
+                title = "Yeni mesaj",
+                body = message.content.take(100),
+                data = mapOf(
+                    "conversationId" to message.conversationId.toString(),
+                    "messageId" to message.id.toString(),
+                    "senderId" to message.senderId.toString()
+                )
+            )
         }
     }
 

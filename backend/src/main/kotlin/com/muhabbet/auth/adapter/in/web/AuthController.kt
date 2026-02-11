@@ -1,11 +1,13 @@
 package com.muhabbet.auth.adapter.`in`.web
 
+import com.muhabbet.auth.domain.port.`in`.FirebaseVerifyUseCase
 import com.muhabbet.auth.domain.port.`in`.LogoutUseCase
 import com.muhabbet.auth.domain.port.`in`.RefreshTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.AuthTokenResponse
+import com.muhabbet.shared.dto.FirebaseVerifyRequest
 import com.muhabbet.shared.dto.RefreshTokenRequest
 import com.muhabbet.shared.dto.RequestOtpRequest
 import com.muhabbet.shared.dto.RequestOtpResponse
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val requestOtpUseCase: RequestOtpUseCase,
     private val verifyOtpUseCase: VerifyOtpUseCase,
+    private val firebaseVerifyUseCase: FirebaseVerifyUseCase,
     private val refreshTokenUseCase: RefreshTokenUseCase,
     private val logoutUseCase: LogoutUseCase
 ) {
@@ -34,7 +37,8 @@ class AuthController(
         return ApiResponseBuilder.ok(
             RequestOtpResponse(
                 ttlSeconds = result.ttlSeconds,
-                retryAfterSeconds = result.retryAfterSeconds
+                retryAfterSeconds = result.retryAfterSeconds,
+                mockCode = result.mockCode
             )
         )
     }
@@ -45,6 +49,27 @@ class AuthController(
             verifyOtpUseCase.verifyOtp(
                 phoneNumber = request.phoneNumber,
                 otp = request.otp,
+                deviceName = request.deviceName,
+                platform = request.platform
+            )
+        }
+        return ApiResponseBuilder.ok(
+            AuthTokenResponse(
+                accessToken = result.accessToken,
+                refreshToken = result.refreshToken,
+                expiresIn = result.expiresIn,
+                userId = result.userId,
+                deviceId = result.deviceId,
+                isNewUser = result.isNewUser
+            )
+        )
+    }
+
+    @PostMapping("/firebase-verify")
+    fun firebaseVerify(@RequestBody request: FirebaseVerifyRequest): ResponseEntity<ApiResponse<AuthTokenResponse>> {
+        val result = runBlocking {
+            firebaseVerifyUseCase.verifyFirebaseToken(
+                idToken = request.idToken,
                 deviceName = request.deviceName,
                 platform = request.platform
             )

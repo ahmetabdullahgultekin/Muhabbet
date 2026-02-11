@@ -39,6 +39,9 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "Dosya bulunamadı veya süresi dolmuş"),
     MEDIA_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Dosya yükleme başarısız"),
 
+    // Contacts
+    CONTACT_SYNC_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Tek seferde en fazla 1000 kişi senkronize edilebilir"),
+
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),

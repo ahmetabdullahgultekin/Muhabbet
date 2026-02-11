@@ -14,4 +14,8 @@ class PhoneHashPersistenceAdapter(
     override fun save(userId: UUID, phoneHash: String) {
         springDataPhoneHashRepository.save(PhoneHashJpaEntity(userId = userId, phoneHash = phoneHash))
     }
+
+    override fun findUserIdsByPhoneHashes(phoneHashes: List<String>): Map<String, UUID> =
+        springDataPhoneHashRepository.findByPhoneHashIn(phoneHashes)
+            .associate { it.phoneHash to it.userId }
 }

@@ -7,6 +7,7 @@ import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
+import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -21,7 +22,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties::class, OtpProperties::class)
+@EnableConfigurationProperties(JwtProperties::class, OtpProperties::class, SmsProperties::class)
 class AppConfig {
 
     @Bean
@@ -52,7 +53,17 @@ class AppConfig {
         otpExpirySeconds = otpProperties.expirySeconds,
         otpCooldownSeconds = otpProperties.cooldownSeconds,
         otpMaxAttempts = otpProperties.maxAttempts,
-        refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry
+        refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
+        mockEnabled = otpProperties.mockEnabled
+    )
+
+    @Bean
+    fun contactSyncService(
+        phoneHashRepository: PhoneHashRepository,
+        userRepository: UserRepository
+    ): ContactSyncService = ContactSyncService(
+        phoneHashRepository = phoneHashRepository,
+        userRepository = userRepository
     )
 
     @Bean

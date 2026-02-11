@@ -4,4 +4,5 @@ import java.util.UUID
 
 interface PhoneHashRepository {
     fun save(userId: UUID, phoneHash: String)
+    fun findUserIdsByPhoneHashes(phoneHashes: List<String>): Map<String, UUID>
 }

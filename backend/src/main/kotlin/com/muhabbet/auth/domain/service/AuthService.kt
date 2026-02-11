@@ -5,9 +5,11 @@ import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
 import com.muhabbet.auth.domain.port.`in`.AuthResult
+import com.muhabbet.auth.domain.port.`in`.FirebaseVerifyUseCase
 import com.muhabbet.auth.domain.port.`in`.LogoutUseCase
 import com.muhabbet.auth.domain.port.`in`.OtpResult
 import com.muhabbet.auth.domain.port.`in`.RefreshTokenUseCase
+import com.muhabbet.auth.domain.port.`in`.RegisterPushTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
 import com.muhabbet.auth.domain.port.`in`.TokenResult
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
@@ -44,8 +46,9 @@ open class AuthService(
     private val otpExpirySeconds: Int = 300,
     private val otpCooldownSeconds: Int = 60,
     private val otpMaxAttempts: Int = 5,
-    private val refreshTokenExpirySeconds: Long = 2592000
-) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase {
+    private val refreshTokenExpirySeconds: Long = 2592000,
+    private val mockEnabled: Boolean = false
+) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
@@ -82,7 +85,8 @@ open class AuthService(
 
         return OtpResult(
             ttlSeconds = otpExpirySeconds,
-            retryAfterSeconds = otpCooldownSeconds
+            retryAfterSeconds = otpCooldownSeconds,
+            mockCode = if (mockEnabled) otp else null
         )
     }
 
@@ -108,6 +112,38 @@ open class AuthService(
 
         otpRepository.markVerified(activeOtp)
 
+        return authenticatePhone(phoneNumber, deviceName, platform, "OTP verified")
+    }
+
+    @Transactional
+    override suspend fun verifyFirebaseToken(
+        idToken: String,
+        deviceName: String,
+        platform: String
+    ): AuthResult {
+        val decodedToken = try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().verifyIdToken(idToken)
+        } catch (e: Exception) {
+            log.warn("Firebase token verification failed: {}", e.message)
+            throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID, "Firebase token geçersiz")
+        }
+
+        val phoneNumber = decodedToken.claims["phone_number"] as? String
+            ?: throw BusinessException(ErrorCode.AUTH_INVALID_PHONE, "Telefon numarası bulunamadı")
+
+        if (!ValidationRules.isValidTurkishPhone(phoneNumber)) {
+            throw BusinessException(ErrorCode.AUTH_INVALID_PHONE)
+        }
+
+        return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified")
+    }
+
+    private fun authenticatePhone(
+        phoneNumber: String,
+        deviceName: String,
+        platform: String,
+        logPrefix: String
+    ): AuthResult {
         // Find or create user
         val existingUser = userRepository.findByPhoneNumber(phoneNumber)
         val isNewUser = existingUser == null
@@ -161,7 +197,7 @@ open class AuthService(
             )
         )
 
-        log.info("OTP verified: userId={}, deviceId={}, isNewUser={}", user.id, device.id, isNewUser)
+        log.info("{}: userId={}, deviceId={}, isNewUser={}", logPrefix, user.id, device.id, isNewUser)
 
         return AuthResult(
             accessToken = accessToken,
@@ -211,6 +247,15 @@ open class AuthService(
             refreshToken = newRefreshToken,
             expiresIn = jwtProvider.accessTokenExpirySeconds
         )
+    }
+
+    @Transactional
+    override fun registerPushToken(userId: UUID, deviceId: UUID, pushToken: String) {
+        val devices = deviceRepository.findByUserId(userId)
+        val device = devices.find { it.id == deviceId }
+            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Cihaz bulunamadı")
+        deviceRepository.save(device.copy(pushToken = pushToken))
+        log.info("Push token registered: userId={}, deviceId={}", userId, deviceId)
     }
 
     @Transactional

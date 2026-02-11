@@ -14,6 +14,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
+import com.muhabbet.app.platform.rememberFirebasePhoneAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
@@ -41,16 +43,21 @@ import org.koin.compose.koinInject
 @Composable
 fun OtpVerifyScreen(
     phoneNumber: String,
+    mockCode: String? = null,
+    firebaseVerificationId: String? = null,
     onOtpVerified: (isNewUser: Boolean) -> Unit,
     onBack: () -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
-    var otp by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf(mockCode ?: "") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var countdown by remember { mutableStateOf(300) }
+    var countdown by remember { mutableStateOf(if (firebaseVerificationId != null) 60 else 300) }
     var isResending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    val firebasePhoneAuth = rememberFirebasePhoneAuth()
+    val useFirebase = firebaseVerificationId != null && firebasePhoneAuth != null
 
     val verifyFailedMsg = stringResource(Res.string.otp_verify_failed)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -79,6 +86,21 @@ fun OtpVerifyScreen(
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
+
+        if (mockCode != null) {
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = "Dev Mode — Code: $mockCode",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+        }
 
         Spacer(Modifier.height(32.dp))
 
@@ -119,31 +141,34 @@ fun OtpVerifyScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            OutlinedButton(
-                onClick = {
-                    isResending = true
-                    scope.launch {
-                        try {
-                            authRepository.requestOtp(phoneNumber)
-                            countdown = 300
-                            otp = ""
-                            error = null
-                        } catch (e: Exception) {
-                            error = e.message ?: genericErrorMsg
-                        } finally {
-                            isResending = false
+            if (!useFirebase) {
+                // Resend only for mock/backend OTP (Firebase handles resend internally)
+                OutlinedButton(
+                    onClick = {
+                        isResending = true
+                        scope.launch {
+                            try {
+                                authRepository.requestOtp(phoneNumber)
+                                countdown = 300
+                                otp = ""
+                                error = null
+                            } catch (e: Exception) {
+                                error = e.message ?: genericErrorMsg
+                            } finally {
+                                isResending = false
+                            }
                         }
+                    },
+                    enabled = !isResending
+                ) {
+                    if (isResending) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(stringResource(Res.string.otp_resend))
                     }
-                },
-                enabled = !isResending
-            ) {
-                if (isResending) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(stringResource(Res.string.otp_resend))
                 }
             }
         }
@@ -156,13 +181,28 @@ fun OtpVerifyScreen(
                 error = null
                 scope.launch {
                     try {
-                        val result = authRepository.verifyOtp(
-                            phoneNumber = phoneNumber,
-                            otp = otp,
-                            deviceName = getDeviceModel(),
-                            platform = getPlatformName()
-                        )
-                        onOtpVerified(result.isNewUser)
+                        if (useFirebase) {
+                            // Firebase: verify code → get ID token → exchange with backend
+                            val idToken = firebasePhoneAuth!!.verifyCode(
+                                firebaseVerificationId!!,
+                                otp
+                            )
+                            val result = authRepository.verifyFirebaseToken(
+                                idToken = idToken,
+                                deviceName = getDeviceModel(),
+                                platform = getPlatformName()
+                            )
+                            onOtpVerified(result.isNewUser)
+                        } else {
+                            // Mock/backend OTP: verify directly with backend
+                            val result = authRepository.verifyOtp(
+                                phoneNumber = phoneNumber,
+                                otp = otp,
+                                deviceName = getDeviceModel(),
+                                platform = getPlatformName()
+                            )
+                            onOtpVerified(result.isNewUser)
+                        }
                     } catch (e: Exception) {
                         error = e.message ?: verifyFailedMsg
                     } finally {

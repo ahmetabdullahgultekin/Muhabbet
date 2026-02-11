@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.android.application")
+    id("com.google.gms.google-services")
 }
 
 group = "com.muhabbet"
@@ -77,6 +78,10 @@ kotlin {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
             implementation("androidx.activity:activity-compose:1.9.3")
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+            // Firebase Auth (Phone verification)
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
+            implementation("com.google.firebase:firebase-auth-ktx")
         }
 
         iosMain.dependencies {

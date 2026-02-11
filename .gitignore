@@ -53,6 +53,10 @@ firebase-adminsdk.json
 Thumbs.db
 *.swp
 *~
+nul
+
+# ─── Claude Code ─────────────────────────
+.claude/
 
 # ─── Node (if any tooling) ────────────────
 node_modules/

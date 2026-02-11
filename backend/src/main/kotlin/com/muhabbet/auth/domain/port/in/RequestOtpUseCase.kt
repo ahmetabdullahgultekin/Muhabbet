@@ -6,5 +6,6 @@ interface RequestOtpUseCase {
 
 data class OtpResult(
     val ttlSeconds: Int,
-    val retryAfterSeconds: Int
+    val retryAfterSeconds: Int,
+    val mockCode: String? = null
 )

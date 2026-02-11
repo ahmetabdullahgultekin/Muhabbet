@@ -83,7 +83,11 @@ muhabbet:
     mock-enabled: ${OTP_MOCK_ENABLED:false}  # true = log OTP to console instead of SMS
 
   sms:
-    provider: netgsm
+    provider: ${SMS_PROVIDER:mock}     # mock, twilio, netgsm
+    twilio:
+      account-sid: ${TWILIO_ACCOUNT_SID:}
+      auth-token: ${TWILIO_AUTH_TOKEN:}
+      from-number: ${TWILIO_FROM_NUMBER:}
     netgsm:
       usercode: ${NETGSM_USERCODE:}
       password: ${NETGSM_PASSWORD:}
@@ -101,6 +105,10 @@ muhabbet:
     max-video-size: 104857600        # 100 MB
     thumbnail-width: 320
     thumbnail-height: 320
+
+  firebase:
+    enabled: ${FIREBASE_ENABLED:false}
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH:}   # Service account JSON, or empty for GCP ADC
 
   fcm:
     credentials-path: ${FCM_CREDENTIALS_PATH:}

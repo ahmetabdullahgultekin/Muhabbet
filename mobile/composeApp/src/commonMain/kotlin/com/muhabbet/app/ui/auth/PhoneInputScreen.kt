@@ -28,6 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.platform.PhoneVerificationResult
+import com.muhabbet.app.platform.getDeviceModel
+import com.muhabbet.app.platform.getPlatformName
+import com.muhabbet.app.platform.rememberFirebasePhoneAuth
 import com.muhabbet.shared.validation.ValidationRules
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
@@ -37,13 +41,17 @@ import org.koin.compose.koinInject
 
 @Composable
 fun PhoneInputScreen(
-    onPhoneSubmitted: (String) -> Unit,
+    onPhoneSubmitted: (phoneNumber: String, mockCode: String?, firebaseVerificationId: String?) -> Unit,
+    onFirebaseAutoVerified: (isNewUser: Boolean) -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
     var phoneNumber by remember { mutableStateOf("+90") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    val firebasePhoneAuth = rememberFirebasePhoneAuth()
+    val useFirebase = firebasePhoneAuth?.isAvailable() == true
 
     val invalidPhoneMsg = stringResource(Res.string.phone_invalid)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -113,8 +121,30 @@ fun PhoneInputScreen(
                 error = null
                 scope.launch {
                     try {
-                        authRepository.requestOtp(phoneNumber)
-                        onPhoneSubmitted(phoneNumber)
+                        if (useFirebase) {
+                            // Firebase Phone Auth flow
+                            when (val result = firebasePhoneAuth!!.startVerification(phoneNumber)) {
+                                is PhoneVerificationResult.CodeSent -> {
+                                    onPhoneSubmitted(phoneNumber, null, result.verificationId)
+                                }
+                                is PhoneVerificationResult.AutoVerified -> {
+                                    // Auto-verified, exchange Firebase token for our JWT
+                                    val authResult = authRepository.verifyFirebaseToken(
+                                        idToken = result.idToken,
+                                        deviceName = getDeviceModel(),
+                                        platform = getPlatformName()
+                                    )
+                                    onFirebaseAutoVerified(authResult.isNewUser)
+                                }
+                                is PhoneVerificationResult.Error -> {
+                                    error = result.message
+                                }
+                            }
+                        } else {
+                            // Mock/backend OTP flow
+                            val response = authRepository.requestOtp(phoneNumber)
+                            onPhoneSubmitted(phoneNumber, response.mockCode, null)
+                        }
                     } catch (e: Exception) {
                         error = e.message ?: genericErrorMsg
                     } finally {

@@ -3,6 +3,7 @@ package com.muhabbet.app.data.repository
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.AuthTokenResponse
+import com.muhabbet.shared.dto.FirebaseVerifyRequest
 import com.muhabbet.shared.dto.RequestOtpRequest
 import com.muhabbet.shared.dto.RequestOtpResponse
 import com.muhabbet.shared.dto.UpdateProfileRequest
@@ -33,6 +34,27 @@ class AuthRepository(
             VerifyOtpRequest(phoneNumber, otp, deviceName, platform)
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "Doğrulama başarısız")
+
+        tokenStorage.saveTokens(
+            accessToken = data.accessToken,
+            refreshToken = data.refreshToken,
+            userId = data.userId,
+            deviceId = data.deviceId
+        )
+
+        return data
+    }
+
+    suspend fun verifyFirebaseToken(
+        idToken: String,
+        deviceName: String,
+        platform: String
+    ): AuthTokenResponse {
+        val response = apiClient.post<AuthTokenResponse>(
+            "/api/v1/auth/firebase-verify",
+            FirebaseVerifyRequest(idToken, deviceName, platform)
+        )
+        val data = response.data ?: throw Exception(response.error?.message ?: "Firebase doğrulama başarısız")
 
         tokenStorage.saveTokens(
             accessToken = data.accessToken,
