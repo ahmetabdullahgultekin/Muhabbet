@@ -1,0 +1,120 @@
+spring:
+  application:
+    name: muhabbet-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # Database
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:muhabbet}
+    username: ${DB_USERNAME:muhabbet}
+    password: ${DB_PASSWORD:muhabbet_dev}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 10000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate  # Flyway manages schema — Hibernate only validates
+    open-in-view: false   # Disable OSIV anti-pattern
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+
+  # Flyway
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  # Redis
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000
+
+  # Jackson
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+  # Servlet
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 110MB
+
+# Server
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: muhabbet
+
+# App-specific configuration
+muhabbet:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-in-production-min-256-bits-long-key-here}
+    access-token-expiry: 900         # 15 minutes in seconds
+    refresh-token-expiry: 2592000    # 30 days in seconds
+    issuer: muhabbet
+
+  otp:
+    length: 6
+    expiry-seconds: 300              # 5 minutes
+    max-attempts: 5
+    cooldown-seconds: 60
+    mock-enabled: ${OTP_MOCK_ENABLED:false}  # true = log OTP to console instead of SMS
+
+  sms:
+    provider: netgsm
+    netgsm:
+      usercode: ${NETGSM_USERCODE:}
+      password: ${NETGSM_PASSWORD:}
+      msgheader: ${NETGSM_HEADER:MUHABBET}
+      api-url: https://api.netgsm.com.tr
+
+  media:
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+      bucket: ${MINIO_BUCKET:muhabbet-media}
+    retention-days: 30
+    max-image-size: 10485760         # 10 MB
+    max-video-size: 104857600        # 100 MB
+    thumbnail-width: 320
+    thumbnail-height: 320
+
+  fcm:
+    credentials-path: ${FCM_CREDENTIALS_PATH:}
+    enabled: ${FCM_ENABLED:false}
+
+  websocket:
+    heartbeat-interval-seconds: 30
+    heartbeat-timeout-seconds: 90
+
+# Logging
+logging:
+  level:
+    com.muhabbet: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

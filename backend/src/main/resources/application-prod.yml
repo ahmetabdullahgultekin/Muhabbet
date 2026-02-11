@@ -1,0 +1,21 @@
+spring:
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+logging:
+  level:
+    com.muhabbet: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+  # JSON structured logging for production
+  pattern:
+    console: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","logger":"%logger{36}","thread":"%thread","message":"%msg"}%n'
+
+muhabbet:
+  otp:
+    mock-enabled: false
+  fcm:
+    enabled: true

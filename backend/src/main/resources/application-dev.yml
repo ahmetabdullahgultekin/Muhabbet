@@ -1,0 +1,18 @@
+spring:
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    com.muhabbet: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# Dev overrides
+muhabbet:
+  otp:
+    mock-enabled: true  # Logs OTP to console instead of sending SMS
+  fcm:
+    enabled: false      # No push notifications in dev

@@ -1,0 +1,131 @@
+version: '3.9'
+
+services:
+  # ─── Backend ──────────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: muhabbet-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: muhabbet
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      NETGSM_USERCODE: ${NETGSM_USERCODE}
+      NETGSM_PASSWORD: ${NETGSM_PASSWORD}
+      FCM_ENABLED: "true"
+      FCM_CREDENTIALS_PATH: /app/firebase-adminsdk.json
+      SENTRY_DSN: ${SENTRY_DSN}
+    volumes:
+      - ../firebase-adminsdk.json:/app/firebase-adminsdk.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+  # ─── PostgreSQL ───────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: muhabbet-postgres
+    environment:
+      POSTGRES_DB: muhabbet
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+  # ─── Redis ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: muhabbet-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+  # ─── MinIO ───────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: muhabbet-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    command: server /data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+  # ─── Nginx ───────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: muhabbet-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+  # ─── Certbot (SSL) ───────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: muhabbet-certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - muhabbet-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  certbot_certs:
+  certbot_www:
+
+networks:
+  muhabbet-net:
+    driver: bridge
