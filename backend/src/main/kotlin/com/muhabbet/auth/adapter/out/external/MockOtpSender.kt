@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@ConditionalOnProperty(name = ["muhabbet.otp.mock-enabled"], havingValue = "true")
+@ConditionalOnProperty(name = ["muhabbet.sms.provider"], havingValue = "mock", matchIfMissing = true)
 class MockOtpSender : OtpSender {
 
     private val log = LoggerFactory.getLogger(javaClass)
