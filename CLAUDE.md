@@ -152,3 +152,23 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
 - Shared module `UserProfile` uses `kotlinx.datetime.Instant` — backend needs `kotlinx-datetime` dependency
 - OTP mock: set `OTP_MOCK_ENABLED=true` to log OTP to console instead of SMS
 - Phone hash: SHA-256 of phone number stored in `phone_hashes` table on user creation
+
+## Deployment & Infrastructure
+- **GCP Project**: `muhabbet-app-prod`, account `rollingcat.help@gmail.com`
+- **GCP VM**: `muhabbet-vm`, e2-medium (2 vCPU, 4GB RAM + 4GB swap), zone `europe-west1-b`, IP `34.22.242.56`
+- **Domain**: `muhabbet.rollingcatsoftware.com`
+- **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis` (via `infra/docker-compose.prod.yml`)
+- **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials at `infra/firebase-adminsdk.json`
+- **Deploy command**: `gcloud compute ssh muhabbet-vm --zone=europe-west1-b --project=muhabbet-app-prod --command='cd /home/ahabg/Muhabbet && git pull && cd infra && docker compose -f docker-compose.prod.yml up -d --build backend'`
+- **VM has 4GB swap** (`/swapfile`) — required for Docker Gradle builds, without it OOM kills the build
+- **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
+
+## Lessons Learned / Known Gotchas
+- **Windows Gradle**: Use `cmd //c ".\\gradlew.bat <task>"` from bash shell (not `gradlew.bat` directly)
+- **Spring Security 403 vs 401**: Default Spring Security returns 403 for unauthenticated requests. Must configure `authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))` so Ktor Auth plugin triggers token refresh on 401
+- **kotlinx-datetime `toLocalDateTime`**: It's an extension function — needs explicit `import kotlinx.datetime.toLocalDateTime`, not available via fully-qualified `instant.toLocalDateTime()`
+- **SharedFlow vs Channel**: `MutableSharedFlow` broadcasts to ALL collectors (no competition). Use for WS messages shared between multiple screens
+- **ConversationResponse.name is null for DMs**: Must resolve display name from `participants` list using currentUserId to find the OTHER participant
+- **Phone numbers for testing**: Never use real-looking Turkish numbers. Prefix `+90500` is safe (unallocated by BTK)
+- **serializer<Any>()** doesn't work well in KMP for API responses — always use the concrete type (e.g., `patch<UserProfile>`)
+- **ADB serial != device name**: ADB shows serial number (e.g., `MVFUC6GMNNINAU5D`), not model name
