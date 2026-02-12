@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -172,6 +174,7 @@ fun ChatScreen(
     var replyingTo by remember { mutableStateOf<Message?>(null) }
     var forwardMessage by remember { mutableStateOf<Message?>(null) }
     var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
+    val starredIds = remember { mutableStateOf(setOf<String>()) }
 
     // Image picker
     val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
@@ -581,11 +584,13 @@ fun ChatScreen(
                     items(messages, key = { it.id }) { message ->
                         val isOwn = message.senderId == currentUserId
                         val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
+                        val isStarred = message.id in starredIds.value
                         MessageBubble(
                             message = message,
                             isOwn = isOwn,
                             audioPlayer = audioPlayer,
                             repliedMessage = repliedMessage,
+                            isStarred = isStarred,
                             showContextMenu = contextMenuMessageId == message.id,
                             onLongPress = { if (!message.isDeleted) contextMenuMessageId = message.id },
                             onDismissMenu = { contextMenuMessageId = null },
@@ -599,6 +604,20 @@ fun ChatScreen(
                                 scope.launch {
                                     try {
                                         forwardConversations = conversationRepository.getConversations().items
+                                    } catch (_: Exception) { }
+                                }
+                            },
+                            onStar = {
+                                contextMenuMessageId = null
+                                scope.launch {
+                                    try {
+                                        if (isStarred) {
+                                            messageRepository.unstarMessage(message.id)
+                                            starredIds.value = starredIds.value - message.id
+                                        } else {
+                                            messageRepository.starMessage(message.id)
+                                            starredIds.value = starredIds.value + message.id
+                                        }
                                     } catch (_: Exception) { }
                                 }
                             },
@@ -934,11 +953,13 @@ private fun MessageBubble(
     isOwn: Boolean,
     audioPlayer: AudioPlayer,
     repliedMessage: Message? = null,
+    isStarred: Boolean = false,
     showContextMenu: Boolean = false,
     onLongPress: () -> Unit = {},
     onDismissMenu: () -> Unit = {},
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
+    onStar: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onImageClick: (String) -> Unit = {}
@@ -1114,6 +1135,19 @@ private fun MessageBubble(
                     onClick = onForward,
                     leadingIcon = {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
+                    }
+                )
+                // Star/Unstar — available for all messages
+                DropdownMenuItem(
+                    text = { Text(if (isStarred) stringResource(Res.string.chat_context_unstar) else stringResource(Res.string.chat_context_star)) },
+                    onClick = onStar,
+                    leadingIcon = {
+                        Icon(
+                            if (isStarred) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = if (isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 )
                 // Edit/Delete — only for own messages

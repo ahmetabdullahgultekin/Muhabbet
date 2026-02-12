@@ -18,4 +18,17 @@ class MessageRepository(private val apiClient: ApiClient) {
         val response = apiClient.get<PaginatedResponse<Message>>(path)
         return response.data ?: PaginatedResponse(emptyList(), null, false)
     }
+
+    suspend fun starMessage(messageId: String) {
+        apiClient.post<Unit>("/api/v1/starred/$messageId", Unit)
+    }
+
+    suspend fun unstarMessage(messageId: String) {
+        apiClient.delete("/api/v1/starred/$messageId")
+    }
+
+    suspend fun getStarredMessages(limit: Int = 50, offset: Int = 0): PaginatedResponse<Message> {
+        val response = apiClient.get<PaginatedResponse<Message>>("/api/v1/starred?limit=$limit&offset=$offset")
+        return response.data ?: PaginatedResponse(emptyList(), null, false)
+    }
 }

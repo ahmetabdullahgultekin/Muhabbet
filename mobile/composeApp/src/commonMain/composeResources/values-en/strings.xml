@@ -59,6 +59,8 @@
     <string name="chat_edited">edited</string>
     <string name="chat_context_reply">Reply</string>
     <string name="chat_context_forward">Forward</string>
+    <string name="chat_context_star">Star</string>
+    <string name="chat_context_unstar">Unstar</string>
     <string name="chat_context_edit">Edit</string>
     <string name="chat_context_delete">Delete</string>
     <string name="chat_replying_to">Replying to</string>

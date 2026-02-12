@@ -59,6 +59,8 @@
     <string name="chat_edited">düzenlendi</string>
     <string name="chat_context_reply">Yanıtla</string>
     <string name="chat_context_forward">İlet</string>
+    <string name="chat_context_star">Yıldızla</string>
+    <string name="chat_context_unstar">Yıldızı Kaldır</string>
     <string name="chat_context_edit">Düzenle</string>
     <string name="chat_context_delete">Sil</string>
     <string name="chat_replying_to">Yanıtlanan mesaj</string>
