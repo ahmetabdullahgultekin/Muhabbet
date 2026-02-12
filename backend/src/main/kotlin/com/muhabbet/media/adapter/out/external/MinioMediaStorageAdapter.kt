@@ -23,7 +23,6 @@ class MinioMediaStorageAdapter(
     private val log = LoggerFactory.getLogger(javaClass)
 
     private lateinit var client: MinioClient
-    private lateinit var publicClient: MinioClient
 
     @PostConstruct
     fun init() {
@@ -32,16 +31,8 @@ class MinioMediaStorageAdapter(
             .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
             .build()
 
-        // Separate client for pre-signed URL generation using public endpoint
-        val pubEndpoint = mediaProperties.minio.publicEndpoint
-        publicClient = if (!pubEndpoint.isNullOrBlank()) {
-            log.info("MinIO public endpoint configured: {}", pubEndpoint)
-            MinioClient.builder()
-                .endpoint(pubEndpoint)
-                .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
-                .build()
-        } else {
-            client
+        if (!mediaProperties.minio.publicEndpoint.isNullOrBlank()) {
+            log.info("MinIO public endpoint configured: {}", mediaProperties.minio.publicEndpoint)
         }
 
         val bucket = mediaProperties.minio.bucket
@@ -63,7 +54,7 @@ class MinioMediaStorageAdapter(
     }
 
     override fun getPresignedUrl(key: String, expirySeconds: Int): String {
-        return publicClient.getPresignedObjectUrl(
+        val url = client.getPresignedObjectUrl(
             GetPresignedObjectUrlArgs.builder()
                 .method(Method.GET)
                 .bucket(mediaProperties.minio.bucket)
@@ -71,6 +62,13 @@ class MinioMediaStorageAdapter(
                 .expiry(expirySeconds, TimeUnit.SECONDS)
                 .build()
         )
+        // Rewrite internal MinIO endpoint to public URL for external access
+        val publicEndpoint = mediaProperties.minio.publicEndpoint
+        return if (!publicEndpoint.isNullOrBlank()) {
+            url.replace(mediaProperties.minio.endpoint, publicEndpoint)
+        } else {
+            url
+        }
     }
 
     override fun deleteObject(key: String) {
