@@ -60,7 +60,13 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.platform.ContactsProvider
+import com.muhabbet.shared.model.Message
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.heightIn
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.PresenceStatus
@@ -84,6 +90,7 @@ fun ConversationListScreen(
     onSettings: () -> Unit,
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
+    messageRepository: MessageRepository = koinInject(),
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
     contactsProvider: ContactsProvider = koinInject()
@@ -91,6 +98,9 @@ fun ConversationListScreen(
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<Message>>(emptyList()) }
     val snackbarHostState = remember { SnackbarHostState() }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val scope = rememberCoroutineScope()
@@ -217,6 +227,13 @@ fun ConversationListScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
+                        Icon(
+                            imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                     IconButton(onClick = onSettings) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
@@ -241,6 +258,63 @@ fun ConversationListScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Search bar
+            if (isSearching) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { newQuery ->
+                        searchQuery = newQuery
+                        if (newQuery.length >= 2) {
+                            scope.launch {
+                                try {
+                                    searchResults = messageRepository.searchMessages(newQuery).items
+                                } catch (_: Exception) { searchResults = emptyList() }
+                            }
+                        } else {
+                            searchResults = emptyList()
+                        }
+                    },
+                    placeholder = { Text(stringResource(Res.string.search_messages_placeholder)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            // Search results
+            if (isSearching && searchResults.isNotEmpty()) {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(searchResults, key = { it.id }) { msg ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val conv = conversations.firstOrNull { it.id == msg.conversationId }
+                                    val otherP = conv?.participants?.firstOrNull { it.userId != currentUserId }
+                                    val name = conv?.name ?: otherP?.displayName ?: otherP?.phoneNumber ?: ""
+                                    onConversationClick(msg.conversationId, name, otherP?.userId, conv?.type == ConversationType.GROUP)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = msg.content.take(80),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 2
+                                )
+                                Text(
+                                    text = formatTimestamp(msg.serverTimestamp?.toString() ?: ""),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            } else {
+
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -250,7 +324,7 @@ fun ConversationListScreen(
                     isRefreshing = false
                 }
             },
-            modifier = Modifier.fillMaxSize().padding(padding)
+            modifier = Modifier.fillMaxSize()
         ) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -316,6 +390,8 @@ fun ConversationListScreen(
                 }
             }
         }
+            } // end else (non-search)
+        } // end Column
     }
 }
 

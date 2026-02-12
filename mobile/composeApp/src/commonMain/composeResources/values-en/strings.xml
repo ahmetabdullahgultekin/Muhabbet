@@ -139,4 +139,7 @@
     <string name="contacts_syncing">Syncing contacts...</string>
     <string name="contacts_none_found">No contacts found using Muhabbet</string>
     <string name="contacts_search_placeholder">Search contacts...</string>
+
+    <!-- Search -->
+    <string name="search_messages_placeholder">Search messages...</string>
 </resources>

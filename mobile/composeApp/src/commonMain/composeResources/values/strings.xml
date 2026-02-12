@@ -139,4 +139,7 @@
     <string name="contacts_syncing">Kişiler eşleştiriliyor...</string>
     <string name="contacts_none_found">Muhabbet kullanan kişi bulunamadı</string>
     <string name="contacts_search_placeholder">Kişi ara...</string>
+
+    <!-- Search -->
+    <string name="search_messages_placeholder">Mesajlarda ara...</string>
 </resources>

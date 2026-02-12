@@ -31,4 +31,13 @@ class MessageRepository(private val apiClient: ApiClient) {
         val response = apiClient.get<PaginatedResponse<Message>>("/api/v1/starred?limit=$limit&offset=$offset")
         return response.data ?: PaginatedResponse(emptyList(), null, false)
     }
+
+    suspend fun searchMessages(query: String, conversationId: String? = null, limit: Int = 30): PaginatedResponse<Message> {
+        val path = buildString {
+            append("/api/v1/search/messages?q=$query&limit=$limit")
+            if (conversationId != null) append("&conversationId=$conversationId")
+        }
+        val response = apiClient.get<PaginatedResponse<Message>>(path)
+        return response.data ?: PaginatedResponse(emptyList(), null, false)
+    }
 }

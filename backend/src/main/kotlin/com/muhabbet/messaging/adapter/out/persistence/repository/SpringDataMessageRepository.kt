@@ -49,4 +49,25 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         """
     )
     fun findLastByConversationId(conversationId: UUID): MessageJpaEntity?
+
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.conversationId = :conversationId
+          AND m.isDeleted = false
+          AND LOWER(m.content) LIKE :query
+        ORDER BY m.serverTimestamp DESC
+        """
+    )
+    fun searchInConversation(conversationId: UUID, query: String, pageable: Pageable): List<MessageJpaEntity>
+
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.isDeleted = false
+          AND LOWER(m.content) LIKE :query
+        ORDER BY m.serverTimestamp DESC
+        """
+    )
+    fun searchGlobal(query: String, pageable: Pageable): List<MessageJpaEntity>
 }

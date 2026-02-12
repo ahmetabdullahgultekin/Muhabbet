@@ -1,0 +1,65 @@
+package com.muhabbet.messaging.adapter.`in`.web
+
+import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageRepository
+import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.shared.dto.PaginatedResponse
+import com.muhabbet.shared.model.ContentType as SharedContentType
+import com.muhabbet.shared.model.Message as SharedMessage
+import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.shared.security.AuthenticatedUser
+import com.muhabbet.shared.web.ApiResponseBuilder
+import kotlinx.datetime.Instant as KInstant
+import org.springframework.data.domain.PageRequest
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
+
+@RestController
+@RequestMapping("/api/v1/search")
+class SearchController(
+    private val messageRepo: SpringDataMessageRepository
+) {
+
+    @GetMapping("/messages")
+    fun searchMessages(
+        @RequestParam q: String,
+        @RequestParam(required = false) conversationId: UUID?,
+        @RequestParam(defaultValue = "30") limit: Int,
+        @RequestParam(defaultValue = "0") offset: Int
+    ): ResponseEntity<ApiResponse<PaginatedResponse<SharedMessage>>> {
+        AuthenticatedUser.currentUserId()
+
+        val pageable = PageRequest.of(offset / limit, limit)
+        val results = if (conversationId != null) {
+            messageRepo.searchInConversation(conversationId, "%${q.lowercase()}%", pageable)
+        } else {
+            messageRepo.searchGlobal("%${q.lowercase()}%", pageable)
+        }
+
+        val items = results.map { entity ->
+            val msg = entity.toDomain()
+            SharedMessage(
+                id = msg.id.toString(),
+                conversationId = msg.conversationId.toString(),
+                senderId = msg.senderId.toString(),
+                contentType = SharedContentType.valueOf(msg.contentType.name),
+                content = if (msg.isDeleted) "" else msg.content,
+                replyToId = msg.replyToId?.toString(),
+                mediaUrl = msg.mediaUrl,
+                thumbnailUrl = msg.thumbnailUrl,
+                status = MessageStatus.SENT,
+                serverTimestamp = KInstant.fromEpochMilliseconds(msg.serverTimestamp.toEpochMilli()),
+                clientTimestamp = KInstant.fromEpochMilliseconds(msg.clientTimestamp.toEpochMilli()),
+                editedAt = msg.editedAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },
+                isDeleted = msg.isDeleted
+            )
+        }
+
+        return ApiResponseBuilder.ok(
+            PaginatedResponse(items = items, nextCursor = null, hasMore = results.size >= limit)
+        )
+    }
+}
