@@ -1,7 +1,9 @@
 package com.muhabbet.messaging.adapter.out
 
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
@@ -18,17 +20,21 @@ import java.util.UUID
 class WebSocketMessageBroadcaster(
     private val sessionManager: WebSocketSessionManager,
     private val deviceRepository: DeviceRepository,
-    private val pushNotificationPort: PushNotificationPort
+    private val pushNotificationPort: PushNotificationPort,
+    private val userRepository: UserRepository
 ) : MessageBroadcaster {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun broadcastMessage(message: Message, recipientIds: List<UUID>) {
+        val sender = userRepository.findById(message.senderId)
+        val senderDisplayName = sender?.displayName ?: sender?.phoneNumber ?: "Bilinmeyen"
+
         val wsMessage = WsMessage.NewMessage(
             messageId = message.id.toString(),
             conversationId = message.conversationId.toString(),
             senderId = message.senderId.toString(),
-            senderName = null,
+            senderName = senderDisplayName,
             content = message.content,
             contentType = com.muhabbet.shared.model.ContentType.valueOf(message.contentType.name),
             replyToId = message.replyToId?.toString(),
@@ -51,16 +57,28 @@ class WebSocketMessageBroadcaster(
     }
 
     private fun sendPushToOfflineUser(recipientId: UUID, message: Message) {
+        val sender = userRepository.findById(message.senderId)
+        val senderName = sender?.displayName ?: sender?.phoneNumber ?: "Yeni mesaj"
+
+        val body = when (message.contentType) {
+            ContentType.IMAGE -> "\uD83D\uDCF7 Fotoğraf"
+            ContentType.VIDEO -> "\uD83C\uDFA5 Video"
+            ContentType.VOICE -> "\uD83C\uDF99\uFE0F Sesli mesaj"
+            ContentType.DOCUMENT -> "\uD83D\uDCC4 Belge"
+            else -> message.content.take(100)
+        }
+
         val devices = deviceRepository.findByUserId(recipientId)
         devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
             pushNotificationPort.sendPush(
                 pushToken = device.pushToken!!,
-                title = "Yeni mesaj",
-                body = message.content.take(100),
+                title = senderName,
+                body = body,
                 data = mapOf(
                     "conversationId" to message.conversationId.toString(),
                     "messageId" to message.id.toString(),
-                    "senderId" to message.senderId.toString()
+                    "senderId" to message.senderId.toString(),
+                    "senderName" to senderName
                 )
             )
         }

@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,12 +52,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.snapshotFlow
+import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.platform.ImagePickerLauncher
+import com.muhabbet.app.platform.PickedImage
+import com.muhabbet.app.platform.compressImage
+import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
@@ -78,6 +89,7 @@ fun ChatScreen(
     conversationName: String,
     onBack: () -> Unit,
     messageRepository: MessageRepository = koinInject(),
+    mediaRepository: MediaRepository = koinInject(),
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
@@ -87,15 +99,13 @@ fun ChatScreen(
     var isLoadingMore by remember { mutableStateOf(false) }
     var nextCursor by remember { mutableStateOf<String?>(null) }
     var peerTyping by remember { mutableStateOf(false) }
+    var peerOnline by remember { mutableStateOf(false) }
+    var peerLastSeen by remember { mutableStateOf<Long?>(null) }
+    var isUploading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Debug: log currentUserId
-    LaunchedEffect(Unit) {
-        println("ChatScreen: currentUserId=$currentUserId")
-    }
 
     val errorLoadMsg = stringResource(Res.string.error_load_messages)
     val errorSendMsg = stringResource(Res.string.error_send_failed)
@@ -106,17 +116,64 @@ fun ChatScreen(
     var isTypingSent by remember { mutableStateOf(false) }
     var typingDismissJob by remember { mutableStateOf<Job?>(null) }
 
+    // Full image viewer state
+    var fullImageUrl by remember { mutableStateOf<String?>(null) }
+
+    // Image picker
+    val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
+        if (picked == null) return@rememberImagePickerLauncher
+        scope.launch {
+            isUploading = true
+            try {
+                val compressed = compressImage(picked.bytes)
+                val uploadResponse = mediaRepository.uploadImage(
+                    bytes = compressed,
+                    mimeType = "image/jpeg",
+                    fileName = picked.fileName
+                )
+                // Send image message via WS
+                val messageId = generateMessageId()
+                val requestId = generateMessageId()
+                val now = kotlinx.datetime.Clock.System.now()
+                val optimistic = Message(
+                    id = messageId,
+                    conversationId = conversationId,
+                    senderId = currentUserId,
+                    contentType = ContentType.IMAGE,
+                    content = "Foto\u011Fra\u0066",
+                    mediaUrl = uploadResponse.url,
+                    thumbnailUrl = uploadResponse.thumbnailUrl,
+                    status = MessageStatus.SENDING,
+                    clientTimestamp = now
+                )
+                messages = messages + optimistic
+                wsClient.send(
+                    WsMessage.SendMessage(
+                        requestId = requestId,
+                        messageId = messageId,
+                        conversationId = conversationId,
+                        content = "Foto\u011Fra\u0066",
+                        contentType = ContentType.IMAGE,
+                        mediaUrl = uploadResponse.url
+                    )
+                )
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(errorSendMsg)
+            }
+            isUploading = false
+        }
+    }
+
     // Load initial messages
     LaunchedEffect(conversationId) {
         try {
             val result = messageRepository.getMessages(conversationId)
-            messages = result.items.reversed() // oldest first
+            messages = result.items.reversed()
             nextCursor = result.nextCursor
         } catch (_: Exception) {
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
         isLoading = false
-        // Mark latest message as READ to clear unread badge (separate from load)
         try {
             messages.lastOrNull { it.senderId != currentUserId }?.let { lastMsg ->
                 wsClient.send(
@@ -127,7 +184,7 @@ fun ChatScreen(
                     )
                 )
             }
-        } catch (_: Exception) { /* WS may not be connected yet */ }
+        } catch (_: Exception) { }
     }
 
     // Listen for real-time WS messages
@@ -136,7 +193,6 @@ fun ChatScreen(
             when (wsMessage) {
                 is WsMessage.NewMessage -> {
                     if (wsMessage.conversationId == conversationId) {
-                        // Skip if already in list (optimistic add for own messages)
                         if (messages.any { it.id == wsMessage.messageId }) return@collect
                         val now = kotlinx.datetime.Clock.System.now()
                         val serverTs = kotlinx.datetime.Instant.fromEpochMilliseconds(wsMessage.serverTimestamp)
@@ -146,11 +202,12 @@ fun ChatScreen(
                             senderId = wsMessage.senderId,
                             contentType = wsMessage.contentType,
                             content = wsMessage.content,
+                            mediaUrl = wsMessage.mediaUrl,
+                            thumbnailUrl = wsMessage.thumbnailUrl,
                             serverTimestamp = serverTs,
                             clientTimestamp = now
                         )
                         messages = messages + newMsg
-                        // Send READ ack (user is actively viewing this chat)
                         if (wsMessage.senderId != currentUserId) {
                             wsClient.send(
                                 WsMessage.AckMessage(
@@ -189,15 +246,30 @@ fun ChatScreen(
                     }
                 }
                 is WsMessage.PresenceUpdate -> {
-                    if (wsMessage.conversationId == conversationId &&
-                        wsMessage.status == PresenceStatus.TYPING &&
-                        wsMessage.userId != currentUserId
-                    ) {
-                        peerTyping = true
-                        typingDismissJob?.cancel()
-                        typingDismissJob = scope.launch {
-                            delay(3000)
-                            peerTyping = false
+                    if (wsMessage.userId != currentUserId) {
+                        if (wsMessage.conversationId == conversationId &&
+                            wsMessage.status == PresenceStatus.TYPING
+                        ) {
+                            peerTyping = true
+                            typingDismissJob?.cancel()
+                            typingDismissJob = scope.launch {
+                                delay(3000)
+                                peerTyping = false
+                            }
+                        }
+                        // Global presence update (conversationId == null)
+                        if (wsMessage.conversationId == null) {
+                            when (wsMessage.status) {
+                                PresenceStatus.ONLINE -> {
+                                    peerOnline = true
+                                    peerLastSeen = null
+                                }
+                                PresenceStatus.OFFLINE -> {
+                                    peerOnline = false
+                                    peerLastSeen = wsMessage.lastSeenAt
+                                }
+                                PresenceStatus.TYPING -> {}
+                            }
                         }
                     }
                 }
@@ -213,7 +285,7 @@ fun ChatScreen(
         }
     }
 
-    // Pagination — auto-load older messages when scrolled to top (WhatsApp-style)
+    // Pagination
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }
             .collect { firstVisible ->
@@ -230,15 +302,43 @@ fun ChatScreen(
             }
     }
 
+    // Subtitle: typing > online > last seen
+    val subtitle = when {
+        peerTyping -> typingText
+        peerOnline -> "\u00E7evrimi\u00E7i"
+        peerLastSeen != null -> {
+            val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(peerLastSeen!!)
+            "son g\u00F6r\u00FClme ${formatMessageTime(instant)}"
+        }
+        else -> null
+    }
+
+    // Full image viewer dialog
+    if (fullImageUrl != null) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { fullImageUrl = null }) {
+            Box(
+                modifier = Modifier.fillMaxSize().clickable { fullImageUrl = null },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = fullImageUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(conversationName)
-                        if (peerTyping) {
+                        if (subtitle != null) {
                             Text(
-                                text = typingText,
+                                text = subtitle,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                             )
@@ -289,7 +389,8 @@ fun ChatScreen(
                     items(messages, key = { it.id }) { message ->
                         MessageBubble(
                             message = message,
-                            isOwn = message.senderId == currentUserId
+                            isOwn = message.senderId == currentUserId,
+                            onImageClick = { url -> fullImageUrl = url }
                         )
                     }
                 }
@@ -297,107 +398,121 @@ fun ChatScreen(
 
             // Message input
             Surface(tonalElevation = 2.dp) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = messageText,
-                    onValueChange = { newText ->
-                        messageText = newText
-                        // Send typing indicator
-                        if (newText.isNotEmpty()) {
-                            if (!isTypingSent) {
-                                scope.launch {
-                                    wsClient.send(WsMessage.TypingIndicator(conversationId, true))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Attach image button
+                    IconButton(
+                        onClick = { imagePickerLauncher.launch() },
+                        enabled = !isUploading
+                    ) {
+                        if (isUploading) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.AttachFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = messageText,
+                        onValueChange = { newText ->
+                            messageText = newText
+                            if (newText.isNotEmpty()) {
+                                if (!isTypingSent) {
+                                    scope.launch {
+                                        wsClient.send(WsMessage.TypingIndicator(conversationId, true))
+                                    }
+                                    isTypingSent = true
                                 }
-                                isTypingSent = true
+                                typingJob?.cancel()
+                                typingJob = scope.launch {
+                                    delay(3000)
+                                    wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                                    isTypingSent = false
+                                }
                             }
+                        },
+                        placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
+                        modifier = Modifier.weight(1f),
+                        maxLines = 4,
+                        shape = RoundedCornerShape(24.dp)
+                    )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    FilledIconButton(
+                        onClick = {
+                            if (messageText.isBlank()) return@FilledIconButton
+                            val text = messageText
+                            messageText = ""
                             typingJob?.cancel()
-                            typingJob = scope.launch {
-                                delay(3000)
-                                wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                            if (isTypingSent) {
+                                scope.launch {
+                                    wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                                }
                                 isTypingSent = false
                             }
-                        }
-                    },
-                    placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
-                    modifier = Modifier.weight(1f),
-                    maxLines = 4,
-                    shape = RoundedCornerShape(24.dp)
-                )
-
-                Spacer(Modifier.width(8.dp))
-
-                FilledIconButton(
-                    onClick = {
-                        if (messageText.isBlank()) return@FilledIconButton
-                        val text = messageText
-                        messageText = ""
-                        // Cancel typing indicator
-                        typingJob?.cancel()
-                        if (isTypingSent) {
+                            val messageId = generateMessageId()
+                            val requestId = generateMessageId()
+                            val now = kotlinx.datetime.Clock.System.now()
+                            val optimistic = Message(
+                                id = messageId,
+                                conversationId = conversationId,
+                                senderId = currentUserId,
+                                contentType = ContentType.TEXT,
+                                content = text,
+                                status = MessageStatus.SENDING,
+                                clientTimestamp = now
+                            )
+                            messages = messages + optimistic
                             scope.launch {
-                                wsClient.send(WsMessage.TypingIndicator(conversationId, false))
-                            }
-                            isTypingSent = false
-                        }
-                        val messageId = generateMessageId()
-                        val requestId = generateMessageId()
-                        // Optimistic: add to local list FIRST (before WS send)
-                        val now = kotlinx.datetime.Clock.System.now()
-                        val optimistic = Message(
-                            id = messageId,
-                            conversationId = conversationId,
-                            senderId = currentUserId,
-                            contentType = ContentType.TEXT,
-                            content = text,
-                            status = MessageStatus.SENDING,
-                            clientTimestamp = now
-                        )
-                        messages = messages + optimistic
-                        // Then send via WebSocket
-                        scope.launch {
-                            try {
-                                wsClient.send(
-                                    WsMessage.SendMessage(
-                                        requestId = requestId,
-                                        messageId = messageId,
-                                        conversationId = conversationId,
-                                        content = text,
-                                        contentType = ContentType.TEXT
+                                try {
+                                    wsClient.send(
+                                        WsMessage.SendMessage(
+                                            requestId = requestId,
+                                            messageId = messageId,
+                                            conversationId = conversationId,
+                                            content = text,
+                                            contentType = ContentType.TEXT
+                                        )
                                     )
-                                )
-                            } catch (e: Exception) {
-                                println("MUHABBET: Send failed: ${e.message}")
-                                // Remove the optimistic message since it couldn't be sent
-                                messages = messages.filter { it.id != messageId }
-                                snackbarHostState.showSnackbar(errorSendMsg)
+                                } catch (e: Exception) {
+                                    messages = messages.filter { it.id != messageId }
+                                    snackbarHostState.showSnackbar(errorSendMsg)
+                                }
                             }
-                        }
-                    },
-                    enabled = messageText.isNotBlank(),
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                        },
+                        enabled = messageText.isNotBlank(),
+                        modifier = Modifier.size(48.dp),
+                        shape = CircleShape,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
-            }
             }
         }
     }
 }
 
 @Composable
-private fun MessageBubble(message: Message, isOwn: Boolean) {
+private fun MessageBubble(
+    message: Message,
+    isOwn: Boolean,
+    onImageClick: (String) -> Unit = {}
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
@@ -415,19 +530,40 @@ private fun MessageBubble(message: Message, isOwn: Boolean) {
             shadowElevation = 1.dp,
             modifier = Modifier.widthIn(min = 80.dp, max = 300.dp)
         ) {
-            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)) {
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)) {
+                // Image content
+                if (message.contentType == ContentType.IMAGE && (message.mediaUrl != null || message.thumbnailUrl != null)) {
+                    val imageUrl = message.thumbnailUrl ?: message.mediaUrl
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { message.mediaUrl?.let { onImageClick(it) } },
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
 
-                Spacer(Modifier.height(2.dp))
+                // Text content (skip for images with default placeholder text)
+                if (message.contentType == ContentType.TEXT ||
+                    (message.contentType == ContentType.IMAGE && message.content != "Foto\u011Fra\u0066" && message.content.isNotBlank())
+                ) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
 
                 // Timestamp + delivery status row
                 Row(
-                    modifier = Modifier.align(Alignment.End),
+                    modifier = Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {

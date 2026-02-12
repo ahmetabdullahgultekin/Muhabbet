@@ -9,4 +9,5 @@ interface UserRepository {
     fun findAllByIds(ids: List<UUID>): List<User>
     fun save(user: User): User
     fun existsByPhoneNumber(phoneNumber: String): Boolean
+    fun updateLastSeenAt(userId: UUID, lastSeenAt: java.time.Instant)
 }

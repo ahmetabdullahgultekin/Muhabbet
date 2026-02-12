@@ -26,4 +26,8 @@ class UserPersistenceAdapter(
 
     override fun existsByPhoneNumber(phoneNumber: String): Boolean =
         springDataUserRepository.existsByPhoneNumber(phoneNumber)
+
+    override fun updateLastSeenAt(userId: java.util.UUID, lastSeenAt: java.time.Instant) {
+        springDataUserRepository.updateLastSeenAt(userId, lastSeenAt)
+    }
 }

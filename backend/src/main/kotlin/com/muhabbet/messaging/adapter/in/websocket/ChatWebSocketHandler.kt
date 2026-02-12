@@ -1,11 +1,13 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
@@ -14,6 +16,7 @@ import com.muhabbet.shared.security.JwtProvider
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
@@ -28,7 +31,9 @@ class ChatWebSocketHandler(
     private val sessionManager: WebSocketSessionManager,
     private val sendMessageUseCase: SendMessageUseCase,
     private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val presencePort: PresencePort,
+    private val userRepository: UserRepository
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -51,6 +56,10 @@ class ChatWebSocketHandler(
         session.attributes["userId"] = claims.userId
         session.attributes["deviceId"] = claims.deviceId
         sessionManager.register(claims.userId, session)
+
+        // Set online in Redis and broadcast presence
+        presencePort.setOnline(claims.userId)
+        broadcastPresence(claims.userId, PresenceStatus.ONLINE)
         log.info("WebSocket connected: userId={}", claims.userId)
     }
 
@@ -68,8 +77,14 @@ class ChatWebSocketHandler(
             is WsMessage.SendMessage -> handleSendMessage(session, userId, wsMessage)
             is WsMessage.AckMessage -> handleAckMessage(userId, wsMessage)
             is WsMessage.TypingIndicator -> handleTypingIndicator(userId, wsMessage)
-            is WsMessage.GoOnline -> log.debug("User {} went online", userId)
-            is WsMessage.Ping -> sendPong(session)
+            is WsMessage.GoOnline -> {
+                presencePort.setOnline(userId)
+                log.debug("User {} went online", userId)
+            }
+            is WsMessage.Ping -> {
+                presencePort.setOnline(userId)
+                sendPong(session)
+            }
             else -> sendError(session, "VALIDATION_ERROR", "Unexpected message type from client")
         }
     }
@@ -77,6 +92,17 @@ class ChatWebSocketHandler(
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
         val userId = session.attributes["userId"] as? UUID
         sessionManager.unregister(session)
+
+        // If no remaining sessions, mark offline
+        if (userId != null && !sessionManager.isOnline(userId)) {
+            presencePort.setOffline(userId)
+            try {
+                userRepository.updateLastSeenAt(userId, Instant.now())
+            } catch (e: Exception) {
+                log.warn("Failed to persist last_seen_at for {}: {}", userId, e.message)
+            }
+            broadcastPresence(userId, PresenceStatus.OFFLINE)
+        }
         log.info("WebSocket disconnected: userId={}, status={}", userId, status)
     }
 
@@ -173,6 +199,30 @@ class ChatWebSocketHandler(
         val error = WsMessage.Error(code = code, message = message)
         if (session.isOpen) {
             session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(error)))
+        }
+    }
+
+    private fun broadcastPresence(userId: UUID, status: PresenceStatus) {
+        val lastSeenAt = if (status == PresenceStatus.OFFLINE) System.currentTimeMillis() else null
+        val presenceUpdate = WsMessage.PresenceUpdate(
+            userId = userId.toString(),
+            status = status,
+            lastSeenAt = lastSeenAt
+        )
+        val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
+
+        // Find all conversations this user belongs to, then notify online members
+        val conversations = conversationRepository.findConversationsByUserId(userId)
+        val notifiedUsers = mutableSetOf<UUID>()
+
+        conversations.forEach { conv ->
+            val members = conversationRepository.findMembersByConversationId(conv.id)
+            members.forEach { member ->
+                if (member.userId != userId && member.userId !in notifiedUsers && sessionManager.isOnline(member.userId)) {
+                    sessionManager.sendToUser(member.userId, json)
+                    notifiedUsers.add(member.userId)
+                }
+            }
         }
     }
 

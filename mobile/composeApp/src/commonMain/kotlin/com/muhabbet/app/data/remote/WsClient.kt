@@ -28,6 +28,7 @@ class WsClient(private val apiClient: ApiClient) {
 
     private var reconnectAttempt = 0
     private var shouldReconnect = true
+    private var heartbeatJob: kotlinx.coroutines.Job? = null
 
     fun connect(token: String) {
         scope.launch {
@@ -46,6 +47,16 @@ class WsClient(private val apiClient: ApiClient) {
                 reconnectAttempt = 0
                 println("MUHABBET WS: Connected!")
 
+                // Start heartbeat
+                heartbeatJob = scope.launch {
+                    while (isActive) {
+                        delay(30_000L)
+                        try {
+                            send(WsMessage.Ping)
+                        } catch (_: Exception) { }
+                    }
+                }
+
                 session?.let { ws ->
                     for (frame in ws.incoming) {
                         if (frame is Frame.Text) {
@@ -59,6 +70,10 @@ class WsClient(private val apiClient: ApiClient) {
                         }
                     }
                 }
+
+                // Stop heartbeat on disconnect
+                heartbeatJob?.cancel()
+                heartbeatJob = null
                 println("MUHABBET WS: Session closed, will reconnect")
             } catch (e: Exception) {
                 println("MUHABBET WS: Connection error: ${e.message}")

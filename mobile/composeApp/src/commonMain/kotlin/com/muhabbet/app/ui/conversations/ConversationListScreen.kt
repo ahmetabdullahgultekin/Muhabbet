@@ -1,5 +1,7 @@
 package com.muhabbet.app.ui.conversations
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +41,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,6 +57,7 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
+import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -77,6 +83,9 @@ fun ConversationListScreen(
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val scope = rememberCoroutineScope()
 
+    // Track online status by userId (updated by PresenceUpdate messages)
+    val onlineUsers = remember { mutableStateMapOf<String, Boolean>() }
+
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_load_conversations)
 
@@ -84,22 +93,38 @@ fun ConversationListScreen(
         try {
             val result = conversationRepository.getConversations()
             conversations = result.items
+            // Initialize online status from server response
+            result.items.forEach { conv ->
+                conv.participants.forEach { p ->
+                    if (p.userId != currentUserId) {
+                        onlineUsers[p.userId] = p.isOnline
+                    }
+                }
+            }
         } catch (e: Exception) {
             snackbarHostState.showSnackbar(errorMsg)
         }
     }
 
-    // Load on initial + refreshKey changes (triggered by goBack from chat)
+    // Load on initial + refreshKey changes
     LaunchedEffect(refreshKey) {
         loadConversations()
         isLoading = false
     }
 
-    // Auto-refresh on incoming WS messages
+    // Auto-refresh on incoming WS messages + presence updates
     LaunchedEffect(Unit) {
         wsClient.incoming.collect { wsMessage ->
-            if (wsMessage is WsMessage.NewMessage || wsMessage is WsMessage.StatusUpdate) {
-                loadConversations()
+            when (wsMessage) {
+                is WsMessage.NewMessage, is WsMessage.StatusUpdate -> {
+                    loadConversations()
+                }
+                is WsMessage.PresenceUpdate -> {
+                    if (wsMessage.conversationId == null && wsMessage.userId != currentUserId) {
+                        onlineUsers[wsMessage.userId] = wsMessage.status == PresenceStatus.ONLINE
+                    }
+                }
+                else -> {}
             }
         }
     }
@@ -185,9 +210,13 @@ fun ConversationListScreen(
                             ?: otherParticipant?.displayName
                             ?: otherParticipant?.phoneNumber
                             ?: defaultChatName
+                        val isOtherOnline = otherParticipant?.let {
+                            onlineUsers[it.userId] ?: it.isOnline
+                        } ?: false
                         ConversationItem(
                             conversation = conv,
                             displayName = resolvedName,
+                            isOnline = isOtherOnline,
                             onClick = { onConversationClick(conv.id, resolvedName) }
                         )
                         HorizontalDivider()
@@ -202,6 +231,7 @@ fun ConversationListScreen(
 private fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
+    isOnline: Boolean,
     onClick: () -> Unit
 ) {
     Row(
@@ -211,15 +241,29 @@ private fun ConversationItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(48.dp).clip(CircleShape),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = displayName.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+        // Avatar with online indicator
+        Box {
+            Surface(
+                modifier = Modifier.size(48.dp).clip(CircleShape),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = displayName.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            // Green online dot
+            if (isOnline) {
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 1.dp, y = 1.dp)
+                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                        .background(Color(0xFF4CAF50), CircleShape)
                 )
             }
         }
@@ -263,7 +307,7 @@ private fun ConversationItem(
 
 private fun formatTimestamp(timestamp: String): String {
     return try {
-        timestamp.substringBefore("T").takeLast(5) // Simple MM-DD
+        timestamp.substringBefore("T").takeLast(5)
     } catch (_: Exception) {
         ""
     }

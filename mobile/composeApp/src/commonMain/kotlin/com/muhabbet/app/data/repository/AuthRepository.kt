@@ -4,6 +4,7 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.AuthTokenResponse
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
+import com.muhabbet.shared.dto.RegisterPushTokenRequest
 import com.muhabbet.shared.dto.RequestOtpRequest
 import com.muhabbet.shared.dto.RequestOtpResponse
 import com.muhabbet.shared.dto.UpdateProfileRequest
@@ -73,6 +74,10 @@ class AuthRepository(
 
     suspend fun updateProfile(displayName: String? = null, about: String? = null) {
         apiClient.patch<UserProfile>("/api/v1/users/me", UpdateProfileRequest(displayName = displayName, about = about))
+    }
+
+    suspend fun registerPushToken(token: String) {
+        apiClient.put<Unit>("/api/v1/devices/push-token", RegisterPushTokenRequest(pushToken = token))
     }
 
     fun logout() {

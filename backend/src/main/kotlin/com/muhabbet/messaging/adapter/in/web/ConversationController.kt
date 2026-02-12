@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
+import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.CreateConversationRequest
@@ -26,7 +27,8 @@ import java.util.UUID
 class ConversationController(
     private val createConversationUseCase: CreateConversationUseCase,
     private val getConversationsUseCase: GetConversationsUseCase,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val presencePort: PresencePort
 ) {
 
     @PostMapping
@@ -47,6 +49,7 @@ class ConversationController(
 
         val memberUserIds = result.members.map { it.userId }
         val usersMap = userRepository.findAllByIds(memberUserIds).associateBy { it.id }
+        val onlineIds = presencePort.getOnlineUserIds(memberUserIds)
 
         val response = ConversationResponse(
             id = result.conversation.id.toString(),
@@ -61,7 +64,7 @@ class ConversationController(
                     phoneNumber = user?.phoneNumber,
                     avatarUrl = user?.avatarUrl,
                     role = SharedMemberRole.valueOf(m.role.name),
-                    isOnline = false
+                    isOnline = m.userId in onlineIds
                 )
             },
             lastMessagePreview = null,
@@ -83,6 +86,7 @@ class ConversationController(
 
         val allParticipantIds = page.items.flatMap { it.participantIds }.distinct()
         val usersMap = userRepository.findAllByIds(allParticipantIds).associateBy { it.id }
+        val onlineIds = presencePort.getOnlineUserIds(allParticipantIds)
 
         val items = page.items.map { summary ->
             ConversationResponse(
@@ -98,7 +102,7 @@ class ConversationController(
                         phoneNumber = user?.phoneNumber,
                         avatarUrl = user?.avatarUrl,
                         role = SharedMemberRole.MEMBER,
-                        isOnline = false
+                        isOnline = pid in onlineIds
                     )
                 },
                 lastMessagePreview = summary.lastMessagePreview,

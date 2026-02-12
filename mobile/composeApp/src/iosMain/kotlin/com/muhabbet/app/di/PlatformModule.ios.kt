@@ -3,6 +3,8 @@ package com.muhabbet.app.di
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.IosContactsProvider
+import com.muhabbet.app.platform.IosPushTokenProvider
+import com.muhabbet.app.platform.PushTokenProvider
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import platform.Foundation.NSUserDefaults
@@ -10,6 +12,7 @@ import platform.Foundation.NSUserDefaults
 fun iosPlatformModule(): Module = module {
     single<TokenStorage> { IosTokenStorage() }
     single<ContactsProvider> { IosContactsProvider() }
+    single<PushTokenProvider> { IosPushTokenProvider() }
 }
 
 class IosTokenStorage : TokenStorage {

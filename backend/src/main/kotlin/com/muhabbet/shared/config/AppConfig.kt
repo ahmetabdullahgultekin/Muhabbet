@@ -8,6 +8,10 @@ import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
 import com.muhabbet.auth.domain.service.ContactSyncService
+import com.muhabbet.media.domain.port.out.MediaFileRepository
+import com.muhabbet.media.domain.port.out.MediaStoragePort
+import com.muhabbet.media.domain.port.out.ThumbnailPort
+import com.muhabbet.media.domain.service.MediaService
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -22,7 +26,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties::class, OtpProperties::class, SmsProperties::class)
+@EnableConfigurationProperties(JwtProperties::class, OtpProperties::class, SmsProperties::class, MediaProperties::class)
 class AppConfig {
 
     @Bean
@@ -79,5 +83,19 @@ class AppConfig {
         userRepository = userRepository,
         messageBroadcaster = messageBroadcaster,
         eventPublisher = eventPublisher
+    )
+
+    @Bean
+    fun mediaService(
+        mediaStoragePort: MediaStoragePort,
+        mediaFileRepository: MediaFileRepository,
+        thumbnailPort: ThumbnailPort,
+        mediaProperties: MediaProperties
+    ): MediaService = MediaService(
+        mediaStoragePort = mediaStoragePort,
+        mediaFileRepository = mediaFileRepository,
+        thumbnailPort = thumbnailPort,
+        thumbnailWidth = mediaProperties.thumbnailWidth,
+        thumbnailHeight = mediaProperties.thumbnailHeight
     )
 }

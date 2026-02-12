@@ -40,7 +40,10 @@ class UserJpaEntity(
     var updatedAt: Instant = Instant.now(),
 
     @Column(name = "deleted_at")
-    var deletedAt: Instant? = null
+    var deletedAt: Instant? = null,
+
+    @Column(name = "last_seen_at")
+    var lastSeenAt: Instant? = null
 ) {
     fun toDomain(): User = User(
         id = id,

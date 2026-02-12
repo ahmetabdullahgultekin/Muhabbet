@@ -6,13 +6,16 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AndroidContactsProvider
+import com.muhabbet.app.platform.AndroidPushTokenProvider
 import com.muhabbet.app.platform.ContactsProvider
+import com.muhabbet.app.platform.PushTokenProvider
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
 fun androidPlatformModule(context: Context): Module = module {
     single<TokenStorage> { AndroidTokenStorage(context) }
     single<ContactsProvider> { AndroidContactsProvider(context) }
+    single<PushTokenProvider> { AndroidPushTokenProvider() }
 }
 
 class AndroidTokenStorage(context: Context) : TokenStorage {
