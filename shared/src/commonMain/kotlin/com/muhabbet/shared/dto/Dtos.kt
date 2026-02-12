@@ -215,6 +215,30 @@ data class PollOptionResult(
     val count: Int
 )
 
+// ─── Status/Stories DTOs ─────────────────────────────────
+
+@Serializable
+data class StatusCreateRequest(
+    val content: String? = null,
+    val mediaUrl: String? = null
+)
+
+@Serializable
+data class StatusResponse(
+    val id: String,
+    val userId: String,
+    val content: String? = null,
+    val mediaUrl: String? = null,
+    val createdAt: Long,
+    val expiresAt: Long
+)
+
+@Serializable
+data class UserStatusGroup(
+    val userId: String,
+    val statuses: List<StatusResponse>
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable

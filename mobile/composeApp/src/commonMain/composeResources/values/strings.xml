@@ -170,4 +170,10 @@
     <string name="location_label_placeholder">Konum adı (isteğe bağlı)</string>
     <string name="location_lat_placeholder">Enlem</string>
     <string name="location_lng_placeholder">Boylam</string>
+
+    <!-- Status/Stories -->
+    <string name="status_my">Durumum</string>
+    <string name="status_create_title">Durum Paylaş</string>
+    <string name="status_placeholder">Neler düşünüyorsun?</string>
+    <string name="status_post">Paylaş</string>
 </resources>

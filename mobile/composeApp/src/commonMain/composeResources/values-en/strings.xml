@@ -170,4 +170,10 @@
     <string name="location_label_placeholder">Location name (optional)</string>
     <string name="location_lat_placeholder">Latitude</string>
     <string name="location_lng_placeholder">Longitude</string>
+
+    <!-- Status/Stories -->
+    <string name="status_my">My Status</string>
+    <string name="status_create_title">Share Status</string>
+    <string name="status_placeholder">What's on your mind?</string>
+    <string name="status_post">Share</string>
 </resources>

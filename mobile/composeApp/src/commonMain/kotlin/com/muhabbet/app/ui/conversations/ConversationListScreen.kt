@@ -57,10 +57,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyRow
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.data.repository.StatusRepository
+import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.model.Message
 import androidx.compose.material.icons.filled.Search
@@ -93,7 +96,8 @@ fun ConversationListScreen(
     messageRepository: MessageRepository = koinInject(),
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
-    contactsProvider: ContactsProvider = koinInject()
+    contactsProvider: ContactsProvider = koinInject(),
+    statusRepository: StatusRepository = koinInject()
 ) {
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -113,6 +117,11 @@ fun ConversationListScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
+
+    // Status/Stories state
+    var statusGroups by remember { mutableStateOf<List<UserStatusGroup>>(emptyList()) }
+    var showStatusInput by remember { mutableStateOf(false) }
+    var statusText by remember { mutableStateOf("") }
 
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_load_conversations)
@@ -142,6 +151,7 @@ fun ConversationListScreen(
     // Load on initial + refreshKey changes
     LaunchedEffect(refreshKey) {
         loadConversations()
+        try { statusGroups = statusRepository.getContactStatuses() } catch (_: Exception) { }
         isLoading = false
     }
 
@@ -187,6 +197,46 @@ fun ConversationListScreen(
                 }
             } catch (_: Exception) { }
         }
+    }
+
+    // Status creation dialog
+    if (showStatusInput) {
+        AlertDialog(
+            onDismissRequest = { showStatusInput = false; statusText = "" },
+            title = { Text(stringResource(Res.string.status_create_title)) },
+            text = {
+                OutlinedTextField(
+                    value = statusText,
+                    onValueChange = { statusText = it },
+                    placeholder = { Text(stringResource(Res.string.status_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val text = statusText.trim()
+                        if (text.isNotEmpty()) {
+                            showStatusInput = false
+                            statusText = ""
+                            scope.launch {
+                                try {
+                                    statusRepository.createStatus(content = text, mediaUrl = null)
+                                    statusGroups = statusRepository.getContactStatuses()
+                                } catch (_: Exception) { }
+                            }
+                        }
+                    },
+                    enabled = statusText.isNotBlank()
+                ) { Text(stringResource(Res.string.status_post)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatusInput = false; statusText = "" }) {
+                    Text(cancelText)
+                }
+            }
+        )
     }
 
     // Delete conversation dialog
@@ -356,6 +406,81 @@ fun ConversationListScreen(
                 }
             } else {
                 LazyColumn {
+                    // Status row
+                    item(key = "status_row") {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                        ) {
+                            // "Add status" button
+                            item(key = "add_status") {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clickable { showStatusInput = true }.width(64.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.size(56.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.Add,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp),
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = stringResource(Res.string.status_my),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            // Contact statuses
+                            items(
+                                count = statusGroups.size,
+                                key = { statusGroups[it].userId }
+                            ) { index ->
+                                val group = statusGroups[index]
+                                val conv = conversations.flatMap { it.participants }
+                                    .firstOrNull { it.userId == group.userId }
+                                val displayName = conv?.displayName ?: conv?.phoneNumber ?: group.userId.take(8)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.width(64.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                    ) {
+                                        com.muhabbet.app.ui.components.UserAvatar(
+                                            avatarUrl = conv?.avatarUrl,
+                                            displayName = displayName,
+                                            size = 56.dp
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                        if (statusGroups.isNotEmpty() || true) {
+                            HorizontalDivider()
+                        }
+                    }
                     items(conversations, key = { it.id }) { conv ->
                         val otherParticipant = conv.participants
                             .firstOrNull { it.userId != currentUserId }
