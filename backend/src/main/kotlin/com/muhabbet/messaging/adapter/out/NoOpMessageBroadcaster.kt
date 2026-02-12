@@ -93,7 +93,7 @@ class WebSocketMessageBroadcaster(
         }
     }
 
-    override fun broadcastStatusUpdate(messageId: UUID, conversationId: UUID, userId: UUID, status: DeliveryStatus) {
+    override fun broadcastStatusUpdate(messageId: UUID, conversationId: UUID, readerId: UUID, senderId: UUID, status: DeliveryStatus) {
         val wsStatus = when (status) {
             DeliveryStatus.DELIVERED -> MessageStatus.DELIVERED
             DeliveryStatus.READ -> MessageStatus.READ
@@ -103,16 +103,14 @@ class WebSocketMessageBroadcaster(
         val wsMessage = WsMessage.StatusUpdate(
             messageId = messageId.toString(),
             conversationId = conversationId.toString(),
-            userId = userId.toString(),
+            userId = readerId.toString(),
             status = wsStatus,
             timestamp = System.currentTimeMillis()
         )
 
         val json = wsJson.encodeToString<WsMessage>(wsMessage)
 
-        // Send to the original sender of the message so they see delivery/read status
-        // The userId here is the one who delivered/read, we need to notify the sender
-        // This is handled by the caller (MessagingService already knows the sender from message lookup)
-        sessionManager.sendToUser(userId, json)
+        // Send to the original SENDER so they see delivery/read status
+        sessionManager.sendToUser(senderId, json)
     }
 }

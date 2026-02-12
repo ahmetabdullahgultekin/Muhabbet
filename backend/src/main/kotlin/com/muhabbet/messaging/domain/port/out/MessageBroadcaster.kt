@@ -7,6 +7,6 @@ import java.util.UUID
 
 interface MessageBroadcaster {
     fun broadcastMessage(message: Message, recipientIds: List<UUID>)
-    fun broadcastStatusUpdate(messageId: UUID, conversationId: UUID, userId: UUID, status: DeliveryStatus)
+    fun broadcastStatusUpdate(messageId: UUID, conversationId: UUID, readerId: UUID, senderId: UUID, status: DeliveryStatus)
     fun broadcastToUsers(recipientIds: List<UUID>, message: WsMessage)
 }

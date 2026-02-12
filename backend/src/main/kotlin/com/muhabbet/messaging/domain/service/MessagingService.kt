@@ -185,6 +185,7 @@ open class MessagingService(
                 content = command.content,
                 replyToId = command.replyToId,
                 mediaUrl = command.mediaUrl,
+                thumbnailUrl = command.thumbnailUrl,
                 serverTimestamp = Instant.now(),
                 clientTimestamp = command.clientTimestamp
             )
@@ -246,7 +247,7 @@ open class MessagingService(
         messageRepository.updateDeliveryStatus(messageId, userId, status)
 
         val message = messageRepository.findById(messageId) ?: return
-        messageBroadcaster.broadcastStatusUpdate(messageId, message.conversationId, userId, status)
+        messageBroadcaster.broadcastStatusUpdate(messageId, message.conversationId, userId, message.senderId, status)
 
         log.debug("Delivery status updated: msg={}, user={}, status={}", messageId, userId, status)
     }

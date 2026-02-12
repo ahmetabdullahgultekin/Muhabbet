@@ -18,7 +18,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 
-class WsClient(private val apiClient: ApiClient) {
+class WsClient(private val apiClient: ApiClient, private val tokenProvider: () -> String?) {
 
     private var session: WebSocketSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -30,15 +30,21 @@ class WsClient(private val apiClient: ApiClient) {
     private var shouldReconnect = true
     private var heartbeatJob: kotlinx.coroutines.Job? = null
 
-    fun connect(token: String) {
+    fun connect() {
         scope.launch {
             shouldReconnect = true
-            connectInternal(token)
+            connectInternal()
         }
     }
 
-    private suspend fun connectInternal(token: String) {
+    private suspend fun connectInternal() {
         while (shouldReconnect) {
+            val token = tokenProvider()
+            if (token == null) {
+                println("MUHABBET WS: No token available, waiting...")
+                delay(2000)
+                continue
+            }
             try {
                 println("MUHABBET WS: Connecting...")
                 session = apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {

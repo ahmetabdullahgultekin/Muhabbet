@@ -140,6 +140,7 @@ class ChatWebSocketHandler(
                     contentType = contentType,
                     replyToId = msg.replyToId?.let { UUID.fromString(it) },
                     mediaUrl = msg.mediaUrl,
+                    thumbnailUrl = msg.thumbnailUrl,
                     clientTimestamp = Instant.now()
                 )
             )
@@ -173,13 +174,13 @@ class ChatWebSocketHandler(
             else -> return
         }
         if (status == DeliveryStatus.READ) {
-            // Mark ALL messages in the conversation as read (not just one)
+            // Bulk-update ALL messages in the conversation as read in DB
             updateDeliveryStatusUseCase.markConversationRead(
                 UUID.fromString(msg.conversationId), userId
             )
-        } else {
-            updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
         }
+        // Always broadcast StatusUpdate for the specific message to the sender
+        updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
     }
 
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {

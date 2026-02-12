@@ -27,7 +27,8 @@ sealed class WsMessage {
         val content: String,
         val contentType: ContentType = ContentType.TEXT,
         val replyToId: String? = null,
-        val mediaUrl: String? = null
+        val mediaUrl: String? = null,
+        val thumbnailUrl: String? = null
     ) : WsMessage()
 
     /** Client acknowledges received message (delivered/read) */

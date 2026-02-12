@@ -17,5 +17,6 @@ data class SendMessageCommand(
     val contentType: ContentType = ContentType.TEXT,
     val replyToId: UUID? = null,
     val mediaUrl: String? = null,
+    val thumbnailUrl: String? = null,
     val clientTimestamp: Instant
 )

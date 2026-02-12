@@ -45,9 +45,8 @@ private fun WebSocketLifecycle() {
     val authRepository: AuthRepository = koinInject()
 
     DisposableEffect(Unit) {
-        val token = tokenStorage.getAccessToken()
-        if (token != null) {
-            wsClient.connect(token)
+        if (tokenStorage.isLoggedIn()) {
+            wsClient.connect()
         }
         onDispose {
             wsClient.disconnect()

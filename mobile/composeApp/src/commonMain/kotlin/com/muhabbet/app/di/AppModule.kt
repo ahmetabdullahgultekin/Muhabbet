@@ -12,7 +12,7 @@ import org.koin.dsl.module
 
 fun appModule(): Module = module {
     single { ApiClient(tokenStorage = get()) }
-    single { WsClient(apiClient = get()) }
+    single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }) }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
     single { ConversationRepository(apiClient = get()) }
     single { MessageRepository(apiClient = get()) }

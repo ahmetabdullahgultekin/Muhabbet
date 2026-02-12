@@ -200,7 +200,8 @@ fun ChatScreen(
                         conversationId = conversationId,
                         content = chatPhotoText,
                         contentType = ContentType.IMAGE,
-                        mediaUrl = uploadResponse.url
+                        mediaUrl = uploadResponse.url,
+                        thumbnailUrl = uploadResponse.thumbnailUrl
                     )
                 )
             } catch (e: Exception) {
@@ -286,10 +287,21 @@ fun ChatScreen(
                 }
                 is WsMessage.StatusUpdate -> {
                     if (wsMessage.conversationId == conversationId) {
-                        messages = messages.map { msg ->
-                            if (msg.id == wsMessage.messageId) {
-                                msg.copy(status = wsMessage.status)
-                            } else msg
+                        if (wsMessage.status == MessageStatus.READ) {
+                            // Bulk-update: mark all own SENT/DELIVERED messages as READ
+                            messages = messages.map { msg ->
+                                if (msg.senderId == currentUserId &&
+                                    (msg.status == MessageStatus.SENT || msg.status == MessageStatus.DELIVERED)
+                                ) {
+                                    msg.copy(status = MessageStatus.READ)
+                                } else msg
+                            }
+                        } else {
+                            messages = messages.map { msg ->
+                                if (msg.id == wsMessage.messageId) {
+                                    msg.copy(status = wsMessage.status)
+                                } else msg
+                            }
                         }
                     }
                 }
