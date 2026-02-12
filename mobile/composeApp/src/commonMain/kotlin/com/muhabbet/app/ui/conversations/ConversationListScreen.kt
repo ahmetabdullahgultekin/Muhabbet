@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.PresenceStatus
@@ -67,7 +68,9 @@ import com.muhabbet.shared.protocol.WsMessage
 import androidx.compose.material.icons.filled.Group
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
@@ -82,7 +85,8 @@ fun ConversationListScreen(
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
     wsClient: WsClient = koinInject(),
-    tokenStorage: TokenStorage = koinInject()
+    tokenStorage: TokenStorage = koinInject(),
+    contactsProvider: ContactsProvider = koinInject()
 ) {
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -93,6 +97,9 @@ fun ConversationListScreen(
 
     // Track online status by userId (updated by PresenceUpdate messages)
     val onlineUsers = remember { mutableStateMapOf<String, Boolean>() }
+
+    // Map of normalized E.164 phone → device contact saved name
+    val contactNameMap = remember { mutableStateMapOf<String, String>() }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
@@ -151,6 +158,24 @@ fun ConversationListScreen(
                 }
                 else -> {}
             }
+        }
+    }
+
+    // Load device contacts for name resolution (contact name > nickname > phone)
+    LaunchedEffect(Unit) {
+        if (contactsProvider.hasPermission()) {
+            try {
+                val deviceContacts = withContext(Dispatchers.Default) {
+                    contactsProvider.readContacts()
+                }
+                deviceContacts.forEach { contact ->
+                    val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
+                    val normalized = normalizeToE164(digits)
+                    if (normalized != null) {
+                        contactNameMap[normalized] = contact.name
+                    }
+                }
+            } catch (_: Exception) { }
         }
     }
 
@@ -260,18 +285,22 @@ fun ConversationListScreen(
                     items(conversations, key = { it.id }) { conv ->
                         val otherParticipant = conv.participants
                             .firstOrNull { it.userId != currentUserId }
+                        val isGroup = conv.type == ConversationType.GROUP
+                        // Name priority: 1-Contact saved name, 2-Nickname, 3-Phone
+                        val contactName = if (!isGroup) {
+                            otherParticipant?.phoneNumber?.let { contactNameMap[it] }
+                        } else null
                         val resolvedName = conv.name
+                            ?: contactName
                             ?: otherParticipant?.displayName
                             ?: otherParticipant?.phoneNumber
                             ?: defaultChatName
                         val isOtherOnline = otherParticipant?.let {
                             onlineUsers[it.userId] ?: it.isOnline
                         } ?: false
-                        val isGroup = conv.type == ConversationType.GROUP
                         ConversationItem(
                             conversation = conv,
                             displayName = resolvedName,
-                            phoneNumber = if (!isGroup) otherParticipant?.phoneNumber else null,
                             isOnline = isOtherOnline,
                             isGroup = isGroup,
                             onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
@@ -293,7 +322,6 @@ fun ConversationListScreen(
 private fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
-    phoneNumber: String? = null,
     isOnline: Boolean,
     isGroup: Boolean = false,
     onClick: () -> Unit,
@@ -352,15 +380,7 @@ private fun ConversationItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (phoneNumber != null && phoneNumber != displayName) {
-                Text(
-                    text = phoneNumber,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            } else if (conversation.lastMessagePreview != null) {
+            if (conversation.lastMessagePreview != null) {
                 Text(
                     text = conversation.lastMessagePreview!!,
                     style = MaterialTheme.typography.bodySmall,
@@ -389,6 +409,18 @@ private fun ConversationItem(
 
 private fun firstGrapheme(text: String): String =
     com.muhabbet.app.ui.profile.firstGrapheme(text)
+
+private fun normalizeToE164(phone: String): String? {
+    val digits = phone.removePrefix("+")
+    return when {
+        phone.startsWith("+90") && digits.length == 12 -> phone
+        digits.startsWith("90") && digits.length == 12 -> "+$digits"
+        digits.startsWith("0") && digits.length == 11 -> "+90${digits.drop(1)}"
+        digits.startsWith("5") && digits.length == 10 -> "+90$digits"
+        phone.startsWith("+") && digits.length >= 10 -> phone
+        else -> null
+    }
+}
 
 private fun formatTimestamp(timestamp: String): String {
     return try {
