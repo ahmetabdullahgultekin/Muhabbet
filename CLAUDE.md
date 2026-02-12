@@ -42,9 +42,9 @@ module/
 ### Modules
 - `auth` — **DONE** — OTP via MockOtpSender (Netgsm later), JWT HS256, device management, phone hash for contact sync
 - `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination
-- `media` — PLANNED — Upload/download via MinIO (S3 API), thumbnail generation
-- `presence` — PLANNED — Online/offline tracking, typing indicators (Redis-backed)
-- `notification` — PLANNED — Push notifications via FCM
+- `media` — **DONE** — Upload/download via MinIO (S3 API), thumbnail generation, pre-signed URLs via nginx proxy
+- `presence` — **DONE** — Online/offline tracking via Redis (TTL-based keys), typing indicators, last seen persistence
+- `notification` — **DONE** — Push notifications via FCM (FcmPushNotificationAdapter), push token registration
 - `user` — Profile endpoints in auth module for now (`GET/PATCH /users/me`)
 
 ### Cross-Cutting (`shared/` package in backend)
@@ -135,15 +135,22 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `docs/api-contract.md` — REST + WebSocket API specification
 
 ## Current Phase
-MVP — solo engineer. Focus on shipping 1:1 messaging first:
+MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
 2. ~~1:1 messaging (WebSocket)~~ — **DONE**
 3. ~~Mobile app (CMP Android)~~ — **DONE** (auth, chat, settings, dark mode, pull-to-refresh, pagination)
 4. ~~Contacts sync~~ — **DONE** (Android; iOS stubbed)
 5. ~~Typing indicators~~ — **DONE** (send, receive, backend broadcast)
-6. Media sharing (images) — PLANNED
-7. Push notifications — PLANNED
-8. Presence (online/last seen) — PLANNED
+6. ~~Media sharing (images)~~ — **DONE** (upload, thumbnail, image bubbles, full-size viewer)
+7. ~~Push notifications~~ — **DONE** (FCM, push token registration, offline delivery)
+8. ~~Presence (online/last seen)~~ — **DONE** (Redis TTL, green dot, header subtitle)
+
+### Next Phases
+- Group messaging
+- Voice messages
+- E2E encryption (Signal Protocol)
+- iOS release
+- Production SMS (Netgsm)
 
 E2E encryption deferred to Phase 2 (TLS-only for MVP).
 
@@ -159,9 +166,10 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
 - **GCP Project**: `muhabbet-app-prod`, account `rollingcat.help@gmail.com`
 - **GCP VM**: `muhabbet-vm`, e2-medium (2 vCPU, 4GB RAM + 4GB swap), zone `europe-west1-b`, IP `34.22.242.56`
 - **Domain**: `muhabbet.rollingcatsoftware.com`
-- **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis` (via `infra/docker-compose.prod.yml`)
+- **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis`, `muhabbet-minio`, `muhabbet-nginx` (via `infra/docker-compose.prod.yml`)
 - **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials at `infra/firebase-adminsdk.json`
 - **Deploy command**: `gcloud compute ssh muhabbet-vm --zone=europe-west1-b --project=muhabbet-app-prod --command='cd /home/ahabg/Muhabbet && git pull && cd infra && docker compose -f docker-compose.prod.yml up -d --build backend'`
+- **Deploy backend + nginx**: Add `&& docker compose -f docker-compose.prod.yml restart nginx` when nginx config changes
 - **VM has 4GB swap** (`/swapfile`) — required for Docker Gradle builds, without it OOM kills the build
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
 
@@ -192,3 +200,8 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
   - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
 - **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
 - **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever
+- **MinIO pre-signed URLs in Docker**: MinIO runs inside Docker network (`http://minio:9000`). Pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client with a public endpoint — the SDK makes internal API calls (GetBucketLocation) to the endpoint which fail through nginx. **Solution**: Generate URLs with internal client, then string-replace the endpoint: `url.replace(internalEndpoint, publicEndpoint)`. Nginx proxies `/muhabbet-media/` to `http://minio:9000/muhabbet-media/` with `Host minio:9000` header so signatures validate.
+- **KoinApplication vs KoinContext**: `KoinApplication` composable starts a NEW Koin instance — crashes with `KoinApplicationAlreadyStartedException` when Android Activity recreates. **Fix**: Use `GlobalContext.getOrNull() ?: startKoin { ... }.koin` + `KoinContext(context = koin)`.
+- **WsClient.send() callers must try-catch**: Even though `send()` correctly throws when disconnected, ALL callers in Composables must wrap in try-catch. Uncaught exceptions in `LaunchedEffect`/`scope.launch` kill the coroutine silently or crash the collector.
+- **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` in `NewConversationScreen.kt`.
+- **Nginx location trailing slash matters**: `location /muhabbet-media/` does NOT match `/muhabbet-media?query` (no trailing slash). MinIO SDK sends bucket location requests without trailing slash, causing 301 redirects then signature failures.

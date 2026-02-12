@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Media Sharing (Week 5)
+- **Backend media module**: Hexagonal architecture — `MediaService`, `MinioMediaStorageAdapter`, `JavaImageThumbnailAdapter`, `MediaController`
+- **Image upload**: `POST /api/v1/media/upload` (multipart) — validates type/size, generates thumbnail (320x320), uploads to MinIO, returns pre-signed URLs
+- **Pre-signed URL refresh**: `GET /api/v1/media/{mediaId}/url` — returns fresh URLs when old ones expire
+- **Nginx MinIO proxy**: `/muhabbet-media/` proxied to MinIO with `Host minio:9000` for pre-signed URL signature validation
+- **Mobile image picker**: Platform `expect/actual` — Android uses `PickVisualMedia`, iOS stubbed
+- **Image compression**: Client-side JPEG compression (max 1280px, quality 80) before upload
+- **Image bubbles**: AsyncImage (Coil 3) with thumbnail in chat, tap for full-size dialog viewer
+- **Optimistic UI**: Shows local image immediately while uploading
+
+### Added — Push Notifications (Week 5)
+- **FCM integration**: `FcmPushNotificationAdapter` sends push to offline recipients on new message
+- **Push token registration**: Mobile registers FCM token on app start via `PUT /api/v1/devices/push-token`
+- **Android FCM service**: `MuhabbetFirebaseMessagingService` handles `onNewToken` and `onMessageReceived`
+
+### Added — Presence Tracking (Week 5)
+- **Redis presence**: `RedisPresenceAdapter` — `presence:{userId}` keys with 60s TTL, refreshed by heartbeat/ping
+- **Online/offline broadcast**: `PresenceUpdate` WS messages sent to contacts on connect/disconnect
+- **Last seen persistence**: `users.last_seen_at` column (V2 migration), updated on WS disconnect
+- **Mobile online indicator**: Green dot on conversation list avatars for online users
+- **Chat header subtitle**: "yazıyor..." (typing) > "çevrimiçi" (online) > "son görülme HH:mm" (last seen)
+- **30s heartbeat**: WsClient sends `Ping` every 30s, backend refreshes Redis TTL on Ping/GoOnline
+
+### Fixed — Week 5
+- **Koin crash on Activity recreation**: Replaced `KoinApplication` with `GlobalContext` guard + `KoinContext`
+- **WS send crash**: Wrapped all unguarded `wsClient.send()` calls in try-catch (typing indicators, READ acks)
+- **Empty image bubbles**: Pre-signed URLs used internal `minio:9000` endpoint. Fixed with URL rewrite + nginx proxy
+- **Contact sync not matching**: Phone numbers not normalized to E.164 before hashing. Added `normalizeToE164()` for Turkish formats (05XX, 5XX, 90XX)
+
 ### Added — Mobile App (Weeks 3-4)
 - **Auth flow**: Phone input → OTP verify → auto-login with platform detection (expect/actual)
 - **Conversation list**: Real-time WS updates, pull-to-refresh, unread badges, participant name resolution
