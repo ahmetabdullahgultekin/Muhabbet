@@ -54,7 +54,8 @@ class UserJpaEntity(
         status = status,
         createdAt = createdAt,
         updatedAt = updatedAt,
-        deletedAt = deletedAt
+        deletedAt = deletedAt,
+        lastSeenAt = lastSeenAt
     )
 
     companion object {

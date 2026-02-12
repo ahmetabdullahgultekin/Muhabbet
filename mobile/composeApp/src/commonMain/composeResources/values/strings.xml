@@ -111,6 +111,19 @@
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
 
+    <!-- Delete Conversation -->
+    <string name="conv_delete_title">Konuşmayı Sil</string>
+    <string name="conv_delete_confirm">Bu konuşmayı silmek istediğinize emin misiniz?</string>
+    <string name="conv_delete_failed">Konuşma silinemedi</string>
+
+    <!-- User Profile -->
+    <string name="profile_view_title">Profil</string>
+    <string name="profile_phone">Telefon</string>
+    <string name="profile_about_label">Hakkında</string>
+    <string name="profile_no_about">Hakkında bilgisi yok</string>
+    <string name="profile_last_seen">Son görülme %1$s</string>
+    <string name="profile_load_failed">Profil yüklenemedi</string>
+
     <!-- Contacts -->
     <string name="contacts_grant_access">Rehber Erişimi Ver</string>
     <string name="contacts_permission_denied">Rehber erişimi reddedildi. Kişilerinizi görmek için ayarlardan izin verin.</string>

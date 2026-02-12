@@ -155,7 +155,7 @@ fun SettingsScreen(
                 ) {
                     androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = displayName.take(1).uppercase().ifEmpty { "?" },
+                            text = com.muhabbet.app.ui.profile.firstGrapheme(displayName),
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )

@@ -18,6 +18,7 @@ import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.conversations.NewConversationScreen
 import com.muhabbet.app.ui.group.CreateGroupScreen
 import com.muhabbet.app.ui.group.GroupInfoScreen
+import com.muhabbet.app.ui.profile.UserProfileScreen
 import com.muhabbet.app.ui.settings.SettingsScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,8 +43,8 @@ class MainComponent(
     )
 
     @OptIn(DelicateDecomposeApi::class)
-    fun openChat(conversationId: String, conversationName: String) {
-        navigation.push(Config.Chat(conversationId, conversationName))
+    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false) {
+        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup))
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -66,6 +67,11 @@ class MainComponent(
         navigation.push(Config.GroupInfo(conversationId, conversationName))
     }
 
+    @OptIn(DelicateDecomposeApi::class)
+    fun openUserProfile(userId: String) {
+        navigation.push(Config.UserProfile(userId))
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -74,11 +80,12 @@ class MainComponent(
     @Serializable
     sealed interface Config {
         @Serializable data object ConversationList : Config
-        @Serializable data class Chat(val conversationId: String, val name: String) : Config
+        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false) : Config
         @Serializable data object NewConversation : Config
         @Serializable data object Settings : Config
         @Serializable data object CreateGroup : Config
         @Serializable data class GroupInfo(val conversationId: String, val name: String) : Config
+        @Serializable data class UserProfile(val userId: String) : Config
     }
 }
 
@@ -90,7 +97,7 @@ fun MainContent(component: MainComponent) {
     ) { child ->
         when (val config = child.instance) {
             is MainComponent.Config.ConversationList -> ConversationListScreen(
-                onConversationClick = { id, name -> component.openChat(id, name) },
+                onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
@@ -98,7 +105,14 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.Chat -> ChatScreen(
                 conversationId = config.conversationId,
                 conversationName = config.name,
-                onBack = component::goBack
+                onBack = component::goBack,
+                onTitleClick = {
+                    if (config.isGroup) {
+                        component.openGroupInfo(config.conversationId, config.name)
+                    } else if (config.otherUserId != null) {
+                        component.openUserProfile(config.otherUserId)
+                    }
+                }
             )
             is MainComponent.Config.NewConversation -> NewConversationScreen(
                 onConversationCreated = { id, name ->
@@ -121,6 +135,10 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.GroupInfo -> GroupInfoScreen(
                 conversationId = config.conversationId,
                 conversationName = config.name,
+                onBack = component::goBack
+            )
+            is MainComponent.Config.UserProfile -> UserProfileScreen(
+                userId = config.userId,
                 onBack = component::goBack
             )
             is MainComponent.Config.Settings -> SettingsScreen(

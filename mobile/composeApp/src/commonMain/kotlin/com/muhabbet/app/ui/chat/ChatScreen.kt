@@ -103,6 +103,7 @@ fun ChatScreen(
     conversationId: String,
     conversationName: String,
     onBack: () -> Unit,
+    onTitleClick: () -> Unit = {},
     messageRepository: MessageRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
@@ -449,7 +450,7 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(modifier = Modifier.clickable { onTitleClick() }) {
                         Text(conversationName)
                         if (subtitle != null) {
                             Text(

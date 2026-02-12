@@ -9,18 +9,45 @@ import com.muhabbet.shared.model.UserProfile
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.validation.ValidationRules
 import com.muhabbet.shared.web.ApiResponseBuilder
+import com.muhabbet.messaging.domain.port.out.PresencePort
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/users")
 class UserController(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val presencePort: PresencePort
 ) {
+
+    @GetMapping("/{userId}")
+    fun getUserById(@PathVariable userId: UUID): ResponseEntity<ApiResponse<UserProfile>> {
+        val user = userRepository.findById(userId)
+            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Kullanıcı bulunamadı")
+
+        val isOnline = presencePort.isOnline(userId)
+        val lastSeen = user.lastSeenAt?.let {
+            kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong())
+        }
+
+        return ApiResponseBuilder.ok(
+            UserProfile(
+                id = user.id.toString(),
+                phoneNumber = user.phoneNumber,
+                displayName = user.displayName,
+                avatarUrl = user.avatarUrl,
+                about = user.about,
+                isOnline = isOnline,
+                lastSeenAt = lastSeen
+            )
+        )
+    }
 
     @GetMapping("/me")
     fun getMe(): ResponseEntity<ApiResponse<UserProfile>> {

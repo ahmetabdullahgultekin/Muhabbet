@@ -205,7 +205,7 @@ fun GroupInfoScreen(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = (conversation?.name ?: "G").take(1).uppercase(),
+                                    text = com.muhabbet.app.ui.profile.firstGrapheme(conversation?.name ?: "G"),
                                     style = MaterialTheme.typography.headlineMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
@@ -280,7 +280,7 @@ private fun MemberItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = (member.displayName ?: "?").take(1).uppercase(),
+                    text = com.muhabbet.app.ui.profile.firstGrapheme(member.displayName ?: "?"),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )

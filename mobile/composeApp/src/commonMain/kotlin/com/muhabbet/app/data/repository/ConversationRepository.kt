@@ -7,6 +7,7 @@ import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.CreateConversationRequest
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.model.ConversationType
+import com.muhabbet.shared.model.UserProfile
 
 class ConversationRepository(private val apiClient: ApiClient) {
 
@@ -36,5 +37,14 @@ class ConversationRepository(private val apiClient: ApiClient) {
             ContactSyncRequest(phoneHashes)
         )
         return response.data ?: ContactSyncResponse(emptyList())
+    }
+
+    suspend fun deleteConversation(conversationId: String) {
+        apiClient.delete<Unit>("/api/v1/conversations/$conversationId")
+    }
+
+    suspend fun getUserProfile(userId: String): UserProfile {
+        val response = apiClient.get<UserProfile>("/api/v1/users/$userId")
+        return response.data ?: throw Exception("Profil yüklenemedi")
     }
 }

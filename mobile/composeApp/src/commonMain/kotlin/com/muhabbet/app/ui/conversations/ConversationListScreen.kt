@@ -1,8 +1,10 @@
 package com.muhabbet.app.ui.conversations
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +38,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -69,10 +73,10 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ConversationListScreen(
-    onConversationClick: (id: String, name: String) -> Unit,
+    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     refreshKey: Int = 0,
@@ -90,8 +94,16 @@ fun ConversationListScreen(
     // Track online status by userId (updated by PresenceUpdate messages)
     val onlineUsers = remember { mutableStateMapOf<String, Boolean>() }
 
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
+
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_load_conversations)
+    val convDeleteTitle = stringResource(Res.string.conv_delete_title)
+    val convDeleteConfirm = stringResource(Res.string.conv_delete_confirm)
+    val convDeleteFailed = stringResource(Res.string.conv_delete_failed)
+    val cancelText = stringResource(Res.string.cancel)
+    val deleteText = stringResource(Res.string.delete)
 
     suspend fun loadConversations() {
         try {
@@ -140,6 +152,35 @@ fun ConversationListScreen(
                 else -> {}
             }
         }
+    }
+
+    // Delete conversation dialog
+    if (showDeleteDialog && deleteTargetConv != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false; deleteTargetConv = null },
+            title = { Text(convDeleteTitle) },
+            text = { Text(convDeleteConfirm) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val conv = deleteTargetConv!!
+                    showDeleteDialog = false
+                    deleteTargetConv = null
+                    scope.launch {
+                        try {
+                            conversationRepository.deleteConversation(conv.id)
+                            conversations = conversations.filter { it.id != conv.id }
+                        } catch (_: Exception) {
+                            snackbarHostState.showSnackbar(convDeleteFailed)
+                        }
+                    }
+                }) { Text(deleteText, color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false; deleteTargetConv = null }) {
+                    Text(cancelText)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -226,12 +267,18 @@ fun ConversationListScreen(
                         val isOtherOnline = otherParticipant?.let {
                             onlineUsers[it.userId] ?: it.isOnline
                         } ?: false
+                        val isGroup = conv.type == ConversationType.GROUP
                         ConversationItem(
                             conversation = conv,
                             displayName = resolvedName,
+                            phoneNumber = if (!isGroup) otherParticipant?.phoneNumber else null,
                             isOnline = isOtherOnline,
-                            isGroup = conv.type == ConversationType.GROUP,
-                            onClick = { onConversationClick(conv.id, resolvedName) }
+                            isGroup = isGroup,
+                            onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
+                            onLongClick = {
+                                deleteTargetConv = conv
+                                showDeleteDialog = true
+                            }
                         )
                         HorizontalDivider()
                     }
@@ -241,18 +288,21 @@ fun ConversationListScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
+    phoneNumber: String? = null,
     isOnline: Boolean,
     isGroup: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -272,7 +322,7 @@ private fun ConversationItem(
                         )
                     } else {
                         Text(
-                            text = displayName.take(1).uppercase(),
+                            text = firstGrapheme(displayName),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -302,7 +352,15 @@ private fun ConversationItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (conversation.lastMessagePreview != null) {
+            if (phoneNumber != null && phoneNumber != displayName) {
+                Text(
+                    text = phoneNumber,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else if (conversation.lastMessagePreview != null) {
                 Text(
                     text = conversation.lastMessagePreview!!,
                     style = MaterialTheme.typography.bodySmall,
@@ -328,6 +386,9 @@ private fun ConversationItem(
         }
     }
 }
+
+private fun firstGrapheme(text: String): String =
+    com.muhabbet.app.ui.profile.firstGrapheme(text)
 
 private fun formatTimestamp(timestamp: String): String {
     return try {

@@ -14,7 +14,9 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -27,6 +29,8 @@ import java.util.UUID
 class ConversationController(
     private val createConversationUseCase: CreateConversationUseCase,
     private val getConversationsUseCase: GetConversationsUseCase,
+    private val manageGroupUseCase: com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase,
+    private val conversationRepository: com.muhabbet.messaging.domain.port.out.ConversationRepository,
     private val userRepository: UserRepository,
     private val presencePort: PresencePort
 ) {
@@ -115,5 +119,21 @@ class ConversationController(
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = page.nextCursor, hasMore = page.hasMore)
         )
+    }
+
+    @DeleteMapping("/{conversationId}")
+    fun deleteConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val conversation = conversationRepository.findById(conversationId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+
+        if (conversation.type == ConversationType.GROUP) {
+            manageGroupUseCase.leaveGroup(conversationId, userId)
+        } else {
+            // DM: just remove user from conversation_members to hide it
+            conversationRepository.removeMember(conversationId, userId)
+        }
+
+        return ApiResponseBuilder.ok(Unit)
     }
 }

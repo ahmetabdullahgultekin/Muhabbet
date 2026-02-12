@@ -137,7 +137,18 @@ fun PhoneInputScreen(
                                     onFirebaseAutoVerified(authResult.isNewUser)
                                 }
                                 is PhoneVerificationResult.Error -> {
-                                    error = result.message
+                                    // Firebase rate-limited — fallback to backend OTP
+                                    val msg = result.message.lowercase()
+                                    if (msg.contains("block") || msg.contains("too many") || msg.contains("unusual")) {
+                                        try {
+                                            val response = authRepository.requestOtp(phoneNumber)
+                                            onPhoneSubmitted(phoneNumber, response.mockCode, null)
+                                        } catch (fallbackErr: Exception) {
+                                            error = result.message
+                                        }
+                                    } else {
+                                        error = result.message
+                                    }
                                 }
                             }
                         } else {
@@ -146,7 +157,18 @@ fun PhoneInputScreen(
                             onPhoneSubmitted(phoneNumber, response.mockCode, null)
                         }
                     } catch (e: Exception) {
-                        error = e.message ?: genericErrorMsg
+                        // Firebase may throw directly (e.g. rate limiting)
+                        val msg = (e.message ?: "").lowercase()
+                        if (useFirebase && (msg.contains("block") || msg.contains("too many") || msg.contains("unusual"))) {
+                            try {
+                                val response = authRepository.requestOtp(phoneNumber)
+                                onPhoneSubmitted(phoneNumber, response.mockCode, null)
+                            } catch (_: Exception) {
+                                error = e.message ?: genericErrorMsg
+                            }
+                        } else {
+                            error = e.message ?: genericErrorMsg
+                        }
                     } finally {
                         isLoading = false
                     }

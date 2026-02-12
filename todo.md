@@ -9,6 +9,15 @@
 - [x] **Turkish characters missing** — Fixed: all hardcoded strings moved to composeResources string resources (values/strings.xml + values-en/strings.xml)
 - [x] **Date format broken** — Fixed: formatTimestamp now shows HH:mm for today, dd.MM for same year, dd.MM.yy for older
 - [x] **Language switch** — Added: Turkish/English toggle in Settings with radio buttons, persisted in SharedPreferences, activity restart to apply
+- [x] **WS reconnect uses expired token** — Fixed: WsClient now reads fresh token from TokenStorage on each reconnect instead of reusing the initial captured token
+- [x] **StatusUpdate sent to wrong user** — Fixed: broadcastStatusUpdate now sends to original message sender, not the reader
+- [x] **READ ack not broadcast** — Fixed: handleAckMessage for READ now also calls updateStatus to broadcast StatusUpdate; mobile bulk-updates all own messages on READ
+- [x] **thumbnailUrl lost in WS chain** — Fixed: added thumbnailUrl to SendMessage, SendMessageCommand, and Message save; mobile now sends thumbnailUrl for images
+- [x] **Firebase rate limit blocking** — Fixed: PhoneInputScreen falls back to backend OTP when Firebase returns block/rate-limit errors
+- [x] **Can't delete conversation** — Fixed: added DELETE /api/v1/conversations/{id} endpoint; long-press on conversation to delete (DM: removes from members, GROUP: leaves group)
+- [x] **No profile screen** — Fixed: added GET /api/v1/users/{userId} endpoint + UserProfileScreen; tap chat header to view profile (phone, about, online status)
+- [x] **Only nicknames shown** — Fixed: phone number now displayed in conversation list below display name; profile screen shows full phone number
+- [x] **Avatar only shows first letter** — Fixed: firstGrapheme() now properly handles emojis (surrogate pairs, ZWJ sequences, skin tones) across all screens
 
 ## Completed Features
 
@@ -27,11 +36,14 @@
 - [x] Message edit — backend PATCH endpoint, WS broadcast, "düzenlendi" indicator
 - [x] Localization (i18n) — all strings in composeResources, Turkish default + English, language switch in Settings
 
+## Completed Features (cont.)
+
+- [x] Profile viewing — Tap chat header name to view user profile (phone, about, online/last seen)
+- [x] Contact details — Phone number displayed in conversation list + profile screen
+- [x] Delete conversation — Long-press to delete from conversation list
+
 ## Pending Features
 
-- [ ] **Profile viewing** — Tap user avatar/name to view profile (displayName, about, phone)
-- [ ] **Last seen / online in chat** — Show online dot / "son görülme" in chat header (presence data exists but may not display on initial load)
-- [ ] **Contact details** — Show phone number, about, saved contact name in conversation screens (currently only nickname)
 - [ ] **E2E encryption** — Signal Protocol integration (deferred)
 - [ ] **iOS release** — iOS platform implementations (currently stubs)
 

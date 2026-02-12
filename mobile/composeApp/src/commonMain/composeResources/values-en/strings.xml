@@ -111,6 +111,19 @@
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
 
+    <!-- Delete Conversation -->
+    <string name="conv_delete_title">Delete Conversation</string>
+    <string name="conv_delete_confirm">Are you sure you want to delete this conversation?</string>
+    <string name="conv_delete_failed">Failed to delete conversation</string>
+
+    <!-- User Profile -->
+    <string name="profile_view_title">Profile</string>
+    <string name="profile_phone">Phone</string>
+    <string name="profile_about_label">About</string>
+    <string name="profile_no_about">No about info</string>
+    <string name="profile_last_seen">Last seen %1$s</string>
+    <string name="profile_load_failed">Failed to load profile</string>
+
     <!-- Contacts -->
     <string name="contacts_grant_access">Grant Access</string>
     <string name="contacts_permission_denied">Contacts access denied. Enable in system settings to see your contacts.</string>

@@ -16,5 +16,6 @@ data class User(
     val status: UserStatus = UserStatus.ACTIVE,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
-    val deletedAt: Instant? = null
+    val deletedAt: Instant? = null,
+    val lastSeenAt: Instant? = null
 )

@@ -292,7 +292,7 @@ private fun ContactItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = (contact.displayName ?: "?").take(1).uppercase(),
+                    text = com.muhabbet.app.ui.profile.firstGrapheme(contact.displayName ?: "?"),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
