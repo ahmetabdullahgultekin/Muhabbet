@@ -1,6 +1,11 @@
 # Muhabbet — Todo Tracker
 
-## Bug Fixes
+## Active Bugs
+
+- [ ] **Push notifications not firing** — FCM_ENABLED is false in production; NoOpPushNotificationAdapter is active. Need to set FCM_ENABLED=true + FIREBASE_CREDENTIALS_PATH in docker-compose.prod.yml
+- [ ] **Ticks stuck at single** — Mobile never sends DELIVERED ack, only READ. Need to add global DELIVERED ack in App.kt when NewMessage arrives, keep READ ack only in ChatScreen
+
+## Fixed Bugs
 
 - [x] **WS userId=null on disconnect** — Fixed: use sessionManager.getUserId() before unregister
 - [x] **Spring bean ambiguity** — Fixed: @Primary on messagingService in AppConfig
@@ -14,10 +19,12 @@
 - [x] **READ ack not broadcast** — Fixed: handleAckMessage for READ now also calls updateStatus to broadcast StatusUpdate; mobile bulk-updates all own messages on READ
 - [x] **thumbnailUrl lost in WS chain** — Fixed: added thumbnailUrl to SendMessage, SendMessageCommand, and Message save; mobile now sends thumbnailUrl for images
 - [x] **Firebase rate limit blocking** — Fixed: PhoneInputScreen falls back to backend OTP when Firebase returns block/rate-limit errors
-- [x] **Can't delete conversation** — Fixed: added DELETE /api/v1/conversations/{id} endpoint; long-press on conversation to delete (DM: removes from members, GROUP: leaves group)
-- [x] **No profile screen** — Fixed: added GET /api/v1/users/{userId} endpoint + UserProfileScreen; tap chat header to view profile (phone, about, online status)
-- [x] **Only nicknames shown** — Fixed: phone number now displayed in conversation list below display name; profile screen shows full phone number
-- [x] **Avatar only shows first letter** — Fixed: firstGrapheme() now properly handles emojis (surrogate pairs, ZWJ sequences, skin tones) across all screens
+- [x] **Can't delete conversation** — Fixed: added DELETE /api/v1/conversations/{id} endpoint; long-press on conversation to delete
+- [x] **No profile screen** — Fixed: added GET /api/v1/users/{userId} endpoint + UserProfileScreen
+- [x] **Only nicknames shown** — Fixed: contact name resolution (device contact > nickname > phone number)
+- [x] **Avatar only shows first letter** — Fixed: firstGrapheme() handles emojis properly
+- [x] **Phone number in conv list** — Fixed: now shows lastMessagePreview like WhatsApp
+- [x] **Image URLs expire after 1h** — Fixed: MinIO presigned URL expiry increased to 7 days
 
 ## Completed Features
 
@@ -35,26 +42,28 @@
 - [x] Message delete — soft delete, WS broadcast, "Bu mesaj silindi" placeholder
 - [x] Message edit — backend PATCH endpoint, WS broadcast, "düzenlendi" indicator
 - [x] Localization (i18n) — all strings in composeResources, Turkish default + English, language switch in Settings
-
-## Completed Features (cont.)
-
-- [x] Profile viewing — Tap chat header name to view user profile (phone, about, online/last seen)
-- [x] Contact details — Phone number displayed in conversation list + profile screen
+- [x] Profile viewing — Tap chat header to view user profile
+- [x] Contact name resolution — device contact name > nickname > phone number
 - [x] Delete conversation — Long-press to delete from conversation list
 
-## Pending Features
+## Pending Features (see ROADMAP.md for full plan)
 
-- [ ] **E2E encryption** — Signal Protocol integration (deferred)
-- [ ] **iOS release** — iOS platform implementations (currently stubs)
-
-## Localization Rules
-
-- No hardcoded strings in UI code — all user-visible text must use `stringResource(Res.string.*)`
-- Default locale: Turkish (`composeResources/values/strings.xml`)
-- English: `composeResources/values-en/strings.xml`
-- Strings used in `scope.launch {}` blocks: resolve as `val` at composable scope level
-- Language preference: `muhabbet_prefs` SharedPreferences, `app_language` key
-- Applied in `MainActivity.onCreate()` via `Configuration.setLocale()` before `setContent`
+- [ ] **Profile photo upload** — P1
+- [ ] **Google Play Store launch** — P2
+- [ ] **Reply/quote messages** — P3
+- [ ] **Message forwarding** — P3
+- [ ] **Starred/saved messages** — P3
+- [ ] **Link previews** — P3
+- [ ] **Stickers/GIFs** — P4
+- [ ] **Message search** — P4
+- [ ] **File/document sharing** — P4
+- [ ] **Disappearing messages** — P4
+- [ ] **Voice/video calls** — P5
+- [ ] **E2E encryption** — P6
+- [ ] **Multi-device / web client** — P6
+- [ ] **Status/Stories** — P7
+- [ ] **Channels/Broadcasts** — P7
+- [ ] **Location sharing** — P7
 
 ## Infrastructure
 
@@ -64,3 +73,12 @@
 - [x] Flyway migrations (V1-V4)
 - [ ] **CI/CD** — GitHub Actions pipeline
 - [ ] **Monitoring** — Sentry integration
+
+## Localization Rules
+
+- No hardcoded strings in UI code — all user-visible text must use `stringResource(Res.string.*)`
+- Default locale: Turkish (`composeResources/values/strings.xml`)
+- English: `composeResources/values-en/strings.xml`
+- Strings used in `scope.launch {}` blocks: resolve as `val` at composable scope level
+- Language preference: `muhabbet_prefs` SharedPreferences, `app_language` key
+- Applied in `MainActivity.onCreate()` via `Configuration.setLocale()` before `setContent`
