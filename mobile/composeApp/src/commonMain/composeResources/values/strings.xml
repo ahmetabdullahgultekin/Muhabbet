@@ -155,4 +155,12 @@
     <string name="disappear_1h">1 saat</string>
     <string name="disappear_1d">1 gün</string>
     <string name="disappear_1w">1 hafta</string>
+
+    <!-- Polls -->
+    <string name="attach_poll">Anket</string>
+    <string name="poll_create_title">Anket Oluştur</string>
+    <string name="poll_question_placeholder">Sorunuzu yazın</string>
+    <string name="poll_option_placeholder">Seçenek %1$d</string>
+    <string name="poll_add_option">Seçenek ekle</string>
+    <string name="poll_send">Gönder</string>
 </resources>

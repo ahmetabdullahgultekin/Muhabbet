@@ -2,6 +2,8 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.PaginatedResponse
+import com.muhabbet.shared.dto.PollResultResponse
+import com.muhabbet.shared.dto.PollVoteRequest
 import com.muhabbet.shared.model.Message
 
 class MessageRepository(private val apiClient: ApiClient) {
@@ -39,5 +41,18 @@ class MessageRepository(private val apiClient: ApiClient) {
         }
         val response = apiClient.get<PaginatedResponse<Message>>(path)
         return response.data ?: PaginatedResponse(emptyList(), null, false)
+    }
+
+    suspend fun votePoll(messageId: String, optionIndex: Int): PollResultResponse {
+        val response = apiClient.post<PollResultResponse>(
+            "/api/v1/polls/$messageId/vote",
+            PollVoteRequest(optionIndex)
+        )
+        return response.data ?: throw Exception("Vote failed")
+    }
+
+    suspend fun getPollResults(messageId: String): PollResultResponse {
+        val response = apiClient.get<PollResultResponse>("/api/v1/polls/$messageId/results")
+        return response.data ?: throw Exception("Failed to load poll results")
     }
 }

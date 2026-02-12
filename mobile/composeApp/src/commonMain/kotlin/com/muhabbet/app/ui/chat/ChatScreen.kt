@@ -91,8 +91,10 @@ import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TimerOff
+import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
@@ -198,6 +200,11 @@ fun ChatScreen(
             disappearAfterSeconds = conv?.disappearAfterSeconds
         } catch (_: Exception) { }
     }
+
+    // Poll creation state
+    var showPollDialog by remember { mutableStateOf(false) }
+    var pollQuestion by remember { mutableStateOf("") }
+    var pollOptions by remember { mutableStateOf(listOf("", "")) }
 
     // File picker
     val filePickerLauncher: FilePickerLauncher = rememberFilePickerLauncher { picked: PickedFile? ->
@@ -648,6 +655,98 @@ fun ChatScreen(
         )
     }
 
+    // Poll creation dialog
+    if (showPollDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showPollDialog = false
+                pollQuestion = ""
+                pollOptions = listOf("", "")
+            },
+            title = { Text(stringResource(Res.string.poll_create_title)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = pollQuestion,
+                        onValueChange = { pollQuestion = it },
+                        placeholder = { Text(stringResource(Res.string.poll_question_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    pollOptions.forEachIndexed { index, option ->
+                        OutlinedTextField(
+                            value = option,
+                            onValueChange = { newVal ->
+                                pollOptions = pollOptions.toMutableList().also { it[index] = newVal }
+                            },
+                            placeholder = { Text(stringResource(Res.string.poll_option_placeholder, index + 1)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        )
+                    }
+                    if (pollOptions.size < 6) {
+                        TextButton(onClick = { pollOptions = pollOptions + "" }) {
+                            Text(stringResource(Res.string.poll_add_option))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val q = pollQuestion.trim()
+                        val opts = pollOptions.map { it.trim() }.filter { it.isNotEmpty() }
+                        if (q.isNotEmpty() && opts.size >= 2) {
+                            showPollDialog = false
+                            val pollData = PollData(question = q, options = opts)
+                            val pollJson = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), pollData)
+                            val messageId = generateMessageId()
+                            val requestId = generateMessageId()
+                            val now = kotlinx.datetime.Clock.System.now()
+                            val optimistic = Message(
+                                id = messageId,
+                                conversationId = conversationId,
+                                senderId = currentUserId,
+                                contentType = ContentType.POLL,
+                                content = pollJson,
+                                status = MessageStatus.SENDING,
+                                clientTimestamp = now
+                            )
+                            messages = messages + optimistic
+                            scope.launch {
+                                try {
+                                    wsClient.send(
+                                        WsMessage.SendMessage(
+                                            requestId = requestId,
+                                            messageId = messageId,
+                                            conversationId = conversationId,
+                                            content = pollJson,
+                                            contentType = ContentType.POLL
+                                        )
+                                    )
+                                } catch (e: Exception) {
+                                    messages = messages.filter { it.id != messageId }
+                                    snackbarHostState.showSnackbar(errorSendMsg)
+                                }
+                            }
+                            pollQuestion = ""
+                            pollOptions = listOf("", "")
+                        }
+                    },
+                    enabled = pollQuestion.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2
+                ) { Text(stringResource(Res.string.poll_send)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showPollDialog = false
+                    pollQuestion = ""
+                    pollOptions = listOf("", "")
+                }) { Text(cancelText) }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -946,6 +1045,11 @@ fun ChatScreen(
                                     onClick = { showAttachMenu = false; filePickerLauncher.launch() },
                                     leadingIcon = { Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(20.dp)) }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.attach_poll)) },
+                                    onClick = { showAttachMenu = false; showPollDialog = true },
+                                    leadingIcon = { Icon(Icons.Default.Poll, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                                )
                             }
                         }
 
@@ -1221,6 +1325,16 @@ private fun MessageBubble(
                                     )
                                 }
                             }
+                        }
+
+                        // Poll content
+                        if (message.contentType == ContentType.POLL) {
+                            PollBubble(
+                                messageId = message.id,
+                                pollContent = message.content,
+                                isOwn = isOwn,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
 
                         // Image content

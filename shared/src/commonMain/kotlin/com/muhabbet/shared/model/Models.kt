@@ -21,7 +21,8 @@ enum class ContentType {
     VIDEO,
     DOCUMENT,
     LOCATION,
-    CONTACT
+    CONTACT,
+    POLL
 }
 
 @Serializable

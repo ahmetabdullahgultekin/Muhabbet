@@ -155,4 +155,12 @@
     <string name="disappear_1h">1 hour</string>
     <string name="disappear_1d">1 day</string>
     <string name="disappear_1w">1 week</string>
+
+    <!-- Polls -->
+    <string name="attach_poll">Poll</string>
+    <string name="poll_create_title">Create Poll</string>
+    <string name="poll_question_placeholder">Type your question</string>
+    <string name="poll_option_placeholder">Option %1$d</string>
+    <string name="poll_add_option">Add option</string>
+    <string name="poll_send">Send</string>
 </resources>

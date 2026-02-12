@@ -178,6 +178,34 @@ data class LinkPreviewResponse(
     val siteName: String? = null
 )
 
+// ─── Poll DTOs ──────────────────────────────────────────
+
+@Serializable
+data class PollData(
+    val question: String,
+    val options: List<String>
+)
+
+@Serializable
+data class PollVoteRequest(
+    val optionIndex: Int
+)
+
+@Serializable
+data class PollResultResponse(
+    val messageId: String,
+    val votes: List<PollOptionResult>,
+    val totalVotes: Int,
+    val myVote: Int? = null
+)
+
+@Serializable
+data class PollOptionResult(
+    val index: Int,
+    val text: String,
+    val count: Int
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable

@@ -4,7 +4,7 @@ import java.time.Instant
 import java.util.UUID
 
 enum class ContentType {
-    TEXT, IMAGE, VOICE, VIDEO, DOCUMENT, LOCATION, CONTACT
+    TEXT, IMAGE, VOICE, VIDEO, DOCUMENT, LOCATION, CONTACT, POLL
 }
 
 enum class DeliveryStatus {
