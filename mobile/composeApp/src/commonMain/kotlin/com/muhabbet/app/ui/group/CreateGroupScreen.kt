@@ -80,6 +80,8 @@ fun CreateGroupScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val errorMsg = stringResource(Res.string.error_generic)
+    val groupNameRequiredMsg = stringResource(Res.string.group_name_required)
+    val groupSelectMinimumMsg = stringResource(Res.string.group_select_minimum)
 
     val requestPermission = rememberContactsPermissionRequester { granted ->
         hasPermission = granted
@@ -112,7 +114,7 @@ fun CreateGroupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Yeni Grup") },
+                title = { Text(stringResource(Res.string.group_create_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -135,11 +137,11 @@ fun CreateGroupScreen(
                     onClick = {
                         if (isCreating) return@FloatingActionButton
                         if (groupName.isBlank()) {
-                            scope.launch { snackbarHostState.showSnackbar("Grup adi girin") }
+                            scope.launch { snackbarHostState.showSnackbar(groupNameRequiredMsg) }
                             return@FloatingActionButton
                         }
                         if (selectedUserIds.isEmpty()) {
-                            scope.launch { snackbarHostState.showSnackbar("En az 1 kisi secin") }
+                            scope.launch { snackbarHostState.showSnackbar(groupSelectMinimumMsg) }
                             return@FloatingActionButton
                         }
                         isCreating = true
@@ -159,7 +161,7 @@ fun CreateGroupScreen(
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     Text(
-                        text = "Olustur",
+                        text = stringResource(Res.string.group_create_button),
                         modifier = Modifier.padding(horizontal = 16.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Medium
@@ -240,8 +242,8 @@ fun CreateGroupScreen(
                         OutlinedTextField(
                             value = groupName,
                             onValueChange = { groupName = it },
-                            label = { Text("Grup Adi") },
-                            placeholder = { Text("Grup adini girin") },
+                            label = { Text(stringResource(Res.string.group_name_label)) },
+                            placeholder = { Text(stringResource(Res.string.group_name_placeholder)) },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -249,7 +251,7 @@ fun CreateGroupScreen(
                         )
 
                         Text(
-                            text = "Katilimcilar (${selectedUserIds.size} secili)",
+                            text = stringResource(Res.string.group_participants_count, selectedUserIds.size),
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant

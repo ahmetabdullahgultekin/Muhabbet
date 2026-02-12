@@ -11,7 +11,11 @@ expect class AudioRecorder {
     fun stopRecording(): RecordedAudio?
     fun cancelRecording()
     fun isRecording(): Boolean
+    fun hasPermission(): Boolean
 }
 
 @androidx.compose.runtime.Composable
 expect fun rememberAudioRecorder(): AudioRecorder
+
+@androidx.compose.runtime.Composable
+expect fun rememberAudioPermissionRequester(onResult: (Boolean) -> Unit): () -> Unit

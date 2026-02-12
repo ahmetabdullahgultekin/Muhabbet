@@ -54,7 +54,10 @@ import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,6 +78,9 @@ fun GroupInfoScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
+    val updateFailedMsg = stringResource(Res.string.group_update_failed)
+    val leaveFailedMsg = stringResource(Res.string.group_leave_failed)
+    val removeFailedMsg = stringResource(Res.string.group_remove_failed)
 
     LaunchedEffect(conversationId) {
         try {
@@ -92,12 +98,12 @@ fun GroupInfoScreen(
     if (showEditDialog) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            title = { Text("Grup Adini Duzenle") },
+            title = { Text(stringResource(Res.string.group_edit_name_title)) },
             text = {
                 OutlinedTextField(
                     value = editName,
                     onValueChange = { editName = it },
-                    placeholder = { Text("Grup adi") },
+                    placeholder = { Text(stringResource(Res.string.group_edit_name_placeholder)) },
                     singleLine = true
                 )
             },
@@ -109,15 +115,15 @@ fun GroupInfoScreen(
                                 groupRepository.updateGroupInfo(conversationId, editName, null)
                                 conversation = conversation?.copy(name = editName)
                             } catch (_: Exception) {
-                                snackbarHostState.showSnackbar("Guncelleme basarisiz")
+                                snackbarHostState.showSnackbar(updateFailedMsg)
                             }
                         }
                     }
                     showEditDialog = false
-                }) { Text("Kaydet") }
+                }) { Text(stringResource(Res.string.save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("Iptal") }
+                TextButton(onClick = { showEditDialog = false }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -125,8 +131,8 @@ fun GroupInfoScreen(
     if (showLeaveDialog) {
         AlertDialog(
             onDismissRequest = { showLeaveDialog = false },
-            title = { Text("Gruptan Ayril") },
-            text = { Text("Bu gruptan ayrilmak istediginize emin misiniz?") },
+            title = { Text(stringResource(Res.string.group_leave_title)) },
+            text = { Text(stringResource(Res.string.group_leave_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -134,14 +140,14 @@ fun GroupInfoScreen(
                             groupRepository.leaveGroup(conversationId)
                             onBack()
                         } catch (_: Exception) {
-                            snackbarHostState.showSnackbar("Ayrilma basarisiz")
+                            snackbarHostState.showSnackbar(leaveFailedMsg)
                         }
                     }
                     showLeaveDialog = false
-                }) { Text("Ayril", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(Res.string.group_leave_button), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showLeaveDialog = false }) { Text("Iptal") }
+                TextButton(onClick = { showLeaveDialog = false }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -149,7 +155,8 @@ fun GroupInfoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Grup Bilgisi") },
+                title = { Text(stringResource(Res.string.group_info_title)) },
+
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -211,7 +218,7 @@ fun GroupInfoScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${conversation?.participants?.size ?: 0} katilimci",
+                            text = stringResource(Res.string.group_participant_count, conversation?.participants?.size ?: 0),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -222,7 +229,7 @@ fun GroupInfoScreen(
                 // Members header
                 item {
                     Text(
-                        text = "Uyeler",
+                        text = stringResource(Res.string.group_members),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -244,7 +251,7 @@ fun GroupInfoScreen(
                                         participants = conversation!!.participants.filter { it.userId != member.userId }
                                     )
                                 } catch (_: Exception) {
-                                    snackbarHostState.showSnackbar("Cikarma basarisiz")
+                                    snackbarHostState.showSnackbar(removeFailedMsg)
                                 }
                             }
                         }
@@ -283,8 +290,8 @@ private fun MemberItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = (member.displayName ?: member.phoneNumber ?: "Bilinmeyen") +
-                            if (isCurrentUser) " (Sen)" else "",
+                    text = (member.displayName ?: member.phoneNumber ?: stringResource(Res.string.unknown)) +
+                            if (isCurrentUser) " " + stringResource(Res.string.group_member_you) else "",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
@@ -294,7 +301,7 @@ private fun MemberItem(
                         shape = MaterialTheme.shapes.extraSmall
                     ) {
                         Text(
-                            "Sahip",
+                            stringResource(Res.string.group_role_owner),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -306,7 +313,7 @@ private fun MemberItem(
                         shape = MaterialTheme.shapes.extraSmall
                     ) {
                         Text(
-                            "Yonetici",
+                            stringResource(Res.string.group_role_admin),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onTertiary,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

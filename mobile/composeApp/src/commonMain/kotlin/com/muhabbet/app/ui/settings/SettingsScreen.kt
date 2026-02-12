@@ -43,7 +43,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.RadioButton
+import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.platform.rememberRestartApp
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
@@ -55,15 +61,18 @@ import org.koin.compose.koinInject
 fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    authRepository: AuthRepository = koinInject()
+    authRepository: AuthRepository = koinInject(),
+    tokenStorage: TokenStorage = koinInject()
 ) {
     var displayName by remember { mutableStateOf("") }
     var about by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var selectedLanguage by remember { mutableStateOf(tokenStorage.getLanguage() ?: "tr") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val restartApp = rememberRestartApp()
 
     val profileUpdatedMsg = stringResource(Res.string.settings_profile_updated)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -236,6 +245,68 @@ fun SettingsScreen(
                 )
 
                 Spacer(Modifier.height(24.dp))
+
+                // Language section
+                Text(
+                    text = stringResource(Res.string.settings_language),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable {
+                            selectedLanguage = "tr"
+                            tokenStorage.setLanguage("tr")
+                            restartApp()
+                        }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    RadioButton(
+                        selected = selectedLanguage == "tr",
+                        onClick = {
+                            selectedLanguage = "tr"
+                            tokenStorage.setLanguage("tr")
+                            restartApp()
+                        }
+                    )
+                    Text(
+                        text = stringResource(Res.string.settings_language_turkish),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable {
+                            selectedLanguage = "en"
+                            tokenStorage.setLanguage("en")
+                            restartApp()
+                        }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    RadioButton(
+                        selected = selectedLanguage == "en",
+                        onClick = {
+                            selectedLanguage = "en"
+                            tokenStorage.setLanguage("en")
+                            restartApp()
+                        }
+                    )
+                    Text(
+                        text = stringResource(Res.string.settings_language_english),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                Spacer(Modifier.height(24.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(16.dp))
 
                 Button(
                     onClick = { showLogoutDialog = true },

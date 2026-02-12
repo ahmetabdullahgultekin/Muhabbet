@@ -234,7 +234,7 @@ fun NewConversationScreen(
                                     }
                                     Spacer(Modifier.width(12.dp))
                                     Text(
-                                        text = "Yeni Grup",
+                                        text = stringResource(Res.string.new_conversation_new_group),
                                         style = MaterialTheme.typography.bodyLarge,
                                         fontWeight = FontWeight.Medium
                                     )

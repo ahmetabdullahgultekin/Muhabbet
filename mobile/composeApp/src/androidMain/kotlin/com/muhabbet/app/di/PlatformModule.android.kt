@@ -18,7 +18,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single<PushTokenProvider> { AndroidPushTokenProvider() }
 }
 
-class AndroidTokenStorage(context: Context) : TokenStorage {
+class AndroidTokenStorage(private val context: Context) : TokenStorage {
 
     private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
         "muhabbet_secure_prefs",
@@ -27,6 +27,10 @@ class AndroidTokenStorage(context: Context) : TokenStorage {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
+
+    // Language is stored in plain prefs (not encrypted) so it's readable before crypto init
+    private val plainPrefs: SharedPreferences =
+        context.getSharedPreferences("muhabbet_prefs", Context.MODE_PRIVATE)
 
     override fun getAccessToken(): String? = prefs.getString("access_token", null)
     override fun getRefreshToken(): String? = prefs.getString("refresh_token", null)
@@ -44,5 +48,11 @@ class AndroidTokenStorage(context: Context) : TokenStorage {
 
     override fun clear() {
         prefs.edit().clear().apply()
+    }
+
+    override fun getLanguage(): String? = plainPrefs.getString("app_language", null)
+
+    override fun setLanguage(lang: String) {
+        plainPrefs.edit().putString("app_language", lang).apply()
     }
 }

@@ -2,9 +2,12 @@ package com.muhabbet.app.platform
 
 import android.media.MediaRecorder
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import java.io.File
 
 actual class AudioRecorder(private val context: android.content.Context) {
@@ -12,6 +15,12 @@ actual class AudioRecorder(private val context: android.content.Context) {
     private var outputFile: File? = null
     private var startTimeMs: Long = 0
     private var recording = false
+
+    actual fun hasPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
 
     actual fun startRecording() {
         val file = File(context.cacheDir, "voice_${System.currentTimeMillis()}.ogg")
@@ -82,4 +91,12 @@ actual class AudioRecorder(private val context: android.content.Context) {
 actual fun rememberAudioRecorder(): AudioRecorder {
     val context = LocalContext.current
     return remember { AudioRecorder(context) }
+}
+
+@Composable
+actual fun rememberAudioPermissionRequester(onResult: (Boolean) -> Unit): () -> Unit {
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { onResult(it) }
+    return { launcher.launch(android.Manifest.permission.RECORD_AUDIO) }
 }

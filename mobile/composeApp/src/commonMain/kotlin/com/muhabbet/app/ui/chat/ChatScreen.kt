@@ -78,6 +78,7 @@ import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.compressImage
 import com.muhabbet.app.platform.rememberAudioPlayer
+import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.model.ContentType
@@ -125,6 +126,19 @@ fun ChatScreen(
     val errorLoadMsg = stringResource(Res.string.error_load_messages)
     val errorSendMsg = stringResource(Res.string.error_send_failed)
     val typingText = stringResource(Res.string.chat_typing)
+    val chatOnlineText = stringResource(Res.string.chat_online)
+    val chatLastSeenText = stringResource(Res.string.chat_last_seen)
+    val chatPhotoText = stringResource(Res.string.chat_photo)
+    val chatVoiceText = stringResource(Res.string.chat_voice_message)
+    val chatDeleteTitle = stringResource(Res.string.chat_delete_title)
+    val chatDeleteConfirm = stringResource(Res.string.chat_delete_confirm)
+    val chatEditMode = stringResource(Res.string.chat_edit_mode)
+    val chatDeletedText = stringResource(Res.string.chat_message_deleted)
+    val chatEditedText = stringResource(Res.string.chat_edited)
+    val chatContextEdit = stringResource(Res.string.chat_context_edit)
+    val chatContextDelete = stringResource(Res.string.chat_context_delete)
+    val cancelText = stringResource(Res.string.cancel)
+    val deleteText = stringResource(Res.string.delete)
 
     // Typing indicator state
     var typingJob by remember { mutableStateOf<Job?>(null) }
@@ -138,6 +152,12 @@ fun ChatScreen(
     val audioRecorder = rememberAudioRecorder()
     val audioPlayer = rememberAudioPlayer()
     var isRecording by remember { mutableStateOf(false) }
+    val requestAudioPermission = rememberAudioPermissionRequester { granted ->
+        if (granted) {
+            audioRecorder.startRecording()
+            isRecording = true
+        }
+    }
 
     // Message edit/delete state
     var editingMessageId by remember { mutableStateOf<String?>(null) }
@@ -166,7 +186,7 @@ fun ChatScreen(
                     conversationId = conversationId,
                     senderId = currentUserId,
                     contentType = ContentType.IMAGE,
-                    content = "Foto\u011Fra\u0066",
+                    content = chatPhotoText,
                     mediaUrl = uploadResponse.url,
                     thumbnailUrl = uploadResponse.thumbnailUrl,
                     status = MessageStatus.SENDING,
@@ -178,7 +198,7 @@ fun ChatScreen(
                         requestId = requestId,
                         messageId = messageId,
                         conversationId = conversationId,
-                        content = "Foto\u011Fra\u0066",
+                        content = chatPhotoText,
                         contentType = ContentType.IMAGE,
                         mediaUrl = uploadResponse.url
                     )
@@ -356,10 +376,10 @@ fun ChatScreen(
     // Subtitle: typing > online > last seen
     val subtitle = when {
         peerTyping -> typingText
-        peerOnline -> "\u00E7evrimi\u00E7i"
+        peerOnline -> chatOnlineText
         peerLastSeen != null -> {
             val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(peerLastSeen!!)
-            "son g\u00F6r\u00FClme ${formatMessageTime(instant)}"
+            "$chatLastSeenText ${formatMessageTime(instant)}"
         }
         else -> null
     }
@@ -385,8 +405,8 @@ fun ChatScreen(
     if (showDeleteDialog && deleteTargetId != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false; deleteTargetId = null },
-            title = { Text("Mesaj\u0131 Sil") },
-            text = { Text("Bu mesaj silinecek. Bu i\u015Flem geri al\u0131namaz.") },
+            title = { Text(chatDeleteTitle) },
+            text = { Text(chatDeleteConfirm) },
             confirmButton = {
                 TextButton(onClick = {
                     val msgId = deleteTargetId!!
@@ -403,11 +423,11 @@ fun ChatScreen(
                             snackbarHostState.showSnackbar(errorSendMsg)
                         }
                     }
-                }) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+                }) { Text(deleteText, color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false; deleteTargetId = null }) {
-                    Text("\u0130ptal")
+                    Text(cancelText)
                 }
             }
         )
@@ -509,7 +529,7 @@ fun ChatScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Mesaj\u0131 d\u00FCzenle",
+                            text = chatEditMode,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.weight(1f)
@@ -562,7 +582,7 @@ fun ChatScreen(
                                                 conversationId = conversationId,
                                                 senderId = currentUserId,
                                                 contentType = ContentType.VOICE,
-                                                content = "Sesli mesaj",
+                                                content = chatVoiceText,
                                                 mediaUrl = uploadResponse.url,
                                                 status = MessageStatus.SENDING,
                                                 clientTimestamp = now
@@ -573,7 +593,7 @@ fun ChatScreen(
                                                     requestId = requestId,
                                                     messageId = messageId,
                                                     conversationId = conversationId,
-                                                    content = "Sesli mesaj",
+                                                    content = chatVoiceText,
                                                     contentType = ContentType.VOICE,
                                                     mediaUrl = uploadResponse.url
                                                 )
@@ -647,8 +667,12 @@ fun ChatScreen(
                             // Mic button when text is empty
                             FilledIconButton(
                                 onClick = {
-                                    audioRecorder.startRecording()
-                                    isRecording = true
+                                    if (audioRecorder.hasPermission()) {
+                                        audioRecorder.startRecording()
+                                        isRecording = true
+                                    } else {
+                                        requestAudioPermission()
+                                    }
                                 },
                                 modifier = Modifier.size(48.dp),
                                 shape = CircleShape,
@@ -795,7 +819,7 @@ private fun MessageBubble(
                     if (message.isDeleted) {
                         // Deleted message placeholder
                         Text(
-                            text = "\uD83D\uDEAB Bu mesaj silindi",
+                            text = stringResource(Res.string.chat_message_deleted),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -830,7 +854,7 @@ private fun MessageBubble(
 
                         // Text content (skip for images/voice with default placeholder text)
                         if (message.contentType == ContentType.TEXT ||
-                            (message.contentType == ContentType.IMAGE && message.content != "Foto\u011Fra\u0066" && message.content.isNotBlank())
+                            (message.contentType == ContentType.IMAGE && message.content != stringResource(Res.string.chat_photo) && message.content.isNotBlank())
                         ) {
                             Text(
                                 text = message.content,
@@ -851,7 +875,7 @@ private fun MessageBubble(
                     ) {
                         if (message.editedAt != null && !message.isDeleted) {
                             Text(
-                                text = "d\u00FCzenlendi",
+                                text = stringResource(Res.string.chat_edited),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                 color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -895,7 +919,7 @@ private fun MessageBubble(
             ) {
                 if (message.contentType == ContentType.TEXT) {
                     DropdownMenuItem(
-                        text = { Text("D\u00FCzenle") },
+                        text = { Text(stringResource(Res.string.chat_context_edit)) },
                         onClick = onEdit,
                         leadingIcon = {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -903,7 +927,7 @@ private fun MessageBubble(
                     )
                 }
                 DropdownMenuItem(
-                    text = { Text("Sil", color = MaterialTheme.colorScheme.error) },
+                    text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
                     onClick = onDelete,
                     leadingIcon = {
                         Icon(

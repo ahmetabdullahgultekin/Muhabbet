@@ -8,4 +8,6 @@ interface TokenStorage {
     fun saveTokens(accessToken: String, refreshToken: String, userId: String, deviceId: String)
     fun clear()
     fun isLoggedIn(): Boolean = getAccessToken() != null
+    fun getLanguage(): String? = null
+    fun setLanguage(lang: String) {}
 }

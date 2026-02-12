@@ -145,14 +145,26 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 7. ~~Push notifications~~ — **DONE** (FCM, push token registration, offline delivery)
 8. ~~Presence (online/last seen)~~ — **DONE** (Redis TTL, green dot, header subtitle)
 
+9. ~~Group messaging~~ — **DONE** (backend endpoints, mobile UI: create, info, roles, add/remove, leave)
+10. ~~Voice messages~~ — **DONE** (backend audio upload, mobile record/playback, VoiceBubble)
+11. ~~Production SMS (Netgsm)~~ — **DONE** (NetgsmOtpSender, @ConditionalOnProperty)
+12. ~~Message delete/edit~~ — **DONE** (soft delete, edit with editedAt, WS broadcast, context menu)
+13. ~~Localization (i18n)~~ — **DONE** (all strings in composeResources, values/ = Turkish, values-en/ = English, language switch in Settings)
+
 ### Next Phases
-- Group messaging
-- Voice messages
+- Profile viewing (tap user to see profile)
+- Contact details (show phone, about, saved name)
 - E2E encryption (Signal Protocol)
 - iOS release
-- Production SMS (Netgsm)
 
 E2E encryption deferred to Phase 2 (TLS-only for MVP).
+
+### Localization Rules
+- **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
+- Default locale is Turkish (`composeResources/values/strings.xml`).
+- English translations in `composeResources/values-en/strings.xml`.
+- For strings used inside `scope.launch {}` (non-composable), resolve them as `val` at the top of the composable function.
+- Language preference stored in `muhabbet_prefs` SharedPreferences (`app_language` key), applied in `MainActivity.onCreate()` via `Configuration.setLocale()`.
 
 ## Implementation Notes
 - JWT uses HS256 (not RS256) — simpler for monolith, no asymmetric key management
@@ -205,3 +217,8 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
 - **WsClient.send() callers must try-catch**: Even though `send()` correctly throws when disconnected, ALL callers in Composables must wrap in try-catch. Uncaught exceptions in `LaunchedEffect`/`scope.launch` kill the coroutine silently or crash the collector.
 - **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` in `NewConversationScreen.kt`.
 - **Nginx location trailing slash matters**: `location /muhabbet-media/` does NOT match `/muhabbet-media?query` (no trailing slash). MinIO SDK sends bucket location requests without trailing slash, causing 301 redirects then signature failures.
+- **No hardcoded strings in UI**: All user-visible strings must go through `composeResources/values/strings.xml` (Turkish) and `values-en/strings.xml` (English) using `stringResource(Res.string.*)`. Never use Turkish text directly in Kotlin files.
+- **stringResource in coroutine blocks**: `stringResource()` is a `@Composable` function — cannot be called inside `scope.launch {}`. Resolve it as a `val` at the top of the composable, then reference the val inside the coroutine.
+- **RECORD_AUDIO permission**: Dangerous permission requiring both manifest declaration AND runtime request via `rememberAudioPermissionRequester`. Without it, `MediaRecorder.setAudioSource()` crashes.
+- **GroupRepository.editMessage deserialization**: Don't try to deserialize the PATCH response as `Message` — use raw `httpClient.patch()` and check `response.status.isSuccess()` instead. The caller optimistically updates the local list anyway.
+- **CMP language switch**: CMP compose resources follow Android's `Configuration.locale`. To switch language at runtime: save preference in `muhabbet_prefs` SharedPreferences → apply `Configuration.setLocale()` in `MainActivity.onCreate()` before `setContent` → restart activity.

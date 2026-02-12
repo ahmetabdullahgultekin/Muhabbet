@@ -64,6 +64,8 @@ import androidx.compose.material.icons.filled.Group
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -329,7 +331,21 @@ private fun ConversationItem(
 
 private fun formatTimestamp(timestamp: String): String {
     return try {
-        timestamp.substringBefore("T").takeLast(5)
+        val instant = kotlinx.datetime.Instant.parse(timestamp)
+        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
+        val msgDate = instant.toLocalDateTime(tz)
+        val nowDate = kotlinx.datetime.Clock.System.now().toLocalDateTime(tz)
+
+        if (msgDate.date == nowDate.date) {
+            // Today — show HH:mm
+            "${msgDate.hour.toString().padStart(2, '0')}:${msgDate.minute.toString().padStart(2, '0')}"
+        } else if (msgDate.year == nowDate.year) {
+            // Same year — show dd.MM
+            "${msgDate.dayOfMonth.toString().padStart(2, '0')}.${msgDate.monthNumber.toString().padStart(2, '0')}"
+        } else {
+            // Different year — show dd.MM.yy
+            "${msgDate.dayOfMonth.toString().padStart(2, '0')}.${msgDate.monthNumber.toString().padStart(2, '0')}.${msgDate.year % 100}"
+        }
     } catch (_: Exception) {
         ""
     }

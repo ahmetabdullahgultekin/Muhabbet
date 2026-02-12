@@ -9,6 +9,9 @@
     <string name="error_load_conversations">Failed to load conversations</string>
     <string name="error_load_messages">Failed to load messages</string>
     <string name="error_send_failed">Failed to send message</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -45,11 +48,47 @@
     <!-- ChatScreen -->
     <string name="chat_message_placeholder">Type a message...</string>
     <string name="chat_typing">typing...</string>
+    <string name="chat_online">online</string>
+    <string name="chat_last_seen">last seen</string>
+    <string name="chat_photo">Photo</string>
+    <string name="chat_voice_message">Voice message</string>
+    <string name="chat_delete_title">Delete Message</string>
+    <string name="chat_delete_confirm">This message will be deleted. This action cannot be undone.</string>
+    <string name="chat_edit_mode">Edit message</string>
+    <string name="chat_message_deleted">🚫 This message was deleted</string>
+    <string name="chat_edited">edited</string>
+    <string name="chat_context_edit">Edit</string>
+    <string name="chat_context_delete">Delete</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">New Conversation</string>
     <string name="new_conversation_contacts_required">Contacts access required</string>
     <string name="new_conversation_contacts_hint">Grant contacts access to see people using Muhabbet</string>
+    <string name="new_conversation_new_group">New Group</string>
+
+    <!-- Group -->
+    <string name="group_create_title">New Group</string>
+    <string name="group_name_label">Group Name</string>
+    <string name="group_name_placeholder">Enter group name</string>
+    <string name="group_name_required">Enter a group name</string>
+    <string name="group_select_minimum">Select at least 1 person</string>
+    <string name="group_create_button">Create</string>
+    <string name="group_create_failed">Failed to create group</string>
+    <string name="group_participants_count">Participants (%1$d selected)</string>
+    <string name="group_info_title">Group Info</string>
+    <string name="group_edit_name_title">Edit Group Name</string>
+    <string name="group_edit_name_placeholder">Group name</string>
+    <string name="group_update_failed">Update failed</string>
+    <string name="group_leave_title">Leave Group</string>
+    <string name="group_leave_confirm">Are you sure you want to leave this group?</string>
+    <string name="group_leave_button">Leave</string>
+    <string name="group_leave_failed">Failed to leave group</string>
+    <string name="group_participant_count">%1$d participants</string>
+    <string name="group_members">Members</string>
+    <string name="group_role_owner">Owner</string>
+    <string name="group_role_admin">Admin</string>
+    <string name="group_member_you">(You)</string>
+    <string name="group_remove_failed">Failed to remove member</string>
 
     <!-- Logout Dialog -->
     <string name="logout_confirm_title">Log Out</string>
@@ -68,6 +107,9 @@
     <string name="settings_version">Version</string>
     <string name="settings_logout">Log Out</string>
     <string name="settings_profile_updated">Profile updated</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_english">English</string>
 
     <!-- Contacts -->
     <string name="contacts_grant_access">Grant Access</string>

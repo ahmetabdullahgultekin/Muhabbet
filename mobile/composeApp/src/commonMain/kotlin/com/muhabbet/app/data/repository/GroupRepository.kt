@@ -10,7 +10,10 @@ import com.muhabbet.shared.dto.UpdateGroupRequest
 import com.muhabbet.shared.dto.UpdateRoleRequest
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MemberRole
-import com.muhabbet.shared.model.Message
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 
 class GroupRepository(private val apiClient: ApiClient) {
 
@@ -61,11 +64,13 @@ class GroupRepository(private val apiClient: ApiClient) {
         apiClient.delete<Unit>("/api/v1/messages/$messageId")
     }
 
-    suspend fun editMessage(messageId: String, content: String): Message {
-        val response = apiClient.patch<Message>(
-            "/api/v1/messages/$messageId",
-            EditMessageRequest(content)
-        )
-        return response.data ?: throw Exception("Mesaj düzenlenemedi")
+    suspend fun editMessage(messageId: String, content: String) {
+        val response = apiClient.httpClient.patch("${ApiClient.BASE_URL}/api/v1/messages/$messageId") {
+            setBody(EditMessageRequest(content))
+            contentType(io.ktor.http.ContentType.Application.Json)
+        }
+        if (!response.status.isSuccess()) {
+            throw Exception("Mesaj düzenlenemedi")
+        }
     }
 }

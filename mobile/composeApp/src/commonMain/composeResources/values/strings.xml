@@ -9,6 +9,9 @@
     <string name="error_load_conversations">Konuşmalar yüklenemedi</string>
     <string name="error_load_messages">Mesajlar yüklenemedi</string>
     <string name="error_send_failed">Mesaj gönderilemedi</string>
+    <string name="cancel">İptal</string>
+    <string name="save">Kaydet</string>
+    <string name="delete">Sil</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -45,11 +48,47 @@
     <!-- ChatScreen -->
     <string name="chat_message_placeholder">Mesaj yazın...</string>
     <string name="chat_typing">yazıyor...</string>
+    <string name="chat_online">çevrimiçi</string>
+    <string name="chat_last_seen">son görülme</string>
+    <string name="chat_photo">Fotoğraf</string>
+    <string name="chat_voice_message">Sesli mesaj</string>
+    <string name="chat_delete_title">Mesajı Sil</string>
+    <string name="chat_delete_confirm">Bu mesaj silinecek. Bu işlem geri alınamaz.</string>
+    <string name="chat_edit_mode">Mesajı düzenle</string>
+    <string name="chat_message_deleted">🚫 Bu mesaj silindi</string>
+    <string name="chat_edited">düzenlendi</string>
+    <string name="chat_context_edit">Düzenle</string>
+    <string name="chat_context_delete">Sil</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">Yeni Konuşma</string>
     <string name="new_conversation_contacts_required">Rehber erişimi gerekli</string>
     <string name="new_conversation_contacts_hint">Muhabbet kullanan kişilerinizi görmek için rehber erişimi verin</string>
+    <string name="new_conversation_new_group">Yeni Grup</string>
+
+    <!-- Group -->
+    <string name="group_create_title">Yeni Grup</string>
+    <string name="group_name_label">Grup Adı</string>
+    <string name="group_name_placeholder">Grup adını girin</string>
+    <string name="group_name_required">Grup adı girin</string>
+    <string name="group_select_minimum">En az 1 kişi seçin</string>
+    <string name="group_create_button">Oluştur</string>
+    <string name="group_create_failed">Grup oluşturulamadı</string>
+    <string name="group_participants_count">Katılımcılar (%1$d seçili)</string>
+    <string name="group_info_title">Grup Bilgisi</string>
+    <string name="group_edit_name_title">Grup Adını Düzenle</string>
+    <string name="group_edit_name_placeholder">Grup adı</string>
+    <string name="group_update_failed">Güncelleme başarısız</string>
+    <string name="group_leave_title">Gruptan Ayrıl</string>
+    <string name="group_leave_confirm">Bu gruptan ayrılmak istediğinize emin misiniz?</string>
+    <string name="group_leave_button">Ayrıl</string>
+    <string name="group_leave_failed">Ayrılma başarısız</string>
+    <string name="group_participant_count">%1$d katılımcı</string>
+    <string name="group_members">Üyeler</string>
+    <string name="group_role_owner">Sahip</string>
+    <string name="group_role_admin">Yönetici</string>
+    <string name="group_member_you">(Sen)</string>
+    <string name="group_remove_failed">Çıkarma başarısız</string>
 
     <!-- Logout Dialog -->
     <string name="logout_confirm_title">Çıkış Yap</string>
@@ -68,6 +107,9 @@
     <string name="settings_version">Sürüm</string>
     <string name="settings_logout">Çıkış Yap</string>
     <string name="settings_profile_updated">Profil güncellendi</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_english">English</string>
 
     <!-- Contacts -->
     <string name="contacts_grant_access">Rehber Erişimi Ver</string>
