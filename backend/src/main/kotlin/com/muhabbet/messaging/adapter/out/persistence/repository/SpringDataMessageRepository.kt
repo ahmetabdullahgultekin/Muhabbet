@@ -70,4 +70,14 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         """
     )
     fun searchGlobal(query: String, pageable: Pageable): List<MessageJpaEntity>
+
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.expiresAt IS NOT NULL
+          AND m.expiresAt <= :now
+          AND m.isDeleted = false
+        """
+    )
+    fun findExpiredMessages(now: Instant): List<MessageJpaEntity>
 }

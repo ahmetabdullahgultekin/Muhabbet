@@ -47,4 +47,8 @@ class ConversationRepository(private val apiClient: ApiClient) {
         val response = apiClient.get<UserProfile>("/api/v1/users/$userId")
         return response.data ?: throw Exception("Profil yüklenemedi")
     }
+
+    suspend fun setDisappearTimer(conversationId: String, seconds: Int?) {
+        apiClient.put<Unit>("/api/v1/conversations/$conversationId/disappear", mapOf("seconds" to seconds))
+    }
 }

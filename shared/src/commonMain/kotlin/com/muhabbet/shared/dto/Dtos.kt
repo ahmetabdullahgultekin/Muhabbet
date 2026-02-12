@@ -116,7 +116,8 @@ data class ConversationResponse(
     val lastMessagePreview: String?,
     val lastMessageAt: String?,
     val unreadCount: Int,
-    val createdAt: String
+    val createdAt: String,
+    val disappearAfterSeconds: Int? = null
 )
 
 @Serializable

@@ -24,7 +24,8 @@ data class Message(
     val clientTimestamp: Instant,
     val isDeleted: Boolean = false,
     val deletedAt: Instant? = null,
-    val editedAt: Instant? = null
+    val editedAt: Instant? = null,
+    val expiresAt: Instant? = null
 )
 
 data class MessageDeliveryStatus(

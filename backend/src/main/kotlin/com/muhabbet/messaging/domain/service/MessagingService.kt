@@ -137,7 +137,8 @@ open class MessagingService(
                 lastMessagePreview = lastMessage?.content?.take(100),
                 lastMessageAt = lastMessage?.serverTimestamp?.toString(),
                 unreadCount = unreadCount,
-                participantIds = memberIds
+                participantIds = memberIds,
+                disappearAfterSeconds = conv.disappearAfterSeconds
             )
         }
             .sortedByDescending { it.lastMessageAt ?: "" }
@@ -176,6 +177,13 @@ open class MessagingService(
             throw BusinessException(ErrorCode.MSG_DUPLICATE)
         }
 
+        // Calculate expiresAt for disappearing messages
+        val conversation = conversationRepository.findById(command.conversationId)
+        val now = Instant.now()
+        val expiresAt = conversation?.disappearAfterSeconds?.let {
+            now.plusSeconds(it.toLong())
+        }
+
         val message = messageRepository.save(
             Message(
                 id = command.messageId,
@@ -186,8 +194,9 @@ open class MessagingService(
                 replyToId = command.replyToId,
                 mediaUrl = command.mediaUrl,
                 thumbnailUrl = command.thumbnailUrl,
-                serverTimestamp = Instant.now(),
-                clientTimestamp = command.clientTimestamp
+                serverTimestamp = now,
+                clientTimestamp = command.clientTimestamp,
+                expiresAt = expiresAt
             )
         )
 

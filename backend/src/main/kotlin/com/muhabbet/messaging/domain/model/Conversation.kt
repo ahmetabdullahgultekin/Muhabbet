@@ -19,7 +19,8 @@ data class Conversation(
     val description: String? = null,
     val createdBy: UUID? = null,
     val createdAt: Instant = Instant.now(),
-    val updatedAt: Instant = Instant.now()
+    val updatedAt: Instant = Instant.now(),
+    val disappearAfterSeconds: Int? = null
 )
 
 data class ConversationMember(

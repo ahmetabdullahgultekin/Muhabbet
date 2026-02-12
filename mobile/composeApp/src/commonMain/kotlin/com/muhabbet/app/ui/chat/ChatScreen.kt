@@ -91,6 +91,8 @@ import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TimerOff
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
@@ -183,6 +185,19 @@ fun ChatScreen(
 
     // Attach menu state
     var showAttachMenu by remember { mutableStateOf(false) }
+
+    // Disappearing messages state
+    var showDisappearDialog by remember { mutableStateOf(false) }
+    var disappearAfterSeconds by remember { mutableStateOf<Int?>(null) }
+
+    // Load conversation disappear setting
+    LaunchedEffect(conversationId) {
+        try {
+            val convs = conversationRepository.getConversations()
+            val conv = convs.items.firstOrNull { it.id == conversationId }
+            disappearAfterSeconds = conv?.disappearAfterSeconds
+        } catch (_: Exception) { }
+    }
 
     // File picker
     val filePickerLauncher: FilePickerLauncher = rememberFilePickerLauncher { picked: PickedFile? ->
@@ -575,6 +590,64 @@ fun ChatScreen(
         )
     }
 
+    // Disappearing messages timer dialog
+    if (showDisappearDialog) {
+        val disappearOffText = stringResource(Res.string.disappear_off)
+        val disappear30sText = stringResource(Res.string.disappear_30s)
+        val disappear5mText = stringResource(Res.string.disappear_5m)
+        val disappear1hText = stringResource(Res.string.disappear_1h)
+        val disappear1dText = stringResource(Res.string.disappear_1d)
+        val disappear1wText = stringResource(Res.string.disappear_1w)
+        val timerOptions = listOf(
+            null to disappearOffText,
+            30 to disappear30sText,
+            300 to disappear5mText,
+            3600 to disappear1hText,
+            86400 to disappear1dText,
+            604800 to disappear1wText
+        )
+        AlertDialog(
+            onDismissRequest = { showDisappearDialog = false },
+            title = { Text(stringResource(Res.string.disappear_title)) },
+            text = {
+                Column {
+                    timerOptions.forEach { (seconds, label) ->
+                        val isSelected = disappearAfterSeconds == seconds
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showDisappearDialog = false
+                                    disappearAfterSeconds = seconds
+                                    scope.launch {
+                                        try {
+                                            conversationRepository.setDisappearTimer(conversationId, seconds)
+                                        } catch (_: Exception) { }
+                                    }
+                                },
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surface
+                        ) {
+                            Text(
+                                text = label,
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showDisappearDialog = false }) {
+                    Text(cancelText)
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -598,10 +671,19 @@ fun ChatScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showDisappearDialog = true }) {
+                        Icon(
+                            imageVector = if (disappearAfterSeconds != null) Icons.Default.Timer else Icons.Default.TimerOff,
+                            contentDescription = null
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },

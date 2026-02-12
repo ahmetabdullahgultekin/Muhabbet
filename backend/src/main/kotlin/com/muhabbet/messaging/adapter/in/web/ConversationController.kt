@@ -74,7 +74,8 @@ class ConversationController(
             lastMessagePreview = null,
             lastMessageAt = null,
             unreadCount = 0,
-            createdAt = result.conversation.createdAt.toString()
+            createdAt = result.conversation.createdAt.toString(),
+            disappearAfterSeconds = result.conversation.disappearAfterSeconds
         )
 
         return ApiResponseBuilder.created(response)
@@ -112,7 +113,8 @@ class ConversationController(
                 lastMessagePreview = summary.lastMessagePreview,
                 lastMessageAt = summary.lastMessageAt,
                 unreadCount = summary.unreadCount,
-                createdAt = ""
+                createdAt = "",
+                disappearAfterSeconds = summary.disappearAfterSeconds
             )
         }
 

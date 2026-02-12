@@ -146,4 +146,13 @@
     <!-- Attach -->
     <string name="attach_image">Photo</string>
     <string name="attach_document">Document</string>
+
+    <!-- Disappearing Messages -->
+    <string name="disappear_title">Disappearing Messages</string>
+    <string name="disappear_off">Off</string>
+    <string name="disappear_30s">30 seconds</string>
+    <string name="disappear_5m">5 minutes</string>
+    <string name="disappear_1h">1 hour</string>
+    <string name="disappear_1d">1 day</string>
+    <string name="disappear_1w">1 week</string>
 </resources>

@@ -146,4 +146,13 @@
     <!-- Attach -->
     <string name="attach_image">Fotoğraf</string>
     <string name="attach_document">Dosya</string>
+
+    <!-- Disappearing Messages -->
+    <string name="disappear_title">Kaybolan Mesajlar</string>
+    <string name="disappear_off">Kapalı</string>
+    <string name="disappear_30s">30 saniye</string>
+    <string name="disappear_5m">5 dakika</string>
+    <string name="disappear_1h">1 saat</string>
+    <string name="disappear_1d">1 gün</string>
+    <string name="disappear_1w">1 hafta</string>
 </resources>
