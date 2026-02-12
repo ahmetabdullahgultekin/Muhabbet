@@ -209,13 +209,15 @@ fun ChatScreen(
                         )
                         messages = messages + newMsg
                         if (wsMessage.senderId != currentUserId) {
-                            wsClient.send(
-                                WsMessage.AckMessage(
-                                    messageId = wsMessage.messageId,
-                                    conversationId = wsMessage.conversationId,
-                                    status = MessageStatus.READ
+                            try {
+                                wsClient.send(
+                                    WsMessage.AckMessage(
+                                        messageId = wsMessage.messageId,
+                                        conversationId = wsMessage.conversationId,
+                                        status = MessageStatus.READ
+                                    )
                                 )
-                            )
+                            } catch (_: Exception) { }
                         }
                     }
                 }
@@ -425,14 +427,14 @@ fun ChatScreen(
                             if (newText.isNotEmpty()) {
                                 if (!isTypingSent) {
                                     scope.launch {
-                                        wsClient.send(WsMessage.TypingIndicator(conversationId, true))
+                                        try { wsClient.send(WsMessage.TypingIndicator(conversationId, true)) } catch (_: Exception) { }
                                     }
                                     isTypingSent = true
                                 }
                                 typingJob?.cancel()
                                 typingJob = scope.launch {
                                     delay(3000)
-                                    wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                                    try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }
                                     isTypingSent = false
                                 }
                             }
@@ -453,7 +455,7 @@ fun ChatScreen(
                             typingJob?.cancel()
                             if (isTypingSent) {
                                 scope.launch {
-                                    wsClient.send(WsMessage.TypingIndicator(conversationId, false))
+                                    try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }
                                 }
                                 isTypingSent = false
                             }

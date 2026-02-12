@@ -13,6 +13,7 @@ data class MediaProperties(
 ) {
     data class MinioProperties(
         val endpoint: String = "http://localhost:9000",
+        val publicEndpoint: String? = null,
         val accessKey: String = "minioadmin",
         val secretKey: String = "minioadmin",
         val bucket: String = "muhabbet-media"

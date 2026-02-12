@@ -23,6 +23,7 @@ class MinioMediaStorageAdapter(
     private val log = LoggerFactory.getLogger(javaClass)
 
     private lateinit var client: MinioClient
+    private lateinit var publicClient: MinioClient
 
     @PostConstruct
     fun init() {
@@ -30,6 +31,18 @@ class MinioMediaStorageAdapter(
             .endpoint(mediaProperties.minio.endpoint)
             .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
             .build()
+
+        // Separate client for pre-signed URL generation using public endpoint
+        val pubEndpoint = mediaProperties.minio.publicEndpoint
+        publicClient = if (!pubEndpoint.isNullOrBlank()) {
+            log.info("MinIO public endpoint configured: {}", pubEndpoint)
+            MinioClient.builder()
+                .endpoint(pubEndpoint)
+                .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
+                .build()
+        } else {
+            client
+        }
 
         val bucket = mediaProperties.minio.bucket
         if (!client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
@@ -50,7 +63,7 @@ class MinioMediaStorageAdapter(
     }
 
     override fun getPresignedUrl(key: String, expirySeconds: Int): String {
-        return client.getPresignedObjectUrl(
+        return publicClient.getPresignedObjectUrl(
             GetPresignedObjectUrlArgs.builder()
                 .method(Method.GET)
                 .bucket(mediaProperties.minio.bucket)

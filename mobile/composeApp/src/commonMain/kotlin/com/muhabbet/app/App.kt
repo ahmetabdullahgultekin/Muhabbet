@@ -13,15 +13,21 @@ import com.muhabbet.app.di.appModule
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.platform.PushTokenProvider
-import org.koin.compose.KoinApplication
+import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
+import org.koin.core.context.GlobalContext
+import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 
 @Composable
 fun App(componentContext: ComponentContext, platformModule: Module) {
-    KoinApplication(application = {
-        modules(platformModule, appModule())
-    }) {
+    val koin = remember {
+        GlobalContext.getOrNull() ?: startKoin {
+            modules(platformModule, appModule())
+        }.koin
+    }
+
+    KoinContext(context = koin) {
         MuhabbetTheme {
             val tokenStorage: TokenStorage = koinInject()
             val root = remember { RootComponent(componentContext, tokenStorage) }
