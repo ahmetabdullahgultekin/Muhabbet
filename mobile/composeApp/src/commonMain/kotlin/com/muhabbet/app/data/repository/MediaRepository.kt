@@ -58,4 +58,25 @@ class MediaRepository(private val apiClient: ApiClient) {
         )
         return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "Upload failed")
     }
+
+    suspend fun uploadDocument(bytes: ByteArray, mimeType: String, fileName: String): MediaUploadResponse {
+        val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/upload") {
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append("file", bytes, Headers.build {
+                            append(HttpHeaders.ContentType, mimeType)
+                            append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                        })
+                    }
+                )
+            )
+        }
+        val text = response.bodyAsText()
+        val apiResponse = apiClient.json.decodeFromString(
+            ApiResponse.serializer(serializer<MediaUploadResponse>()),
+            text
+        )
+        return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "Upload failed")
+    }
 }

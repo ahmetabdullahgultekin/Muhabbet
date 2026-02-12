@@ -142,4 +142,8 @@
 
     <!-- Search -->
     <string name="search_messages_placeholder">Mesajlarda ara...</string>
+
+    <!-- Attach -->
+    <string name="attach_image">Fotoğraf</string>
+    <string name="attach_document">Dosya</string>
 </resources>

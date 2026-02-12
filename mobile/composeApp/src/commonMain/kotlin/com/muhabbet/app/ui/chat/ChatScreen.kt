@@ -79,13 +79,18 @@ import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.app.platform.AudioPlayer
+import com.muhabbet.app.platform.FilePickerLauncher
 import com.muhabbet.app.platform.ImagePickerLauncher
+import com.muhabbet.app.platform.PickedFile
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.compressImage
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
+import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Image
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
@@ -175,6 +180,51 @@ fun ChatScreen(
     var forwardMessage by remember { mutableStateOf<Message?>(null) }
     var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     val starredIds = remember { mutableStateOf(setOf<String>()) }
+
+    // Attach menu state
+    var showAttachMenu by remember { mutableStateOf(false) }
+
+    // File picker
+    val filePickerLauncher: FilePickerLauncher = rememberFilePickerLauncher { picked: PickedFile? ->
+        if (picked == null) return@rememberFilePickerLauncher
+        scope.launch {
+            isUploading = true
+            try {
+                val uploadResponse = mediaRepository.uploadDocument(
+                    bytes = picked.bytes,
+                    mimeType = picked.mimeType,
+                    fileName = picked.fileName
+                )
+                val messageId = generateMessageId()
+                val requestId = generateMessageId()
+                val now = kotlinx.datetime.Clock.System.now()
+                val optimistic = Message(
+                    id = messageId,
+                    conversationId = conversationId,
+                    senderId = currentUserId,
+                    contentType = ContentType.DOCUMENT,
+                    content = picked.fileName,
+                    mediaUrl = uploadResponse.url,
+                    status = MessageStatus.SENDING,
+                    clientTimestamp = now
+                )
+                messages = messages + optimistic
+                wsClient.send(
+                    WsMessage.SendMessage(
+                        requestId = requestId,
+                        messageId = messageId,
+                        conversationId = conversationId,
+                        content = picked.fileName,
+                        contentType = ContentType.DOCUMENT,
+                        mediaUrl = uploadResponse.url
+                    )
+                )
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(errorSendMsg)
+            }
+            isUploading = false
+        }
+    }
 
     // Image picker
     val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
@@ -784,18 +834,35 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Attach image button
-                        IconButton(
-                            onClick = { imagePickerLauncher.launch() },
-                            enabled = !isUploading && editingMessageId == null
-                        ) {
-                            if (isUploading) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.AttachFile,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        // Attach button with menu
+                        Box {
+                            IconButton(
+                                onClick = { showAttachMenu = true },
+                                enabled = !isUploading && editingMessageId == null
+                            ) {
+                                if (isUploading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = showAttachMenu,
+                                onDismissRequest = { showAttachMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.attach_image)) },
+                                    onClick = { showAttachMenu = false; imagePickerLauncher.launch() },
+                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.attach_document)) },
+                                    onClick = { showAttachMenu = false; filePickerLauncher.launch() },
+                                    leadingIcon = { Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(20.dp)) }
                                 )
                             }
                         }
@@ -1038,6 +1105,40 @@ private fun MessageBubble(
                                 audioPlayer = audioPlayer,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                             )
+                        }
+
+                        // Document content
+                        if (message.contentType == ContentType.DOCUMENT && message.mediaUrl != null) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .clickable { /* open URL */ }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Description,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(28.dp),
+                                        tint = if (isOwn) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = message.content,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
                         }
 
                         // Image content
