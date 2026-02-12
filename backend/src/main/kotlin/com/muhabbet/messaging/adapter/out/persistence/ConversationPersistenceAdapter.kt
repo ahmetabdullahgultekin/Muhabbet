@@ -57,4 +57,21 @@ class ConversationPersistenceAdapter(
     override fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: Instant) {
         memberRepo.updateLastReadAt(conversationId, userId, timestamp)
     }
+
+    override fun removeMember(conversationId: UUID, userId: UUID) {
+        memberRepo.deleteByConversationIdAndUserId(conversationId, userId)
+    }
+
+    override fun updateConversation(conversation: Conversation): Conversation {
+        val entity = conversationRepo.findById(conversation.id).orElse(null) ?: return conversation
+        entity.name = conversation.name
+        entity.avatarUrl = conversation.avatarUrl
+        entity.description = conversation.description
+        entity.updatedAt = conversation.updatedAt
+        return conversationRepo.save(entity).toDomain()
+    }
+
+    override fun updateMemberRole(conversationId: UUID, userId: UUID, role: com.muhabbet.messaging.domain.model.MemberRole) {
+        memberRepo.updateRole(conversationId, userId, role)
+    }
 }

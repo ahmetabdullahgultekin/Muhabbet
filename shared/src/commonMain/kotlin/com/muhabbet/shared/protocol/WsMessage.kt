@@ -108,6 +108,78 @@ sealed class WsMessage {
         val lastSeenAt: Long? = null
     ) : WsMessage()
 
+    // ─── Group Events (Server → Client) ────────────────────
+
+    /** Server notifies that members were added to a group */
+    @Serializable
+    @SerialName("group.member_added")
+    data class GroupMemberAdded(
+        val conversationId: String,
+        val addedBy: String,
+        val members: List<GroupMemberInfo>
+    ) : WsMessage()
+
+    /** Server notifies that a member was removed from a group */
+    @Serializable
+    @SerialName("group.member_removed")
+    data class GroupMemberRemoved(
+        val conversationId: String,
+        val removedBy: String,
+        val userId: String
+    ) : WsMessage()
+
+    /** Server notifies that group info was updated */
+    @Serializable
+    @SerialName("group.info_updated")
+    data class GroupInfoUpdated(
+        val conversationId: String,
+        val updatedBy: String,
+        val name: String? = null,
+        val avatarUrl: String? = null,
+        val description: String? = null
+    ) : WsMessage()
+
+    /** Server notifies that a member's role changed */
+    @Serializable
+    @SerialName("group.role_updated")
+    data class GroupRoleUpdated(
+        val conversationId: String,
+        val updatedBy: String,
+        val userId: String,
+        val newRole: String
+    ) : WsMessage()
+
+    /** Server notifies that a member left the group */
+    @Serializable
+    @SerialName("group.member_left")
+    data class GroupMemberLeft(
+        val conversationId: String,
+        val userId: String
+    ) : WsMessage()
+
+    // ─── Message Management (Server → Client) ──────────────
+
+    /** Server notifies that a message was deleted */
+    @Serializable
+    @SerialName("message.deleted")
+    data class MessageDeleted(
+        val messageId: String,
+        val conversationId: String,
+        val deletedBy: String,
+        val timestamp: Long
+    ) : WsMessage()
+
+    /** Server notifies that a message was edited */
+    @Serializable
+    @SerialName("message.edited")
+    data class MessageEdited(
+        val messageId: String,
+        val conversationId: String,
+        val editedBy: String,
+        val newContent: String,
+        val editedAt: Long
+    ) : WsMessage()
+
     /** Server heartbeat response */
     @Serializable
     @SerialName("pong")
@@ -121,6 +193,13 @@ sealed class WsMessage {
         val message: String
     ) : WsMessage()
 }
+
+@Serializable
+data class GroupMemberInfo(
+    val userId: String,
+    val displayName: String?,
+    val role: String
+)
 
 @Serializable
 enum class AckStatus {

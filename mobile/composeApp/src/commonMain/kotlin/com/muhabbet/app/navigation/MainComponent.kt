@@ -16,6 +16,8 @@ import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.ui.chat.ChatScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.conversations.NewConversationScreen
+import com.muhabbet.app.ui.group.CreateGroupScreen
+import com.muhabbet.app.ui.group.GroupInfoScreen
 import com.muhabbet.app.ui.settings.SettingsScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,6 +56,16 @@ class MainComponent(
         navigation.push(Config.Settings)
     }
 
+    @OptIn(DelicateDecomposeApi::class)
+    fun openCreateGroup() {
+        navigation.push(Config.CreateGroup)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openGroupInfo(conversationId: String, conversationName: String) {
+        navigation.push(Config.GroupInfo(conversationId, conversationName))
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -65,6 +77,8 @@ class MainComponent(
         @Serializable data class Chat(val conversationId: String, val name: String) : Config
         @Serializable data object NewConversation : Config
         @Serializable data object Settings : Config
+        @Serializable data object CreateGroup : Config
+        @Serializable data class GroupInfo(val conversationId: String, val name: String) : Config
     }
 }
 
@@ -91,6 +105,22 @@ fun MainContent(component: MainComponent) {
                     component.goBack()
                     component.openChat(id, name)
                 },
+                onCreateGroup = {
+                    component.goBack()
+                    component.openCreateGroup()
+                },
+                onBack = component::goBack
+            )
+            is MainComponent.Config.CreateGroup -> CreateGroupScreen(
+                onGroupCreated = { id, name ->
+                    component.goBack()
+                    component.openChat(id, name)
+                },
+                onBack = component::goBack
+            )
+            is MainComponent.Config.GroupInfo -> GroupInfoScreen(
+                conversationId = config.conversationId,
+                conversationName = config.name,
                 onBack = component::goBack
             )
             is MainComponent.Config.Settings -> SettingsScreen(

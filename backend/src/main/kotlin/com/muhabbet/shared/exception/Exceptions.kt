@@ -42,6 +42,21 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // Contacts
     CONTACT_SYNC_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Tek seferde en fazla 1000 kişi senkronize edilebilir"),
 
+    // Group
+    GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "Grup bulunamadı"),
+    GROUP_NOT_MEMBER(HttpStatus.FORBIDDEN, "Bu grubun üyesi değilsiniz"),
+    GROUP_PERMISSION_DENIED(HttpStatus.FORBIDDEN, "Bu işlem için yetkiniz yok"),
+    GROUP_ALREADY_MEMBER(HttpStatus.CONFLICT, "Kullanıcı zaten grup üyesi"),
+    GROUP_CANNOT_REMOVE_OWNER(HttpStatus.BAD_REQUEST, "Grup sahibi çıkarılamaz"),
+    GROUP_OWNER_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "Grup sahibi gruptan ayrılamaz, önce sahipliği devredin"),
+    GROUP_CANNOT_MODIFY_DIRECT(HttpStatus.BAD_REQUEST, "Direkt mesajlaşma grupları değiştirilemez"),
+
+    // Message management
+    MSG_NOT_SENDER(HttpStatus.FORBIDDEN, "Sadece gönderen mesajı düzenleyebilir veya silebilir"),
+    MSG_NOT_FOUND(HttpStatus.NOT_FOUND, "Mesaj bulunamadı"),
+    MSG_ALREADY_DELETED(HttpStatus.CONFLICT, "Mesaj zaten silinmiş"),
+    MSG_EDIT_WINDOW_EXPIRED(HttpStatus.BAD_REQUEST, "Mesaj düzenleme süresi doldu"),
+
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),

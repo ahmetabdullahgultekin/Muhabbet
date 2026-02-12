@@ -90,7 +90,8 @@ class ChatWebSocketHandler(
     }
 
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
-        val userId = session.attributes["userId"] as? UUID
+        // Read userId from our own map BEFORE unregister clears it
+        val userId = sessionManager.getUserId(session)
         sessionManager.unregister(session)
 
         // If no remaining sessions, mark offline
@@ -107,8 +108,19 @@ class ChatWebSocketHandler(
     }
 
     override fun handleTransportError(session: WebSocketSession, exception: Throwable) {
-        log.warn("WebSocket transport error: sessionId={}, error={}", session.id, exception.message)
+        val userId = sessionManager.getUserId(session)
+        log.warn("WebSocket transport error: sessionId={}, userId={}, error={}", session.id, userId, exception.message)
         sessionManager.unregister(session)
+
+        if (userId != null && !sessionManager.isOnline(userId)) {
+            presencePort.setOffline(userId)
+            try {
+                userRepository.updateLastSeenAt(userId, Instant.now())
+            } catch (e: Exception) {
+                log.warn("Failed to persist last_seen_at for {}: {}", userId, e.message)
+            }
+            broadcastPresence(userId, PresenceStatus.OFFLINE)
+        }
     }
 
     private fun handleSendMessage(session: WebSocketSession, senderId: UUID, msg: WsMessage.SendMessage) {

@@ -3,11 +3,20 @@ package com.muhabbet.messaging.adapter.out.persistence.repository
 import com.muhabbet.messaging.adapter.out.persistence.entity.MessageJpaEntity
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import java.time.Instant
 import java.util.UUID
 
 interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
+
+    @Modifying
+    @Query("UPDATE MessageJpaEntity m SET m.isDeleted = true, m.deletedAt = CURRENT_TIMESTAMP WHERE m.id = :messageId")
+    fun softDelete(messageId: UUID)
+
+    @Modifying
+    @Query("UPDATE MessageJpaEntity m SET m.content = :newContent, m.editedAt = :editedAt WHERE m.id = :messageId")
+    fun updateContent(messageId: UUID, newContent: String, editedAt: java.time.Instant)
 
     @Query(
         """

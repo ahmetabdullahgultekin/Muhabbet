@@ -11,5 +11,6 @@ data class MediaFile(
     val sizeBytes: Long,
     val thumbnailKey: String? = null,
     val originalFilename: String? = null,
+    val durationSeconds: Int? = null,
     val createdAt: Instant = Instant.now()
 )

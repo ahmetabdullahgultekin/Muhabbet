@@ -63,4 +63,12 @@ class MessagePersistenceAdapter(
 
     override fun getLastMessage(conversationId: UUID): Message? =
         messageRepo.findLastByConversationId(conversationId)?.toDomain()
+
+    override fun softDelete(messageId: UUID) {
+        messageRepo.softDelete(messageId)
+    }
+
+    override fun updateContent(messageId: UUID, newContent: String, editedAt: Instant) {
+        messageRepo.updateContent(messageId, newContent, editedAt)
+    }
 }

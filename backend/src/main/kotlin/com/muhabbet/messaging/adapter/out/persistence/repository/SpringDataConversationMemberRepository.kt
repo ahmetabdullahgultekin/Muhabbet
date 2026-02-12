@@ -16,4 +16,12 @@ interface SpringDataConversationMemberRepository : JpaRepository<ConversationMem
     @Modifying
     @Query("UPDATE ConversationMemberJpaEntity m SET m.lastReadAt = :timestamp WHERE m.conversationId = :conversationId AND m.userId = :userId")
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: Instant)
+
+    @Modifying
+    @Query("DELETE FROM ConversationMemberJpaEntity m WHERE m.conversationId = :conversationId AND m.userId = :userId")
+    fun deleteByConversationIdAndUserId(conversationId: UUID, userId: UUID)
+
+    @Modifying
+    @Query("UPDATE ConversationMemberJpaEntity m SET m.role = :role WHERE m.conversationId = :conversationId AND m.userId = :userId")
+    fun updateRole(conversationId: UUID, userId: UUID, role: com.muhabbet.messaging.domain.model.MemberRole)
 }

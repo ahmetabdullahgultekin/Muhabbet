@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.conversations
+package com.muhabbet.app.ui.group
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -14,13 +14,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.ContactPhone
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
 import com.muhabbet.app.util.sha256Hex
@@ -60,24 +62,23 @@ import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewConversationScreen(
-    onConversationCreated: (id: String, name: String) -> Unit,
-    onCreateGroup: () -> Unit = {},
+fun CreateGroupScreen(
+    onGroupCreated: (id: String, name: String) -> Unit,
     onBack: () -> Unit,
     conversationRepository: ConversationRepository = koinInject(),
-    contactsProvider: ContactsProvider = koinInject()
+    contactsProvider: ContactsProvider = koinInject(),
+    groupRepository: GroupRepository = koinInject()
 ) {
     var contacts by remember { mutableStateOf<List<MatchedContact>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
+    var selectedUserIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var groupName by remember { mutableStateOf("") }
     var isSyncing by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
     var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
     var permissionDenied by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_generic)
 
     val requestPermission = rememberContactsPermissionRequester { granted ->
@@ -108,13 +109,10 @@ fun NewConversationScreen(
         }
     }
 
-    val filteredContacts = if (searchQuery.isBlank()) contacts
-    else contacts.filter { (it.displayName ?: "").contains(searchQuery, ignoreCase = true) }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(Res.string.new_conversation_title)) },
+                title = { Text("Yeni Grup") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -130,11 +128,48 @@ fun NewConversationScreen(
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            if (contacts.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = {
+                        if (isCreating) return@FloatingActionButton
+                        if (groupName.isBlank()) {
+                            scope.launch { snackbarHostState.showSnackbar("Grup adi girin") }
+                            return@FloatingActionButton
+                        }
+                        if (selectedUserIds.isEmpty()) {
+                            scope.launch { snackbarHostState.showSnackbar("En az 1 kisi secin") }
+                            return@FloatingActionButton
+                        }
+                        isCreating = true
+                        scope.launch {
+                            try {
+                                val conv = groupRepository.createGroup(
+                                    name = groupName.trim(),
+                                    participantIds = selectedUserIds.toList()
+                                )
+                                onGroupCreated(conv.id, groupName.trim())
+                            } catch (_: Exception) {
+                                snackbarHostState.showSnackbar(errorMsg)
+                                isCreating = false
+                            }
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Text(
+                        text = "Olustur",
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
-                // Not yet granted: show permission prompt
                 !hasPermission -> {
                     Column(
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
@@ -166,7 +201,7 @@ fun NewConversationScreen(
                         }
                     }
                 }
-                // Syncing contacts
+
                 isSyncing -> {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
@@ -180,7 +215,7 @@ fun NewConversationScreen(
                         )
                     }
                 }
-                // No matched contacts
+
                 contacts.isEmpty() -> {
                     Column(
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
@@ -199,63 +234,40 @@ fun NewConversationScreen(
                         )
                     }
                 }
-                // Show contacts list
+
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text(stringResource(Res.string.contacts_search_placeholder)) },
+                            value = groupName,
+                            onValueChange = { groupName = it },
+                            label = { Text("Grup Adi") },
+                            placeholder = { Text("Grup adini girin") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         )
-                        LazyColumn {
-                            // "Yeni Grup" button at top
-                            item(key = "create_group") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(onClick = onCreateGroup)
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        modifier = Modifier.size(40.dp).clip(CircleShape),
-                                        color = MaterialTheme.colorScheme.primary
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Group,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(
-                                        text = "Yeni Grup",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                HorizontalDivider()
-                            }
-                            items(filteredContacts, key = { it.userId }) { contact ->
-                                ContactItem(
+
+                        Text(
+                            text = "Katilimcilar (${selectedUserIds.size} secili)",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        HorizontalDivider()
+
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(contacts, key = { it.userId }) { contact ->
+                                val isSelected = contact.userId in selectedUserIds
+                                SelectableContactItem(
                                     contact = contact,
-                                    defaultName = defaultChatName,
-                                    onClick = {
-                                        if (isCreating) return@ContactItem
-                                        isCreating = true
-                                        scope.launch {
-                                            try {
-                                                val conv = conversationRepository.createDirectConversation(contact.userId)
-                                                onConversationCreated(conv.id, contact.displayName ?: defaultChatName)
-                                            } catch (_: Exception) {
-                                                snackbarHostState.showSnackbar(errorMsg)
-                                                isCreating = false
-                                            }
+                                    isSelected = isSelected,
+                                    onToggle = {
+                                        selectedUserIds = if (isSelected) {
+                                            selectedUserIds - contact.userId
+                                        } else {
+                                            selectedUserIds + contact.userId
                                         }
                                     }
                                 )
@@ -274,18 +286,25 @@ fun NewConversationScreen(
 }
 
 @Composable
-private fun ContactItem(
+private fun SelectableContactItem(
     contact: MatchedContact,
-    defaultName: String,
-    onClick: () -> Unit
+    isSelected: Boolean,
+    onToggle: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Checkbox(
+            checked = isSelected,
+            onCheckedChange = { onToggle() }
+        )
+
+        Spacer(Modifier.width(8.dp))
+
         Surface(
             modifier = Modifier.size(40.dp).clip(CircleShape),
             color = MaterialTheme.colorScheme.primaryContainer
@@ -302,7 +321,7 @@ private fun ContactItem(
         Spacer(Modifier.width(12.dp))
 
         Text(
-            text = contact.displayName ?: defaultName,
+            text = contact.displayName ?: contact.userId,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium
         )
@@ -311,21 +330,16 @@ private fun ContactItem(
 
 /**
  * Normalizes a phone number to E.164 format for Turkish numbers.
- * Handles: +905XX, 905XX, 05XX, 5XX → +90XXXXXXXXX
+ * Handles: +905XX, 905XX, 05XX, 5XX -> +90XXXXXXXXX
  * Returns null if the number doesn't look like a Turkish mobile number.
  */
 private fun normalizeToE164(phone: String): String? {
     val digits = phone.removePrefix("+")
     return when {
-        // Already E.164: +90XXXXXXXXX
         phone.startsWith("+90") && digits.length == 12 -> phone
-        // 90XXXXXXXXX (missing +)
         digits.startsWith("90") && digits.length == 12 -> "+$digits"
-        // 0XXXXXXXXX (national format with leading 0)
         digits.startsWith("0") && digits.length == 11 -> "+90${digits.drop(1)}"
-        // XXXXXXXXX (just the subscriber number, 10 digits starting with 5)
         digits.startsWith("5") && digits.length == 10 -> "+90$digits"
-        // Not a recognizable Turkish number — hash as-is (may match other countries)
         phone.startsWith("+") && digits.length >= 10 -> phone
         else -> null
     }

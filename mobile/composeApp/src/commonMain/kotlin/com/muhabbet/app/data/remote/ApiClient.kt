@@ -11,6 +11,7 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -139,6 +140,14 @@ class ApiClient(private val tokenStorage: TokenStorage) {
         println("MUHABBET: PATCH $path body=$body")
         val response = httpClient.patch(path) { setBody(body) }
         println("MUHABBET: PATCH $path -> status=${response.status}")
+        val text = response.bodyAsText()
+        return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
+    }
+
+    suspend inline fun <reified T> delete(path: String): ApiResponse<T> {
+        println("MUHABBET: DELETE $path")
+        val response = httpClient.delete(path)
+        println("MUHABBET: DELETE $path -> status=${response.status}")
         val text = response.bodyAsText()
         return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
     }

@@ -1,6 +1,7 @@
 package com.muhabbet.media.adapter.`in`.web
 
 import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
+import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.shared.dto.ApiResponse
@@ -49,6 +50,38 @@ class MediaController(
             thumbnailUrl = urls.thumbnailUrl,
             contentType = mediaFile.contentType,
             sizeBytes = mediaFile.sizeBytes
+        )
+
+        return ApiResponseBuilder.created(response)
+    }
+
+    @PostMapping("/audio", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadAudio(
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(required = false) durationSeconds: Int?
+    ): ResponseEntity<ApiResponse<MediaUploadResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+
+        val mediaFile = uploadMediaUseCase.uploadAudio(
+            UploadAudioCommand(
+                uploaderId = userId,
+                inputStream = file.inputStream,
+                contentType = file.contentType ?: "audio/ogg",
+                sizeBytes = file.size,
+                durationSeconds = durationSeconds,
+                originalFilename = file.originalFilename
+            )
+        )
+
+        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id)
+
+        val response = MediaUploadResponse(
+            mediaId = mediaFile.id.toString(),
+            url = urls.url,
+            thumbnailUrl = null,
+            contentType = mediaFile.contentType,
+            sizeBytes = mediaFile.sizeBytes,
+            durationSeconds = mediaFile.durationSeconds
         )
 
         return ApiResponseBuilder.created(response)

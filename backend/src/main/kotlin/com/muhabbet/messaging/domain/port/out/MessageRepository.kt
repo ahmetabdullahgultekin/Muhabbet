@@ -22,4 +22,8 @@ interface MessageRepository {
     fun markConversationRead(conversationId: UUID, userId: UUID)
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
     fun getLastMessage(conversationId: UUID): Message?
+
+    // Message management
+    fun softDelete(messageId: UUID)
+    fun updateContent(messageId: UUID, newContent: String, editedAt: Instant)
 }

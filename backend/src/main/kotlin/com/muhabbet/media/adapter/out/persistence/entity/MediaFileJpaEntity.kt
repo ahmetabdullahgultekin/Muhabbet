@@ -32,6 +32,9 @@ class MediaFileJpaEntity(
     @Column(name = "original_filename")
     val originalFilename: String? = null,
 
+    @Column(name = "duration_seconds")
+    val durationSeconds: Int? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now()
 ) {
@@ -43,6 +46,7 @@ class MediaFileJpaEntity(
         sizeBytes = sizeBytes,
         thumbnailKey = thumbnailKey,
         originalFilename = originalFilename,
+        durationSeconds = durationSeconds,
         createdAt = createdAt
     )
 
@@ -55,6 +59,7 @@ class MediaFileJpaEntity(
             sizeBytes = m.sizeBytes,
             thumbnailKey = m.thumbnailKey,
             originalFilename = m.originalFilename,
+            durationSeconds = m.durationSeconds,
             createdAt = m.createdAt
         )
     }

@@ -4,6 +4,7 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
 import org.koin.core.module.Module
@@ -16,4 +17,5 @@ fun appModule(): Module = module {
     single { ConversationRepository(apiClient = get()) }
     single { MessageRepository(apiClient = get()) }
     single { MediaRepository(apiClient = get()) }
+    single { GroupRepository(apiClient = get()) }
 }

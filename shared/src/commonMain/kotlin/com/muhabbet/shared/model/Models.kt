@@ -58,7 +58,9 @@ data class Message(
     val thumbnailUrl: String? = null,
     val status: MessageStatus = MessageStatus.SENDING,
     val serverTimestamp: Instant? = null,
-    val clientTimestamp: Instant
+    val clientTimestamp: Instant,
+    val editedAt: Instant? = null,
+    val isDeleted: Boolean = false
 )
 
 @Serializable

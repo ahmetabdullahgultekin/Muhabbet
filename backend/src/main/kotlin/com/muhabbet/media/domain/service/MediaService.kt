@@ -3,6 +3,7 @@ package com.muhabbet.media.domain.service
 import com.muhabbet.media.domain.model.MediaFile
 import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
 import com.muhabbet.media.domain.port.`in`.MediaUrlResult
+import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.media.domain.port.out.MediaFileRepository
@@ -88,6 +89,49 @@ open class MediaService(
         }
     }
 
+    override fun uploadAudio(command: UploadAudioCommand): MediaFile {
+        if (command.contentType !in ValidationRules.ALLOWED_VOICE_TYPES) {
+            throw BusinessException(ErrorCode.MEDIA_UNSUPPORTED_TYPE)
+        }
+        if (command.sizeBytes > ValidationRules.MAX_VOICE_SIZE_BYTES) {
+            throw BusinessException(ErrorCode.MEDIA_TOO_LARGE)
+        }
+
+        val audioBytes = command.inputStream.readBytes()
+        val fileId = UUID.randomUUID()
+        val extension = audioExtensionFromMime(command.contentType)
+        val fileKey = "audio/${command.uploaderId}/$fileId.$extension"
+
+        try {
+            mediaStoragePort.putObject(
+                key = fileKey,
+                inputStream = ByteArrayInputStream(audioBytes),
+                contentType = command.contentType,
+                sizeBytes = command.sizeBytes
+            )
+
+            val mediaFile = mediaFileRepository.save(
+                MediaFile(
+                    id = fileId,
+                    uploaderId = command.uploaderId,
+                    fileKey = fileKey,
+                    contentType = command.contentType,
+                    sizeBytes = command.sizeBytes,
+                    durationSeconds = command.durationSeconds,
+                    originalFilename = command.originalFilename
+                )
+            )
+
+            log.info("Audio uploaded: id={}, key={}, size={}, duration={}s", mediaFile.id, fileKey, command.sizeBytes, command.durationSeconds)
+            return mediaFile
+        } catch (e: BusinessException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("Audio upload failed: {}", e.message, e)
+            throw BusinessException(ErrorCode.MEDIA_UPLOAD_FAILED, cause = e)
+        }
+    }
+
     override fun getPresignedUrl(mediaId: UUID): MediaUrlResult {
         val mediaFile = mediaFileRepository.findById(mediaId)
             ?: throw BusinessException(ErrorCode.MEDIA_NOT_FOUND)
@@ -102,6 +146,13 @@ open class MediaService(
         "image/jpeg" -> "jpg"
         "image/png" -> "png"
         "image/webp" -> "webp"
+        else -> "bin"
+    }
+
+    private fun audioExtensionFromMime(mime: String): String = when (mime) {
+        "audio/ogg" -> "ogg"
+        "audio/opus" -> "opus"
+        "audio/mp4" -> "m4a"
         else -> "bin"
     }
 }

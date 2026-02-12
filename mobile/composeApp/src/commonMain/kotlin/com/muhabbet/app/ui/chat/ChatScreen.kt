@@ -1,6 +1,8 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +29,15 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -41,6 +50,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -60,11 +70,15 @@ import androidx.compose.runtime.snapshotFlow
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.compressImage
+import com.muhabbet.app.platform.rememberAudioPlayer
+import com.muhabbet.app.platform.rememberAudioRecorder
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
@@ -82,7 +96,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     conversationId: String,
@@ -90,6 +104,7 @@ fun ChatScreen(
     onBack: () -> Unit,
     messageRepository: MessageRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
+    groupRepository: GroupRepository = koinInject(),
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
@@ -118,6 +133,17 @@ fun ChatScreen(
 
     // Full image viewer state
     var fullImageUrl by remember { mutableStateOf<String?>(null) }
+
+    // Voice recording state
+    val audioRecorder = rememberAudioRecorder()
+    val audioPlayer = rememberAudioPlayer()
+    var isRecording by remember { mutableStateOf(false) }
+
+    // Message edit/delete state
+    var editingMessageId by remember { mutableStateOf<String?>(null) }
+    var contextMenuMessageId by remember { mutableStateOf<String?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteTargetId by remember { mutableStateOf<String?>(null) }
 
     // Image picker
     val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
@@ -275,6 +301,29 @@ fun ChatScreen(
                         }
                     }
                 }
+                is WsMessage.MessageDeleted -> {
+                    if (wsMessage.conversationId == conversationId) {
+                        messages = messages.map { msg ->
+                            if (msg.id == wsMessage.messageId) msg.copy(isDeleted = true, content = "")
+                            else msg
+                        }
+                    }
+                }
+                is WsMessage.MessageEdited -> {
+                    if (wsMessage.conversationId == conversationId) {
+                        messages = messages.map { msg ->
+                            if (msg.id == wsMessage.messageId) {
+                                val editedAt = kotlinx.datetime.Instant.fromEpochMilliseconds(wsMessage.editedAt)
+                                msg.copy(content = wsMessage.newContent, editedAt = editedAt)
+                            } else msg
+                        }
+                    }
+                }
+                is WsMessage.GroupMemberAdded,
+                is WsMessage.GroupMemberRemoved,
+                is WsMessage.GroupInfoUpdated,
+                is WsMessage.GroupRoleUpdated,
+                is WsMessage.GroupMemberLeft -> { /* group events — handled by ConversationList refresh */ }
                 else -> {}
             }
         }
@@ -330,6 +379,38 @@ fun ChatScreen(
                 )
             }
         }
+    }
+
+    // Delete confirmation dialog
+    if (showDeleteDialog && deleteTargetId != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false; deleteTargetId = null },
+            title = { Text("Mesaj\u0131 Sil") },
+            text = { Text("Bu mesaj silinecek. Bu i\u015Flem geri al\u0131namaz.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val msgId = deleteTargetId!!
+                    showDeleteDialog = false
+                    deleteTargetId = null
+                    scope.launch {
+                        try {
+                            groupRepository.deleteMessage(msgId)
+                            messages = messages.map { msg ->
+                                if (msg.id == msgId) msg.copy(isDeleted = true, content = "")
+                                else msg
+                            }
+                        } catch (_: Exception) {
+                            snackbarHostState.showSnackbar(errorSendMsg)
+                        }
+                    }
+                }) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false; deleteTargetId = null }) {
+                    Text("\u0130ptal")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -389,119 +470,283 @@ fun ChatScreen(
                         }
                     }
                     items(messages, key = { it.id }) { message ->
+                        val isOwn = message.senderId == currentUserId
                         MessageBubble(
                             message = message,
-                            isOwn = message.senderId == currentUserId,
+                            isOwn = isOwn,
+                            audioPlayer = audioPlayer,
+                            showContextMenu = contextMenuMessageId == message.id,
+                            onLongPress = { if (isOwn && !message.isDeleted) contextMenuMessageId = message.id },
+                            onDismissMenu = { contextMenuMessageId = null },
+                            onEdit = {
+                                contextMenuMessageId = null
+                                editingMessageId = message.id
+                                messageText = message.content
+                            },
+                            onDelete = {
+                                contextMenuMessageId = null
+                                deleteTargetId = message.id
+                                showDeleteDialog = true
+                            },
                             onImageClick = { url -> fullImageUrl = url }
                         )
                     }
                 }
             }
 
-            // Message input
-            Surface(tonalElevation = 2.dp) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Attach image button
-                    IconButton(
-                        onClick = { imagePickerLauncher.launch() },
-                        enabled = !isUploading
+            // Edit mode indicator
+            if (editingMessageId != null) {
+                Surface(tonalElevation = 4.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isUploading) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Mesaj\u0131 d\u00FCzenle",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = {
+                                editingMessageId = null
+                                messageText = ""
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.AttachFile,
+                                imageVector = Icons.Default.Close,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
+                }
+            }
 
-                    OutlinedTextField(
-                        value = messageText,
-                        onValueChange = { newText ->
-                            messageText = newText
-                            if (newText.isNotEmpty()) {
-                                if (!isTypingSent) {
-                                    scope.launch {
-                                        try { wsClient.send(WsMessage.TypingIndicator(conversationId, true)) } catch (_: Exception) { }
-                                    }
-                                    isTypingSent = true
-                                }
-                                typingJob?.cancel()
-                                typingJob = scope.launch {
-                                    delay(3000)
-                                    try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }
-                                    isTypingSent = false
-                                }
-                            }
-                        },
-                        placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
-                        modifier = Modifier.weight(1f),
-                        maxLines = 4,
-                        shape = RoundedCornerShape(24.dp)
-                    )
-
-                    Spacer(Modifier.width(4.dp))
-
-                    FilledIconButton(
-                        onClick = {
-                            if (messageText.isBlank()) return@FilledIconButton
-                            val text = messageText
-                            messageText = ""
-                            typingJob?.cancel()
-                            if (isTypingSent) {
-                                scope.launch {
-                                    try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }
-                                }
-                                isTypingSent = false
-                            }
-                            val messageId = generateMessageId()
-                            val requestId = generateMessageId()
-                            val now = kotlinx.datetime.Clock.System.now()
-                            val optimistic = Message(
-                                id = messageId,
-                                conversationId = conversationId,
-                                senderId = currentUserId,
-                                contentType = ContentType.TEXT,
-                                content = text,
-                                status = MessageStatus.SENDING,
-                                clientTimestamp = now
-                            )
-                            messages = messages + optimistic
-                            scope.launch {
-                                try {
-                                    wsClient.send(
-                                        WsMessage.SendMessage(
-                                            requestId = requestId,
-                                            messageId = messageId,
-                                            conversationId = conversationId,
-                                            content = text,
-                                            contentType = ContentType.TEXT
-                                        )
-                                    )
-                                } catch (e: Exception) {
-                                    messages = messages.filter { it.id != messageId }
-                                    snackbarHostState.showSnackbar(errorSendMsg)
-                                }
-                            }
-                        },
-                        enabled = messageText.isNotBlank(),
-                        modifier = Modifier.size(48.dp),
-                        shape = CircleShape,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
+            // Voice recording bar
+            if (isRecording) {
+                Surface(tonalElevation = 2.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                        VoiceRecordButton(
+                            isRecording = true,
+                            onStartRecording = {},
+                            onStopRecording = {
+                                val audio = audioRecorder.stopRecording()
+                                isRecording = false
+                                if (audio != null) {
+                                    scope.launch {
+                                        isUploading = true
+                                        try {
+                                            val uploadResponse = mediaRepository.uploadAudio(
+                                                bytes = audio.bytes,
+                                                mimeType = audio.mimeType,
+                                                fileName = "voice_${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}.ogg",
+                                                durationSeconds = audio.durationSeconds
+                                            )
+                                            val messageId = generateMessageId()
+                                            val requestId = generateMessageId()
+                                            val now = kotlinx.datetime.Clock.System.now()
+                                            val optimistic = Message(
+                                                id = messageId,
+                                                conversationId = conversationId,
+                                                senderId = currentUserId,
+                                                contentType = ContentType.VOICE,
+                                                content = "Sesli mesaj",
+                                                mediaUrl = uploadResponse.url,
+                                                status = MessageStatus.SENDING,
+                                                clientTimestamp = now
+                                            )
+                                            messages = messages + optimistic
+                                            wsClient.send(
+                                                WsMessage.SendMessage(
+                                                    requestId = requestId,
+                                                    messageId = messageId,
+                                                    conversationId = conversationId,
+                                                    content = "Sesli mesaj",
+                                                    contentType = ContentType.VOICE,
+                                                    mediaUrl = uploadResponse.url
+                                                )
+                                            )
+                                        } catch (_: Exception) {
+                                            snackbarHostState.showSnackbar(errorSendMsg)
+                                        }
+                                        isUploading = false
+                                    }
+                                }
+                            },
+                            onCancelRecording = {
+                                audioRecorder.cancelRecording()
+                                isRecording = false
+                            },
+                            modifier = Modifier.weight(1f)
                         )
+                    }
+                }
+            } else {
+                // Message input
+                Surface(tonalElevation = 2.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Attach image button
+                        IconButton(
+                            onClick = { imagePickerLauncher.launch() },
+                            enabled = !isUploading && editingMessageId == null
+                        ) {
+                            if (isUploading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.AttachFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = messageText,
+                            onValueChange = { newText ->
+                                messageText = newText
+                                if (newText.isNotEmpty() && editingMessageId == null) {
+                                    if (!isTypingSent) {
+                                        scope.launch {
+                                            try { wsClient.send(WsMessage.TypingIndicator(conversationId, true)) } catch (_: Exception) { }
+                                        }
+                                        isTypingSent = true
+                                    }
+                                    typingJob?.cancel()
+                                    typingJob = scope.launch {
+                                        delay(3000)
+                                        try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }
+                                        isTypingSent = false
+                                    }
+                                }
+                            },
+                            placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
+                            modifier = Modifier.weight(1f),
+                            maxLines = 4,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+
+                        Spacer(Modifier.width(4.dp))
+
+                        if (messageText.isBlank() && editingMessageId == null) {
+                            // Mic button when text is empty
+                            FilledIconButton(
+                                onClick = {
+                                    audioRecorder.startRecording()
+                                    isRecording = true
+                                },
+                                modifier = Modifier.size(48.dp),
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        } else {
+                            // Send / Edit confirm button
+                            FilledIconButton(
+                                onClick = {
+                                    if (messageText.isBlank()) return@FilledIconButton
+
+                                    if (editingMessageId != null) {
+                                        // Edit mode — send edit request
+                                        val msgId = editingMessageId!!
+                                        val newContent = messageText.trim()
+                                        editingMessageId = null
+                                        messageText = ""
+                                        scope.launch {
+                                            try {
+                                                groupRepository.editMessage(msgId, newContent)
+                                                val editedAt = kotlinx.datetime.Clock.System.now()
+                                                messages = messages.map { msg ->
+                                                    if (msg.id == msgId) msg.copy(content = newContent, editedAt = editedAt)
+                                                    else msg
+                                                }
+                                            } catch (_: Exception) {
+                                                snackbarHostState.showSnackbar(errorSendMsg)
+                                            }
+                                        }
+                                    } else {
+                                        // Normal send
+                                        val text = messageText
+                                        messageText = ""
+                                        typingJob?.cancel()
+                                        if (isTypingSent) {
+                                            scope.launch {
+                                                try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }
+                                            }
+                                            isTypingSent = false
+                                        }
+                                        val messageId = generateMessageId()
+                                        val requestId = generateMessageId()
+                                        val now = kotlinx.datetime.Clock.System.now()
+                                        val optimistic = Message(
+                                            id = messageId,
+                                            conversationId = conversationId,
+                                            senderId = currentUserId,
+                                            contentType = ContentType.TEXT,
+                                            content = text,
+                                            status = MessageStatus.SENDING,
+                                            clientTimestamp = now
+                                        )
+                                        messages = messages + optimistic
+                                        scope.launch {
+                                            try {
+                                                wsClient.send(
+                                                    WsMessage.SendMessage(
+                                                        requestId = requestId,
+                                                        messageId = messageId,
+                                                        conversationId = conversationId,
+                                                        content = text,
+                                                        contentType = ContentType.TEXT
+                                                    )
+                                                )
+                                            } catch (e: Exception) {
+                                                messages = messages.filter { it.id != messageId }
+                                                snackbarHostState.showSnackbar(errorSendMsg)
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = messageText.isNotBlank(),
+                                modifier = Modifier.size(48.dp),
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = if (editingMessageId != null) MaterialTheme.colorScheme.tertiary
+                                    else MaterialTheme.colorScheme.primary,
+                                    contentColor = if (editingMessageId != null) MaterialTheme.colorScheme.onTertiary
+                                    else MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = if (editingMessageId != null) Icons.Default.Check
+                                    else Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -509,93 +754,166 @@ fun ChatScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: Message,
     isOwn: Boolean,
+    audioPlayer: AudioPlayer,
+    showContextMenu: Boolean = false,
+    onLongPress: () -> Unit = {},
+    onDismissMenu: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
     onImageClick: (String) -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
-        Surface(
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (isOwn) 16.dp else 4.dp,
-                bottomEnd = if (isOwn) 4.dp else 16.dp
-            ),
-            color = if (isOwn) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surfaceVariant,
-            tonalElevation = if (isOwn) 0.dp else 1.dp,
-            shadowElevation = 1.dp,
-            modifier = Modifier.widthIn(min = 80.dp, max = 300.dp)
-        ) {
-            Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)) {
-                // Image content
-                if (message.contentType == ContentType.IMAGE && (message.mediaUrl != null || message.thumbnailUrl != null)) {
-                    val imageUrl = message.thumbnailUrl ?: message.mediaUrl
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { message.mediaUrl?.let { onImageClick(it) } },
-                        contentScale = ContentScale.Crop
+        Box {
+            Surface(
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isOwn) 16.dp else 4.dp,
+                    bottomEnd = if (isOwn) 4.dp else 16.dp
+                ),
+                color = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                else if (isOwn) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = if (isOwn) 0.dp else 1.dp,
+                shadowElevation = 1.dp,
+                modifier = Modifier
+                    .widthIn(min = 80.dp, max = 300.dp)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = onLongPress
                     )
-                    Spacer(Modifier.height(4.dp))
-                }
-
-                // Text content (skip for images with default placeholder text)
-                if (message.contentType == ContentType.TEXT ||
-                    (message.contentType == ContentType.IMAGE && message.content != "Foto\u011Fra\u0066" && message.content.isNotBlank())
-                ) {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    Spacer(Modifier.height(2.dp))
-                }
-
-                // Timestamp + delivery status row
-                Row(
-                    modifier = Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    val timestamp = message.serverTimestamp ?: message.clientTimestamp
-                    Text(
-                        text = formatMessageTime(timestamp),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-
-                    if (isOwn) {
-                        val (icon, tint) = when (message.status) {
-                            MessageStatus.SENDING -> Icons.Default.AccessTime to
-                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
-                            MessageStatus.SENT -> Icons.Default.Check to
-                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                            MessageStatus.DELIVERED -> Icons.Default.DoneAll to
-                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                            MessageStatus.READ -> Icons.Default.DoneAll to
-                                    MaterialTheme.colorScheme.tertiary
-                        }
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = tint
+            ) {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    if (message.isDeleted) {
+                        // Deleted message placeholder
+                        Text(
+                            text = "\uD83D\uDEAB Bu mesaj silindi",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
+                    } else {
+                        // Voice content
+                        if (message.contentType == ContentType.VOICE && message.mediaUrl != null) {
+                            VoiceBubble(
+                                mediaUrl = message.mediaUrl!!,
+                                durationSeconds = null,
+                                isOwn = isOwn,
+                                audioPlayer = audioPlayer,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        // Image content
+                        if (message.contentType == ContentType.IMAGE && (message.mediaUrl != null || message.thumbnailUrl != null)) {
+                            val imageUrl = message.thumbnailUrl ?: message.mediaUrl
+                            AsyncImage(
+                                model = imageUrl,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { message.mediaUrl?.let { onImageClick(it) } },
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
+
+                        // Text content (skip for images/voice with default placeholder text)
+                        if (message.contentType == ContentType.TEXT ||
+                            (message.contentType == ContentType.IMAGE && message.content != "Foto\u011Fra\u0066" && message.content.isNotBlank())
+                        ) {
+                            Text(
+                                text = message.content,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                            Spacer(Modifier.height(2.dp))
+                        }
+                    }
+
+                    // Timestamp + edited + delivery status row
+                    Row(
+                        modifier = Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        if (message.editedAt != null && !message.isDeleted) {
+                            Text(
+                                text = "d\u00FCzenlendi",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+
+                        val timestamp = message.serverTimestamp ?: message.clientTimestamp
+                        Text(
+                            text = formatMessageTime(timestamp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+
+                        if (isOwn && !message.isDeleted) {
+                            val (icon, tint) = when (message.status) {
+                                MessageStatus.SENDING -> Icons.Default.AccessTime to
+                                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                MessageStatus.SENT -> Icons.Default.Check to
+                                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                MessageStatus.DELIVERED -> Icons.Default.DoneAll to
+                                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                MessageStatus.READ -> Icons.Default.DoneAll to
+                                        MaterialTheme.colorScheme.tertiary
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = tint
+                            )
+                        }
                     }
                 }
+            }
+
+            // Context menu for own messages
+            DropdownMenu(
+                expanded = showContextMenu,
+                onDismissRequest = onDismissMenu
+            ) {
+                if (message.contentType == ContentType.TEXT) {
+                    DropdownMenuItem(
+                        text = { Text("D\u00FCzenle") },
+                        onClick = onEdit,
+                        leadingIcon = {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                        }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Sil", color = MaterialTheme.colorScheme.error) },
+                    onClick = onDelete,
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                )
             }
         }
     }

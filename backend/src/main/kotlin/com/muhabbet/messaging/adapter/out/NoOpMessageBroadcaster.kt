@@ -84,6 +84,15 @@ class WebSocketMessageBroadcaster(
         }
     }
 
+    override fun broadcastToUsers(recipientIds: List<UUID>, message: WsMessage) {
+        val json = wsJson.encodeToString<WsMessage>(message)
+        recipientIds.forEach { recipientId ->
+            if (sessionManager.isOnline(recipientId)) {
+                sessionManager.sendToUser(recipientId, json)
+            }
+        }
+    }
+
     override fun broadcastStatusUpdate(messageId: UUID, conversationId: UUID, userId: UUID, status: DeliveryStatus) {
         val wsStatus = when (status) {
             DeliveryStatus.DELIVERED -> MessageStatus.DELIVERED

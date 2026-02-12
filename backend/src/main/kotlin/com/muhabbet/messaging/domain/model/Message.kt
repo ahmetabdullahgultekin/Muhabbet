@@ -23,7 +23,8 @@ data class Message(
     val serverTimestamp: Instant = Instant.now(),
     val clientTimestamp: Instant,
     val isDeleted: Boolean = false,
-    val deletedAt: Instant? = null
+    val deletedAt: Instant? = null,
+    val editedAt: Instant? = null
 )
 
 data class MessageDeliveryStatus(

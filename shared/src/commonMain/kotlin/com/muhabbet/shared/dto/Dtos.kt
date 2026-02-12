@@ -128,6 +128,31 @@ data class ParticipantResponse(
     val isOnline: Boolean
 )
 
+// ─── Group Management DTOs ───────────────────────────────
+
+@Serializable
+data class AddMembersRequest(
+    val userIds: List<String>
+)
+
+@Serializable
+data class UpdateGroupRequest(
+    val name: String? = null,
+    val description: String? = null
+)
+
+@Serializable
+data class UpdateRoleRequest(
+    val role: MemberRole
+)
+
+// ─── Message Management DTOs ─────────────────────────────
+
+@Serializable
+data class EditMessageRequest(
+    val content: String
+)
+
 // ─── Media DTOs ──────────────────────────────────────────
 
 @Serializable
@@ -136,7 +161,8 @@ data class MediaUploadResponse(
     val url: String,
     val thumbnailUrl: String?,
     val contentType: String,
-    val sizeBytes: Long
+    val sizeBytes: Long,
+    val durationSeconds: Int? = null
 )
 
 // ─── Pagination ──────────────────────────────────────────

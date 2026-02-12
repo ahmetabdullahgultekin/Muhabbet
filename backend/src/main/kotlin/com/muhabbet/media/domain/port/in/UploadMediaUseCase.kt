@@ -6,6 +6,7 @@ import java.util.UUID
 
 interface UploadMediaUseCase {
     fun uploadImage(command: UploadImageCommand): MediaFile
+    fun uploadAudio(command: UploadAudioCommand): MediaFile
 }
 
 data class UploadImageCommand(
@@ -13,5 +14,14 @@ data class UploadImageCommand(
     val inputStream: InputStream,
     val contentType: String,
     val sizeBytes: Long,
+    val originalFilename: String?
+)
+
+data class UploadAudioCommand(
+    val uploaderId: UUID,
+    val inputStream: InputStream,
+    val contentType: String,
+    val sizeBytes: Long,
+    val durationSeconds: Int?,
     val originalFilename: String?
 )

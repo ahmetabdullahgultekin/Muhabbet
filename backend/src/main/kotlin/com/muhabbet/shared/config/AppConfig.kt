@@ -12,6 +12,8 @@ import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
 import com.muhabbet.media.domain.service.MediaService
+import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -84,6 +86,12 @@ class AppConfig {
         messageBroadcaster = messageBroadcaster,
         eventPublisher = eventPublisher
     )
+
+    @Bean
+    fun manageGroupUseCase(messagingService: MessagingService): ManageGroupUseCase = messagingService
+
+    @Bean
+    fun manageMessageUseCase(messagingService: MessagingService): ManageMessageUseCase = messagingService
 
     @Bean
     fun mediaService(

@@ -14,4 +14,9 @@ interface ConversationRepository {
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?
     fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID)
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: java.time.Instant)
+
+    // Group management
+    fun removeMember(conversationId: UUID, userId: UUID)
+    fun updateConversation(conversation: Conversation): Conversation
+    fun updateMemberRole(conversationId: UUID, userId: UUID, role: com.muhabbet.messaging.domain.model.MemberRole)
 }

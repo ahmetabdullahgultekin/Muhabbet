@@ -57,8 +57,10 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
+import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
+import androidx.compose.material.icons.filled.Group
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
@@ -123,6 +125,15 @@ fun ConversationListScreen(
                     if (wsMessage.conversationId == null && wsMessage.userId != currentUserId) {
                         onlineUsers[wsMessage.userId] = wsMessage.status == PresenceStatus.ONLINE
                     }
+                }
+                is WsMessage.GroupMemberAdded,
+                is WsMessage.GroupMemberRemoved,
+                is WsMessage.GroupInfoUpdated,
+                is WsMessage.GroupRoleUpdated,
+                is WsMessage.GroupMemberLeft,
+                is WsMessage.MessageDeleted,
+                is WsMessage.MessageEdited -> {
+                    loadConversations()
                 }
                 else -> {}
             }
@@ -217,6 +228,7 @@ fun ConversationListScreen(
                             conversation = conv,
                             displayName = resolvedName,
                             isOnline = isOtherOnline,
+                            isGroup = conv.type == ConversationType.GROUP,
                             onClick = { onConversationClick(conv.id, resolvedName) }
                         )
                         HorizontalDivider()
@@ -232,6 +244,7 @@ private fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
     isOnline: Boolean,
+    isGroup: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
@@ -248,11 +261,20 @@ private fun ConversationItem(
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = displayName.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    if (isGroup) {
+                        Icon(
+                            imageVector = Icons.Default.Group,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    } else {
+                        Text(
+                            text = displayName.take(1).uppercase(),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
             // Green online dot
