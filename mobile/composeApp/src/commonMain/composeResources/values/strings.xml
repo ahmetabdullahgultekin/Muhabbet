@@ -163,4 +163,11 @@
     <string name="poll_option_placeholder">Seçenek %1$d</string>
     <string name="poll_add_option">Seçenek ekle</string>
     <string name="poll_send">Gönder</string>
+
+    <!-- Location -->
+    <string name="attach_location">Konum</string>
+    <string name="location_share_title">Konum Paylaş</string>
+    <string name="location_label_placeholder">Konum adı (isteğe bağlı)</string>
+    <string name="location_lat_placeholder">Enlem</string>
+    <string name="location_lng_placeholder">Boylam</string>
 </resources>

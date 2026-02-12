@@ -178,6 +178,15 @@ data class LinkPreviewResponse(
     val siteName: String? = null
 )
 
+// ─── Location DTOs ──────────────────────────────────────
+
+@Serializable
+data class LocationData(
+    val latitude: Double,
+    val longitude: Double,
+    val label: String? = null
+)
+
 // ─── Poll DTOs ──────────────────────────────────────────
 
 @Serializable

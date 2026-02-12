@@ -91,9 +91,11 @@ import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TimerOff
+import com.muhabbet.shared.dto.LocationData
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
@@ -205,6 +207,12 @@ fun ChatScreen(
     var showPollDialog by remember { mutableStateOf(false) }
     var pollQuestion by remember { mutableStateOf("") }
     var pollOptions by remember { mutableStateOf(listOf("", "")) }
+
+    // Location sharing state
+    var showLocationDialog by remember { mutableStateOf(false) }
+    var locationLabel by remember { mutableStateOf("") }
+    var locationLat by remember { mutableStateOf("") }
+    var locationLng by remember { mutableStateOf("") }
 
     // File picker
     val filePickerLauncher: FilePickerLauncher = rememberFilePickerLauncher { picked: PickedFile? ->
@@ -655,6 +663,98 @@ fun ChatScreen(
         )
     }
 
+    // Location sharing dialog
+    if (showLocationDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showLocationDialog = false
+                locationLabel = ""; locationLat = ""; locationLng = ""
+            },
+            title = { Text(stringResource(Res.string.location_share_title)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = locationLabel,
+                        onValueChange = { locationLabel = it },
+                        placeholder = { Text(stringResource(Res.string.location_label_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = locationLat,
+                        onValueChange = { locationLat = it },
+                        placeholder = { Text(stringResource(Res.string.location_lat_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = locationLng,
+                        onValueChange = { locationLng = it },
+                        placeholder = { Text(stringResource(Res.string.location_lng_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val lat = locationLat.toDoubleOrNull()
+                        val lng = locationLng.toDoubleOrNull()
+                        if (lat != null && lng != null) {
+                            showLocationDialog = false
+                            val locData = LocationData(
+                                latitude = lat,
+                                longitude = lng,
+                                label = locationLabel.takeIf { it.isNotBlank() }
+                            )
+                            val locJson = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), locData)
+                            val messageId = generateMessageId()
+                            val requestId = generateMessageId()
+                            val now = kotlinx.datetime.Clock.System.now()
+                            val optimistic = Message(
+                                id = messageId,
+                                conversationId = conversationId,
+                                senderId = currentUserId,
+                                contentType = ContentType.LOCATION,
+                                content = locJson,
+                                status = MessageStatus.SENDING,
+                                clientTimestamp = now
+                            )
+                            messages = messages + optimistic
+                            scope.launch {
+                                try {
+                                    wsClient.send(
+                                        WsMessage.SendMessage(
+                                            requestId = requestId,
+                                            messageId = messageId,
+                                            conversationId = conversationId,
+                                            content = locJson,
+                                            contentType = ContentType.LOCATION
+                                        )
+                                    )
+                                } catch (e: Exception) {
+                                    messages = messages.filter { it.id != messageId }
+                                    snackbarHostState.showSnackbar(errorSendMsg)
+                                }
+                            }
+                            locationLabel = ""; locationLat = ""; locationLng = ""
+                        }
+                    },
+                    enabled = locationLat.toDoubleOrNull() != null && locationLng.toDoubleOrNull() != null
+                ) { Text(stringResource(Res.string.poll_send)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showLocationDialog = false
+                    locationLabel = ""; locationLat = ""; locationLng = ""
+                }) { Text(cancelText) }
+            }
+        )
+    }
+
     // Poll creation dialog
     if (showPollDialog) {
         AlertDialog(
@@ -1050,6 +1150,11 @@ fun ChatScreen(
                                     onClick = { showAttachMenu = false; showPollDialog = true },
                                     leadingIcon = { Icon(Icons.Default.Poll, contentDescription = null, modifier = Modifier.size(20.dp)) }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.attach_location)) },
+                                    onClick = { showAttachMenu = false; showLocationDialog = true },
+                                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                                )
                             }
                         }
 
@@ -1325,6 +1430,15 @@ private fun MessageBubble(
                                     )
                                 }
                             }
+                        }
+
+                        // Location content
+                        if (message.contentType == ContentType.LOCATION) {
+                            LocationBubble(
+                                content = message.content,
+                                isOwn = isOwn,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
 
                         // Poll content

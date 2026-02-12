@@ -163,4 +163,11 @@
     <string name="poll_option_placeholder">Option %1$d</string>
     <string name="poll_add_option">Add option</string>
     <string name="poll_send">Send</string>
+
+    <!-- Location -->
+    <string name="attach_location">Location</string>
+    <string name="location_share_title">Share Location</string>
+    <string name="location_label_placeholder">Location name (optional)</string>
+    <string name="location_lat_placeholder">Latitude</string>
+    <string name="location_lng_placeholder">Longitude</string>
 </resources>
