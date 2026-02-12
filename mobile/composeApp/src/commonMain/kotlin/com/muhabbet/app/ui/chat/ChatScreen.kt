@@ -1067,6 +1067,13 @@ private fun MessageBubble(
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
+                            // Link preview for text messages containing URLs
+                            if (message.contentType == ContentType.TEXT) {
+                                val firstUrl = extractFirstUrl(message.content)
+                                if (firstUrl != null) {
+                                    LinkPreviewCard(url = firstUrl, isOwn = isOwn)
+                                }
+                            }
                             Spacer(Modifier.height(2.dp))
                         }
                     }

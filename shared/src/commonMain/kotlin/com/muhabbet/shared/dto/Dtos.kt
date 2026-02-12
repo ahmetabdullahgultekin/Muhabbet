@@ -166,6 +166,17 @@ data class MediaUploadResponse(
     val durationSeconds: Int? = null
 )
 
+// ─── Link Preview ───────────────────────────────────────
+
+@Serializable
+data class LinkPreviewResponse(
+    val url: String,
+    val title: String? = null,
+    val description: String? = null,
+    val imageUrl: String? = null,
+    val siteName: String? = null
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable

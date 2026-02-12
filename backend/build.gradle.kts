@@ -47,6 +47,9 @@ dependencies {
     // MinIO (S3-compatible media storage)
     implementation("io.minio:minio:8.5.14")
 
+    // HTML parsing for link previews
+    implementation("org.jsoup:jsoup:1.18.3")
+
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-admin:9.4.2")
 
