@@ -45,11 +45,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.RadioButton
+import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.data.repository.MediaRepository
+import com.muhabbet.app.platform.ImagePickerLauncher
+import com.muhabbet.app.platform.PickedImage
+import com.muhabbet.app.platform.compressImage
+import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
+import com.muhabbet.app.ui.components.UserAvatar
+import androidx.compose.ui.layout.ContentScale
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
@@ -62,12 +72,15 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     authRepository: AuthRepository = koinInject(),
+    mediaRepository: MediaRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
     var displayName by remember { mutableStateOf("") }
     var about by remember { mutableStateOf("") }
+    var avatarUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
+    var isUploadingPhoto by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf(tokenStorage.getLanguage() ?: "tr") }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -76,12 +89,35 @@ fun SettingsScreen(
 
     val profileUpdatedMsg = stringResource(Res.string.settings_profile_updated)
     val genericErrorMsg = stringResource(Res.string.error_generic)
+    val photoUploadFailedMsg = stringResource(Res.string.profile_photo_failed)
+
+    val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
+        if (picked == null) return@rememberImagePickerLauncher
+        scope.launch {
+            isUploadingPhoto = true
+            try {
+                val compressed = compressImage(picked.bytes)
+                val uploadResponse = mediaRepository.uploadImage(
+                    bytes = compressed,
+                    mimeType = "image/jpeg",
+                    fileName = picked.fileName
+                )
+                authRepository.updateProfile(avatarUrl = uploadResponse.url)
+                avatarUrl = uploadResponse.url
+                snackbarHostState.showSnackbar(profileUpdatedMsg)
+            } catch (_: Exception) {
+                snackbarHostState.showSnackbar(photoUploadFailedMsg)
+            }
+            isUploadingPhoto = false
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
             val profile = authRepository.getProfile()
             displayName = profile.displayName ?: ""
             about = profile.about ?: ""
+            avatarUrl = profile.avatarUrl
         } catch (_: Exception) { }
         isLoading = false
     }
@@ -148,17 +184,38 @@ fun SettingsScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Avatar
-                Surface(
-                    modifier = Modifier.size(80.dp).clip(CircleShape),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = com.muhabbet.app.ui.profile.firstGrapheme(displayName),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                // Avatar with camera overlay
+                Box(contentAlignment = Alignment.Center) {
+                    UserAvatar(
+                        avatarUrl = avatarUrl,
+                        displayName = displayName,
+                        size = 80.dp,
+                        modifier = Modifier.clickable(enabled = !isUploadingPhoto) {
+                            imagePickerLauncher.launch()
+                        }
+                    )
+                    // Camera icon overlay
+                    Surface(
+                        modifier = Modifier.size(28.dp).align(Alignment.BottomEnd),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            if (isUploadingPhoto) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
                     }
                 }
 

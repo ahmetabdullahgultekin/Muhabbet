@@ -298,9 +298,11 @@ fun ConversationListScreen(
                         val isOtherOnline = otherParticipant?.let {
                             onlineUsers[it.userId] ?: it.isOnline
                         } ?: false
+                        val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
                         ConversationItem(
                             conversation = conv,
                             displayName = resolvedName,
+                            avatarUrl = avatarUrl,
                             isOnline = isOtherOnline,
                             isGroup = isGroup,
                             onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
@@ -322,6 +324,7 @@ fun ConversationListScreen(
 private fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
+    avatarUrl: String? = null,
     isOnline: Boolean,
     isGroup: Boolean = false,
     onClick: () -> Unit,
@@ -336,27 +339,12 @@ private fun ConversationItem(
     ) {
         // Avatar with online indicator
         Box {
-            Surface(
-                modifier = Modifier.size(48.dp).clip(CircleShape),
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (isGroup) {
-                        Icon(
-                            imageVector = Icons.Default.Group,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    } else {
-                        Text(
-                            text = firstGrapheme(displayName),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            }
+            com.muhabbet.app.ui.components.UserAvatar(
+                avatarUrl = avatarUrl,
+                displayName = displayName,
+                size = 48.dp,
+                isGroup = isGroup
+            )
             // Green online dot
             if (isOnline) {
                 Box(

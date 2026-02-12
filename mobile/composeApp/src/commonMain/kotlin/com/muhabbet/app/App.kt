@@ -13,6 +13,8 @@ import com.muhabbet.app.di.appModule
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.platform.PushTokenProvider
+import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.shared.protocol.WsMessage
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.core.context.GlobalContext
@@ -50,6 +52,26 @@ private fun WebSocketLifecycle() {
         }
         onDispose {
             wsClient.disconnect()
+        }
+    }
+
+    // Global DELIVERED ack: send DELIVERED for every incoming message regardless of active screen
+    LaunchedEffect(Unit) {
+        if (tokenStorage.isLoggedIn()) {
+            val currentUserId = tokenStorage.getUserId() ?: return@LaunchedEffect
+            wsClient.incoming.collect { message ->
+                if (message is WsMessage.NewMessage && message.senderId != currentUserId) {
+                    try {
+                        wsClient.send(
+                            WsMessage.AckMessage(
+                                messageId = message.messageId,
+                                conversationId = message.conversationId,
+                                status = MessageStatus.DELIVERED
+                            )
+                        )
+                    } catch (_: Exception) { }
+                }
+            }
         }
     }
 

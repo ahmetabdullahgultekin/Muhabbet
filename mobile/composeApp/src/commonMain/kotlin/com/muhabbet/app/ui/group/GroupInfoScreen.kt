@@ -199,18 +199,12 @@ fun GroupInfoScreen(
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Surface(
-                            modifier = Modifier.size(72.dp).clip(CircleShape),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = com.muhabbet.app.ui.profile.firstGrapheme(conversation?.name ?: "G"),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
+                        com.muhabbet.app.ui.components.UserAvatar(
+                            avatarUrl = conversation?.avatarUrl,
+                            displayName = conversation?.name ?: "G",
+                            size = 72.dp,
+                            isGroup = true
+                        )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             text = conversation?.name ?: conversationName,
@@ -274,18 +268,11 @@ private fun MemberItem(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(40.dp).clip(CircleShape),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = com.muhabbet.app.ui.profile.firstGrapheme(member.displayName ?: "?"),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
+        com.muhabbet.app.ui.components.UserAvatar(
+            avatarUrl = member.avatarUrl,
+            displayName = member.displayName ?: "?",
+            size = 40.dp
+        )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

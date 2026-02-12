@@ -68,7 +68,8 @@ data class RefreshTokenRequest(
 @Serializable
 data class UpdateProfileRequest(
     val displayName: String? = null,
-    val about: String? = null
+    val about: String? = null,
+    val avatarUrl: String? = null
 )
 
 @Serializable

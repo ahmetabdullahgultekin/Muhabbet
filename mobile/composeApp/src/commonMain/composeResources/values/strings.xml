@@ -123,6 +123,9 @@
     <string name="profile_no_about">Hakkında bilgisi yok</string>
     <string name="profile_last_seen">Son görülme %1$s</string>
     <string name="profile_load_failed">Profil yüklenemedi</string>
+    <string name="profile_change_photo">Fotoğrafı değiştir</string>
+    <string name="profile_uploading_photo">Fotoğraf yükleniyor...</string>
+    <string name="profile_photo_failed">Fotoğraf yüklenemedi</string>
 
     <!-- Contacts -->
     <string name="contacts_grant_access">Rehber Erişimi Ver</string>

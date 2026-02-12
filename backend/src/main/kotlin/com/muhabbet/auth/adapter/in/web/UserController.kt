@@ -87,7 +87,8 @@ class UserController(
         val updated = userRepository.save(
             user.copy(
                 displayName = request.displayName ?: user.displayName,
-                about = request.about ?: user.about
+                about = request.about ?: user.about,
+                avatarUrl = request.avatarUrl ?: user.avatarUrl
             )
         )
 

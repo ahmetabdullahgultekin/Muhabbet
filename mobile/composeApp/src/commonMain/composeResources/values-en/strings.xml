@@ -123,6 +123,9 @@
     <string name="profile_no_about">No about info</string>
     <string name="profile_last_seen">Last seen %1$s</string>
     <string name="profile_load_failed">Failed to load profile</string>
+    <string name="profile_change_photo">Change photo</string>
+    <string name="profile_uploading_photo">Uploading photo...</string>
+    <string name="profile_photo_failed">Photo upload failed</string>
 
     <!-- Contacts -->
     <string name="contacts_grant_access">Grant Access</string>

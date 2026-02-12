@@ -98,20 +98,11 @@ fun UserProfileScreen(
                 Spacer(Modifier.height(32.dp))
 
                 // Large avatar
-                Surface(
-                    modifier = Modifier.size(96.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        val avatarText = p.displayName?.let { firstGrapheme(it) } ?: "?"
-                        Text(
-                            text = avatarText,
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+                com.muhabbet.app.ui.components.UserAvatar(
+                    avatarUrl = p.avatarUrl,
+                    displayName = p.displayName ?: "?",
+                    size = 96.dp
+                )
 
                 Spacer(Modifier.height(16.dp))
 

@@ -72,8 +72,8 @@ class AuthRepository(
         return response.data ?: throw Exception("Profil yüklenemedi")
     }
 
-    suspend fun updateProfile(displayName: String? = null, about: String? = null) {
-        apiClient.patch<UserProfile>("/api/v1/users/me", UpdateProfileRequest(displayName = displayName, about = about))
+    suspend fun updateProfile(displayName: String? = null, about: String? = null, avatarUrl: String? = null) {
+        apiClient.patch<UserProfile>("/api/v1/users/me", UpdateProfileRequest(displayName = displayName, about = about, avatarUrl = avatarUrl))
     }
 
     suspend fun registerPushToken(token: String) {
