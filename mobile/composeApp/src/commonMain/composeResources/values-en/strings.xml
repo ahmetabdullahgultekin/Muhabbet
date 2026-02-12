@@ -176,4 +176,11 @@
     <string name="status_create_title">Share Status</string>
     <string name="status_placeholder">What's on your mind?</string>
     <string name="status_post">Share</string>
+
+    <!-- Channels -->
+    <string name="channels_title">Channels</string>
+    <string name="channels_empty">No channels yet</string>
+    <string name="channels_subscribe">Subscribe</string>
+    <string name="channels_unsubscribe">Unsubscribe</string>
+    <string name="channels_subscriber_count">%1$d subscribers</string>
 </resources>

@@ -4,7 +4,7 @@ import java.time.Instant
 import java.util.UUID
 
 enum class ConversationType {
-    DIRECT, GROUP
+    DIRECT, GROUP, CHANNEL
 }
 
 enum class MemberRole {

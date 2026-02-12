@@ -7,6 +7,7 @@ import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.data.repository.ChannelRepository
 import com.muhabbet.app.data.repository.StatusRepository
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -20,4 +21,5 @@ fun appModule(): Module = module {
     single { MediaRepository(apiClient = get()) }
     single { GroupRepository(apiClient = get()) }
     single { StatusRepository(apiClient = get()) }
+    single { ChannelRepository(apiClient = get()) }
 }

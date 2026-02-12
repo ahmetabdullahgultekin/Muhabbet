@@ -176,4 +176,11 @@
     <string name="status_create_title">Durum Paylaş</string>
     <string name="status_placeholder">Neler düşünüyorsun?</string>
     <string name="status_post">Paylaş</string>
+
+    <!-- Channels -->
+    <string name="channels_title">Kanallar</string>
+    <string name="channels_empty">Henüz kanal yok</string>
+    <string name="channels_subscribe">Abone Ol</string>
+    <string name="channels_unsubscribe">Abonelikten Çık</string>
+    <string name="channels_subscriber_count">%1$d abone</string>
 </resources>

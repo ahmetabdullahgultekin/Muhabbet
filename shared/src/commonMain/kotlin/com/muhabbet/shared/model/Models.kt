@@ -28,7 +28,8 @@ enum class ContentType {
 @Serializable
 enum class ConversationType {
     DIRECT,
-    GROUP
+    GROUP,
+    CHANNEL
 }
 
 @Serializable

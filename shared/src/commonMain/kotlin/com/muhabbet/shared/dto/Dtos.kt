@@ -239,6 +239,18 @@ data class UserStatusGroup(
     val statuses: List<StatusResponse>
 )
 
+// ─── Channel DTOs ───────────────────────────────────────
+
+@Serializable
+data class ChannelInfoResponse(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val subscriberCount: Int,
+    val isSubscribed: Boolean,
+    val createdAt: String
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable
