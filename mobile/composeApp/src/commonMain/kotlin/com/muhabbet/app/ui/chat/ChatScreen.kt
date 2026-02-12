@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AttachFile
@@ -70,9 +71,11 @@ import androidx.compose.runtime.snapshotFlow
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
@@ -107,6 +110,7 @@ fun ChatScreen(
     messageRepository: MessageRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
+    conversationRepository: ConversationRepository = koinInject(),
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
@@ -160,11 +164,14 @@ fun ChatScreen(
         }
     }
 
-    // Message edit/delete state
+    // Message edit/delete/reply state
     var editingMessageId by remember { mutableStateOf<String?>(null) }
     var contextMenuMessageId by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetId by remember { mutableStateOf<String?>(null) }
+    var replyingTo by remember { mutableStateOf<Message?>(null) }
+    var forwardMessage by remember { mutableStateOf<Message?>(null) }
+    var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
 
     // Image picker
     val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
@@ -250,6 +257,7 @@ fun ChatScreen(
                             senderId = wsMessage.senderId,
                             contentType = wsMessage.contentType,
                             content = wsMessage.content,
+                            replyToId = wsMessage.replyToId,
                             mediaUrl = wsMessage.mediaUrl,
                             thumbnailUrl = wsMessage.thumbnailUrl,
                             serverTimestamp = serverTs,
@@ -414,6 +422,74 @@ fun ChatScreen(
         }
     }
 
+    // Forward picker dialog
+    if (forwardMessage != null) {
+        AlertDialog(
+            onDismissRequest = { forwardMessage = null },
+            title = { Text(stringResource(Res.string.chat_forward_title)) },
+            text = {
+                if (forwardConversations.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        items(forwardConversations.filter { it.id != conversationId }, key = { it.id }) { conv ->
+                            val convName = conv.name
+                                ?: conv.participants.firstOrNull { it.userId != currentUserId }?.displayName
+                                ?: conv.participants.firstOrNull { it.userId != currentUserId }?.phoneNumber
+                                ?: ""
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val msg = forwardMessage!!
+                                        forwardMessage = null
+                                        scope.launch {
+                                            try {
+                                                val messageId = generateMessageId()
+                                                val requestId = generateMessageId()
+                                                wsClient.send(
+                                                    WsMessage.SendMessage(
+                                                        requestId = requestId,
+                                                        messageId = messageId,
+                                                        conversationId = conv.id,
+                                                        content = msg.content,
+                                                        contentType = msg.contentType,
+                                                        mediaUrl = msg.mediaUrl,
+                                                        thumbnailUrl = msg.thumbnailUrl
+                                                    )
+                                                )
+                                            } catch (_: Exception) {
+                                                snackbarHostState.showSnackbar(errorSendMsg)
+                                            }
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                com.muhabbet.app.ui.components.UserAvatar(
+                                    avatarUrl = conv.avatarUrl,
+                                    displayName = convName,
+                                    size = 36.dp,
+                                    isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(convName, style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { forwardMessage = null }) {
+                    Text(cancelText)
+                }
+            }
+        )
+    }
+
     // Delete confirmation dialog
     if (showDeleteDialog && deleteTargetId != null) {
         AlertDialog(
@@ -504,13 +580,28 @@ fun ChatScreen(
                     }
                     items(messages, key = { it.id }) { message ->
                         val isOwn = message.senderId == currentUserId
+                        val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
                         MessageBubble(
                             message = message,
                             isOwn = isOwn,
                             audioPlayer = audioPlayer,
+                            repliedMessage = repliedMessage,
                             showContextMenu = contextMenuMessageId == message.id,
-                            onLongPress = { if (isOwn && !message.isDeleted) contextMenuMessageId = message.id },
+                            onLongPress = { if (!message.isDeleted) contextMenuMessageId = message.id },
                             onDismissMenu = { contextMenuMessageId = null },
+                            onReply = {
+                                contextMenuMessageId = null
+                                replyingTo = message
+                            },
+                            onForward = {
+                                contextMenuMessageId = null
+                                forwardMessage = message
+                                scope.launch {
+                                    try {
+                                        forwardConversations = conversationRepository.getConversations().items
+                                    } catch (_: Exception) { }
+                                }
+                            },
                             onEdit = {
                                 contextMenuMessageId = null
                                 editingMessageId = message.id
@@ -523,6 +614,47 @@ fun ChatScreen(
                             },
                             onImageClick = { url -> fullImageUrl = url }
                         )
+                    }
+                }
+            }
+
+            // Reply preview bar
+            if (replyingTo != null) {
+                Surface(tonalElevation = 4.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Reply,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(Res.string.chat_replying_to),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = replyingTo!!.content.take(50),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        IconButton(
+                            onClick = { replyingTo = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -727,7 +859,9 @@ fun ChatScreen(
                                     } else {
                                         // Normal send
                                         val text = messageText
+                                        val replyId = replyingTo?.id
                                         messageText = ""
+                                        replyingTo = null
                                         typingJob?.cancel()
                                         if (isTypingSent) {
                                             scope.launch {
@@ -744,6 +878,7 @@ fun ChatScreen(
                                             senderId = currentUserId,
                                             contentType = ContentType.TEXT,
                                             content = text,
+                                            replyToId = replyId,
                                             status = MessageStatus.SENDING,
                                             clientTimestamp = now
                                         )
@@ -756,7 +891,8 @@ fun ChatScreen(
                                                         messageId = messageId,
                                                         conversationId = conversationId,
                                                         content = text,
-                                                        contentType = ContentType.TEXT
+                                                        contentType = ContentType.TEXT,
+                                                        replyToId = replyId
                                                     )
                                                 )
                                             } catch (e: Exception) {
@@ -797,9 +933,12 @@ private fun MessageBubble(
     message: Message,
     isOwn: Boolean,
     audioPlayer: AudioPlayer,
+    repliedMessage: Message? = null,
     showContextMenu: Boolean = false,
     onLongPress: () -> Unit = {},
     onDismissMenu: () -> Unit = {},
+    onReply: () -> Unit = {},
+    onForward: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onImageClick: (String) -> Unit = {}
@@ -829,6 +968,37 @@ private fun MessageBubble(
                     )
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
+                    // Quoted reply
+                    if (repliedMessage != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(8.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(32.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .then(
+                                            Modifier.padding(0.dp)
+                                        )
+                                )
+                                Column(modifier = Modifier.padding(start = 8.dp)) {
+                                    Text(
+                                        text = repliedMessage.content.take(60),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     if (message.isDeleted) {
                         // Deleted message placeholder
                         Text(
@@ -925,32 +1095,51 @@ private fun MessageBubble(
                 }
             }
 
-            // Context menu for own messages
+            // Context menu
             DropdownMenu(
                 expanded = showContextMenu,
                 onDismissRequest = onDismissMenu
             ) {
-                if (message.contentType == ContentType.TEXT) {
+                // Reply — available for all messages
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.chat_context_reply)) },
+                    onClick = onReply,
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(20.dp))
+                    }
+                )
+                // Forward — available for all messages
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.chat_context_forward)) },
+                    onClick = onForward,
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
+                    }
+                )
+                // Edit/Delete — only for own messages
+                if (isOwn) {
+                    if (message.contentType == ContentType.TEXT) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.chat_context_edit)) },
+                            onClick = onEdit,
+                            leadingIcon = {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                            }
+                        )
+                    }
                     DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.chat_context_edit)) },
-                        onClick = onEdit,
+                        text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
+                        onClick = onDelete,
                         leadingIcon = {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     )
                 }
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
-                    onClick = onDelete,
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                )
             }
         }
     }

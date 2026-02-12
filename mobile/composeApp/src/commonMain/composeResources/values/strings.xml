@@ -57,8 +57,12 @@
     <string name="chat_edit_mode">Mesajı düzenle</string>
     <string name="chat_message_deleted">🚫 Bu mesaj silindi</string>
     <string name="chat_edited">düzenlendi</string>
+    <string name="chat_context_reply">Yanıtla</string>
+    <string name="chat_context_forward">İlet</string>
     <string name="chat_context_edit">Düzenle</string>
     <string name="chat_context_delete">Sil</string>
+    <string name="chat_replying_to">Yanıtlanan mesaj</string>
+    <string name="chat_forward_title">İlet</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">Yeni Konuşma</string>

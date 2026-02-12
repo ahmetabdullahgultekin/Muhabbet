@@ -57,8 +57,12 @@
     <string name="chat_edit_mode">Edit message</string>
     <string name="chat_message_deleted">🚫 This message was deleted</string>
     <string name="chat_edited">edited</string>
+    <string name="chat_context_reply">Reply</string>
+    <string name="chat_context_forward">Forward</string>
     <string name="chat_context_edit">Edit</string>
     <string name="chat_context_delete">Delete</string>
+    <string name="chat_replying_to">Replying to</string>
+    <string name="chat_forward_title">Forward to</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">New Conversation</string>
