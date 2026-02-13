@@ -42,7 +42,8 @@ class WebSocketMessageBroadcaster(
             replyToId = message.replyToId?.toString(),
             mediaUrl = message.mediaUrl,
             thumbnailUrl = message.thumbnailUrl,
-            serverTimestamp = message.serverTimestamp.toEpochMilli()
+            serverTimestamp = message.serverTimestamp.toEpochMilli(),
+            forwardedFrom = message.forwardedFrom?.toString()
         )
 
         val json = wsJson.encodeToString<WsMessage>(wsMessage)

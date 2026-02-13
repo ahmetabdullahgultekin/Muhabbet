@@ -72,7 +72,8 @@ open class MessageService(
                 thumbnailUrl = command.thumbnailUrl,
                 serverTimestamp = now,
                 clientTimestamp = command.clientTimestamp,
-                expiresAt = expiresAt
+                expiresAt = expiresAt,
+                forwardedFrom = command.forwardedFrom
             )
         )
 

@@ -74,7 +74,8 @@ fun ForwardPickerDialog(
     scope: CoroutineScope,
     errorSendMsg: String,
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null
 ) {
     val cancelText = stringResource(Res.string.cancel)
     AlertDialog(
@@ -96,6 +97,8 @@ fun ForwardPickerDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    val targetConv = conv
+                                    val targetName = convName
                                     onDismiss()
                                     scope.launch {
                                         try {
@@ -105,13 +108,15 @@ fun ForwardPickerDialog(
                                                 WsMessage.SendMessage(
                                                     requestId = requestId,
                                                     messageId = messageId,
-                                                    conversationId = conv.id,
+                                                    conversationId = targetConv.id,
                                                     content = forwardMessage.content,
                                                     contentType = forwardMessage.contentType,
                                                     mediaUrl = forwardMessage.mediaUrl,
-                                                    thumbnailUrl = forwardMessage.thumbnailUrl
+                                                    thumbnailUrl = forwardMessage.thumbnailUrl,
+                                                    forwardedFrom = forwardMessage.id
                                                 )
                                             )
+                                            onNavigateToConversation?.invoke(targetConv.id, targetName)
                                         } catch (_: Exception) {
                                             snackbarHostState.showSnackbar(errorSendMsg)
                                         }

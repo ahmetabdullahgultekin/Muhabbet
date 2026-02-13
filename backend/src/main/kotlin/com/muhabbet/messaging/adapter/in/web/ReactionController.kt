@@ -1,10 +1,15 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.domain.port.`in`.ManageReactionUseCase
 import com.muhabbet.messaging.domain.port.`in`.ReactionGroup
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
+import com.muhabbet.shared.protocol.WsMessage
+import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -20,7 +25,10 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/messages")
 class ReactionController(
-    private val manageReactionUseCase: ManageReactionUseCase
+    private val manageReactionUseCase: ManageReactionUseCase,
+    private val messageRepository: MessageRepository,
+    private val conversationRepository: ConversationRepository,
+    private val sessionManager: WebSocketSessionManager
 ) {
 
     @PostMapping("/{messageId}/reactions")
@@ -30,6 +38,7 @@ class ReactionController(
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         manageReactionUseCase.addReaction(messageId, userId, request.emoji)
+        broadcastReaction(messageId, userId, request.emoji, "add")
         return ApiResponseBuilder.ok(Unit)
     }
 
@@ -40,7 +49,24 @@ class ReactionController(
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         manageReactionUseCase.removeReaction(messageId, userId, emoji)
+        broadcastReaction(messageId, userId, emoji, "remove")
         return ApiResponseBuilder.ok(Unit)
+    }
+
+    private fun broadcastReaction(messageId: UUID, userId: UUID, emoji: String, action: String) {
+        val message = messageRepository.findById(messageId) ?: return
+        val members = conversationRepository.findMembersByConversationId(message.conversationId)
+        val wsMessage = wsJson.encodeToString(
+            WsMessage.serializer(),
+            WsMessage.MessageReaction(
+                messageId = messageId.toString(),
+                conversationId = message.conversationId.toString(),
+                userId = userId.toString(),
+                emoji = emoji,
+                action = action
+            )
+        )
+        members.forEach { member -> sessionManager.sendToUser(member.userId, wsMessage) }
     }
 
     @GetMapping("/{messageId}/reactions")

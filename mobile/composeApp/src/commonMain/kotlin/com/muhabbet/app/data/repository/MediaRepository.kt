@@ -60,7 +60,7 @@ class MediaRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun uploadDocument(bytes: ByteArray, mimeType: String, fileName: String): MediaUploadResponse {
-        val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/upload") {
+        val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/document") {
             setBody(
                 MultiPartFormDataContent(
                     formData {

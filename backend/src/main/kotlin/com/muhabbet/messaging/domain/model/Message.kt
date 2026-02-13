@@ -25,7 +25,8 @@ data class Message(
     val isDeleted: Boolean = false,
     val deletedAt: Instant? = null,
     val editedAt: Instant? = null,
-    val expiresAt: Instant? = null
+    val expiresAt: Instant? = null,
+    val forwardedFrom: UUID? = null
 )
 
 data class MessageDeliveryStatus(

@@ -72,6 +72,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.layout.heightIn
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
+import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
 import androidx.compose.material.icons.filled.Group
@@ -96,6 +97,7 @@ fun ConversationListScreen(
     onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
+    onStatusClick: (userId: String, displayName: String) -> Unit = { _, _ -> },
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
     messageRepository: MessageRepository = koinInject(),
@@ -122,6 +124,8 @@ fun ConversationListScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
+    var showLongPressMenu by remember { mutableStateOf(false) }
+    var longPressTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
 
     // Filter state: "all", "unread", "groups", "channels"
     var activeFilter by remember { mutableStateOf("all") }
@@ -138,6 +142,8 @@ fun ConversationListScreen(
     val convDeleteFailed = stringResource(Res.string.conv_delete_failed)
     val cancelText = stringResource(Res.string.cancel)
     val deleteText = stringResource(Res.string.delete)
+    val pinText = stringResource(Res.string.conv_pin)
+    val unpinText = stringResource(Res.string.conv_unpin)
 
     suspend fun loadConversations() {
         try {
@@ -167,7 +173,13 @@ fun ConversationListScreen(
     LaunchedEffect(Unit) {
         wsClient.incoming.collect { wsMessage ->
             when (wsMessage) {
-                is WsMessage.NewMessage, is WsMessage.StatusUpdate -> {
+                is WsMessage.NewMessage -> {
+                    if (wsMessage.senderId != currentUserId) {
+                        try { wsClient.send(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED)) } catch (_: Exception) { }
+                    }
+                    loadConversations()
+                }
+                is WsMessage.StatusUpdate -> {
                     loadConversations()
                 }
                 is WsMessage.PresenceUpdate -> {
@@ -241,6 +253,85 @@ fun ConversationListScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showStatusInput = false; statusText = "" }) {
+                    Text(cancelText)
+                }
+            }
+        )
+    }
+
+    // Long press context menu
+    if (showLongPressMenu && longPressTargetConv != null) {
+        val targetConv = longPressTargetConv!!
+        AlertDialog(
+            onDismissRequest = { showLongPressMenu = false; longPressTargetConv = null },
+            title = { Text(targetConv.name ?: "") },
+            text = {
+                Column {
+                    // Pin / Unpin option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showLongPressMenu = false
+                                val conv = longPressTargetConv!!
+                                longPressTargetConv = null
+                                scope.launch {
+                                    try {
+                                        if (conv.isPinned) {
+                                            conversationRepository.unpinConversation(conv.id)
+                                        } else {
+                                            conversationRepository.pinConversation(conv.id)
+                                        }
+                                        loadConversations()
+                                    } catch (_: Exception) { }
+                                }
+                            }
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.PushPin,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = if (targetConv.isPinned) unpinText else pinText,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    // Delete option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showLongPressMenu = false
+                                deleteTargetConv = longPressTargetConv
+                                longPressTargetConv = null
+                                showDeleteDialog = true
+                            }
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = deleteText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenu = false; longPressTargetConv = null }) {
                     Text(cancelText)
                 }
             }
@@ -455,7 +546,7 @@ fun ConversationListScreen(
                                 val displayName = conv?.displayName ?: conv?.phoneNumber ?: group.userId.take(8)
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.width(64.dp)
+                                    modifier = Modifier.width(64.dp).clickable { onStatusClick(group.userId, displayName) }
                                 ) {
                                     Surface(
                                         shape = CircleShape,
@@ -551,8 +642,8 @@ fun ConversationListScreen(
                             isPinned = conv.isPinned,
                             onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
                             onLongClick = {
-                                deleteTargetConv = conv
-                                showDeleteDialog = true
+                                longPressTargetConv = conv
+                                showLongPressMenu = true
                             },
                             onPin = {
                                 scope.launch {

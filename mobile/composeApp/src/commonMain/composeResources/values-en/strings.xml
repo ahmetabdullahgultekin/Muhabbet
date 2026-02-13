@@ -65,6 +65,9 @@
     <string name="chat_context_delete">Delete</string>
     <string name="chat_replying_to">Replying to</string>
     <string name="chat_forward_title">Forward to</string>
+    <string name="chat_forwarded">Forwarded</string>
+    <string name="starred_title">Starred Messages</string>
+    <string name="starred_empty">No starred messages yet</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">New Conversation</string>
@@ -188,6 +191,8 @@
     <string name="status_create_title">Share Status</string>
     <string name="status_placeholder">What's on your mind?</string>
     <string name="status_post">Share</string>
+    <string name="status_no_statuses">No statuses found</string>
+    <string name="status_load_failed">Failed to load statuses</string>
 
     <!-- Channels -->
     <string name="channels_title">Channels</string>

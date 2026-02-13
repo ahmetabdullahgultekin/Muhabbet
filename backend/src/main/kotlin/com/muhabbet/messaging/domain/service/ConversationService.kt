@@ -108,8 +108,9 @@ open class ConversationService(
         val summaries = conversations.map { conv ->
             val lastMessage = messageRepository.getLastMessage(conv.id)
             val unreadCount = messageRepository.getUnreadCount(conv.id, userId)
-            val memberIds = conversationRepository.findMembersByConversationId(conv.id)
-                .map { it.userId }
+            val members = conversationRepository.findMembersByConversationId(conv.id)
+            val memberIds = members.map { it.userId }
+            val myMember = members.firstOrNull { it.userId == userId }
 
             ConversationSummary(
                 conversationId = conv.id,
@@ -120,7 +121,8 @@ open class ConversationService(
                 lastMessageAt = lastMessage?.serverTimestamp?.toString(),
                 unreadCount = unreadCount,
                 participantIds = memberIds,
-                disappearAfterSeconds = conv.disappearAfterSeconds
+                disappearAfterSeconds = conv.disappearAfterSeconds,
+                isPinned = myMember?.pinned ?: false
             )
         }
             .sortedByDescending { it.lastMessageAt ?: "" }

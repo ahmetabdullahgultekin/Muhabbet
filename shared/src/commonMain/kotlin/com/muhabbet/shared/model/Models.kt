@@ -79,7 +79,10 @@ data class Message(
     val serverTimestamp: Instant? = null,
     val clientTimestamp: Instant,
     val editedAt: Instant? = null,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val forwardedFrom: String? = null,
+    val reactions: Map<String, Int> = emptyMap(),
+    val myReactions: Set<String> = emptySet()
 )
 
 @Serializable

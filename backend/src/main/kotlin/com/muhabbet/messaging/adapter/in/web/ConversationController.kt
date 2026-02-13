@@ -120,7 +120,8 @@ class ConversationController(
                 lastMessageAt = summary.lastMessageAt,
                 unreadCount = summary.unreadCount,
                 createdAt = "",
-                disappearAfterSeconds = summary.disappearAfterSeconds
+                disappearAfterSeconds = summary.disappearAfterSeconds,
+                isPinned = summary.isPinned
             )
         }
 

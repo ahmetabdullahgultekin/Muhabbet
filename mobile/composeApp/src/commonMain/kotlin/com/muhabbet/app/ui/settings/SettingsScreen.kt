@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.RadioButton
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
@@ -71,6 +72,7 @@ import org.koin.compose.koinInject
 fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onStarredMessages: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
@@ -300,6 +302,32 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(Modifier.height(12.dp))
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onStarredMessages() },
+                    tonalElevation = 1.dp,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.starred_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(24.dp))
 

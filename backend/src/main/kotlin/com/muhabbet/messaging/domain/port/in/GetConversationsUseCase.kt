@@ -15,7 +15,8 @@ data class ConversationSummary(
     val lastMessageAt: String?,
     val unreadCount: Int,
     val participantIds: List<UUID>,
-    val disappearAfterSeconds: Int? = null
+    val disappearAfterSeconds: Int? = null,
+    val isPinned: Boolean = false
 )
 
 data class ConversationPage(

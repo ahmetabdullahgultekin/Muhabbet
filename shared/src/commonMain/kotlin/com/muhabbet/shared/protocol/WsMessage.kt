@@ -30,7 +30,8 @@ sealed class WsMessage {
         val contentType: ContentType = ContentType.TEXT,
         val replyToId: String? = null,
         val mediaUrl: String? = null,
-        val thumbnailUrl: String? = null
+        val thumbnailUrl: String? = null,
+        val forwardedFrom: String? = null   // original messageId if forwarded
     ) : WsMessage()
 
     /** Client acknowledges received message (delivered/read) */
@@ -124,7 +125,8 @@ sealed class WsMessage {
         val replyToId: String? = null,
         val mediaUrl: String? = null,
         val thumbnailUrl: String? = null,
-        val serverTimestamp: Long            // epoch millis
+        val serverTimestamp: Long,           // epoch millis
+        val forwardedFrom: String? = null
     ) : WsMessage()
 
     /** Server notifies sender about delivery status change */

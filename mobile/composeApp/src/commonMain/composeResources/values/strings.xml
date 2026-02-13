@@ -65,6 +65,9 @@
     <string name="chat_context_delete">Sil</string>
     <string name="chat_replying_to">Yanıtlanan mesaj</string>
     <string name="chat_forward_title">İlet</string>
+    <string name="chat_forwarded">İletildi</string>
+    <string name="starred_title">Yıldızlı Mesajlar</string>
+    <string name="starred_empty">Henüz yıldızlı mesaj yok</string>
 
     <!-- NewConversationScreen -->
     <string name="new_conversation_title">Yeni Konuşma</string>
@@ -188,6 +191,8 @@
     <string name="status_create_title">Durum Paylaş</string>
     <string name="status_placeholder">Neler düşünüyorsun?</string>
     <string name="status_post">Paylaş</string>
+    <string name="status_no_statuses">Durum bulunamadı</string>
+    <string name="status_load_failed">Durumlar yüklenemedi</string>
 
     <!-- Channels -->
     <string name="channels_title">Kanallar</string>

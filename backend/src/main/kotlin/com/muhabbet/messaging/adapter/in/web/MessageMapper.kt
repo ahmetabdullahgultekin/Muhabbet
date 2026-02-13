@@ -24,5 +24,6 @@ fun Message.toSharedMessage(): SharedMessage = SharedMessage(
     serverTimestamp = KInstant.fromEpochMilliseconds(serverTimestamp.toEpochMilli()),
     clientTimestamp = KInstant.fromEpochMilliseconds(clientTimestamp.toEpochMilli()),
     editedAt = editedAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },
-    isDeleted = isDeleted
+    isDeleted = isDeleted,
+    forwardedFrom = forwardedFrom?.toString()
 )

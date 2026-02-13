@@ -7,6 +7,7 @@ import com.arkivanov.decompose.router.stack.ChildStack
 import com.arkivanov.decompose.router.stack.StackNavigation
 import com.arkivanov.decompose.router.stack.childStack
 import com.arkivanov.decompose.DelicateDecomposeApi
+import com.arkivanov.decompose.router.stack.navigate
 import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.push
 import com.arkivanov.decompose.extensions.compose.stack.Children
@@ -20,6 +21,8 @@ import com.muhabbet.app.ui.group.CreateGroupScreen
 import com.muhabbet.app.ui.group.GroupInfoScreen
 import com.muhabbet.app.ui.profile.UserProfileScreen
 import com.muhabbet.app.ui.settings.SettingsScreen
+import com.muhabbet.app.ui.starred.StarredMessagesScreen
+import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
@@ -62,14 +65,30 @@ class MainComponent(
         navigation.push(Config.CreateGroup)
     }
 
-    @OptIn(DelicateDecomposeApi::class)
     fun openGroupInfo(conversationId: String, conversationName: String) {
-        navigation.push(Config.GroupInfo(conversationId, conversationName))
+        val target = Config.GroupInfo(conversationId, conversationName)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
+    }
+
+    fun openUserProfile(userId: String) {
+        val target = Config.UserProfile(userId)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
     }
 
     @OptIn(DelicateDecomposeApi::class)
-    fun openUserProfile(userId: String) {
-        navigation.push(Config.UserProfile(userId))
+    fun openStarredMessages() {
+        navigation.push(Config.StarredMessages)
+    }
+
+    fun openStatusViewer(userId: String, displayName: String) {
+        val target = Config.StatusViewer(userId, displayName)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
     }
 
     fun goBack() {
@@ -86,6 +105,8 @@ class MainComponent(
         @Serializable data object CreateGroup : Config
         @Serializable data class GroupInfo(val conversationId: String, val name: String) : Config
         @Serializable data class UserProfile(val userId: String) : Config
+        @Serializable data class StatusViewer(val userId: String, val displayName: String) : Config
+        @Serializable data object StarredMessages : Config
     }
 }
 
@@ -100,6 +121,7 @@ fun MainContent(component: MainComponent) {
                 onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
+                onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.Chat -> ChatScreen(
@@ -112,6 +134,10 @@ fun MainContent(component: MainComponent) {
                     } else if (config.otherUserId != null) {
                         component.openUserProfile(config.otherUserId)
                     }
+                },
+                onNavigateToConversation = { convId, convName ->
+                    component.goBack()
+                    component.openChat(convId, convName)
                 }
             )
             is MainComponent.Config.NewConversation -> NewConversationScreen(
@@ -135,7 +161,8 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.GroupInfo -> GroupInfoScreen(
                 conversationId = config.conversationId,
                 conversationName = config.name,
-                onBack = component::goBack
+                onBack = component::goBack,
+                onMemberClick = { userId -> component.openUserProfile(userId) }
             )
             is MainComponent.Config.UserProfile -> UserProfileScreen(
                 userId = config.userId,
@@ -143,9 +170,18 @@ fun MainContent(component: MainComponent) {
                 onMessageClick = { component.goBack() },
                 onGroupClick = { id, name -> component.openGroupInfo(id, name) }
             )
+            is MainComponent.Config.StatusViewer -> StatusViewerScreen(
+                userId = config.userId,
+                displayName = config.displayName,
+                onBack = component::goBack
+            )
             is MainComponent.Config.Settings -> SettingsScreen(
                 onBack = component::goBack,
-                onLogout = component.onLogout
+                onLogout = component.onLogout,
+                onStarredMessages = component::openStarredMessages
+            )
+            is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
+                onBack = component::goBack
             )
         }
     }

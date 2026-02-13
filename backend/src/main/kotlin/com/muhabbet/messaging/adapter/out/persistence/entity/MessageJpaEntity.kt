@@ -55,7 +55,10 @@ class MessageJpaEntity(
     var editedAt: Instant? = null,
 
     @Column(name = "expires_at")
-    var expiresAt: Instant? = null
+    var expiresAt: Instant? = null,
+
+    @Column(name = "forwarded_from")
+    val forwardedFrom: UUID? = null
 ) {
     fun toDomain(): Message = Message(
         id = id, conversationId = conversationId, senderId = senderId,
@@ -63,7 +66,7 @@ class MessageJpaEntity(
         mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl,
         serverTimestamp = serverTimestamp, clientTimestamp = clientTimestamp,
         isDeleted = isDeleted, deletedAt = deletedAt, editedAt = editedAt,
-        expiresAt = expiresAt
+        expiresAt = expiresAt, forwardedFrom = forwardedFrom
     )
 
     companion object {
@@ -73,7 +76,7 @@ class MessageJpaEntity(
             mediaUrl = m.mediaUrl, thumbnailUrl = m.thumbnailUrl,
             serverTimestamp = m.serverTimestamp, clientTimestamp = m.clientTimestamp,
             isDeleted = m.isDeleted, deletedAt = m.deletedAt, editedAt = m.editedAt,
-            expiresAt = m.expiresAt
+            expiresAt = m.expiresAt, forwardedFrom = m.forwardedFrom
         )
     }
 }

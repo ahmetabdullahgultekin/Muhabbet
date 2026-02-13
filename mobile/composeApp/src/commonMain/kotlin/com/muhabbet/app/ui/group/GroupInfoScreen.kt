@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.group
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +67,7 @@ fun GroupInfoScreen(
     conversationId: String,
     conversationName: String,
     onBack: () -> Unit,
+    onMemberClick: (userId: String) -> Unit = {},
     conversationRepository: ConversationRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
@@ -237,6 +239,7 @@ fun GroupInfoScreen(
                         member = member,
                         isCurrentUser = member.userId == currentUserId,
                         canRemove = isAdminOrOwner && member.userId != currentUserId && member.role != MemberRole.OWNER,
+                        onClick = { if (!member.userId.equals(currentUserId)) onMemberClick(member.userId) },
                         onRemove = {
                             scope.launch {
                                 try {
@@ -262,10 +265,11 @@ private fun MemberItem(
     member: ParticipantResponse,
     isCurrentUser: Boolean,
     canRemove: Boolean,
+    onClick: () -> Unit = {},
     onRemove: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         com.muhabbet.app.ui.components.UserAvatar(

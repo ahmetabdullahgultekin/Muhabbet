@@ -2,6 +2,7 @@ package com.muhabbet.media.adapter.`in`.web
 
 import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
 import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
+import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.shared.dto.ApiResponse
@@ -82,6 +83,35 @@ class MediaController(
             contentType = mediaFile.contentType,
             sizeBytes = mediaFile.sizeBytes,
             durationSeconds = mediaFile.durationSeconds
+        )
+
+        return ApiResponseBuilder.created(response)
+    }
+
+    @PostMapping("/document", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadDocument(
+        @RequestParam("file") file: MultipartFile
+    ): ResponseEntity<ApiResponse<MediaUploadResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+
+        val mediaFile = uploadMediaUseCase.uploadDocument(
+            UploadDocumentCommand(
+                uploaderId = userId,
+                inputStream = file.inputStream,
+                contentType = file.contentType ?: "application/octet-stream",
+                sizeBytes = file.size,
+                originalFilename = file.originalFilename
+            )
+        )
+
+        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id)
+
+        val response = MediaUploadResponse(
+            mediaId = mediaFile.id.toString(),
+            url = urls.url,
+            thumbnailUrl = null,
+            contentType = mediaFile.contentType,
+            sizeBytes = mediaFile.sizeBytes
         )
 
         return ApiResponseBuilder.created(response)

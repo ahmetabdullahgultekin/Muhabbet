@@ -4,6 +4,7 @@ import com.muhabbet.media.domain.model.MediaFile
 import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
 import com.muhabbet.media.domain.port.`in`.MediaUrlResult
 import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
+import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.media.domain.port.out.MediaFileRepository
@@ -128,6 +129,45 @@ open class MediaService(
             throw e
         } catch (e: Exception) {
             log.error("Audio upload failed: {}", e.message, e)
+            throw BusinessException(ErrorCode.MEDIA_UPLOAD_FAILED, cause = e)
+        }
+    }
+
+    override fun uploadDocument(command: UploadDocumentCommand): MediaFile {
+        if (command.sizeBytes > ValidationRules.MAX_DOCUMENT_SIZE_BYTES) {
+            throw BusinessException(ErrorCode.MEDIA_TOO_LARGE)
+        }
+
+        val fileBytes = command.inputStream.readBytes()
+        val fileId = UUID.randomUUID()
+        val extension = command.originalFilename?.substringAfterLast('.', "bin") ?: "bin"
+        val fileKey = "documents/${command.uploaderId}/$fileId.$extension"
+
+        try {
+            mediaStoragePort.putObject(
+                key = fileKey,
+                inputStream = ByteArrayInputStream(fileBytes),
+                contentType = command.contentType,
+                sizeBytes = command.sizeBytes
+            )
+
+            val mediaFile = mediaFileRepository.save(
+                MediaFile(
+                    id = fileId,
+                    uploaderId = command.uploaderId,
+                    fileKey = fileKey,
+                    contentType = command.contentType,
+                    sizeBytes = command.sizeBytes,
+                    originalFilename = command.originalFilename
+                )
+            )
+
+            log.info("Document uploaded: id={}, key={}, size={}", mediaFile.id, fileKey, command.sizeBytes)
+            return mediaFile
+        } catch (e: BusinessException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("Document upload failed: {}", e.message, e)
             throw BusinessException(ErrorCode.MEDIA_UPLOAD_FAILED, cause = e)
         }
     }

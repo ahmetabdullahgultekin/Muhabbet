@@ -51,13 +51,15 @@ class ConversationMemberJpaEntity(
 ) {
     fun toDomain(): ConversationMember = ConversationMember(
         conversationId = conversationId, userId = userId, role = role,
-        joinedAt = joinedAt, mutedUntil = mutedUntil, lastReadAt = lastReadAt
+        joinedAt = joinedAt, mutedUntil = mutedUntil, lastReadAt = lastReadAt,
+        pinned = pinned
     )
 
     companion object {
         fun fromDomain(m: ConversationMember): ConversationMemberJpaEntity = ConversationMemberJpaEntity(
             conversationId = m.conversationId, userId = m.userId, role = m.role,
-            joinedAt = m.joinedAt, mutedUntil = m.mutedUntil, lastReadAt = m.lastReadAt
+            joinedAt = m.joinedAt, mutedUntil = m.mutedUntil, lastReadAt = m.lastReadAt,
+            pinned = m.pinned
         )
     }
 }

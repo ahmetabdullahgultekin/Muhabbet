@@ -29,5 +29,6 @@ data class ConversationMember(
     val role: MemberRole = MemberRole.MEMBER,
     val joinedAt: Instant = Instant.now(),
     val mutedUntil: Instant? = null,
-    val lastReadAt: Instant? = null
+    val lastReadAt: Instant? = null,
+    val pinned: Boolean = false
 )

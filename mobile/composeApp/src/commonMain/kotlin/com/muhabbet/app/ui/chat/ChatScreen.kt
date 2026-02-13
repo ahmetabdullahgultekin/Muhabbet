@@ -82,6 +82,7 @@ fun ChatScreen(
     conversationName: String,
     onBack: () -> Unit,
     onTitleClick: () -> Unit = {},
+    onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null,
     messageRepository: MessageRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
@@ -209,7 +210,7 @@ fun ChatScreen(
                         messages = messages + Message(id = ws.messageId, conversationId = ws.conversationId, senderId = ws.senderId,
                             contentType = ws.contentType, content = ws.content, replyToId = ws.replyToId, mediaUrl = ws.mediaUrl,
                             thumbnailUrl = ws.thumbnailUrl, serverTimestamp = kotlinx.datetime.Instant.fromEpochMilliseconds(ws.serverTimestamp),
-                            clientTimestamp = kotlinx.datetime.Clock.System.now())
+                            clientTimestamp = kotlinx.datetime.Clock.System.now(), forwardedFrom = ws.forwardedFrom)
                         if (ws.senderId != currentUserId) {
                             try { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) } catch (_: Exception) { }
                         }
@@ -236,6 +237,23 @@ fun ChatScreen(
                 }
                 is WsMessage.MessageDeleted -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(isDeleted = true, content = "") else m }
                 is WsMessage.MessageEdited -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(content = ws.newContent, editedAt = kotlinx.datetime.Instant.fromEpochMilliseconds(ws.editedAt)) else m }
+                is WsMessage.MessageReaction -> if (ws.conversationId == conversationId) {
+                    messages = messages.map { m ->
+                        if (m.id == ws.messageId) {
+                            val newReactions = m.reactions.toMutableMap()
+                            val newMyReactions = m.myReactions.toMutableSet()
+                            if (ws.action == "add") {
+                                newReactions[ws.emoji] = (newReactions[ws.emoji] ?: 0) + 1
+                                if (ws.userId == currentUserId) newMyReactions.add(ws.emoji)
+                            } else {
+                                val c = (newReactions[ws.emoji] ?: 1) - 1
+                                if (c <= 0) newReactions.remove(ws.emoji) else newReactions[ws.emoji] = c
+                                if (ws.userId == currentUserId) newMyReactions.remove(ws.emoji)
+                            }
+                            m.copy(reactions = newReactions, myReactions = newMyReactions)
+                        } else m
+                    }
+                }
                 else -> {}
             }
         }
@@ -261,7 +279,7 @@ fun ChatScreen(
 
     // ── Dialogs ──────────────────────────────
     if (fullImageUrl != null) FullImageViewer(fullImageUrl!!) { fullImageUrl = null }
-    if (forwardMessage != null) ForwardPickerDialog(forwardMessage!!, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState) { forwardMessage = null }
+    if (forwardMessage != null) ForwardPickerDialog(forwardMessage!!, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation)
     if (showDeleteDialog && deleteTargetId != null) DeleteConfirmDialog(
         onConfirm = { val id = deleteTargetId!!; showDeleteDialog = false; deleteTargetId = null; scope.launch { try { groupRepository.deleteMessage(id); messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
         onDismiss = { showDeleteDialog = false; deleteTargetId = null }
@@ -329,7 +347,15 @@ fun ChatScreen(
                                             onStar = { contextMenuMessageId = null; scope.launch { try { if (isStarred) { messageRepository.unstarMessage(message.id); starredIds.value -= message.id } else { messageRepository.starMessage(message.id); starredIds.value += message.id } } catch (_: Exception) { } } },
                                             onEdit = { contextMenuMessageId = null; editingMessageId = message.id; messageText = message.content },
                                             onDelete = { contextMenuMessageId = null; deleteTargetId = message.id; showDeleteDialog = true },
-                                            onImageClick = { fullImageUrl = it }
+                                            onImageClick = { fullImageUrl = it },
+                                            onReactionToggle = { emoji ->
+                                                scope.launch {
+                                                    try {
+                                                        if (emoji in message.myReactions) messageRepository.removeReaction(message.id, emoji)
+                                                        else messageRepository.addReaction(message.id, emoji)
+                                                    } catch (_: Exception) { }
+                                                }
+                                            }
                                         )
                                     }
                                 }

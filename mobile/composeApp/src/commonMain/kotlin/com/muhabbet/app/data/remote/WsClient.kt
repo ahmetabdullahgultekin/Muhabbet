@@ -3,6 +3,7 @@ package com.muhabbet.app.data.remote
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
@@ -96,6 +97,15 @@ class WsClient(private val apiClient: ApiClient, private val tokenProvider: () -
                 val backoff = minOf(1000L * (1L shl minOf(reconnectAttempt, 5)), 30_000L)
                 Log.d(TAG, "Reconnecting in ${backoff}ms (attempt $reconnectAttempt)")
                 delay(backoff)
+                // Trigger Ktor Auth token refresh via a lightweight REST call.
+                // WS close code 1008 doesn't trigger Ktor's bearer refresh,
+                // so we make a REST call that does, ensuring fresh token for next attempt.
+                try {
+                    apiClient.httpClient.get("${ApiClient.BASE_URL}/api/v1/users/me")
+                    Log.d(TAG, "Token refresh check OK")
+                } catch (e: Exception) {
+                    Log.d(TAG, "Token refresh check failed: ${e.message}")
+                }
             }
         }
     }

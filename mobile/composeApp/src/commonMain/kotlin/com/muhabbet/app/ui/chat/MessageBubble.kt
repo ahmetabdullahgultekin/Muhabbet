@@ -68,7 +68,8 @@ fun MessageBubble(
     onStar: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
-    onImageClick: (String) -> Unit = {}
+    onImageClick: (String) -> Unit = {},
+    onReactionToggle: (String) -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -119,6 +120,17 @@ fun MessageBubble(
                                 }
                             }
                         }
+                    }
+
+                    // Forwarded label
+                    if (message.forwardedFrom != null) {
+                        Text(
+                            text = stringResource(Res.string.chat_forwarded),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp)
+                        )
                     }
 
                     if (message.isDeleted) {
@@ -172,7 +184,8 @@ fun MessageBubble(
                                 model = message.mediaUrl,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
                             )
                             Spacer(Modifier.height(4.dp))
@@ -182,7 +195,8 @@ fun MessageBubble(
                             AsyncImage(
                                 model = message.mediaUrl,
                                 contentDescription = null,
-                                modifier = Modifier.size(150.dp).padding(4.dp),
+                                modifier = Modifier.size(150.dp).padding(4.dp)
+                                    .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Fit
                             )
                         }
@@ -248,6 +262,16 @@ fun MessageBubble(
                             }
                             Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = tint)
                         }
+                    }
+
+                    // Reaction badges
+                    if (message.reactions.isNotEmpty()) {
+                        ReactionBadges(
+                            reactions = message.reactions,
+                            currentUserReactions = message.myReactions,
+                            onReactionClick = onReactionToggle,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
                     }
                 }
             }
