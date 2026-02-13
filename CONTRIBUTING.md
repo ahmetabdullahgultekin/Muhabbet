@@ -5,10 +5,10 @@ Thank you for considering contributing to Muhabbet! This document outlines the p
 ## Getting Started
 
 ### Prerequisites
-- JDK 21
+- JDK 25
 - Android SDK (API 35)
 - Docker & Docker Compose (for backend services)
-- Kotlin 2.1+
+- Kotlin 2.3.10+ (managed by Gradle wrapper)
 
 ### Local Development Setup
 

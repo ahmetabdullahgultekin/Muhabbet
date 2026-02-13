@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Security Hardening (Feb 2026)
+- **Security headers**: HSTS (max-age 31536000), X-Frame-Options DENY, X-Content-Type-Options nosniff, CSP (`default-src 'self'; frame-ancestors 'none'; form-action 'self'`), XSS protection, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (geolocation/camera/mic denied)
+- **InputSanitizer**: Server-side input sanitization utility — HTML entity escaping (`&`, `<`, `>`, `"`, `'`), control character stripping (preserves `\n`, `\t`, `\r`), display name trimming/length limiting, message content length limiting, HTTPS-only URL validation (rejects `javascript:` and `data:` schemes)
+- **InputSanitizer tests**: 15 unit tests covering XSS prevention, HTML entities, control chars, URL validation, null handling
+
+### Added — Call UI Screens (Feb 2026)
+- **IncomingCallScreen**: Full-screen incoming call overlay with avatar, caller name, accept (green) / decline (red) buttons, WebSocket signaling integration
+- **ActiveCallScreen**: In-call UI with duration timer (coroutine-based), mute/speaker toggles, end call button, real-time CallEnd listener
+- **CallHistoryScreen**: Paginated call history list with direction icons (incoming/outgoing/missed), duration display, call-back button
+- **Decompose navigation**: 3 new Config entries (IncomingCall, ActiveCall, CallHistory) with navigation methods wired in MainComponent
+- **CallRepository**: REST client for `GET /api/v1/calls/history` endpoint
+- **21 call strings**: Turkish + English localization for all call UI elements
+
+### Added — E2E Encryption Infrastructure (Feb 2026)
+- **E2EKeyManager interface**: X3DH key lifecycle — generateIdentityKeyPair, generateSignedPreKey, generateOneTimePreKeys, initializeSession, hasSession, encryptMessage, decryptMessage
+- **NoOpKeyManager**: MVP pass-through implementation (all encrypt/decrypt returns plaintext unchanged)
+- **EncryptionRepository**: Mobile client for key bundle registration (`PUT /api/v1/encryption/keys`), pre-key upload (`POST /api/v1/encryption/prekeys`), bundle fetch (`GET /api/v1/encryption/bundle/{userId}`)
+- **Koin DI**: Registered EncryptionPort, E2EKeyManager, EncryptionRepository in AppModule
+
+### Added — iOS Platform Completion (Feb 2026)
+- **ImagePicker.ios.kt**: PHPickerViewController with delegate retention pattern, image data loading via NSItemProvider
+- **FilePicker.ios.kt**: UIDocumentPickerViewController with security-scoped resource access, MIME type detection
+- **ImageCompressor.ios.kt**: CoreGraphics CGBitmapContext resize + UIImageJPEGRepresentation compression (matches Android logic)
+- **CrashReporter.ios.kt**: NSLog-based crash logging with Sentry CocoaPod integration hooks
+- **PushTokenProvider.ios.kt**: Token caching via NSUserDefaults, `onTokenReceived()` companion method for AppDelegate, polling-based token wait (5s timeout)
+- **LocaleHelper.ios.kt**: AppleLanguages UserDefaults for locale switching with `exit(0)` restart
+- **FirebasePhoneAuth.ios.kt**: `isAvailable()=false` stub for graceful backend OTP fallback
+
+### Added — Mobile & Shared Test Infrastructure (Feb 2026)
+- **Test dependencies**: kotlin-test, kotlinx-coroutines-test, ktor-client-mock, koin-test added to commonTest
+- **FakeTokenStorageTest**: 5 tests — initial state, save/persist, clear, language, theme
+- **AuthRepositoryTest**: Tests for isLoggedIn, logout, token persistence, error handling
+- **PhoneNormalizationTest**: 14 tests covering E.164, Turkish phone formats, separators, edge cases
+- **WsMessageSerializationTest**: 25+ tests covering all WsMessage types — SendMessage, AckMessage, TypingIndicator, CallInitiate/Answer/End/Incoming, NewMessage, StatusUpdate, ServerAck, PresenceUpdate, GroupMemberAdded/Removed, MessageDeleted/Edited/Reaction, Ping/Pong, Error, round-trip fidelity
+
+### Added — CI/CD Pipeline (Feb 2026)
+- **backend-ci.yml**: On push to `backend/` or `shared/` — Gradle test + bootJar with caching
+- **mobile-ci.yml**: On push to `mobile/` or `shared/` — Android assembleDebug (with dummy google-services.json) + iOS framework build on macOS
+- **security.yml**: Trivy filesystem + Docker image scanning, Gitleaks secret detection, CodeQL static analysis for java-kotlin (weekly + on push)
+- **deploy.yml**: On merge to `main` — SSH to GCP, docker compose pull/up with health check and rollback
+
+### Changed — Dependency Upgrades (Feb 2026)
+- **Kotlin**: 2.1.10 → 2.3.10
+- **Spring Boot**: 3.4.1 → 4.0.2
+- **Java**: 21 → 25
+- **Gradle**: 8.12 → 8.14.4
+- **Ktor**: 3.0.3 → 3.1.3
+- **Compose BOM**: 2024.12.01 → 2025.04.01
+- **Koin**: 4.0.2 → 4.1.0-Beta1
+- **Decompose**: 3.2.3 → 3.3.0
+- **Coil**: 3.0.4 → 3.1.0
+- **SQLDelight**: 2.0.2 → 2.1.0
+- **kotlinx.serialization**: 1.7.3 → 1.8.1
+- **kotlinx.datetime**: 0.6.1 → 0.7.0
+
+### Changed — System Optimization (Feb 2026)
+- **Database indexes**: 12 performance indexes — messages (conversation_id+created_at), delivery_status (message_id), conversations (updated_at), phone_hashes (hash), media_files (uploader+type), statuses (user_id+expires_at), etc.
+- **N+1 query fixes**: `@BatchSize(size=50)` on ConversationJpaEntity.members and MessageJpaEntity.deliveryStatuses
+- **Redis connection pooling**: Lettuce pool enabled (min-idle=2, max-active=8)
+- **Ktor client connection pooling**: maxConnectionsCount=100, connectTimeout=10s, requestTimeout=30s
+- **Nginx optimization**: gzip on (text, JSON, JS, CSS), static file caching (30d for images, 7d for JS/CSS), proxy buffering enabled
+- **PostgreSQL tuning**: shared_buffers=256MB, effective_cache_size=1GB, work_mem=16MB, random_page_cost=1.1 (SSD)
+
 ### Added — Round 6: Media UX & Storage
 - **Chat scroll fix**: Chat now starts at the bottom instantly on first load, subsequent messages animate smoothly (no more exhaustive top-to-bottom scroll)
 - **Pinch-to-zoom**: MediaViewer supports pinch-to-zoom (1x–5x), double-tap to toggle zoom (1x ↔ 3x), pan while zoomed via `rememberTransformableState` + `graphicsLayer`

@@ -1,7 +1,7 @@
 # Muhabbet — Product Roadmap
 
 > **Last Updated**: February 13, 2026
-> **Status**: Phases 2-5 + 4 rounds of bug fixes complete. Preparing for beta testing.
+> **Status**: All MVP features complete. iOS platform done. CI/CD active. Security hardened. Call UI built. E2E infra ready. Preparing for beta testing.
 
 ---
 
@@ -95,59 +95,67 @@
 
 ---
 
-## Phase 3 — Voice Calls & Monitoring (Partially Complete)
+## Phase 3 — Voice Calls & Monitoring (UI Complete, WebRTC Pending)
 
 **Goal**: Voice/video calls and operational visibility.
 
 | # | Task | Status |
 |---|------|--------|
 | 3.1 | Call signaling infrastructure (WebSocket: CallInitiate/Answer/IceCandidate/End, CallSignalingService, call history DB) | DONE |
-| 3.2 | Voice calls (1:1) — WebRTC integration, incoming call screen, in-call UI | Remaining (needs WebRTC/LiveKit client) |
-| 3.3 | Video calls (1:1) — Camera toggle, picture-in-picture | Remaining |
-| 3.4 | Notification improvements (grouping per conversation, inline reply, channels) | DONE |
-| 3.5 | Crash reporting — Sentry mobile SDK (CrashReporter expect/actual, auto-init) | DONE |
-| 3.6 | Performance optimization — Lazy loading, image caching audit, WS resilience | Remaining |
+| 3.2 | Call UI screens (IncomingCallScreen, ActiveCallScreen, CallHistoryScreen, Decompose navigation) | DONE |
+| 3.3 | Voice calls (1:1) — WebRTC/LiveKit client SDK integration | Remaining (UI ready, needs media SDK) |
+| 3.4 | Video calls (1:1) — Camera toggle, picture-in-picture | Remaining |
+| 3.5 | Notification improvements (grouping per conversation, inline reply, channels) | DONE |
+| 3.6 | Crash reporting — Sentry mobile SDK (CrashReporter expect/actual, auto-init) | DONE |
+| 3.7 | Performance optimization — Database indexes (12), N+1 fixes, connection pooling, nginx tuning, PG tuning | DONE |
 
 ---
 
-## Phase 4 — Trust & Security (Architecture Complete)
+## Phase 4 — Trust & Security (Infrastructure Complete)
 
-**Goal**: E2E encryption foundation and KVKK legal compliance.
+**Goal**: E2E encryption foundation, KVKK legal compliance, security hardening.
 
 | # | Task | Status |
 |---|------|--------|
-| 4.1 | E2E encryption architecture (EncryptionKeyBundle, OneTimePreKeys, key exchange endpoints, EncryptionService, DB migrations) | DONE (architecture) |
-| 4.2 | E2E encryption client integration (Signal Protocol: X3DH, Double Ratchet, key verification UI) | Remaining |
-| 4.3 | KVKK compliance (data export endpoint, account soft-deletion, UserDataController) | DONE |
-| 4.4 | Security penetration testing (OWASP ZAP/Burp Suite, fix findings) | Remaining |
+| 4.1 | E2E encryption backend (EncryptionKeyBundle, OneTimePreKeys, key exchange endpoints, EncryptionService, DB migrations) | DONE |
+| 4.2 | E2E encryption client infra (E2EKeyManager interface, NoOpKeyManager, EncryptionRepository) | DONE |
+| 4.3 | E2E encryption client integration (Signal Protocol: libsignal-client, X3DH, Double Ratchet, key verification UI) | Remaining |
+| 4.4 | KVKK compliance (data export endpoint, account soft-deletion, UserDataController) | DONE |
+| 4.5 | Security headers (HSTS, CSP, X-Frame-Options, XSS protection, Referrer-Policy, Permissions-Policy) | DONE |
+| 4.6 | Input sanitization (InputSanitizer: HTML escaping, control chars, URL validation, 15 tests) | DONE |
+| 4.7 | CI security scanning (Trivy, Gitleaks, CodeQL) | DONE |
+| 4.8 | Security penetration testing (OWASP ZAP/Burp Suite, fix findings) | Remaining |
 
 ---
 
-## Phase 5 — Multi-Platform & Growth (iOS Foundation Done)
+## Phase 5 — Multi-Platform & Growth (iOS Platform Complete)
 
 **Goal**: iOS release, web client, growth features.
 
 | # | Task | Status |
 |---|------|--------|
-| 5.1 | iOS platform modules (AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider — real implementations) | DONE |
-| 5.2 | iOS remaining (ImagePicker, APNs delivery, TestFlight, App Store listing) | Remaining |
-| 5.3 | Web client / Desktop (React+TS or Kotlin/JS, QR device linking, message sync) | Remaining |
-| 5.4 | Group voice/video calls (multi-party LiveKit rooms, participant grid) | Remaining |
-| 5.5 | Channel monetization (analytics, subscriber mgmt, tipping) | Remaining |
-| 5.6 | CDN for media (CloudFront/CDN for media delivery at scale) | Remaining |
+| 5.1 | iOS platform modules (AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider) | DONE |
+| 5.2 | iOS platform completion (ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth) | DONE |
+| 5.3 | iOS APNs delivery (FCM→APNs bridge or direct APNs adapter) | Remaining |
+| 5.4 | iOS TestFlight + App Store submission | Remaining |
+| 5.5 | Web client / Desktop (React+TS or Kotlin/JS, QR device linking, message sync) | Remaining |
+| 5.6 | Group voice/video calls (multi-party LiveKit rooms, participant grid) | Remaining |
+| 5.7 | Channel monetization (analytics, subscriber mgmt, tipping) | Remaining |
+| 5.8 | CDN for media (CloudFront/CDN for media delivery at scale) | Remaining |
 
 ---
 
 ## Remaining Work Summary
 
 ### High Priority (Beta Release Blockers)
-1. **WebRTC client integration** — Connect call signaling to actual WebRTC (LiveKit SFU recommended). Backend signaling is done; needs mobile call UI + media streams.
-2. **iOS ImagePicker** — Currently stubbed; needed for iOS photo sharing.
+1. **WebRTC client integration** — Connect call signaling to LiveKit SDK. Backend signaling + call UI screens are built; needs media stream SDK integration.
+2. **Fix active bugs** — Push notifications disabled in prod (env var), delivery ticks stuck at single (global DELIVERED ack needed).
 
 ### Medium Priority (Pre-Public Launch)
-4. **E2E encryption client** — Server-side key exchange is built; needs Signal Protocol client library (libsignal-client) for actual encryption/decryption.
-5. **Security penetration testing** — Run OWASP ZAP before public launch.
-6. **Performance optimization** — Test with 1000+ messages, audit image caching.
+3. **E2E encryption client** — Key exchange infra + NoOp manager are built; needs `libsignal-client` for actual X3DH + Double Ratchet.
+4. **Security penetration testing** — Run OWASP ZAP/Burp Suite before public launch.
+5. **iOS APNs delivery** — Needed for iOS push notifications.
+6. **Load testing** — k6/Gatling against staging at 1K+ concurrent WebSocket connections.
 
 ### Low Priority (Growth Phase)
 7. **Web/Desktop client** — Power user demand.
@@ -164,12 +172,15 @@
 | ~~ChatScreen.kt ~1,700 lines~~ | ~~High~~ | Fixed (Phase 2) — split to 405 lines |
 | ~~5 controllers bypass use case layer~~ | ~~Medium~~ | Fixed (Phase 2) — all use use cases |
 | ~~MessagingService implements 7 use cases~~ | ~~Medium~~ | Fixed (Phase 2) — split into 3 services |
-| ~~Test coverage at 13%~~ | ~~High~~ | Improved (Phase 2) — ~125 backend tests |
+| ~~Test coverage at 13%~~ | ~~High~~ | Improved — ~125 backend tests + 25+ mobile/shared tests |
+| ~~No mobile unit tests~~ | ~~Medium~~ | Fixed — FakeTokenStorage, AuthRepository, PhoneNormalization, WsMessage serialization tests |
+| ~~iOS ImagePicker stub~~ | ~~Medium~~ | Fixed — PHPickerViewController implementation |
+| ~~CrashReporter.ios.kt stub~~ | ~~Low~~ | Fixed — NSLog + Sentry CocoaPod hooks |
+| ~~No CI/CD pipeline~~ | ~~Medium~~ | Fixed — GitHub Actions (backend, mobile, security, deploy) |
+| ~~No performance optimization~~ | ~~Medium~~ | Fixed — 12 DB indexes, N+1 fixes, connection pooling, nginx/PG tuning |
 | Backend enum duplication (intentional) | Low | Monitor |
-| No mobile unit tests | Medium | Phase 3+ |
-| Single-server architecture | Low | Phase 5+ |
-| iOS ImagePicker stub | Medium | Phase 5 |
-| CrashReporter.ios.kt stub (needs Sentry iOS pod) | Low | Phase 5 |
+| Single-server architecture | Low | Phase 6 (adequate for beta) |
+| 2 active bugs (push notifications, delivery ticks) | Medium | Phase 1 (env var + code fix) |
 
 ---
 
@@ -209,7 +220,7 @@ Phase 5 (iOS foundation) → iOS release, web, growth
 ### Project Structure
 ```
 muhabbet/
-├── backend/    → Spring Boot 3.4 + Kotlin (modular monolith, hexagonal)
+├── backend/    → Spring Boot 4.0.2 + Kotlin 2.3.10 (modular monolith, hexagonal)
 ├── shared/     → KMP shared module (models, DTOs, protocol, validation)
 ├── mobile/     → Compose Multiplatform (Android + iOS)
 ├── infra/      → Docker Compose, nginx, deploy scripts
@@ -219,9 +230,10 @@ muhabbet/
 ### Tech Stack
 | Component | Technology |
 |-----------|-----------|
-| Language | Kotlin (everywhere) |
-| Backend | Spring Boot 3.4, PostgreSQL 16, Redis 7, MinIO |
-| Mobile | CMP, Ktor, Koin, Decompose, Coil3, Sentry |
-| Shared | KMP, kotlinx.serialization, kotlinx.datetime |
+| Language | Kotlin 2.3.10 (everywhere) |
+| Backend | Spring Boot 4.0.2 (Java 25), PostgreSQL 16, Redis 7, MinIO |
+| Mobile | CMP, Ktor 3.1.3, Koin 4.1.0, Decompose 3.3.0, Coil 3.1.0, Sentry |
+| Shared | KMP, kotlinx.serialization 1.8.1, kotlinx.datetime 0.7.0 |
 | Infra | Docker Compose, nginx, GCP (e2-medium), Firebase FCM |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions (backend, mobile, security, deploy) |
+| Security | HSTS, CSP, InputSanitizer, Trivy, Gitleaks, CodeQL |

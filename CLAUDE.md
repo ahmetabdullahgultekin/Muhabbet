@@ -181,7 +181,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Component | Technology |
 |-----------|-----------|
 | Language | Kotlin (everywhere) |
-| Backend framework | Spring Boot 3.4 |
+| Backend framework | Spring Boot 4.0.2 |
 | Mobile framework | CMP (Compose Multiplatform) |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
@@ -236,24 +236,31 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, ~125 backend tests, Stickers & GIFs, Profile viewing (mutual groups, shared media, action buttons)
 - **Phase 3 (Partial)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK
 - **Phase 4 (Architecture)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion
-- **Phase 5 (iOS Foundation)**: Real iOS AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider implementations
+- **Phase 5 (iOS Complete)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker (PHPickerViewController), FilePicker (UIDocumentPickerViewController), ImageCompressor (CoreGraphics), CrashReporter (NSLog + Sentry hooks), LocaleHelper (AppleLanguages), FirebasePhoneAuth (fallback stub)
 - **Round 3 Bug Fixes**: Delivery status resolution (batch query + aggregation), shared media screen, message info screen, starred messages redesign, profile contact name, status image upload, forwarded message visuals, video thumbnails
 - **Round 4 Bug Fixes**: Shared media JPQL query, message info endpoint, status text position, starred message scroll-to-message, starred back navigation
 - **Round 5 UI/UX Polish**: MediaViewer with action bars (forward/delete), SharedMediaScreen long-press context menu + Crossfade tab transitions, MessageInfoScreen with cards/avatars/timeline sections
 - **Round 6 Media UX & Storage**: Chat scroll fix (start at bottom), pinch-to-zoom (1x–5x + double-tap), SharedMedia video/voice/doc playback, forward fix, MessageInfo media preview + avatars, storage usage stats (`GET /api/v1/media/storage` with full hexagonal chain)
+- **System Optimization**: Database indexes (12 performance indexes), N+1 query fixes (batch fetching), Redis connection pooling, Ktor connection pooling, nginx gzip/caching, PostgreSQL tuning
+- **Dependency Upgrades (Feb 2026)**: Kotlin 2.3.10, Spring Boot 4.0.2, Java 25, Gradle 8.14.4, Ktor 3.1.3, Compose BOM 2025.04.01
+- **CI/CD Pipeline**: GitHub Actions — backend CI (test + build), mobile CI (Android + iOS), security scanning (Trivy, Gitleaks, CodeQL), deployment automation
+- **Call UI**: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen with Decompose navigation
+- **E2E Encryption Infrastructure**: E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile client for key exchange API)
+- **Security Hardening**: HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation)
+- **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
 
 ### Remaining Work
-- WebRTC client integration (LiveKit) — signaling backend is ready
-- E2E encryption client (Signal Protocol: X3DH, Double Ratchet)
-- iOS ImagePicker, APNs delivery, TestFlight
-- Security penetration testing
+- WebRTC client integration (LiveKit) — signaling backend + call UI are ready, need media SDK
+- E2E encryption client (Signal Protocol: X3DH, Double Ratchet) — key exchange infra + NoOp manager are ready, need libsignal-client
+- iOS APNs delivery, TestFlight, App Store
+- Security penetration testing (OWASP ZAP/Burp Suite)
 - Web/Desktop client
+- Load testing (k6/Gatling at scale)
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
-- **iOS ImagePicker stub**: Returns null — needs PHPickerViewController implementation.
-- **CrashReporter.ios.kt stub**: Needs Sentry iOS CocoaPod integration.
-- **No mobile unit tests**: Backend has ~125 tests; mobile has none yet.
+- **Single-server architecture**: Adequate for beta; needs Redis Pub/Sub for WS scaling beyond ~10K concurrent users.
+- **2 active bugs**: Push notifications disabled in production (env var fix needed), delivery ticks stuck at single (needs global DELIVERED ack in App.kt).
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
