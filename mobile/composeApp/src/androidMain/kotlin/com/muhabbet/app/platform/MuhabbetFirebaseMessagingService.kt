@@ -41,7 +41,8 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(com.muhabbet.app.R.drawable.ic_notification)
+            .setColor(0xFF1B5E20.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

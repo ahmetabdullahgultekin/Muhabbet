@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Speech bubble body (centered in 108x108 safe zone: 18-90) -->
+    <path
+        android:pathData="M34,32 C34,28 37,25 41,25 L67,25 C71,25 74,28 74,32 L74,56 C74,60 71,63 67,63 L50,63 L40,73 L42,63 L41,63 C37,63 34,60 34,56 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Three dots inside the bubble -->
+    <circle
+        android:cx="46"
+        android:cy="44"
+        android:r="3"
+        android:fillColor="#1B5E20" />
+    <circle
+        android:cx="54"
+        android:cy="44"
+        android:r="3"
+        android:fillColor="#1B5E20" />
+    <circle
+        android:cx="62"
+        android:cy="44"
+        android:r="3"
+        android:fillColor="#1B5E20" />
+</vector>
