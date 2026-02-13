@@ -12,6 +12,7 @@ import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.di.appModule
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
+import com.muhabbet.app.platform.CrashReporter
 import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.app.util.Log
 import com.muhabbet.shared.model.MessageStatus
@@ -34,6 +35,13 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         MuhabbetTheme {
             val tokenStorage: TokenStorage = koinInject()
             val root = remember { RootComponent(componentContext, tokenStorage) }
+
+            // Initialize crash reporter and set user
+            LaunchedEffect(Unit) {
+                CrashReporter.init()
+                tokenStorage.getUserId()?.let { CrashReporter.setUser(it) }
+            }
+
             WebSocketLifecycle()
             RootContent(root)
         }

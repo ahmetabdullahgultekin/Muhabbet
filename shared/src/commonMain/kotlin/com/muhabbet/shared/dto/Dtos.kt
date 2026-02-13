@@ -266,6 +266,55 @@ data class ReactionResponse(
     val userIds: List<String>
 )
 
+// ─── Encryption DTOs ───────────────────────────────────────
+
+@Serializable
+data class RegisterKeyBundleRequest(
+    val identityKey: String,
+    val signedPreKey: String,
+    val signedPreKeyId: Int,
+    val registrationId: Int
+)
+
+@Serializable
+data class UploadPreKeysRequest(
+    val preKeys: List<PreKeyDto>
+)
+
+@Serializable
+data class PreKeyDto(
+    val keyId: Int,
+    val publicKey: String
+)
+
+@Serializable
+data class PreKeyBundleResponse(
+    val identityKey: String,
+    val signedPreKey: String,
+    val signedPreKeyId: Int,
+    val registrationId: Int,
+    val oneTimePreKey: String? = null,
+    val oneTimePreKeyId: Int? = null
+)
+
+// ─── Call DTOs ──────────────────────────────────────────
+
+@Serializable
+data class CallHistoryResponse(
+    val id: String,
+    val callId: String,
+    val callerId: String,
+    val calleeId: String,
+    val callerName: String? = null,
+    val calleeName: String? = null,
+    val callType: String,           // VOICE or VIDEO
+    val status: String,             // INITIATED, ANSWERED, ENDED, DECLINED, MISSED
+    val startedAt: String,
+    val answeredAt: String? = null,
+    val endedAt: String? = null,
+    val durationSeconds: Int? = null
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable

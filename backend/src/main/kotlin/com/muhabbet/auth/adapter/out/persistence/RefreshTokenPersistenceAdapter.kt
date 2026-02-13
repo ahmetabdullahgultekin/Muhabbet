@@ -23,6 +23,10 @@ class RefreshTokenPersistenceAdapter(
         springDataRefreshTokenRepository.revokeAllForDevice(userId, deviceId, Instant.now())
     }
 
+    override fun revokeAllForUser(userId: UUID) {
+        springDataRefreshTokenRepository.revokeAllForUser(userId, Instant.now())
+    }
+
     override fun revokeByTokenHash(tokenHash: String) {
         springDataRefreshTokenRepository.revokeByTokenHash(tokenHash, Instant.now())
     }

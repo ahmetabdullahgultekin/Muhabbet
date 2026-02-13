@@ -27,6 +27,11 @@ interface SpringDataRefreshTokenRepository : JpaRepository<RefreshTokenJpaEntity
 
     @Transactional
     @Modifying
+    @Query("UPDATE RefreshTokenJpaEntity r SET r.revokedAt = :now WHERE r.userId = :userId AND r.revokedAt IS NULL")
+    fun revokeAllForUser(userId: UUID, now: Instant)
+
+    @Transactional
+    @Modifying
     @Query("UPDATE RefreshTokenJpaEntity r SET r.revokedAt = :now WHERE r.tokenHash = :tokenHash AND r.revokedAt IS NULL")
     fun revokeByTokenHash(tokenHash: String, now: Instant)
 }

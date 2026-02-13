@@ -6,6 +6,7 @@ import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.shared.model.MessageStatus
@@ -21,7 +22,8 @@ class WebSocketMessageBroadcaster(
     private val sessionManager: WebSocketSessionManager,
     private val deviceRepository: DeviceRepository,
     private val pushNotificationPort: PushNotificationPort,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val conversationRepository: ConversationRepository
 ) : MessageBroadcaster {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -68,6 +70,9 @@ class WebSocketMessageBroadcaster(
             else -> message.content.take(100)
         }
 
+        val conversation = conversationRepository.findById(message.conversationId)
+        val conversationType = conversation?.type?.name ?: "DIRECT"
+
         val devices = deviceRepository.findByUserId(recipientId)
         devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
             pushNotificationPort.sendPush(
@@ -78,7 +83,8 @@ class WebSocketMessageBroadcaster(
                     "conversationId" to message.conversationId.toString(),
                     "messageId" to message.id.toString(),
                     "senderId" to message.senderId.toString(),
-                    "senderName" to senderName
+                    "senderName" to senderName,
+                    "conversationType" to conversationType
                 )
             )
         }

@@ -22,7 +22,9 @@ enum class ContentType {
     DOCUMENT,
     LOCATION,
     CONTACT,
-    POLL
+    POLL,
+    STICKER,
+    GIF
 }
 
 @Serializable
@@ -44,6 +46,21 @@ enum class PresenceStatus {
     ONLINE,
     OFFLINE,
     TYPING
+}
+
+@Serializable
+enum class CallType {
+    VOICE,
+    VIDEO
+}
+
+@Serializable
+enum class CallEndReason {
+    ENDED,
+    DECLINED,
+    MISSED,
+    BUSY,
+    FAILED
 }
 
 // ─── Domain Models ───────────────────────────────────────

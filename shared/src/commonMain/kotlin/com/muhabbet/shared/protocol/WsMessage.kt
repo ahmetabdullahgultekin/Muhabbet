@@ -1,5 +1,7 @@
 package com.muhabbet.shared.protocol
 
+import com.muhabbet.shared.model.CallEndReason
+import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
@@ -57,6 +59,55 @@ sealed class WsMessage {
     @Serializable
     @SerialName("ping")
     data object Ping : WsMessage()
+
+    // ─── Call Signaling (Bidirectional) ─────────────────────
+
+    /** Client initiates a call to another user */
+    @Serializable
+    @SerialName("call.initiate")
+    data class CallInitiate(
+        val callId: String,
+        val targetUserId: String,
+        val callType: CallType,
+        val sdpOffer: String? = null
+    ) : WsMessage()
+
+    /** Client answers (accepts/declines) an incoming call */
+    @Serializable
+    @SerialName("call.answer")
+    data class CallAnswer(
+        val callId: String,
+        val accepted: Boolean,
+        val sdpAnswer: String? = null
+    ) : WsMessage()
+
+    /** Client sends an ICE candidate for WebRTC negotiation */
+    @Serializable
+    @SerialName("call.ice")
+    data class CallIceCandidate(
+        val callId: String,
+        val candidate: String,
+        val sdpMid: String? = null,
+        val sdpMLineIndex: Int? = null
+    ) : WsMessage()
+
+    /** Client or server ends a call */
+    @Serializable
+    @SerialName("call.end")
+    data class CallEnd(
+        val callId: String,
+        val reason: CallEndReason = CallEndReason.ENDED
+    ) : WsMessage()
+
+    /** Server notifies callee about an incoming call */
+    @Serializable
+    @SerialName("call.incoming")
+    data class CallIncoming(
+        val callId: String,
+        val callerId: String,
+        val callerName: String?,
+        val callType: CallType
+    ) : WsMessage()
 
     // ─── Server → Client ─────────────────────────────────
 

@@ -1,7 +1,8 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
-import com.muhabbet.messaging.adapter.out.persistence.entity.StatusJpaEntity
-import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataStatusRepository
+import com.muhabbet.messaging.domain.model.Status
+import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.StatusGroup
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.StatusCreateRequest
 import com.muhabbet.shared.dto.StatusResponse
@@ -16,66 +17,52 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.time.Instant
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/statuses")
 class StatusController(
-    private val statusRepo: SpringDataStatusRepository
+    private val manageStatusUseCase: ManageStatusUseCase
 ) {
 
     @PostMapping
     fun createStatus(@RequestBody request: StatusCreateRequest): ResponseEntity<ApiResponse<StatusResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        val entity = StatusJpaEntity(
-            userId = userId,
-            content = request.content,
-            mediaUrl = request.mediaUrl
-        )
-        val saved = statusRepo.save(entity)
-        return ApiResponseBuilder.ok(saved.toResponse())
+        val status = manageStatusUseCase.createStatus(userId, request.content, request.mediaUrl)
+        return ApiResponseBuilder.ok(status.toResponse())
     }
 
     @GetMapping("/me")
     fun getMyStatuses(): ResponseEntity<ApiResponse<List<StatusResponse>>> {
         val userId = AuthenticatedUser.currentUserId()
-        val statuses = statusRepo.findActiveByUserId(userId, Instant.now())
+        val statuses = manageStatusUseCase.getMyStatuses(userId)
         return ApiResponseBuilder.ok(statuses.map { it.toResponse() })
     }
 
     @GetMapping("/contacts")
     fun getContactStatuses(): ResponseEntity<ApiResponse<List<UserStatusGroup>>> {
-        // For MVP, return all active statuses grouped by user
-        val now = Instant.now()
-        val all = statusRepo.findAll()
-            .filter { it.expiresAt.isAfter(now) }
-            .groupBy { it.userId }
-            .map { (userId, statuses) ->
-                UserStatusGroup(
-                    userId = userId.toString(),
-                    statuses = statuses.sortedByDescending { it.createdAt }.map { it.toResponse() }
-                )
-            }
-        return ApiResponseBuilder.ok(all)
+        val groups = manageStatusUseCase.getContactStatuses()
+        return ApiResponseBuilder.ok(groups.map { it.toDto() })
     }
 
     @DeleteMapping("/{statusId}")
     fun deleteStatus(@PathVariable statusId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        val status = statusRepo.findById(statusId).orElse(null)
-        if (status != null && status.userId == userId) {
-            statusRepo.delete(status)
-        }
+        manageStatusUseCase.deleteStatus(statusId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 
-    private fun StatusJpaEntity.toResponse() = StatusResponse(
+    private fun Status.toResponse() = StatusResponse(
         id = id.toString(),
         userId = userId.toString(),
         content = content,
         mediaUrl = mediaUrl,
         createdAt = createdAt.toEpochMilli(),
         expiresAt = expiresAt.toEpochMilli()
+    )
+
+    private fun StatusGroup.toDto() = UserStatusGroup(
+        userId = userId.toString(),
+        statuses = statuses.map { it.toResponse() }
     )
 }

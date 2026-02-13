@@ -146,6 +146,14 @@
     <!-- Attach -->
     <string name="attach_image">Photo</string>
     <string name="attach_document">Document</string>
+    <string name="attach_gif">GIF</string>
+    <string name="attach_sticker">Sticker</string>
+
+    <!-- GIF Picker -->
+    <string name="gif_search_placeholder">Search GIFs…</string>
+    <string name="gif_powered_by">Powered by GIPHY</string>
+    <string name="gif_no_results">No results found</string>
+    <string name="sticker_title">Stickers</string>
 
     <!-- Disappearing Messages -->
     <string name="disappear_title">Disappearing Messages</string>
@@ -214,4 +222,16 @@
 
     <!-- Scroll to bottom -->
     <string name="scroll_to_bottom">Scroll to bottom</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_group_messages">Messages</string>
+    <string name="notification_channel_dm">Direct messages</string>
+    <string name="notification_channel_dm_description">Direct message notifications</string>
+    <string name="notification_channel_group">Group messages</string>
+    <string name="notification_channel_group_description">Group message notifications</string>
+    <string name="notification_new_messages">New messages</string>
+    <string name="notification_reply_label">Write a reply...</string>
+    <string name="notification_reply_action">Reply</string>
+    <string name="notification_reply_sent">Reply sent</string>
+    <string name="notification_new_message_fallback">New message</string>
 </resources>

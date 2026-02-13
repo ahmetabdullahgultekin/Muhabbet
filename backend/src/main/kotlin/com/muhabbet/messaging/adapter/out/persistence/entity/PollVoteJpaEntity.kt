@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.persistence.entity
 
+import com.muhabbet.messaging.domain.model.PollVote
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
@@ -24,4 +25,16 @@ class PollVoteJpaEntity(
 
     @Column(name = "voted_at", nullable = false)
     val votedAt: Instant = Instant.now()
-)
+) {
+    fun toDomain(): PollVote = PollVote(
+        id = id, messageId = messageId, userId = userId,
+        optionIndex = optionIndex, votedAt = votedAt
+    )
+
+    companion object {
+        fun fromDomain(v: PollVote): PollVoteJpaEntity = PollVoteJpaEntity(
+            id = v.id, messageId = v.messageId, userId = v.userId,
+            optionIndex = v.optionIndex, votedAt = v.votedAt
+        )
+    }
+}

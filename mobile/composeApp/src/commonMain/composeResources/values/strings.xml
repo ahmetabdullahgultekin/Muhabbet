@@ -146,6 +146,14 @@
     <!-- Attach -->
     <string name="attach_image">Fotoğraf</string>
     <string name="attach_document">Dosya</string>
+    <string name="attach_gif">GIF</string>
+    <string name="attach_sticker">Çıkartma</string>
+
+    <!-- GIF Picker -->
+    <string name="gif_search_placeholder">GIF ara…</string>
+    <string name="gif_powered_by">GIPHY ile desteklenmektedir</string>
+    <string name="gif_no_results">Sonuç bulunamadı</string>
+    <string name="sticker_title">Çıkartmalar</string>
 
     <!-- Disappearing Messages -->
     <string name="disappear_title">Kaybolan Mesajlar</string>
@@ -214,4 +222,16 @@
 
     <!-- Scroll to bottom -->
     <string name="scroll_to_bottom">Aşağı kaydır</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_group_messages">Mesajlar</string>
+    <string name="notification_channel_dm">Bireysel mesajlar</string>
+    <string name="notification_channel_dm_description">Bireysel sohbet bildirimleri</string>
+    <string name="notification_channel_group">Grup mesajları</string>
+    <string name="notification_channel_group_description">Grup sohbet bildirimleri</string>
+    <string name="notification_new_messages">Yeni mesajlar</string>
+    <string name="notification_reply_label">Yanıt yaz...</string>
+    <string name="notification_reply_action">Yanıtla</string>
+    <string name="notification_reply_sent">Yanıt gönderildi</string>
+    <string name="notification_new_message_fallback">Yeni mesaj</string>
 </resources>

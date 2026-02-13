@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.messaging.domain.model.CallStatus
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
@@ -8,6 +9,8 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.CallBusyException
+import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
@@ -33,7 +36,8 @@ class ChatWebSocketHandler(
     private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
     private val conversationRepository: ConversationRepository,
     private val presencePort: PresencePort,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val callSignalingService: CallSignalingService
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -85,6 +89,10 @@ class ChatWebSocketHandler(
                 presencePort.setOnline(userId)
                 sendPong(session)
             }
+            is WsMessage.CallInitiate -> handleCallInitiate(session, userId, wsMessage)
+            is WsMessage.CallAnswer -> handleCallAnswer(session, userId, wsMessage)
+            is WsMessage.CallIceCandidate -> handleCallIce(userId, wsMessage)
+            is WsMessage.CallEnd -> handleCallEnd(userId, wsMessage)
             else -> sendError(session, "VALIDATION_ERROR", "Unexpected message type from client")
         }
     }
@@ -202,6 +210,117 @@ class ChatWebSocketHandler(
             }
         }
     }
+
+    // ─── Call Signaling Handlers ────────────────────────────
+
+    private fun handleCallInitiate(session: WebSocketSession, callerId: UUID, msg: WsMessage.CallInitiate) {
+        val calleeId = try {
+            UUID.fromString(msg.targetUserId)
+        } catch (e: Exception) {
+            sendError(session, "CALL_INVALID_TARGET", "Invalid target user ID")
+            return
+        }
+
+        // Map shared CallType to backend domain CallType
+        val callType = com.muhabbet.messaging.domain.model.CallType.valueOf(msg.callType.name)
+
+        try {
+            callSignalingService.initiateCall(msg.callId, callerId, calleeId, callType)
+        } catch (e: CallBusyException) {
+            // Send call.end with BUSY reason back to caller
+            val busy = WsMessage.CallEnd(callId = msg.callId, reason = com.muhabbet.shared.model.CallEndReason.BUSY)
+            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(busy)))
+            return
+        }
+
+        // Check if callee is online
+        if (!sessionManager.isOnline(calleeId)) {
+            // Callee offline — end call with MISSED
+            callSignalingService.endCall(msg.callId, CallStatus.MISSED)
+            val missed = WsMessage.CallEnd(callId = msg.callId, reason = com.muhabbet.shared.model.CallEndReason.MISSED)
+            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(missed)))
+            return
+        }
+
+        // Lookup caller name for the incoming notification
+        val callerName = userRepository.findById(callerId)?.displayName
+
+        // Forward call.incoming to callee
+        val incoming = WsMessage.CallIncoming(
+            callId = msg.callId,
+            callerId = callerId.toString(),
+            callerName = callerName,
+            callType = msg.callType
+        )
+        sessionManager.sendToUser(calleeId, wsJson.encodeToString<WsMessage>(incoming))
+
+        // Also forward the SDP offer if present (caller's offer → callee)
+        if (msg.sdpOffer != null) {
+            val initiateForward = WsMessage.CallInitiate(
+                callId = msg.callId,
+                targetUserId = msg.targetUserId,
+                callType = msg.callType,
+                sdpOffer = msg.sdpOffer
+            )
+            sessionManager.sendToUser(calleeId, wsJson.encodeToString<WsMessage>(initiateForward))
+        }
+
+        log.info("Call initiated: callId={}, caller={}, callee={}", msg.callId, callerId, calleeId)
+    }
+
+    private fun handleCallAnswer(session: WebSocketSession, userId: UUID, msg: WsMessage.CallAnswer) {
+        val callSession = callSignalingService.getCall(msg.callId)
+        if (callSession == null) {
+            sendError(session, "CALL_NOT_FOUND", "Call ${msg.callId} not found")
+            return
+        }
+
+        val otherParty = callSignalingService.getOtherParty(msg.callId, userId) ?: return
+
+        if (msg.accepted) {
+            callSignalingService.answerCall(msg.callId)
+        } else {
+            callSignalingService.endCall(msg.callId, CallStatus.DECLINED)
+        }
+
+        // Forward the answer to the other party
+        val json = wsJson.encodeToString<WsMessage>(msg)
+        sessionManager.sendToUser(otherParty, json)
+
+        log.info("Call answer: callId={}, userId={}, accepted={}", msg.callId, userId, msg.accepted)
+    }
+
+    private fun handleCallIce(userId: UUID, msg: WsMessage.CallIceCandidate) {
+        val otherParty = callSignalingService.getOtherParty(msg.callId, userId) ?: return
+
+        // Forward ICE candidate to the other party
+        val json = wsJson.encodeToString<WsMessage>(msg)
+        sessionManager.sendToUser(otherParty, json)
+    }
+
+    private fun handleCallEnd(userId: UUID, msg: WsMessage.CallEnd) {
+        val callSession = callSignalingService.getCall(msg.callId) ?: return
+        val otherParty = callSignalingService.getOtherParty(msg.callId, userId)
+
+        // Map shared CallEndReason to domain CallStatus
+        val status = when (msg.reason) {
+            com.muhabbet.shared.model.CallEndReason.DECLINED -> CallStatus.DECLINED
+            com.muhabbet.shared.model.CallEndReason.MISSED -> CallStatus.MISSED
+            else -> CallStatus.ENDED
+        }
+
+        callSignalingService.endCall(msg.callId, status)
+
+        // Forward call.end to the other party
+        if (otherParty != null) {
+            val json = wsJson.encodeToString<WsMessage>(msg)
+            sessionManager.sendToUser(otherParty, json)
+        }
+
+        log.info("Call ended: callId={}, userId={}, reason={}", msg.callId, userId, msg.reason)
+    }
+
+    // ─── Messaging Helpers ────────────────────────────────────
 
     private fun sendPong(session: WebSocketSession) {
         val pong = WsMessage.Pong

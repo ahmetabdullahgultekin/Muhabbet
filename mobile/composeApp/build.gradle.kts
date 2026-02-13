@@ -83,6 +83,9 @@ kotlin {
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
             implementation("com.google.firebase:firebase-auth-ktx")
             implementation("com.google.firebase:firebase-messaging-ktx")
+
+            // Sentry — crash reporting
+            implementation("io.sentry:sentry-android:7.14.0")
         }
 
         iosMain.dependencies {
@@ -101,6 +104,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        // Sentry DSN — set via environment variable or local.properties
+        manifestPlaceholders["SENTRY_DSN"] = System.getenv("SENTRY_DSN") ?: ""
     }
 
     signingConfigs {

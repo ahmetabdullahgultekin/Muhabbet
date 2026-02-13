@@ -17,5 +17,6 @@ interface RefreshTokenRepository {
     fun save(record: RefreshTokenRecord): RefreshTokenRecord
     fun findByTokenHash(tokenHash: String): RefreshTokenRecord?
     fun revokeAllForDevice(userId: UUID, deviceId: UUID)
+    fun revokeAllForUser(userId: UUID)
     fun revokeByTokenHash(tokenHash: String)
 }

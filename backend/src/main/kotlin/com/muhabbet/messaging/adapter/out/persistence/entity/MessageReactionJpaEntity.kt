@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.persistence.entity
 
+import com.muhabbet.messaging.domain.model.Reaction
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
@@ -24,4 +25,16 @@ class MessageReactionJpaEntity(
 
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now()
-)
+) {
+    fun toDomain(): Reaction = Reaction(
+        id = id, messageId = messageId, userId = userId,
+        emoji = emoji, createdAt = createdAt
+    )
+
+    companion object {
+        fun fromDomain(r: Reaction): MessageReactionJpaEntity = MessageReactionJpaEntity(
+            id = r.id, messageId = r.messageId, userId = r.userId,
+            emoji = r.emoji, createdAt = r.createdAt
+        )
+    }
+}

@@ -8,6 +8,7 @@ import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataConve
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataDirectConversationLookupRepository
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import org.springframework.stereotype.Component
 import java.time.Instant
@@ -68,10 +69,16 @@ class ConversationPersistenceAdapter(
         entity.avatarUrl = conversation.avatarUrl
         entity.description = conversation.description
         entity.updatedAt = conversation.updatedAt
+        entity.disappearAfterSeconds = conversation.disappearAfterSeconds
         return conversationRepo.save(entity).toDomain()
     }
 
     override fun updateMemberRole(conversationId: UUID, userId: UUID, role: com.muhabbet.messaging.domain.model.MemberRole) {
         memberRepo.updateRole(conversationId, userId, role)
     }
+
+    override fun findByType(type: ConversationType): List<Conversation> =
+        conversationRepo.findAll()
+            .filter { it.type == type }
+            .map { it.toDomain() }
 }

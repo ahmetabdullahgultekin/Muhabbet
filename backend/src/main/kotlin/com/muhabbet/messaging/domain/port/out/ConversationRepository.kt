@@ -19,4 +19,7 @@ interface ConversationRepository {
     fun removeMember(conversationId: UUID, userId: UUID)
     fun updateConversation(conversation: Conversation): Conversation
     fun updateMemberRole(conversationId: UUID, userId: UUID, role: com.muhabbet.messaging.domain.model.MemberRole)
+
+    // Channel
+    fun findByType(type: com.muhabbet.messaging.domain.model.ConversationType): List<Conversation>
 }

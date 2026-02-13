@@ -57,6 +57,30 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     MSG_ALREADY_DELETED(HttpStatus.CONFLICT, "Mesaj zaten silinmiş"),
     MSG_EDIT_WINDOW_EXPIRED(HttpStatus.BAD_REQUEST, "Mesaj düzenleme süresi doldu"),
 
+    // Status
+    STATUS_NOT_FOUND(HttpStatus.NOT_FOUND, "Durum bulunamadı"),
+
+    // Channel
+    CHANNEL_NOT_FOUND(HttpStatus.NOT_FOUND, "Kanal bulunamadı"),
+    CHANNEL_NOT_A_CHANNEL(HttpStatus.BAD_REQUEST, "Bu konuşma bir kanal değil"),
+
+    // Poll
+    POLL_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "Anket mesajı bulunamadı"),
+    POLL_INVALID_OPTION(HttpStatus.BAD_REQUEST, "Geçersiz anket seçeneği"),
+
+    // Encryption
+    ENCRYPTION_KEY_BUNDLE_NOT_FOUND(HttpStatus.NOT_FOUND, "Şifreleme anahtar paketi bulunamadı"),
+    ENCRYPTION_INVALID_KEY_DATA(HttpStatus.BAD_REQUEST, "Geçersiz şifreleme anahtar verisi"),
+
+    // Call
+    CALL_NOT_FOUND(HttpStatus.NOT_FOUND, "Arama bulunamadı"),
+    CALL_USER_BUSY(HttpStatus.CONFLICT, "Kullanıcı zaten bir aramada"),
+    CALL_INVALID_TARGET(HttpStatus.BAD_REQUEST, "Geçersiz arama hedefi"),
+
+    // User / KVKK
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı"),
+    USER_ALREADY_DELETED(HttpStatus.CONFLICT, "Hesap zaten silinmiş"),
+
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),
