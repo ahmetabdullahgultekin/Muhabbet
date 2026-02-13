@@ -31,10 +31,10 @@ kotlin {
     }
 
     sourceSets {
-        val decompose = "3.2.2"
-        val koin = "4.0.0"
-        val ktor = "3.0.2"
-        val coil = "3.0.4"
+        val decompose = "3.4.0"
+        val koin = "4.1.1"
+        val ktor = "3.4.0"
+        val coil = "3.3.0"
 
         commonMain.dependencies {
             // Shared KMP module
@@ -65,9 +65,9 @@ kotlin {
             implementation("io.ktor:ktor-client-websockets:$ktor")
 
             // Serialization
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
 
             // Image loading — Coil
             implementation("io.coil-kt.coil3:coil-compose:$coil")
@@ -76,7 +76,7 @@ kotlin {
 
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
-            implementation("androidx.activity:activity-compose:1.9.3")
+            implementation("androidx.activity:activity-compose:1.10.0")
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
@@ -85,7 +85,14 @@ kotlin {
             implementation("com.google.firebase:firebase-messaging-ktx")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:7.14.0")
+            implementation("io.sentry:sentry-android:7.19.1")
+        }
+
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+            implementation("io.ktor:ktor-client-mock:$ktor")
+            implementation("io.insert-koin:koin-test:$koin")
         }
 
         iosMain.dependencies {

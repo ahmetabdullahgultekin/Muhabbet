@@ -11,8 +11,11 @@ spring:
     password: ${DB_PASSWORD:muhabbet_dev}
     hikari:
       maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 10000
+      minimum-idle: 10               # Keep more connections warm to avoid creation spikes
+      connection-timeout: 5000       # Fail fast under load (was 10s)
+      idle-timeout: 600000           # 10 minutes
+      max-lifetime: 1800000          # 30 minutes
+      leak-detection-threshold: 60000  # Alert if connection held >60s
 
   jpa:
     hibernate:
@@ -22,6 +25,13 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
+        jdbc:
+          batch_size: 25             # Batch inserts/updates (delivery statuses, members)
+          fetch_size: 50             # JDBC fetch size for cursor-based results
+        order_inserts: true          # Group INSERTs by entity type for better batching
+        order_updates: true          # Group UPDATEs by entity type for better batching
+        query:
+          in_clause_parameter_padding: true  # Pad IN clause params to powers of 2 (better plan caching)
 
   # Flyway
   flyway:
@@ -53,6 +63,13 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
+  tomcat:
+    threads:
+      max: 200               # Match e2-medium VM (2 vCPU)
+      min-spare: 10          # Keep 10 threads warm
+    accept-count: 100        # Queue size before rejecting connections
+    connection-timeout: 20000  # 20s timeout for slow clients
+    keep-alive-timeout: 60000  # HTTP keep-alive 60s
 
 # Actuator
 management:

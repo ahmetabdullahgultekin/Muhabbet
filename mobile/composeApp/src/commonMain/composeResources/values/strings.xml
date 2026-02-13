@@ -280,4 +280,27 @@
     <string name="storage_loading">Yükleniyor…</string>
     <string name="storage_error">Depolama bilgisi alınamadı</string>
     <string name="storage_items">%1$d öğe</string>
+
+    <!-- Calls -->
+    <string name="calls_title">Aramalar</string>
+    <string name="call_incoming">Gelen Arama</string>
+    <string name="call_outgoing">Giden Arama</string>
+    <string name="call_missed">Cevapsız Arama</string>
+    <string name="call_declined">Reddedilen Arama</string>
+    <string name="call_voice">Sesli Arama</string>
+    <string name="call_video">Görüntülü Arama</string>
+    <string name="call_accept">Kabul Et</string>
+    <string name="call_decline">Reddet</string>
+    <string name="call_end">Aramayı Sonlandır</string>
+    <string name="call_mute">Sessize Al</string>
+    <string name="call_unmute">Sesi Aç</string>
+    <string name="call_speaker">Hoparlör</string>
+    <string name="call_calling">Aranıyor…</string>
+    <string name="call_ringing">Çalıyor…</string>
+    <string name="call_connected">Bağlandı</string>
+    <string name="call_ended">Arama Sonlandı</string>
+    <string name="call_duration">%1$02d:%2$02d</string>
+    <string name="call_history_empty">Henüz arama yok</string>
+    <string name="call_today">Bugün</string>
+    <string name="call_yesterday">Dün</string>
 </resources>

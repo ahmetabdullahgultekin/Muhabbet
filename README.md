@@ -10,10 +10,11 @@
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Spring Boot 3.4 + Kotlin 2.1, PostgreSQL 16, Redis 7, MinIO |
-| **Mobile** | Compose Multiplatform (Android + iOS) |
-| **Shared** | Kotlin Multiplatform (domain models, protocol, validation) |
-| **Infra** | Docker Compose, Nginx, GitHub Actions |
+| **Backend** | Spring Boot 4.0.2 + Kotlin 2.3.10 (Java 25), PostgreSQL 16, Redis 7, MinIO |
+| **Mobile** | Compose Multiplatform (Android + iOS), Ktor 3.1.3, Koin, Decompose |
+| **Shared** | Kotlin Multiplatform (domain models, protocol, validation, DTOs) |
+| **Infra** | Docker Compose, Nginx, GitHub Actions CI/CD |
+| **Security** | HSTS, CSP, X-Frame-Options, InputSanitizer, Trivy + CodeQL scanning |
 | **Monitoring** | Sentry (mobile), SLF4J + Logback (backend), Spring Actuator |
 
 ## Project Structure
@@ -41,7 +42,7 @@ muhabbet/
 - Typing indicators, read receipts, delivery status (batch-resolved)
 - Message info (per-recipient delivery status with timestamps, media preview, avatars)
 - Shared media viewer (images grid + documents list, video/voice playback, forward/delete)
-- Pinch-to-zoom image viewer (1x–5x, double-tap toggle)
+- Pinch-to-zoom image viewer (1x-5x, double-tap toggle)
 
 ### Media & Content
 - Image sharing (upload, thumbnails, full-size viewer)
@@ -63,14 +64,21 @@ muhabbet/
 - Push notifications: FCM with grouping, inline reply, channels
 - Localization: Turkish + English with runtime switch
 - Dark mode + OLED theme
-- Crash reporting: Sentry SDK (Android; iOS stubbed)
+- Crash reporting: Sentry SDK (Android + iOS hooks)
 - Storage usage stats (per-user breakdown by type)
 - KVKK compliance: data export, account deletion
 
-### Architecture (Post-MVP)
+### Calling & Encryption (Infrastructure Ready)
+- Call UI screens: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen
 - Call signaling infrastructure (WebSocket-based, ready for WebRTC/LiveKit)
-- E2E encryption key exchange endpoints (ready for Signal Protocol client)
-- ~125 backend unit tests (MediaService, ConversationService, GroupService, WebSocket, RateLimit)
+- E2E encryption key exchange endpoints + client infrastructure (ready for Signal Protocol)
+
+### Security & Quality
+- Security headers: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- Input sanitization: HTML escaping, control char stripping, URL validation
+- CI/CD: GitHub Actions (backend CI, mobile CI, security scanning, deployment)
+- ~125 backend tests + 25+ mobile/shared tests
+- Security scanning: Trivy vulnerability scanning, Gitleaks secret detection, CodeQL static analysis
 
 ## Module Status
 
@@ -96,9 +104,10 @@ muhabbet/
 ## Quick Start
 
 ### Prerequisites
-- JDK 21+
+- JDK 25+
 - Docker & Docker Compose
-- Android SDK (for mobile development)
+- Android SDK (API 35) for mobile development
+- Kotlin 2.3.10+ (managed by Gradle wrapper)
 
 ### 1. Start Infrastructure
 ```bash

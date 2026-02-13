@@ -14,6 +14,9 @@ import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.extensions.compose.stack.animation.slide
 import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import com.arkivanov.decompose.value.Value
+import com.muhabbet.app.ui.call.ActiveCallScreen
+import com.muhabbet.app.ui.call.CallHistoryScreen
+import com.muhabbet.app.ui.call.IncomingCallScreen
 import com.muhabbet.app.ui.chat.ChatScreen
 import com.muhabbet.app.ui.chat.MessageInfoScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
@@ -105,6 +108,21 @@ class MainComponent(
         }
     }
 
+    @OptIn(DelicateDecomposeApi::class)
+    fun openIncomingCall(callId: String, callerId: String, callerName: String?, callType: String) {
+        navigation.push(Config.IncomingCall(callId, callerId, callerName, callType))
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openActiveCall(callId: String, otherUserId: String, otherUserName: String?, callType: String) {
+        navigation.push(Config.ActiveCall(callId, otherUserId, otherUserName, callType))
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openCallHistory() {
+        navigation.push(Config.CallHistory)
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -123,6 +141,9 @@ class MainComponent(
         @Serializable data object StarredMessages : Config
         @Serializable data class SharedMedia(val conversationId: String) : Config
         @Serializable data class MessageInfo(val messageId: String) : Config
+        @Serializable data class IncomingCall(val callId: String, val callerId: String, val callerName: String? = null, val callType: String = "VOICE") : Config
+        @Serializable data class ActiveCall(val callId: String, val otherUserId: String, val otherUserName: String? = null, val callType: String = "VOICE") : Config
+        @Serializable data object CallHistory : Config
     }
 }
 
@@ -215,6 +236,36 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.MessageInfo -> MessageInfoScreen(
                 messageId = config.messageId,
                 onBack = component::goBack
+            )
+            is MainComponent.Config.IncomingCall -> {
+                val callType = if (config.callType == "VIDEO") com.muhabbet.shared.model.CallType.VIDEO else com.muhabbet.shared.model.CallType.VOICE
+                IncomingCallScreen(
+                    callId = config.callId,
+                    callerId = config.callerId,
+                    callerName = config.callerName,
+                    callType = callType,
+                    onAccept = {
+                        component.goBack()
+                        component.openActiveCall(config.callId, config.callerId, config.callerName, config.callType)
+                    },
+                    onDecline = component::goBack
+                )
+            }
+            is MainComponent.Config.ActiveCall -> {
+                val callType = if (config.callType == "VIDEO") com.muhabbet.shared.model.CallType.VIDEO else com.muhabbet.shared.model.CallType.VOICE
+                ActiveCallScreen(
+                    callId = config.callId,
+                    otherUserId = config.otherUserId,
+                    otherUserName = config.otherUserName,
+                    callType = callType,
+                    onCallEnded = component::goBack
+                )
+            }
+            is MainComponent.Config.CallHistory -> CallHistoryScreen(
+                onBack = component::goBack,
+                onCallUser = { userId, name, callType ->
+                    // TODO: Initiate outgoing call via WsClient
+                }
             )
         }
     }

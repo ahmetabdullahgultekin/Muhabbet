@@ -7,8 +7,14 @@ import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.app.data.repository.ChannelRepository
+import com.muhabbet.app.data.repository.EncryptionRepository
 import com.muhabbet.app.data.repository.StatusRepository
+import com.muhabbet.shared.port.E2EKeyManager
+import com.muhabbet.shared.port.EncryptionPort
+import com.muhabbet.shared.port.NoOpEncryption
+import com.muhabbet.shared.port.NoOpKeyManager
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -22,4 +28,8 @@ fun appModule(): Module = module {
     single { GroupRepository(apiClient = get()) }
     single { StatusRepository(apiClient = get()) }
     single { ChannelRepository(apiClient = get()) }
+    single { CallRepository(apiClient = get()) }
+    single { EncryptionRepository(apiClient = get()) }
+    single<EncryptionPort> { NoOpEncryption() }
+    single<E2EKeyManager> { NoOpKeyManager() }
 }

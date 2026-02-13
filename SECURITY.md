@@ -27,13 +27,38 @@ If you discover a security vulnerability in Muhabbet, please report it responsib
 
 Muhabbet implements the following security measures:
 
-- **Transport:** TLS 1.2+ enforced, HSTS enabled
-- **Authentication:** JWT (HS256) with short-lived access tokens (15 min)
-- **OTP:** BCrypt-hashed, rate-limited (5 attempts, 60s cooldown)
-- **API:** Rate limiting on authentication endpoints
-- **Headers:** X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, HSTS
-- **Data:** Phone numbers stored as SHA-256 hashes
-- **Infrastructure:** Secrets via environment variables, no credentials in code
+### Transport & Headers
+- **TLS 1.2+** enforced on all connections
+- **HSTS** with max-age=31536000 (1 year), includeSubDomains
+- **X-Frame-Options** DENY — prevents clickjacking
+- **X-Content-Type-Options** nosniff — prevents MIME sniffing
+- **Content-Security-Policy** `default-src 'self'; frame-ancestors 'none'; form-action 'self'`
+- **Referrer-Policy** strict-origin-when-cross-origin
+- **Permissions-Policy** restricts geolocation, camera, microphone access
+- **X-XSS-Protection** enabled with block mode
+
+### Authentication & Authorization
+- **JWT (HS256)** with short-lived access tokens (15 min) + refresh token rotation
+- **OTP** BCrypt-hashed, rate-limited (5 attempts, 60s cooldown)
+- **Rate limiting** on authentication endpoints (10 req/min/IP)
+
+### Input Validation & Sanitization
+- **InputSanitizer** — server-side HTML entity escaping, control character stripping, HTTPS-only URL validation
+- **Display name** sanitization with length limits (64 chars)
+- **Message content** length limiting (10,000 chars)
+- **URL validation** rejects `javascript:` and `data:` schemes
+
+### Data Protection
+- **Phone numbers** stored as SHA-256 hashes (never in plaintext)
+- **KVKK compliance** — data export endpoint, account soft-deletion
+- **Secrets** via environment variables, no credentials in code
+- **E2E encryption** infrastructure ready (Signal Protocol, key exchange endpoints built)
+
+### CI/CD Security
+- **Trivy** vulnerability scanning (filesystem + Docker images)
+- **Gitleaks** secret detection in commits
+- **CodeQL** static analysis for Java/Kotlin
+- **Automated scanning** on every push + weekly scheduled scans
 
 ## Scope
 

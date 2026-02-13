@@ -1,0 +1,121 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+      - 'shared/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+      - 'shared/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+
+jobs:
+  # ─── Android Build ──────────────────────────
+  android-build:
+    name: Android Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+      - name: Create dummy google-services.json
+        run: |
+          mkdir -p mobile/composeApp/src
+          cat > mobile/composeApp/google-services.json << 'GSEOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "muhabbet-ci-dummy",
+              "storage_bucket": "muhabbet-ci-dummy.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": { "package_name": "com.muhabbet.app" }
+                },
+                "api_key": [{ "current_key": "CI_DUMMY_KEY" }]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          GSEOF
+
+      - name: Build shared module
+        run: ./gradlew :shared:jvmJar :shared:assembleRelease
+
+      - name: Build Android debug APK
+        run: ./gradlew :mobile:composeApp:assembleDebug
+
+      - name: Run Android lint
+        run: ./gradlew :mobile:composeApp:lintDebug
+        continue-on-error: true
+
+      - name: Upload lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint-results
+          path: mobile/composeApp/build/reports/lint-results-*.html
+          retention-days: 14
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: mobile/composeApp/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+  # ─── iOS Framework Build ────────────────────
+  ios-framework:
+    name: iOS Framework Build
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+      - name: Build shared iOS framework
+        run: ./gradlew :shared:linkReleaseFrameworkIosSimulatorArm64
+        env:
+          SKIP_MOBILE: 'true'
+
+      - name: Build CMP iOS framework
+        run: ./gradlew :mobile:composeApp:linkReleaseFrameworkIosSimulatorArm64
+        env:
+          GRADLE_OPTS: '-Dorg.gradle.daemon=false'

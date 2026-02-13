@@ -68,14 +68,28 @@
 - [x] Message info — Per-recipient delivery status, media preview, avatars
 - [x] Storage usage stats — Per-user breakdown by type in Settings
 
+## Recently Completed (Engineering Session — Feb 2026)
+
+- [x] **System optimization** — 12 database indexes, N+1 batch fetching, Redis/Ktor connection pooling, nginx gzip/caching, PostgreSQL tuning
+- [x] **Dependency upgrades** — Kotlin 2.3.10, Spring Boot 4.0.2, Java 25, Gradle 8.14.4, Ktor 3.1.3, Compose BOM 2025.04.01
+- [x] **CI/CD pipeline** — GitHub Actions: backend CI, mobile CI (Android + iOS), security scanning (Trivy, Gitleaks, CodeQL), deployment automation
+- [x] **iOS platform completion** — ImagePicker (PHPickerViewController), FilePicker (UIDocumentPickerViewController), ImageCompressor (CoreGraphics), CrashReporter (NSLog + Sentry hooks), PushTokenProvider (NSUserDefaults persistence), LocaleHelper (AppleLanguages), FirebasePhoneAuth (fallback stub)
+- [x] **Mobile test infrastructure** — kotlin-test, coroutines-test, ktor-mock, koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
+- [x] **Call UI screens** — IncomingCallScreen, ActiveCallScreen, CallHistoryScreen with Decompose navigation
+- [x] **E2E encryption infrastructure** — E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile key exchange client)
+- [x] **Security hardening** — HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation) with 15 unit tests
+
 ## Pending Features
 
-- [ ] **Voice/video calls** — WebRTC (LiveKit) — signaling backend ready, need client SDK
-- [ ] **E2E encryption** — Signal Protocol (X3DH, Double Ratchet) — key exchange endpoints ready
-- [ ] **iOS completion** — ImagePicker, APNs delivery, TestFlight
+- [ ] **Voice/video calls (WebRTC)** — LiveKit client SDK integration — signaling backend + call UI screens are ready
+- [ ] **E2E encryption client** — Signal Protocol (X3DH, Double Ratchet) via libsignal-client — key exchange infra + NoOp manager are ready
+- [ ] **iOS APNs delivery** — FCM→APNs bridge or direct APNs adapter
+- [ ] **iOS TestFlight + App Store** — TestFlight distribution, App Store submission
 - [ ] **Google Play Store launch** — App signing, listing, review
-- [ ] **Multi-device / web client** — Future
-- [ ] **Mobile unit tests** — Backend has ~125, mobile has zero
+- [ ] **Security penetration testing** — OWASP ZAP/Burp Suite scan
+- [ ] **Load testing** — k6/Gatling for WS + HTTP at scale
+- [ ] **Web/Desktop client** — React+TS or Kotlin/JS, QR device linking
+- [ ] **Multi-device E2E** — Signal Protocol multi-device support
 
 ## Infrastructure
 
@@ -84,7 +98,10 @@
 - [x] Firebase FCM
 - [x] Flyway migrations (V1-V13)
 - [x] Sentry integration (Android SDK)
-- [ ] **CI/CD** — GitHub Actions pipeline
+- [x] CI/CD — GitHub Actions (backend CI, mobile CI, security scanning, deploy)
+- [x] Database performance indexes (12 indexes)
+- [x] Security headers (HSTS, CSP, X-Frame-Options, etc.)
+- [x] Input sanitization (InputSanitizer utility)
 
 ## Localization Rules
 
