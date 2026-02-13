@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import java.time.Instant
+import com.muhabbet.messaging.domain.model.ContentType
 import java.util.UUID
 
 interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
@@ -96,14 +97,9 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         SELECT m FROM MessageJpaEntity m
         WHERE m.conversationId = :conversationId
           AND m.isDeleted = false
-          AND m.contentType IN (
-            com.muhabbet.messaging.domain.model.ContentType.IMAGE,
-            com.muhabbet.messaging.domain.model.ContentType.VIDEO,
-            com.muhabbet.messaging.domain.model.ContentType.DOCUMENT,
-            com.muhabbet.messaging.domain.model.ContentType.VOICE
-          )
+          AND m.contentType IN :contentTypes
         ORDER BY m.serverTimestamp DESC
         """
     )
-    fun findMediaByConversationId(conversationId: UUID, pageable: Pageable): List<MessageJpaEntity>
+    fun findMediaByConversationId(conversationId: UUID, contentTypes: List<ContentType>, pageable: Pageable): List<MessageJpaEntity>
 }

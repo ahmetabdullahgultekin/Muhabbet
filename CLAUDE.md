@@ -237,6 +237,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Phase 3 (Partial)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK
 - **Phase 4 (Architecture)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion
 - **Phase 5 (iOS Foundation)**: Real iOS AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider implementations
+- **Round 3 Bug Fixes**: Delivery status resolution (batch query + aggregation), shared media screen, message info screen, starred messages redesign, profile contact name, status image upload, forwarded message visuals, video thumbnails
 
 ### Remaining Work
 - WebRTC client integration (LiveKit) — signaling backend is ready
@@ -312,3 +313,6 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **RECORD_AUDIO permission**: Dangerous permission requiring both manifest declaration AND runtime request via `rememberAudioPermissionRequester`. Without it, `MediaRecorder.setAudioSource()` crashes.
 - **GroupRepository.editMessage deserialization**: Don't try to deserialize the PATCH response as `Message` — use raw `httpClient.patch()` and check `response.status.isSuccess()` instead. The caller optimistically updates the local list anyway.
 - **CMP language switch**: CMP compose resources follow Android's `Configuration.locale`. To switch language at runtime: save preference in `muhabbet_prefs` SharedPreferences → apply `Configuration.setLocale()` in `MainActivity.onCreate()` before `setContent` → restart activity.
+- **JPQL enum IN clause**: Do NOT use fully-qualified enum references (`com.example.Enum.VALUE`) in JPQL `IN` clauses — may fail at runtime in Hibernate 6. Use `@Param` with `List<EnumType>` parameter instead: `WHERE m.field IN :paramList`.
+- **Delivery status hardcoded SENT**: `MessageMapper.toSharedMessage()` originally hardcoded `status = MessageStatus.SENT`. Fixed by adding `resolvedStatus` parameter and batch-querying `message_delivery_status` table. Sender sees aggregate min (all READ → READ, any DELIVERED → DELIVERED), recipient sees their own row.
+- **Navigation stack pop-then-push anti-pattern**: Calling `goBack()` then `openChat()` pops the current screen before pushing the new one, so back button skips the popped screen. Instead, just `push()` directly to keep the full stack intact.

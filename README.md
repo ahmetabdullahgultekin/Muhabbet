@@ -37,8 +37,10 @@ muhabbet/
 - Message delete/edit (soft delete, `editedAt`, context menu)
 - Reply/quote + message forwarding
 - Disappearing messages (24h, 7d, 90d)
-- Starred messages, message search (full-text)
-- Typing indicators, read receipts, delivery status
+- Starred messages (list view with scroll-to-message), message search (full-text)
+- Typing indicators, read receipts, delivery status (batch-resolved)
+- Message info (per-recipient delivery status with timestamps)
+- Shared media viewer (images grid + documents list)
 
 ### Media & Content
 - Image sharing (upload, thumbnails, full-size viewer)
@@ -74,7 +76,7 @@ muhabbet/
 |--------|--------|---------------|
 | Auth | Done | `POST /api/v1/auth/otp/request`, `otp/verify`, `token/refresh`, `logout` |
 | Users | Done | `GET /api/v1/users/me`, `PATCH /api/v1/users/me` |
-| Messaging | Done | `POST /api/v1/conversations`, `GET /api/v1/conversations`, `GET /api/v1/conversations/{id}/messages` |
+| Messaging | Done | `POST /api/v1/conversations`, `GET /api/v1/conversations`, `GET /api/v1/conversations/{id}/messages`, `GET /api/v1/conversations/{id}/media`, `GET /api/v1/messages/{id}/info` |
 | Groups | Done | `POST /api/v1/groups`, member management, role assignment |
 | WebSocket | Done | `wss://host/ws?token={jwt}` — Send, Ack, Typing, Presence, Call signaling |
 | Contacts | Done | `POST /api/v1/contacts/sync` — phone hash matching |

@@ -1,7 +1,7 @@
 # Muhabbet — Product Roadmap
 
 > **Last Updated**: February 13, 2026
-> **Status**: Phases 2-5 architecture & features implemented. Preparing for beta testing.
+> **Status**: Phases 2-5 + 4 rounds of bug fixes complete. Preparing for beta testing.
 
 ---
 
@@ -79,6 +79,19 @@
 | 2.4 | Split MessagingService → ConversationService + MessageService + GroupService | DONE |
 | 2.5 | Stickers & GIFs (GIPHY integration, GifStickerPicker, STICKER/GIF content types) | DONE |
 | 2.6 | Profile viewing (tap avatar → full profile, phone, about, shared media, mutual groups, action buttons) | DONE |
+
+---
+
+## Bug Fix Rounds (Post-Phase 2)
+
+**Goal**: Polish and fix issues found during hands-on testing.
+
+| Round | Focus | Status |
+|-------|-------|--------|
+| Round 1 | Pin, file upload, acks, reactions, forward, starred | DONE |
+| Round 2 | Compilation errors from Phase 2-5 merge | DONE |
+| Round 3 | Delivery status resolution, shared media, message info, starred redesign, contact name, status upload, forwarded visuals, video thumbnails | DONE |
+| Round 4 | Shared media JPQL fix, message info robustness, status text position, starred scroll-to-message, starred back navigation | DONE |
 
 ---
 

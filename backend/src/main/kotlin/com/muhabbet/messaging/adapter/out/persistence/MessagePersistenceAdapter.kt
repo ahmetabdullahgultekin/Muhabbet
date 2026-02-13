@@ -82,6 +82,12 @@ class MessagePersistenceAdapter(
 
     override fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
-        return messageRepo.findMediaByConversationId(conversationId, pageable).map { it.toDomain() }
+        val contentTypes = listOf(
+            com.muhabbet.messaging.domain.model.ContentType.IMAGE,
+            com.muhabbet.messaging.domain.model.ContentType.VIDEO,
+            com.muhabbet.messaging.domain.model.ContentType.DOCUMENT,
+            com.muhabbet.messaging.domain.model.ContentType.VOICE
+        )
+        return messageRepo.findMediaByConversationId(conversationId, contentTypes, pageable).map { it.toDomain() }
     }
 }

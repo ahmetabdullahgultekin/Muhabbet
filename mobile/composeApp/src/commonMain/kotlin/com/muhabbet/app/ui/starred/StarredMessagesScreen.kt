@@ -59,7 +59,7 @@ import org.koin.compose.koinInject
 @Composable
 fun StarredMessagesScreen(
     onBack: () -> Unit,
-    onNavigateToConversation: ((conversationId: String) -> Unit)? = null,
+    onNavigateToConversation: ((conversationId: String, messageId: String) -> Unit)? = null,
     messageRepository: MessageRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
@@ -133,7 +133,7 @@ fun StarredMessagesScreen(
                         StarredMessageItem(
                             message = message,
                             senderLabel = if (isOwn) youLabel else message.senderId.take(8),
-                            onClick = { onNavigateToConversation?.invoke(message.conversationId) }
+                            onClick = { onNavigateToConversation?.invoke(message.conversationId, message.id) }
                         )
                         HorizontalDivider()
                     }

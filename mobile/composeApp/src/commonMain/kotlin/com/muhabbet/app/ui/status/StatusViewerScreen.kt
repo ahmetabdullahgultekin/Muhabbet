@@ -228,17 +228,18 @@ fun StatusViewerScreen(
             if (currentStatus.content != null) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 32.dp),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 32.dp, vertical = 48.dp)
                 ) {
                     Text(
                         text = currentStatus.content!!,
                         color = Color.White,
-                        fontSize = 24.sp,
+                        fontSize = if (currentStatus.mediaUrl != null) 16.sp else 24.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.headlineMedium
+                        style = if (currentStatus.mediaUrl != null) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }

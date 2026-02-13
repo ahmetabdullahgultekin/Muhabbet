@@ -80,6 +80,7 @@ import org.koin.compose.koinInject
 fun ChatScreen(
     conversationId: String,
     conversationName: String,
+    scrollToMessageId: String? = null,
     onBack: () -> Unit,
     onTitleClick: () -> Unit = {},
     onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null,
@@ -260,7 +261,13 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) }
+    LaunchedEffect(messages.size) {
+        if (scrollToMessageId != null && messages.isNotEmpty()) {
+            val index = messages.indexOfFirst { it.id == scrollToMessageId }
+            if (index >= 0) { listState.animateScrollToItem(index); return@LaunchedEffect }
+        }
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->

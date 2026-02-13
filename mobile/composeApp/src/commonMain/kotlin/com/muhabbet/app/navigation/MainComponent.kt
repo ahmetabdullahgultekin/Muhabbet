@@ -48,8 +48,8 @@ class MainComponent(
     )
 
     @OptIn(DelicateDecomposeApi::class)
-    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false) {
-        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup))
+    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false, scrollToMessageId: String? = null) {
+        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId))
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -113,7 +113,7 @@ class MainComponent(
     @Serializable
     sealed interface Config {
         @Serializable data object ConversationList : Config
-        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false) : Config
+        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null) : Config
         @Serializable data object NewConversation : Config
         @Serializable data object Settings : Config
         @Serializable data object CreateGroup : Config
@@ -143,6 +143,7 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.Chat -> ChatScreen(
                 conversationId = config.conversationId,
                 conversationName = config.name,
+                scrollToMessageId = config.scrollToMessageId,
                 onBack = component::goBack,
                 onTitleClick = {
                     if (config.isGroup) {
@@ -203,9 +204,8 @@ fun MainContent(component: MainComponent) {
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
                 onBack = component::goBack,
-                onNavigateToConversation = { convId ->
-                    component.goBack()
-                    component.openChat(convId, "")
+                onNavigateToConversation = { convId, msgId ->
+                    component.openChat(convId, "", scrollToMessageId = msgId)
                 }
             )
             is MainComponent.Config.SharedMedia -> SharedMediaScreen(

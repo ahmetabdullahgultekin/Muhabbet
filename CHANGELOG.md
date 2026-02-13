@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Round 4 Bug Fixes
+- **Shared media JPQL query**: Changed inline enum references to `@Param` list approach — JPQL `IN` clause with fully-qualified enum constants may not resolve in Hibernate 6
+- **Message info endpoint**: Added defensive error handling, filtered sender from recipients list
+- **Status text position**: Text content now appears at bottom of status viewer (was centered)
+- **Starred message scroll**: Clicking a starred message now navigates to chat AND scrolls to the specific message (added `scrollToMessageId` param to ChatScreen + Config.Chat)
+- **Starred back navigation**: Removed `goBack()` before `openChat()` — back button now correctly returns to StarredMessages instead of skipping to Settings
+
+### Added — Round 3 Bug Fixes & Features
+- **Delivery status resolution (critical)**: Backend now batch-queries `message_delivery_status` table and resolves per-message status — sender sees aggregate min across recipients, recipient sees their own status row. Fixed `MessageMapper.toSharedMessage()` hardcoding `status = SENT`
+- **Shared media screen**: `GET /api/v1/conversations/{id}/media` endpoint + `SharedMediaScreen` with grid (images/videos) and list (documents) tabs. Accessible from GroupInfoScreen and UserProfileScreen
+- **Message info screen**: `GET /api/v1/messages/{id}/info` endpoint + `MessageInfoScreen` with sent time, per-recipient delivery status with icons (single tick, double grey, double blue)
+- **Starred messages redesign**: Replaced chat bubble layout with list items showing sender label, content preview with type icons, timestamp. Click navigates to conversation
+- **Profile contact name**: Shows `~contactName` below display name when different
+- **Status image upload**: "Add Photo" button in status dialog, uploads via MediaRepository
+- **Forwarded message visual improvements**: Forward icon, 12sp italic, alpha 0.8
+- **Video thumbnails**: Play overlay on video messages in chat
+- **Call button snackbar**: Shows "Coming soon" instead of empty click handler
+- **New string resources**: 16 new strings in Turkish and English for all new features
+
 ### Added — Phase 5: iOS Platform Foundation
 - **AudioPlayer.ios.kt**: Real AVAudioPlayer implementation with play/pause/stop/seekTo, progress tracking via coroutine
 - **AudioRecorder.ios.kt**: AVAudioRecorder implementation with M4A output, AVAudioSession permission checking

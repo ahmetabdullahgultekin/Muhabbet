@@ -82,19 +82,21 @@ class MessageController(
 
     @GetMapping("/messages/{messageId}/info")
     fun getMessageInfo(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<MessageInfoResponse>> {
-        AuthenticatedUser.currentUserId()
+        val userId = AuthenticatedUser.currentUserId()
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
         val statuses = messageRepository.getDeliveryStatuses(listOf(messageId))
-        val recipientInfos = statuses.map { ds ->
-            val user = userRepository.findById(ds.userId)
-            RecipientDeliveryInfo(
-                userId = ds.userId.toString(),
-                displayName = user?.displayName,
-                status = ds.status.name,
-                updatedAt = ds.updatedAt.toString()
-            )
-        }
+        val recipientInfos = statuses
+            .filter { it.userId != message.senderId }
+            .map { ds ->
+                val user = try { userRepository.findById(ds.userId) } catch (_: Exception) { null }
+                RecipientDeliveryInfo(
+                    userId = ds.userId.toString(),
+                    displayName = user?.displayName ?: ds.userId.toString().take(8),
+                    status = ds.status.name,
+                    updatedAt = ds.updatedAt.toString()
+                )
+            }
         val info = MessageInfoResponse(
             messageId = message.id.toString(),
             conversationId = message.conversationId.toString(),
