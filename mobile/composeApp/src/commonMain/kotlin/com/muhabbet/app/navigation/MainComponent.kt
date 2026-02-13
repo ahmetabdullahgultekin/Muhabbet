@@ -15,12 +15,14 @@ import com.arkivanov.decompose.extensions.compose.stack.animation.slide
 import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.ui.chat.ChatScreen
+import com.muhabbet.app.ui.chat.MessageInfoScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.conversations.NewConversationScreen
 import com.muhabbet.app.ui.group.CreateGroupScreen
 import com.muhabbet.app.ui.group.GroupInfoScreen
 import com.muhabbet.app.ui.profile.UserProfileScreen
 import com.muhabbet.app.ui.settings.SettingsScreen
+import com.muhabbet.app.ui.media.SharedMediaScreen
 import com.muhabbet.app.ui.starred.StarredMessagesScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,8 +74,8 @@ class MainComponent(
         }
     }
 
-    fun openUserProfile(userId: String) {
-        val target = Config.UserProfile(userId)
+    fun openUserProfile(userId: String, contactName: String? = null, conversationId: String? = null) {
+        val target = Config.UserProfile(userId, contactName, conversationId)
         navigation.navigate { stack ->
             if (target in stack) stack.dropLastWhile { it != target } else stack + target
         }
@@ -82,6 +84,18 @@ class MainComponent(
     @OptIn(DelicateDecomposeApi::class)
     fun openStarredMessages() {
         navigation.push(Config.StarredMessages)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openMessageInfo(messageId: String) {
+        navigation.push(Config.MessageInfo(messageId))
+    }
+
+    fun openSharedMedia(conversationId: String) {
+        val target = Config.SharedMedia(conversationId)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
     }
 
     fun openStatusViewer(userId: String, displayName: String) {
@@ -104,9 +118,11 @@ class MainComponent(
         @Serializable data object Settings : Config
         @Serializable data object CreateGroup : Config
         @Serializable data class GroupInfo(val conversationId: String, val name: String) : Config
-        @Serializable data class UserProfile(val userId: String) : Config
+        @Serializable data class UserProfile(val userId: String, val contactName: String? = null, val conversationId: String? = null) : Config
         @Serializable data class StatusViewer(val userId: String, val displayName: String) : Config
         @Serializable data object StarredMessages : Config
+        @Serializable data class SharedMedia(val conversationId: String) : Config
+        @Serializable data class MessageInfo(val messageId: String) : Config
     }
 }
 
@@ -132,13 +148,14 @@ fun MainContent(component: MainComponent) {
                     if (config.isGroup) {
                         component.openGroupInfo(config.conversationId, config.name)
                     } else if (config.otherUserId != null) {
-                        component.openUserProfile(config.otherUserId)
+                        component.openUserProfile(config.otherUserId, config.name, config.conversationId)
                     }
                 },
                 onNavigateToConversation = { convId, convName ->
                     component.goBack()
                     component.openChat(convId, convName)
-                }
+                },
+                onMessageInfo = { messageId -> component.openMessageInfo(messageId) }
             )
             is MainComponent.Config.NewConversation -> NewConversationScreen(
                 onConversationCreated = { id, name ->
@@ -162,13 +179,17 @@ fun MainContent(component: MainComponent) {
                 conversationId = config.conversationId,
                 conversationName = config.name,
                 onBack = component::goBack,
-                onMemberClick = { userId -> component.openUserProfile(userId) }
+                onMemberClick = { userId -> component.openUserProfile(userId) },
+                onSharedMediaClick = { component.openSharedMedia(config.conversationId) }
             )
             is MainComponent.Config.UserProfile -> UserProfileScreen(
                 userId = config.userId,
+                contactName = config.contactName,
+                conversationId = config.conversationId,
                 onBack = component::goBack,
                 onMessageClick = { component.goBack() },
-                onGroupClick = { id, name -> component.openGroupInfo(id, name) }
+                onGroupClick = { id, name -> component.openGroupInfo(id, name) },
+                onSharedMediaClick = { convId -> component.openSharedMedia(convId) }
             )
             is MainComponent.Config.StatusViewer -> StatusViewerScreen(
                 userId = config.userId,
@@ -181,6 +202,18 @@ fun MainContent(component: MainComponent) {
                 onStarredMessages = component::openStarredMessages
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
+                onBack = component::goBack,
+                onNavigateToConversation = { convId ->
+                    component.goBack()
+                    component.openChat(convId, "")
+                }
+            )
+            is MainComponent.Config.SharedMedia -> SharedMediaScreen(
+                conversationId = config.conversationId,
+                onBack = component::goBack
+            )
+            is MainComponent.Config.MessageInfo -> MessageInfoScreen(
+                messageId = config.messageId,
                 onBack = component::goBack
             )
         }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
@@ -25,6 +26,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.DropdownMenu
@@ -69,7 +72,8 @@ fun MessageBubble(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onImageClick: (String) -> Unit = {},
-    onReactionToggle: (String) -> Unit = {}
+    onReactionToggle: (String) -> Unit = {},
+    onInfo: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -124,13 +128,28 @@ fun MessageBubble(
 
                     // Forwarded label
                     if (message.forwardedFrom != null) {
-                        Text(
-                            text = stringResource(Res.string.chat_forwarded),
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = stringResource(Res.string.chat_forwarded),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 12.sp,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                ),
+                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            )
+                        }
                     }
 
                     if (message.isDeleted) {
@@ -210,6 +229,36 @@ fun MessageBubble(
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
                             )
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        // Video
+                        if (message.contentType == ContentType.VIDEO && (message.mediaUrl != null || message.thumbnailUrl != null)) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { message.mediaUrl?.let { onImageClick(it) } },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = message.thumbnailUrl ?: message.mediaUrl,
+                                    contentDescription = stringResource(Res.string.video_play),
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+                                // Play button overlay
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        contentDescription = stringResource(Res.string.video_play),
+                                        modifier = Modifier.padding(8.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(4.dp))
                         }
                         // Text
@@ -298,6 +347,11 @@ fun MessageBubble(
                             tint = if (isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
                         )
                     }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.chat_context_info)) },
+                    onClick = onInfo,
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(20.dp)) }
                 )
                 if (isOwn) {
                     if (message.contentType == ContentType.TEXT) {

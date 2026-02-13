@@ -243,4 +243,21 @@
     <string name="notification_reply_action">Yanıtla</string>
     <string name="notification_reply_sent">Yanıt gönderildi</string>
     <string name="notification_new_message_fallback">Yeni mesaj</string>
+
+    <!-- Round 3 -->
+    <string name="call_coming_soon">Arama özelliği yakında</string>
+    <string name="video_play">Videoyu oynat</string>
+    <string name="starred_you">Sen</string>
+    <string name="shared_media_title">Paylaşılan Medya</string>
+    <string name="shared_media_empty">Paylaşılan medya yok</string>
+    <string name="shared_media_images">Fotoğraflar</string>
+    <string name="shared_media_documents">Dosyalar</string>
+    <string name="status_add">Durum Ekle</string>
+    <string name="status_add_photo">Fotoğraf Ekle</string>
+    <string name="chat_context_info">Mesaj Bilgisi</string>
+    <string name="message_info_title">Mesaj Bilgisi</string>
+    <string name="message_info_sent_at">Gönderilme</string>
+    <string name="message_info_delivered_at">İletilme</string>
+    <string name="message_info_read_at">Okunma</string>
+    <string name="profile_contact_name">Rehber Adı</string>
 </resources>

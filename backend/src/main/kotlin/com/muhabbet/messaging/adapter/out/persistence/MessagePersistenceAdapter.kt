@@ -74,4 +74,14 @@ class MessagePersistenceAdapter(
 
     override fun countMediaInConversation(conversationId: UUID): Int =
         messageRepo.countMediaInConversation(conversationId)
+
+    override fun getDeliveryStatuses(messageIds: List<UUID>): List<MessageDeliveryStatus> {
+        if (messageIds.isEmpty()) return emptyList()
+        return deliveryStatusRepo.findByMessageIdIn(messageIds).map { it.toDomain() }
+    }
+
+    override fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message> {
+        val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
+        return messageRepo.findMediaByConversationId(conversationId, pageable).map { it.toDomain() }
+    }
 }

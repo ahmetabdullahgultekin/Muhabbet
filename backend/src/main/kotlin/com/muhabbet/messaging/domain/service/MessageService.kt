@@ -145,6 +145,38 @@ open class MessageService(
         log.debug("Conversation marked as read: conv={}, user={}", conversationId, userId)
     }
 
+    @Transactional(readOnly = true)
+    override fun resolveDeliveryStatuses(messages: List<Message>, requestingUserId: UUID): Map<UUID, DeliveryStatus> {
+        if (messages.isEmpty()) return emptyMap()
+
+        val messageIds = messages.map { it.id }
+        val allStatuses = messageRepository.getDeliveryStatuses(messageIds)
+        val statusesByMessageId = allStatuses.groupBy { it.messageId }
+
+        return messages.associate { message ->
+            val statuses = statusesByMessageId[message.id] ?: emptyList()
+            val resolved = if (message.senderId == requestingUserId) {
+                // Sender perspective: aggregate across all recipients
+                // all READ → READ, any DELIVERED/READ → DELIVERED, else SENT
+                if (statuses.isEmpty()) DeliveryStatus.SENT
+                else if (statuses.all { it.status == DeliveryStatus.READ }) DeliveryStatus.READ
+                else if (statuses.any { it.status == DeliveryStatus.DELIVERED || it.status == DeliveryStatus.READ }) DeliveryStatus.DELIVERED
+                else DeliveryStatus.SENT
+            } else {
+                // Recipient perspective: their own status row
+                statuses.firstOrNull { it.userId == requestingUserId }?.status ?: DeliveryStatus.SENT
+            }
+            message.id to resolved
+        }
+    }
+
+    @Transactional(readOnly = true)
+    override fun getMediaMessages(conversationId: UUID, userId: UUID, limit: Int, offset: Int): List<Message> {
+        conversationRepository.findMember(conversationId, userId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        return messageRepository.findMediaByConversationId(conversationId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
+    }
+
     // ─── Message Management ──────────────────────────────────
 
     @Transactional

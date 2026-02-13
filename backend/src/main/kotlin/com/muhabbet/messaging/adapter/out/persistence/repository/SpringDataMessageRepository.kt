@@ -90,4 +90,20 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         """
     )
     fun countMediaInConversation(conversationId: UUID): Int
+
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.conversationId = :conversationId
+          AND m.isDeleted = false
+          AND m.contentType IN (
+            com.muhabbet.messaging.domain.model.ContentType.IMAGE,
+            com.muhabbet.messaging.domain.model.ContentType.VIDEO,
+            com.muhabbet.messaging.domain.model.ContentType.DOCUMENT,
+            com.muhabbet.messaging.domain.model.ContentType.VOICE
+          )
+        ORDER BY m.serverTimestamp DESC
+        """
+    )
+    fun findMediaByConversationId(conversationId: UUID, pageable: Pageable): List<MessageJpaEntity>
 }

@@ -11,7 +11,7 @@ import kotlinx.datetime.Instant as KInstant
  * Centralizes the conversion logic that was previously duplicated
  * across MessageController, SearchController, and StarredMessageController.
  */
-fun Message.toSharedMessage(): SharedMessage = SharedMessage(
+fun Message.toSharedMessage(resolvedStatus: MessageStatus = MessageStatus.SENT): SharedMessage = SharedMessage(
     id = id.toString(),
     conversationId = conversationId.toString(),
     senderId = senderId.toString(),
@@ -20,7 +20,7 @@ fun Message.toSharedMessage(): SharedMessage = SharedMessage(
     replyToId = replyToId?.toString(),
     mediaUrl = mediaUrl,
     thumbnailUrl = thumbnailUrl,
-    status = MessageStatus.SENT,
+    status = resolvedStatus,
     serverTimestamp = KInstant.fromEpochMilliseconds(serverTimestamp.toEpochMilli()),
     clientTimestamp = KInstant.fromEpochMilliseconds(clientTimestamp.toEpochMilli()),
     editedAt = editedAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },

@@ -83,6 +83,7 @@ fun ChatScreen(
     onBack: () -> Unit,
     onTitleClick: () -> Unit = {},
     onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null,
+    onMessageInfo: ((messageId: String) -> Unit)? = null,
     messageRepository: MessageRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
@@ -355,7 +356,8 @@ fun ChatScreen(
                                                         else messageRepository.addReaction(message.id, emoji)
                                                     } catch (_: Exception) { }
                                                 }
-                                            }
+                                            },
+                                            onInfo = { contextMenuMessageId = null; onMessageInfo?.invoke(message.id) }
                                         )
                                     }
                                 }

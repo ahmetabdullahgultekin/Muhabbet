@@ -338,6 +338,27 @@ data class MutualGroupResponse(
     val memberCount: Int
 )
 
+// ─── Message Info ────────────────────────────────────────
+
+@Serializable
+data class MessageInfoResponse(
+    val messageId: String,
+    val conversationId: String,
+    val senderId: String,
+    val content: String,
+    val contentType: String,
+    val sentAt: String,
+    val recipients: List<RecipientDeliveryInfo>
+)
+
+@Serializable
+data class RecipientDeliveryInfo(
+    val userId: String,
+    val displayName: String?,
+    val status: String,
+    val updatedAt: String?
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable

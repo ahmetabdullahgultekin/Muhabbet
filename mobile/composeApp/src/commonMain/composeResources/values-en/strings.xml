@@ -243,4 +243,21 @@
     <string name="notification_reply_action">Reply</string>
     <string name="notification_reply_sent">Reply sent</string>
     <string name="notification_new_message_fallback">New message</string>
+
+    <!-- Round 3 -->
+    <string name="call_coming_soon">Calling feature coming soon</string>
+    <string name="video_play">Play video</string>
+    <string name="starred_you">You</string>
+    <string name="shared_media_title">Shared Media</string>
+    <string name="shared_media_empty">No shared media</string>
+    <string name="shared_media_images">Photos</string>
+    <string name="shared_media_documents">Documents</string>
+    <string name="status_add">Add Status</string>
+    <string name="status_add_photo">Add Photo</string>
+    <string name="chat_context_info">Message Info</string>
+    <string name="message_info_title">Message Info</string>
+    <string name="message_info_sent_at">Sent</string>
+    <string name="message_info_delivered_at">Delivered</string>
+    <string name="message_info_read_at">Read</string>
+    <string name="profile_contact_name">Contact Name</string>
 </resources>

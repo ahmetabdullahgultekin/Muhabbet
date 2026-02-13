@@ -29,4 +29,10 @@ interface MessageRepository {
 
     // Media count
     fun countMediaInConversation(conversationId: UUID): Int
+
+    // Batch delivery status lookup
+    fun getDeliveryStatuses(messageIds: List<UUID>): List<MessageDeliveryStatus>
+
+    // Media messages for shared media screen
+    fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message>
 }

@@ -61,8 +61,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.StatusRepository
+import com.muhabbet.app.platform.PickedImage
+import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.model.Message
@@ -104,7 +107,8 @@ fun ConversationListScreen(
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
-    statusRepository: StatusRepository = koinInject()
+    statusRepository: StatusRepository = koinInject(),
+    mediaRepository: MediaRepository = koinInject()
 ) {
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -134,6 +138,11 @@ fun ConversationListScreen(
     var statusGroups by remember { mutableStateOf<List<UserStatusGroup>>(emptyList()) }
     var showStatusInput by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
+    var statusPickedImage by remember { mutableStateOf<PickedImage?>(null) }
+    var isUploadingStatus by remember { mutableStateOf(false) }
+    val statusImagePicker = rememberImagePickerLauncher { image ->
+        statusPickedImage = image
+    }
 
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_load_conversations)
@@ -222,37 +231,71 @@ fun ConversationListScreen(
     // Status creation dialog
     if (showStatusInput) {
         AlertDialog(
-            onDismissRequest = { showStatusInput = false; statusText = "" },
+            onDismissRequest = { showStatusInput = false; statusText = ""; statusPickedImage = null },
             title = { Text(stringResource(Res.string.status_create_title)) },
             text = {
-                OutlinedTextField(
-                    value = statusText,
-                    onValueChange = { statusText = it },
-                    placeholder = { Text(stringResource(Res.string.status_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
-                )
+                Column {
+                    OutlinedTextField(
+                        value = statusText,
+                        onValueChange = { statusText = it },
+                        placeholder = { Text(stringResource(Res.string.status_placeholder)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { statusImagePicker.launch() }) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(Res.string.status_add_photo))
+                        }
+                        if (statusPickedImage != null) {
+                            Text(
+                                text = statusPickedImage!!.fileName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    if (isUploadingStatus) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val text = statusText.trim()
-                        if (text.isNotEmpty()) {
-                            showStatusInput = false
-                            statusText = ""
+                        if (text.isNotEmpty() || statusPickedImage != null) {
+                            isUploadingStatus = true
                             scope.launch {
                                 try {
-                                    statusRepository.createStatus(content = text, mediaUrl = null)
+                                    var mediaUrl: String? = null
+                                    statusPickedImage?.let { img ->
+                                        val upload = mediaRepository.uploadImage(img.bytes, img.mimeType, img.fileName)
+                                        mediaUrl = upload.url
+                                    }
+                                    statusRepository.createStatus(
+                                        content = text.ifEmpty { null },
+                                        mediaUrl = mediaUrl
+                                    )
                                     statusGroups = statusRepository.getContactStatuses()
                                 } catch (_: Exception) { }
+                                isUploadingStatus = false
+                                showStatusInput = false
+                                statusText = ""
+                                statusPickedImage = null
                             }
                         }
                     },
-                    enabled = statusText.isNotBlank()
+                    enabled = (statusText.isNotBlank() || statusPickedImage != null) && !isUploadingStatus
                 ) { Text(stringResource(Res.string.status_post)) }
             },
             dismissButton = {
-                TextButton(onClick = { showStatusInput = false; statusText = "" }) {
+                TextButton(onClick = { showStatusInput = false; statusText = ""; statusPickedImage = null }) {
                     Text(cancelText)
                 }
             }

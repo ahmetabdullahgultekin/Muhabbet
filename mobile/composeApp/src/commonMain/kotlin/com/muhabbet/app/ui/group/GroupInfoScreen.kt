@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
+import androidx.compose.material.icons.filled.Image
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole
@@ -68,6 +69,7 @@ fun GroupInfoScreen(
     conversationName: String,
     onBack: () -> Unit,
     onMemberClick: (userId: String) -> Unit = {},
+    onSharedMediaClick: (() -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
@@ -220,6 +222,32 @@ fun GroupInfoScreen(
                         )
                     }
                     HorizontalDivider()
+                }
+
+                // Shared media row
+                if (onSharedMediaClick != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSharedMediaClick)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Image,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = stringResource(Res.string.shared_media_title),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        HorizontalDivider()
+                    }
                 }
 
                 // Members header

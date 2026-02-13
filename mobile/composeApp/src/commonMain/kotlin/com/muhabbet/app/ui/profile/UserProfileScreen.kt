@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,10 +44,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.shared.dto.MutualGroupResponse
 import com.muhabbet.shared.dto.UserProfileDetailResponse
+import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.datetime.toLocalDateTime
@@ -57,16 +61,22 @@ import org.koin.compose.koinInject
 @Composable
 fun UserProfileScreen(
     userId: String,
+    contactName: String? = null,
+    conversationId: String? = null,
     onBack: () -> Unit,
     onMessageClick: (() -> Unit)? = null,
     onGroupClick: ((conversationId: String, name: String) -> Unit)? = null,
+    onSharedMediaClick: ((conversationId: String) -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject()
 ) {
     var profile by remember { mutableStateOf<UserProfileDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val errorMsg = stringResource(Res.string.profile_load_failed)
+    val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
 
     LaunchedEffect(userId) {
         try {
@@ -92,7 +102,8 @@ fun UserProfileScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -127,6 +138,15 @@ fun UserProfileScreen(
                             fontWeight = FontWeight.Bold
                         )
 
+                        // Show contact name if different from display name
+                        if (contactName != null && contactName != p.displayName) {
+                            Text(
+                                text = "~${contactName}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
                         if (p.isOnline) {
                             Text(
                                 text = stringResource(Res.string.chat_online),
@@ -160,7 +180,7 @@ fun UserProfileScreen(
                         ProfileActionButton(
                             icon = Icons.Default.Call,
                             label = stringResource(Res.string.profile_action_call),
-                            onClick = { /* Call signaling — to be wired with WebRTC */ }
+                            onClick = { scope.launch { snackbarHostState.showSnackbar(callComingSoonMsg) } }
                         )
                     }
                     Spacer(Modifier.height(8.dp))
@@ -191,6 +211,9 @@ fun UserProfileScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable(enabled = conversationId != null) {
+                                    conversationId?.let { onSharedMediaClick?.invoke(it) }
+                                }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {

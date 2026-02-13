@@ -1,14 +1,12 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.PaginatedResponse
-import com.muhabbet.shared.model.ContentType as SharedContentType
 import com.muhabbet.shared.model.Message as SharedMessage
-import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
-import kotlinx.datetime.Instant as KInstant
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -22,7 +20,8 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/starred")
 class StarredMessageController(
-    private val starredMessageRepository: StarredMessageRepository
+    private val starredMessageRepository: StarredMessageRepository,
+    private val getMessageHistoryUseCase: GetMessageHistoryUseCase
 ) {
 
     @PostMapping("/{messageId}")
@@ -47,7 +46,10 @@ class StarredMessageController(
         val userId = AuthenticatedUser.currentUserId()
         val messages = starredMessageRepository.getStarredMessages(userId, limit, offset)
 
-        val items = messages.map { it.toSharedMessage() }
+        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
+        val items = messages.map { msg ->
+            msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
+        }
 
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = null, hasMore = messages.size >= limit)

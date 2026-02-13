@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.PollResultResponse
 import com.muhabbet.shared.dto.PollVoteRequest
@@ -69,5 +70,15 @@ class MessageRepository(private val apiClient: ApiClient) {
     suspend fun getReactions(messageId: String): List<ReactionResponse> {
         val response = apiClient.get<List<ReactionResponse>>("/api/v1/messages/$messageId/reactions")
         return response.data ?: emptyList()
+    }
+
+    suspend fun getMediaMessages(conversationId: String, limit: Int = 50, offset: Int = 0): PaginatedResponse<Message> {
+        val response = apiClient.get<PaginatedResponse<Message>>("/api/v1/conversations/$conversationId/media?limit=$limit&offset=$offset")
+        return response.data ?: PaginatedResponse(emptyList(), null, false)
+    }
+
+    suspend fun getMessageInfo(messageId: String): MessageInfoResponse {
+        val response = apiClient.get<MessageInfoResponse>("/api/v1/messages/$messageId/info")
+        return response.data ?: throw Exception("Failed to load message info")
     }
 }

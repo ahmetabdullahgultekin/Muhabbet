@@ -13,6 +13,8 @@ interface SpringDataMessageDeliveryStatusRepository : JpaRepository<MessageDeliv
 
     fun findByMessageIdAndUserId(messageId: UUID, userId: UUID): MessageDeliveryStatusJpaEntity?
 
+    fun findByMessageIdIn(messageIds: List<UUID>): List<MessageDeliveryStatusJpaEntity>
+
     @Query(
         """
         SELECT COUNT(m) FROM MessageJpaEntity m
