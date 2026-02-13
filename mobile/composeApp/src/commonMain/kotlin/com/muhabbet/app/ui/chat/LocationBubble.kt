@@ -52,9 +52,9 @@ fun LocationBubble(
         )
         Spacer(Modifier.width(8.dp))
         Column {
-            if (locationData.label != null) {
+            locationData.label?.let { labelText ->
                 Text(
-                    text = locationData.label,
+                    text = labelText,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isOwn) MaterialTheme.colorScheme.onPrimary

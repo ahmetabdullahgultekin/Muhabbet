@@ -47,6 +47,7 @@ class ConversationController(
         val type = when (request.type) {
             com.muhabbet.shared.model.ConversationType.DIRECT -> ConversationType.DIRECT
             com.muhabbet.shared.model.ConversationType.GROUP -> ConversationType.GROUP
+            com.muhabbet.shared.model.ConversationType.CHANNEL -> ConversationType.CHANNEL
         }
 
         val result = createConversationUseCase.createConversation(
@@ -149,7 +150,7 @@ class ConversationController(
     fun pinConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
-            ?: return ApiResponseBuilder.notFound("Not a member")
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
         member.pinned = true
         member.pinnedAt = Instant.now()
         memberRepo.save(member)
@@ -161,7 +162,7 @@ class ConversationController(
     fun unpinConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
-            ?: return ApiResponseBuilder.notFound("Not a member")
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
         member.pinned = false
         member.pinnedAt = null
         memberRepo.save(member)

@@ -166,14 +166,15 @@ private fun ChannelItem(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
-            if (channel.description != null) {
+            channel.description?.let { desc ->
                 Text(
-                    text = channel.description,
+                    text = desc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }
+
             Text(
                 text = stringResource(Res.string.channels_subscriber_count, channel.subscriberCount),
                 style = MaterialTheme.typography.labelSmall,

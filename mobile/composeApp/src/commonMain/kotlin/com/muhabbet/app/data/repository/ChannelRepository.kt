@@ -15,6 +15,6 @@ class ChannelRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun unsubscribe(channelId: String) {
-        apiClient.delete("/api/v1/channels/$channelId/subscribe")
+        apiClient.delete<Unit>("/api/v1/channels/$channelId/subscribe")
     }
 }

@@ -1,10 +1,5 @@
 package com.muhabbet.app.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -342,8 +337,8 @@ fun ChatScreen(
                         }
                         if (peerTyping) item(key = "typing") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) { TypingIndicatorBubble() } }
                     }
-                    AnimatedVisibility(showScrollToBottom.value, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut(), modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
-                        Surface(onClick = { scope.launch { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) } }, shape = CircleShape, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.surface, modifier = Modifier.size(44.dp)) {
+                    if (showScrollToBottom.value) {
+                        Surface(onClick = { scope.launch { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) } }, shape = CircleShape, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.surface, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).size(44.dp)) {
                             Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary) }
                         }
                     }

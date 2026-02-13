@@ -30,7 +30,7 @@ class ApiClient(private val tokenStorage: TokenStorage) {
 
     companion object {
         const val BASE_URL = "https://muhabbet.rollingcatsoftware.com"
-        private const val TAG = "ApiClient"
+        @PublishedApi internal const val TAG = "ApiClient"
     }
 
     val json = Json {

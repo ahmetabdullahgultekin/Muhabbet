@@ -19,7 +19,7 @@ class DisappearingMessageCleanupJob(
         val now = Instant.now()
         val expired = messageRepo.findExpiredMessages(now)
         if (expired.isNotEmpty()) {
-            expired.forEach { it.isDeleted = true; it.deletedAt = now; it.content = "" }
+            expired.forEach { it.isDeleted = true; it.deletedAt = now }
             messageRepo.saveAll(expired)
             log.info("Cleaned {} expired disappearing messages", expired.size)
         }

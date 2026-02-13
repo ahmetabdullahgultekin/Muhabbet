@@ -28,7 +28,7 @@ class MessageRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun unstarMessage(messageId: String) {
-        apiClient.delete("/api/v1/starred/$messageId")
+        apiClient.delete<Unit>("/api/v1/starred/$messageId")
     }
 
     suspend fun getStarredMessages(limit: Int = 50, offset: Int = 0): PaginatedResponse<Message> {
@@ -63,7 +63,7 @@ class MessageRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun removeReaction(messageId: String, emoji: String) {
-        apiClient.delete("/api/v1/messages/$messageId/reactions/$emoji")
+        apiClient.delete<Unit>("/api/v1/messages/$messageId/reactions/$emoji")
     }
 
     suspend fun getReactions(messageId: String): List<ReactionResponse> {

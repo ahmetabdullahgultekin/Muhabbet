@@ -26,6 +26,6 @@ class StatusRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun deleteStatus(statusId: String) {
-        apiClient.delete("/api/v1/statuses/$statusId")
+        apiClient.delete<Unit>("/api/v1/statuses/$statusId")
     }
 }

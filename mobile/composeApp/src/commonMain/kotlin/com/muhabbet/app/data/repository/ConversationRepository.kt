@@ -63,6 +63,6 @@ class ConversationRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun unpinConversation(conversationId: String) {
-        apiClient.delete("/api/v1/conversations/$conversationId/pin")
+        apiClient.delete<Unit>("/api/v1/conversations/$conversationId/pin")
     }
 }

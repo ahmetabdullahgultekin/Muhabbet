@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,9 @@ import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
@@ -207,9 +211,9 @@ fun LocationShareDialog(
     onSend: (LocationData) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var locationLabel by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    var locationLat by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    var locationLng by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var locationLabel by remember { mutableStateOf("") }
+    var locationLat by remember { mutableStateOf("") }
+    var locationLng by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = {
@@ -270,8 +274,8 @@ fun PollCreateDialog(
     onSend: (PollData) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var pollQuestion by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    var pollOptions by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(listOf("", "")) }
+    var pollQuestion by remember { mutableStateOf("") }
+    var pollOptions by remember { mutableStateOf(listOf("", "")) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
