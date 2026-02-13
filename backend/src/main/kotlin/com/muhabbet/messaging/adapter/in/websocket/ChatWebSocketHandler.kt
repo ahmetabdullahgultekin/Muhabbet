@@ -344,17 +344,11 @@ class ChatWebSocketHandler(
         )
         val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
 
-        // Find all conversations this user belongs to, then notify online members
-        val conversations = conversationRepository.findConversationsByUserId(userId)
-        val notifiedUsers = mutableSetOf<UUID>()
-
-        conversations.forEach { conv ->
-            val members = conversationRepository.findMembersByConversationId(conv.id)
-            members.forEach { member ->
-                if (member.userId != userId && member.userId !in notifiedUsers && sessionManager.isOnline(member.userId)) {
-                    sessionManager.sendToUser(member.userId, json)
-                    notifiedUsers.add(member.userId)
-                }
+        // Single query to get all unique user IDs across all conversations (replaces N+1 pattern)
+        val contactUserIds = conversationRepository.findAllContactUserIds(userId)
+        contactUserIds.forEach { contactId ->
+            if (sessionManager.isOnline(contactId)) {
+                sessionManager.sendToUser(contactId, json)
             }
         }
     }

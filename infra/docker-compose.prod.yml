@@ -31,6 +31,8 @@ services:
       FCM_ENABLED: "true"
       FCM_CREDENTIALS_PATH: /app/firebase-adminsdk.json
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # JVM tuning for e2-medium (2 vCPU, 4GB RAM)
+      JAVA_OPTS: "-Xms512m -Xmx768m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
     volumes:
       - ./firebase-adminsdk.json:/app/firebase-adminsdk.json:ro
     depends_on:
@@ -38,6 +40,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 768M
     restart: unless-stopped
     networks:
       - muhabbet-net
@@ -52,6 +62,27 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # PostgreSQL performance tuning for e2-medium
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c work_mem=16MB
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c wal_buffers=16MB
+      -c max_wal_size=2GB
+      -c checkpoint_completion_target=0.9
+      -c max_connections=50
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1536M
+        reservations:
+          cpus: '0.25'
+          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
       interval: 10s
@@ -65,9 +96,25 @@ services:
   redis:
     image: redis:7-alpine
     container_name: muhabbet-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --timeout 600
+      --tcp-keepalive 300
+      --databases 2
+      --lazyfree-lazy-eviction yes
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -87,6 +134,14 @@ services:
     volumes:
       - minio_data:/data
     command: server /data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -109,6 +164,11 @@ services:
       - certbot_www:/var/www/certbot:ro
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
     restart: unless-stopped
     networks:
       - muhabbet-net

@@ -23,6 +23,10 @@ interface MessageRepository {
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
     fun getLastMessage(conversationId: UUID): Message?
 
+    // Batch operations for inbox optimization (avoids N+1 queries)
+    fun getLastMessages(conversationIds: List<UUID>): Map<UUID, Message>
+    fun getUnreadCounts(conversationIds: List<UUID>, userId: UUID): Map<UUID, Int>
+
     // Message management
     fun softDelete(messageId: UUID)
     fun updateContent(messageId: UUID, newContent: String, editedAt: Instant)

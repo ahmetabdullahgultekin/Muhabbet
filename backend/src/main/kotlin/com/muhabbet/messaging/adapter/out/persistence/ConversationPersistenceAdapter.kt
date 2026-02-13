@@ -33,6 +33,13 @@ class ConversationPersistenceAdapter(
     override fun findMembersByConversationId(conversationId: UUID): List<ConversationMember> =
         memberRepo.findByConversationId(conversationId).map { it.toDomain() }
 
+    override fun findMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, List<ConversationMember>> {
+        if (conversationIds.isEmpty()) return emptyMap()
+        return memberRepo.findByConversationIdIn(conversationIds)
+            .map { it.toDomain() }
+            .groupBy { it.conversationId }
+    }
+
     override fun findMember(conversationId: UUID, userId: UUID): ConversationMember? =
         memberRepo.findByConversationIdAndUserId(conversationId, userId)?.toDomain()
 
@@ -41,6 +48,9 @@ class ConversationPersistenceAdapter(
         val conversationIds = memberEntries.map { it.conversationId }
         return conversationRepo.findAllById(conversationIds).map { it.toDomain() }
     }
+
+    override fun findAllContactUserIds(userId: UUID): Set<UUID> =
+        memberRepo.findAllContactUserIds(userId)
 
     override fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID? =
         directLookupRepo.findByUserIdLowAndUserIdHigh(userIdLow, userIdHigh)?.conversationId
@@ -78,7 +88,6 @@ class ConversationPersistenceAdapter(
     }
 
     override fun findByType(type: ConversationType): List<Conversation> =
-        conversationRepo.findAll()
-            .filter { it.type == type }
+        conversationRepo.findByType(type.name.lowercase())
             .map { it.toDomain() }
 }

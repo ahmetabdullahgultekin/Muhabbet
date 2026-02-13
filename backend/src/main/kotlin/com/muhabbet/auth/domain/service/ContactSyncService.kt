@@ -32,8 +32,12 @@ open class ContactSyncService(
         // Exclude the requesting user's own hash
         val filtered = hashToUserId.filter { (_, matchedUserId) -> matchedUserId != userId }
 
+        // Batch load all matched users in one query (was N individual queries)
+        val matchedUserIds = filtered.map { it.value }
+        val usersMap = userRepository.findAllByIds(matchedUserIds).associateBy { it.id }
+
         val matchedContacts = filtered.mapNotNull { (phoneHash, matchedUserId) ->
-            val user = userRepository.findById(matchedUserId) ?: return@mapNotNull null
+            val user = usersMap[matchedUserId] ?: return@mapNotNull null
             MatchedContact(
                 userId = matchedUserId.toString(),
                 phoneHash = phoneHash,

@@ -9,8 +9,10 @@ interface ConversationRepository {
     fun findById(id: UUID): Conversation?
     fun saveMember(member: ConversationMember): ConversationMember
     fun findMembersByConversationId(conversationId: UUID): List<ConversationMember>
+    fun findMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, List<ConversationMember>>
     fun findMember(conversationId: UUID, userId: UUID): ConversationMember?
     fun findConversationsByUserId(userId: UUID): List<Conversation>
+    fun findAllContactUserIds(userId: UUID): Set<UUID>
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?
     fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID)
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: java.time.Instant)

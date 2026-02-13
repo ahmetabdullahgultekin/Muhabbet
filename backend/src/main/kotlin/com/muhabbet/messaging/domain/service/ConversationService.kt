@@ -34,12 +34,11 @@ open class ConversationService(
         participantIds: List<UUID>,
         name: String?
     ): ConversationWithMembers {
-        // Validate participants exist
+        // Validate participants exist (batch query instead of N individual lookups)
         val allParticipantIds = (participantIds + creatorId).distinct()
-        for (pid in allParticipantIds) {
-            if (userRepository.findById(pid) == null) {
-                throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
-            }
+        val existingUsers = userRepository.findAllByIds(allParticipantIds)
+        if (existingUsers.size != allParticipantIds.size) {
+            throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
         }
 
         if (type == ConversationType.DIRECT) {
@@ -103,13 +102,20 @@ open class ConversationService(
     @Transactional(readOnly = true)
     override fun getConversations(userId: UUID, cursor: String?, limit: Int): ConversationPage {
         val conversations = conversationRepository.findConversationsByUserId(userId)
+        if (conversations.isEmpty()) {
+            return ConversationPage(items = emptyList(), nextCursor = null, hasMore = false)
+        }
 
-        // Build summaries with last message info
+        val conversationIds = conversations.map { it.id }
+
+        // Batch queries: 3 queries instead of 3*N (critical N+1 fix)
+        val lastMessageMap = messageRepository.getLastMessages(conversationIds)
+        val unreadCountMap = messageRepository.getUnreadCounts(conversationIds, userId)
+        val membersMap = conversationRepository.findMembersByConversationIds(conversationIds)
+
         val summaries = conversations.map { conv ->
-            val lastMessage = messageRepository.getLastMessage(conv.id)
-            val unreadCount = messageRepository.getUnreadCount(conv.id, userId)
-            val members = conversationRepository.findMembersByConversationId(conv.id)
-            val memberIds = members.map { it.userId }
+            val lastMessage = lastMessageMap[conv.id]
+            val members = membersMap[conv.id] ?: emptyList()
             val myMember = members.firstOrNull { it.userId == userId }
 
             ConversationSummary(
@@ -119,8 +125,8 @@ open class ConversationService(
                 avatarUrl = conv.avatarUrl,
                 lastMessagePreview = lastMessage?.content?.take(100),
                 lastMessageAt = lastMessage?.serverTimestamp?.toString(),
-                unreadCount = unreadCount,
-                participantIds = memberIds,
+                unreadCount = unreadCountMap[conv.id] ?: 0,
+                participantIds = members.map { it.userId },
                 disappearAfterSeconds = conv.disappearAfterSeconds,
                 isPinned = myMember?.pinned ?: false
             )

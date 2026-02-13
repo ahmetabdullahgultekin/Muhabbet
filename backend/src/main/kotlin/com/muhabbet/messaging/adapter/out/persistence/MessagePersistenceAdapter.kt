@@ -64,6 +64,18 @@ class MessagePersistenceAdapter(
     override fun getLastMessage(conversationId: UUID): Message? =
         messageRepo.findLastByConversationId(conversationId)?.toDomain()
 
+    override fun getLastMessages(conversationIds: List<UUID>): Map<UUID, Message> {
+        if (conversationIds.isEmpty()) return emptyMap()
+        return messageRepo.findLastMessagesByConversationIds(conversationIds)
+            .associate { it.conversationId to it.toDomain() }
+    }
+
+    override fun getUnreadCounts(conversationIds: List<UUID>, userId: UUID): Map<UUID, Int> {
+        if (conversationIds.isEmpty()) return emptyMap()
+        return deliveryStatusRepo.countUnreadByConversations(conversationIds, userId, DeliveryStatus.READ)
+            .associate { row -> (row[0] as UUID) to (row[1] as Long).toInt() }
+    }
+
     override fun softDelete(messageId: UUID) {
         messageRepo.softDelete(messageId)
     }

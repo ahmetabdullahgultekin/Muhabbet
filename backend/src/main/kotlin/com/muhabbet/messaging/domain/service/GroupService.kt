@@ -47,10 +47,12 @@ open class GroupService(
             throw BusinessException(ErrorCode.CONV_MAX_MEMBERS)
         }
 
-        // Validate all users exist
-        newUserIds.forEach { uid ->
-            userRepository.findById(uid) ?: throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
+        // Validate all users exist (batch query instead of N individual lookups)
+        val validUsers = userRepository.findAllByIds(newUserIds)
+        if (validUsers.size != newUserIds.size) {
+            throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
         }
+        val usersMap = validUsers.associateBy { it.id }
 
         val addedMembers = newUserIds.map { uid ->
             conversationRepository.saveMember(
@@ -58,10 +60,10 @@ open class GroupService(
             )
         }
 
-        // Broadcast to all group members
+        // Broadcast to all group members (use pre-loaded users map)
         val allMemberIds = (existingUserIds + newUserIds).toList()
         val memberInfos = addedMembers.map { m ->
-            val user = userRepository.findById(m.userId)
+            val user = usersMap[m.userId]
             GroupMemberInfo(userId = m.userId.toString(), displayName = user?.displayName, role = m.role.name)
         }
         messageBroadcaster.broadcastToUsers(

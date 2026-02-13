@@ -51,6 +51,20 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun findLastByConversationId(conversationId: UUID): MessageJpaEntity?
 
+    // Batch fetch last message per conversation (replaces N individual queries)
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.isDeleted = false
+          AND m.conversationId IN :conversationIds
+          AND m.serverTimestamp = (
+            SELECT MAX(m2.serverTimestamp) FROM MessageJpaEntity m2
+            WHERE m2.conversationId = m.conversationId AND m2.isDeleted = false
+          )
+        """
+    )
+    fun findLastMessagesByConversationIds(conversationIds: List<UUID>): List<MessageJpaEntity>
+
     @Query(
         """
         SELECT m FROM MessageJpaEntity m

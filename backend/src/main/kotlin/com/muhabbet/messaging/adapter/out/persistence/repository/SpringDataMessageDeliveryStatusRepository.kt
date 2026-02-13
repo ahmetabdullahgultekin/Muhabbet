@@ -27,6 +27,20 @@ interface SpringDataMessageDeliveryStatusRepository : JpaRepository<MessageDeliv
     )
     fun countUnread(conversationId: UUID, userId: UUID, readStatus: DeliveryStatus): Int
 
+    // Batch unread counts for inbox (replaces N individual countUnread calls)
+    @Query(
+        """
+        SELECT m.conversationId, COUNT(m) FROM MessageJpaEntity m
+        LEFT JOIN MessageDeliveryStatusJpaEntity ds ON ds.messageId = m.id AND ds.userId = :userId
+        WHERE m.conversationId IN :conversationIds
+          AND m.isDeleted = false
+          AND m.senderId != :userId
+          AND (ds.status IS NULL OR ds.status != :readStatus)
+        GROUP BY m.conversationId
+        """
+    )
+    fun countUnreadByConversations(conversationIds: List<UUID>, userId: UUID, readStatus: DeliveryStatus): List<Array<Any>>
+
     @Modifying
     @Query(
         """
