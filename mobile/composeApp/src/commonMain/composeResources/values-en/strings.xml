@@ -280,4 +280,27 @@
     <string name="storage_loading">Loading…</string>
     <string name="storage_error">Failed to load storage info</string>
     <string name="storage_items">%1$d items</string>
+
+    <!-- Calls -->
+    <string name="calls_title">Calls</string>
+    <string name="call_incoming">Incoming Call</string>
+    <string name="call_outgoing">Outgoing Call</string>
+    <string name="call_missed">Missed Call</string>
+    <string name="call_declined">Declined Call</string>
+    <string name="call_voice">Voice Call</string>
+    <string name="call_video">Video Call</string>
+    <string name="call_accept">Accept</string>
+    <string name="call_decline">Decline</string>
+    <string name="call_end">End Call</string>
+    <string name="call_mute">Mute</string>
+    <string name="call_unmute">Unmute</string>
+    <string name="call_speaker">Speaker</string>
+    <string name="call_calling">Calling…</string>
+    <string name="call_ringing">Ringing…</string>
+    <string name="call_connected">Connected</string>
+    <string name="call_ended">Call Ended</string>
+    <string name="call_duration">%1$02d:%2$02d</string>
+    <string name="call_history_empty">No calls yet</string>
+    <string name="call_today">Today</string>
+    <string name="call_yesterday">Yesterday</string>
 </resources>

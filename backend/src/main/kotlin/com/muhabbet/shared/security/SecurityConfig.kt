@@ -25,11 +25,31 @@ class SecurityConfig(
             .csrf { it.disable() }
             .cors { it.configurationSource(corsConfigurationSource()) }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .headers { headers ->
+                // Prevent clickjacking
+                headers.frameOptions { it.deny() }
+                // Prevent MIME type sniffing
+                headers.contentTypeOptions { }
+                // HSTS — enforce HTTPS for 1 year, include subdomains
+                headers.httpStrictTransportSecurity {
+                    it.includeSubDomains(true)
+                    it.maxAgeInSeconds(31536000)
+                }
+                // XSS protection (legacy header, CSP is preferred)
+                headers.xssProtection { it.headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK) }
+                // Content Security Policy
+                headers.contentSecurityPolicy { it.policyDirectives("default-src 'self'; frame-ancestors 'none'; form-action 'self'") }
+                // Referrer Policy
+                headers.referrerPolicy { it.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
+                // Permissions Policy — restrict browser features
+                headers.permissionsPolicy { it.policy("camera=(), microphone=(), geolocation=(), payment=()") }
+            }
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/ws/**").permitAll()
+                    .requestMatchers("/actuator/info", "/actuator/metrics", "/actuator/prometheus").permitAll()
                     .anyRequest().authenticated()
             }
             .exceptionHandling { exceptions ->
