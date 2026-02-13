@@ -232,19 +232,25 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 23. ~~Channels/Broadcasts~~ — **DONE**
 24. ~~UI/UX polish~~ — **DONE** (reactions, swipe-to-reply, typing animation, FAB, filter chips, pinned chats, OLED theme, bubble tails, date pills, empty states, unread styling)
 
-### Next Phases
-- Profile viewing (tap user to see profile)
-- Contact details (show phone, about, saved name)
-- E2E encryption (Signal Protocol)
-- iOS release
+### Completed Phases
+- **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, ~125 backend tests, Stickers & GIFs
+- **Phase 3 (Partial)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK
+- **Phase 4 (Architecture)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion
+- **Phase 5 (iOS Foundation)**: Real iOS AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider implementations
 
-E2E encryption deferred to Phase 2 (TLS-only for MVP).
+### Remaining Work
+- Profile viewing & contact details screens
+- WebRTC client integration (LiveKit) — signaling backend is ready
+- E2E encryption client (Signal Protocol: X3DH, Double Ratchet)
+- iOS ImagePicker, APNs delivery, TestFlight
+- Security penetration testing
+- Web/Desktop client
 
-### Known Technical Debt (to address as project grows)
-- **Controllers with direct repo access**: `StatusController`, `ChannelController`, `PollController`, `DisappearingMessageController`, `ReactionController` bypass use case layer — refactor to use case pattern when these features need business logic changes.
-- **ChatScreen.kt is ~1700 lines**: Extract into focused composables (MessageListPane, MessageInputPane, ChatDialogs) when adding more features.
-- **MessagingService implements 7 use cases**: Split into ConversationService + MessageService + GroupService when complexity increases.
+### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
+- **iOS ImagePicker stub**: Returns null — needs PHPickerViewController implementation.
+- **CrashReporter.ios.kt stub**: Needs Sentry iOS CocoaPod integration.
+- **No mobile unit tests**: Backend has ~125 tests; mobile has none yet.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.

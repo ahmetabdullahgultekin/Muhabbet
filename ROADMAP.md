@@ -1,7 +1,7 @@
 # Muhabbet — Product Roadmap
 
 > **Last Updated**: February 13, 2026
-> **Status**: MVP feature-complete (24 features shipped). Preparing for Play Store internal testing.
+> **Status**: Phases 2-5 architecture & features implemented. Preparing for beta testing.
 
 ---
 
@@ -51,109 +51,134 @@
 
 ---
 
-## Phase 1 — Internal Testing Release (Current)
+## Phase 1 — Internal Testing Release (Manual Steps)
 
 **Goal**: Get the app on Play Store internal testing track.
 
-| # | Task | Effort | Status |
-|---|------|--------|--------|
-| 1.1 | Generate keystore + build signed AAB | 1 hour | Manual step |
-| 1.2 | Capture Play Store screenshots (8 screens) | 1 day | Manual step |
-| 1.3 | Create feature graphic (1024x500) | 1 day | Design |
-| 1.4 | Write store description (Turkish + English) | 1 hour | Content |
-| 1.5 | Complete IARC content rating questionnaire | 30 min | Manual step |
-| 1.6 | Smoke test: fresh install flow on 3+ devices | 1 day | QA |
-| 1.7 | Upload AAB + listing to Play Console | 1 hour | Manual step |
+| # | Task | Status |
+|---|------|--------|
+| 1.1 | Generate keystore + build signed AAB | Manual step |
+| 1.2 | Capture Play Store screenshots (8 screens) | Manual step |
+| 1.3 | Create feature graphic (1024x500) | Design |
+| 1.4 | Write store description (Turkish + English) | Content |
+| 1.5 | Complete IARC content rating questionnaire | Manual step |
+| 1.6 | Smoke test: fresh install flow on 3+ devices | QA |
+| 1.7 | Upload AAB + listing to Play Console | Manual step |
 
 ---
 
-## Phase 2 — Beta Quality (2-3 weeks)
+## Phase 2 — Beta Quality (Completed)
 
-**Goal**: Architecture cleanup + test coverage + missing social features.
+**Goal**: Architecture cleanup + test coverage + social features.
 
-| # | Task | Effort | Why |
-|---|------|--------|-----|
-| 2.1 | Increase test coverage 13% -> 40% (MessagingService, MediaService, controller integration tests, WebSocket handler tests) | 1 week | Catch regressions |
-| 2.2 | Refactor ChatScreen.kt (1,700 lines -> MessageListPane, MessageInputPane, ChatDialogs) | 2 days | SRP compliance |
-| 2.3 | Refactor 5 controllers with direct repo access (Status, Channel, Poll, DisappearingMessage, Reaction) to use case pattern | 2-3 days | Hexagonal compliance |
-| 2.4 | Split MessagingService into ConversationService + MessageService + GroupService | 1-2 days | SRP compliance |
-| 2.5 | Stickers & GIFs (GIPHY/Tenor API, sticker packs, new bubble types) | 1-2 weeks | User expectation |
-| 2.6 | Profile viewing (tap avatar to see full profile, phone, about, shared media) | 3-5 days | Basic social feature |
-| 2.7 | Contact details screen (phone number, about, mutual groups) | 2-3 days | Basic social feature |
-
----
-
-## Phase 3 — Public Beta & Voice Calls (4-8 weeks)
-
-**Goal**: Voice/video calls — the make-or-break feature for Turkish market.
-
-| # | Task | Effort | Why |
-|---|------|--------|-----|
-| 3.1 | Voice calls (1:1) — WebRTC via LiveKit SFU, call signaling, incoming call screen, in-call UI, call history | 3-4 weeks | Non-negotiable for WhatsApp replacement |
-| 3.2 | Video calls (1:1) — Camera toggle, picture-in-picture | 1-2 weeks | Natural extension |
-| 3.3 | Notification improvements — Grouping per conversation, inline reply, sound customization | 3-5 days | Beta feedback demand |
-| 3.4 | Performance optimization — Lazy loading (1000+ messages), image caching audit, WS resilience | 1 week | Scale preparation |
-| 3.5 | Crash reporting — Wire Sentry mobile SDK, basic analytics events | 2-3 days | Visibility for beta |
+| # | Task | Status |
+|---|------|--------|
+| 2.1 | Backend test coverage (MediaService, ConversationService, GroupService, WebSocket, RateLimit — ~125 tests) | DONE |
+| 2.2 | Refactor ChatScreen.kt (1,771→405 lines → MessageBubble, MessageInputPane, ChatDialogs) | DONE |
+| 2.3 | Refactor 5 controllers to use case pattern (Status, Channel, Poll, DisappearingMessage, Reaction) | DONE |
+| 2.4 | Split MessagingService → ConversationService + MessageService + GroupService | DONE |
+| 2.5 | Stickers & GIFs (GIPHY integration, GifStickerPicker, STICKER/GIF content types) | DONE |
+| 2.6 | Profile viewing (tap avatar to see full profile, phone, about, shared media) | Remaining |
+| 2.7 | Contact details screen (phone number, about, mutual groups) | Remaining |
 
 ---
 
-## Phase 4 — Trust & Security (6-12 weeks)
+## Phase 3 — Voice Calls & Monitoring (Partially Complete)
 
-**Goal**: E2E encryption and legal compliance.
+**Goal**: Voice/video calls and operational visibility.
 
-| # | Task | Effort | Why |
-|---|------|--------|-----|
-| 4.1 | E2E encryption (Signal Protocol) — Key generation, X3DH, Double Ratchet, key verification. Start with opt-in "Secret Chat" | 6-10 weeks | Core differentiator |
-| 4.2 | KVKK compliance audit — Data export endpoint, hard account deletion, retention policies, consent flows | 1-2 weeks | Legal requirement |
-| 4.3 | Security penetration testing — OWASP ZAP/Burp Suite, fix findings | 2-4 weeks | Before public launch |
-
----
-
-## Phase 5 — Multi-Platform & Growth (8-16 weeks)
-
-**Goal**: iOS, web client, and growth features.
-
-| # | Task | Effort | Why |
-|---|------|--------|-----|
-| 5.1 | iOS release — Platform module, APNs, contact sync, audio, image picker, TestFlight | 4-6 weeks | 40% of Turkish smartphones |
-| 5.2 | Web client / Desktop — React+TS or Kotlin/JS, QR device linking, message sync | 4-8 weeks | Power users |
-| 5.3 | Group voice/video calls — Multi-party LiveKit rooms, participant grid | 2-3 weeks | Feature parity |
-| 5.4 | Channel monetization — Analytics, subscriber mgmt, tipping | 2-3 weeks | Revenue |
-| 5.5 | CDN for media — CloudFront/CDN for media delivery at scale | 1-2 weeks | Scale preparation |
+| # | Task | Status |
+|---|------|--------|
+| 3.1 | Call signaling infrastructure (WebSocket: CallInitiate/Answer/IceCandidate/End, CallSignalingService, call history DB) | DONE |
+| 3.2 | Voice calls (1:1) — WebRTC integration, incoming call screen, in-call UI | Remaining (needs WebRTC/LiveKit client) |
+| 3.3 | Video calls (1:1) — Camera toggle, picture-in-picture | Remaining |
+| 3.4 | Notification improvements (grouping per conversation, inline reply, channels) | DONE |
+| 3.5 | Crash reporting — Sentry mobile SDK (CrashReporter expect/actual, auto-init) | DONE |
+| 3.6 | Performance optimization — Lazy loading, image caching audit, WS resilience | Remaining |
 
 ---
 
-## Key Decision Points
+## Phase 4 — Trust & Security (Architecture Complete)
 
-1. **Before Phase 3**: Choose WebRTC provider — LiveKit Cloud (managed, free dev tier) vs self-hosted LiveKit on GCP
-2. **Before Phase 4**: Choose E2E library — `libsignal-client` (battle-tested, used by Signal/WhatsApp) vs custom
-3. **Before Phase 5 (iOS)**: CMP iOS target vs native SwiftUI for better platform feel
-4. **Revenue model**: Ad-free premium? Freemium? Channel monetization? Decide before Phase 5
+**Goal**: E2E encryption foundation and KVKK legal compliance.
+
+| # | Task | Status |
+|---|------|--------|
+| 4.1 | E2E encryption architecture (EncryptionKeyBundle, OneTimePreKeys, key exchange endpoints, EncryptionService, DB migrations) | DONE (architecture) |
+| 4.2 | E2E encryption client integration (Signal Protocol: X3DH, Double Ratchet, key verification UI) | Remaining |
+| 4.3 | KVKK compliance (data export endpoint, account soft-deletion, UserDataController) | DONE |
+| 4.4 | Security penetration testing (OWASP ZAP/Burp Suite, fix findings) | Remaining |
+
+---
+
+## Phase 5 — Multi-Platform & Growth (iOS Foundation Done)
+
+**Goal**: iOS release, web client, growth features.
+
+| # | Task | Status |
+|---|------|--------|
+| 5.1 | iOS platform modules (AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider — real implementations) | DONE |
+| 5.2 | iOS remaining (ImagePicker, APNs delivery, TestFlight, App Store listing) | Remaining |
+| 5.3 | Web client / Desktop (React+TS or Kotlin/JS, QR device linking, message sync) | Remaining |
+| 5.4 | Group voice/video calls (multi-party LiveKit rooms, participant grid) | Remaining |
+| 5.5 | Channel monetization (analytics, subscriber mgmt, tipping) | Remaining |
+| 5.6 | CDN for media (CloudFront/CDN for media delivery at scale) | Remaining |
+
+---
+
+## Remaining Work Summary
+
+### High Priority (Beta Release Blockers)
+1. **WebRTC client integration** — Connect call signaling to actual WebRTC (LiveKit SFU recommended). Backend signaling is done; needs mobile call UI + media streams.
+2. **Profile & contact details screens** — Users expect to tap avatars and see profile info.
+3. **iOS ImagePicker** — Currently stubbed; needed for iOS photo sharing.
+
+### Medium Priority (Pre-Public Launch)
+4. **E2E encryption client** — Server-side key exchange is built; needs Signal Protocol client library (libsignal-client) for actual encryption/decryption.
+5. **Security penetration testing** — Run OWASP ZAP before public launch.
+6. **Performance optimization** — Test with 1000+ messages, audit image caching.
+
+### Low Priority (Growth Phase)
+7. **Web/Desktop client** — Power user demand.
+8. **Group calls** — After 1:1 calls are stable.
+9. **Channel monetization** — Revenue feature.
+10. **CDN** — When media traffic justifies it.
 
 ---
 
 ## Technical Debt Tracker
 
-| Debt | Severity | Phase to Fix |
-|------|----------|-------------|
-| ChatScreen.kt ~1,700 lines | High | Phase 2 |
-| 5 controllers bypass use case layer | Medium | Phase 2 |
-| MessagingService implements 7 use cases | Medium | Phase 2 |
-| Test coverage at 13% | High | Phase 2 |
+| Debt | Severity | Status |
+|------|----------|--------|
+| ~~ChatScreen.kt ~1,700 lines~~ | ~~High~~ | Fixed (Phase 2) — split to 405 lines |
+| ~~5 controllers bypass use case layer~~ | ~~Medium~~ | Fixed (Phase 2) — all use use cases |
+| ~~MessagingService implements 7 use cases~~ | ~~Medium~~ | Fixed (Phase 2) — split into 3 services |
+| ~~Test coverage at 13%~~ | ~~High~~ | Improved (Phase 2) — ~125 backend tests |
 | Backend enum duplication (intentional) | Low | Monitor |
-| No mobile unit tests | Medium | Phase 3 |
+| No mobile unit tests | Medium | Phase 3+ |
 | Single-server architecture | Low | Phase 5+ |
+| iOS ImagePicker stub | Medium | Phase 5 |
+| CrashReporter.ios.kt stub (needs Sentry iOS pod) | Low | Phase 5 |
+
+---
+
+## Key Decision Points
+
+1. **WebRTC provider**: LiveKit Cloud (managed, free dev tier) vs self-hosted LiveKit on GCP — decide before building call UI
+2. **E2E library**: `libsignal-client` (battle-tested) vs custom — architecture supports either
+3. **iOS release strategy**: CMP iOS target (current) vs native SwiftUI for better platform feel
+4. **Revenue model**: Ad-free premium? Freemium? Channel monetization? Decide before Phase 5 growth
 
 ---
 
 ## Critical Path
 
 ```
-Phase 1 (now)        → Internal testing on Play Store
-Phase 2 (2-3 weeks)  → Beta quality, architecture cleanup
-Phase 3 (4-8 weeks)  → VOICE CALLS ← make-or-break for Turkish market
-Phase 4 (6-12 weeks) → E2E encryption, KVKK compliance
-Phase 5 (8-16 weeks) → iOS, web, growth
+Phase 1 (manual)     → Internal testing on Play Store
+Phase 2 (DONE)       → Architecture cleanup, tests, GIFs
+Phase 3 (signaling done) → WebRTC client integration ← make-or-break for Turkish market
+Phase 4 (arch done)  → Signal Protocol client, pen testing
+Phase 5 (iOS foundation) → iOS release, web, growth
 ```
 
 ---
@@ -175,7 +200,7 @@ Phase 5 (8-16 weeks) → iOS, web, growth
 muhabbet/
 ├── backend/    → Spring Boot 3.4 + Kotlin (modular monolith, hexagonal)
 ├── shared/     → KMP shared module (models, DTOs, protocol, validation)
-├── mobile/     → Compose Multiplatform (Android + iOS stubs)
+├── mobile/     → Compose Multiplatform (Android + iOS)
 ├── infra/      → Docker Compose, nginx, deploy scripts
 └── docs/       → Architecture docs, API contract, privacy policy
 ```
@@ -185,7 +210,7 @@ muhabbet/
 |-----------|-----------|
 | Language | Kotlin (everywhere) |
 | Backend | Spring Boot 3.4, PostgreSQL 16, Redis 7, MinIO |
-| Mobile | CMP, Ktor, Koin, Decompose, Coil3 |
+| Mobile | CMP, Ktor, Koin, Decompose, Coil3, Sentry |
 | Shared | KMP, kotlinx.serialization, kotlinx.datetime |
 | Infra | Docker Compose, nginx, GCP (e2-medium), Firebase FCM |
 | CI/CD | GitHub Actions |
