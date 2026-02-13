@@ -4,6 +4,66 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 5: iOS Platform Foundation
+- **AudioPlayer.ios.kt**: Real AVAudioPlayer implementation with play/pause/stop/seekTo, progress tracking via coroutine
+- **AudioRecorder.ios.kt**: AVAudioRecorder implementation with M4A output, AVAudioSession permission checking
+- **ContactsProvider.ios.kt**: CNContactStore implementation with `enumerateContactsWithFetchRequest`, permission request
+- **PushTokenProvider.ios.kt**: UNUserNotificationCenter permission request, `registerForRemoteNotifications()`, cached token pattern
+
+### Added — Phase 4: E2E Encryption Architecture
+- **Encryption key exchange**: `POST /api/v1/encryption/keys` (upload key bundle), `GET /api/v1/encryption/keys/{userId}` (fetch pre-key bundle)
+- **Domain models**: `EncryptionKeyBundle`, `OneTimePreKey` — ready for Signal Protocol (X3DH, Double Ratchet)
+- **EncryptionService**: Implements `ManageEncryptionUseCase` — key bundle CRUD, one-time pre-key consumption
+- **Persistence**: `EncryptionKeyJpaEntity`, `OneTimePreKeyJpaEntity`, Spring Data repos, persistence adapter
+- **Migration**: `V11__add_encryption_keys.sql` — `encryption_keys` + `one_time_pre_keys` tables
+
+### Added — Phase 4: KVKK Compliance
+- **Data export**: `GET /api/v1/users/data/export` — returns all user data (profile, messages, media, conversations)
+- **Account deletion**: `DELETE /api/v1/users/data/account` — soft-deletes account with `deleted_at` timestamp
+- **UserDataService**: Implements `ManageUserDataUseCase` — aggregates data from multiple repositories
+- **UserDataQueryPort**: Out-port interface for cross-module data aggregation
+
+### Added — Phase 3: Call Signaling Infrastructure
+- **WebSocket call messages**: `CallInitiate`, `CallAnswer`, `CallIceCandidate`, `CallEnd` in WsMessage sealed class
+- **CallSignalingService**: In-memory call state management, routes signaling messages between participants
+- **Call history**: `GET /api/v1/calls/history` — persisted call records (caller, callee, status, duration)
+- **CallHistoryService**: Implements `GetCallHistoryUseCase`
+- **Migration**: `V12__add_call_history.sql` — `call_history` table
+- **ChatWebSocketHandler**: Extended to handle call signaling frame types
+
+### Added — Phase 3: Notification Improvements
+- **Notification grouping**: Messages from same conversation grouped under one notification
+- **Inline reply**: Reply directly from notification without opening app (Android `NotificationReplyReceiver`)
+- **Notification channels**: Separate channels for messages, calls, system notifications
+
+### Added — Phase 3: Crash Reporting (Sentry)
+- **CrashReporter expect/actual**: Common interface, Android Sentry implementation, iOS stub
+- **Sentry Android SDK**: `io.sentry:sentry-android:7.14.0`, auto-init via AndroidManifest meta-data
+- **CrashReporter.init()**: Called in App.kt on launch, sets user ID from token storage
+- **SENTRY_DSN**: Configurable via environment variable → manifest placeholder
+
+### Changed — Phase 2: Architecture Refactoring
+- **ChatScreen.kt refactored**: 1,771 → 405 lines — extracted `MessageBubble.kt`, `MessageInputPane.kt`, `ChatDialogs.kt`
+- **MessagingService split**: Deleted monolithic `MessagingService`, replaced with `ConversationService` + `MessageService` + `GroupService`
+- **5 controllers refactored to use case pattern**: `StatusController`, `ChannelController`, `PollController`, `ReactionController`, `DisappearingMessageController` — all now depend on use case interfaces instead of Spring Data repositories
+- **AppConfig expanded**: Wires 11+ services as `@Bean` (ConversationService, MessageService, GroupService, StatusService, ChannelService, PollService, ReactionService, DisappearingMessageService, EncryptionService, CallHistoryService, UserDataService)
+- **New use case interfaces**: `ManageStatusUseCase`, `ManageChannelUseCase`, `ManagePollUseCase`, `ManageReactionUseCase`, `ManageDisappearingMessageUseCase`, `ManageEncryptionUseCase`, `GetCallHistoryUseCase`, `ManageUserDataUseCase`
+- **New out-port interfaces**: `StatusRepository`, `ReactionRepository`, `PollVoteRepository`, `EncryptionKeyRepository`, `CallHistoryRepository`, `UserDataQueryPort`
+
+### Added — Phase 2: Stickers & GIFs
+- **GiphyClient**: GIPHY API client — search/trending for GIFs and stickers, public beta key
+- **GifStickerPicker**: Modal bottom sheet with tab row (GIF | Stickers), debounced search, 3-column grid, GIPHY attribution
+- **ContentType expansion**: Added `STICKER` and `GIF` to shared + backend ContentType enums
+- **MessageBubble**: GIF renders as full-width async image (max 200dp), sticker renders at 150dp without bubble background
+- **MessageInputPane**: GIF menu item in attachment dropdown
+
+### Added — Phase 2: Backend Tests (~125 total)
+- **MediaServiceTest**: Upload, download URL generation, thumbnail, validation, error cases
+- **ConversationServiceTest**: Create DM (dedup), create group, list conversations, pagination
+- **GroupServiceTest**: Add/remove members, role management, leave group, owner transfer
+- **ChatWebSocketHandlerTest**: Message send/ack, typing indicators, invalid frames, auth
+- **RateLimitFilterTest**: Rate limiting on auth endpoints, sliding window, IP-based
+
 ### Added — Media Sharing (Week 5)
 - **Backend media module**: Hexagonal architecture — `MediaService`, `MinioMediaStorageAdapter`, `JavaImageThumbnailAdapter`, `MediaController`
 - **Image upload**: `POST /api/v1/media/upload` (multipart) — validates type/size, generates thumbnail (320x320), uploads to MinIO, returns pre-signed URLs
