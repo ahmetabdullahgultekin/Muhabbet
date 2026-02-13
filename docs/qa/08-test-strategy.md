@@ -2,6 +2,8 @@
 
 > Comprehensive testing approach: test pyramid, environments, CI/CD integration, and test data management.
 
+**Current inventory: 251 tests (201 backend + 23 mobile + 27 shared) across 18 test files.**
+
 ---
 
 ## 1. Test Pyramid
@@ -36,9 +38,9 @@
 |--------|-----------|---------|---------|--------|
 | AuthService | JUnit 5 | MockK | 9 tests | 20+ |
 | MessageService | JUnit 5 | MockK | 16 tests | 30+ |
-| ConversationService | JUnit 5 | MockK | ~15 tests | 25+ |
-| GroupService | JUnit 5 | MockK | ~15 tests | 25+ |
-| MediaService | JUnit 5 | MockK | ~15 tests | 20+ |
+| ConversationService | JUnit 5 | MockK | 28 tests | 35+ |
+| GroupService | JUnit 5 | MockK | 41 tests | 50+ |
+| MediaService | JUnit 5 | MockK | 21 tests | 30+ |
 | ModerationService | JUnit 5 | MockK | 8 tests | 15+ |
 | BotService | JUnit 5 | MockK | 0 tests | 15+ |
 | BackupService | JUnit 5 | MockK | 0 tests | 10+ |
@@ -54,9 +56,9 @@
 | Target | Framework | Current | Target |
 |--------|-----------|---------|--------|
 | FakeTokenStorage | kotlin-test | 5 tests | 5 |
-| AuthRepository | kotlin-test + ktor-mock | ~5 tests | 10+ |
-| PhoneNormalization | kotlin-test | 14 tests | 14 |
-| WsMessageSerialization | kotlin-test | 25+ tests | 30+ |
+| AuthRepository | kotlin-test + ktor-mock | 5 tests | 10+ |
+| PhoneNormalization | kotlin-test | 13 tests | 15+ |
+| WsMessageSerialization | kotlin-test | 27 tests | 30+ |
 | Validation rules | kotlin-test | 0 tests | 20+ |
 | ViewModel state | kotlin-test + coroutines-test | 0 tests | 30+ |
 
@@ -98,7 +100,7 @@ class ConversationControllerTest {
 **Coverage plan:**
 | Controller | Endpoints | Test Count | Priority |
 |-----------|-----------|-----------|----------|
-| AuthController | 4 | 1 exists (integration) | P0 |
+| AuthController | 4 | 4 exists (integration) + 16 rate limit | P0 |
 | ConversationController | 5 | 0 | P0 |
 | MessageController | 4 | 0 | P0 |
 | GroupController | 6 | 0 | P0 |
@@ -175,7 +177,7 @@ class AuthFlowIntegrationTest {
 **Integration test plan:**
 | Flow | Tests | Priority |
 |------|-------|----------|
-| Auth flow (OTP → JWT → profile) | 5 | P0 (1 exists) |
+| Auth flow (OTP → JWT → profile) | 5 | P0 (4 exist) |
 | Message flow (create conv → send → receive) | 5 | P0 |
 | Group flow (create → add members → send) | 5 | P0 |
 | Media flow (upload → thumbnail → download URL) | 3 | P1 |
@@ -300,7 +302,7 @@ abstract class IntegrationTestBase {
 Push to backend/ or shared/
   └─▶ backend-ci.yml
        ├─ Checkout
-       ├─ Setup Java 25
+       ├─ Setup Java 21
        ├─ Gradle cache restore
        ├─ ./gradlew :backend:test
        ├─ ./gradlew :backend:bootJar

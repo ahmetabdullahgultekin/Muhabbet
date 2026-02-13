@@ -123,7 +123,7 @@ The data export endpoint (`GET /api/v1/users/data/export`) must include:
 | Content removal on court order | Immediate compliance | Process needed |
 | Log retention for law enforcement | 1-2 years (metadata only) | Not implemented |
 | Quarterly transparency report | Report on content actions | Not implemented |
-| Local data storage | Data in Turkey or EU | GCP europe-west1 (Belgium) |
+| Local data storage | Data in Turkey or EU | GCP europe-west1 (Belgium) — EU region, not Turkey |
 
 ### 3.3 Test Cases
 
@@ -136,6 +136,26 @@ The data export endpoint (`GET /api/v1/users/data/export`) must include:
 | Report includes all required metadata | Verify completeness | P1 |
 | Self-block returns appropriate error | Edge case | P1 |
 | Duplicate report handling | No duplicate reports | P1 |
+
+### 3.4 Moderation Error Codes
+
+| Error Code | HTTP Status | Trigger |
+|-----------|------------|---------|
+| `REPORT_NOT_FOUND` | 404 | Report ID doesn't exist |
+| `BLOCK_SELF` | 400 | User attempts to block themselves |
+
+### 3.5 Data Flow for Moderation
+
+```
+User reports content → POST /api/v1/moderation/reports
+                       → ModerationService.reportUser()
+                       → ReportRepository.save()
+                       → Returns reportId
+
+Admin reviews        → GET /api/v1/moderation/reports?status=PENDING
+                       → PATCH /api/v1/moderation/reports/{id}
+                       → Updates status: PENDING → REVIEWED → RESOLVED/DISMISSED
+```
 
 ---
 
@@ -193,7 +213,7 @@ The data export endpoint (`GET /api/v1/users/data/export`) must include:
 
 | Measure | Implementation | Status |
 |---------|---------------|--------|
-| Rate limiting | Auth: 10 req/min, WS: 50 msg/10s | Deployed |
+| Rate limiting | Auth: 10 req/60s per IP, WS: 50 msg/10s per user | Deployed |
 | Spam prevention | Rate limits + block feature | Deployed |
 | Abuse reporting | Report with categories | Deployed |
 | Account recovery | Re-register with phone OTP | Deployed |

@@ -106,21 +106,23 @@ Communication: Spring ApplicationEvent (when needed)
 
 ### 3.1 Current Coverage
 
-| Module | Test Files | Est. Tests | Est. Coverage |
-|--------|-----------|-----------|--------------|
-| auth | 2 | ~20 | ~40% |
-| messaging | 6 | ~70 | ~35% |
-| media | 1 | ~15 | ~30% |
-| moderation | 1 | ~8 | ~40% |
-| shared (security) | 3 | ~25 | ~60% |
-| mobile/shared | 4 | ~50 | ~10% |
-| **Total** | **17** | **~188** | **~30% est.** |
+| Module | Test Files | Actual Tests | Est. Coverage |
+|--------|-----------|-------------|--------------|
+| auth | 2 | 13 (9 unit + 4 integration) | ~40% |
+| messaging | 6 | 117 (ConversationSvc:28, GroupSvc:41, MsgSvc:16, WsHandler:19, CallSig:7, DeliveryStatus:6) | ~40% |
+| media | 1 | 21 | ~35% |
+| encryption | 1 | 7 | ~50% |
+| moderation | 1 | 8 | ~40% |
+| shared/security | 3 | 35 (InputSanitizer:15, RateLimitFilter:16, WsRateLimiter:4) | ~60% |
+| mobile | 3 | 23 (TokenStorage:5, AuthRepo:5, PhoneNorm:13) | ~10% |
+| shared module | 1 | 27 (WsMessageSerialization) | ~50% |
+| **Total** | **18** | **251** | **~40% est.** |
 
 ### 3.2 Coverage Targets
 
 | Milestone | Backend | Mobile | Shared |
 |-----------|---------|--------|--------|
-| Current | ~35% | ~10% | ~40% |
+| Current | ~40% (201 tests) | ~10% (23 tests) | ~50% (27 tests) |
 | Beta | 60% | 40% | 80% |
 | GA | 80% | 60% | 90% |
 
@@ -130,7 +132,7 @@ Communication: Spring ApplicationEvent (when needed)
 |------|--------------|-----|----------|
 | REST controllers (integration) | 1 (AuthController) | 22 controllers untested | P0 |
 | Persistence adapters | 0 | All adapters need Testcontainers tests | P0 |
-| WebSocket handler | 1 (basic) | Edge cases, rate limiting, call signaling | P1 |
+| WebSocket handler | 1 (19 tests) | Edge cases, call signaling flows | P1 |
 | Mobile ViewModels | 0 | State management, error handling | P1 |
 | Mobile navigation | 0 | Decompose config transitions | P2 |
 | Shared validation | 0 | ValidationRules functions | P1 |
@@ -172,7 +174,7 @@ Communication: Spring ApplicationEvent (when needed)
 | ~~TD-R02~~ | MessagingService 7 use cases | Split into 3 services |
 | ~~TD-R03~~ | 5 controllers bypass use cases | Refactored (Phase 2) |
 | ~~TD-R04~~ | No CI/CD pipeline | GitHub Actions (4 workflows) |
-| ~~TD-R05~~ | No mobile tests | 25+ tests added |
+| ~~TD-R05~~ | No mobile tests | 50 tests added (23 mobile + 27 shared) |
 | ~~TD-R06~~ | No performance indexes | 12 indexes (V14) |
 | ~~TD-R07~~ | Single-server WS limitation | Redis Pub/Sub broadcaster |
 | ~~TD-R08~~ | Push notifications disabled | FCM_ENABLED=true |
@@ -235,14 +237,21 @@ com.muhabbet.{module}/
 |----------|-----------|---------|-------------|
 | Language | Kotlin | 2.3.10 | Feb 2026 |
 | Framework | Spring Boot | 4.0.2 | Feb 2026 |
-| Runtime | Java | 25 | Feb 2026 |
+| Runtime | Java (JVM target) | 21 | Feb 2026 |
 | Build | Gradle | 8.14.4 | Feb 2026 |
-| Serialization | kotlinx.serialization | 1.8.1 | Feb 2026 |
-| HTTP client | Ktor | 3.1.3 | Feb 2026 |
-| DI (mobile) | Koin | 4.1.0 | Feb 2026 |
-| Navigation | Decompose | 3.3.0 | Feb 2026 |
+| Serialization | kotlinx.serialization | 1.10.0 (mobile), 1.8.1 (backend) | Feb 2026 |
+| HTTP client | Ktor | 3.4.0 (mobile) | Feb 2026 |
+| DI (mobile) | Koin | 4.1.1 | Feb 2026 |
+| Navigation | Decompose | 3.4.0 | Feb 2026 |
+| Image loading | Coil | 3.3.0 | Feb 2026 |
+| JWT | JJWT | 0.12.6 | Feb 2026 |
+| S3/MinIO | MinIO SDK | 8.5.14 | Feb 2026 |
+| Coroutines | kotlinx-coroutines | 1.10.2 (mobile) | Feb 2026 |
+| Date/time | kotlinx-datetime | 0.7.1 (mobile) | Feb 2026 |
 | Testing | MockK | 1.13.13 | Feb 2026 |
 | Testing | Testcontainers | 1.20.4 | Feb 2026 |
+| Firebase | BOM | 33.7.0 (mobile) | Feb 2026 |
+| Crash reporting | Sentry | 7.19.1 | Feb 2026 |
 
 ### 6.2 Dependency Update Policy
 

@@ -8,16 +8,18 @@
 
 ### 1.1 Android Support
 
-| Android Version | API Level | Status | Coverage |
-|-----------------|-----------|--------|----------|
-| Android 8.0 (Oreo) | 26 | Minimum | Compile target |
+| Android Version | API Level | Status | Notes |
+|-----------------|-----------|--------|-------|
+| Android 8.0 (Oreo) | 26 | **minSdk** | Minimum supported version |
 | Android 9.0 (Pie) | 28 | Supported | |
 | Android 10 | 29 | Supported | |
-| Android 11 | 30 | Supported | Scoped storage |
-| Android 12 | 31 | Supported | Splash screen API |
-| Android 13 | 33 | Supported | Notification permissions |
-| Android 14 | 34 | Supported | |
-| Android 15 | 35 | Target SDK | Primary test target |
+| Android 11 | 30 | Supported | Scoped storage changes |
+| Android 12 | 31 | Supported | Splash screen API, exact alarms |
+| Android 13 | 33 | Supported | Notification runtime permissions |
+| Android 14 | 34 | Supported | Foreground service types |
+| Android 15 | 35 | **compileSdk / targetSdk** | Primary test target |
+
+**Build configuration:** `compileSdk=35`, `targetSdk=35`, `minSdk=26`, `jvmTarget=21`
 
 **Testing targets:**
 - Low-end: Samsung Galaxy A14 (2GB RAM, API 33)
@@ -107,15 +109,48 @@
 
 | Integration | Protocol | Version | Status |
 |-------------|----------|---------|--------|
-| PostgreSQL | JDBC | 16 | Deployed |
-| Redis | RESP3 (Lettuce) | 7 | Deployed |
-| MinIO | S3 API | RELEASE.2024-01-01 | Deployed |
-| Firebase FCM | HTTP v1 API | Latest | Deployed |
-| Firebase Auth | REST API | Latest | Android only |
-| Netgsm SMS | HTTP API | v1 | Deployed |
+| PostgreSQL | JDBC | 16-alpine | Deployed |
+| Redis | RESP3 (Lettuce) | 7-alpine | Deployed |
+| MinIO | S3 API | latest (minio/minio) | Deployed |
+| Firebase Admin SDK | gRPC/REST | 9.4.2 | Deployed |
+| Firebase BOM (mobile) | REST/gRPC | 33.7.0 | Deployed |
+| Netgsm SMS | HTTP API | v1 | Deployed (conditional) |
+| Twilio SMS | HTTP API | 10.6.4 | Available (conditional) |
 | GIPHY | REST API | v1 | Deployed |
-| Sentry | SDK | 7.14.0 | Android deployed |
+| Sentry (backend) | SDK | 7.19.1 | Deployed |
+| Sentry (mobile) | SDK | 7.19.1 | Deployed |
+| JSoup (link preview) | HTML parser | 1.18.3 | Deployed |
+| JJWT | JWT signing | 0.12.6 | Deployed |
 | LiveKit | Server SDK | Latest | Adapter ready |
+
+### 2.5 Mobile Library Versions (from build.gradle.kts)
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| Ktor | 3.4.0 | HTTP client + WebSocket |
+| Koin | 4.1.1 | Dependency injection |
+| Decompose | 3.4.0 | Navigation + lifecycle |
+| Coil | 3.3.0 | Image loading (AsyncImage) |
+| kotlinx-serialization | 1.10.0 | JSON serialization |
+| kotlinx-coroutines | 1.10.2 | Async operations |
+| kotlinx-datetime | 0.7.1 | Date/time handling |
+| Firebase BOM | 33.7.0 | Firebase Auth + FCM |
+| Sentry Android | 7.19.1 | Crash reporting |
+| AndroidX Security Crypto | 1.1.0-alpha06 | Encrypted SharedPreferences |
+
+### 2.6 Backend Library Versions (from build.gradle.kts)
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| JJWT | 0.12.6 | JWT signing/verification |
+| MinIO SDK | 8.5.14 | S3 object storage |
+| Firebase Admin | 9.4.2 | FCM push notifications |
+| Twilio | 10.6.4 | SMS (conditional) |
+| JSoup | 1.18.3 | HTML parsing (link preview) |
+| Sentry | 7.19.1 | Error tracking |
+| MockK | 1.13.13 | Test mocking |
+| Testcontainers | 1.20.4 | Integration test containers |
+| Micrometer Prometheus | (managed) | Metrics export |
 
 ---
 
@@ -229,7 +264,7 @@ The `shared/` Kotlin Multiplatform module is the single source of truth for data
 |------|------|----------|
 | Unknown JSON fields ignored by client | Unit | P0 (exists) |
 | API v1 contract matches shared DTOs | Contract | P1 |
-| WsMessage serialization round-trip | Unit | P0 (exists, 25+ tests) |
+| WsMessage serialization round-trip | Unit | P0 (exists, 27 tests) |
 | Bot API token authentication | Integration | P1 |
 | Webhook delivery format | Integration | P1 |
 

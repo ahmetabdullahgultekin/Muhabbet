@@ -84,7 +84,7 @@ muhabbet/
 - Input sanitization: HTML escaping, control char stripping, URL validation
 - WebSocket rate limiting: 50 msg/10s per-connection sliding window
 - CI/CD: GitHub Actions (backend CI, mobile CI, security scanning, deployment)
-- ~157 backend tests + 25+ mobile/shared tests
+- 251 tests (201 backend + 23 mobile + 27 shared)
 - Security scanning: Trivy vulnerability scanning, Gitleaks secret detection, CodeQL static analysis
 - Redis Pub/Sub for horizontal WebSocket scaling
 

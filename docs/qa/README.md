@@ -29,9 +29,9 @@ This directory contains the comprehensive Quality Assurance Engineering document
 
 | Metric | Current | Target (Beta) | Target (GA) |
 |--------|---------|---------------|-------------|
-| Backend unit tests | ~157 | 300+ | 500+ |
-| Mobile/shared tests | ~25 | 80+ | 150+ |
-| Test coverage (backend) | ~35% est. | 60% | 80% |
+| Backend tests | 201 | 350+ | 500+ |
+| Mobile/shared tests | 50 (23 + 27) | 100+ | 200+ |
+| Test coverage (backend) | ~45% est. | 60% | 80% |
 | Test coverage (mobile) | ~10% est. | 40% | 60% |
 | P95 API latency | Unmeasured | <200ms | <100ms |
 | WebSocket message latency | Unmeasured | <50ms | <30ms |
@@ -66,17 +66,17 @@ This directory contains the comprehensive Quality Assurance Engineering document
 ┌──────────────▼──────────────────▼───────────────┐
 │              Backend (Spring Boot 4.0.2)         │
 │                                                  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │   Auth   │ │Messaging │ │   Moderation     │ │
-│  │ 9 tests  │ │ ~80 tests│ │   8 tests        │ │
-│  └────┬─────┘ └────┬─────┘ └────┬─────────────┘ │
-│       │             │            │               │
-│  ┌────▼─────────────▼────────────▼──────────┐    │
-│  │          Shared (cross-cutting)          │    │
-│  │  InputSanitizer: 15 tests                │    │
-│  │  RateLimitFilter: tests                  │    │
-│  │  WebSocketRateLimiter: 4 tests           │    │
-│  └──────────────────────────────────────────┘    │
+│  ┌──────────┐ ┌───────────┐ ┌────────────┐      │
+│  │   Auth   │ │ Messaging │ │ Media      │      │
+│  │ 13 tests │ │ 117 tests │ │ 21 tests   │      │
+│  └────┬─────┘ └─────┬─────┘ └─────┬──────┘      │
+│       │              │             │              │
+│  ┌────┴──────────────┤  ┌──────────┴───────────┐ │
+│  │ Moderation: 8     │  │ Shared (cross-cut)   │ │
+│  └───────────────────┘  │ InputSanitizer: 15   │ │
+│                         │ RateLimitFilter: 16   │ │
+│                         │ WsRateLimiter: 4      │ │
+│                         └──────────────────────┘ │
 └──────────┬──────────────┬───────────┬───────────┘
            │              │           │
     ┌──────▼──────┐ ┌─────▼─────┐ ┌──▼────┐
@@ -140,3 +140,38 @@ Tests run automatically via GitHub Actions:
 - Integration tests: Testcontainers (PostgreSQL, Redis)
 - Test data: Factories/builders, not fixtures
 - Flaky test policy: Quarantine → fix within 48h → delete if unfixable
+
+## Test Inventory (251 total)
+
+### Backend (201 tests across 14 files)
+
+| Test File | Tests | Module |
+|-----------|-------|--------|
+| AuthControllerIntegrationTest | 4 | auth (integration) |
+| AuthServiceTest | 9 | auth |
+| MediaServiceTest | 21 | media |
+| ChatWebSocketHandlerTest | 19 | messaging (WebSocket) |
+| CallSignalingServiceTest | 7 | messaging (calls) |
+| ConversationServiceTest | 28 | messaging |
+| DeliveryStatusTest | 6 | messaging |
+| EncryptionServiceTest | 7 | messaging (encryption) |
+| GroupServiceTest | 41 | messaging (groups) |
+| MessagingServiceTest | 16 | messaging |
+| ModerationServiceTest | 8 | moderation |
+| InputSanitizerTest | 15 | shared/security |
+| RateLimitFilterTest | 16 | shared/security |
+| WebSocketRateLimiterTest | 4 | shared/security |
+
+### Mobile (23 tests across 3 files)
+
+| Test File | Tests |
+|-----------|-------|
+| FakeTokenStorageTest | 5 |
+| AuthRepositoryTest | 5 |
+| PhoneNormalizationTest | 13 |
+
+### Shared Module (27 tests, 1 file)
+
+| Test File | Tests |
+|-----------|-------|
+| WsMessageSerializationTest | 27 |

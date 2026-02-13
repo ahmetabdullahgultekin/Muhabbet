@@ -33,15 +33,17 @@
 | **MinIO** | Disk full | Uploads fail | Storage stats endpoint | No alerts |
 | **Nginx** | Crash/restart | All traffic blocked | Docker restart | No failover |
 | **Backend** | OOM | Process killed | JVM heap settings | No auto-restart |
-| **Backend** | Deadlock | Requests hang | Spring async | No detection |
+| **Backend** | Deadlock | Requests hang | Tomcat threads (200 max) | No detection |
+| **Backend** | Thread starvation | Slow response | Tomcat min-spare (10) | No alerting |
 | **FCM** | Service degradation | Push notifications delayed | Fire-and-forget | No fallback |
-| **WebSocket** | Connection drop | Messages not delivered | Client reconnect | No offline queue |
+| **WebSocket** | Connection drop | Messages not delivered | Client reconnect (exp. backoff) | No offline queue |
+| **WebSocket** | Heartbeat timeout (90s) | Connection assumed dead | Server closes stale sessions | Mobile must re-auth |
 
 ### 2.2 Cascading Failure Scenarios
 
 ```
-Scenario 1: PostgreSQL slow → Connection pool exhaustion → All requests timeout → Mobile shows errors
-Mitigation: Connection timeout (10s), circuit breaker (future), health check endpoint
+Scenario 1: PostgreSQL slow → HikariCP pool exhaustion (max=20) → All requests timeout → Mobile shows errors
+Mitigation: HikariCP connection timeout (5s), idle timeout (10min), circuit breaker (future), health check endpoint
 
 Scenario 2: Redis crash → Presence lost → Typing indicators fail → Pub/Sub fails → Cross-instance WS breaks
 Mitigation: Graceful degradation (presence optional), reconnect on Redis listener
@@ -149,7 +151,7 @@ Client A                  Backend                  Client B
 }
 ```
 
-**Coverage:** All 40+ `ErrorCode` enum values have default Turkish messages.
+**Coverage:** All 43 `ErrorCode` enum values have default Turkish messages. See [02-security.md §1.6](02-security.md) for full inventory.
 
 ---
 
@@ -163,7 +165,7 @@ Client A                  Backend                  Client B
 | Kill Redis | `docker stop muhabbet-redis` | Presence degrades, Pub/Sub fails, core messaging works | P0 |
 | Kill MinIO | `docker stop muhabbet-minio` | Media ops fail, text messaging works | P1 |
 | Simulate network partition | `iptables` rules | WS clients reconnect, messages eventually delivered | P1 |
-| Exhaust DB connections | Open 100 idle connections | Backend queues requests, no crash | P1 |
+| Exhaust DB connections | Open 20+ idle connections (exceeds HikariCP max) | Backend queues requests, timeout after 5s, no crash | P1 |
 | Simulate slow DB | `pg_sleep()` wrapper | Requests timeout gracefully, no thread starvation | P1 |
 | Fill Redis memory | Write large keys | Eviction triggers, no crash | P2 |
 | Kill backend during WS broadcast | `kill -9` during message delivery | Clients reconnect, messages re-fetched from DB | P2 |

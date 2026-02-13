@@ -57,6 +57,60 @@ Client ──TLS 1.3──▶ Nginx ──HTTP──▶ Spring Boot
                    └──────┘    └───────┘  └───────┘
 ```
 
+### 1.3 CORS Configuration
+
+| Property | Value |
+|----------|-------|
+| Allowed Origins | `https://muhabbet.rollingcatsoftware.com`, `https://*.rollingcatsoftware.com` |
+| Allowed Methods | GET, POST, PUT, PATCH, DELETE, OPTIONS |
+| Allowed Headers | Authorization, Content-Type, X-Requested-With |
+| Allow Credentials | true |
+
+### 1.4 Public Endpoints (No Authentication Required)
+
+| Path | Purpose |
+|------|---------|
+| `/api/v1/auth/**` | OTP request, verify, token refresh |
+| `/ws/**` | WebSocket (JWT in query param) |
+| `/actuator/health` | Health check |
+| `/actuator/info` | App info |
+| `/actuator/metrics` | Metrics |
+| `/actuator/prometheus` | Prometheus scrape |
+
+All other endpoints require a valid JWT Bearer token.
+
+### 1.5 InputSanitizer Functions
+
+| Function | Behavior | Max Length |
+|----------|----------|-----------|
+| `sanitizeHtml(input)` | Escapes `&`, `<`, `>`, `"`, `'` to HTML entities | N/A |
+| `stripControlChars(input)` | Removes control chars; preserves `\n`, `\t`, `\r` | N/A |
+| `sanitizeDisplayName(input)` | Trims + strips control chars + truncates | 64 chars |
+| `sanitizeMessageContent(input)` | Strips control chars + truncates | 10,000 chars |
+| `sanitizeUrl(input)` | Allows HTTPS only; rejects `http:`, `javascript:`, `data:` | N/A |
+
+### 1.6 Error Code Inventory (43 codes)
+
+| Category | Error Codes |
+|----------|------------|
+| **Auth (11)** | AUTH_INVALID_PHONE, AUTH_OTP_COOLDOWN, AUTH_OTP_RATE_LIMIT, AUTH_OTP_INVALID, AUTH_OTP_EXPIRED, AUTH_OTP_MAX_ATTEMPTS, AUTH_TOKEN_INVALID, AUTH_TOKEN_EXPIRED, AUTH_TOKEN_REVOKED, AUTH_UNAUTHORIZED |
+| **Messaging (5)** | MSG_CONVERSATION_NOT_FOUND, MSG_NOT_MEMBER, MSG_CONTENT_TOO_LONG, MSG_EMPTY_CONTENT, MSG_DUPLICATE |
+| **Conversation (4)** | CONV_ALREADY_EXISTS, CONV_INVALID_PARTICIPANTS, CONV_NOT_FOUND, CONV_MAX_MEMBERS |
+| **Media (4)** | MEDIA_TOO_LARGE, MEDIA_UNSUPPORTED_TYPE, MEDIA_NOT_FOUND, MEDIA_UPLOAD_FAILED |
+| **Group (7)** | GROUP_NOT_FOUND, GROUP_NOT_MEMBER, GROUP_PERMISSION_DENIED, GROUP_ALREADY_MEMBER, GROUP_CANNOT_REMOVE_OWNER, GROUP_OWNER_CANNOT_LEAVE, GROUP_CANNOT_MODIFY_DIRECT |
+| **Message Mgmt (4)** | MSG_NOT_SENDER, MSG_NOT_FOUND, MSG_ALREADY_DELETED, MSG_EDIT_WINDOW_EXPIRED |
+| **Status (1)** | STATUS_NOT_FOUND |
+| **Channel (2)** | CHANNEL_NOT_FOUND, CHANNEL_NOT_A_CHANNEL |
+| **Poll (2)** | POLL_MESSAGE_NOT_FOUND, POLL_INVALID_OPTION |
+| **Encryption (2)** | ENCRYPTION_KEY_BUNDLE_NOT_FOUND, ENCRYPTION_INVALID_KEY_DATA |
+| **Call (3)** | CALL_NOT_FOUND, CALL_USER_BUSY, CALL_INVALID_TARGET |
+| **User/KVKK (2)** | USER_NOT_FOUND, USER_ALREADY_DELETED |
+| **Moderation (2)** | REPORT_NOT_FOUND, BLOCK_SELF |
+| **Bot (2)** | BOT_NOT_FOUND, BOT_INACTIVE |
+| **Backup (2)** | BACKUP_NOT_FOUND, BACKUP_IN_PROGRESS |
+| **General (3)** | VALIDATION_ERROR, INTERNAL_ERROR, RATE_LIMITED |
+| **Contacts (1)** | CONTACT_SYNC_LIMIT_EXCEEDED |
+
 ---
 
 ## 2. OWASP Top 10 Assessment
@@ -134,19 +188,19 @@ Expected: URL validation rejects non-HTTPS schemes
 | Control | Implementation | Test |
 |---------|---------------|------|
 | OTP cooldown | 60s between requests | `AuthServiceTest.should fail when cooldown active` |
-| OTP rate limit | 5 requests per phone/hour | `RateLimitFilterTest` |
+| OTP rate limit | 10 requests per IP per 60s | `RateLimitFilterTest` (16 tests) |
 | OTP max attempts | 5 per code | `AuthServiceTest.should fail on max attempts` |
 | OTP expiry | 300s (5 min) | `AuthServiceTest.should fail on expired OTP` |
 | OTP storage | BCrypt hashed | Verified in code review |
-| Phone validation | Turkish format E.164 | `PhoneNormalizationTest` (14 tests) |
+| Phone validation | Turkish format E.164 | `PhoneNormalizationTest` (13 tests) |
 
 ### 3.2 JWT Security
 
 | Property | Value | Risk |
 |----------|-------|------|
 | Algorithm | HS256 | Adequate for monolith; RS256 for multi-service |
-| Access token expiry | 15 min | Low risk (short-lived) |
-| Refresh token expiry | 30 days | Medium risk — ensure rotation |
+| Access token expiry | 900s (15 min) | Low risk (short-lived) |
+| Refresh token expiry | 2,592,000s (30 days) | Medium risk — ensure rotation |
 | Refresh token rotation | Yes (new token on each refresh) | Mitigates token theft |
 | Token revocation | Logout invalidates refresh token | Verified |
 | Claims | `sub` (userId), `deviceId`, `iss` ("muhabbet") | Minimal claims |

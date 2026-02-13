@@ -207,7 +207,7 @@ All notable changes to this project will be documented in this file.
 - **MessageBubble**: GIF renders as full-width async image (max 200dp), sticker renders at 150dp without bubble background
 - **MessageInputPane**: GIF menu item in attachment dropdown
 
-### Added — Phase 2: Backend Tests (~125 total)
+### Added — Phase 2: Backend Tests (201 backend, 251 total)
 - **MediaServiceTest**: Upload, download URL generation, thumbnail, validation, error cases
 - **ConversationServiceTest**: Create DM (dedup), create group, list conversations, pagination
 - **GroupServiceTest**: Add/remove members, role management, leave group, owner transfer

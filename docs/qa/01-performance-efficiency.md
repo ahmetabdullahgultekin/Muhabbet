@@ -47,8 +47,16 @@
 | Backend JVM heap | Default | 512MB-1GB | 1GB-2GB |
 | Backend CPU (idle) | Unmeasured | <5% | <5% |
 | Backend CPU (1K WS) | Unmeasured | <30% | <20% |
-| PostgreSQL connections | 10 (default) | 20 | 50 |
+| HikariCP pool (max/min-idle) | 20 / 10 | 30 / 15 | 50 / 20 |
+| HikariCP connection timeout | 5s | 5s | 5s |
+| Tomcat max threads | 200 | 200 | 400 |
+| Tomcat min spare threads | 10 | 20 | 40 |
+| Tomcat connection timeout | 20s | 20s | 20s |
+| Tomcat keep-alive timeout | 60s | 60s | 60s |
+| Hibernate batch size | 25 | 25 | 50 |
+| Hibernate JDBC fetch size | 50 | 50 | 100 |
 | Redis memory | Unmeasured | <100MB | <500MB |
+| Redis connection timeout | 5s | 5s | 5s |
 | Mobile app memory | Unmeasured | <150MB | <120MB |
 | Mobile app cold start | Unmeasured | <2s | <1.5s |
 | APK size | Unmeasured | <30MB | <25MB |
@@ -67,7 +75,30 @@
 - **WebSocket rate limiting**: 50 msg/10s per connection (prevents abuse)
 - **Redis Pub/Sub**: Cross-instance WS message delivery
 
-### 2.2 Monitoring Stack
+### 2.2 Current Configuration (from application.yml)
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| `spring.datasource.hikari.maximum-pool-size` | 20 | HikariCP DB connection pool |
+| `spring.datasource.hikari.minimum-idle` | 10 | Idle connections kept ready |
+| `spring.datasource.hikari.connection-timeout` | 5000ms | Wait for connection |
+| `spring.datasource.hikari.idle-timeout` | 600000ms (10min) | Idle connection eviction |
+| `spring.jpa.properties.hibernate.jdbc.batch_size` | 25 | Insert/update batching |
+| `spring.jpa.properties.hibernate.jdbc.fetch_size` | 50 | JDBC fetch size |
+| `spring.jpa.properties.hibernate.in_clause_parameter_padding` | true | Query plan caching |
+| `spring.jpa.open-in-view` | false | OSIV anti-pattern disabled |
+| `server.tomcat.threads.max` | 200 | Max request handler threads |
+| `server.tomcat.threads.min-spare` | 10 | Min idle threads |
+| `server.tomcat.connection-timeout` | 20s | TCP connection timeout |
+| `server.tomcat.keep-alive-timeout` | 60s | HTTP keep-alive |
+| `spring.data.redis.timeout` | 5s | Redis operation timeout |
+| `muhabbet.websocket.heartbeat-interval` | 30s | WS ping frequency |
+| `muhabbet.websocket.heartbeat-timeout` | 90s | WS disconnect threshold |
+| `muhabbet.media.max-image-size` | 10MB (10,485,760) | Image upload limit |
+| `muhabbet.media.max-video-size` | 100MB (104,857,600) | Video upload limit |
+| `muhabbet.media.thumbnail.width/height` | 320×320 | Thumbnail dimensions |
+
+### 2.3 Monitoring Stack
 - **Spring Actuator**: `/actuator/health`, `/actuator/metrics`, `/actuator/prometheus`
 - **Micrometer + Prometheus**: JVM metrics, HTTP metrics, custom counters
 - **SLF4J + Logback**: JSON structured logging in production
@@ -261,7 +292,7 @@ Known areas to watch:
 | MinIO media | 500GB | User-initiated cleanup, backup expiry |
 | Message backups | 90 day retention | Auto-expire `expires_at` |
 | Statuses | 24h | Scheduled cleanup |
-| OTP requests | 10 min TTL | Auto-expire |
+| OTP requests | 5 min TTL (300s) | Auto-expire |
 | Refresh tokens | 30 day | Rotation on use |
 
 ---

@@ -127,10 +127,15 @@
 
 ### 4.1 Current Localization State
 
-| Language | Status | Coverage | Default |
-|----------|--------|----------|---------|
-| Turkish | Complete | 100% (all strings) | Yes |
-| English | Complete | 100% (all strings) | No |
+| Language | Status | Coverage | Default | File |
+|----------|--------|----------|---------|------|
+| Turkish | Complete | 100% (all strings) | Yes | `composeResources/values/strings.xml` |
+| English | Complete | 100% (all strings) | No | `composeResources/values-en/strings.xml` |
+
+**Runtime switch mechanism:**
+- Preference stored in `muhabbet_prefs` SharedPreferences (`app_language` key)
+- Applied in `MainActivity.onCreate()` via `Configuration.setLocale()` before `setContent`
+- Requires activity restart to take effect
 
 ### 4.2 Localization Test Cases
 
