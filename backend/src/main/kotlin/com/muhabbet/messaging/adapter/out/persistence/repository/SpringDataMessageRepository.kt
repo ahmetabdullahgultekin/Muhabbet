@@ -80,4 +80,14 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         """
     )
     fun findExpiredMessages(now: Instant): List<MessageJpaEntity>
+
+    @Query(
+        """
+        SELECT COUNT(m) FROM MessageJpaEntity m
+        WHERE m.conversationId = :conversationId
+          AND m.isDeleted = false
+          AND m.mediaUrl IS NOT NULL
+        """
+    )
+    fun countMediaInConversation(conversationId: UUID): Int
 }

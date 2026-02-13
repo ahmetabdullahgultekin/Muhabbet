@@ -132,6 +132,10 @@
     <string name="profile_change_photo">Change photo</string>
     <string name="profile_uploading_photo">Uploading photo...</string>
     <string name="profile_photo_failed">Photo upload failed</string>
+    <string name="profile_action_message">Message</string>
+    <string name="profile_action_call">Call</string>
+    <string name="profile_shared_media">Shared media (%1$d)</string>
+    <string name="profile_mutual_groups">Groups in common (%1$d)</string>
 
     <!-- Contacts -->
     <string name="contacts_grant_access">Grant Access</string>

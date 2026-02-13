@@ -71,4 +71,7 @@ class MessagePersistenceAdapter(
     override fun updateContent(messageId: UUID, newContent: String, editedAt: Instant) {
         messageRepo.updateContent(messageId, newContent, editedAt)
     }
+
+    override fun countMediaInConversation(conversationId: UUID): Int =
+        messageRepo.countMediaInConversation(conversationId)
 }

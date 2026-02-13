@@ -139,7 +139,9 @@ fun MainContent(component: MainComponent) {
             )
             is MainComponent.Config.UserProfile -> UserProfileScreen(
                 userId = config.userId,
-                onBack = component::goBack
+                onBack = component::goBack,
+                onMessageClick = { component.goBack() },
+                onGroupClick = { id, name -> component.openGroupInfo(id, name) }
             )
             is MainComponent.Config.Settings -> SettingsScreen(
                 onBack = component::goBack,

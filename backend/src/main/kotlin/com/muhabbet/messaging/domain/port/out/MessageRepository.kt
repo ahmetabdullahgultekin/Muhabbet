@@ -26,4 +26,7 @@ interface MessageRepository {
     // Message management
     fun softDelete(messageId: UUID)
     fun updateContent(messageId: UUID, newContent: String, editedAt: Instant)
+
+    // Media count
+    fun countMediaInConversation(conversationId: UUID): Int
 }

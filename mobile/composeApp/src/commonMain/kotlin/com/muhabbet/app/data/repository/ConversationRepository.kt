@@ -6,6 +6,7 @@ import com.muhabbet.shared.dto.ContactSyncResponse
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.CreateConversationRequest
 import com.muhabbet.shared.dto.PaginatedResponse
+import com.muhabbet.shared.dto.UserProfileDetailResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.UserProfile
 
@@ -45,6 +46,11 @@ class ConversationRepository(private val apiClient: ApiClient) {
 
     suspend fun getUserProfile(userId: String): UserProfile {
         val response = apiClient.get<UserProfile>("/api/v1/users/$userId")
+        return response.data ?: throw Exception(response.error?.message ?: "PROFILE_LOAD_FAILED")
+    }
+
+    suspend fun getUserProfileDetail(userId: String): UserProfileDetailResponse {
+        val response = apiClient.get<UserProfileDetailResponse>("/api/v1/users/$userId/detail")
         return response.data ?: throw Exception(response.error?.message ?: "PROFILE_LOAD_FAILED")
     }
 

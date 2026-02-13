@@ -315,6 +315,29 @@ data class CallHistoryResponse(
     val durationSeconds: Int? = null
 )
 
+// ─── User Profile Detail ────────────────────────────────
+
+@Serializable
+data class UserProfileDetailResponse(
+    val id: String,
+    val phoneNumber: String,
+    val displayName: String?,
+    val avatarUrl: String?,
+    val about: String? = null,
+    val isOnline: Boolean = false,
+    val lastSeenAt: String? = null,
+    val mutualGroups: List<MutualGroupResponse> = emptyList(),
+    val sharedMediaCount: Int = 0
+)
+
+@Serializable
+data class MutualGroupResponse(
+    val conversationId: String,
+    val name: String,
+    val avatarUrl: String? = null,
+    val memberCount: Int
+)
+
 // ─── Pagination ──────────────────────────────────────────
 
 @Serializable

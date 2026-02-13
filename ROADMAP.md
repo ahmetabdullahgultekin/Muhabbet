@@ -78,8 +78,7 @@
 | 2.3 | Refactor 5 controllers to use case pattern (Status, Channel, Poll, DisappearingMessage, Reaction) | DONE |
 | 2.4 | Split MessagingService → ConversationService + MessageService + GroupService | DONE |
 | 2.5 | Stickers & GIFs (GIPHY integration, GifStickerPicker, STICKER/GIF content types) | DONE |
-| 2.6 | Profile viewing (tap avatar to see full profile, phone, about, shared media) | Remaining |
-| 2.7 | Contact details screen (phone number, about, mutual groups) | Remaining |
+| 2.6 | Profile viewing (tap avatar → full profile, phone, about, shared media, mutual groups, action buttons) | DONE |
 
 ---
 
@@ -130,8 +129,7 @@
 
 ### High Priority (Beta Release Blockers)
 1. **WebRTC client integration** — Connect call signaling to actual WebRTC (LiveKit SFU recommended). Backend signaling is done; needs mobile call UI + media streams.
-2. **Profile & contact details screens** — Users expect to tap avatars and see profile info.
-3. **iOS ImagePicker** — Currently stubbed; needed for iOS photo sharing.
+2. **iOS ImagePicker** — Currently stubbed; needed for iOS photo sharing.
 
 ### Medium Priority (Pre-Public Launch)
 4. **E2E encryption client** — Server-side key exchange is built; needs Signal Protocol client library (libsignal-client) for actual encryption/decryption.

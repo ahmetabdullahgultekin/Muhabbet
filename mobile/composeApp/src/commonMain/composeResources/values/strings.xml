@@ -132,6 +132,10 @@
     <string name="profile_change_photo">Fotoğrafı değiştir</string>
     <string name="profile_uploading_photo">Fotoğraf yükleniyor...</string>
     <string name="profile_photo_failed">Fotoğraf yüklenemedi</string>
+    <string name="profile_action_message">Mesaj</string>
+    <string name="profile_action_call">Ara</string>
+    <string name="profile_shared_media">Paylaşılan medya (%1$d)</string>
+    <string name="profile_mutual_groups">Ortak gruplar (%1$d)</string>
 
     <!-- Contacts -->
     <string name="contacts_grant_access">Rehber Erişimi Ver</string>
