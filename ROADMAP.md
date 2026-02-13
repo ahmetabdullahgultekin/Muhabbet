@@ -149,7 +149,6 @@
 
 ### High Priority (Beta Release Blockers)
 1. **WebRTC client integration** — Connect call signaling to LiveKit SDK. Backend signaling + call UI screens are built; needs media stream SDK integration.
-2. **Fix active bugs** — Push notifications disabled in prod (env var), delivery ticks stuck at single (global DELIVERED ack needed).
 
 ### Medium Priority (Pre-Public Launch)
 3. **E2E encryption client** — Key exchange infra + NoOp manager are built; needs `libsignal-client` for actual X3DH + Double Ratchet.
@@ -180,7 +179,7 @@
 | ~~No performance optimization~~ | ~~Medium~~ | Fixed — 12 DB indexes, N+1 fixes, connection pooling, nginx/PG tuning |
 | Backend enum duplication (intentional) | Low | Monitor |
 | Single-server architecture | Low | Phase 6 (adequate for beta) |
-| 2 active bugs (push notifications, delivery ticks) | Medium | Phase 1 (env var + code fix) |
+| ~~2 active bugs (push, delivery ticks)~~ | ~~Medium~~ | Fixed — prod FCM default + global DELIVERED ack |
 
 ---
 

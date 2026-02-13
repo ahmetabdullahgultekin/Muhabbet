@@ -260,7 +260,6 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
 - **Single-server architecture**: Adequate for beta; needs Redis Pub/Sub for WS scaling beyond ~10K concurrent users.
-- **2 active bugs**: Push notifications disabled in production (env var fix needed), delivery ticks stuck at single (needs global DELIVERED ack in App.kt).
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.

@@ -2,11 +2,12 @@
 
 ## Active Bugs
 
-- [ ] **Push notifications not firing** — FCM_ENABLED is false in production; NoOpPushNotificationAdapter is active. Need to set FCM_ENABLED=true + FIREBASE_CREDENTIALS_PATH in docker-compose.prod.yml
-- [ ] **Ticks stuck at single** — Mobile never sends DELIVERED ack, only READ. Need to add global DELIVERED ack in App.kt when NewMessage arrives, keep READ ack only in ChatScreen
+*(None — all known bugs fixed)*
 
 ## Fixed Bugs
 
+- [x] **Push notifications not firing** — Fixed: `application-prod.yml` default changed from `FCM_ENABLED:false` to `FCM_ENABLED:true`; `docker-compose.prod.yml` already sets `FCM_ENABLED=true` + `FIREBASE_CREDENTIALS_PATH`
+- [x] **Ticks stuck at single** — Fixed: Global DELIVERED ack added in `App.kt` `WebSocketLifecycle()` — sends `AckMessage(DELIVERED)` for every incoming `NewMessage` from other users
 - [x] **WS userId=null on disconnect** — Fixed: use sessionManager.getUserId() before unregister
 - [x] **Spring bean ambiguity** — Fixed: @Primary on messagingService in AppConfig
 - [x] **Mic button crash** — Fixed: added RECORD_AUDIO permission in AndroidManifest + runtime permission request via rememberAudioPermissionRequester

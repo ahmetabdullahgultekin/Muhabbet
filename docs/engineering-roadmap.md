@@ -45,7 +45,7 @@ Muhabbet is a privacy-first Turkish messaging platform targeting Turkey's 85M po
 | ~~iOS incomplete~~ | ~~High~~ | ~~Blocks 30% of Turkish smartphone market~~ | **RESOLVED** — all platform modules implemented |
 | ~~Zero mobile tests~~ | ~~Medium~~ | ~~10,670 lines untested~~ | **RESOLVED** — 25+ tests (FakeTokenStorage, AuthRepository, PhoneNormalization, WsMessage serialization) |
 | ~~No CI/CD pipeline~~ | ~~Medium~~ | ~~Manual deploys, no automated quality gate~~ | **RESOLVED** — GitHub Actions (backend, mobile, security, deploy) |
-| 2 active bugs (push notifications, delivery ticks) | **Medium** | User-facing issues in production | Env var fix + code fix needed |
+| ~~2 active bugs (push, delivery ticks)~~ | ~~Medium~~ | ~~User-facing issues~~ | **RESOLVED** — prod FCM default fixed + global DELIVERED ack in App.kt |
 | iOS APNs delivery missing | **Medium** | iOS push notifications won't work | Needs FCM→APNs bridge or direct adapter |
 | Single-server architecture | **Low** (for now) | Adequate for beta; blocks beyond ~10K concurrent users | Performance optimized |
 
@@ -367,9 +367,9 @@ Current (MVP):                    Target (10K+ users):
 | ~~No performance optimization~~ | ~~Medium~~ | — | **RESOLVED** — 12 DB indexes, N+1 fixes, connection pooling, nginx/PG tuning |
 | Backend enum duplication | Low | Monitor | Type aliases if maintenance burden grows |
 | Single-server architecture | Low | Phase 6 | Redis-backed WS sessions, managed DB |
-| No load/stress tests | Medium | Phase 2 | k6 scripts for WS + HTTP endpoints |
-| Push notifications disabled | Medium | Phase 1 | Environment variable fix in production |
-| Delivery ack bug | Medium | Phase 1 | Global DELIVERED ack in App.kt |
+| ~~No load/stress tests~~ | ~~Medium~~ | ~~Phase 2~~ | **RESOLVED** — k6 scripts (websocket-load.js, http-endpoints.js) |
+| ~~Push notifications disabled~~ | ~~Medium~~ | ~~Phase 1~~ | **RESOLVED** — application-prod.yml FCM default changed to true |
+| ~~Delivery ack bug~~ | ~~Medium~~ | ~~Phase 1~~ | **RESOLVED** — Global DELIVERED ack in App.kt WebSocketLifecycle |
 
 ---
 

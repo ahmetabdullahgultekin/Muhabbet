@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Bug Fixes (Feb 2026)
+- **Push notifications not firing**: Changed `application-prod.yml` FCM default from `false` to `true` — `docker-compose.prod.yml` already sets `FCM_ENABLED=true` but the Spring Boot default was overriding it
+- **Delivery ticks stuck at single**: Global DELIVERED ack already implemented in `App.kt` `WebSocketLifecycle()` — confirmed working
+
+### Added — Backend Test Expansion (Feb 2026)
+- **CallSignalingServiceTest**: 20 tests — initiateCall (free/busy users, video type), answerCall (success/nonexistent), endCall (ENDED/DECLINED/MISSED, history persistence, duration calculation, cleanup), getOtherParty, concurrent independent calls, history persistence failure handling
+- **EncryptionServiceTest**: 10 tests — registerKeyBundle (save, userId override), getKeyBundle (exists/null), uploadPreKeys (save/empty/userId override), fetchPreKeyBundle (with/without one-time key, no bundle, key consumption)
+
+### Added — Observability Stack (Feb 2026)
+- **Prometheus config**: Scrape targets for backend (/actuator/prometheus), Redis, PostgreSQL, nginx exporters
+- **Grafana provisioning**: Auto-configured Prometheus datasource, dashboard provider
+- **Muhabbet Overview dashboard**: 8 panels — JVM heap, HTTP request rate, P95 latency, active WebSocket sessions, thread count, DB connection pool, GC pause, CPU usage, error rate
+- **docker-compose.monitoring.yml**: Prometheus + Grafana containers with resource limits, persistent volumes
+
+### Added — Load Testing Scripts (Feb 2026)
+- **websocket-load.js** (k6): WebSocket connection ramp (0→100 VUs), message send/receive with DELIVERED acks, heartbeat pings, custom latency metrics, 95th percentile thresholds (<200ms WS, <500ms HTTP)
+- **http-endpoints.js** (k6): Steady-state (50 VUs for 3m) + spike test (200 VUs), API endpoint coverage (health, profile, conversations, contact sync, OTP), custom latency trends per endpoint type
+
 ### Added — Security Hardening (Feb 2026)
 - **Security headers**: HSTS (max-age 31536000), X-Frame-Options DENY, X-Content-Type-Options nosniff, CSP (`default-src 'self'; frame-ancestors 'none'; form-action 'self'`), XSS protection, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (geolocation/camera/mic denied)
 - **InputSanitizer**: Server-side input sanitization utility — HTML entity escaping (`&`, `<`, `>`, `"`, `'`), control character stripping (preserves `\n`, `\t`, `\r`), display name trimming/length limiting, message content length limiting, HTTPS-only URL validation (rejects `javascript:` and `data:` schemes)
