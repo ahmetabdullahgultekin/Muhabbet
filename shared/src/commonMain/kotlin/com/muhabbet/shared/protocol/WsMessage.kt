@@ -181,6 +181,17 @@ sealed class WsMessage {
         val editedAt: Long
     ) : WsMessage()
 
+    /** Server notifies about a reaction on a message */
+    @Serializable
+    @SerialName("message.reaction")
+    data class MessageReaction(
+        val messageId: String,
+        val conversationId: String,
+        val userId: String,
+        val emoji: String,
+        val action: String  // "add" or "remove"
+    ) : WsMessage()
+
     /** Server heartbeat response */
     @Serializable
     @SerialName("pong")

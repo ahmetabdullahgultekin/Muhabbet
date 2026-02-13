@@ -51,4 +51,12 @@ class ConversationRepository(private val apiClient: ApiClient) {
     suspend fun setDisappearTimer(conversationId: String, seconds: Int?) {
         apiClient.put<Unit>("/api/v1/conversations/$conversationId/disappear", mapOf("seconds" to seconds))
     }
+
+    suspend fun pinConversation(conversationId: String) {
+        apiClient.put<Unit>("/api/v1/conversations/$conversationId/pin", Unit)
+    }
+
+    suspend fun unpinConversation(conversationId: String) {
+        apiClient.delete("/api/v1/conversations/$conversationId/pin")
+    }
 }

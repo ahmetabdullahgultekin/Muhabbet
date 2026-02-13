@@ -183,4 +183,35 @@
     <string name="channels_subscribe">Subscribe</string>
     <string name="channels_unsubscribe">Unsubscribe</string>
     <string name="channels_subscriber_count">%1$d subscribers</string>
+
+    <!-- Reactions -->
+    <string name="reaction_added">Reaction added</string>
+
+    <!-- Filter Chips -->
+    <string name="filter_all">All</string>
+    <string name="filter_unread">Unread</string>
+    <string name="filter_groups">Groups</string>
+    <string name="filter_channels">Channels</string>
+
+    <!-- Pinned Conversations -->
+    <string name="conv_pin">Pin</string>
+    <string name="conv_unpin">Unpin</string>
+
+    <!-- Settings Dark Mode -->
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_oled">OLED Black</string>
+    <string name="settings_theme_system">System</string>
+
+    <!-- Empty States -->
+    <string name="empty_chats_title">No messages yet</string>
+    <string name="empty_chats_subtitle">Start a new conversation!</string>
+
+    <!-- Date Separators -->
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
+
+    <!-- Scroll to bottom -->
+    <string name="scroll_to_bottom">Scroll to bottom</string>
 </resources>

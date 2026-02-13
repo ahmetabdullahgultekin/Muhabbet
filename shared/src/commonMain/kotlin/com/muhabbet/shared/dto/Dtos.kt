@@ -117,7 +117,8 @@ data class ConversationResponse(
     val lastMessageAt: String?,
     val unreadCount: Int,
     val createdAt: String,
-    val disappearAfterSeconds: Int? = null
+    val disappearAfterSeconds: Int? = null,
+    val isPinned: Boolean = false
 )
 
 @Serializable
@@ -249,6 +250,20 @@ data class ChannelInfoResponse(
     val subscriberCount: Int,
     val isSubscribed: Boolean,
     val createdAt: String
+)
+
+// ─── Reaction DTOs ─────────────────────────────────────
+
+@Serializable
+data class ReactionRequest(
+    val emoji: String
+)
+
+@Serializable
+data class ReactionResponse(
+    val emoji: String,
+    val count: Int,
+    val userIds: List<String>
 )
 
 // ─── Pagination ──────────────────────────────────────────

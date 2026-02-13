@@ -4,6 +4,8 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.PollResultResponse
 import com.muhabbet.shared.dto.PollVoteRequest
+import com.muhabbet.shared.dto.ReactionRequest
+import com.muhabbet.shared.dto.ReactionResponse
 import com.muhabbet.shared.model.Message
 
 class MessageRepository(private val apiClient: ApiClient) {
@@ -54,5 +56,18 @@ class MessageRepository(private val apiClient: ApiClient) {
     suspend fun getPollResults(messageId: String): PollResultResponse {
         val response = apiClient.get<PollResultResponse>("/api/v1/polls/$messageId/results")
         return response.data ?: throw Exception("Failed to load poll results")
+    }
+
+    suspend fun addReaction(messageId: String, emoji: String) {
+        apiClient.post<Unit>("/api/v1/messages/$messageId/reactions", ReactionRequest(emoji))
+    }
+
+    suspend fun removeReaction(messageId: String, emoji: String) {
+        apiClient.delete("/api/v1/messages/$messageId/reactions/$emoji")
+    }
+
+    suspend fun getReactions(messageId: String): List<ReactionResponse> {
+        val response = apiClient.get<List<ReactionResponse>>("/api/v1/messages/$messageId/reactions")
+        return response.data ?: emptyList()
     }
 }

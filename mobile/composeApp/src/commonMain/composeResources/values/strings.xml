@@ -183,4 +183,35 @@
     <string name="channels_subscribe">Abone Ol</string>
     <string name="channels_unsubscribe">Abonelikten Çık</string>
     <string name="channels_subscriber_count">%1$d abone</string>
+
+    <!-- Reactions -->
+    <string name="reaction_added">Tepki eklendi</string>
+
+    <!-- Filter Chips -->
+    <string name="filter_all">Tümü</string>
+    <string name="filter_unread">Okunmamış</string>
+    <string name="filter_groups">Gruplar</string>
+    <string name="filter_channels">Kanallar</string>
+
+    <!-- Pinned Conversations -->
+    <string name="conv_pin">Sabitle</string>
+    <string name="conv_unpin">Sabitleneni Kaldır</string>
+
+    <!-- Settings Dark Mode -->
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_light">Açık</string>
+    <string name="settings_theme_dark">Koyu</string>
+    <string name="settings_theme_oled">OLED Siyah</string>
+    <string name="settings_theme_system">Sistem</string>
+
+    <!-- Empty States -->
+    <string name="empty_chats_title">Henüz mesaj yok</string>
+    <string name="empty_chats_subtitle">Yeni bir sohbet başlatın!</string>
+
+    <!-- Date Separators -->
+    <string name="date_today">Bugün</string>
+    <string name="date_yesterday">Dün</string>
+
+    <!-- Scroll to bottom -->
+    <string name="scroll_to_bottom">Aşağı kaydır</string>
 </resources>

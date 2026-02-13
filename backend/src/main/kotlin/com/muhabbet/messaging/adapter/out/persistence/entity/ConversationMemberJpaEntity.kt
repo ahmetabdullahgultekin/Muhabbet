@@ -41,7 +41,13 @@ class ConversationMemberJpaEntity(
     var mutedUntil: Instant? = null,
 
     @Column(name = "last_read_at")
-    var lastReadAt: Instant? = null
+    var lastReadAt: Instant? = null,
+
+    @Column(name = "pinned", nullable = false)
+    var pinned: Boolean = false,
+
+    @Column(name = "pinned_at")
+    var pinnedAt: Instant? = null
 ) {
     fun toDomain(): ConversationMember = ConversationMember(
         conversationId = conversationId, userId = userId, role = role,

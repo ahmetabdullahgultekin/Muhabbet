@@ -20,7 +20,7 @@ private val Amber100 = Color(0xFFFFECB3)
 private val Red700 = Color(0xFFD32F2F)
 private val Red400 = Color(0xFFEF5350)
 
-private val MuhabbetLightColorScheme = lightColorScheme(
+val MuhabbetLightColorScheme = lightColorScheme(
     primary = Teal700,
     onPrimary = Color.White,
     primaryContainer = Teal100,
@@ -43,7 +43,7 @@ private val MuhabbetLightColorScheme = lightColorScheme(
     outlineVariant = Color(0xFFCAC4D0)
 )
 
-private val MuhabbetDarkColorScheme = darkColorScheme(
+val MuhabbetDarkColorScheme = darkColorScheme(
     primary = Teal200,
     onPrimary = Color(0xFF003731),
     primaryContainer = Color(0xFF005048),
@@ -66,9 +66,43 @@ private val MuhabbetDarkColorScheme = darkColorScheme(
     outlineVariant = Color(0xFF49454F)
 )
 
+// OLED Black theme — true black backgrounds for AMOLED displays
+val MuhabbetOledBlackColorScheme = darkColorScheme(
+    primary = Teal200,
+    onPrimary = Color(0xFF003731),
+    primaryContainer = Color(0xFF003D36),
+    onPrimaryContainer = Teal100,
+    secondary = Green300,
+    onSecondary = Color(0xFF003A08),
+    secondaryContainer = Color(0xFF1B5E20),
+    onSecondaryContainer = Green100,
+    tertiary = Amber600,
+    onTertiary = Color(0xFF3F2E00),
+    tertiaryContainer = Color(0xFF5B4300),
+    onTertiaryContainer = Amber100,
+    error = Red400,
+    onError = Color(0xFF601410),
+    surface = Color.Black,
+    onSurface = Color(0xFFE6E1E5),
+    surfaceVariant = Color(0xFF161618),
+    onSurfaceVariant = Color(0xFFCAC4D0),
+    outline = Color(0xFF938F99),
+    outlineVariant = Color(0xFF49454F),
+    background = Color.Black,
+    onBackground = Color(0xFFE6E1E5)
+)
+
 @Composable
-fun MuhabbetTheme(content: @Composable () -> Unit) {
-    val colorScheme = if (isSystemInDarkTheme()) MuhabbetDarkColorScheme else MuhabbetLightColorScheme
+fun MuhabbetTheme(
+    oledBlack: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    val isDark = isSystemInDarkTheme()
+    val colorScheme = when {
+        isDark && oledBlack -> MuhabbetOledBlackColorScheme
+        isDark -> MuhabbetDarkColorScheme
+        else -> MuhabbetLightColorScheme
+    }
     MaterialTheme(
         colorScheme = colorScheme,
         content = content
