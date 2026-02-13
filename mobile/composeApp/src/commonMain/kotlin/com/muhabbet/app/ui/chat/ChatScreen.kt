@@ -271,12 +271,12 @@ fun ChatScreen(
             if (index >= 0) { listState.animateScrollToItem(index); initialScrollDone = true; return@LaunchedEffect }
         }
         if (!initialScrollDone) {
-            // First load: jump instantly to bottom (no visible scroll animation)
-            listState.scrollToItem(messages.lastIndex)
+            // First load: jump instantly to very bottom (scrollOffset pushes item to top edge of viewport)
+            listState.scrollToItem(messages.lastIndex, scrollOffset = Int.MAX_VALUE)
             initialScrollDone = true
         } else {
             // New message arrived: animate to bottom
-            listState.animateScrollToItem(messages.lastIndex)
+            listState.animateScrollToItem(messages.lastIndex, scrollOffset = Int.MAX_VALUE)
         }
     }
 

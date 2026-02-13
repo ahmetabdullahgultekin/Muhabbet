@@ -25,6 +25,10 @@
 - [x] **Avatar only shows first letter** — Fixed: firstGrapheme() handles emojis properly
 - [x] **Phone number in conv list** — Fixed: now shows lastMessagePreview like WhatsApp
 - [x] **Image URLs expire after 1h** — Fixed: MinIO presigned URL expiry increased to 7 days
+- [x] **Chat scrolls from top** — Fixed (Round 6): scrollToItem with scrollOffset=Int.MAX_VALUE for instant bottom positioning
+- [x] **Forward button views image instead of forwarding** — Fixed (Round 6): now opens ForwardPickerDialog
+- [x] **MessageInfo missing media preview** — Fixed (Round 6): added mediaUrl/thumbnailUrl to DTO + backend
+- [x] **MessageInfo missing avatars** — Fixed (Round 6): added avatarUrl to RecipientDeliveryInfo DTO
 
 ## Completed Features
 
@@ -45,34 +49,42 @@
 - [x] Profile viewing — Tap chat header to view user profile
 - [x] Contact name resolution — device contact name > nickname > phone number
 - [x] Delete conversation — Long-press to delete from conversation list
+- [x] Profile photo upload — Upload via MediaRepository, shown in Settings + UserAvatar
+- [x] Reply/quote messages — Swipe-to-reply, quoted message preview in bubble
+- [x] Message forwarding — ForwardPickerDialog, forwarded label on bubble
+- [x] Starred/saved messages — Star from context menu, list in Settings, tap to navigate
+- [x] Link previews — Open Graph metadata extraction, preview card in bubble
+- [x] Stickers/GIFs — GIPHY integration, GifStickerPicker bottom sheet
+- [x] Message search — Full-text search across conversations
+- [x] File/document sharing — PDF, DOC, etc. upload + download
+- [x] Disappearing messages — 24h, 7d, 90d timer options
+- [x] Status/Stories — 24h ephemeral, text + photo, contacts visibility
+- [x] Channels/Broadcasts — One-to-many, subscriber model
+- [x] Location sharing — Static pin with map preview
+- [x] Polls — Create, vote, real-time results
+- [x] Reactions — Emoji reactions on messages
+- [x] Pinch-to-zoom — MediaViewer 1x–5x zoom, double-tap toggle
+- [x] Shared media viewer — Grid + list, video/voice/doc playback, forward/delete
+- [x] Message info — Per-recipient delivery status, media preview, avatars
+- [x] Storage usage stats — Per-user breakdown by type in Settings
 
-## Pending Features (see ROADMAP.md for full plan)
+## Pending Features
 
-- [ ] **Profile photo upload** — P1
-- [ ] **Google Play Store launch** — P2
-- [ ] **Reply/quote messages** — P3
-- [ ] **Message forwarding** — P3
-- [ ] **Starred/saved messages** — P3
-- [ ] **Link previews** — P3
-- [ ] **Stickers/GIFs** — P4
-- [ ] **Message search** — P4
-- [ ] **File/document sharing** — P4
-- [ ] **Disappearing messages** — P4
-- [ ] **Voice/video calls** — P5
-- [ ] **E2E encryption** — P6
-- [ ] **Multi-device / web client** — P6
-- [ ] **Status/Stories** — P7
-- [ ] **Channels/Broadcasts** — P7
-- [ ] **Location sharing** — P7
+- [ ] **Voice/video calls** — WebRTC (LiveKit) — signaling backend ready, need client SDK
+- [ ] **E2E encryption** — Signal Protocol (X3DH, Double Ratchet) — key exchange endpoints ready
+- [ ] **iOS completion** — ImagePicker, APNs delivery, TestFlight
+- [ ] **Google Play Store launch** — App signing, listing, review
+- [ ] **Multi-device / web client** — Future
+- [ ] **Mobile unit tests** — Backend has ~125, mobile has zero
 
 ## Infrastructure
 
 - [x] GCP VM deployment (e2-medium, europe-west1-b)
 - [x] Docker Compose (PG + Redis + MinIO + nginx)
 - [x] Firebase FCM
-- [x] Flyway migrations (V1-V4)
+- [x] Flyway migrations (V1-V13)
+- [x] Sentry integration (Android SDK)
 - [ ] **CI/CD** — GitHub Actions pipeline
-- [ ] **Monitoring** — Sentry integration
 
 ## Localization Rules
 
