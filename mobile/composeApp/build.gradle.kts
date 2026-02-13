@@ -88,6 +88,13 @@ kotlin {
             implementation("io.sentry:sentry-android:7.19.1")
         }
 
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+            implementation("io.ktor:ktor-client-mock:$ktor")
+            implementation("io.insert-koin:koin-test:$koin")
+        }
+
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:$ktor")
         }
