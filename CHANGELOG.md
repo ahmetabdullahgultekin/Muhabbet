@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Round 6: Media UX & Storage
+- **Chat scroll fix**: Chat now starts at the bottom instantly on first load, subsequent messages animate smoothly (no more exhaustive top-to-bottom scroll)
+- **Pinch-to-zoom**: MediaViewer supports pinch-to-zoom (1x–5x), double-tap to toggle zoom (1x ↔ 3x), pan while zoomed via `rememberTransformableState` + `graphicsLayer`
+- **SharedMedia video/voice/doc playback**: Videos open in external player, voices play inline with play/pause toggle + AudioPlayer, documents open externally via `LocalUriHandler`
+- **Forward button fix**: Forward now opens `ForwardPickerDialog` with conversation list (was incorrectly just viewing the image)
+- **MessageInfo media preview**: Message info screen now shows image/video thumbnail preview in the message card (added `mediaUrl`/`thumbnailUrl` to `MessageInfoResponse` DTO)
+- **MessageInfo avatars**: Recipient rows now display user avatars (added `avatarUrl` to `RecipientDeliveryInfo` DTO, populated from backend user record)
+- **Storage usage stats**: `GET /api/v1/media/storage` — returns per-user storage breakdown by type (images, audio, documents) with byte counts and item counts. Mobile Settings screen shows storage section with colored breakdown rows
+- **Hexagonal storage chain**: `GetStorageUsageUseCase` in-port → `MediaService` implementation → `MediaFileRepository` out-port → `MediaFilePersistenceAdapter` → Spring Data JPA queries with LIKE prefix matching
+- **8 new string resources**: Storage UI strings in Turkish and English (storage_title/total/images/audio/documents/loading/error/items)
+
+### Added — Round 5: UI/UX Polish
+- **MediaViewer**: Full-screen image viewer with semi-transparent top bar (close), bottom action bar (forward, delete), tap-to-toggle UI overlay (WhatsApp-style). Replaces bare `FullImageViewer` dialog
+- **SharedMediaScreen enhancements**: Tap grid item opens full-screen MediaViewer, long-press opens context menu (forward, delete own), Crossfade tab transitions, AnimatedVisibility for loading states
+- **MessageInfoScreen polish**: Message preview in Card with elevation and rounded corners, content type icon for media, separate "Read By" (blue) / "Delivered To" (grey) / "Waiting" sections with colored dots and headers, UserAvatar in recipient rows, empty state with schedule icon
+- **New string resources**: 8 new strings in Turkish and English (media_viewer_forward/share/delete/info, message_info_read_by/delivered_to/waiting/not_sent)
+
 ### Fixed — Round 4 Bug Fixes
 - **Shared media JPQL query**: Changed inline enum references to `@Param` list approach — JPQL `IN` clause with fully-qualified enum constants may not resolve in Hibernate 6
 - **Message info endpoint**: Added defensive error handling, filtered sender from recipients list

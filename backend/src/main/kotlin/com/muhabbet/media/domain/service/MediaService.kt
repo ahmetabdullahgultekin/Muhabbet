@@ -2,11 +2,13 @@ package com.muhabbet.media.domain.service
 
 import com.muhabbet.media.domain.model.MediaFile
 import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
+import com.muhabbet.media.domain.port.`in`.GetStorageUsageUseCase
 import com.muhabbet.media.domain.port.`in`.MediaUrlResult
 import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
 import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
+import com.muhabbet.shared.dto.StorageUsageResponse
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
@@ -23,7 +25,7 @@ open class MediaService(
     private val thumbnailPort: ThumbnailPort,
     private val thumbnailWidth: Int,
     private val thumbnailHeight: Int
-) : UploadMediaUseCase, GetMediaUrlUseCase {
+) : UploadMediaUseCase, GetMediaUrlUseCase, GetStorageUsageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -180,6 +182,25 @@ open class MediaService(
         val thumbnailUrl = mediaFile.thumbnailKey?.let { mediaStoragePort.getPresignedUrl(it) }
 
         return MediaUrlResult(url = url, thumbnailUrl = thumbnailUrl)
+    }
+
+    override fun getStorageUsage(userId: UUID): StorageUsageResponse {
+        val imageBytes = mediaFileRepository.sumSizeByUploaderAndContentTypePrefix(userId, "image/")
+        val audioBytes = mediaFileRepository.sumSizeByUploaderAndContentTypePrefix(userId, "audio/")
+        val documentBytes = mediaFileRepository.sumSizeByUploaderAndContentTypePrefix(userId, "application/")
+        val imageCount = mediaFileRepository.countByUploaderAndContentTypePrefix(userId, "image/")
+        val audioCount = mediaFileRepository.countByUploaderAndContentTypePrefix(userId, "audio/")
+        val documentCount = mediaFileRepository.countByUploaderAndContentTypePrefix(userId, "application/")
+
+        return StorageUsageResponse(
+            totalBytes = imageBytes + audioBytes + documentBytes,
+            imageBytes = imageBytes,
+            audioBytes = audioBytes,
+            documentBytes = documentBytes,
+            imageCount = imageCount.toInt(),
+            audioCount = audioCount.toInt(),
+            documentCount = documentCount.toInt()
+        )
     }
 
     private fun extensionFromMime(mime: String): String = when (mime) {

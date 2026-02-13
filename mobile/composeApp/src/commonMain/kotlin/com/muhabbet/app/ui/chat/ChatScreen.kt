@@ -261,12 +261,23 @@ fun ChatScreen(
         }
     }
 
+    // Track whether this is the first load (instant scroll) vs subsequent updates (animate)
+    var initialScrollDone by remember { mutableStateOf(false) }
+
     LaunchedEffect(messages.size) {
-        if (scrollToMessageId != null && messages.isNotEmpty()) {
+        if (messages.isEmpty()) return@LaunchedEffect
+        if (scrollToMessageId != null) {
             val index = messages.indexOfFirst { it.id == scrollToMessageId }
-            if (index >= 0) { listState.animateScrollToItem(index); return@LaunchedEffect }
+            if (index >= 0) { listState.animateScrollToItem(index); initialScrollDone = true; return@LaunchedEffect }
         }
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+        if (!initialScrollDone) {
+            // First load: jump instantly to bottom (no visible scroll animation)
+            listState.scrollToItem(messages.lastIndex)
+            initialScrollDone = true
+        } else {
+            // New message arrived: animate to bottom
+            listState.animateScrollToItem(messages.lastIndex)
+        }
     }
 
     LaunchedEffect(listState) {

@@ -260,4 +260,24 @@
     <string name="message_info_delivered_at">İletilme</string>
     <string name="message_info_read_at">Okunma</string>
     <string name="profile_contact_name">Rehber Adı</string>
+
+    <!-- Round 5 — Media Viewer & Message Info -->
+    <string name="media_viewer_forward">İlet</string>
+    <string name="media_viewer_share">Paylaş</string>
+    <string name="media_viewer_delete">Sil</string>
+    <string name="media_viewer_info">Bilgi</string>
+    <string name="message_info_read_by">Okuyanlar</string>
+    <string name="message_info_delivered_to">İletilenler</string>
+    <string name="message_info_waiting">Teslim bekleniyor...</string>
+    <string name="message_info_not_sent">Henüz gönderilmedi</string>
+
+    <!-- Storage Usage -->
+    <string name="storage_title">Depolama Kullanımı</string>
+    <string name="storage_total">Toplam</string>
+    <string name="storage_images">Fotoğraflar</string>
+    <string name="storage_audio">Ses</string>
+    <string name="storage_documents">Belgeler</string>
+    <string name="storage_loading">Yükleniyor…</string>
+    <string name="storage_error">Depolama bilgisi alınamadı</string>
+    <string name="storage_items">%1$d öğe</string>
 </resources>

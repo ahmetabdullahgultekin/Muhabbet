@@ -260,4 +260,24 @@
     <string name="message_info_delivered_at">Delivered</string>
     <string name="message_info_read_at">Read</string>
     <string name="profile_contact_name">Contact Name</string>
+
+    <!-- Round 5 — Media Viewer & Message Info -->
+    <string name="media_viewer_forward">Forward</string>
+    <string name="media_viewer_share">Share</string>
+    <string name="media_viewer_delete">Delete</string>
+    <string name="media_viewer_info">Info</string>
+    <string name="message_info_read_by">Read by</string>
+    <string name="message_info_delivered_to">Delivered to</string>
+    <string name="message_info_waiting">Waiting for delivery...</string>
+    <string name="message_info_not_sent">Not yet sent</string>
+
+    <!-- Storage Usage -->
+    <string name="storage_title">Storage Usage</string>
+    <string name="storage_total">Total</string>
+    <string name="storage_images">Photos</string>
+    <string name="storage_audio">Audio</string>
+    <string name="storage_documents">Documents</string>
+    <string name="storage_loading">Loading…</string>
+    <string name="storage_error">Failed to load storage info</string>
+    <string name="storage_items">%1$d items</string>
 </resources>

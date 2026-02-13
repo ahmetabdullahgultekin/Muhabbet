@@ -43,11 +43,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.RadioButton
 import coil3.compose.AsyncImage
@@ -63,6 +65,7 @@ import com.muhabbet.app.ui.components.UserAvatar
 import androidx.compose.ui.layout.ContentScale
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import com.muhabbet.shared.dto.StorageUsageResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -85,6 +88,8 @@ fun SettingsScreen(
     var isUploadingPhoto by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf(tokenStorage.getLanguage() ?: "tr") }
+    var storageUsage by remember { mutableStateOf<StorageUsageResponse?>(null) }
+    var storageLoading by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val restartApp = rememberRestartApp()
@@ -122,6 +127,13 @@ fun SettingsScreen(
             avatarUrl = profile.avatarUrl
         } catch (_: Exception) { }
         isLoading = false
+    }
+
+    LaunchedEffect(Unit) {
+        try {
+            storageUsage = mediaRepository.getStorageUsage()
+        } catch (_: Exception) { }
+        storageLoading = false
     }
 
     if (showLogoutDialog) {
@@ -330,6 +342,77 @@ fun SettingsScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(16.dp))
+
+                // Storage usage section
+                Text(
+                    text = stringResource(Res.string.storage_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
+
+                if (storageLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = stringResource(Res.string.storage_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (storageUsage != null) {
+                    val usage = storageUsage!!
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 1.dp,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            StorageRow(
+                                label = stringResource(Res.string.storage_total),
+                                bytes = usage.totalBytes,
+                                count = usage.imageCount + usage.audioCount + usage.documentCount,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            StorageRow(
+                                label = stringResource(Res.string.storage_images),
+                                bytes = usage.imageBytes,
+                                count = usage.imageCount,
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            StorageRow(
+                                label = stringResource(Res.string.storage_audio),
+                                bytes = usage.audioBytes,
+                                count = usage.audioCount,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            StorageRow(
+                                label = stringResource(Res.string.storage_documents),
+                                bytes = usage.documentBytes,
+                                count = usage.documentCount,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = stringResource(Res.string.storage_error),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Spacer(Modifier.height(24.dp))
 
                 // Language section
                 Text(
@@ -456,4 +539,44 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun StorageRow(label: String, bytes: Long, count: Int, color: androidx.compose.ui.graphics.Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Text(
+            text = "${formatBytes(bytes)} ($count)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return "%.1f KB".format(kb)
+    val mb = kb / 1024.0
+    if (mb < 1024) return "%.1f MB".format(mb)
+    val gb = mb / 1024.0
+    return "%.2f GB".format(gb)
 }

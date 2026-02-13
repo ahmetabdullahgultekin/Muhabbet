@@ -348,6 +348,8 @@ data class MessageInfoResponse(
     val content: String,
     val contentType: String,
     val sentAt: String,
+    val mediaUrl: String? = null,
+    val thumbnailUrl: String? = null,
     val recipients: List<RecipientDeliveryInfo>
 )
 
@@ -355,8 +357,22 @@ data class MessageInfoResponse(
 data class RecipientDeliveryInfo(
     val userId: String,
     val displayName: String?,
+    val avatarUrl: String? = null,
     val status: String,
     val updatedAt: String?
+)
+
+// ─── Storage Usage ───────────────────────────────────────
+
+@Serializable
+data class StorageUsageResponse(
+    val totalBytes: Long,
+    val imageBytes: Long,
+    val audioBytes: Long,
+    val documentBytes: Long,
+    val imageCount: Int,
+    val audioCount: Int,
+    val documentCount: Int
 )
 
 // ─── Pagination ──────────────────────────────────────────

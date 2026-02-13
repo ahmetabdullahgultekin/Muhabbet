@@ -1,12 +1,14 @@
 package com.muhabbet.media.adapter.`in`.web
 
 import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
+import com.muhabbet.media.domain.port.`in`.GetStorageUsageUseCase
 import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
 import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.MediaUploadResponse
+import com.muhabbet.shared.dto.StorageUsageResponse
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.MediaType
@@ -24,7 +26,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/media")
 class MediaController(
     private val uploadMediaUseCase: UploadMediaUseCase,
-    private val getMediaUrlUseCase: GetMediaUrlUseCase
+    private val getMediaUrlUseCase: GetMediaUrlUseCase,
+    private val getStorageUsageUseCase: GetStorageUsageUseCase
 ) {
 
     @PostMapping("/upload", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
@@ -115,6 +118,13 @@ class MediaController(
         )
 
         return ApiResponseBuilder.created(response)
+    }
+
+    @GetMapping("/storage")
+    fun getStorageUsage(): ResponseEntity<ApiResponse<StorageUsageResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val usage = getStorageUsageUseCase.getStorageUsage(userId)
+        return ApiResponseBuilder.ok(usage)
     }
 
     @GetMapping("/{mediaId}/url")

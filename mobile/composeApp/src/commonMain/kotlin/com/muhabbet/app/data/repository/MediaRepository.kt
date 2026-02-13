@@ -3,7 +3,9 @@ package com.muhabbet.app.data.repository
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.MediaUploadResponse
+import com.muhabbet.shared.dto.StorageUsageResponse
 import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.get
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -78,5 +80,15 @@ class MediaRepository(private val apiClient: ApiClient) {
             text
         )
         return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "Upload failed")
+    }
+
+    suspend fun getStorageUsage(): StorageUsageResponse {
+        val response = apiClient.httpClient.get("${ApiClient.BASE_URL}/api/v1/media/storage")
+        val text = response.bodyAsText()
+        val apiResponse = apiClient.json.decodeFromString(
+            ApiResponse.serializer(serializer<StorageUsageResponse>()),
+            text
+        )
+        return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "STORAGE_USAGE_FAILED")
     }
 }

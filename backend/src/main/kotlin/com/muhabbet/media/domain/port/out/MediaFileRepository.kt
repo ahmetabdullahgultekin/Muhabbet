@@ -6,4 +6,6 @@ import java.util.UUID
 interface MediaFileRepository {
     fun save(mediaFile: MediaFile): MediaFile
     fun findById(id: UUID): MediaFile?
+    fun sumSizeByUploaderAndContentTypePrefix(uploaderId: UUID, prefix: String): Long
+    fun countByUploaderAndContentTypePrefix(uploaderId: UUID, prefix: String): Long
 }

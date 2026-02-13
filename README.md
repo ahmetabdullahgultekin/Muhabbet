@@ -39,8 +39,9 @@ muhabbet/
 - Disappearing messages (24h, 7d, 90d)
 - Starred messages (list view with scroll-to-message), message search (full-text)
 - Typing indicators, read receipts, delivery status (batch-resolved)
-- Message info (per-recipient delivery status with timestamps)
-- Shared media viewer (images grid + documents list)
+- Message info (per-recipient delivery status with timestamps, media preview, avatars)
+- Shared media viewer (images grid + documents list, video/voice playback, forward/delete)
+- Pinch-to-zoom image viewer (1x–5x, double-tap toggle)
 
 ### Media & Content
 - Image sharing (upload, thumbnails, full-size viewer)
@@ -63,6 +64,7 @@ muhabbet/
 - Localization: Turkish + English with runtime switch
 - Dark mode + OLED theme
 - Crash reporting: Sentry SDK (Android; iOS stubbed)
+- Storage usage stats (per-user breakdown by type)
 - KVKK compliance: data export, account deletion
 
 ### Architecture (Post-MVP)
@@ -80,7 +82,7 @@ muhabbet/
 | Groups | Done | `POST /api/v1/groups`, member management, role assignment |
 | WebSocket | Done | `wss://host/ws?token={jwt}` — Send, Ack, Typing, Presence, Call signaling |
 | Contacts | Done | `POST /api/v1/contacts/sync` — phone hash matching |
-| Media | Done | `POST /api/v1/media/upload`, `GET /api/v1/media/{id}/url` — MinIO + thumbnails |
+| Media | Done | `POST /api/v1/media/upload`, `GET /api/v1/media/{id}/url`, `GET /api/v1/media/storage` — MinIO + thumbnails + storage stats |
 | Presence | Done | Redis TTL-based online tracking, typing indicators, last seen |
 | Notification | Done | FCM push with grouping, `PUT /api/v1/devices/push-token` |
 | Status | Done | `POST /api/v1/statuses`, `GET /api/v1/statuses` — 24h ephemeral stories |

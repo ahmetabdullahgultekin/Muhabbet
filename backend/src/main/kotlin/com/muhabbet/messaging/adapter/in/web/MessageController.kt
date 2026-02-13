@@ -93,6 +93,7 @@ class MessageController(
                 RecipientDeliveryInfo(
                     userId = ds.userId.toString(),
                     displayName = user?.displayName ?: ds.userId.toString().take(8),
+                    avatarUrl = user?.avatarUrl,
                     status = ds.status.name,
                     updatedAt = ds.updatedAt.toString()
                 )
@@ -104,6 +105,8 @@ class MessageController(
             content = if (message.isDeleted) "" else message.content,
             contentType = message.contentType.name,
             sentAt = message.serverTimestamp.toString(),
+            mediaUrl = message.mediaUrl,
+            thumbnailUrl = message.thumbnailUrl,
             recipients = recipientInfos
         )
         return ApiResponseBuilder.ok(info)
