@@ -41,10 +41,11 @@ module/
 
 ### Modules
 - `auth` — **DONE** — OTP via MockOtpSender (Netgsm later), JWT HS256, device management, phone hash for contact sync
-- `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination
+- `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination, backup, bots, channel analytics
 - `media` — **DONE** — Upload/download via MinIO (S3 API), thumbnail generation, pre-signed URLs via nginx proxy
 - `presence` — **DONE** — Online/offline tracking via Redis (TTL-based keys), typing indicators, last seen persistence
 - `notification` — **DONE** — Push notifications via FCM (FcmPushNotificationAdapter), push token registration
+- `moderation` — **DONE** — Report/block system (BTK Law 5651), admin review workflows
 - `user` — Profile endpoints in auth module for now (`GET/PATCH /users/me`)
 
 ### Cross-Cutting (`shared/` package in backend)

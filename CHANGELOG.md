@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 6: Growth Features (Feb 2026)
+- **Channel analytics**: `ChannelAnalyticsService` with daily stats (messages, views, reactions, shares), subscriber tracking, REST API at `GET /api/v1/channels/{channelId}/analytics` with date-range queries
+- **Bot platform**: `Bot` domain model with `BotPermission` enum, `BotService` with secure API token generation (`mhb_` prefix + Base64), webhook support, permissions system, REST API at `/api/v1/bots` (CRUD, token regeneration, webhook management)
+- **Bot JPA persistence**: `BotJpaEntity`, `BotPersistenceAdapter`, `SpringDataBotRepository` — full hexagonal chain
+- **Channel analytics persistence**: `ChannelAnalyticsJpaEntity`, `ChannelAnalyticsPersistenceAdapter`, `SpringDataChannelAnalyticsRepository`
+
+### Added — Phase 5: Horizontal Scaling (Feb 2026)
+- **Redis Pub/Sub message broadcaster**: `RedisMessageBroadcaster` replaces in-memory broadcaster — publishes WS messages to `ws:broadcast:{userId}` Redis channels for cross-instance routing
+- **Redis broadcast listener**: `RedisBroadcastListener` subscribes to `ws:broadcast:*` pattern, delivers messages to local WebSocket sessions, enabling multi-instance deployment
+
+### Added — Phase 4: Message Backup (Feb 2026)
+- **BackupService**: Implements `ManageBackupUseCase` — initiate backup, check status, list backups, delete backup
+- **BackupController**: REST API at `/api/v1/backups` — `POST` (initiate), `GET` (list), `GET /{id}` (status), `DELETE /{id}`
+- **Backup persistence**: `MessageBackupJpaEntity`, `BackupPersistenceAdapter`, `SpringDataBackupRepository`
+- **BackupRepository out-port**: `MessageBackup` data class with status tracking (PENDING, IN_PROGRESS, COMPLETED, FAILED)
+
+### Added — Phase 3: LiveKit Integration (Feb 2026)
+- **CallRoomProvider out-port**: Interface for call room creation/token generation/room termination
+- **LiveKitRoomAdapter**: LiveKit server SDK integration with `@ConditionalOnProperty(muhabbet.livekit.enabled)` — creates rooms, generates participant tokens, terminates rooms
+- **NoOpCallRoomProvider**: Fallback when LiveKit is disabled — returns stub tokens and room IDs
+- **Outgoing call initiation**: `MainComponent` now generates callId and opens ActiveCall screen on call button press
+- **LiveKit configuration**: `muhabbet.livekit.*` properties in `application.yml` (enabled, api-key, api-secret, server-url)
+
+### Added — Phase 2: Content Moderation (Feb 2026)
+- **Moderation module**: Full hexagonal architecture — `UserReport` + `UserBlock` domain models, `ReportReason` enum (SPAM, HARASSMENT, INAPPROPRIATE_CONTENT, IMPERSONATION, OTHER), `ReportStatus` enum (PENDING, REVIEWED, RESOLVED, DISMISSED)
+- **ModerationService**: Implements `ReportUserUseCase`, `BlockUserUseCase`, `ReviewReportsUseCase` — report users, block/unblock, admin review with status updates
+- **ModerationController**: REST API at `/api/v1/moderation/reports` (CRUD), `/api/v1/moderation/blocks` (block/unblock/list), admin endpoints for report review
+- **Moderation persistence**: `ReportJpaEntity`, `BlockJpaEntity`, `ModerationPersistenceAdapter`, Spring Data repositories
+- **Error codes**: `REPORT_NOT_FOUND`, `BLOCK_SELF`, `BOT_NOT_FOUND`, `BOT_INACTIVE`, `BACKUP_NOT_FOUND`, `BACKUP_IN_PROGRESS` added to `ErrorCode` enum
+
+### Added — Phase 1: Stabilization (Feb 2026)
+- **WebSocket rate limiting**: `WebSocketRateLimiter` — per-connection sliding window (50 messages per 10-second window), integrated into `ChatWebSocketHandler`, auto-cleanup on disconnect
+- **Deep linking**: `muhabbet://` custom scheme + `https://muhabbet.app` universal links for `/invite` and `/chat` paths in AndroidManifest.xml
+- **Structured analytics**: `AnalyticsEvent` utility with SLF4J logger named "analytics" for structured event tracking with context maps
+
+### Added — Backend Test Expansion (Feb 2026)
+- **DeliveryStatusTest**: 6 tests — message delivery lifecycle (SENT → DELIVERED → READ), multi-recipient aggregation, status transitions
+- **CallSignalingServiceTest**: 7 tests — call initiation, answer, end, busy detection, call history recording, concurrent call handling
+- **EncryptionServiceTest**: 7 tests — key bundle registration, pre-key consumption, key bundle retrieval, one-time pre-key rotation
+- **ModerationServiceTest**: 8 tests — report creation, duplicate reporting, block/unblock, self-block prevention, admin report review
+- **WebSocketRateLimiterTest**: 4 tests — message allowance within limits, rate limiting enforcement, window expiry, user cleanup
+
+### Added — V15 Database Migration (Feb 2026)
+- **user_reports**: id, reporter_id, reported_user_id, reason, description, status, created_at, reviewed_at, reviewed_by
+- **user_blocks**: id, blocker_id, blocked_id, created_at (unique constraint on blocker+blocked)
+- **channel_analytics**: id, channel_id, date, message_count, view_count, reaction_count, share_count, new_subscribers, unsubscribes
+- **channel_subscriptions**: id, channel_id, user_id, subscribed_at, notification_enabled
+- **bots**: id, owner_id, user_id, name, description, api_token, webhook_url, is_active, permissions (JSONB), created_at, updated_at
+- **message_backups**: id, user_id, status, file_url, file_size_bytes, message_count, created_at, completed_at, expires_at
+- Indexes on all foreign keys and frequently queried columns
+
 ### Added — Security Hardening (Feb 2026)
 - **Security headers**: HSTS (max-age 31536000), X-Frame-Options DENY, X-Content-Type-Options nosniff, CSP (`default-src 'self'; frame-ancestors 'none'; form-action 'self'`), XSS protection, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (geolocation/camera/mic denied)
 - **InputSanitizer**: Server-side input sanitization utility — HTML entity escaping (`&`, `<`, `>`, `"`, `'`), control character stripping (preserves `\n`, `\t`, `\r`), display name trimming/length limiting, message content length limiting, HTTPS-only URL validation (rejects `javascript:` and `data:` schemes)
