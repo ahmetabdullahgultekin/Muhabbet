@@ -26,7 +26,7 @@ class GroupRepository(private val apiClient: ApiClient) {
                 name = name
             )
         )
-        return response.data ?: throw Exception("Grup oluşturulamadı")
+        return response.data ?: throw Exception(response.error?.message ?: "GROUP_CREATE_FAILED")
     }
 
     suspend fun addMembers(conversationId: String, userIds: List<String>): List<ParticipantResponse> {
@@ -46,7 +46,7 @@ class GroupRepository(private val apiClient: ApiClient) {
             "/api/v1/conversations/$conversationId",
             UpdateGroupRequest(name = name, description = description)
         )
-        return response.data ?: throw Exception("Grup güncellenemedi")
+        return response.data ?: throw Exception(response.error?.message ?: "GROUP_UPDATE_FAILED")
     }
 
     suspend fun updateMemberRole(conversationId: String, userId: String, role: MemberRole) {
@@ -70,7 +70,7 @@ class GroupRepository(private val apiClient: ApiClient) {
             contentType(io.ktor.http.ContentType.Application.Json)
         }
         if (!response.status.isSuccess()) {
-            throw Exception("Mesaj düzenlenemedi")
+            throw Exception("MESSAGE_EDIT_FAILED")
         }
     }
 }

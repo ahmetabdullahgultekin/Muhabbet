@@ -79,6 +79,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import com.muhabbet.app.ui.components.EmptyChatsIllustration
+import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.Dispatchers
@@ -678,18 +679,6 @@ private fun ConversationItem(
 
 private fun firstGrapheme(text: String): String =
     com.muhabbet.app.ui.profile.firstGrapheme(text)
-
-private fun normalizeToE164(phone: String): String? {
-    val digits = phone.removePrefix("+")
-    return when {
-        phone.startsWith("+90") && digits.length == 12 -> phone
-        digits.startsWith("90") && digits.length == 12 -> "+$digits"
-        digits.startsWith("0") && digits.length == 11 -> "+90${digits.drop(1)}"
-        digits.startsWith("5") && digits.length == 10 -> "+90$digits"
-        phone.startsWith("+") && digits.length >= 10 -> phone
-        else -> null
-    }
-}
 
 private fun formatTimestamp(timestamp: String): String {
     return try {

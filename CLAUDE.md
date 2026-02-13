@@ -53,15 +53,84 @@ module/
 - `security/` — JwtProvider, JwtAuthFilter
 - `event/` — DomainEvent marker interface
 
-## Strict Rules — ALWAYS Follow These
+## Software Engineering Principles — ALWAYS Follow These
 
-### Architecture Rules
+Every piece of code in this project MUST adhere to these principles. These are not guidelines — they are hard rules.
+
+### SOLID Principles
+
+#### Single Responsibility Principle (SRP)
+- **Each class/file has ONE reason to change.** Controllers handle HTTP, services handle logic, repositories handle persistence.
+- **Composable functions ≤ 300 lines.** If a composable grows larger, extract sub-composables into separate files.
+- **Services implement ≤ 3 use case interfaces.** If a service implements more, split into focused services (e.g., `ConversationService`, `MessageService`, `GroupService`).
+- **No God classes.** If a file exceeds ~500 lines, it likely violates SRP — refactor.
+
+#### Open/Closed Principle (OCP)
+- **Use interfaces (ports) for extension.** New behavior should be added via new implementations, not by modifying existing code.
+- **Use sealed classes for type-safe variants.** Prefer sealed hierarchies over `when` on strings or enums for business logic branching.
+- **Mapper extension functions for DTO conversions.** Example: `Message.toSharedMessage()` in a dedicated mapper file — one place to change if mapping evolves.
+
+#### Liskov Substitution Principle (LSP)
+- **All implementations of an interface must be interchangeable.** If a service implements `ManageGroupUseCase`, every method must behave consistently with the contract.
+- **No method should throw `UnsupportedOperationException`.** If a subtype can't fulfill the contract, the interface is too broad — split it.
+
+#### Interface Segregation Principle (ISP)
+- **Clients should not depend on interfaces they don't use.** Split fat interfaces into focused ones.
+- **Use case interfaces are fine-grained:** `SendMessageUseCase`, `GetMessageHistoryUseCase` — not one `MessageUseCase` with 10 methods.
+
+#### Dependency Inversion Principle (DIP)
+- **Domain depends on NOTHING.** Domain model and service layer never import adapter/infrastructure classes.
+- **Controllers depend on use case interfaces (in-ports)**, never on concrete service implementations.
+- **Services depend on repository interfaces (out-ports)**, never on JPA repository implementations.
+
+### Architecture Rules (Hexagonal)
+
 1. **NO business logic in controllers or adapters.** Controllers only: validate input → call use case → map response.
+   - **NO `@Transactional` on controllers.** Transactions belong on the service layer.
+   - **NO JPA entity instantiation in controllers.** Controllers must not import `*JpaEntity` classes.
+   - **NO `SpringData*Repository` in controllers.** Controllers call use case interfaces only.
 2. **Domain models ≠ JPA entities.** Always map between them. Domain model lives in `domain/model/`, JPA entity lives in `adapter/out/persistence/`.
 3. **Modules communicate via Spring ApplicationEvent**, never by direct imports across module boundaries.
 4. **All use cases are interfaces** (in-ports). Services implement them.
 5. **All repositories are interfaces** (out-ports). JPA adapters implement them.
 6. **No Spring annotations in domain layer.** Domain is framework-agnostic.
+7. **New features require:** migration → domain model → out-port → JPA adapter → in-port (use case) → service → controller. Never skip layers.
+
+### DRY (Don't Repeat Yourself)
+
+- **Shared utility functions go in `util/` packages.** Example: `normalizeToE164()` lives in `mobile/.../util/PhoneNormalization.kt`, imported by all screens.
+- **DTO mapping logic extracted to mapper files.** Example: `MessageMapper.kt` with `Message.toSharedMessage()` extension function — used by all controllers that return messages.
+- **If you copy-paste >3 lines, extract.** Create a function, extension, or composable instead.
+- **Backend and shared module enum definitions:** Backend domain enums (`ContentType`, `ConversationType`, `MemberRole`) are intentionally separate from shared module enums — backend domain must be framework-agnostic. Use mapper extensions for conversion between them.
+
+### KISS (Keep It Simple, Stupid)
+
+- **Prefer simple, linear code over clever abstractions.** Three similar lines > premature abstraction.
+- **No unnecessary generics.** Use concrete types unless abstraction is needed by 3+ callers.
+- **Avoid deep nesting.** Use early returns and guard clauses instead of nested `if-else`.
+- **Composables: Hoist state simply.** Use `mutableStateOf()` at the composable level, not custom ViewModel classes for simple screens.
+
+### YAGNI (You Aren't Gonna Need It)
+
+- **Don't build for hypothetical future.** Only implement what's needed now.
+- **No feature flags, config options, or extension points** unless there are concrete current requirements.
+- **No abstract base classes with one subclass.** Wait until you need the second implementation.
+
+### No Hardcoded Strings
+
+#### UI Layer (Mobile)
+- **ALL user-visible text** uses `stringResource(Res.string.*)` — no Turkish or English text in Kotlin files.
+- Default locale: Turkish (`composeResources/values/strings.xml`).
+- English translations: `composeResources/values-en/strings.xml`.
+- For strings in `scope.launch {}` (non-composable), resolve at the top of the composable function as `val`.
+
+#### Data Layer (Repositories)
+- **No hardcoded error messages** in exceptions. Use error codes: `throw Exception(response.error?.message ?: "ERROR_CODE")`.
+- Error codes follow pattern: `DOMAIN_ACTION_RESULT` (e.g., `OTP_REQUEST_FAILED`, `GROUP_CREATE_FAILED`).
+
+#### Backend
+- **Use `ErrorCode` enum** for all business errors. Never throw with inline Turkish/English message strings.
+- **Magic numbers go in companion objects or `application.yml`.** Example: `EDIT_WINDOW_MINUTES`, `MAX_HASHES_PER_REQUEST`.
 
 ### Code Style
 - Kotlin idioms: data classes, sealed classes, extension functions, null safety
@@ -151,6 +220,18 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 12. ~~Message delete/edit~~ — **DONE** (soft delete, edit with editedAt, WS broadcast, context menu)
 13. ~~Localization (i18n)~~ — **DONE** (all strings in composeResources, values/ = Turkish, values-en/ = English, language switch in Settings)
 
+14. ~~Reply/quote + forwarding~~ — **DONE**
+15. ~~Starred messages~~ — **DONE**
+16. ~~Link previews~~ — **DONE**
+17. ~~Message search~~ — **DONE**
+18. ~~File/document sharing~~ — **DONE**
+19. ~~Disappearing messages~~ — **DONE**
+20. ~~Polls~~ — **DONE**
+21. ~~Location sharing~~ — **DONE**
+22. ~~Status/Stories~~ — **DONE**
+23. ~~Channels/Broadcasts~~ — **DONE**
+24. ~~UI/UX polish~~ — **DONE** (reactions, swipe-to-reply, typing animation, FAB, filter chips, pinned chats, OLED theme, bubble tails, date pills, empty states, unread styling)
+
 ### Next Phases
 - Profile viewing (tap user to see profile)
 - Contact details (show phone, about, saved name)
@@ -158,6 +239,12 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - iOS release
 
 E2E encryption deferred to Phase 2 (TLS-only for MVP).
+
+### Known Technical Debt (to address as project grows)
+- **Controllers with direct repo access**: `StatusController`, `ChannelController`, `PollController`, `DisappearingMessageController`, `ReactionController` bypass use case layer — refactor to use case pattern when these features need business logic changes.
+- **ChatScreen.kt is ~1700 lines**: Extract into focused composables (MessageListPane, MessageInputPane, ChatDialogs) when adding more features.
+- **MessagingService implements 7 use cases**: Split into ConversationService + MessageService + GroupService when complexity increases.
+- **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
@@ -215,7 +302,7 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
 - **MinIO pre-signed URLs in Docker**: MinIO runs inside Docker network (`http://minio:9000`). Pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client with a public endpoint — the SDK makes internal API calls (GetBucketLocation) to the endpoint which fail through nginx. **Solution**: Generate URLs with internal client, then string-replace the endpoint: `url.replace(internalEndpoint, publicEndpoint)`. Nginx proxies `/muhabbet-media/` to `http://minio:9000/muhabbet-media/` with `Host minio:9000` header so signatures validate.
 - **KoinApplication vs KoinContext**: `KoinApplication` composable starts a NEW Koin instance — crashes with `KoinApplicationAlreadyStartedException` when Android Activity recreates. **Fix**: Use `GlobalContext.getOrNull() ?: startKoin { ... }.koin` + `KoinContext(context = koin)`.
 - **WsClient.send() callers must try-catch**: Even though `send()` correctly throws when disconnected, ALL callers in Composables must wrap in try-catch. Uncaught exceptions in `LaunchedEffect`/`scope.launch` kill the coroutine silently or crash the collector.
-- **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` in `NewConversationScreen.kt`.
+- **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` from `util/PhoneNormalization.kt` (shared utility — do NOT duplicate).
 - **Nginx location trailing slash matters**: `location /muhabbet-media/` does NOT match `/muhabbet-media?query` (no trailing slash). MinIO SDK sends bucket location requests without trailing slash, causing 301 redirects then signature failures.
 - **No hardcoded strings in UI**: All user-visible strings must go through `composeResources/values/strings.xml` (Turkish) and `values-en/strings.xml` (English) using `stringResource(Res.string.*)`. Never use Turkish text directly in Kotlin files.
 - **stringResource in coroutine blocks**: `stringResource()` is a `@Composable` function — cannot be called inside `scope.launch {}`. Resolve it as a `val` at the top of the composable, then reference the val inside the coroutine.

@@ -28,7 +28,7 @@ class ConversationRepository(private val apiClient: ApiClient) {
                 participantIds = listOf(otherUserId)
             )
         )
-        return response.data ?: throw Exception("Konusma olusturulamadi")
+        return response.data ?: throw Exception(response.error?.message ?: "CONVERSATION_CREATE_FAILED")
     }
 
     suspend fun syncContacts(phoneHashes: List<String>): ContactSyncResponse {
@@ -45,7 +45,7 @@ class ConversationRepository(private val apiClient: ApiClient) {
 
     suspend fun getUserProfile(userId: String): UserProfile {
         val response = apiClient.get<UserProfile>("/api/v1/users/$userId")
-        return response.data ?: throw Exception("Profil yüklenemedi")
+        return response.data ?: throw Exception(response.error?.message ?: "PROFILE_LOAD_FAILED")
     }
 
     suspend fun setDisappearTimer(conversationId: String, seconds: Int?) {

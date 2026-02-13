@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.group
 
+import com.muhabbet.app.util.normalizeToE164
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -330,19 +331,4 @@ private fun SelectableContactItem(
     }
 }
 
-/**
- * Normalizes a phone number to E.164 format for Turkish numbers.
- * Handles: +905XX, 905XX, 05XX, 5XX -> +90XXXXXXXXX
- * Returns null if the number doesn't look like a Turkish mobile number.
- */
-private fun normalizeToE164(phone: String): String? {
-    val digits = phone.removePrefix("+")
-    return when {
-        phone.startsWith("+90") && digits.length == 12 -> phone
-        digits.startsWith("90") && digits.length == 12 -> "+$digits"
-        digits.startsWith("0") && digits.length == 11 -> "+90${digits.drop(1)}"
-        digits.startsWith("5") && digits.length == 10 -> "+90$digits"
-        phone.startsWith("+") && digits.length >= 10 -> phone
-        else -> null
-    }
-}
+// normalizeToE164 imported from com.muhabbet.app.util.PhoneNormalization

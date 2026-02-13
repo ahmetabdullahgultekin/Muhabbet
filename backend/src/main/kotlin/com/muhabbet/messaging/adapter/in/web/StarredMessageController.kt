@@ -47,23 +47,7 @@ class StarredMessageController(
         val userId = AuthenticatedUser.currentUserId()
         val messages = starredMessageRepository.getStarredMessages(userId, limit, offset)
 
-        val items = messages.map { msg ->
-            SharedMessage(
-                id = msg.id.toString(),
-                conversationId = msg.conversationId.toString(),
-                senderId = msg.senderId.toString(),
-                contentType = SharedContentType.valueOf(msg.contentType.name),
-                content = if (msg.isDeleted) "" else msg.content,
-                replyToId = msg.replyToId?.toString(),
-                mediaUrl = msg.mediaUrl,
-                thumbnailUrl = msg.thumbnailUrl,
-                status = MessageStatus.SENT,
-                serverTimestamp = KInstant.fromEpochMilliseconds(msg.serverTimestamp.toEpochMilli()),
-                clientTimestamp = KInstant.fromEpochMilliseconds(msg.clientTimestamp.toEpochMilli()),
-                editedAt = msg.editedAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },
-                isDeleted = msg.isDeleted
-            )
-        }
+        val items = messages.map { it.toSharedMessage() }
 
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = null, hasMore = messages.size >= limit)

@@ -39,24 +39,7 @@ class SearchController(
             messageRepo.searchGlobal("%${q.lowercase()}%", pageable)
         }
 
-        val items = results.map { entity ->
-            val msg = entity.toDomain()
-            SharedMessage(
-                id = msg.id.toString(),
-                conversationId = msg.conversationId.toString(),
-                senderId = msg.senderId.toString(),
-                contentType = SharedContentType.valueOf(msg.contentType.name),
-                content = if (msg.isDeleted) "" else msg.content,
-                replyToId = msg.replyToId?.toString(),
-                mediaUrl = msg.mediaUrl,
-                thumbnailUrl = msg.thumbnailUrl,
-                status = MessageStatus.SENT,
-                serverTimestamp = KInstant.fromEpochMilliseconds(msg.serverTimestamp.toEpochMilli()),
-                clientTimestamp = KInstant.fromEpochMilliseconds(msg.clientTimestamp.toEpochMilli()),
-                editedAt = msg.editedAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },
-                isDeleted = msg.isDeleted
-            )
-        }
+        val items = results.map { entity -> entity.toDomain().toSharedMessage() }
 
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = null, hasMore = results.size >= limit)

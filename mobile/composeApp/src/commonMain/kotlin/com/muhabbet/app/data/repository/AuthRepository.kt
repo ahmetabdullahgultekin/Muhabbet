@@ -21,7 +21,7 @@ class AuthRepository(
             "/api/v1/auth/otp/request",
             RequestOtpRequest(phoneNumber)
         )
-        return response.data ?: throw Exception(response.error?.message ?: "OTP isteği başarısız")
+        return response.data ?: throw Exception(response.error?.message ?: "OTP_REQUEST_FAILED")
     }
 
     suspend fun verifyOtp(
@@ -34,7 +34,7 @@ class AuthRepository(
             "/api/v1/auth/otp/verify",
             VerifyOtpRequest(phoneNumber, otp, deviceName, platform)
         )
-        val data = response.data ?: throw Exception(response.error?.message ?: "Doğrulama başarısız")
+        val data = response.data ?: throw Exception(response.error?.message ?: "VERIFY_OTP_FAILED")
 
         tokenStorage.saveTokens(
             accessToken = data.accessToken,
@@ -55,7 +55,7 @@ class AuthRepository(
             "/api/v1/auth/firebase-verify",
             FirebaseVerifyRequest(idToken, deviceName, platform)
         )
-        val data = response.data ?: throw Exception(response.error?.message ?: "Firebase doğrulama başarısız")
+        val data = response.data ?: throw Exception(response.error?.message ?: "FIREBASE_VERIFY_FAILED")
 
         tokenStorage.saveTokens(
             accessToken = data.accessToken,
@@ -69,7 +69,7 @@ class AuthRepository(
 
     suspend fun getProfile(): UserProfile {
         val response = apiClient.get<UserProfile>("/api/v1/users/me")
-        return response.data ?: throw Exception("Profil yüklenemedi")
+        return response.data ?: throw Exception(response.error?.message ?: "PROFILE_LOAD_FAILED")
     }
 
     suspend fun updateProfile(displayName: String? = null, about: String? = null, avatarUrl: String? = null) {
