@@ -91,10 +91,21 @@ import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Poll
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TimerOff
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.muhabbet.shared.dto.LocationData
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.model.ContentType
@@ -896,74 +907,211 @@ fun ChatScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    state = listState,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (isLoadingMore) {
-                        item(key = "loading_more") {
-                            Box(
-                                Modifier.fillMaxWidth().padding(8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                // Reaction state
+                var reactionTargetId by remember { mutableStateOf<String?>(null) }
+
+                // Scroll-to-bottom state
+                val showScrollToBottom = remember {
+                    androidx.compose.runtime.derivedStateOf {
+                        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        messages.isNotEmpty() && lastVisible < messages.lastIndex - 2
+                    }
+                }
+
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isLoadingMore) {
+                            item(key = "loading_more") {
+                                Box(
+                                    Modifier.fillMaxWidth().padding(8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+                        // Messages with date separators
+                        var lastDateStr = ""
+                        messages.forEachIndexed { index, message ->
+                            val msgTimestamp = message.serverTimestamp ?: message.clientTimestamp
+                            val dateStr = formatDateForSeparator(msgTimestamp)
+                            if (dateStr != lastDateStr) {
+                                lastDateStr = dateStr
+                                val capturedDate = dateStr
+                                item(key = "date_$index") {
+                                    DateSeparatorPill(date = capturedDate)
+                                }
+                            }
+                            item(key = message.id) {
+                                val isOwn = message.senderId == currentUserId
+                                val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
+                                val isStarred = message.id in starredIds.value
+
+                                // Message with swipe-to-reply
+                                var swipeOffset by remember { mutableStateOf(0f) }
+                                Box(
+                                    modifier = Modifier
+                                        .pointerInput(Unit) {
+                                            detectHorizontalDragGestures(
+                                                onDragEnd = {
+                                                    if (swipeOffset > 80f && !message.isDeleted) {
+                                                        replyingTo = message
+                                                    }
+                                                    swipeOffset = 0f
+                                                },
+                                                onDragCancel = { swipeOffset = 0f },
+                                                onHorizontalDrag = { _, dragAmount ->
+                                                    swipeOffset = (swipeOffset + dragAmount).coerceIn(0f, 120f)
+                                                }
+                                            )
+                                        }
+                                ) {
+                                    // Reply indicator
+                                    if (swipeOffset > 20f) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.CenterStart)
+                                                .padding(start = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.Reply,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp),
+                                                tint = MaterialTheme.colorScheme.primary.copy(
+                                                    alpha = (swipeOffset / 80f).coerceIn(0f, 1f)
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Column(
+                                        modifier = Modifier.padding(
+                                            start = (swipeOffset / 3f).coerceAtMost(30f).dp
+                                        )
+                                    ) {
+                                        // Reaction bar (shown on double-tap)
+                                        if (reactionTargetId == message.id) {
+                                            QuickReactionBar(
+                                                visible = true,
+                                                onReaction = { emoji ->
+                                                    reactionTargetId = null
+                                                    scope.launch {
+                                                        try {
+                                                            messageRepository.addReaction(message.id, emoji)
+                                                        } catch (_: Exception) { }
+                                                    }
+                                                }
+                                            )
+                                        }
+
+                                        MessageBubble(
+                                            message = message,
+                                            isOwn = isOwn,
+                                            audioPlayer = audioPlayer,
+                                            repliedMessage = repliedMessage,
+                                            isStarred = isStarred,
+                                            showContextMenu = contextMenuMessageId == message.id,
+                                            onLongPress = { if (!message.isDeleted) contextMenuMessageId = message.id },
+                                            onDoubleTap = {
+                                                if (!message.isDeleted) {
+                                                    reactionTargetId = if (reactionTargetId == message.id) null else message.id
+                                                }
+                                            },
+                                            onDismissMenu = { contextMenuMessageId = null },
+                                            onReply = {
+                                                contextMenuMessageId = null
+                                                replyingTo = message
+                                            },
+                                            onForward = {
+                                                contextMenuMessageId = null
+                                                forwardMessage = message
+                                                scope.launch {
+                                                    try {
+                                                        forwardConversations = conversationRepository.getConversations().items
+                                                    } catch (_: Exception) { }
+                                                }
+                                            },
+                                            onStar = {
+                                                contextMenuMessageId = null
+                                                scope.launch {
+                                                    try {
+                                                        if (isStarred) {
+                                                            messageRepository.unstarMessage(message.id)
+                                                            starredIds.value = starredIds.value - message.id
+                                                        } else {
+                                                            messageRepository.starMessage(message.id)
+                                                            starredIds.value = starredIds.value + message.id
+                                                        }
+                                                    } catch (_: Exception) { }
+                                                }
+                                            },
+                                            onEdit = {
+                                                contextMenuMessageId = null
+                                                editingMessageId = message.id
+                                                messageText = message.content
+                                            },
+                                            onDelete = {
+                                                contextMenuMessageId = null
+                                                deleteTargetId = message.id
+                                                showDeleteDialog = true
+                                            },
+                                            onImageClick = { url -> fullImageUrl = url }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Animated typing indicator
+                        if (peerTyping) {
+                            item(key = "typing_indicator") {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Start
+                                ) {
+                                    TypingIndicatorBubble()
+                                }
                             }
                         }
                     }
-                    items(messages, key = { it.id }) { message ->
-                        val isOwn = message.senderId == currentUserId
-                        val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
-                        val isStarred = message.id in starredIds.value
-                        MessageBubble(
-                            message = message,
-                            isOwn = isOwn,
-                            audioPlayer = audioPlayer,
-                            repliedMessage = repliedMessage,
-                            isStarred = isStarred,
-                            showContextMenu = contextMenuMessageId == message.id,
-                            onLongPress = { if (!message.isDeleted) contextMenuMessageId = message.id },
-                            onDismissMenu = { contextMenuMessageId = null },
-                            onReply = {
-                                contextMenuMessageId = null
-                                replyingTo = message
-                            },
-                            onForward = {
-                                contextMenuMessageId = null
-                                forwardMessage = message
+
+                    // Scroll-to-bottom FAB
+                    AnimatedVisibility(
+                        visible = showScrollToBottom.value,
+                        enter = scaleIn() + fadeIn(),
+                        exit = scaleOut() + fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) {
+                        Surface(
+                            onClick = {
                                 scope.launch {
-                                    try {
-                                        forwardConversations = conversationRepository.getConversations().items
-                                    } catch (_: Exception) { }
+                                    if (messages.isNotEmpty()) {
+                                        listState.animateScrollToItem(messages.lastIndex)
+                                    }
                                 }
                             },
-                            onStar = {
-                                contextMenuMessageId = null
-                                scope.launch {
-                                    try {
-                                        if (isStarred) {
-                                            messageRepository.unstarMessage(message.id)
-                                            starredIds.value = starredIds.value - message.id
-                                        } else {
-                                            messageRepository.starMessage(message.id)
-                                            starredIds.value = starredIds.value + message.id
-                                        }
-                                    } catch (_: Exception) { }
-                                }
-                            },
-                            onEdit = {
-                                contextMenuMessageId = null
-                                editingMessageId = message.id
-                                messageText = message.content
-                            },
-                            onDelete = {
-                                contextMenuMessageId = null
-                                deleteTargetId = message.id
-                                showDeleteDialog = true
-                            },
-                            onImageClick = { url -> fullImageUrl = url }
-                        )
+                            shape = CircleShape,
+                            shadowElevation = 6.dp,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1314,6 +1462,7 @@ private fun MessageBubble(
     isStarred: Boolean = false,
     showContextMenu: Boolean = false,
     onLongPress: () -> Unit = {},
+    onDoubleTap: () -> Unit = {},
     onDismissMenu: () -> Unit = {},
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
@@ -1343,7 +1492,8 @@ private fun MessageBubble(
                     .widthIn(min = 80.dp, max = 300.dp)
                     .combinedClickable(
                         onClick = {},
-                        onLongClick = onLongPress
+                        onLongClick = onLongPress,
+                        onDoubleClick = onDoubleTap
                     )
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {

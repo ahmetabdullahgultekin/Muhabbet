@@ -75,6 +75,10 @@ import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import com.muhabbet.app.ui.components.EmptyChatsIllustration
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.Dispatchers
@@ -117,6 +121,9 @@ fun ConversationListScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
+
+    // Filter state: "all", "unread", "groups", "channels"
+    var activeFilter by remember { mutableStateOf("all") }
 
     // Status/Stories state
     var statusGroups by remember { mutableStateOf<List<UserStatusGroup>>(emptyList()) }
@@ -381,30 +388,24 @@ fun ConversationListScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
             } else if (conversations.isEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.ChatBubbleOutline,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        stringResource(Res.string.conversations_empty_title),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(Res.string.conversations_empty_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyChatsIllustration(
+                    title = stringResource(Res.string.empty_chats_title),
+                    subtitle = stringResource(Res.string.empty_chats_subtitle),
+                    modifier = Modifier.fillMaxSize()
+                )
             } else {
+                // Filter conversations
+                val filteredConversations = when (activeFilter) {
+                    "unread" -> conversations.filter { it.unreadCount > 0 }
+                    "groups" -> conversations.filter { it.type == ConversationType.GROUP }
+                    else -> conversations
+                }
+                // Sort: pinned first, then by lastMessageAt
+                val sortedConversations = filteredConversations.sortedWith(
+                    compareByDescending<ConversationResponse> { it.isPinned }
+                        .thenByDescending { it.lastMessageAt ?: "" }
+                )
+
                 LazyColumn {
                     // Status row
                     item(key = "status_row") {
@@ -481,7 +482,49 @@ fun ConversationListScreen(
                             HorizontalDivider()
                         }
                     }
-                    items(conversations, key = { it.id }) { conv ->
+                    // Filter chips
+                    item(key = "filter_chips") {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = activeFilter == "all",
+                                    onClick = { activeFilter = "all" },
+                                    label = { Text(stringResource(Res.string.filter_all)) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                )
+                            }
+                            item {
+                                FilterChip(
+                                    selected = activeFilter == "unread",
+                                    onClick = { activeFilter = if (activeFilter == "unread") "all" else "unread" },
+                                    label = { Text(stringResource(Res.string.filter_unread)) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                )
+                            }
+                            item {
+                                FilterChip(
+                                    selected = activeFilter == "groups",
+                                    onClick = { activeFilter = if (activeFilter == "groups") "all" else "groups" },
+                                    label = { Text(stringResource(Res.string.filter_groups)) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    items(sortedConversations, key = { it.id }) { conv ->
                         val otherParticipant = conv.participants
                             .firstOrNull { it.userId != currentUserId }
                         val isGroup = conv.type == ConversationType.GROUP
@@ -504,10 +547,23 @@ fun ConversationListScreen(
                             avatarUrl = avatarUrl,
                             isOnline = isOtherOnline,
                             isGroup = isGroup,
+                            isPinned = conv.isPinned,
                             onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
                             onLongClick = {
                                 deleteTargetConv = conv
                                 showDeleteDialog = true
+                            },
+                            onPin = {
+                                scope.launch {
+                                    try {
+                                        if (conv.isPinned) {
+                                            conversationRepository.unpinConversation(conv.id)
+                                        } else {
+                                            conversationRepository.pinConversation(conv.id)
+                                        }
+                                        loadConversations()
+                                    } catch (_: Exception) { }
+                                }
                             }
                         )
                         HorizontalDivider()
@@ -528,9 +584,13 @@ private fun ConversationItem(
     avatarUrl: String? = null,
     isOnline: Boolean,
     isGroup: Boolean = false,
+    isPinned: Boolean = false,
     onClick: () -> Unit,
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    onPin: () -> Unit = {}
 ) {
+    val hasUnread = conversation.unreadCount > 0
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -562,18 +622,32 @@ private fun ConversationItem(
         Spacer(Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isPinned) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.PushPin,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             if (conversation.lastMessagePreview != null) {
                 Text(
                     text = conversation.lastMessagePreview!!,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (hasUnread) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -585,12 +659,18 @@ private fun ConversationItem(
                 Text(
                     text = formatTimestamp(conversation.lastMessageAt!!),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (hasUnread) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (conversation.unreadCount > 0) {
+            if (hasUnread) {
                 Spacer(Modifier.height(4.dp))
-                Badge { Text(conversation.unreadCount.toString()) }
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Text(conversation.unreadCount.toString())
+                }
             }
         }
     }

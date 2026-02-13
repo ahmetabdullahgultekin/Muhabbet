@@ -365,6 +365,50 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(Modifier.height(16.dp))
 
+                // Theme section
+                Text(
+                    text = stringResource(Res.string.settings_theme),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+
+                var selectedTheme by remember { mutableStateOf(tokenStorage.getTheme() ?: "system") }
+                val themeOptions = listOf(
+                    "system" to stringResource(Res.string.settings_theme_system),
+                    "light" to stringResource(Res.string.settings_theme_light),
+                    "dark" to stringResource(Res.string.settings_theme_dark),
+                    "oled" to stringResource(Res.string.settings_theme_oled)
+                )
+                themeOptions.forEach { (key, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable {
+                                selectedTheme = key
+                                tokenStorage.setTheme(key)
+                                restartApp()
+                            }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        RadioButton(
+                            selected = selectedTheme == key,
+                            onClick = {
+                                selectedTheme = key
+                                tokenStorage.setTheme(key)
+                                restartApp()
+                            }
+                        )
+                        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+
+                Spacer(Modifier.height(24.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(16.dp))
+
                 Button(
                     onClick = { showLogoutDialog = true },
                     colors = ButtonDefaults.buttonColors(

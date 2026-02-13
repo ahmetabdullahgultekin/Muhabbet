@@ -10,4 +10,6 @@ interface TokenStorage {
     fun isLoggedIn(): Boolean = getAccessToken() != null
     fun getLanguage(): String? = null
     fun setLanguage(lang: String) {}
+    fun getTheme(): String? = null
+    fun setTheme(theme: String) {}
 }

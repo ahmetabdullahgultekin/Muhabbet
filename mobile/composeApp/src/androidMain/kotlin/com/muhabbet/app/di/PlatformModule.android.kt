@@ -55,4 +55,10 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
     override fun setLanguage(lang: String) {
         plainPrefs.edit().putString("app_language", lang).apply()
     }
+
+    override fun getTheme(): String? = plainPrefs.getString("app_theme", null)
+
+    override fun setTheme(theme: String) {
+        plainPrefs.edit().putString("app_theme", theme).apply()
+    }
 }

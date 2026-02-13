@@ -36,4 +36,16 @@ class IosTokenStorage : TokenStorage {
             defaults.removeObjectForKey(it)
         }
     }
+
+    override fun getLanguage(): String? = defaults.stringForKey("app_language")
+
+    override fun setLanguage(lang: String) {
+        defaults.setObject(lang, forKey = "app_language")
+    }
+
+    override fun getTheme(): String? = defaults.stringForKey("app_theme")
+
+    override fun setTheme(theme: String) {
+        defaults.setObject(theme, forKey = "app_theme")
+    }
 }
