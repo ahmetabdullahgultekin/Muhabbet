@@ -13,6 +13,7 @@ import com.muhabbet.app.di.appModule
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.platform.PushTokenProvider
+import com.muhabbet.app.util.Log
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import org.koin.compose.KoinContext
@@ -82,10 +83,10 @@ private fun WebSocketLifecycle() {
                 val pushToken = pushTokenProvider.getToken()
                 if (pushToken != null) {
                     authRepository.registerPushToken(pushToken)
-                    println("MUHABBET: Push token registered: ${pushToken.take(10)}...")
+                    Log.d("App", "Push token registered: ${pushToken.take(10)}...")
                 }
             } catch (e: Exception) {
-                println("MUHABBET: Push token registration failed: ${e.message}")
+                Log.e("App", "Push token registration failed: ${e.message}")
             }
         }
     }

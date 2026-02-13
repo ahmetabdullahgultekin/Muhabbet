@@ -15,7 +15,7 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         // Token will be registered when the app next connects via App.kt
-        println("MUHABBET FCM: New token: ${token.take(10)}...")
+        android.util.Log.d("MuhabbetFCM", "New token: ${token.take(10)}...")
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

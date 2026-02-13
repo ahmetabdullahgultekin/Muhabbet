@@ -16,9 +16,14 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.muhabbet.app.util.Log
 import kotlinx.serialization.encodeToString
 
 class WsClient(private val apiClient: ApiClient, private val tokenProvider: () -> String?) {
+
+    companion object {
+        private const val TAG = "WsClient"
+    }
 
     private var session: WebSocketSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -41,17 +46,17 @@ class WsClient(private val apiClient: ApiClient, private val tokenProvider: () -
         while (shouldReconnect) {
             val token = tokenProvider()
             if (token == null) {
-                println("MUHABBET WS: No token available, waiting...")
+                Log.w(TAG, "No token available, waiting...")
                 delay(2000)
                 continue
             }
             try {
-                println("MUHABBET WS: Connecting...")
+                Log.d(TAG, "Connecting...")
                 session = apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
                     parameter("token", token)
                 }
                 reconnectAttempt = 0
-                println("MUHABBET WS: Connected!")
+                Log.d(TAG, "Connected")
 
                 // Start heartbeat
                 heartbeatJob = scope.launch {
@@ -71,7 +76,7 @@ class WsClient(private val apiClient: ApiClient, private val tokenProvider: () -
                                 val message = wsJson.decodeFromString<WsMessage>(text)
                                 _incoming.emit(message)
                             } catch (e: Exception) {
-                                println("MUHABBET WS: Parse error: ${e.message}")
+                                Log.e(TAG, "Parse error: ${e.message}")
                             }
                         }
                     }
@@ -80,16 +85,16 @@ class WsClient(private val apiClient: ApiClient, private val tokenProvider: () -
                 // Stop heartbeat on disconnect
                 heartbeatJob?.cancel()
                 heartbeatJob = null
-                println("MUHABBET WS: Session closed, will reconnect")
+                Log.d(TAG, "Session closed, will reconnect")
             } catch (e: Exception) {
-                println("MUHABBET WS: Connection error: ${e.message}")
+                Log.e(TAG, "Connection error: ${e.message}")
             }
 
             session = null
             if (shouldReconnect) {
                 reconnectAttempt++
                 val backoff = minOf(1000L * (1L shl minOf(reconnectAttempt, 5)), 30_000L)
-                println("MUHABBET WS: Reconnecting in ${backoff}ms (attempt $reconnectAttempt)")
+                Log.d(TAG, "Reconnecting in ${backoff}ms (attempt $reconnectAttempt)")
                 delay(backoff)
             }
         }

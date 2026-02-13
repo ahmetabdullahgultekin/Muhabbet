@@ -15,6 +15,8 @@ class WebSocketConfig(
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
         registry
             .addHandler(chatWebSocketHandler, "/ws")
-            .setAllowedOrigins("*")
+            .setAllowedOrigins(
+                "https://muhabbet.rollingcatsoftware.com"
+            )
     }
 }

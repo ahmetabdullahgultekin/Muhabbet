@@ -262,14 +262,12 @@ E2E encryption deferred to Phase 2 (TLS-only for MVP).
 - Phone hash: SHA-256 of phone number stored in `phone_hashes` table on user creation
 
 ## Deployment & Infrastructure
-- **GCP Project**: `muhabbet-app-prod`, account `rollingcat.help@gmail.com`
-- **GCP VM**: `muhabbet-vm`, e2-medium (2 vCPU, 4GB RAM + 4GB swap), zone `europe-west1-b`, IP `34.22.242.56`
-- **Domain**: `muhabbet.rollingcatsoftware.com`
+- **Cloud Provider**: GCP (europe-west1 region)
+- **VM Spec**: e2-medium (2 vCPU, 4GB RAM + 4GB swap) — swap required for Docker Gradle builds
+- **Domain**: Configured via environment — see `infra/docker-compose.prod.yml`
 - **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis`, `muhabbet-minio`, `muhabbet-nginx` (via `infra/docker-compose.prod.yml`)
-- **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials at `infra/firebase-adminsdk.json`
-- **Deploy command**: `gcloud compute ssh muhabbet-vm --zone=europe-west1-b --project=muhabbet-app-prod --command='cd /home/ahabg/Muhabbet && git pull && cd infra && docker compose -f docker-compose.prod.yml up -d --build backend'`
-- **Deploy backend + nginx**: Add `&& docker compose -f docker-compose.prod.yml restart nginx` when nginx config changes
-- **VM has 4GB swap** (`/swapfile`) — required for Docker Gradle builds, without it OOM kills the build
+- **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials path via `FIREBASE_CREDENTIALS_PATH` env var
+- **Deploy**: `cd infra && docker compose -f docker-compose.prod.yml up -d --build backend` (add `&& ... restart nginx` when nginx config changes)
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
 
 ## Lessons Learned / Known Gotchas

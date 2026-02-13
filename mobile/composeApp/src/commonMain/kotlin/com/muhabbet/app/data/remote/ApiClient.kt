@@ -22,6 +22,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import com.muhabbet.app.util.Log
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
@@ -29,6 +30,7 @@ class ApiClient(private val tokenStorage: TokenStorage) {
 
     companion object {
         const val BASE_URL = "https://muhabbet.rollingcatsoftware.com"
+        private const val TAG = "ApiClient"
     }
 
     val json = Json {
@@ -66,12 +68,12 @@ class ApiClient(private val tokenStorage: TokenStorage) {
                         }
                         // Only clear tokens if server explicitly rejects the refresh token
                         if (response.status.value in listOf(401, 403)) {
-                            println("MUHABBET: Refresh token rejected (${response.status})")
+                            Log.w(TAG, "Refresh token rejected (${response.status})")
                             tokenStorage.clear()
                             return@refreshTokens null
                         }
                         if (!response.status.isSuccess()) {
-                            println("MUHABBET: Token refresh server error (${response.status})")
+                            Log.w(TAG, "Token refresh server error (${response.status})")
                             return@refreshTokens null
                         }
                         val text = response.bodyAsText()
@@ -94,7 +96,7 @@ class ApiClient(private val tokenStorage: TokenStorage) {
                         BearerTokens(newAccess, newRefresh)
                     } catch (e: Exception) {
                         // Network error — don't clear tokens, user stays logged in
-                        println("MUHABBET: Token refresh failed (network): ${e.message}")
+                        Log.e(TAG, "Token refresh failed (network): ${e.message}")
                         null
                     }
                 }
@@ -113,41 +115,41 @@ class ApiClient(private val tokenStorage: TokenStorage) {
     }
 
     suspend inline fun <reified T> get(path: String): ApiResponse<T> {
-        println("MUHABBET: GET $path")
+        Log.d(TAG, "GET $path")
         val response = httpClient.get(path)
-        println("MUHABBET: GET $path -> status=${response.status}")
+        Log.d(TAG, "GET $path -> ${response.status}")
         val text = response.bodyAsText()
         return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
     }
 
     suspend inline fun <reified T> post(path: String, body: Any): ApiResponse<T> {
-        println("MUHABBET: POST $path body=$body")
+        Log.d(TAG, "POST $path")
         val response = httpClient.post(path) { setBody(body) }
-        println("MUHABBET: POST $path -> status=${response.status}")
+        Log.d(TAG, "POST $path -> ${response.status}")
         val text = response.bodyAsText()
         return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
     }
 
     suspend inline fun <reified T> put(path: String, body: Any): ApiResponse<T> {
-        println("MUHABBET: PUT $path")
+        Log.d(TAG, "PUT $path")
         val response = httpClient.put(path) { setBody(body) }
-        println("MUHABBET: PUT $path -> status=${response.status}")
+        Log.d(TAG, "PUT $path -> ${response.status}")
         val text = response.bodyAsText()
         return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
     }
 
     suspend inline fun <reified T> patch(path: String, body: Any): ApiResponse<T> {
-        println("MUHABBET: PATCH $path body=$body")
+        Log.d(TAG, "PATCH $path")
         val response = httpClient.patch(path) { setBody(body) }
-        println("MUHABBET: PATCH $path -> status=${response.status}")
+        Log.d(TAG, "PATCH $path -> ${response.status}")
         val text = response.bodyAsText()
         return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
     }
 
     suspend inline fun <reified T> delete(path: String): ApiResponse<T> {
-        println("MUHABBET: DELETE $path")
+        Log.d(TAG, "DELETE $path")
         val response = httpClient.delete(path)
-        println("MUHABBET: DELETE $path -> status=${response.status}")
+        Log.d(TAG, "DELETE $path -> ${response.status}")
         val text = response.bodyAsText()
         return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
     }

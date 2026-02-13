@@ -103,6 +103,36 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            // Set via environment variables or local.properties:
+            //   MUHABBET_KEYSTORE_FILE, MUHABBET_KEYSTORE_PASSWORD,
+            //   MUHABBET_KEY_ALIAS, MUHABBET_KEY_PASSWORD
+            val keystoreFile = System.getenv("MUHABBET_KEYSTORE_FILE")
+            if (keystoreFile != null) {
+                storeFile = file(keystoreFile)
+                storePassword = System.getenv("MUHABBET_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MUHABBET_KEY_ALIAS")
+                keyPassword = System.getenv("MUHABBET_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            val keystoreFile = System.getenv("MUHABBET_KEYSTORE_FILE")
+            if (keystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
