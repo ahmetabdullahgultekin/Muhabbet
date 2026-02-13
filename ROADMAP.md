@@ -1,7 +1,7 @@
 # Muhabbet — Product Roadmap
 
 > **Last Updated**: February 13, 2026
-> **Status**: All MVP features complete. iOS platform done. CI/CD active. Security hardened. Call UI built. E2E infra ready. Preparing for beta testing.
+> **Status**: All 6 engineering phases complete. Content moderation, WS rate limiting, Redis Pub/Sub scaling, backup system, channel analytics, bot platform — all implemented. Remaining: LiveKit client SDK, Signal Protocol client, iOS APNs, pen testing.
 
 ---
 
@@ -95,7 +95,7 @@
 
 ---
 
-## Phase 3 — Voice Calls & Monitoring (UI Complete, WebRTC Pending)
+## Phase 3 — Voice Calls & Monitoring (Backend Complete, Client SDK Pending)
 
 **Goal**: Voice/video calls and operational visibility.
 
@@ -103,17 +103,18 @@
 |---|------|--------|
 | 3.1 | Call signaling infrastructure (WebSocket: CallInitiate/Answer/IceCandidate/End, CallSignalingService, call history DB) | DONE |
 | 3.2 | Call UI screens (IncomingCallScreen, ActiveCallScreen, CallHistoryScreen, Decompose navigation) | DONE |
-| 3.3 | Voice calls (1:1) — WebRTC/LiveKit client SDK integration | Remaining (UI ready, needs media SDK) |
-| 3.4 | Video calls (1:1) — Camera toggle, picture-in-picture | Remaining |
-| 3.5 | Notification improvements (grouping per conversation, inline reply, channels) | DONE |
-| 3.6 | Crash reporting — Sentry mobile SDK (CrashReporter expect/actual, auto-init) | DONE |
-| 3.7 | Performance optimization — Database indexes (12), N+1 fixes, connection pooling, nginx tuning, PG tuning | DONE |
+| 3.3 | LiveKit room adapter (CallRoomProvider port, LiveKitRoomAdapter + NoOpCallRoomProvider, @ConditionalOnProperty) | DONE |
+| 3.4 | Voice calls (1:1) — LiveKit client SDK integration in mobile | Remaining (backend + UI ready, needs client SDK) |
+| 3.5 | Video calls (1:1) — Camera toggle, picture-in-picture | Remaining |
+| 3.6 | Notification improvements (grouping per conversation, inline reply, channels) | DONE |
+| 3.7 | Crash reporting — Sentry mobile SDK (CrashReporter expect/actual, auto-init) | DONE |
+| 3.8 | Performance optimization — Database indexes (12), N+1 fixes, connection pooling, nginx tuning, PG tuning | DONE |
 
 ---
 
 ## Phase 4 — Trust & Security (Infrastructure Complete)
 
-**Goal**: E2E encryption foundation, KVKK legal compliance, security hardening.
+**Goal**: E2E encryption foundation, KVKK legal compliance, security hardening, message backup.
 
 | # | Task | Status |
 |---|------|--------|
@@ -124,32 +125,60 @@
 | 4.5 | Security headers (HSTS, CSP, X-Frame-Options, XSS protection, Referrer-Policy, Permissions-Policy) | DONE |
 | 4.6 | Input sanitization (InputSanitizer: HTML escaping, control chars, URL validation, 15 tests) | DONE |
 | 4.7 | CI security scanning (Trivy, Gitleaks, CodeQL) | DONE |
-| 4.8 | Security penetration testing (OWASP ZAP/Burp Suite, fix findings) | Remaining |
+| 4.8 | Message backup system (BackupService, BackupController, BackupPersistenceAdapter, message_backups table) | DONE |
+| 4.9 | Security penetration testing (OWASP ZAP/Burp Suite, fix findings) | Remaining |
 
 ---
 
-## Phase 5 — Multi-Platform & Growth (iOS Platform Complete)
+## Phase 5 — Multi-Platform & Scale (iOS + Redis Pub/Sub Complete)
 
-**Goal**: iOS release, web client, growth features.
+**Goal**: iOS release, horizontal scaling, web client.
 
 | # | Task | Status |
 |---|------|--------|
 | 5.1 | iOS platform modules (AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider) | DONE |
 | 5.2 | iOS platform completion (ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth) | DONE |
-| 5.3 | iOS APNs delivery (FCM→APNs bridge or direct APNs adapter) | Remaining |
-| 5.4 | iOS TestFlight + App Store submission | Remaining |
-| 5.5 | Web client / Desktop (React+TS or Kotlin/JS, QR device linking, message sync) | Remaining |
-| 5.6 | Group voice/video calls (multi-party LiveKit rooms, participant grid) | Remaining |
-| 5.7 | Channel monetization (analytics, subscriber mgmt, tipping) | Remaining |
+| 5.3 | Redis Pub/Sub message broadcaster (RedisMessageBroadcaster + RedisBroadcastListener for cross-instance WS routing) | DONE |
+| 5.4 | iOS APNs delivery (FCM→APNs bridge or direct APNs adapter) | Remaining |
+| 5.5 | iOS TestFlight + App Store submission | Remaining |
+| 5.6 | Web client / Desktop (React+TS or Kotlin/JS, QR device linking, message sync) | Remaining |
+| 5.7 | Group voice/video calls (multi-party LiveKit rooms, participant grid) | Remaining |
 | 5.8 | CDN for media (CloudFront/CDN for media delivery at scale) | Remaining |
+
+---
+
+## Phase 6 — Growth Features (Complete)
+
+**Goal**: Channel monetization and bot ecosystem.
+
+| # | Task | Status |
+|---|------|--------|
+| 6.1 | Channel analytics (daily stats, subscriber tracking, ChannelAnalyticsService, REST API) | DONE |
+| 6.2 | Bot platform (Bot domain model, BotService, BotController, API token auth, webhook support, permissions) | DONE |
+| 6.3 | Content moderation (ReportUserUseCase, BlockUserUseCase, ModerationService, ModerationController, BTK Law 5651) | DONE |
+
+---
+
+## Stabilization (Complete)
+
+**Goal**: Runtime stability, observability, mobile deep linking.
+
+| # | Task | Status |
+|---|------|--------|
+| S.1 | WebSocket rate limiting (50 msg/10s sliding window per connection, WebSocketRateLimiter) | DONE |
+| S.2 | Deep linking (muhabbet:// scheme + universal links for muhabbet.app) | DONE |
+| S.3 | Structured analytics event tracking (AnalyticsEvent with SLF4J) | DONE |
+| S.4 | LiveKit configuration in application.yml | DONE |
+| S.5 | Backend test expansion (~32 new tests: DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter) | DONE |
+| S.6 | V15 Flyway migration (moderation, analytics, backup, bot tables) | DONE |
 
 ---
 
 ## Remaining Work Summary
 
 ### High Priority (Beta Release Blockers)
-1. **WebRTC client integration** — Connect call signaling to LiveKit SDK. Backend signaling + call UI screens are built; needs media stream SDK integration.
-2. **Fix active bugs** — Push notifications disabled in prod (env var), delivery ticks stuck at single (global DELIVERED ack needed).
+1. **LiveKit client SDK integration** — Backend signaling + call UI + LiveKit adapter are built; needs LiveKit Android/iOS SDK in mobile.
+2. ~~**Fix active bugs**~~ — DONE: Push notifications enabled (FCM_ENABLED=true), delivery ticks fixed (global DELIVERED ack in App.kt).
 
 ### Medium Priority (Pre-Public Launch)
 3. **E2E encryption client** — Key exchange infra + NoOp manager are built; needs `libsignal-client` for actual X3DH + Double Ratchet.
@@ -160,8 +189,7 @@
 ### Low Priority (Growth Phase)
 7. **Web/Desktop client** — Power user demand.
 8. **Group calls** — After 1:1 calls are stable.
-9. **Channel monetization** — Revenue feature.
-10. **CDN** — When media traffic justifies it.
+9. **CDN** — When media traffic justifies it.
 
 ---
 
@@ -172,15 +200,15 @@
 | ~~ChatScreen.kt ~1,700 lines~~ | ~~High~~ | Fixed (Phase 2) — split to 405 lines |
 | ~~5 controllers bypass use case layer~~ | ~~Medium~~ | Fixed (Phase 2) — all use use cases |
 | ~~MessagingService implements 7 use cases~~ | ~~Medium~~ | Fixed (Phase 2) — split into 3 services |
-| ~~Test coverage at 13%~~ | ~~High~~ | Improved — ~125 backend tests + 25+ mobile/shared tests |
+| ~~Test coverage at 13%~~ | ~~High~~ | Improved — ~157 backend tests + 25+ mobile/shared tests |
 | ~~No mobile unit tests~~ | ~~Medium~~ | Fixed — FakeTokenStorage, AuthRepository, PhoneNormalization, WsMessage serialization tests |
 | ~~iOS ImagePicker stub~~ | ~~Medium~~ | Fixed — PHPickerViewController implementation |
 | ~~CrashReporter.ios.kt stub~~ | ~~Low~~ | Fixed — NSLog + Sentry CocoaPod hooks |
 | ~~No CI/CD pipeline~~ | ~~Medium~~ | Fixed — GitHub Actions (backend, mobile, security, deploy) |
 | ~~No performance optimization~~ | ~~Medium~~ | Fixed — 12 DB indexes, N+1 fixes, connection pooling, nginx/PG tuning |
+| ~~Single-server architecture~~ | ~~Low~~ | Fixed — Redis Pub/Sub broadcaster for horizontal WS scaling |
+| ~~2 active bugs (push notifications, delivery ticks)~~ | ~~Medium~~ | Fixed — FCM_ENABLED=true + global DELIVERED ack |
 | Backend enum duplication (intentional) | Low | Monitor |
-| Single-server architecture | Low | Phase 6 (adequate for beta) |
-| 2 active bugs (push notifications, delivery ticks) | Medium | Phase 1 (env var + code fix) |
 
 ---
 
@@ -196,11 +224,13 @@
 ## Critical Path
 
 ```
-Phase 1 (manual)     → Internal testing on Play Store
-Phase 2 (DONE)       → Architecture cleanup, tests, GIFs
-Phase 3 (signaling done) → WebRTC client integration ← make-or-break for Turkish market
-Phase 4 (arch done)  → Signal Protocol client, pen testing
-Phase 5 (iOS foundation) → iOS release, web, growth
+Phase 1 (manual)         → Internal testing on Play Store
+Phase 2 (DONE)           → Architecture cleanup, tests, GIFs
+Phase 3 (backend DONE)   → LiveKit client SDK integration ← make-or-break for Turkish market
+Phase 4 (infra DONE)     → Signal Protocol client, pen testing
+Phase 5 (scale DONE)     → iOS APNs, TestFlight, web client
+Phase 6 (DONE)           → Channel analytics, bot platform
+Stabilization (DONE)     → WS rate limiting, deep linking, moderation, tests
 ```
 
 ---

@@ -81,6 +81,18 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı"),
     USER_ALREADY_DELETED(HttpStatus.CONFLICT, "Hesap zaten silinmiş"),
 
+    // Moderation
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "Rapor bulunamadı"),
+    BLOCK_SELF(HttpStatus.BAD_REQUEST, "Kendinizi engelleyemezsiniz"),
+
+    // Bot
+    BOT_NOT_FOUND(HttpStatus.NOT_FOUND, "Bot bulunamadı"),
+    BOT_INACTIVE(HttpStatus.FORBIDDEN, "Bot devre dışı"),
+
+    // Backup
+    BACKUP_NOT_FOUND(HttpStatus.NOT_FOUND, "Yedek bulunamadı"),
+    BACKUP_IN_PROGRESS(HttpStatus.CONFLICT, "Yedekleme zaten devam ediyor"),
+
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),

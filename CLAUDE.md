@@ -234,9 +234,10 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 
 ### Completed Phases
 - **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, ~125 backend tests, Stickers & GIFs, Profile viewing (mutual groups, shared media, action buttons)
-- **Phase 3 (Partial)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK
-- **Phase 4 (Architecture)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion
-- **Phase 5 (iOS Complete)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker (PHPickerViewController), FilePicker (UIDocumentPickerViewController), ImageCompressor (CoreGraphics), CrashReporter (NSLog + Sentry hooks), LocaleHelper (AppleLanguages), FirebasePhoneAuth (fallback stub)
+- **Phase 3 (Voice Calls)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK, LiveKit room adapter (`@ConditionalOnProperty`), NoOp fallback, outgoing call initiation in MainComponent
+- **Phase 4 (Trust & Security)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion, message backup system (BackupService, BackupController, BackupPersistenceAdapter)
+- **Phase 5 (iOS + Scale)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth. Redis Pub/Sub message broadcaster for horizontal WS scaling
+- **Phase 6 (Growth)**: Channel analytics (daily stats, subscriber tracking, REST API), Bot platform (create/manage bots, API token auth, webhook support, permissions system)
 - **Round 3 Bug Fixes**: Delivery status resolution (batch query + aggregation), shared media screen, message info screen, starred messages redesign, profile contact name, status image upload, forwarded message visuals, video thumbnails
 - **Round 4 Bug Fixes**: Shared media JPQL query, message info endpoint, status text position, starred message scroll-to-message, starred back navigation
 - **Round 5 UI/UX Polish**: MediaViewer with action bars (forward/delete), SharedMediaScreen long-press context menu + Crossfade tab transitions, MessageInfoScreen with cards/avatars/timeline sections
@@ -248,9 +249,11 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **E2E Encryption Infrastructure**: E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile client for key exchange API)
 - **Security Hardening**: HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation)
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
+- **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
+- **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
 
 ### Remaining Work
-- WebRTC client integration (LiveKit) — signaling backend + call UI are ready, need media SDK
+- WebRTC client integration (LiveKit) — signaling backend + call UI + LiveKit adapter are ready, need LiveKit client SDK in mobile
 - E2E encryption client (Signal Protocol: X3DH, Double Ratchet) — key exchange infra + NoOp manager are ready, need libsignal-client
 - iOS APNs delivery, TestFlight, App Store
 - Security penetration testing (OWASP ZAP/Burp Suite)
@@ -259,8 +262,8 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
-- **Single-server architecture**: Adequate for beta; needs Redis Pub/Sub for WS scaling beyond ~10K concurrent users.
-- **2 active bugs**: Push notifications disabled in production (env var fix needed), delivery ticks stuck at single (needs global DELIVERED ack in App.kt).
+- **~~Single-server architecture~~**: Resolved — Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) enables horizontal WS scaling across multiple backend instances.
+- **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.

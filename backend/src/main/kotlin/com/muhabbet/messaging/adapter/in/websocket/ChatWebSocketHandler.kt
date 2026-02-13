@@ -16,6 +16,7 @@ import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtProvider
+import com.muhabbet.shared.security.WebSocketRateLimiter
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -37,7 +38,8 @@ class ChatWebSocketHandler(
     private val conversationRepository: ConversationRepository,
     private val presencePort: PresencePort,
     private val userRepository: UserRepository,
-    private val callSignalingService: CallSignalingService
+    private val callSignalingService: CallSignalingService,
+    private val webSocketRateLimiter: WebSocketRateLimiter
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -69,6 +71,12 @@ class ChatWebSocketHandler(
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
         val userId = session.attributes["userId"] as? UUID ?: return
+
+        // Per-connection rate limiting
+        if (!webSocketRateLimiter.allowMessage(userId)) {
+            sendError(session, "RATE_LIMITED", "Too many messages, please slow down")
+            return
+        }
 
         val wsMessage = try {
             wsJson.decodeFromString<WsMessage>(message.payload)
@@ -102,9 +110,10 @@ class ChatWebSocketHandler(
         val userId = sessionManager.getUserId(session)
         sessionManager.unregister(session)
 
-        // If no remaining sessions, mark offline
+        // If no remaining sessions, mark offline and clean up
         if (userId != null && !sessionManager.isOnline(userId)) {
             presencePort.setOffline(userId)
+            webSocketRateLimiter.removeUser(userId)
             try {
                 userRepository.updateLastSeenAt(userId, Instant.now())
             } catch (e: Exception) {
