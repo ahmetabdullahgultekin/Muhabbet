@@ -62,7 +62,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.data.repository.MediaRepository
+import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.platform.PickedImage
@@ -114,7 +114,7 @@ fun ConversationListScreen(
     tokenStorage: TokenStorage = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
     statusRepository: StatusRepository = koinInject(),
-    mediaRepository: MediaRepository = koinInject()
+    mediaUploadHelper: MediaUploadHelper = koinInject()
 ) {
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -281,7 +281,7 @@ fun ConversationListScreen(
                                 try {
                                     var mediaUrl: String? = null
                                     statusPickedImage?.let { img ->
-                                        val upload = mediaRepository.uploadImage(img.bytes, img.mimeType, img.fileName)
+                                        val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
                                         mediaUrl = upload.url
                                     }
                                     statusRepository.createStatus(

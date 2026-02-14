@@ -56,10 +56,9 @@ import androidx.compose.material3.RadioButton
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
-import com.muhabbet.app.data.repository.MediaRepository
+import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
-import com.muhabbet.app.platform.compressImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
 import com.muhabbet.app.ui.components.UserAvatar
@@ -81,7 +80,7 @@ fun SettingsScreen(
     onStarredMessages: () -> Unit = {},
     onPrivacyDashboard: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
-    mediaRepository: MediaRepository = koinInject(),
+    mediaUploadHelper: MediaUploadHelper = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
     var displayName by remember { mutableStateOf("") }
@@ -107,10 +106,8 @@ fun SettingsScreen(
         scope.launch {
             isUploadingPhoto = true
             try {
-                val compressed = compressImage(picked.bytes)
-                val uploadResponse = mediaRepository.uploadImage(
-                    bytes = compressed,
-                    mimeType = "image/jpeg",
+                val uploadResponse = mediaUploadHelper.uploadProfilePhoto(
+                    bytes = picked.bytes,
                     fileName = picked.fileName
                 )
                 authRepository.updateProfile(avatarUrl = uploadResponse.url)

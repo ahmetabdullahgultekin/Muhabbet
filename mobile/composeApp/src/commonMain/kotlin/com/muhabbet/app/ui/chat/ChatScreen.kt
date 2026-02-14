@@ -50,9 +50,8 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
-import com.muhabbet.app.data.repository.MediaRepository
+import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
-import com.muhabbet.app.platform.compressImage
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
@@ -88,7 +87,7 @@ fun ChatScreen(
     onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null,
     onMessageInfo: ((messageId: String) -> Unit)? = null,
     messageRepository: MessageRepository = koinInject(),
-    mediaRepository: MediaRepository = koinInject(),
+    mediaUploadHelper: MediaUploadHelper = koinInject(),
     groupRepository: GroupRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject(),
     wsClient: WsClient = koinInject(),
@@ -158,7 +157,7 @@ fun ChatScreen(
         scope.launch {
             isUploading = true
             try {
-                val upload = mediaRepository.uploadDocument(picked.bytes, picked.mimeType, picked.fileName)
+                val upload = mediaUploadHelper.uploadDocument(picked.bytes, picked.fileName, picked.mimeType)
                 val msgId = generateMessageId(); val reqId = generateMessageId()
                 messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
                     contentType = ContentType.DOCUMENT, content = picked.fileName, mediaUrl = upload.url,
@@ -175,7 +174,7 @@ fun ChatScreen(
         scope.launch {
             isUploading = true
             try {
-                val upload = mediaRepository.uploadImage(compressImage(picked.bytes), "image/jpeg", picked.fileName)
+                val upload = mediaUploadHelper.uploadImage(picked.bytes, picked.fileName)
                 val msgId = generateMessageId(); val reqId = generateMessageId()
                 messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
                     contentType = ContentType.IMAGE, content = chatPhotoText, mediaUrl = upload.url,
@@ -408,7 +407,7 @@ fun ChatScreen(
                             if (audio != null) scope.launch {
                                 isUploading = true
                                 try {
-                                    val upload = mediaRepository.uploadAudio(audio.bytes, audio.mimeType, "voice_${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}.ogg", audio.durationSeconds)
+                                    val upload = mediaUploadHelper.uploadAudio(audio.bytes, "voice_${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}.ogg", audio.mimeType, audio.durationSeconds)
                                     val mid = generateMessageId(); val rid = generateMessageId()
                                     messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.VOICE, content = chatVoiceText, mediaUrl = upload.url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
                                     wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
