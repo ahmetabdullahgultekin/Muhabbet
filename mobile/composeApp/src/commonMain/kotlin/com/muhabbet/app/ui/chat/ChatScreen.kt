@@ -118,6 +118,8 @@ fun ChatScreen(
     val chatPhotoText = stringResource(Res.string.chat_photo)
     val chatVoiceText = stringResource(Res.string.chat_voice_message)
     val chatEditMode = stringResource(Res.string.chat_edit_mode)
+    val gifContentLabel = stringResource(Res.string.attach_gif)
+    val stickerContentLabel = stringResource(Res.string.attach_sticker)
 
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
@@ -422,14 +424,14 @@ fun ChatScreen(
                         messageText = new
                         if (new.isNotEmpty() && editingMessageId == null) {
                             if (!isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, true)) } catch (_: Exception) { } }; isTypingSent = true }
-                            typingJob?.cancel(); typingJob = scope.launch { delay(3000); try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }; isTypingSent = false }
+                            typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.app.ui.theme.MuhabbetDurations.TypingTimeoutMs); try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }; isTypingSent = false }
                         }
                     },
                     isEditing = editingMessageId != null, isUploading = isUploading,
                     onSend = {
                         if (messageText.isBlank()) return@MessageInputBar
                         if (editingMessageId != null) {
-                            val id = editingMessageId!!; val content = messageText.trim(); editingMessageId = null; messageText = ""
+                            val id = editingMessageId ?: return@MessageInputBar; val content = messageText.trim(); editingMessageId = null; messageText = ""
                             scope.launch { try { groupRepository.editMessage(id, content); messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = kotlinx.datetime.Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
                         } else {
                             val text = messageText; val replyId = replyingTo?.id; messageText = ""; replyingTo = null; typingJob?.cancel()
@@ -456,15 +458,15 @@ fun ChatScreen(
                 showGifPicker = false
                 val mid = generateMessageId()
                 val rid = generateMessageId()
-                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.GIF, content = "GIF", mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = "GIF", contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
+                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.GIF, content = gifContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
             },
             onStickerSelected = { url, _ ->
                 showGifPicker = false
                 val mid = generateMessageId()
                 val rid = generateMessageId()
-                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.STICKER, content = "Sticker", mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = "Sticker", contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
+                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.STICKER, content = stickerContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
             }
         )
     }

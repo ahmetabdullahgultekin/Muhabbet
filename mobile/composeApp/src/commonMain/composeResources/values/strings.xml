@@ -315,4 +315,85 @@
     <!-- Accessibility -->
     <string name="action_back">Geri</string>
     <string name="chat_disappearing">Kaybolan mesajlar</string>
+
+    <!-- Context Menu — Copy -->
+    <string name="chat_context_copy">Kopyala</string>
+    <string name="chat_copied">Mesaj kopyalandı</string>
+
+    <!-- Block / Report -->
+    <string name="profile_block">Engelle</string>
+    <string name="profile_unblock">Engeli Kaldır</string>
+    <string name="profile_report">Şikayet Et</string>
+    <string name="profile_block_confirm">Bu kişiyi engellemek istediğinize emin misiniz?</string>
+    <string name="profile_block_success">Kullanıcı engellendi</string>
+    <string name="profile_unblock_success">Engel kaldırıldı</string>
+    <string name="profile_report_confirm">Bu kişiyi şikayet etmek istediğinize emin misiniz?</string>
+    <string name="profile_report_success">Şikayet gönderildi</string>
+    <string name="profile_report_reason_placeholder">Şikayet nedeni (isteğe bağlı)</string>
+
+    <!-- Privacy Settings -->
+    <string name="settings_privacy_section">Gizlilik</string>
+    <string name="settings_privacy_last_seen">Son görülme</string>
+    <string name="settings_privacy_read_receipts">Okundu bilgisi</string>
+    <string name="settings_privacy_read_receipts_subtitle">Okundu bilgisini kapatırsanız diğerlerinin bilgisini de göremezsiniz</string>
+
+    <!-- Notification Settings -->
+    <string name="settings_notifications_section">Bildirimler</string>
+    <string name="settings_notifications_enabled">Bildirimleri Etkinleştir</string>
+    <string name="settings_notifications_sound">Bildirim Sesi</string>
+    <string name="settings_notifications_vibrate">Titreşim</string>
+
+    <!-- Chat Settings -->
+    <string name="settings_chat_section">Sohbet</string>
+    <string name="settings_chat_enter_to_send">Enter ile gönder</string>
+    <string name="settings_chat_font_size">Yazı boyutu</string>
+    <string name="settings_font_small">Küçük</string>
+    <string name="settings_font_medium">Orta</string>
+    <string name="settings_font_large">Büyük</string>
+
+    <!-- Account -->
+    <string name="settings_account_section">Hesap</string>
+    <string name="settings_account_phone">Telefon numarası</string>
+    <string name="settings_account_delete">Hesabı Sil</string>
+    <string name="settings_account_delete_confirm">Hesabınız ve tüm verileriniz kalıcı olarak silinecektir. Bu işlem geri alınamaz.</string>
+    <string name="settings_account_export">Verilerimi İndir</string>
+
+    <!-- Archive / Mute -->
+    <string name="conv_archive">Arşivle</string>
+    <string name="conv_unarchive">Arşivden Çıkar</string>
+    <string name="conv_mute">Sessize Al</string>
+    <string name="conv_unmute">Sesi Aç</string>
+    <string name="conv_archived_section">Arşivlenmiş Sohbetler</string>
+
+    <!-- Group enhancements -->
+    <string name="group_remove_confirm">%1$s adlı kişiyi gruptan çıkarmak istediğinize emin misiniz?</string>
+    <string name="group_add_members">Üye Ekle</string>
+    <string name="group_promote_admin">Yönetici Yap</string>
+    <string name="group_demote_admin">Yöneticilikten Al</string>
+    <string name="group_search_members">Üye ara...</string>
+
+    <!-- Camera -->
+    <string name="attach_camera">Kamera</string>
+
+    <!-- Language change -->
+    <string name="settings_language_change_title">Dil Değiştir</string>
+    <string name="settings_language_change_confirm">Dil değişikliğini uygulamak için uygulama yeniden başlatılacaktır.</string>
+
+    <!-- Encryption -->
+    <string name="profile_encrypted">Mesajlar uçtan uca şifrelidir</string>
+
+    <!-- Channels filter -->
+    <string name="filter_channels">Kanallar</string>
+
+    <!-- Message formatting hint -->
+    <string name="chat_format_hint">*kalın* _italik_ ~üstü çizili~ `kod`</string>
+
+    <!-- Delivery status content descriptions -->
+    <string name="status_sending">Gönderiliyor</string>
+    <string name="status_sent">Gönderildi</string>
+    <string name="status_delivered">İletildi</string>
+    <string name="status_read">Okundu</string>
+
+    <!-- Call screen -->
+    <string name="call_switch_camera">Kamerayı Değiştir</string>
 </resources>

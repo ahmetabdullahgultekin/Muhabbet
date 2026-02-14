@@ -78,6 +78,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
@@ -136,8 +137,8 @@ fun ConversationListScreen(
     var showLongPressMenu by remember { mutableStateOf(false) }
     var longPressTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
 
-    // Filter state: "all", "unread", "groups", "channels"
-    var activeFilter by remember { mutableStateOf("all") }
+    // Filter state
+    var activeFilter by remember { mutableStateOf(ConversationFilter.ALL) }
 
     // Status/Stories state
     var statusGroups by remember { mutableStateOf<List<UserStatusGroup>>(emptyList()) }
@@ -256,7 +257,7 @@ fun ConversationListScreen(
                         }
                         if (statusPickedImage != null) {
                             Text(
-                                text = statusPickedImage!!.fileName,
+                                text = statusPickedImage?.fileName ?: "",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
@@ -309,7 +310,7 @@ fun ConversationListScreen(
 
     // Long press context menu
     if (showLongPressMenu && longPressTargetConv != null) {
-        val targetConv = longPressTargetConv!!
+        val targetConv = longPressTargetConv ?: return
         AlertDialog(
             onDismissRequest = { showLongPressMenu = false; longPressTargetConv = null },
             title = { Text(targetConv.name ?: "") },
@@ -321,7 +322,7 @@ fun ConversationListScreen(
                             .fillMaxWidth()
                             .clickable {
                                 showLongPressMenu = false
-                                val conv = longPressTargetConv!!
+                                val conv = longPressTargetConv ?: return@clickable
                                 longPressTargetConv = null
                                 scope.launch {
                                     try {
@@ -393,7 +394,7 @@ fun ConversationListScreen(
             message = convDeleteConfirm,
             confirmLabel = deleteText,
             onConfirm = {
-                val conv = deleteTargetConv!!
+                val conv = deleteTargetConv ?: return@ConfirmDialog
                 showDeleteDialog = false
                 deleteTargetConv = null
                 scope.launch {
@@ -537,8 +538,9 @@ fun ConversationListScreen(
             } else {
                 // Filter conversations
                 val filteredConversations = when (activeFilter) {
-                    "unread" -> conversations.filter { it.unreadCount > 0 }
-                    "groups" -> conversations.filter { it.type == ConversationType.GROUP }
+                    ConversationFilter.UNREAD -> conversations.filter { it.unreadCount > 0 }
+                    ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
+                    ConversationFilter.CHANNELS -> conversations.filter { it.type == ConversationType.CHANNEL }
                     else -> conversations
                 }
                 // Sort: pinned first, then by lastMessageAt
@@ -619,7 +621,7 @@ fun ConversationListScreen(
                                 }
                             }
                         }
-                        if (statusGroups.isNotEmpty() || true) {
+                        if (statusGroups.isNotEmpty()) {
                             HorizontalDivider()
                         }
                     }
@@ -632,8 +634,8 @@ fun ConversationListScreen(
                         ) {
                             item {
                                 FilterChip(
-                                    selected = activeFilter == "all",
-                                    onClick = { activeFilter = "all" },
+                                    selected = activeFilter == ConversationFilter.ALL,
+                                    onClick = { activeFilter = ConversationFilter.ALL },
                                     label = { Text(stringResource(Res.string.filter_all)) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -643,8 +645,8 @@ fun ConversationListScreen(
                             }
                             item {
                                 FilterChip(
-                                    selected = activeFilter == "unread",
-                                    onClick = { activeFilter = if (activeFilter == "unread") "all" else "unread" },
+                                    selected = activeFilter == ConversationFilter.UNREAD,
+                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.UNREAD) "all" else ConversationFilter.UNREAD },
                                     label = { Text(stringResource(Res.string.filter_unread)) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -654,9 +656,20 @@ fun ConversationListScreen(
                             }
                             item {
                                 FilterChip(
-                                    selected = activeFilter == "groups",
-                                    onClick = { activeFilter = if (activeFilter == "groups") "all" else "groups" },
+                                    selected = activeFilter == ConversationFilter.GROUPS,
+                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS },
                                     label = { Text(stringResource(Res.string.filter_groups)) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                )
+                            }
+                            item {
+                                FilterChip(
+                                    selected = activeFilter == ConversationFilter.CHANNELS,
+                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.CHANNELS) ConversationFilter.ALL else ConversationFilter.CHANNELS },
+                                    label = { Text(stringResource(Res.string.filter_channels)) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
@@ -782,9 +795,10 @@ private fun ConversationItem(
                     )
                 }
             }
-            if (conversation.lastMessagePreview != null) {
+            val preview = conversation.lastMessagePreview
+        if (preview != null) {
                 Text(
-                    text = conversation.lastMessagePreview!!,
+                    text = preview,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (hasUnread) MaterialTheme.colorScheme.onSurface
@@ -796,9 +810,10 @@ private fun ConversationItem(
         }
 
         Column(horizontalAlignment = Alignment.End) {
-            if (conversation.lastMessageAt != null) {
+            val lastAt = conversation.lastMessageAt
+            if (lastAt != null) {
                 Text(
-                    text = formatTimestamp(conversation.lastMessageAt!!),
+                    text = formatTimestamp(lastAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (hasUnread) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -817,11 +832,13 @@ private fun ConversationItem(
     }
 }
 
-private fun firstGrapheme(text: String): String =
-    com.muhabbet.app.ui.profile.firstGrapheme(text)
+private enum class ConversationFilter {
+    ALL, UNREAD, GROUPS, CHANNELS
+}
 
 @Composable
 private fun ConversationSkeletonItem() {
+    val shimmerAlpha = shimmerAlpha()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -831,9 +848,9 @@ private fun ConversationSkeletonItem() {
         // Avatar placeholder
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(MuhabbetSizes.AvatarMedium)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
@@ -843,7 +860,7 @@ private fun ConversationSkeletonItem() {
                     .fillMaxWidth(0.5f)
                     .height(14.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
             )
             Spacer(Modifier.height(MuhabbetSpacing.Small))
             // Message preview placeholder
@@ -852,7 +869,7 @@ private fun ConversationSkeletonItem() {
                     .fillMaxWidth(0.75f)
                     .height(12.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
             )
         }
         Spacer(Modifier.width(MuhabbetSpacing.Small))
@@ -862,9 +879,26 @@ private fun ConversationSkeletonItem() {
                 .width(40.dp)
                 .height(10.dp)
                 .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
         )
     }
+}
+
+@Composable
+private fun shimmerAlpha(): Float {
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(
+                durationMillis = com.muhabbet.app.ui.theme.MuhabbetDurations.ShimmerDurationMs,
+                easing = androidx.compose.animation.core.LinearEasing
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        )
+    )
+    return alpha
 }
 
 private fun formatTimestamp(timestamp: String): String =

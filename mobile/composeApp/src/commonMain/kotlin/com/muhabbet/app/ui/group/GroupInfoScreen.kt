@@ -205,7 +205,7 @@ fun GroupInfoScreen(
                         com.muhabbet.app.ui.components.UserAvatar(
                             avatarUrl = conversation?.avatarUrl,
                             displayName = conversation?.name ?: "G",
-                            size = 72.dp,
+                            size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarXLarge,
                             isGroup = true
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
@@ -272,7 +272,7 @@ fun GroupInfoScreen(
                                 try {
                                     groupRepository.removeMember(conversationId, member.userId)
                                     conversation = conversation?.copy(
-                                        participants = conversation!!.participants.filter { it.userId != member.userId }
+                                        participants = (conversation?.participants ?: emptyList()).filter { it.userId != member.userId }
                                     )
                                 } catch (_: Exception) {
                                     snackbarHostState.showSnackbar(removeFailedMsg)
@@ -296,13 +296,13 @@ private fun MemberItem(
     onRemove: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         com.muhabbet.app.ui.components.UserAvatar(
             avatarUrl = member.avatarUrl,
             displayName = member.displayName ?: "?",
-            size = 40.dp
+            size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
@@ -339,9 +339,10 @@ private fun MemberItem(
                     }
                 }
             }
-            if (member.phoneNumber != null) {
+            val phone = member.phoneNumber
+            if (phone != null) {
                 Text(
-                    text = member.phoneNumber!!,
+                    text = phone,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

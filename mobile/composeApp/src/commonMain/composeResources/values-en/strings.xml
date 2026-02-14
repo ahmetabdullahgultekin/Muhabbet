@@ -315,4 +315,85 @@
     <!-- Accessibility -->
     <string name="action_back">Back</string>
     <string name="chat_disappearing">Disappearing messages</string>
+
+    <!-- Context Menu — Copy -->
+    <string name="chat_context_copy">Copy</string>
+    <string name="chat_copied">Message copied</string>
+
+    <!-- Block / Report -->
+    <string name="profile_block">Block</string>
+    <string name="profile_unblock">Unblock</string>
+    <string name="profile_report">Report</string>
+    <string name="profile_block_confirm">Are you sure you want to block this user?</string>
+    <string name="profile_block_success">User blocked</string>
+    <string name="profile_unblock_success">User unblocked</string>
+    <string name="profile_report_confirm">Are you sure you want to report this user?</string>
+    <string name="profile_report_success">Report submitted</string>
+    <string name="profile_report_reason_placeholder">Report reason (optional)</string>
+
+    <!-- Privacy Settings -->
+    <string name="settings_privacy_section">Privacy</string>
+    <string name="settings_privacy_last_seen">Last seen</string>
+    <string name="settings_privacy_read_receipts">Read receipts</string>
+    <string name="settings_privacy_read_receipts_subtitle">If you turn off read receipts, you won\'t be able to see others\' either</string>
+
+    <!-- Notification Settings -->
+    <string name="settings_notifications_section">Notifications</string>
+    <string name="settings_notifications_enabled">Enable Notifications</string>
+    <string name="settings_notifications_sound">Notification Sound</string>
+    <string name="settings_notifications_vibrate">Vibration</string>
+
+    <!-- Chat Settings -->
+    <string name="settings_chat_section">Chat</string>
+    <string name="settings_chat_enter_to_send">Enter to send</string>
+    <string name="settings_chat_font_size">Font size</string>
+    <string name="settings_font_small">Small</string>
+    <string name="settings_font_medium">Medium</string>
+    <string name="settings_font_large">Large</string>
+
+    <!-- Account -->
+    <string name="settings_account_section">Account</string>
+    <string name="settings_account_phone">Phone number</string>
+    <string name="settings_account_delete">Delete Account</string>
+    <string name="settings_account_delete_confirm">Your account and all data will be permanently deleted. This cannot be undone.</string>
+    <string name="settings_account_export">Export My Data</string>
+
+    <!-- Archive / Mute -->
+    <string name="conv_archive">Archive</string>
+    <string name="conv_unarchive">Unarchive</string>
+    <string name="conv_mute">Mute</string>
+    <string name="conv_unmute">Unmute</string>
+    <string name="conv_archived_section">Archived Chats</string>
+
+    <!-- Group enhancements -->
+    <string name="group_remove_confirm">Are you sure you want to remove %1$s from the group?</string>
+    <string name="group_add_members">Add Members</string>
+    <string name="group_promote_admin">Make Admin</string>
+    <string name="group_demote_admin">Remove Admin</string>
+    <string name="group_search_members">Search members...</string>
+
+    <!-- Camera -->
+    <string name="attach_camera">Camera</string>
+
+    <!-- Language change -->
+    <string name="settings_language_change_title">Change Language</string>
+    <string name="settings_language_change_confirm">The app will restart to apply the language change.</string>
+
+    <!-- Encryption -->
+    <string name="profile_encrypted">Messages are end-to-end encrypted</string>
+
+    <!-- Channels filter -->
+    <string name="filter_channels">Channels</string>
+
+    <!-- Message formatting hint -->
+    <string name="chat_format_hint">*bold* _italic_ ~strikethrough~ `code`</string>
+
+    <!-- Delivery status content descriptions -->
+    <string name="status_sending">Sending</string>
+    <string name="status_sent">Sent</string>
+    <string name="status_delivered">Delivered</string>
+    <string name="status_read">Read</string>
+
+    <!-- Call screen -->
+    <string name="call_switch_camera">Switch Camera</string>
 </resources>

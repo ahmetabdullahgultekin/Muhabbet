@@ -75,20 +75,12 @@ fun IncomingCallScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(MuhabbetSpacing.XXLarge)
         ) {
-            // Caller avatar placeholder
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = (callerName ?: "?").take(1).uppercase(),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+            // Caller avatar
+            com.muhabbet.app.ui.components.UserAvatar(
+                avatarUrl = null,
+                displayName = callerName ?: callerId,
+                size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarCall
+            )
 
             Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
 
