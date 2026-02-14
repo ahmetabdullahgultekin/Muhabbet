@@ -8,6 +8,7 @@ import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.IosContactsProvider
 import com.muhabbet.app.platform.IosPushTokenProvider
 import com.muhabbet.app.platform.PushTokenProvider
+import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.shared.port.E2EKeyManager
 import com.muhabbet.shared.port.EncryptionPort
 import com.muhabbet.shared.port.NoOpEncryption
@@ -23,6 +24,7 @@ fun iosPlatformModule(): Module = module {
     single<ContactsProvider> { IosContactsProvider() }
     single<PushTokenProvider> { IosPushTokenProvider() }
     single { BackgroundSyncManager() }
+    single { SpeechTranscriber() }
     single<E2EKeyManager> { NoOpKeyManager() }
     single<EncryptionPort> { NoOpEncryption() }
 }

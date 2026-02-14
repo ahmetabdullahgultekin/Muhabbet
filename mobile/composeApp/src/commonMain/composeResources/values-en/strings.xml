@@ -20,6 +20,9 @@
     <string name="voice_pause">Pause</string>
     <string name="voice_record">Record</string>
     <string name="voice_stop">Stop</string>
+    <string name="voice_transcribe">Transcribe</string>
+    <string name="voice_transcribing">Transcribing…</string>
+    <string name="voice_transcript_failed">Transcription failed</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>

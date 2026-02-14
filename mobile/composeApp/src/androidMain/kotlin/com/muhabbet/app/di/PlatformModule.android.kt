@@ -15,6 +15,7 @@ import com.muhabbet.app.platform.AndroidPushTokenProvider
 import com.muhabbet.app.platform.BackgroundSyncManager
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.PushTokenProvider
+import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.shared.port.E2EKeyManager
 import com.muhabbet.shared.port.EncryptionPort
 import org.koin.core.module.Module
@@ -27,6 +28,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single<ContactsProvider> { AndroidContactsProvider(context) }
     single<PushTokenProvider> { AndroidPushTokenProvider() }
     single { BackgroundSyncManager(context) }
+    single { SpeechTranscriber(context) }
     single { PersistentSignalProtocolStore(context) }
     single<E2EKeyManager> { SignalKeyManager(store = get()) }
     single<EncryptionPort> { SignalEncryption(keyManager = get()) }

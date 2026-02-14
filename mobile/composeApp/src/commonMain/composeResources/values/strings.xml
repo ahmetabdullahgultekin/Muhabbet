@@ -20,6 +20,9 @@
     <string name="voice_pause">Duraklat</string>
     <string name="voice_record">Kaydet</string>
     <string name="voice_stop">Durdur</string>
+    <string name="voice_transcribe">Yazıya Dönüştür</string>
+    <string name="voice_transcribing">Yazıya dönüştürülüyor…</string>
+    <string name="voice_transcript_failed">Yazıya dönüştürme başarısız</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
