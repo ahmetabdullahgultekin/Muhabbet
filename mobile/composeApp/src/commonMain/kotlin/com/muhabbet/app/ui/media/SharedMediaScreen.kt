@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -227,7 +228,7 @@ fun SharedMediaScreen(
                                         modifier = Modifier.size(48.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                     )
-                                    Spacer(Modifier.height(8.dp))
+                                    Spacer(Modifier.height(MuhabbetSpacing.Small))
                                     Text(
                                         text = stringResource(Res.string.shared_media_empty),
                                         style = MaterialTheme.typography.bodyLarge,
@@ -346,7 +347,7 @@ fun SharedMediaScreen(
                                                 },
                                                 onLongClick = { contextMenuMessage = message }
                                             )
-                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         if (isVoice) {
@@ -365,7 +366,7 @@ fun SharedMediaScreen(
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                        Spacer(Modifier.width(12.dp))
+                                        Spacer(Modifier.width(MuhabbetSpacing.Medium))
                                         Text(
                                             text = message.content.ifBlank { if (isVoice) "Voice" else "Document" },
                                             style = MaterialTheme.typography.bodyMedium,

@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 
 val QUICK_REACTIONS = listOf("\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
 
@@ -37,12 +39,12 @@ fun QuickReactionBar(
     ) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            shadowElevation = 8.dp,
-            tonalElevation = 3.dp,
+            shadowElevation = MuhabbetElevation.Level6,
+            tonalElevation = MuhabbetElevation.Level3,
             color = MaterialTheme.colorScheme.surface
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -54,7 +56,7 @@ fun QuickReactionBar(
                         modifier = Modifier
                             .size(48.dp)
                             .clickable { onReaction(emoji) }
-                            .padding(4.dp)
+                            .padding(MuhabbetSpacing.XSmall)
                     )
                 }
             }
@@ -72,7 +74,7 @@ fun ReactionBadges(
     if (reactions.isEmpty()) return
     Row(
         modifier = modifier.padding(top = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
     ) {
         reactions.forEach { (emoji, count) ->
             val isOwn = emoji in currentUserReactions

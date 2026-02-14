@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
 import com.muhabbet.app.platform.rememberFirebasePhoneAuth
@@ -72,7 +73,7 @@ fun OtpVerifyScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -81,7 +82,7 @@ fun OtpVerifyScreen(
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Small))
 
         Text(
             text = stringResource(Res.string.otp_subtitle, phoneNumber),
@@ -90,7 +91,7 @@ fun OtpVerifyScreen(
         )
 
         if (mockCode != null) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(MuhabbetSpacing.Medium))
             Surface(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 shape = MaterialTheme.shapes.small
@@ -104,7 +105,7 @@ fun OtpVerifyScreen(
             }
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
 
         OutlinedTextField(
             value = otp,
@@ -123,7 +124,7 @@ fun OtpVerifyScreen(
             modifier = Modifier.fillMaxWidth().testTag("otp_input")
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Small))
 
         if (countdown > 0) {
             val minutes = countdown / 60
@@ -141,7 +142,7 @@ fun OtpVerifyScreen(
                 color = MaterialTheme.colorScheme.error
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(MuhabbetSpacing.Small))
 
             if (!useFirebase) {
                 // Resend only for mock/backend OTP (Firebase handles resend internally)
@@ -175,7 +176,7 @@ fun OtpVerifyScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Large))
 
         Button(
             onClick = {
@@ -226,7 +227,7 @@ fun OtpVerifyScreen(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
         TextButton(onClick = onBack) {
             Text(stringResource(Res.string.otp_change_number))

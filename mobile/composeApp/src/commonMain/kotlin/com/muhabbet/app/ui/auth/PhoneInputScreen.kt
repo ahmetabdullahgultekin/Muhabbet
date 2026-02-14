@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.platform.PhoneVerificationResult
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
@@ -59,7 +60,7 @@ fun PhoneInputScreen(
     val genericErrorMsg = stringResource(Res.string.error_generic)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -78,7 +79,7 @@ fun PhoneInputScreen(
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
         Text(
             text = stringResource(Res.string.phone_title),
@@ -86,14 +87,14 @@ fun PhoneInputScreen(
             color = MaterialTheme.colorScheme.primary
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Small))
 
         Text(
             text = stringResource(Res.string.phone_subtitle),
             style = MaterialTheme.typography.bodyLarge
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
 
         OutlinedTextField(
             value = phoneNumber,
@@ -110,7 +111,7 @@ fun PhoneInputScreen(
             modifier = Modifier.fillMaxWidth().testTag("phone_input")
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Large))
 
         Button(
             onClick = {

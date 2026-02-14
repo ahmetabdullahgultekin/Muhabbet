@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
@@ -128,7 +129,7 @@ fun ActiveCallScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier.padding(MuhabbetSpacing.XXLarge)
         ) {
             // Avatar
             Box(
@@ -145,7 +146,7 @@ fun ActiveCallScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
 
             Text(
                 text = otherUserName ?: otherUserId,
@@ -153,7 +154,7 @@ fun ActiveCallScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))
 
             Text(
                 text = callTypeLabel,
@@ -161,7 +162,7 @@ fun ActiveCallScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
 
             // Duration
             Text(
@@ -174,7 +175,7 @@ fun ActiveCallScreen(
 
             // Call controls
             Row(
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XXLarge),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Mute
@@ -198,7 +199,7 @@ fun ActiveCallScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
                     Text(
                         text = if (isMuted) unmuteLabel else muteLabel,
                         style = MaterialTheme.typography.labelSmall
@@ -229,7 +230,7 @@ fun ActiveCallScreen(
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
                     Text(text = endLabel, style = MaterialTheme.typography.labelSmall)
                 }
 
@@ -254,7 +255,7 @@ fun ActiveCallScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
                     Text(text = speakerLabel, style = MaterialTheme.typography.labelSmall)
                 }
             }

@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
@@ -72,7 +73,7 @@ fun IncomingCallScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier.padding(MuhabbetSpacing.XXLarge)
         ) {
             // Caller avatar placeholder
             Box(
@@ -89,7 +90,7 @@ fun IncomingCallScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
 
             Text(
                 text = callerName ?: callerId,
@@ -97,7 +98,7 @@ fun IncomingCallScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))
 
             Text(
                 text = callTypeLabel,
@@ -105,7 +106,7 @@ fun IncomingCallScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
 
             Text(
                 text = ringingLabel,
@@ -143,7 +144,7 @@ fun IncomingCallScreen(
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))
                     Text(text = declineLabel, style = MaterialTheme.typography.bodySmall)
                 }
 
@@ -170,7 +171,7 @@ fun IncomingCallScreen(
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))
                     Text(text = acceptLabel, style = MaterialTheme.typography.bodySmall)
                 }
             }

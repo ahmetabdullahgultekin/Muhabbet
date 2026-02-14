@@ -48,8 +48,9 @@ import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -89,8 +90,8 @@ fun MessageBubble(
                 color = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 else if (isOwn) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = if (isOwn) 0.dp else 1.dp,
-                shadowElevation = 1.dp,
+                tonalElevation = if (isOwn) MuhabbetElevation.None else MuhabbetElevation.Level1,
+                shadowElevation = MuhabbetElevation.Level1,
                 modifier = Modifier
                     .widthIn(min = 80.dp, max = 300.dp)
                     .combinedClickable(
@@ -99,21 +100,21 @@ fun MessageBubble(
                         onDoubleClick = onDoubleTap
                     )
             ) {
-                Column(modifier = Modifier.padding(4.dp)) {
+                Column(modifier = Modifier.padding(MuhabbetSpacing.XSmall)) {
                     // Quoted reply
                     if (repliedMessage != null) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
                         ) {
-                            Row(modifier = Modifier.padding(8.dp)) {
+                            Row(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
                                 Box(
                                     modifier = Modifier.width(3.dp).height(32.dp)
                                         .clip(RoundedCornerShape(2.dp))
                                 )
-                                Column(modifier = Modifier.padding(start = 8.dp)) {
+                                Column(modifier = Modifier.padding(start = MuhabbetSpacing.Small)) {
                                     Text(
                                         text = repliedMessage.content.take(60),
                                         style = MaterialTheme.typography.bodySmall,
@@ -129,9 +130,9 @@ fun MessageBubble(
                     // Forwarded label
                     if (message.forwardedFrom != null) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Send,
@@ -157,7 +158,7 @@ fun MessageBubble(
                             text = stringResource(Res.string.chat_message_deleted),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.XSmall)
                         )
                     } else {
                         // Voice
@@ -167,7 +168,7 @@ fun MessageBubble(
                                 durationSeconds = null,
                                 isOwn = isOwn,
                                 audioPlayer = audioPlayer,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
                             )
                         }
                         // Document
@@ -176,13 +177,13 @@ fun MessageBubble(
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                 else MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
                                     .clickable { /* open URL */ }
                             ) {
                                 Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
                                         tint = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(MuhabbetSpacing.Small))
                                     Text(message.content, style = MaterialTheme.typography.bodySmall,
                                         color = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 2)
@@ -207,14 +208,14 @@ fun MessageBubble(
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
                             )
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                         }
                         // Sticker
                         if (message.contentType == ContentType.STICKER && message.mediaUrl != null) {
                             AsyncImage(
                                 model = message.mediaUrl,
                                 contentDescription = null,
-                                modifier = Modifier.size(150.dp).padding(4.dp)
+                                modifier = Modifier.size(150.dp).padding(MuhabbetSpacing.XSmall)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Fit
                             )
@@ -229,7 +230,7 @@ fun MessageBubble(
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
                             )
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                         }
                         // Video
                         if (message.contentType == ContentType.VIDEO && (message.mediaUrl != null || message.thumbnailUrl != null)) {
@@ -254,12 +255,12 @@ fun MessageBubble(
                                     Icon(
                                         Icons.Default.PlayArrow,
                                         contentDescription = stringResource(Res.string.video_play),
-                                        modifier = Modifier.padding(8.dp),
+                                        modifier = Modifier.padding(MuhabbetSpacing.Small),
                                         tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                         }
                         // Text
                         if (message.contentType == ContentType.TEXT ||
@@ -269,7 +270,7 @@ fun MessageBubble(
                                 text = message.content,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)
                             )
                             if (message.contentType == ContentType.TEXT) {
                                 val firstUrl = extractFirstUrl(message.content)
@@ -283,7 +284,7 @@ fun MessageBubble(
 
                     // Timestamp + edited + delivery status
                     Row(
-                        modifier = Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.align(Alignment.End).padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
@@ -319,7 +320,7 @@ fun MessageBubble(
                             reactions = message.reactions,
                             currentUserReactions = message.myReactions,
                             onReactionClick = onReactionToggle,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall)
                         )
                     }
                 }
@@ -372,10 +373,8 @@ fun MessageBubble(
     }
 }
 
-internal fun formatMessageTime(instant: kotlinx.datetime.Instant): String {
-    val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    return "${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
-}
+internal fun formatMessageTime(instant: kotlinx.datetime.Instant): String =
+    DateTimeFormatter.formatTime(instant)
 
 internal fun generateMessageId(): String {
     val chars = "0123456789abcdef"

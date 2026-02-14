@@ -74,6 +74,18 @@ object MuhabbetSizes {
     val IconLarge: Dp = 24.dp
 }
 
+// ─── Elevation tokens ──────────────────────────────────────
+
+object MuhabbetElevation {
+    val None: Dp = 0.dp
+    val Level1: Dp = 1.dp
+    val Level2: Dp = 2.dp
+    val Level3: Dp = 3.dp
+    val Level4: Dp = 4.dp
+    val Level5: Dp = 6.dp
+    val Level6: Dp = 8.dp
+}
+
 // ─── M3 Color schemes ──────────────────────────────────────
 
 val MuhabbetLightColorScheme = lightColorScheme(

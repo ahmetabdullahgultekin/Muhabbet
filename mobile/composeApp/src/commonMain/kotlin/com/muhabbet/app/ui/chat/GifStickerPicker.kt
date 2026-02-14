@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.GiphyClient
 import com.muhabbet.app.data.remote.GiphyGif
 import com.muhabbet.composeapp.generated.resources.Res
@@ -119,7 +120,7 @@ fun GifStickerPicker(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text(stringResource(Res.string.gif_search_placeholder)) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small),
                 singleLine = true,
                 shape = RoundedCornerShape(24.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -143,9 +144,9 @@ fun GifStickerPicker(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(MuhabbetSpacing.XSmall),
+                    horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall),
+                    verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall),
                     modifier = Modifier.weight(1f)
                 ) {
                     items(gifs, key = { it.id }) { gif ->
@@ -181,7 +182,7 @@ fun GifStickerPicker(
                 text = stringResource(Res.string.gif_powered_by),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp)
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = MuhabbetSpacing.Small)
             )
         }
     }

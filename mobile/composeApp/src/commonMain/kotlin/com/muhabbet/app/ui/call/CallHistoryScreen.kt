@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
@@ -120,7 +121,7 @@ fun CallHistoryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onCallUser(otherUserId, otherName, call.callType) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Direction icon
@@ -139,7 +140,7 @@ fun CallHistoryScreen(
                             modifier = Modifier.size(20.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(MuhabbetSpacing.Medium))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(

@@ -208,6 +208,10 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `docs/qa/` — QA engineering documentation (9 ISO/IEC 25010 documents + UI/UX analysis)
 - `backend/detekt.yml` — detekt static analysis configuration
 - `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
+- `mobile/.../ui/theme/MuhabbetTheme.kt` — Design tokens (semantic colors, spacing, sizes, elevation)
+- `mobile/.../util/DateTimeFormatter.kt` — Centralized date/time formatting (DRY utility)
+- `mobile/.../ui/components/SectionHeader.kt` — Reusable section header component
+- `mobile/.../ui/components/ConfirmDialog.kt` — Reusable confirm/dismiss dialog
 
 ## Current Phase
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
@@ -260,7 +264,8 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
 - **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
 - **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
-- **UI/UX Remediation**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
+- **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
+- **UI/UX Remediation (Phase 2)**: Reusable components (`DateTimeFormatter` utility consolidating 6 duplicate formatters, `SectionHeader` component, `ConfirmDialog` wrapper), elevation tokens (`MuhabbetElevation`), full spacing token migration (`MuhabbetSpacing`) across 30+ UI files, elevation token migration across 7 files
 
 ### Remaining Work
 - ~~WebRTC client integration (LiveKit)~~ — **DONE** (LiveKit Android SDK + CallEngine + backend room management)

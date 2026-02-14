@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.delay
@@ -61,7 +62,7 @@ fun VoiceRecordButton(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(MuhabbetSpacing.Small))
         }
 
         FilledIconButton(

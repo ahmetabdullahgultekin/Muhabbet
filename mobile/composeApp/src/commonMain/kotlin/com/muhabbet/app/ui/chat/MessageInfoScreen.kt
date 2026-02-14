@@ -49,12 +49,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.RecipientDeliveryInfo
-import kotlinx.datetime.toLocalDateTime
+import com.muhabbet.app.ui.components.SectionHeader
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -123,14 +125,14 @@ fun MessageInfoScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(MuhabbetSpacing.Large),
                                 shape = RoundedCornerShape(12.dp),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
+                                Column(modifier = Modifier.padding(MuhabbetSpacing.Large)) {
                                     // Media preview (image/video thumbnail)
                                     val previewUrl = data.thumbnailUrl ?: data.mediaUrl
                                     if (previewUrl != null && data.contentType in listOf("IMAGE", "VIDEO")) {
@@ -156,7 +158,7 @@ fun MessageInfoScreen(
                                                 )
                                             }
                                         }
-                                        Spacer(Modifier.height(12.dp))
+                                        Spacer(Modifier.height(MuhabbetSpacing.Medium))
                                     }
 
                                     // Content type badge for non-text
@@ -175,7 +177,7 @@ fun MessageInfoScreen(
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                        Spacer(Modifier.height(8.dp))
+                                        Spacer(Modifier.height(MuhabbetSpacing.Small))
                                     }
 
                                     if (data.content.isNotBlank()) {
@@ -187,7 +189,7 @@ fun MessageInfoScreen(
                                         )
                                     }
 
-                                    Spacer(Modifier.height(12.dp))
+                                    Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
@@ -196,7 +198,7 @@ fun MessageInfoScreen(
                                             modifier = Modifier.size(14.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        Spacer(Modifier.width(4.dp))
+                                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                                         Text(
                                             text = "${stringResource(Res.string.message_info_sent_at)}: ${formatTimestamp(data.sentAt)}",
                                             style = MaterialTheme.typography.bodySmall,
@@ -250,7 +252,7 @@ fun MessageInfoScreen(
                         if (data.recipients.isEmpty()) {
                             item {
                                 Column(
-                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XXLarge),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
@@ -259,7 +261,7 @@ fun MessageInfoScreen(
                                         modifier = Modifier.size(40.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     )
-                                    Spacer(Modifier.height(8.dp))
+                                    Spacer(Modifier.height(MuhabbetSpacing.Small))
                                     Text(
                                         text = stringResource(Res.string.message_info_not_sent),
                                         style = MaterialTheme.typography.bodyMedium,
@@ -269,7 +271,7 @@ fun MessageInfoScreen(
                             }
                         }
 
-                        item { Spacer(Modifier.height(24.dp)) }
+                        item { Spacer(Modifier.height(MuhabbetSpacing.XLarge)) }
                     }
                 }
             }
@@ -278,35 +280,11 @@ fun MessageInfoScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String, dotColor: Color) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = dotColor
-        )
-    }
-}
-
-@Composable
 private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Timeline dot
@@ -324,7 +302,7 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
             displayName = recipient.displayName ?: recipient.userId.take(8),
             size = 40.dp
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
 
         // Name and time
         Column(modifier = Modifier.weight(1f)) {
@@ -352,14 +330,5 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
     }
 }
 
-private fun formatTimestamp(isoString: String): String {
-    return try {
-        val instant = kotlinx.datetime.Instant.parse(isoString)
-        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
-        val dt = instant.toLocalDateTime(tz)
-        "${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')}.${dt.year} " +
-                "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-    } catch (_: Exception) {
-        isoString
-    }
-}
+private fun formatTimestamp(isoString: String): String =
+    DateTimeFormatter.formatFullTimestamp(isoString)

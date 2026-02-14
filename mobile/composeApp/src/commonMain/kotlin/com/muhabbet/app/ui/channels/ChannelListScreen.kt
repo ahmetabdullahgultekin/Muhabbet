@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ChannelRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ChannelInfoResponse
@@ -100,7 +101,7 @@ fun ChannelListScreen(
                     modifier = Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
                 Text(
                     stringResource(Res.string.channels_empty),
                     style = MaterialTheme.typography.bodyLarge
@@ -142,7 +143,7 @@ private fun ChannelItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -159,7 +160,7 @@ private fun ChannelItem(
                 )
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = channel.name,
@@ -181,7 +182,7 @@ private fun ChannelItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
         if (channel.isSubscribed) {
             OutlinedButton(onClick = onSubscribe) {
                 Text(stringResource(Res.string.channels_unsubscribe))

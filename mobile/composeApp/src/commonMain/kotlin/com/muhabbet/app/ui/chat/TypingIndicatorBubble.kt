@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 
 @Composable
 fun TypingIndicatorBubble(modifier: Modifier = Modifier) {
@@ -83,13 +85,13 @@ fun TypingIndicatorBubble(modifier: Modifier = Modifier) {
             bottomEnd = 16.dp
         ),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 1.dp,
-        shadowElevation = 1.dp,
+        tonalElevation = MuhabbetElevation.Level1,
+        shadowElevation = MuhabbetElevation.Level1,
         modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
+            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BouncingDot(offset = dot1Offset)

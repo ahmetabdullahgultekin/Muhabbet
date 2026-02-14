@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.validation.ValidationRules
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
@@ -50,7 +51,7 @@ fun ProfileSetupScreen(
     val updateFailedMsg = stringResource(Res.string.profile_update_failed)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -70,21 +71,21 @@ fun ProfileSetupScreen(
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
         Text(
             text = stringResource(Res.string.profile_title),
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Small))
 
         Text(
             text = stringResource(Res.string.profile_subtitle),
             style = MaterialTheme.typography.bodyMedium
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
 
         OutlinedTextField(
             value = displayName,
@@ -99,7 +100,7 @@ fun ProfileSetupScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Large))
 
         Button(
             onClick = {

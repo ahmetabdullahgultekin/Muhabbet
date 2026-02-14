@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.LocationData
 import kotlinx.serialization.json.Json
 
@@ -40,7 +41,7 @@ fun LocationBubble(
     if (locationData == null) return
 
     Row(
-        modifier = modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier = modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.XSmall),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -50,7 +51,7 @@ fun LocationBubble(
             tint = if (isOwn) MaterialTheme.colorScheme.onPrimary
             else MaterialTheme.colorScheme.error
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
         Column {
             locationData.label?.let { labelText ->
                 Text(

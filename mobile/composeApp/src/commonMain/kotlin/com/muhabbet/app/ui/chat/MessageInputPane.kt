@@ -49,15 +49,17 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 
 @Composable
 fun ReplyPreviewBar(
     replyingTo: Message,
     onCancel: () -> Unit
 ) {
-    Surface(tonalElevation = 4.dp) {
+    Surface(tonalElevation = MuhabbetElevation.Level4) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Medium, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -66,7 +68,7 @@ fun ReplyPreviewBar(
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(MuhabbetSpacing.Small))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.chat_replying_to),
@@ -94,10 +96,10 @@ fun EditModeBar(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.tertiaryContainer,
-        tonalElevation = 4.dp
+        tonalElevation = MuhabbetElevation.Level4
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -106,7 +108,7 @@ fun EditModeBar(
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onTertiaryContainer
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(MuhabbetSpacing.Small))
             Text(
                 text = editModeText,
                 style = MaterialTheme.typography.labelLarge,
@@ -136,9 +138,9 @@ fun MessageInputBar(
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
 
-    Surface(tonalElevation = 2.dp) {
+    Surface(tonalElevation = MuhabbetElevation.Level2) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Attach button with menu
@@ -199,7 +201,7 @@ fun MessageInputBar(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
             )
 
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(MuhabbetSpacing.XSmall))
 
             if (messageText.isBlank() && !isEditing) {
                 FilledIconButton(
