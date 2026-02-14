@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
@@ -219,7 +220,7 @@ fun ActiveCallScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFE53935))
+                            .background(LocalSemanticColors.current.callDecline)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CallEnd,

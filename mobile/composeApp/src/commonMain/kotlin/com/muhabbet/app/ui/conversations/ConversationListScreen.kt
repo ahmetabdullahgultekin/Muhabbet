@@ -73,6 +73,10 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MessageStatus
@@ -422,14 +426,14 @@ fun ConversationListScreen(
                     IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
                         Icon(
                             imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = null,
+                            contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                     IconButton(onClick = onSettings) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.settings_title),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -439,11 +443,12 @@ fun ConversationListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNewConversation,
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.testTag("new_chat_fab")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = null,
+                    contentDescription = stringResource(Res.string.new_conversation_title),
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
@@ -469,7 +474,8 @@ fun ConversationListScreen(
                     },
                     placeholder = { Text(stringResource(Res.string.search_messages_placeholder)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("search_input")
                 )
             }
 
@@ -519,8 +525,11 @@ fun ConversationListScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(8) {
+                        ConversationSkeletonItem()
+                        HorizontalDivider()
+                    }
                 }
             } else if (conversations.isEmpty()) {
                 EmptyChatsIllustration(
@@ -563,7 +572,7 @@ fun ConversationListScreen(
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 Icons.Default.Add,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(Res.string.status_create_title),
                                                 modifier = Modifier.size(24.dp),
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
@@ -749,7 +758,7 @@ private fun ConversationItem(
                         .align(Alignment.BottomEnd)
                         .offset(x = 1.dp, y = 1.dp)
                         .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                        .background(Color(0xFF4CAF50), CircleShape)
+                        .background(LocalSemanticColors.current.statusOnline, CircleShape)
                 )
             }
         }
@@ -813,6 +822,53 @@ private fun ConversationItem(
 
 private fun firstGrapheme(text: String): String =
     com.muhabbet.app.ui.profile.firstGrapheme(text)
+
+@Composable
+private fun ConversationSkeletonItem() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Avatar placeholder
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            // Name placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(14.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+            Spacer(Modifier.height(8.dp))
+            // Message preview placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.75f)
+                    .height(12.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        // Timestamp placeholder
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(10.dp)
+                .clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+    }
+}
 
 private fun formatTimestamp(timestamp: String): String {
     return try {

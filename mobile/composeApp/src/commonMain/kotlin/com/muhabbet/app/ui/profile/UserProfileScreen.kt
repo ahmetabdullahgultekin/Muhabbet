@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -151,7 +152,7 @@ fun UserProfileScreen(
                             Text(
                                 text = stringResource(Res.string.chat_online),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF4CAF50)
+                                color = LocalSemanticColors.current.statusOnline
                             )
                         } else if (p.lastSeenAt != null) {
                             val time = formatLastSeen(p.lastSeenAt!!)

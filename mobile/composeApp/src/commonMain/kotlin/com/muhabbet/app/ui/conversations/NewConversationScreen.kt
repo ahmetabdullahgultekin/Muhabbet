@@ -120,7 +120,7 @@ fun NewConversationScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -143,7 +143,7 @@ fun NewConversationScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ContactPhone,
-                            contentDescription = null,
+                            contentDescription = "Contacts",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -189,7 +189,7 @@ fun NewConversationScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ContactPhone,
-                            contentDescription = null,
+                            contentDescription = "Contacts",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -227,7 +227,7 @@ fun NewConversationScreen(
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = Icons.Outlined.Group,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(Res.string.new_conversation_new_group),
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(24.dp)
                                             )

@@ -12,6 +12,14 @@
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="delete">Delete</string>
+    <string name="action_close">Close</string>
+    <string name="action_send">Send</string>
+    <string name="action_save">Save</string>
+    <string name="attach_file">Attach file</string>
+    <string name="voice_play">Play</string>
+    <string name="voice_pause">Pause</string>
+    <string name="voice_record">Record</string>
+    <string name="voice_stop">Stop</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -303,4 +311,8 @@
     <string name="call_history_empty">No calls yet</string>
     <string name="call_today">Today</string>
     <string name="call_yesterday">Yesterday</string>
+
+    <!-- Accessibility -->
+    <string name="action_back">Back</string>
+    <string name="chat_disappearing">Disappearing messages</string>
 </resources>

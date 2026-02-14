@@ -163,7 +163,7 @@ fun GroupInfoScreen(
 
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 actions = {
@@ -172,11 +172,11 @@ fun GroupInfoScreen(
                             editName = conversation?.name ?: ""
                             showEditDialog = true
                         }) {
-                            Icon(Icons.Default.Edit, contentDescription = null)
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.group_edit_name_title))
                         }
                     }
                     IconButton(onClick = { showLeaveDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(Res.string.group_leave_title))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

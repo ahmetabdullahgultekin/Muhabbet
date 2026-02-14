@@ -83,7 +83,7 @@ fun StarredMessagesScreen(
                 title = { Text(stringResource(Res.string.starred_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -111,7 +111,7 @@ fun StarredMessagesScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.Star,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.starred_title),
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
@@ -161,7 +161,7 @@ private fun StarredMessageItem(
         if (icon != null) {
             Icon(
                 icon,
-                contentDescription = null,
+                contentDescription = message.contentType.name,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -199,7 +199,7 @@ private fun StarredMessageItem(
             )
             Icon(
                 Icons.Default.Star,
-                contentDescription = null,
+                contentDescription = stringResource(Res.string.starred_title),
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.tertiary
             )

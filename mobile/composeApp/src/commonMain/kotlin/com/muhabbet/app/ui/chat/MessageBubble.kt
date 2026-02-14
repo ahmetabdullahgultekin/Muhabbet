@@ -135,7 +135,7 @@ fun MessageBubble(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Send,
-                                contentDescription = null,
+                                contentDescription = stringResource(Res.string.chat_forwarded),
                                 modifier = Modifier.size(12.dp),
                                 tint = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
@@ -180,7 +180,7 @@ fun MessageBubble(
                                     .clickable { /* open URL */ }
                             ) {
                                 Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(28.dp),
+                                    Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
                                         tint = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(8.dp))
                                     Text(message.content, style = MaterialTheme.typography.bodySmall,
@@ -201,7 +201,7 @@ fun MessageBubble(
                         if (message.contentType == ContentType.GIF && message.mediaUrl != null) {
                             AsyncImage(
                                 model = message.mediaUrl,
-                                contentDescription = null,
+                                contentDescription = stringResource(Res.string.attach_gif),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
@@ -223,7 +223,7 @@ fun MessageBubble(
                         if (message.contentType == ContentType.IMAGE && (message.mediaUrl != null || message.thumbnailUrl != null)) {
                             AsyncImage(
                                 model = message.thumbnailUrl ?: message.mediaUrl,
-                                contentDescription = null,
+                                contentDescription = stringResource(Res.string.chat_photo),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
@@ -330,12 +330,12 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_reply)) },
                     onClick = onReply,
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = stringResource(Res.string.chat_context_reply), modifier = Modifier.size(20.dp)) }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_forward)) },
                     onClick = onForward,
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.chat_context_forward), modifier = Modifier.size(20.dp)) }
                 )
                 DropdownMenuItem(
                     text = { Text(if (isStarred) stringResource(Res.string.chat_context_unstar) else stringResource(Res.string.chat_context_star)) },
@@ -351,20 +351,20 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_info)) },
                     onClick = onInfo,
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = stringResource(Res.string.chat_context_info), modifier = Modifier.size(20.dp)) }
                 )
                 if (isOwn) {
                     if (message.contentType == ContentType.TEXT) {
                         DropdownMenuItem(
                             text = { Text(stringResource(Res.string.chat_context_edit)) },
                             onClick = onEdit,
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.chat_context_edit), modifier = Modifier.size(20.dp)) }
                         )
                     }
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
                         onClick = onDelete,
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error) }
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.chat_context_delete), modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error) }
                     )
                 }
             }

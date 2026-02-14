@@ -12,6 +12,14 @@
     <string name="cancel">İptal</string>
     <string name="save">Kaydet</string>
     <string name="delete">Sil</string>
+    <string name="action_close">Kapat</string>
+    <string name="action_send">Gönder</string>
+    <string name="action_save">Kaydet</string>
+    <string name="attach_file">Dosya ekle</string>
+    <string name="voice_play">Oynat</string>
+    <string name="voice_pause">Duraklat</string>
+    <string name="voice_record">Kaydet</string>
+    <string name="voice_stop">Durdur</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -303,4 +311,8 @@
     <string name="call_history_empty">Henüz arama yok</string>
     <string name="call_today">Bugün</string>
     <string name="call_yesterday">Dün</string>
+
+    <!-- Accessibility -->
+    <string name="action_back">Geri</string>
+    <string name="chat_disappearing">Kaybolan mesajlar</string>
 </resources>

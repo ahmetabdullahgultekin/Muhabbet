@@ -20,6 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.platform.AudioPlayer
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun VoiceBubble(
@@ -46,11 +49,11 @@ fun VoiceBubble(
                 if (isPlaying) audioPlayer.pause()
                 else audioPlayer.play(mediaUrl)
             },
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(48.dp)
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = null,
+                contentDescription = stringResource(if (isPlaying) Res.string.voice_pause else Res.string.voice_play),
                 tint = if (isOwn) MaterialTheme.colorScheme.onPrimary
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -211,11 +212,11 @@ fun MessageInfoScreen(
                             item {
                                 SectionHeader(
                                     title = stringResource(Res.string.message_info_read_by),
-                                    dotColor = Color(0xFF4FC3F7)
+                                    dotColor = LocalSemanticColors.current.statusRead
                                 )
                             }
                             items(readRecipients, key = { "read_${it.userId}" }) { recipient ->
-                                RecipientRow(recipient, Color(0xFF4FC3F7))
+                                RecipientRow(recipient, LocalSemanticColors.current.statusRead)
                             }
                         }
 
@@ -343,7 +344,7 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
 
         // Status icon
         val (icon, tint) = when (recipient.status) {
-            "READ" -> Icons.Default.DoneAll to Color(0xFF4FC3F7)
+            "READ" -> Icons.Default.DoneAll to LocalSemanticColors.current.statusRead
             "DELIVERED" -> Icons.Default.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant
             else -> Icons.Default.Check to MaterialTheme.colorScheme.onSurfaceVariant
         }

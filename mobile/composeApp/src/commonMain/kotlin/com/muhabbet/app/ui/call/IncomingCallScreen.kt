@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
@@ -133,7 +134,7 @@ fun IncomingCallScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFE53935))
+                            .background(LocalSemanticColors.current.callDecline)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CallEnd,
@@ -160,7 +161,7 @@ fun IncomingCallScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF43A047))
+                            .background(LocalSemanticColors.current.callAccept)
                     ) {
                         Icon(
                             imageVector = if (callType == CallType.VIDEO) Icons.Default.Videocam else Icons.Default.Call,

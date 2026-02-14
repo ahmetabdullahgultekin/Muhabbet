@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Implemented — UI/UX Remediation (Feb 2026)
+- **Design system tokens**: `MuhabbetSemanticColors` (statusOnline, statusRead, callDecline, callAccept, callMissed), `MuhabbetSpacing` (XSmall→XXLarge), `MuhabbetSizes` (touch targets, icons) — all via `CompositionLocalProvider`
+- **Accessibility (P0 fixes)**: 28+ contentDescription fixes across MessageInputPane, ChatScreen, CallScreens, ConversationList, GroupInfo, SharedMedia, Settings, StarredMessages, NewConversation; 12 new localized string resources (TR+EN)
+- **Touch targets**: VoiceBubble play button 36→48dp, ReactionBar emoji buttons 36→48dp
+- **IME actions**: Phone input (Done), OTP input (Done), search fields (Search), message input (Send), GIF search (Search)
+- **Hardcoded colors eliminated**: 8 `Color(0xFF...)` replaced with `LocalSemanticColors.current.*` in IncomingCallScreen, ActiveCallScreen, CallHistoryScreen, ConversationListScreen, UserProfileScreen, MessageInfoScreen
+- **Skeleton loading**: ConversationListScreen shimmer placeholders replacing spinner
+- **Edit mode banner**: Visually distinct `tertiaryContainer` background with larger icons and labels
+- **TestTags**: `message_input`, `send_button`, `phone_input`, `phone_continue`, `otp_input`, `otp_verify`, `new_chat_fab`, `search_input`
+- **KeyboardOptions**: Added to all text input fields across the app
+
 ### Added — Lead UI/UX Engineer Analysis (Feb 2026)
 - **Comprehensive UI audit**: 34 files / 8,407 lines reviewed across 14 navigation destinations
 - **Accessibility audit**: 28+ missing contentDescription violations, touch target sizing analysis, semantic annotation gaps

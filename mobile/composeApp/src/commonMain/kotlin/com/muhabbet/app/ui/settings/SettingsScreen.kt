@@ -168,7 +168,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -224,7 +224,7 @@ fun SettingsScreen(
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = null,
+                                    contentDescription = stringResource(Res.string.profile_change_photo),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.onPrimary
                                 )
@@ -330,7 +330,7 @@ fun SettingsScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Star,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.starred_title),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(22.dp)
                         )
@@ -530,7 +530,7 @@ fun SettingsScreen(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Logout,
-                        contentDescription = null,
+                        contentDescription = stringResource(Res.string.settings_logout),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.size(8.dp))

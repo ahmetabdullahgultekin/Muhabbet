@@ -317,8 +317,8 @@ fun ChatScreen(
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) } },
-                actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Icons.Default.Timer else Icons.Default.TimerOff, contentDescription = null) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back)) } },
+                actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Icons.Default.Timer else Icons.Default.TimerOff, contentDescription = stringResource(Res.string.chat_disappearing)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary, navigationIconContentColor = MaterialTheme.colorScheme.onPrimary, actionIconContentColor = MaterialTheme.colorScheme.onPrimary)
             )
         },
@@ -385,7 +385,7 @@ fun ChatScreen(
                     }
                     if (showScrollToBottom.value) {
                         Surface(onClick = { scope.launch { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) } }, shape = CircleShape, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.surface, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).size(44.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary) }
+                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.scroll_to_bottom), Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary) }
                         }
                     }
                 }

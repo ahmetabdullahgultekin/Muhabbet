@@ -37,7 +37,7 @@ fun UserAvatar(
         if (avatarUrl != null) {
             AsyncImage(
                 model = avatarUrl,
-                contentDescription = null,
+                contentDescription = displayName,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
@@ -46,7 +46,7 @@ fun UserAvatar(
                 if (isGroup) {
                     Icon(
                         imageVector = Icons.Default.Group,
-                        contentDescription = null,
+                        contentDescription = "Group",
                         modifier = Modifier.size(size * 0.5f),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )

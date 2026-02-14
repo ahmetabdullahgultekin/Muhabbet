@@ -52,7 +52,7 @@ fun QuickReactionBar(
                         fontSize = 22.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .clickable { onReaction(emoji) }
                             .padding(4.dp)
                     )

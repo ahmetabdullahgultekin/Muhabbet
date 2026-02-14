@@ -25,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.platform.PhoneVerificationResult
@@ -70,8 +72,7 @@ fun PhoneInputScreen(
             androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = "M",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             }
@@ -102,11 +103,11 @@ fun PhoneInputScreen(
             },
             label = { Text(stringResource(Res.string.phone_label)) },
             placeholder = { Text(stringResource(Res.string.phone_placeholder)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
             singleLine = true,
             isError = error != null,
             supportingText = error?.let { { Text(it) } },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("phone_input")
         )
 
         Spacer(Modifier.height(16.dp))
@@ -175,7 +176,7 @@ fun PhoneInputScreen(
                 }
             },
             enabled = !isLoading && phoneNumber.length >= 13,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("phone_continue")
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
