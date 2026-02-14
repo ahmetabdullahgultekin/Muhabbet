@@ -3,6 +3,7 @@ package com.muhabbet.app.di
 import com.muhabbet.app.data.local.DatabaseDriverFactory
 import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.platform.BackgroundSyncManager
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.IosContactsProvider
 import com.muhabbet.app.platform.IosPushTokenProvider
@@ -21,6 +22,7 @@ fun iosPlatformModule(): Module = module {
     single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { IosContactsProvider() }
     single<PushTokenProvider> { IosPushTokenProvider() }
+    single { BackgroundSyncManager() }
     single<E2EKeyManager> { NoOpKeyManager() }
     single<EncryptionPort> { NoOpEncryption() }
 }
@@ -59,5 +61,11 @@ class IosTokenStorage : TokenStorage {
 
     override fun setTheme(theme: String) {
         defaults.setObject(theme, forKey = "app_theme")
+    }
+
+    override fun getLastSyncTimestamp(): String? = defaults.stringForKey("last_sync_timestamp")
+
+    override fun setLastSyncTimestamp(timestamp: String) {
+        defaults.setObject(timestamp, forKey = "last_sync_timestamp")
     }
 }

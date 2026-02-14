@@ -12,4 +12,6 @@ interface TokenStorage {
     fun setLanguage(lang: String) {}
     fun getTheme(): String? = null
     fun setTheme(theme: String) {}
+    fun getLastSyncTimestamp(): String? = null
+    fun setLastSyncTimestamp(timestamp: String) {}
 }

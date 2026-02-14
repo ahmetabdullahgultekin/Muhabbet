@@ -98,4 +98,20 @@ class MessageRepository(
         val response = apiClient.get<MessageInfoResponse>("/api/v1/messages/$messageId/info")
         return response.data ?: throw Exception("Failed to load message info")
     }
+
+    /**
+     * Sync messages since a given timestamp.
+     * Used by background sync to catch up on missed messages.
+     * Returns the list of synced messages and caches them locally.
+     */
+    suspend fun syncMessagesSince(timestamp: String): List<Message> {
+        val response = apiClient.get<PaginatedResponse<Message>>(
+            "/api/v1/messages/since?timestamp=$timestamp"
+        )
+        val messages = response.data?.items ?: emptyList()
+        if (messages.isNotEmpty()) {
+            localCache.upsertMessages(messages)
+        }
+        return messages
+    }
 }

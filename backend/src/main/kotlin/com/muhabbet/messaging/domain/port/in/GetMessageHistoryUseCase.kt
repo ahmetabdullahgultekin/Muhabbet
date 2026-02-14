@@ -2,6 +2,7 @@ package com.muhabbet.messaging.domain.port.`in`
 
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import java.time.Instant
 import java.util.UUID
 
 interface GetMessageHistoryUseCase {
@@ -21,6 +22,12 @@ interface GetMessageHistoryUseCase {
     fun resolveDeliveryStatuses(messages: List<Message>, requestingUserId: UUID): Map<UUID, DeliveryStatus>
 
     fun getMediaMessages(conversationId: UUID, userId: UUID, limit: Int, offset: Int): List<Message>
+
+    /**
+     * Returns all messages across user's conversations since a given timestamp.
+     * Used by background sync to catch up on missed messages.
+     */
+    fun getMessagesSince(userId: UUID, since: Instant): List<Message>
 }
 
 data class MessagePage(

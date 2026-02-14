@@ -177,6 +177,11 @@ open class MessageService(
         return messageRepository.findMediaByConversationId(conversationId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
     }
 
+    @Transactional(readOnly = true)
+    override fun getMessagesSince(userId: UUID, since: Instant): List<Message> {
+        return messageRepository.findUndeliveredForUser(userId, since)
+    }
+
     // ─── Message Management ──────────────────────────────────
 
     @Transactional

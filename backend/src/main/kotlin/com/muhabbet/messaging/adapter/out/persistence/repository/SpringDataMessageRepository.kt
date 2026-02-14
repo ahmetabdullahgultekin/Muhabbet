@@ -116,4 +116,17 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         """
     )
     fun findMediaByConversationId(conversationId: UUID, contentTypes: List<ContentType>, pageable: Pageable): List<MessageJpaEntity>
+
+    @Query(
+        """
+        SELECT DISTINCT m FROM MessageJpaEntity m
+        JOIN ConversationMemberJpaEntity cm
+          ON m.conversationId = cm.conversationId
+        WHERE cm.userId = :userId
+          AND m.isDeleted = false
+          AND m.serverTimestamp > :since
+        ORDER BY m.serverTimestamp ASC
+        """
+    )
+    fun findMessagesSince(userId: UUID, since: Instant, pageable: Pageable): List<MessageJpaEntity>
 }

@@ -84,6 +84,9 @@ kotlin {
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
             implementation("app.cash.sqldelight:android-driver:2.2.1")
 
+            // WorkManager — background sync
+            implementation("androidx.work:work-runtime-ktx:2.10.0")
+
             // Firebase Auth (Phone verification) + Cloud Messaging
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
             implementation("com.google.firebase:firebase-auth-ktx")

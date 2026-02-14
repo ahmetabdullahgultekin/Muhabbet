@@ -112,4 +112,12 @@ private fun WebSocketLifecycle() {
             }
         }
     }
+
+    // Schedule background message sync
+    val syncManager: com.muhabbet.app.platform.BackgroundSyncManager = koinInject()
+    LaunchedEffect(Unit) {
+        if (tokenStorage.isLoggedIn()) {
+            syncManager.schedulePeriodicSync()
+        }
+    }
 }
