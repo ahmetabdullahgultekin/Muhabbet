@@ -2,8 +2,8 @@
 
 ## Active Bugs
 
-- [ ] **Push notifications not firing** — FCM_ENABLED is false in production; NoOpPushNotificationAdapter is active. Need to set FCM_ENABLED=true + FIREBASE_CREDENTIALS_PATH in docker-compose.prod.yml
 - [ ] **Ticks stuck at single** — Mobile never sends DELIVERED ack, only READ. Need to add global DELIVERED ack in App.kt when NewMessage arrives, keep READ ack only in ChatScreen
+- [ ] **GCP Docker build fails** — `eclipse-temurin:25-jdk-noble` image + Gradle build error `25.0.2` on GCP VM. Old container still running (healthy). Investigate Kotlin/Gradle compatibility with JDK 25
 
 ## Fixed Bugs
 
@@ -84,6 +84,7 @@
 - [x] Firebase FCM
 - [x] Flyway migrations (V1-V13)
 - [x] Sentry integration (Android SDK)
+- [x] 150 backend unit tests passing (5 test files updated for refactored services)
 - [ ] **CI/CD** — GitHub Actions pipeline
 
 ## Localization Rules

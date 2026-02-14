@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Test Suite Maintenance
+- **Backend test compilation**: Updated 5 test files to match refactored service APIs — `MessagingServiceTest`, `ConversationServiceTest`, `GroupServiceTest`, `ChatWebSocketHandlerTest`, `RateLimitFilterTest` now compile and pass against split services (ConversationService + MessageService + GroupService)
+- **RateLimitFilter test access**: Changed from `doFilterInternal` (protected) to `doFilter` (public) for all rate limit test cases
+- **150 backend unit tests passing** (1 integration test skipped — Testcontainers requires Docker)
+
 ### Added — Round 6: Media UX & Storage
 - **Chat scroll fix**: Chat now starts at the bottom instantly on first load, subsequent messages animate smoothly (no more exhaustive top-to-bottom scroll)
 - **Pinch-to-zoom**: MediaViewer supports pinch-to-zoom (1x–5x), double-tap to toggle zoom (1x ↔ 3x), pan while zoomed via `rememberTransformableState` + `graphicsLayer`

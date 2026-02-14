@@ -253,7 +253,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
 - **iOS ImagePicker stub**: Returns null — needs PHPickerViewController implementation.
 - **CrashReporter.ios.kt stub**: Needs Sentry iOS CocoaPod integration.
-- **No mobile unit tests**: Backend has ~125 tests; mobile has none yet.
+- **No mobile unit tests**: Backend has ~150 tests; mobile has none yet.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
@@ -319,3 +319,6 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **JPQL enum IN clause**: Do NOT use fully-qualified enum references (`com.example.Enum.VALUE`) in JPQL `IN` clauses — may fail at runtime in Hibernate 6. Use `@Param` with `List<EnumType>` parameter instead: `WHERE m.field IN :paramList`.
 - **Delivery status hardcoded SENT**: `MessageMapper.toSharedMessage()` originally hardcoded `status = MessageStatus.SENT`. Fixed by adding `resolvedStatus` parameter and batch-querying `message_delivery_status` table. Sender sees aggregate min (all READ → READ, any DELIVERED → DELIVERED), recipient sees their own row.
 - **Navigation stack pop-then-push anti-pattern**: Calling `goBack()` then `openChat()` pops the current screen before pushing the new one, so back button skips the popped screen. Instead, just `push()` directly to keep the full stack intact.
+- **Git worktree missing files**: Worktrees don't copy gitignored files (`local.properties`, `google-services.json`). Must manually copy from main repo before building.
+- **GCP Docker build JDK 25 issue**: `eclipse-temurin:25-jdk-noble` + Gradle 8.14 causes cryptic `25.0.2` error. Docker build fails but existing container keeps running (healthy). Consider pinning to JDK 21 in Dockerfile until Kotlin/Gradle fully supports JDK 25.
+- **Backend test refactoring**: When splitting services (e.g., `MessagingService` → `ConversationService` + `MessageService` + `GroupService`), ALL test files must be updated to use new method signatures. Test compilation errors don't affect production code but block CI.

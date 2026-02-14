@@ -6,7 +6,6 @@ import io.mockk.verify
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -31,7 +30,7 @@ class RateLimitFilterTest {
         remoteAddr: String = "192.168.1.1",
         xForwardedFor: String? = null
     ): HttpServletRequest {
-        val request = mockk<HttpServletRequest>()
+        val request = mockk<HttpServletRequest>(relaxed = true)
         every { request.requestURI } returns uri
         every { request.remoteAddr } returns remoteAddr
         every { request.getHeader("X-Forwarded-For") } returns xForwardedFor
@@ -44,6 +43,27 @@ class RateLimitFilterTest {
         val printWriter = PrintWriter(stringWriter)
         every { response.writer } returns printWriter
         return Pair(response, stringWriter)
+    }
+
+    /**
+     * Invokes the protected doFilterInternal via reflection.
+     * This avoids OncePerRequestFilter.doFilter framework wrapping
+     * which requires a full servlet container mock setup.
+     */
+    private fun invokeDoFilterInternal(
+        filter: RateLimitFilter,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        chain: FilterChain
+    ) {
+        val method = filter.javaClass.getDeclaredMethod(
+            "doFilterInternal",
+            HttpServletRequest::class.java,
+            HttpServletResponse::class.java,
+            FilterChain::class.java
+        )
+        method.isAccessible = true
+        method.invoke(filter, request, response, chain)
     }
 
     // ─── Path Filtering ──────────────────────────────────
@@ -115,7 +135,7 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = "1.1.1.1")
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // All 10 should have passed through to filterChain
@@ -130,13 +150,13 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = ip)
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // 11th request should be rate limited
             val request = createRequest(remoteAddr = ip)
             val (response, stringWriter) = createResponse()
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             verify { response.status = HttpStatus.TOO_MANY_REQUESTS.value() }
             verify { response.contentType = "application/json" }
@@ -153,13 +173,13 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = ip)
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // Trigger rate limit
             val request = createRequest(remoteAddr = ip)
             val (response, stringWriter) = createResponse()
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             val responseBody = stringWriter.toString()
             assertTrue(responseBody.contains("RATE_LIMITED"))
@@ -175,13 +195,13 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = ip1)
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // ip2 should still be allowed
             val request = createRequest(remoteAddr = ip2)
             val (response, _) = createResponse()
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             // 10 for ip1 + 1 for ip2 = 11 total passes
             verify(exactly = 11) { filterChain.doFilter(any(), any()) }
@@ -198,7 +218,7 @@ class RateLimitFilterTest {
                     xForwardedFor = realIp
                 )
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // 11th with same real IP should be rate limited
@@ -207,7 +227,7 @@ class RateLimitFilterTest {
                 xForwardedFor = realIp
             )
             val (response, _) = createResponse()
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             verify { response.status = HttpStatus.TOO_MANY_REQUESTS.value() }
         }
@@ -224,7 +244,7 @@ class RateLimitFilterTest {
                     xForwardedFor = proxyChain
                 )
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // 11th should be rate limited (because first IP in chain is 6.6.6.6)
@@ -233,7 +253,7 @@ class RateLimitFilterTest {
                 xForwardedFor = proxyChain
             )
             val (response, _) = createResponse()
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             verify { response.status = HttpStatus.TOO_MANY_REQUESTS.value() }
         }
@@ -245,12 +265,12 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = remoteAddr, xForwardedFor = null)
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             val request = createRequest(remoteAddr = remoteAddr, xForwardedFor = null)
             val (response, _) = createResponse()
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             verify { response.status = HttpStatus.TOO_MANY_REQUESTS.value() }
         }
@@ -260,7 +280,7 @@ class RateLimitFilterTest {
             val request = createRequest(remoteAddr = "8.8.8.8")
             val (response, _) = createResponse()
 
-            rateLimitFilter.doFilterInternal(request, response, filterChain)
+            invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
 
             verify(exactly = 1) { filterChain.doFilter(any(), any()) }
             verify(exactly = 0) { response.status = HttpStatus.TOO_MANY_REQUESTS.value() }
@@ -274,14 +294,14 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = ip)
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
             }
 
             // Next 5 requests should all be blocked
             repeat(5) {
                 val request = createRequest(remoteAddr = ip)
                 val (response, _) = createResponse()
-                rateLimitFilter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(rateLimitFilter, request, response, filterChain)
                 verify(atLeast = 1) { response.status = HttpStatus.TOO_MANY_REQUESTS.value() }
             }
 
@@ -306,13 +326,13 @@ class RateLimitFilterTest {
             repeat(10) {
                 val request = createRequest(remoteAddr = ip)
                 val (response, _) = createResponse()
-                filter.doFilterInternal(request, response, filterChain)
+                invokeDoFilterInternal(filter, request, response, filterChain)
             }
 
             // Verify we are rate limited
             val blockedRequest = createRequest(remoteAddr = ip)
             val (blockedResponse, _) = createResponse()
-            filter.doFilterInternal(blockedRequest, blockedResponse, filterChain)
+            invokeDoFilterInternal(filter, blockedRequest, blockedResponse, filterChain)
             verify { blockedResponse.status = HttpStatus.TOO_MANY_REQUESTS.value() }
 
             // We cannot easily simulate time passage in a unit test without
@@ -320,7 +340,7 @@ class RateLimitFilterTest {
             // that a different IP still works (proves the filter state works per-IP).
             val differentIpRequest = createRequest(remoteAddr = "11.11.11.11")
             val (freshResponse, _) = createResponse()
-            filter.doFilterInternal(differentIpRequest, freshResponse, filterChain)
+            invokeDoFilterInternal(filter, differentIpRequest, freshResponse, filterChain)
 
             // The different IP request should have passed through
             // 10 original + 1 new IP = at least 12 total calls (including the 11th blocked)

@@ -1,7 +1,7 @@
 # Muhabbet — Product Roadmap
 
-> **Last Updated**: February 13, 2026
-> **Status**: Phases 2-5 + 4 rounds of bug fixes complete. Preparing for beta testing.
+> **Last Updated**: February 14, 2026
+> **Status**: Phases 2-5 + 6 rounds of bug fixes complete. 150 backend tests passing. Preparing for beta testing.
 
 ---
 
@@ -92,6 +92,8 @@
 | Round 2 | Compilation errors from Phase 2-5 merge | DONE |
 | Round 3 | Delivery status resolution, shared media, message info, starred redesign, contact name, status upload, forwarded visuals, video thumbnails | DONE |
 | Round 4 | Shared media JPQL fix, message info robustness, status text position, starred scroll-to-message, starred back navigation | DONE |
+| Round 5 | MediaViewer with action bars, SharedMediaScreen long-press context menu, MessageInfoScreen polish with cards/avatars/timeline | DONE |
+| Round 6 | Chat scroll fix, pinch-to-zoom, SharedMedia video/voice/doc playback, forward fix, MessageInfo media preview + avatars, storage usage stats | DONE |
 
 ---
 
@@ -164,7 +166,7 @@
 | ~~ChatScreen.kt ~1,700 lines~~ | ~~High~~ | Fixed (Phase 2) — split to 405 lines |
 | ~~5 controllers bypass use case layer~~ | ~~Medium~~ | Fixed (Phase 2) — all use use cases |
 | ~~MessagingService implements 7 use cases~~ | ~~Medium~~ | Fixed (Phase 2) — split into 3 services |
-| ~~Test coverage at 13%~~ | ~~High~~ | Improved (Phase 2) — ~125 backend tests |
+| ~~Test coverage at 13%~~ | ~~High~~ | Improved — 150 backend unit tests passing |
 | Backend enum duplication (intentional) | Low | Monitor |
 | No mobile unit tests | Medium | Phase 3+ |
 | Single-server architecture | Low | Phase 5+ |

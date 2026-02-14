@@ -6,7 +6,6 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
-import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
@@ -27,7 +26,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.context.ApplicationEventPublisher
 import java.time.Instant
 import java.util.UUID
 
@@ -37,8 +35,8 @@ class MessagingServiceTest {
     private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
-    private lateinit var eventPublisher: ApplicationEventPublisher
-    private lateinit var messagingService: MessagingService
+    private lateinit var conversationService: ConversationService
+    private lateinit var messageService: MessageService
 
     private val userA = UUID.randomUUID()
     private val userB = UUID.randomUUID()
@@ -50,14 +48,17 @@ class MessagingServiceTest {
         messageRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
-        eventPublisher = mockk(relaxed = true)
 
-        messagingService = MessagingService(
+        conversationService = ConversationService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            userRepository = userRepository,
-            messageBroadcaster = messageBroadcaster,
-            eventPublisher = eventPublisher
+            userRepository = userRepository
+        )
+
+        messageService = MessageService(
+            conversationRepository = conversationRepository,
+            messageRepository = messageRepository,
+            messageBroadcaster = messageBroadcaster
         )
     }
 
@@ -70,7 +71,7 @@ class MessagingServiceTest {
         }
     }
 
-    // ─── createConversation ──────────────────────────────
+    // --- createConversation ------------------------------------------
 
     @Test
     fun `should create direct conversation when valid participants`() {
@@ -80,7 +81,7 @@ class MessagingServiceTest {
         every { conversationRepository.findDirectConversation(any(), any()) } returns null
         every { conversationRepository.saveMember(any()) } answers { firstArg() }
 
-        val result = messagingService.createConversation(
+        val result = conversationService.createConversation(
             type = ConversationType.DIRECT,
             creatorId = userA,
             participantIds = listOf(userB)
@@ -105,7 +106,7 @@ class MessagingServiceTest {
         every { conversationRepository.findById(existingConvId) } returns existingConv
         every { conversationRepository.findMembersByConversationId(existingConvId) } returns members
 
-        val result = messagingService.createConversation(
+        val result = conversationService.createConversation(
             type = ConversationType.DIRECT,
             creatorId = userA,
             participantIds = listOf(userB)
@@ -121,7 +122,7 @@ class MessagingServiceTest {
         stubUserExists(userA, userB, userC)
 
         val ex = assertThrows<BusinessException> {
-            messagingService.createConversation(
+            conversationService.createConversation(
                 type = ConversationType.DIRECT,
                 creatorId = userA,
                 participantIds = listOf(userB, userC)
@@ -138,7 +139,7 @@ class MessagingServiceTest {
         every { userRepository.findById(userB) } returns null
 
         val ex = assertThrows<BusinessException> {
-            messagingService.createConversation(
+            conversationService.createConversation(
                 type = ConversationType.DIRECT,
                 creatorId = userA,
                 participantIds = listOf(userB)
@@ -155,7 +156,7 @@ class MessagingServiceTest {
         val memberSlot = mutableListOf<ConversationMember>()
         every { conversationRepository.saveMember(capture(memberSlot)) } answers { firstArg() }
 
-        val result = messagingService.createConversation(
+        val result = conversationService.createConversation(
             type = ConversationType.GROUP,
             creatorId = userA,
             participantIds = listOf(userB, userC),
@@ -174,7 +175,7 @@ class MessagingServiceTest {
         stubUserExists(userA, userB, userC)
 
         val ex = assertThrows<BusinessException> {
-            messagingService.createConversation(
+            conversationService.createConversation(
                 type = ConversationType.GROUP,
                 creatorId = userA,
                 participantIds = listOf(userB, userC),
@@ -184,7 +185,7 @@ class MessagingServiceTest {
         assertEquals(ErrorCode.VALIDATION_ERROR, ex.errorCode)
     }
 
-    // ─── sendMessage ─────────────────────────────────────
+    // --- sendMessage -------------------------------------------------
 
     @Test
     fun `should send message when sender is member`() {
@@ -201,7 +202,7 @@ class MessagingServiceTest {
         every { messageRepository.save(any()) } answers { firstArg() }
         every { conversationRepository.findMembersByConversationId(convId) } returns members
 
-        val result = messagingService.sendMessage(
+        val result = messageService.sendMessage(
             SendMessageCommand(
                 messageId = messageId,
                 conversationId = convId,
@@ -223,7 +224,7 @@ class MessagingServiceTest {
         every { conversationRepository.findMember(convId, userA) } returns null
 
         val ex = assertThrows<BusinessException> {
-            messagingService.sendMessage(
+            messageService.sendMessage(
                 SendMessageCommand(
                     messageId = UUID.randomUUID(),
                     conversationId = convId,
@@ -246,7 +247,7 @@ class MessagingServiceTest {
         every { messageRepository.existsById(messageId) } returns true
 
         val ex = assertThrows<BusinessException> {
-            messagingService.sendMessage(
+            messageService.sendMessage(
                 SendMessageCommand(
                     messageId = messageId,
                     conversationId = convId,
@@ -264,7 +265,7 @@ class MessagingServiceTest {
         val convId = UUID.randomUUID()
 
         val ex = assertThrows<BusinessException> {
-            messagingService.sendMessage(
+            messageService.sendMessage(
                 SendMessageCommand(
                     messageId = UUID.randomUUID(),
                     conversationId = convId,
@@ -293,7 +294,7 @@ class MessagingServiceTest {
         every { messageRepository.save(any()) } answers { firstArg() }
         every { conversationRepository.findMembersByConversationId(convId) } returns members
 
-        messagingService.sendMessage(
+        messageService.sendMessage(
             SendMessageCommand(
                 messageId = messageId,
                 conversationId = convId,
@@ -307,7 +308,7 @@ class MessagingServiceTest {
         verify { messageBroadcaster.broadcastMessage(any(), listOf(userB, userC)) }
     }
 
-    // ─── getMessages ─────────────────────────────────────
+    // --- getMessages -------------------------------------------------
 
     @Test
     fun `should return message page when user is member`() {
@@ -323,7 +324,7 @@ class MessagingServiceTest {
         every { conversationRepository.findMember(convId, userA) } returns member
         every { messageRepository.findByConversationId(convId, null, 51) } returns messages
 
-        val page = messagingService.getMessages(convId, userA, null, 50, "before")
+        val page = messageService.getMessages(convId, userA, null, 50, "before")
 
         assertEquals(1, page.items.size)
         assertFalse(page.hasMore)
@@ -335,7 +336,7 @@ class MessagingServiceTest {
         every { conversationRepository.findMember(convId, userA) } returns null
 
         val ex = assertThrows<BusinessException> {
-            messagingService.getMessages(convId, userA, null, 50, "before")
+            messageService.getMessages(convId, userA, null, 50, "before")
         }
         assertEquals(ErrorCode.MSG_NOT_MEMBER, ex.errorCode)
     }
@@ -357,14 +358,14 @@ class MessagingServiceTest {
         every { conversationRepository.findMember(convId, userA) } returns member
         every { messageRepository.findByConversationId(convId, null, 3) } returns messages
 
-        val page = messagingService.getMessages(convId, userA, null, 2, "before")
+        val page = messageService.getMessages(convId, userA, null, 2, "before")
 
         assertEquals(2, page.items.size)
         assertTrue(page.hasMore)
         assertNotNull(page.nextCursor)
     }
 
-    // ─── updateStatus ────────────────────────────────────
+    // --- updateStatus ------------------------------------------------
 
     @Test
     fun `should update delivery status and broadcast`() {
@@ -377,17 +378,17 @@ class MessagingServiceTest {
 
         every { messageRepository.findById(messageId) } returns message
 
-        messagingService.updateStatus(messageId, userB, DeliveryStatus.DELIVERED)
+        messageService.updateStatus(messageId, userB, DeliveryStatus.DELIVERED)
 
         verify { messageRepository.updateDeliveryStatus(messageId, userB, DeliveryStatus.DELIVERED) }
         verify {
             messageBroadcaster.broadcastStatusUpdate(
-                messageId, convId, userB, DeliveryStatus.DELIVERED
+                messageId, convId, userB, userA, DeliveryStatus.DELIVERED
             )
         }
     }
 
-    // ─── getConversations ────────────────────────────────
+    // --- getConversations --------------------------------------------
 
     @Test
     fun `should return conversation summaries for user`() {
@@ -407,7 +408,7 @@ class MessagingServiceTest {
             ConversationMember(conversationId = convId, userId = userB)
         )
 
-        val page = messagingService.getConversations(userA, null, 20)
+        val page = conversationService.getConversations(userA, null, 20)
 
         assertEquals(1, page.items.size)
         assertEquals("Last message", page.items[0].lastMessagePreview)

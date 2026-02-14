@@ -70,7 +70,7 @@ muhabbet/
 ### Architecture (Post-MVP)
 - Call signaling infrastructure (WebSocket-based, ready for WebRTC/LiveKit)
 - E2E encryption key exchange endpoints (ready for Signal Protocol client)
-- ~125 backend unit tests (MediaService, ConversationService, GroupService, WebSocket, RateLimit)
+- ~150 backend unit tests (AuthService, MediaService, ConversationService, MessageService, GroupService, WebSocket, RateLimit)
 
 ## Module Status
 
