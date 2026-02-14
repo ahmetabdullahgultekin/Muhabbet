@@ -3,17 +3,23 @@ package com.muhabbet.app.platform
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import platform.AVFAudio.AVAudioRecorder
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryRecord
 import platform.AVFAudio.AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+import platform.Foundation.NSData
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
+import platform.Foundation.dataWithContentsOfFile
+import platform.posix.memcpy
 
 actual class AudioRecorder {
     private var recorder: AVAudioRecorder? = null
     private var outputPath: String? = null
     private var recording = false
+    private var recordingStartTime: Long = 0L
 
     @OptIn(ExperimentalForeignApi::class)
     actual fun startRecording() {
@@ -38,11 +44,13 @@ actual class AudioRecorder {
             audioRecorder.record()
             recorder = audioRecorder
             recording = true
+            recordingStartTime = platform.Foundation.NSDate().timeIntervalSince1970.toLong() * 1000
         } catch (_: Exception) {
             recording = false
         }
     }
 
+    @OptIn(ExperimentalForeignApi::class)
     actual fun stopRecording(): RecordedAudio? {
         recorder?.stop()
         recording = false
@@ -52,7 +60,30 @@ actual class AudioRecorder {
         val session = AVAudioSession.sharedInstance()
         session.setActive(false, withOptions = AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation, error = null)
 
-        return RecordedAudio(filePath = path, durationMs = 0L) // duration calculated on upload
+        val durationMs = (platform.Foundation.NSDate().timeIntervalSince1970.toLong() * 1000) - recordingStartTime
+        val durationSecs = (durationMs / 1000).toInt().coerceAtLeast(1)
+
+        // Read file bytes
+        val data = NSData.dataWithContentsOfFile(path) ?: return null
+        val bytes = data.toByteArray()
+
+        return RecordedAudio(
+            bytes = bytes,
+            mimeType = "audio/mp4",
+            durationSeconds = durationSecs
+        )
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    private fun NSData.toByteArray(): ByteArray {
+        val size = this.length.toInt()
+        val bytes = ByteArray(size)
+        if (size > 0) {
+            bytes.usePinned { pinned ->
+                memcpy(pinned.addressOf(0), this@toByteArray.bytes, this@toByteArray.length)
+            }
+        }
+        return bytes
     }
 
     actual fun cancelRecording() {
