@@ -215,6 +215,14 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `mobile/.../util/TextUtils.kt` — firstGrapheme() + parseFormattedText() utilities
 - `mobile/.../BuildInfo.kt` — Centralized version constant
 - `docs/qa/mobile-ui-audit.md` — 87-issue mobile UI audit report
+- `mobile/.../data/repository/MediaUploadHelper.kt` — Centralized media upload with guaranteed compression
+- `mobile/.../data/local/MuhabbetDatabase.sq` — SQLDelight schema (CachedConversation, CachedMessage, PendingMessage)
+- `mobile/.../crypto/PersistentSignalProtocolStore.kt` — Android EncryptedSharedPreferences Signal store
+- `mobile/.../crypto/KeychainHelper.kt` — iOS Keychain CRUD for secure token/key storage
+- `mobile/.../platform/BackgroundSyncManager.kt` — expect/actual periodic message sync (WorkManager/BGTask)
+- `mobile/.../platform/CameraPicker.kt` — expect/actual camera capture (TakePicture/UIImagePickerController)
+- `mobile/.../platform/SpeechTranscriber.kt` — expect/actual on-device ASR (SpeechRecognizer/SFSpeechRecognizer)
+- `mobile/.../ui/settings/PrivacyDashboardScreen.kt` — KVKK privacy controls UI
 
 ## Current Phase
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
@@ -270,19 +278,20 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
 - **UI/UX Remediation (Phase 2)**: Reusable components (`DateTimeFormatter` utility consolidating 6 duplicate formatters, `SectionHeader` component, `ConfirmDialog` wrapper), elevation tokens (`MuhabbetElevation`), full spacing token migration (`MuhabbetSpacing`) across 30+ UI files, elevation token migration across 7 files
 - **Mobile UI Audit + 87 Fixes**: Lead Mobile Engineer audit (87 issues across 6 severity levels). Fixed: 5 critical bugs (dead condition, hardcoded colors, infinite timer loop, stringly-typed state, hardcoded version), 6 ship-blocking feature gaps (copy to clipboard, group sender names, emoji button, block/report dialogs, privacy settings, channels filter), expanded design system (7 semantic colors, avatar tokens, duration/gesture tokens), 62 new localized strings (TR+EN), 15+ `!!` assertion removals, 4 WCAG touch target fixes. Files: 15 modified, 784 insertions, 173 deletions
+- **Production Hardening (Feb 2026)**: SQLDelight offline cache (cache-first repositories, PendingMessage queue), WebSocket resilience (offline queue drain, dedup, jitter backoff), KVKK Privacy Dashboard (data export, account deletion, visibility toggles), MediaUploadHelper (centralized compression pipeline), PersistentSignalProtocolStore (EncryptedSharedPreferences replacing InMemoryStore), background message sync (backend endpoint + WorkManager + BGTask), iOS platform completion (CameraPicker, AudioRecorder fix, KeychainHelper), voice transcription (SpeechRecognizer + SFSpeechRecognizer, Turkish ASR)
 
-### Current Phase: Production Hardening (Feb 2026)
-Active implementation of 8 features for production readiness:
+### Current Phase: Production Hardening (Feb 2026) — COMPLETE
+All 9 production hardening features completed:
 
 25. ~~Mobile UI audit + 87 issue fixes~~ — **DONE** (critical bugs, feature gaps, design system, a11y)
-26. SQLDelight offline caching — **IN PROGRESS** (conversations + messages cached in local DB)
-27. iOS platform module completion — **PLANNED** (camera picker, file picker polish)
-28. KVKK Privacy Dashboard — **PLANNED** (data export, deletion, privacy controls UI)
-29. Media compression pipeline — **PLANNED** (image/video/audio compression before upload)
-30. WebSocket connection resilience — **PLANNED** (offline message queue, dedup, reconnect)
-31. Persistent E2E key storage — **PLANNED** (EncryptedSharedPreferences/Keychain replacing InMemoryStore)
-32. Background message sync — **PLANNED** (sync-on-wake when FCM push missed)
-33. Voice message transcription — **PLANNED** (Turkish ASR via Whisper/on-device)
+26. ~~SQLDelight offline caching~~ — **DONE** (conversations + messages cached in local DB, cache-first repository pattern)
+27. ~~WebSocket connection resilience~~ — **DONE** (offline message queue, dedup via LinkedHashSet, exponential backoff with jitter)
+28. ~~KVKK Privacy Dashboard~~ — **DONE** (data export, account deletion, visibility controls, KVKK rights info)
+29. ~~Media compression pipeline~~ — **DONE** (MediaUploadHelper: images 1280px/80%, profiles 512px/75%, thumbnails 320px/60%)
+30. ~~Persistent E2E key storage~~ — **DONE** (Android: EncryptedSharedPreferences, iOS: Keychain for tokens)
+31. ~~Background message sync~~ — **DONE** (backend GET /api/v1/messages/since, Android WorkManager 15min, iOS BGTask)
+32. ~~iOS platform modules~~ — **DONE** (CameraPicker, AudioRecorder fix, KeychainHelper for secure storage)
+33. ~~Voice message transcription~~ — **DONE** (Android SpeechRecognizer, iOS SFSpeechRecognizer, Turkish tr-TR)
 
 ### Implementation Architecture
 
@@ -300,9 +309,9 @@ Active implementation of 8 features for production readiness:
 - **Exponential backoff**: Already implemented (1s→30s), enhanced with jitter
 
 #### Persistent E2E Key Storage
-- **Android**: `EncryptedSharedPreferences` for identity key pair, `SQLCipher` for session/pre-key stores
-- **iOS**: `Keychain` for identity key pair, encrypted SQLite for session stores
-- **Migration**: `InMemorySignalProtocolStore` → `PersistentSignalProtocolStore` with same interfaces
+- **Android**: `PersistentSignalProtocolStore` using `EncryptedSharedPreferences` for identity key pair, sessions, pre-keys, signed pre-keys, sender keys
+- **iOS**: `KeychainHelper` for secure token storage (access/refresh tokens, user/device IDs); E2E keys use NoOp until Signal Protocol is bridged
+- **Migration**: `InMemorySignalProtocolStore` → `PersistentSignalProtocolStore` — `SignalKeyManager` now takes store via constructor injection
 
 #### Media Compression Pipeline
 - **Images**: Already implemented via `ImageCompressor` (1280px max, JPEG 80%). Extended to all upload paths
@@ -320,8 +329,9 @@ Active implementation of 8 features for production readiness:
 - **Backend**: Already has `GET /api/v1/users/data/export` and `DELETE /api/v1/users/data/account`
 
 #### Voice Message Transcription
-- **On-device**: Whisper.cpp via KMP expect/actual (Android NDK, iOS CoreML)
-- **Fallback**: Server-side ASR endpoint for devices without on-device capability
+- **Android**: `SpeechRecognizer` API (on-device, Turkish tr-TR supported)
+- **iOS**: `SFSpeechRecognizer` (Apple Speech framework, on-device when available)
+- **UI**: "Transcribe" button on VoiceBubble, downloads audio + runs on-device ASR, shows inline transcript
 - **Language**: Turkish (tr) primary, auto-detect for multilingual messages
 
 ### Remaining Work (Post-Production Hardening)
@@ -338,8 +348,8 @@ Active implementation of 8 features for production readiness:
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
 - **~~Single-server architecture~~**: Resolved — Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) enables horizontal WS scaling across multiple backend instances.
 - **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
-- **~~In-memory E2E key store~~**: Being resolved — migrating to persistent storage (EncryptedSharedPreferences/Keychain).
-- **No offline support**: Being resolved — SQLDelight cache layer being added.
+- **~~In-memory E2E key store~~**: Resolved — `PersistentSignalProtocolStore` with EncryptedSharedPreferences (Android), `KeychainHelper` for iOS tokens.
+- **~~No offline support~~**: Resolved — SQLDelight cache layer with cache-first repository pattern + PendingMessage offline queue.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
