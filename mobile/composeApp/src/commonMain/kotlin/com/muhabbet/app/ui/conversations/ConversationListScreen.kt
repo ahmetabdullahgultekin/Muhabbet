@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.conversations
 
+import com.muhabbet.app.ui.components.ConfirmDialog
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,6 +74,11 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
+import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MessageStatus
@@ -83,14 +89,13 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import com.muhabbet.app.ui.components.EmptyChatsIllustration
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -242,11 +247,11 @@ fun ConversationListScreen(
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 3
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(MuhabbetSpacing.Small))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { statusImagePicker.launch() }) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                             Text(stringResource(Res.string.status_add_photo))
                         }
                         if (statusPickedImage != null) {
@@ -338,7 +343,7 @@ fun ConversationListScreen(
                             modifier = Modifier.size(22.dp),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(MuhabbetSpacing.Large))
                         Text(
                             text = if (targetConv.isPinned) unpinText else pinText,
                             style = MaterialTheme.typography.bodyLarge
@@ -363,7 +368,7 @@ fun ConversationListScreen(
                             modifier = Modifier.size(22.dp),
                             tint = MaterialTheme.colorScheme.error
                         )
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(MuhabbetSpacing.Large))
                         Text(
                             text = deleteText,
                             style = MaterialTheme.typography.bodyLarge,
@@ -383,30 +388,26 @@ fun ConversationListScreen(
 
     // Delete conversation dialog
     if (showDeleteDialog && deleteTargetConv != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false; deleteTargetConv = null },
-            title = { Text(convDeleteTitle) },
-            text = { Text(convDeleteConfirm) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val conv = deleteTargetConv!!
-                    showDeleteDialog = false
-                    deleteTargetConv = null
-                    scope.launch {
-                        try {
-                            conversationRepository.deleteConversation(conv.id)
-                            conversations = conversations.filter { it.id != conv.id }
-                        } catch (_: Exception) {
-                            snackbarHostState.showSnackbar(convDeleteFailed)
-                        }
+        ConfirmDialog(
+            title = convDeleteTitle,
+            message = convDeleteConfirm,
+            confirmLabel = deleteText,
+            onConfirm = {
+                val conv = deleteTargetConv!!
+                showDeleteDialog = false
+                deleteTargetConv = null
+                scope.launch {
+                    try {
+                        conversationRepository.deleteConversation(conv.id)
+                        conversations = conversations.filter { it.id != conv.id }
+                    } catch (_: Exception) {
+                        snackbarHostState.showSnackbar(convDeleteFailed)
                     }
-                }) { Text(deleteText, color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false; deleteTargetConv = null }) {
-                    Text(cancelText)
                 }
-            }
+            },
+            onDismiss = { showDeleteDialog = false; deleteTargetConv = null },
+            isDestructive = true,
+            dismissLabel = cancelText
         )
     }
 
@@ -422,14 +423,14 @@ fun ConversationListScreen(
                     IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
                         Icon(
                             imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = null,
+                            contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                     IconButton(onClick = onSettings) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.settings_title),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -439,11 +440,12 @@ fun ConversationListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNewConversation,
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.testTag("new_chat_fab")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = null,
+                    contentDescription = stringResource(Res.string.new_conversation_title),
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
@@ -469,7 +471,8 @@ fun ConversationListScreen(
                     },
                     placeholder = { Text(stringResource(Res.string.search_messages_placeholder)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small).testTag("search_input")
                 )
             }
 
@@ -486,7 +489,7 @@ fun ConversationListScreen(
                                     val name = conv?.name ?: otherP?.displayName ?: otherP?.phoneNumber ?: ""
                                     onConversationClick(msg.conversationId, name, otherP?.userId, conv?.type == ConversationType.GROUP)
                                 }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -519,8 +522,11 @@ fun ConversationListScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(8) {
+                        ConversationSkeletonItem()
+                        HorizontalDivider()
+                    }
                 }
             } else if (conversations.isEmpty()) {
                 EmptyChatsIllustration(
@@ -545,9 +551,9 @@ fun ConversationListScreen(
                     // Status row
                     item(key = "status_row") {
                         LazyRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
+                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = MuhabbetSpacing.Medium)
                         ) {
                             // "Add status" button
                             item(key = "add_status") {
@@ -563,13 +569,13 @@ fun ConversationListScreen(
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 Icons.Default.Add,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(Res.string.status_create_title),
                                                 modifier = Modifier.size(24.dp),
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                                     Text(
                                         text = stringResource(Res.string.status_my),
                                         style = MaterialTheme.typography.labelSmall,
@@ -603,7 +609,7 @@ fun ConversationListScreen(
                                             size = 56.dp
                                         )
                                     }
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                                     Text(
                                         text = displayName,
                                         style = MaterialTheme.typography.labelSmall,
@@ -620,9 +626,9 @@ fun ConversationListScreen(
                     // Filter chips
                     item(key = "filter_chips") {
                         LazyRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.XSmall),
+                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = MuhabbetSpacing.Medium)
                         ) {
                             item {
                                 FilterChip(
@@ -730,7 +736,7 @@ private fun ConversationItem(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar with online indicator
@@ -749,12 +755,12 @@ private fun ConversationItem(
                         .align(Alignment.BottomEnd)
                         .offset(x = 1.dp, y = 1.dp)
                         .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                        .background(Color(0xFF4CAF50), CircleShape)
+                        .background(LocalSemanticColors.current.statusOnline, CircleShape)
                 )
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
 
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -767,7 +773,7 @@ private fun ConversationItem(
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 if (isPinned) {
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                     Icon(
                         Icons.Default.PushPin,
                         contentDescription = null,
@@ -799,7 +805,7 @@ private fun ConversationItem(
                 )
             }
             if (hasUnread) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 Badge(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -814,24 +820,52 @@ private fun ConversationItem(
 private fun firstGrapheme(text: String): String =
     com.muhabbet.app.ui.profile.firstGrapheme(text)
 
-private fun formatTimestamp(timestamp: String): String {
-    return try {
-        val instant = kotlinx.datetime.Instant.parse(timestamp)
-        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
-        val msgDate = instant.toLocalDateTime(tz)
-        val nowDate = kotlinx.datetime.Clock.System.now().toLocalDateTime(tz)
-
-        if (msgDate.date == nowDate.date) {
-            // Today — show HH:mm
-            "${msgDate.hour.toString().padStart(2, '0')}:${msgDate.minute.toString().padStart(2, '0')}"
-        } else if (msgDate.year == nowDate.year) {
-            // Same year — show dd.MM
-            "${msgDate.dayOfMonth.toString().padStart(2, '0')}.${msgDate.monthNumber.toString().padStart(2, '0')}"
-        } else {
-            // Different year — show dd.MM.yy
-            "${msgDate.dayOfMonth.toString().padStart(2, '0')}.${msgDate.monthNumber.toString().padStart(2, '0')}.${msgDate.year % 100}"
+@Composable
+private fun ConversationSkeletonItem() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Avatar placeholder
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+        Column(modifier = Modifier.weight(1f)) {
+            // Name placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(14.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+            Spacer(Modifier.height(MuhabbetSpacing.Small))
+            // Message preview placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.75f)
+                    .height(12.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
         }
-    } catch (_: Exception) {
-        ""
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
+        // Timestamp placeholder
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(10.dp)
+                .clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
     }
 }
+
+private fun formatTimestamp(timestamp: String): String =
+    DateTimeFormatter.formatConversationTimestamp(timestamp)

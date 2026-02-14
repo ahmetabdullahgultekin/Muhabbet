@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.settings
 
+import com.muhabbet.app.ui.components.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,6 +63,8 @@ import com.muhabbet.app.platform.compressImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
 import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import androidx.compose.ui.layout.ContentScale
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -137,26 +140,17 @@ fun SettingsScreen(
     }
 
     if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text(stringResource(Res.string.logout_confirm_title)) },
-            text = { Text(stringResource(Res.string.logout_confirm_message)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutDialog = false
-                    onLogout()
-                }) {
-                    Text(
-                        stringResource(Res.string.logout_confirm_yes),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+        ConfirmDialog(
+            title = stringResource(Res.string.logout_confirm_title),
+            message = stringResource(Res.string.logout_confirm_message),
+            confirmLabel = stringResource(Res.string.logout_confirm_yes),
+            onConfirm = {
+                showLogoutDialog = false
+                onLogout()
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text(stringResource(Res.string.logout_confirm_no))
-                }
-            }
+            onDismiss = { showLogoutDialog = false },
+            isDestructive = true,
+            dismissLabel = stringResource(Res.string.logout_confirm_no)
         )
     }
 
@@ -168,7 +162,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -186,7 +180,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
                 CircularProgressIndicator()
             }
         } else {
@@ -195,7 +189,7 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+                    .padding(MuhabbetSpacing.XLarge),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Avatar with camera overlay
@@ -224,7 +218,7 @@ fun SettingsScreen(
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = null,
+                                    contentDescription = stringResource(Res.string.profile_change_photo),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.onPrimary
                                 )
@@ -233,7 +227,7 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
                 // Profile section
                 Text(
@@ -242,7 +236,7 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 OutlinedTextField(
                     value = displayName,
@@ -252,7 +246,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 OutlinedTextField(
                     value = about,
@@ -263,7 +257,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
 
                 Button(
                     onClick = {
@@ -295,9 +289,9 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
                 HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
 
                 // App section
                 Text(
@@ -306,7 +300,7 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 Text(
                     text = "${stringResource(Res.string.settings_version)}: 0.1.0",
@@ -315,22 +309,22 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 Surface(
                     modifier = Modifier.fillMaxWidth()
                         .clickable { onStarredMessages() },
-                    tonalElevation = 1.dp,
+                    tonalElevation = MuhabbetElevation.Level1,
                     shape = MaterialTheme.shapes.small
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Star,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.starred_title),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(22.dp)
                         )
@@ -341,9 +335,9 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
 
                 // Storage usage section
                 Text(
@@ -352,13 +346,13 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 if (storageLoading) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Text(
@@ -371,31 +365,31 @@ fun SettingsScreen(
                     val usage = storageUsage!!
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        tonalElevation = 1.dp,
+                        tonalElevation = MuhabbetElevation.Level1,
                         shape = MaterialTheme.shapes.small
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(MuhabbetSpacing.Medium)) {
                             StorageRow(
                                 label = stringResource(Res.string.storage_total),
                                 bytes = usage.totalBytes,
                                 count = usage.imageCount + usage.audioCount + usage.documentCount,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(MuhabbetSpacing.Small))
                             StorageRow(
                                 label = stringResource(Res.string.storage_images),
                                 bytes = usage.imageBytes,
                                 count = usage.imageCount,
                                 color = MaterialTheme.colorScheme.tertiary
                             )
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                             StorageRow(
                                 label = stringResource(Res.string.storage_audio),
                                 bytes = usage.audioBytes,
                                 count = usage.audioCount,
                                 color = MaterialTheme.colorScheme.secondary
                             )
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                             StorageRow(
                                 label = stringResource(Res.string.storage_documents),
                                 bytes = usage.documentBytes,
@@ -412,7 +406,7 @@ fun SettingsScreen(
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
                 // Language section
                 Text(
@@ -421,7 +415,7 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
 
                 Row(
                     modifier = Modifier.fillMaxWidth()
@@ -430,9 +424,9 @@ fun SettingsScreen(
                             tokenStorage.setLanguage("tr")
                             restartApp()
                         }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = MuhabbetSpacing.Small),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                 ) {
                     RadioButton(
                         selected = selectedLanguage == "tr",
@@ -454,9 +448,9 @@ fun SettingsScreen(
                             tokenStorage.setLanguage("en")
                             restartApp()
                         }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = MuhabbetSpacing.Small),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                 ) {
                     RadioButton(
                         selected = selectedLanguage == "en",
@@ -472,9 +466,9 @@ fun SettingsScreen(
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
 
                 // Theme section
                 Text(
@@ -483,7 +477,7 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
 
                 var selectedTheme by remember { mutableStateOf(tokenStorage.getTheme() ?: "system") }
                 val themeOptions = listOf(
@@ -502,7 +496,7 @@ fun SettingsScreen(
                             }
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                     ) {
                         RadioButton(
                             selected = selectedTheme == key,
@@ -516,9 +510,9 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
 
                 Button(
                     onClick = { showLogoutDialog = true },
@@ -530,10 +524,10 @@ fun SettingsScreen(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Logout,
-                        contentDescription = null,
+                        contentDescription = stringResource(Res.string.settings_logout),
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.size(MuhabbetSpacing.Small))
                     Text(stringResource(Res.string.settings_logout))
                 }
             }
@@ -550,7 +544,7 @@ private fun StorageRow(label: String, bytes: Long, count: Int, color: androidx.c
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
         ) {
             Box(
                 modifier = Modifier

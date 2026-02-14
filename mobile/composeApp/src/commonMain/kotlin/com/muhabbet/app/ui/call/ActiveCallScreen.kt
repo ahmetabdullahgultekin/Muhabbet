@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
@@ -60,6 +64,7 @@ fun ActiveCallScreen(
 ) {
     val wsClient = koinInject<WsClient>()
     val scope = rememberCoroutineScope()
+    val callEngine = remember { CallEngine() }
 
     var isMuted by remember { mutableStateOf(false) }
     var isSpeaker by remember { mutableStateOf(false) }
@@ -83,15 +88,32 @@ fun ActiveCallScreen(
         }
     }
 
-    // Listen for call.end from other party
+    // Listen for call.room (LiveKit credentials) and call.end from other party
     LaunchedEffect(callId) {
         wsClient.incoming.collect { message ->
             when (message) {
+                is WsMessage.CallRoomInfo -> {
+                    if (message.callId == callId && message.serverUrl.isNotBlank()) {
+                        try {
+                            callEngine.connect(message.serverUrl, message.token)
+                        } catch (_: Exception) { }
+                    }
+                }
                 is WsMessage.CallEnd -> {
-                    if (message.callId == callId) onCallEnded()
+                    if (message.callId == callId) {
+                        callEngine.disconnect()
+                        onCallEnded()
+                    }
                 }
                 else -> { }
             }
+        }
+    }
+
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            callEngine.disconnect()
         }
     }
 
@@ -107,7 +129,7 @@ fun ActiveCallScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier.padding(MuhabbetSpacing.XXLarge)
         ) {
             // Avatar
             Box(
@@ -124,7 +146,7 @@ fun ActiveCallScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
 
             Text(
                 text = otherUserName ?: otherUserId,
@@ -132,7 +154,7 @@ fun ActiveCallScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))
 
             Text(
                 text = callTypeLabel,
@@ -140,7 +162,7 @@ fun ActiveCallScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
 
             // Duration
             Text(
@@ -153,13 +175,16 @@ fun ActiveCallScreen(
 
             // Call controls
             Row(
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XXLarge),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Mute
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
-                        onClick = { isMuted = !isMuted },
+                        onClick = {
+                            isMuted = !isMuted
+                            callEngine.setMuted(isMuted)
+                        },
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
@@ -174,7 +199,7 @@ fun ActiveCallScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
                     Text(
                         text = if (isMuted) unmuteLabel else muteLabel,
                         style = MaterialTheme.typography.labelSmall
@@ -185,6 +210,7 @@ fun ActiveCallScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = {
+                            callEngine.disconnect()
                             scope.launch {
                                 try {
                                     wsClient.send(WsMessage.CallEnd(callId = callId, reason = CallEndReason.ENDED))
@@ -195,7 +221,7 @@ fun ActiveCallScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFE53935))
+                            .background(LocalSemanticColors.current.callDecline)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CallEnd,
@@ -204,14 +230,17 @@ fun ActiveCallScreen(
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
                     Text(text = endLabel, style = MaterialTheme.typography.labelSmall)
                 }
 
                 // Speaker
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
-                        onClick = { isSpeaker = !isSpeaker },
+                        onClick = {
+                            isSpeaker = !isSpeaker
+                            callEngine.setSpeaker(isSpeaker)
+                        },
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
@@ -226,7 +255,7 @@ fun ActiveCallScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
                     Text(text = speakerLabel, style = MaterialTheme.typography.labelSmall)
                 }
             }

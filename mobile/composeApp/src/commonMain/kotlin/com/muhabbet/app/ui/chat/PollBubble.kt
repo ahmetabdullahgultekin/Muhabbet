@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.dto.PollResultResponse
 import kotlinx.coroutines.launch
@@ -59,17 +60,17 @@ fun PollBubble(
 
     if (pollData == null) return
 
-    Column(modifier = modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+    Column(modifier = modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.XSmall)) {
         Text(
             text = pollData.question,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = if (isOwn) MaterialTheme.colorScheme.onPrimary
             else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.XSmall)
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
 
         pollData.options.forEachIndexed { index, optionText ->
             val voteCount = pollResult?.votes?.getOrNull(index)?.count ?: 0
@@ -97,7 +98,7 @@ fun PollBubble(
                         }
                     }
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
+                Column(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = optionText,
@@ -107,7 +108,7 @@ fun PollBubble(
                             fontWeight = if (isMyVote) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.weight(1f)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(MuhabbetSpacing.Small))
                         Text(
                             text = "$voteCount",
                             style = MaterialTheme.typography.labelSmall,
@@ -116,7 +117,7 @@ fun PollBubble(
                         )
                     }
                     if (totalVotes > 0) {
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                         LinearProgressIndicator(
                             progress = { fraction },
                             modifier = Modifier.fillMaxWidth().height(4.dp),
@@ -136,7 +137,7 @@ fun PollBubble(
                 style = MaterialTheme.typography.labelSmall,
                 color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                modifier = Modifier.padding(start = MuhabbetSpacing.XSmall, top = 2.dp)
             )
         }
     }

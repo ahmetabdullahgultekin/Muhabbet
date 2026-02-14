@@ -49,6 +49,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
@@ -65,6 +66,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import com.muhabbet.app.ui.components.ConfirmDialog
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -141,7 +143,7 @@ fun MediaViewer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 4.dp, vertical = 8.dp)
+                        .padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.Small)
                 ) {
                     IconButton(onClick = onDismiss) {
                         Icon(
@@ -164,7 +166,7 @@ fun MediaViewer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -265,7 +267,7 @@ fun ForwardPickerDialog(
                                         }
                                     }
                                 }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                                .padding(vertical = MuhabbetSpacing.Medium, horizontal = MuhabbetSpacing.Small),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             com.muhabbet.app.ui.components.UserAvatar(
@@ -274,7 +276,7 @@ fun ForwardPickerDialog(
                                 size = 36.dp,
                                 isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(convName, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
@@ -293,18 +295,13 @@ fun DeleteConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.chat_delete_title)) },
-        text = { Text(stringResource(Res.string.chat_delete_confirm)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(Res.string.delete), color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
-        }
+    ConfirmDialog(
+        title = stringResource(Res.string.chat_delete_title),
+        message = stringResource(Res.string.chat_delete_confirm),
+        confirmLabel = stringResource(Res.string.delete),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        isDestructive = true
     )
 }
 
@@ -338,7 +335,7 @@ fun DisappearTimerDialog(
                     ) {
                         Text(
                             text = label,
-                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                            modifier = Modifier.padding(vertical = MuhabbetSpacing.Medium, horizontal = MuhabbetSpacing.Small),
                             style = MaterialTheme.typography.bodyLarge,
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
                             else MaterialTheme.colorScheme.onSurface
@@ -377,7 +374,7 @@ fun LocationShareDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
                 OutlinedTextField(
                     value = locationLat,
                     onValueChange = { locationLat = it },
@@ -385,7 +382,7 @@ fun LocationShareDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 OutlinedTextField(
                     value = locationLng,
                     onValueChange = { locationLng = it },
@@ -437,7 +434,7 @@ fun PollCreateDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
                 pollOptions.forEachIndexed { index, option ->
                     OutlinedTextField(
                         value = option,

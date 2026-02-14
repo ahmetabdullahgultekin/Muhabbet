@@ -136,6 +136,12 @@ muhabbet:
     heartbeat-interval-seconds: 30
     heartbeat-timeout-seconds: 90
 
+  livekit:
+    enabled: ${LIVEKIT_ENABLED:false}
+    api-key: ${LIVEKIT_API_KEY:}
+    api-secret: ${LIVEKIT_API_SECRET:}
+    server-url: ${LIVEKIT_SERVER_URL:}
+
 # Logging
 logging:
   level:

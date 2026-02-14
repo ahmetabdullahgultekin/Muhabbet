@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
@@ -163,7 +164,7 @@ fun CreateGroupScreen(
                 ) {
                     Text(
                         text = stringResource(Res.string.group_create_button),
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Large),
                         color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Medium
                     )
@@ -175,7 +176,7 @@ fun CreateGroupScreen(
             when {
                 !hasPermission -> {
                     Column(
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -184,12 +185,12 @@ fun CreateGroupScreen(
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Text(
                             stringResource(Res.string.new_conversation_contacts_required),
                             style = MaterialTheme.typography.bodyLarge
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Small))
                         Text(
                             text = if (permissionDenied)
                                 stringResource(Res.string.contacts_permission_denied)
@@ -198,7 +199,7 @@ fun CreateGroupScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Button(onClick = { requestPermission() }) {
                             Text(stringResource(Res.string.contacts_grant_access))
                         }
@@ -211,7 +212,7 @@ fun CreateGroupScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         CircularProgressIndicator()
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Text(
                             stringResource(Res.string.contacts_syncing),
                             style = MaterialTheme.typography.bodyMedium
@@ -221,7 +222,7 @@ fun CreateGroupScreen(
 
                 contacts.isEmpty() -> {
                     Column(
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -230,7 +231,7 @@ fun CreateGroupScreen(
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Text(
                             stringResource(Res.string.contacts_none_found),
                             style = MaterialTheme.typography.bodyLarge
@@ -248,13 +249,13 @@ fun CreateGroupScreen(
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
                         )
 
                         Text(
                             text = stringResource(Res.string.group_participants_count, selectedUserIds.size),
                             style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.XSmall),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
@@ -298,7 +299,7 @@ private fun SelectableContactItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
@@ -306,7 +307,7 @@ private fun SelectableContactItem(
             onCheckedChange = { onToggle() }
         )
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
 
         Surface(
             modifier = Modifier.size(40.dp).clip(CircleShape),
@@ -321,7 +322,7 @@ private fun SelectableContactItem(
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
 
         Text(
             text = contact.displayName ?: contact.userId,

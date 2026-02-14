@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
 import com.muhabbet.shared.model.ContentType
@@ -83,7 +84,7 @@ fun StarredMessagesScreen(
                 title = { Text(stringResource(Res.string.starred_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -111,11 +112,11 @@ fun StarredMessagesScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.Star,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.starred_title),
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Small))
                         Text(
                             text = stringResource(Res.string.starred_empty),
                             style = MaterialTheme.typography.bodyLarge,
@@ -153,7 +154,7 @@ private fun StarredMessageItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Content type icon for media messages
@@ -161,11 +162,11 @@ private fun StarredMessageItem(
         if (icon != null) {
             Icon(
                 icon,
-                contentDescription = null,
+                contentDescription = message.contentType.name,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(MuhabbetSpacing.Medium))
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -187,7 +188,7 @@ private fun StarredMessageItem(
             )
         }
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
 
         // Timestamp + star
         Column(horizontalAlignment = Alignment.End) {
@@ -199,7 +200,7 @@ private fun StarredMessageItem(
             )
             Icon(
                 Icons.Default.Star,
-                contentDescription = null,
+                contentDescription = stringResource(Res.string.starred_title),
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.tertiary
             )

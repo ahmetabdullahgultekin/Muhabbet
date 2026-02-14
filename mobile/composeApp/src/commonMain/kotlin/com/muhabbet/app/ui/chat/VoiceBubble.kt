@@ -20,6 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.platform.AudioPlayer
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun VoiceBubble(
@@ -39,18 +44,18 @@ fun VoiceBubble(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
     ) {
         IconButton(
             onClick = {
                 if (isPlaying) audioPlayer.pause()
                 else audioPlayer.play(mediaUrl)
             },
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(48.dp)
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = null,
+                contentDescription = stringResource(if (isPlaying) Res.string.voice_pause else Res.string.voice_play),
                 tint = if (isOwn) MaterialTheme.colorScheme.onPrimary
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -65,7 +70,7 @@ fun VoiceBubble(
             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
         )
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
 
         val displayTime = if (isPlaying || currentPosition > 0) {
             formatDuration((currentPosition / 1000).toInt())
@@ -81,8 +86,5 @@ fun VoiceBubble(
     }
 }
 
-private fun formatDuration(seconds: Int): String {
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return "$mins:${secs.toString().padStart(2, '0')}"
-}
+private fun formatDuration(seconds: Int): String =
+    DateTimeFormatter.formatDuration(seconds)

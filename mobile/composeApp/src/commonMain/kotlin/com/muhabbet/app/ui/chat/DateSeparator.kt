@@ -11,40 +11,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.util.DateTimeFormatter
 import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun DateSeparatorPill(date: String, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-            shadowElevation = 1.dp
+            shadowElevation = MuhabbetElevation.Level1
         ) {
             Text(
                 text = date,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.XSmall)
             )
         }
     }
 }
 
-fun formatDateForSeparator(instant: Instant): String {
-    val tz = TimeZone.currentSystemDefault()
-    val date = instant.toLocalDateTime(tz).date
-    val now = kotlinx.datetime.Clock.System.now().toLocalDateTime(tz).date
-
-    return when {
-        date == now -> "Bugün"
-        date.toEpochDays() == now.toEpochDays() - 1 -> "Dün"
-        date.year == now.year -> "${date.dayOfMonth.toString().padStart(2, '0')}.${date.monthNumber.toString().padStart(2, '0')}"
-        else -> "${date.dayOfMonth.toString().padStart(2, '0')}.${date.monthNumber.toString().padStart(2, '0')}.${date.year}"
-    }
-}
+fun formatDateForSeparator(instant: Instant, todayLabel: String = "Bugün", yesterdayLabel: String = "Dün"): String =
+    DateTimeFormatter.formatDateSeparator(instant, todayLabel, yesterdayLabel)

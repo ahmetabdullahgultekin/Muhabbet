@@ -10,12 +10,14 @@ import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.CallBusyException
+import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtProvider
+import com.muhabbet.shared.security.WebSocketRateLimiter
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -37,7 +39,9 @@ class ChatWebSocketHandler(
     private val conversationRepository: ConversationRepository,
     private val presencePort: PresencePort,
     private val userRepository: UserRepository,
-    private val callSignalingService: CallSignalingService
+    private val callSignalingService: CallSignalingService,
+    private val callRoomProvider: CallRoomProvider,
+    private val webSocketRateLimiter: WebSocketRateLimiter
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -69,6 +73,12 @@ class ChatWebSocketHandler(
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
         val userId = session.attributes["userId"] as? UUID ?: return
+
+        // Per-connection rate limiting
+        if (!webSocketRateLimiter.allowMessage(userId)) {
+            sendError(session, "RATE_LIMITED", "Too many messages, please slow down")
+            return
+        }
 
         val wsMessage = try {
             wsJson.decodeFromString<WsMessage>(message.payload)
@@ -102,9 +112,10 @@ class ChatWebSocketHandler(
         val userId = sessionManager.getUserId(session)
         sessionManager.unregister(session)
 
-        // If no remaining sessions, mark offline
+        // If no remaining sessions, mark offline and clean up
         if (userId != null && !sessionManager.isOnline(userId)) {
             presencePort.setOffline(userId)
+            webSocketRateLimiter.removeUser(userId)
             try {
                 userRepository.updateLastSeenAt(userId, Instant.now())
             } catch (e: Exception) {
@@ -280,6 +291,40 @@ class ChatWebSocketHandler(
 
         if (msg.accepted) {
             callSignalingService.answerCall(msg.callId)
+
+            // Create LiveKit room and send tokens to both participants
+            try {
+                val room = callRoomProvider.createRoom(msg.callId, otherParty, userId)
+                if (room.serverUrl.isNotBlank()) {
+                    val callerName = userRepository.findById(otherParty)?.displayName
+                    val calleeName = userRepository.findById(userId)?.displayName
+
+                    val callerToken = callRoomProvider.generateParticipantToken(room.roomName, otherParty, callerName)
+                    val calleeToken = callRoomProvider.generateParticipantToken(room.roomName, userId, calleeName)
+
+                    // Send room info to caller
+                    val callerRoomInfo = WsMessage.CallRoomInfo(
+                        callId = msg.callId,
+                        serverUrl = room.serverUrl,
+                        token = callerToken,
+                        roomName = room.roomName
+                    )
+                    sessionManager.sendToUser(otherParty, wsJson.encodeToString<WsMessage>(callerRoomInfo))
+
+                    // Send room info to callee
+                    val calleeRoomInfo = WsMessage.CallRoomInfo(
+                        callId = msg.callId,
+                        serverUrl = room.serverUrl,
+                        token = calleeToken,
+                        roomName = room.roomName
+                    )
+                    session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(calleeRoomInfo)))
+
+                    log.info("LiveKit room created: callId={}, room={}", msg.callId, room.roomName)
+                }
+            } catch (e: Exception) {
+                log.warn("Failed to create LiveKit room for callId={}: {}", msg.callId, e.message)
+            }
         } else {
             callSignalingService.endCall(msg.callId, CallStatus.DECLINED)
         }
@@ -311,6 +356,13 @@ class ChatWebSocketHandler(
         }
 
         callSignalingService.endCall(msg.callId, status)
+
+        // Close the LiveKit room
+        try {
+            callRoomProvider.closeRoom("call-${msg.callId}")
+        } catch (e: Exception) {
+            log.warn("Failed to close LiveKit room for callId={}: {}", msg.callId, e.message)
+        }
 
         // Forward call.end to the other party
         if (otherParty != null) {

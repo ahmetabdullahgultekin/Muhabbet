@@ -35,13 +35,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.shared.dto.StatusResponse
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.delay
-import kotlinx.datetime.toLocalDateTime
+import com.muhabbet.app.util.DateTimeFormatter
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -110,7 +111,7 @@ fun StatusViewerScreen(
                     color = Color.White,
                     style = MaterialTheme.typography.bodyLarge
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
                 Text(
                     text = stringResource(Res.string.cancel),
                     color = Color.White.copy(alpha = 0.7f),
@@ -146,7 +147,7 @@ fun StatusViewerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp, start = 8.dp, end = 8.dp)
+                    .padding(top = MuhabbetSpacing.Large, start = MuhabbetSpacing.Small, end = MuhabbetSpacing.Small)
             ) {
                 // Segmented progress bars
                 Row(
@@ -177,7 +178,7 @@ fun StatusViewerScreen(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
 
                 // User info row
                 Row(
@@ -230,7 +231,7 @@ fun StatusViewerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
-                        .padding(horizontal = 32.dp, vertical = 48.dp)
+                        .padding(horizontal = MuhabbetSpacing.XXLarge, vertical = 48.dp)
                 ) {
                     Text(
                         text = currentStatus.content!!,
@@ -247,11 +248,5 @@ fun StatusViewerScreen(
     }
 }
 
-private fun formatStatusTime(epochMillis: Long): String {
-    return try {
-        val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(epochMillis)
-        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
-        val dt = instant.toLocalDateTime(tz)
-        "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-    } catch (_: Exception) { "" }
-}
+private fun formatStatusTime(epochMillis: Long): String =
+    DateTimeFormatter.formatTime(epochMillis)

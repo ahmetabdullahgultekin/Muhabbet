@@ -38,9 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
 import muhabbet.mobile.composeapp.generated.resources.Res
@@ -120,7 +121,7 @@ fun CallHistoryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onCallUser(otherUserId, otherName, call.callType) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Direction icon
@@ -135,17 +136,17 @@ fun CallHistoryScreen(
                                 isOutgoing -> outgoingLabel
                                 else -> incomingLabel
                             },
-                            tint = if (isMissed || isDeclined) Color(0xFFE53935) else MaterialTheme.colorScheme.primary,
+                            tint = if (isMissed || isDeclined) LocalSemanticColors.current.callMissed else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(MuhabbetSpacing.Medium))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = otherName ?: otherUserId,
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = if (isMissed) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface
+                                color = if (isMissed) LocalSemanticColors.current.callMissed else MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = buildString {
@@ -165,7 +166,7 @@ fun CallHistoryScreen(
                         ) {
                             Icon(
                                 imageVector = if (isVideo) Icons.Default.Videocam else Icons.Default.Call,
-                                contentDescription = null,
+                                contentDescription = if (isVideo) videoLabel else voiceLabel,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }

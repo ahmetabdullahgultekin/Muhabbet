@@ -201,4 +201,50 @@ class AppConfig {
     ): CallHistoryService = CallHistoryService(
         callHistoryRepository = callHistoryRepository
     )
+
+    // ─── Phase 2: Content Moderation ──────────────────
+
+    @Bean
+    fun moderationService(
+        reportRepository: com.muhabbet.moderation.domain.port.out.ReportRepository,
+        blockRepository: com.muhabbet.moderation.domain.port.out.BlockRepository
+    ): com.muhabbet.moderation.domain.service.ModerationService =
+        com.muhabbet.moderation.domain.service.ModerationService(
+            reportRepository = reportRepository,
+            blockRepository = blockRepository
+        )
+
+    // ─── Phase 4: Message Backup ──────────────────────
+
+    @Bean
+    fun backupService(
+        backupRepository: com.muhabbet.messaging.domain.port.out.BackupRepository
+    ): com.muhabbet.messaging.domain.service.BackupService =
+        com.muhabbet.messaging.domain.service.BackupService(
+            backupRepository = backupRepository
+        )
+
+    // ─── Phase 6: Channel Analytics ───────────────────
+
+    @Bean
+    fun channelAnalyticsService(
+        channelAnalyticsRepository: com.muhabbet.messaging.domain.port.out.ChannelAnalyticsRepository,
+        conversationRepository: ConversationRepository
+    ): com.muhabbet.messaging.domain.service.ChannelAnalyticsService =
+        com.muhabbet.messaging.domain.service.ChannelAnalyticsService(
+            analyticsRepository = channelAnalyticsRepository,
+            conversationRepository = conversationRepository
+        )
+
+    // ─── Phase 6: Bot Platform ────────────────────────
+
+    @Bean
+    fun botService(
+        botRepository: com.muhabbet.messaging.domain.port.out.BotRepository,
+        userRepository: UserRepository
+    ): com.muhabbet.messaging.domain.service.BotService =
+        com.muhabbet.messaging.domain.service.BotService(
+            botRepository = botRepository,
+            userRepository = userRepository
+        )
 }

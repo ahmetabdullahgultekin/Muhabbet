@@ -41,10 +41,11 @@ module/
 
 ### Modules
 - `auth` — **DONE** — OTP via MockOtpSender (Netgsm later), JWT HS256, device management, phone hash for contact sync
-- `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination
+- `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination, backup, bots, channel analytics
 - `media` — **DONE** — Upload/download via MinIO (S3 API), thumbnail generation, pre-signed URLs via nginx proxy
 - `presence` — **DONE** — Online/offline tracking via Redis (TTL-based keys), typing indicators, last seen persistence
 - `notification` — **DONE** — Push notifications via FCM (FcmPushNotificationAdapter), push token registration
+- `moderation` — **DONE** — Report/block system (BTK Law 5651), admin review workflows
 - `user` — Profile endpoints in auth module for now (`GET/PATCH /users/me`)
 
 ### Cross-Cutting (`shared/` package in backend)
@@ -190,7 +191,9 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | SMS gateway | Netgsm |
 | Push | FCM (Firebase Cloud Messaging) |
 | Monitoring | SLF4J + Logback (JSON) + Spring Actuator + Sentry |
-| Testing | JUnit 5 + MockK + Testcontainers |
+| Testing | JUnit 5 + MockK + Testcontainers + ArchUnit |
+| Code quality | JaCoCo (coverage) + detekt (static analysis) |
+| Load testing | k6 |
 | CI/CD | GitHub Actions |
 
 ## Key Files
@@ -202,6 +205,13 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `backend/src/main/resources/db/migration/` — Flyway SQL migrations
 - `infra/docker-compose.yml` — Local dev (PG + Redis + MinIO)
 - `docs/api-contract.md` — REST + WebSocket API specification
+- `docs/qa/` — QA engineering documentation (9 ISO/IEC 25010 documents + UI/UX analysis)
+- `backend/detekt.yml` — detekt static analysis configuration
+- `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
+- `mobile/.../ui/theme/MuhabbetTheme.kt` — Design tokens (semantic colors, spacing, sizes, elevation)
+- `mobile/.../util/DateTimeFormatter.kt` — Centralized date/time formatting (DRY utility)
+- `mobile/.../ui/components/SectionHeader.kt` — Reusable section header component
+- `mobile/.../ui/components/ConfirmDialog.kt` — Reusable confirm/dismiss dialog
 
 ## Current Phase
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
@@ -230,13 +240,14 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 21. ~~Location sharing~~ — **DONE**
 22. ~~Status/Stories~~ — **DONE**
 23. ~~Channels/Broadcasts~~ — **DONE**
-24. ~~UI/UX polish~~ — **DONE** (reactions, swipe-to-reply, typing animation, FAB, filter chips, pinned chats, OLED theme, bubble tails, date pills, empty states, unread styling)
+24. ~~UI/UX polish~~ — **DONE** (reactions, swipe-to-reply, typing animation, FAB, filter chips, pinned chats, OLED theme, bubble tails, date pills, empty states, unread styling, a11y fixes, design tokens, skeleton loaders, testTags)
 
 ### Completed Phases
-- **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, ~125 backend tests, Stickers & GIFs, Profile viewing (mutual groups, shared media, action buttons)
-- **Phase 3 (Partial)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK
-- **Phase 4 (Architecture)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion
-- **Phase 5 (iOS Complete)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker (PHPickerViewController), FilePicker (UIDocumentPickerViewController), ImageCompressor (CoreGraphics), CrashReporter (NSLog + Sentry hooks), LocaleHelper (AppleLanguages), FirebasePhoneAuth (fallback stub)
+- **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, 201 backend tests (251 total incl. mobile/shared), Stickers & GIFs, Profile viewing (mutual groups, shared media, action buttons)
+- **Phase 3 (Voice Calls)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK, LiveKit room adapter (`@ConditionalOnProperty`), NoOp fallback, outgoing call initiation in MainComponent
+- **Phase 4 (Trust & Security)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion, message backup system (BackupService, BackupController, BackupPersistenceAdapter)
+- **Phase 5 (iOS + Scale)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth. Redis Pub/Sub message broadcaster for horizontal WS scaling
+- **Phase 6 (Growth)**: Channel analytics (daily stats, subscriber tracking, REST API), Bot platform (create/manage bots, API token auth, webhook support, permissions system)
 - **Round 3 Bug Fixes**: Delivery status resolution (batch query + aggregation), shared media screen, message info screen, starred messages redesign, profile contact name, status image upload, forwarded message visuals, video thumbnails
 - **Round 4 Bug Fixes**: Shared media JPQL query, message info endpoint, status text position, starred message scroll-to-message, starred back navigation
 - **Round 5 UI/UX Polish**: MediaViewer with action bars (forward/delete), SharedMediaScreen long-press context menu + Crossfade tab transitions, MessageInfoScreen with cards/avatars/timeline sections
@@ -246,21 +257,31 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **CI/CD Pipeline**: GitHub Actions — backend CI (test + build), mobile CI (Android + iOS), security scanning (Trivy, Gitleaks, CodeQL), deployment automation
 - **Call UI**: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen with Decompose navigation
 - **E2E Encryption Infrastructure**: E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile client for key exchange API)
+- **LiveKit WebRTC Client**: CallEngine expect/actual (Android: LiveKit SDK, iOS: stub), CallRoomInfo WsMessage, backend room creation + token generation on call answer, ActiveCallScreen wired to LiveKit, DisposableEffect cleanup
+- **Signal Protocol E2E Encryption**: SignalKeyManager (libsignal-android: X3DH + Double Ratchet), InMemorySignalProtocolStore, SignalEncryption implementing EncryptionPort, E2ESetupService for key registration on login, platform DI (Android: Signal, iOS: NoOp)
 - **Security Hardening**: HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation)
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
+- **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
+- **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
+- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
+- **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
+- **UI/UX Remediation (Phase 2)**: Reusable components (`DateTimeFormatter` utility consolidating 6 duplicate formatters, `SectionHeader` component, `ConfirmDialog` wrapper), elevation tokens (`MuhabbetElevation`), full spacing token migration (`MuhabbetSpacing`) across 30+ UI files, elevation token migration across 7 files
 
 ### Remaining Work
-- WebRTC client integration (LiveKit) — signaling backend + call UI are ready, need media SDK
-- E2E encryption client (Signal Protocol: X3DH, Double Ratchet) — key exchange infra + NoOp manager are ready, need libsignal-client
+- ~~WebRTC client integration (LiveKit)~~ — **DONE** (LiveKit Android SDK + CallEngine + backend room management)
+- ~~E2E encryption client (Signal Protocol)~~ — **DONE** (libsignal-android + SignalKeyManager + E2ESetupService)
 - iOS APNs delivery, TestFlight, App Store
+- iOS LiveKit integration (bridge LiveKit Swift SDK via Kotlin/Native)
+- iOS Signal Protocol integration (bridge libsignal-client via Kotlin/Native)
 - Security penetration testing (OWASP ZAP/Burp Suite)
 - Web/Desktop client
-- Load testing (k6/Gatling at scale)
+- Load testing at scale — k6 scripts created, need to run against production-like environment
+- Persistent E2E key storage (currently in-memory, upgrade to EncryptedSharedPreferences/SQLCipher)
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
-- **Single-server architecture**: Adequate for beta; needs Redis Pub/Sub for WS scaling beyond ~10K concurrent users.
-- **2 active bugs**: Push notifications disabled in production (env var fix needed), delivery ticks stuck at single (needs global DELIVERED ack in App.kt).
+- **~~Single-server architecture~~**: Resolved — Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) enables horizontal WS scaling across multiple backend instances.
+- **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
@@ -310,6 +331,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
   - `message.status` = StatusUpdate (server→client)
   - `ack` = ServerAck (server→client, response to send)
   - `error` = Error (server→client)
+  - `call.room` = CallRoomInfo (server→client, LiveKit room credentials)
   - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
 - **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
 - **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever

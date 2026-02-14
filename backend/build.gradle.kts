@@ -5,6 +5,8 @@ plugins {
     kotlin("plugin.serialization")
     id("org.springframework.boot")
     id("io.spring.dependency-management")
+    jacoco
+    id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
 
 group = "com.muhabbet"
@@ -70,6 +72,9 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter:1.20.4")
     testImplementation("org.testcontainers:postgresql:1.20.4")
     testImplementation("com.redis:testcontainers-redis:2.2.2")
+
+    // Architecture testing
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
 }
 
 kotlin {
@@ -80,4 +85,68 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+// ─── JaCoCo Code Coverage ────────────────────────────────
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude(
+                    "**/config/**",
+                    "**/dto/**",
+                    "**/model/**",
+                    "**/exception/**",
+                    "**/*JpaEntity*",
+                    "**/*Application*"
+                )
+            }
+        })
+    )
+}
+
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.30".toBigDecimal()
+            }
+        }
+        rule {
+            element = "CLASS"
+            includes = listOf("com.muhabbet.*.domain.service.*")
+            limit {
+                minimum = "0.60".toBigDecimal()
+            }
+        }
+    }
+}
+
+// ─── Detekt Static Analysis ─────────────────────────────
+
+detekt {
+    config.setFrom(files("$projectDir/detekt.yml"))
+    buildUponDefaultConfig = true
+    parallel = true
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "21"
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        sarif.required.set(true)
+    }
 }

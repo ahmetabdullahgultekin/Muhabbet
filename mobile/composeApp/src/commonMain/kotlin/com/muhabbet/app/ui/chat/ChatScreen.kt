@@ -73,6 +73,8 @@ import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -317,8 +319,8 @@ fun ChatScreen(
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) } },
-                actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Icons.Default.Timer else Icons.Default.TimerOff, contentDescription = null) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back)) } },
+                actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Icons.Default.Timer else Icons.Default.TimerOff, contentDescription = stringResource(Res.string.chat_disappearing)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary, navigationIconContentColor = MaterialTheme.colorScheme.onPrimary, actionIconContentColor = MaterialTheme.colorScheme.onPrimary)
             )
         },
@@ -332,8 +334,8 @@ fun ChatScreen(
                 val showScrollToBottom = remember { derivedStateOf { val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0; messages.isNotEmpty() && last < messages.lastIndex - 2 } }
 
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (isLoadingMore) item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) } }
+                    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small), verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)) {
+                        if (isLoadingMore) item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) } }
                         var lastDateStr = ""
                         messages.forEachIndexed { index, message ->
                             val dateStr = formatDateForSeparator(message.serverTimestamp ?: message.clientTimestamp)
@@ -351,7 +353,7 @@ fun ChatScreen(
                                         onHorizontalDrag = { _, d -> swipeOffset = (swipeOffset + d).coerceIn(0f, 120f) }
                                     )
                                 }) {
-                                    if (swipeOffset > 20f) Box(Modifier.align(Alignment.CenterStart).padding(start = 4.dp), contentAlignment = Alignment.Center) {
+                                    if (swipeOffset > 20f) Box(Modifier.align(Alignment.CenterStart).padding(start = MuhabbetSpacing.XSmall), contentAlignment = Alignment.Center) {
                                         Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f)))
                                     }
                                     Column(modifier = Modifier.padding(start = (swipeOffset / 3f).coerceAtMost(30f).dp)) {
@@ -384,8 +386,8 @@ fun ChatScreen(
                         if (peerTyping) item(key = "typing") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) { TypingIndicatorBubble() } }
                     }
                     if (showScrollToBottom.value) {
-                        Surface(onClick = { scope.launch { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) } }, shape = CircleShape, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.surface, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).size(44.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary) }
+                        Surface(onClick = { scope.launch { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) } }, shape = CircleShape, shadowElevation = MuhabbetElevation.Level5, color = MaterialTheme.colorScheme.surface, modifier = Modifier.align(Alignment.BottomEnd).padding(MuhabbetSpacing.Large).size(44.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.scroll_to_bottom), Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary) }
                         }
                     }
                 }
@@ -397,8 +399,8 @@ fun ChatScreen(
 
             // Voice recording or input bar
             if (isRecording) {
-                Surface(tonalElevation = 2.dp) {
-                    Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(tonalElevation = MuhabbetElevation.Level2) {
+                    Row(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), verticalAlignment = Alignment.CenterVertically) {
                         VoiceRecordButton(true, {}, onStopRecording = {
                             val audio = audioRecorder.stopRecording(); isRecording = false
                             if (audio != null) scope.launch {

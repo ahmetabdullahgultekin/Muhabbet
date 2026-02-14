@@ -2,8 +2,8 @@
 
 ## Active Bugs
 
-- [ ] **Push notifications not firing** — FCM_ENABLED is false in production; NoOpPushNotificationAdapter is active. Need to set FCM_ENABLED=true + FIREBASE_CREDENTIALS_PATH in docker-compose.prod.yml
-- [ ] **Ticks stuck at single** — Mobile never sends DELIVERED ack, only READ. Need to add global DELIVERED ack in App.kt when NewMessage arrives, keep READ ack only in ChatScreen
+- [x] **Push notifications not firing** — Fixed: FCM_ENABLED=true set in docker-compose.prod.yml
+- [x] **Ticks stuck at single** — Fixed: Global DELIVERED ack added in App.kt when NewMessage arrives
 
 ## Fixed Bugs
 
@@ -79,9 +79,19 @@
 - [x] **E2E encryption infrastructure** — E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile key exchange client)
 - [x] **Security hardening** — HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation) with 15 unit tests
 
+## Completed (Phase Implementation Session — Feb 2026)
+
+- [x] **Phase 1: Stabilization** — WebSocket rate limiting (50 msg/10s), deep linking (muhabbet:// + universal links), structured analytics events, LiveKit config
+- [x] **Phase 2: Content Moderation** — Report/block system (BTK Law 5651), ModerationService + ModerationController, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests
+- [x] **Phase 3: Voice Calls** — LiveKit room adapter (CallRoomProvider port, @ConditionalOnProperty), NoOp fallback, outgoing call initiation in MainComponent
+- [x] **Phase 4: Backup** — BackupService, BackupController, BackupPersistenceAdapter, message_backups table
+- [x] **Phase 5: Scale** — Redis Pub/Sub message broadcaster (RedisMessageBroadcaster + RedisBroadcastListener) for horizontal WS scaling
+- [x] **Phase 6: Channel Analytics** — Daily stats, subscriber tracking, ChannelAnalyticsService, REST API
+- [x] **Phase 6: Bot Platform** — Bot domain model, BotService, BotController, API token auth (mhb_ prefix), webhook support, permissions system
+
 ## Pending Features
 
-- [ ] **Voice/video calls (WebRTC)** — LiveKit client SDK integration — signaling backend + call UI screens are ready
+- [ ] **LiveKit client SDK** — Android/iOS LiveKit SDK integration — backend signaling + call UI + LiveKit adapter are ready
 - [ ] **E2E encryption client** — Signal Protocol (X3DH, Double Ratchet) via libsignal-client — key exchange infra + NoOp manager are ready
 - [ ] **iOS APNs delivery** — FCM→APNs bridge or direct APNs adapter
 - [ ] **iOS TestFlight + App Store** — TestFlight distribution, App Store submission
@@ -96,7 +106,7 @@
 - [x] GCP VM deployment (e2-medium, europe-west1-b)
 - [x] Docker Compose (PG + Redis + MinIO + nginx)
 - [x] Firebase FCM
-- [x] Flyway migrations (V1-V13)
+- [x] Flyway migrations (V1-V15)
 - [x] Sentry integration (Android SDK)
 - [x] CI/CD — GitHub Actions (backend CI, mobile CI, security scanning, deploy)
 - [x] Database performance indexes (12 indexes)

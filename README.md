@@ -70,15 +70,23 @@ muhabbet/
 
 ### Calling & Encryption (Infrastructure Ready)
 - Call UI screens: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen
-- Call signaling infrastructure (WebSocket-based, ready for WebRTC/LiveKit)
+- Call signaling infrastructure (WebSocket-based, LiveKit adapter ready)
 - E2E encryption key exchange endpoints + client infrastructure (ready for Signal Protocol)
+
+### Growth & Moderation
+- Content moderation: Report/block system (BTK Law 5651 compliance)
+- Channel analytics: Daily stats, subscriber tracking, REST API
+- Bot platform: API token auth, webhook support, permissions system
+- Message backup: Initiate, track status, download, delete
 
 ### Security & Quality
 - Security headers: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - Input sanitization: HTML escaping, control char stripping, URL validation
+- WebSocket rate limiting: 50 msg/10s per-connection sliding window
 - CI/CD: GitHub Actions (backend CI, mobile CI, security scanning, deployment)
-- ~125 backend tests + 25+ mobile/shared tests
+- 251 tests (201 backend + 23 mobile + 27 shared)
 - Security scanning: Trivy vulnerability scanning, Gitleaks secret detection, CodeQL static analysis
+- Redis Pub/Sub for horizontal WebSocket scaling
 
 ## Module Status
 
@@ -99,12 +107,16 @@ muhabbet/
 | Encryption | Done | `POST /api/v1/encryption/keys`, `GET /api/v1/encryption/keys/{userId}` |
 | Call History | Done | `GET /api/v1/calls/history` |
 | User Data | Done | `GET /api/v1/users/data/export`, `DELETE /api/v1/users/data/account` (KVKK) |
+| Moderation | Done | `POST /api/v1/moderation/reports`, `POST /api/v1/moderation/blocks` |
+| Backups | Done | `POST /api/v1/backups`, `GET /api/v1/backups`, `GET /api/v1/backups/{id}` |
+| Bots | Done | `POST /api/v1/bots`, `PATCH /api/v1/bots/{id}`, token regeneration |
+| Analytics | Done | `GET /api/v1/channels/{id}/analytics` — daily stats, subscriber tracking |
 | Mobile | Done | CMP Android app — all features above + iOS foundation |
 
 ## Quick Start
 
 ### Prerequisites
-- JDK 25+
+- JDK 21+
 - Docker & Docker Compose
 - Android SDK (API 35) for mobile development
 - Kotlin 2.3.10+ (managed by Gradle wrapper)
@@ -181,6 +193,7 @@ module/
 - [Changelog](CHANGELOG.md) — Release history
 - [Decisions](docs/decisions.md) — Technical decisions
 - [Privacy Policy](docs/privacy-policy.md) — KVKK compliant
+- [QA Engineering](docs/qa/) — Quality assurance plans and test strategies
 
 ## License
 

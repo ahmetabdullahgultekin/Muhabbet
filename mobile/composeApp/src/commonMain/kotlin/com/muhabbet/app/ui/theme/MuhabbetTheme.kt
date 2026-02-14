@@ -5,7 +5,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+// ─── Base palette ───────────────────────────────────────────
 
 private val Teal700 = Color(0xFF00796B)
 private val Teal800 = Color(0xFF00695C)
@@ -19,6 +25,68 @@ private val Amber600 = Color(0xFFFFB300)
 private val Amber100 = Color(0xFFFFECB3)
 private val Red700 = Color(0xFFD32F2F)
 private val Red400 = Color(0xFFEF5350)
+
+// ─── Semantic colors (beyond M3 colorScheme) ────────────────
+
+data class MuhabbetSemanticColors(
+    val statusOnline: Color,
+    val statusRead: Color,
+    val callDecline: Color,
+    val callAccept: Color,
+    val callMissed: Color
+)
+
+val LightSemanticColors = MuhabbetSemanticColors(
+    statusOnline = Color(0xFF4CAF50),
+    statusRead = Color(0xFF4FC3F7),
+    callDecline = Color(0xFFE53935),
+    callAccept = Color(0xFF43A047),
+    callMissed = Color(0xFFE53935)
+)
+
+val DarkSemanticColors = MuhabbetSemanticColors(
+    statusOnline = Color(0xFF66BB6A),
+    statusRead = Color(0xFF4FC3F7),
+    callDecline = Color(0xFFEF5350),
+    callAccept = Color(0xFF66BB6A),
+    callMissed = Color(0xFFEF5350)
+)
+
+val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
+
+// ─── Spacing tokens ─────────────────────────────────────────
+
+object MuhabbetSpacing {
+    val XSmall: Dp = 4.dp
+    val Small: Dp = 8.dp
+    val Medium: Dp = 12.dp
+    val Large: Dp = 16.dp
+    val XLarge: Dp = 24.dp
+    val XXLarge: Dp = 32.dp
+}
+
+// ─── Size tokens ────────────────────────────────────────────
+
+object MuhabbetSizes {
+    val MinTouchTarget: Dp = 48.dp
+    val IconSmall: Dp = 16.dp
+    val IconMedium: Dp = 20.dp
+    val IconLarge: Dp = 24.dp
+}
+
+// ─── Elevation tokens ──────────────────────────────────────
+
+object MuhabbetElevation {
+    val None: Dp = 0.dp
+    val Level1: Dp = 1.dp
+    val Level2: Dp = 2.dp
+    val Level3: Dp = 3.dp
+    val Level4: Dp = 4.dp
+    val Level5: Dp = 6.dp
+    val Level6: Dp = 8.dp
+}
+
+// ─── M3 Color schemes ──────────────────────────────────────
 
 val MuhabbetLightColorScheme = lightColorScheme(
     primary = Teal700,
@@ -103,8 +171,12 @@ fun MuhabbetTheme(
         isDark -> MuhabbetDarkColorScheme
         else -> MuhabbetLightColorScheme
     }
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
+    val semanticColors = if (isDark) DarkSemanticColors else LightSemanticColors
+
+    CompositionLocalProvider(LocalSemanticColors provides semanticColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            content = content
+        )
+    }
 }

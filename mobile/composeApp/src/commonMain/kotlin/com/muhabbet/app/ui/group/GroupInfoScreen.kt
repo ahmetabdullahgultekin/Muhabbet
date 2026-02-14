@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.group
 
+import com.muhabbet.app.ui.components.ConfirmDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import androidx.compose.material.icons.filled.Image
@@ -133,26 +135,23 @@ fun GroupInfoScreen(
     }
 
     if (showLeaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showLeaveDialog = false },
-            title = { Text(stringResource(Res.string.group_leave_title)) },
-            text = { Text(stringResource(Res.string.group_leave_confirm)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        try {
-                            groupRepository.leaveGroup(conversationId)
-                            onBack()
-                        } catch (_: Exception) {
-                            snackbarHostState.showSnackbar(leaveFailedMsg)
-                        }
+        ConfirmDialog(
+            title = stringResource(Res.string.group_leave_title),
+            message = stringResource(Res.string.group_leave_confirm),
+            confirmLabel = stringResource(Res.string.group_leave_button),
+            onConfirm = {
+                scope.launch {
+                    try {
+                        groupRepository.leaveGroup(conversationId)
+                        onBack()
+                    } catch (_: Exception) {
+                        snackbarHostState.showSnackbar(leaveFailedMsg)
                     }
-                    showLeaveDialog = false
-                }) { Text(stringResource(Res.string.group_leave_button), color = MaterialTheme.colorScheme.error) }
+                }
+                showLeaveDialog = false
             },
-            dismissButton = {
-                TextButton(onClick = { showLeaveDialog = false }) { Text(stringResource(Res.string.cancel)) }
-            }
+            onDismiss = { showLeaveDialog = false },
+            isDestructive = true
         )
     }
 
@@ -163,7 +162,7 @@ fun GroupInfoScreen(
 
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 actions = {
@@ -172,11 +171,11 @@ fun GroupInfoScreen(
                             editName = conversation?.name ?: ""
                             showEditDialog = true
                         }) {
-                            Icon(Icons.Default.Edit, contentDescription = null)
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.group_edit_name_title))
                         }
                     }
                     IconButton(onClick = { showLeaveDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(Res.string.group_leave_title))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -200,7 +199,7 @@ fun GroupInfoScreen(
                 // Group name header
                 item {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         com.muhabbet.app.ui.components.UserAvatar(
@@ -209,7 +208,7 @@ fun GroupInfoScreen(
                             size = 72.dp,
                             isGroup = true
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Medium))
                         Text(
                             text = conversation?.name ?: conversationName,
                             style = MaterialTheme.typography.headlineSmall,
@@ -240,7 +239,7 @@ fun GroupInfoScreen(
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
                                 text = stringResource(Res.string.shared_media_title),
                                 style = MaterialTheme.typography.bodyLarge
@@ -256,7 +255,7 @@ fun GroupInfoScreen(
                         text = stringResource(Res.string.group_members),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium)
                     )
                 }
 
@@ -305,7 +304,7 @@ private fun MemberItem(
             displayName = member.displayName ?: "?",
             size = 40.dp
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(

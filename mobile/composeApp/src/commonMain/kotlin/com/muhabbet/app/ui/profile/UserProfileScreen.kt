@@ -40,20 +40,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.shared.dto.MutualGroupResponse
 import com.muhabbet.shared.dto.UserProfileDetailResponse
+import com.muhabbet.app.util.DateTimeFormatter
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -121,7 +123,7 @@ fun UserProfileScreen(
                 // Header: avatar + name + status
                 item {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         UserAvatar(
@@ -130,7 +132,7 @@ fun UserProfileScreen(
                             size = 96.dp
                         )
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
 
                         Text(
                             text = p.displayName ?: stringResource(Res.string.unknown),
@@ -151,7 +153,7 @@ fun UserProfileScreen(
                             Text(
                                 text = stringResource(Res.string.chat_online),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF4CAF50)
+                                color = LocalSemanticColors.current.statusOnline
                             )
                         } else if (p.lastSeenAt != null) {
                             val time = formatLastSeen(p.lastSeenAt!!)
@@ -167,7 +169,7 @@ fun UserProfileScreen(
                 // Action buttons row
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XXLarge, vertical = MuhabbetSpacing.Small),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         if (onMessageClick != null) {
@@ -183,7 +185,7 @@ fun UserProfileScreen(
                             onClick = { scope.launch { snackbarHostState.showSnackbar(callComingSoonMsg) } }
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(MuhabbetSpacing.Small))
                     HorizontalDivider()
                 }
 
@@ -214,7 +216,7 @@ fun UserProfileScreen(
                                 .clickable(enabled = conversationId != null) {
                                     conversationId?.let { onSharedMediaClick?.invoke(it) }
                                 }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                                .padding(horizontal = MuhabbetSpacing.Large, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -223,7 +225,7 @@ fun UserProfileScreen(
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
                                 text = stringResource(Res.string.profile_shared_media, p.sharedMediaCount),
                                 style = MaterialTheme.typography.bodyLarge
@@ -237,7 +239,7 @@ fun UserProfileScreen(
                 if (p.mutualGroups.isNotEmpty()) {
                     item {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -246,7 +248,7 @@ fun UserProfileScreen(
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
                                 text = stringResource(Res.string.profile_mutual_groups, p.mutualGroups.size),
                                 style = MaterialTheme.typography.titleSmall,
@@ -266,7 +268,7 @@ fun UserProfileScreen(
                 }
 
                 // Bottom spacing
-                item { Spacer(Modifier.height(24.dp)) }
+                item { Spacer(Modifier.height(MuhabbetSpacing.XLarge)) }
             }
         }
     }
@@ -280,7 +282,7 @@ private fun ProfileActionButton(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick).padding(12.dp)
+        modifier = Modifier.clickable(onClick = onClick).padding(MuhabbetSpacing.Medium)
     ) {
         Icon(
             icon,
@@ -288,7 +290,7 @@ private fun ProfileActionButton(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(28.dp)
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -300,14 +302,14 @@ private fun ProfileActionButton(
 @Composable
 private fun ProfileInfoRow(label: String, value: String) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge
@@ -324,7 +326,7 @@ private fun MutualGroupItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         UserAvatar(
@@ -333,7 +335,7 @@ private fun MutualGroupItem(
             size = 40.dp,
             isGroup = true
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = group.name,
@@ -381,18 +383,5 @@ internal fun firstGrapheme(text: String): String {
     return ch.toString()
 }
 
-private fun formatLastSeen(lastSeenStr: String): String {
-    return try {
-        val instant = kotlinx.datetime.Instant.parse(lastSeenStr)
-        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
-        val dt = instant.toLocalDateTime(tz)
-        val now = kotlinx.datetime.Clock.System.now().toLocalDateTime(tz)
-        if (dt.date == now.date) {
-            "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-        } else {
-            "${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')} ${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-        }
-    } catch (_: Exception) {
-        ""
-    }
-}
+private fun formatLastSeen(lastSeenStr: String): String =
+    DateTimeFormatter.formatLastSeen(lastSeenStr)

@@ -4,6 +4,105 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Implemented — UI/UX Remediation (Feb 2026)
+- **Design system tokens**: `MuhabbetSemanticColors` (statusOnline, statusRead, callDecline, callAccept, callMissed), `MuhabbetSpacing` (XSmall→XXLarge), `MuhabbetSizes` (touch targets, icons) — all via `CompositionLocalProvider`
+- **Accessibility (P0 fixes)**: 28+ contentDescription fixes across MessageInputPane, ChatScreen, CallScreens, ConversationList, GroupInfo, SharedMedia, Settings, StarredMessages, NewConversation; 12 new localized string resources (TR+EN)
+- **Touch targets**: VoiceBubble play button 36→48dp, ReactionBar emoji buttons 36→48dp
+- **IME actions**: Phone input (Done), OTP input (Done), search fields (Search), message input (Send), GIF search (Search)
+- **Hardcoded colors eliminated**: 8 `Color(0xFF...)` replaced with `LocalSemanticColors.current.*` in IncomingCallScreen, ActiveCallScreen, CallHistoryScreen, ConversationListScreen, UserProfileScreen, MessageInfoScreen
+- **Skeleton loading**: ConversationListScreen shimmer placeholders replacing spinner
+- **Edit mode banner**: Visually distinct `tertiaryContainer` background with larger icons and labels
+- **TestTags**: `message_input`, `send_button`, `phone_input`, `phone_continue`, `otp_input`, `otp_verify`, `new_chat_fab`, `search_input`
+- **KeyboardOptions**: Added to all text input fields across the app
+
+### Added — Lead UI/UX Engineer Analysis (Feb 2026)
+- **Comprehensive UI audit**: 34 files / 8,407 lines reviewed across 14 navigation destinations
+- **Accessibility audit**: 28+ missing contentDescription violations, touch target sizing analysis, semantic annotation gaps
+- **Design system assessment**: Hardcoded color inventory (8 violations), typography inconsistency catalog, spacing token recommendations
+- **Interaction design review**: Strengths (swipe-to-reply, pinch-to-zoom, pull-to-refresh) and gaps (no skeleton loaders, search state reset, filter chip logic)
+- **Localization verification**: 238/238 strings fully translated TR/EN, 2 minor hardcoded string violations
+- **Performance analysis**: LazyColumn pagination patterns, image loading concerns, animation inventory
+- **Testability audit**: Zero testTags, zero semantic annotations — critical gap for UI testing
+- **6-phase remediation roadmap**: P0 accessibility (1d) → P1 design system (1d) → P1 interaction polish (1d) → P2 components (1d) → P2 testability (1.5d) → P3 tokens (1d)
+- **Document**: `docs/qa/09-ui-ux-engineer-analysis.md` — 9th QA document in ISO/IEC 25010 series
+
+### Added — WebRTC Voice Calls via LiveKit (Feb 2026)
+- **CallRoomInfo WsMessage**: New `call.room` WS message type carrying `serverUrl`, `token`, `roomName` for LiveKit room connection
+- **Backend room management**: `ChatWebSocketHandler` now creates LiveKit room + generates participant tokens on `CallAnswer(accepted=true)`, closes room on `CallEnd`
+- **CallEngine expect/actual**: Platform abstraction for WebRTC — `connect(serverUrl, token)`, `disconnect()`, `setMuted()`, `setSpeaker()`
+- **Android CallEngine**: `io.livekit:livekit-android:2.5.0` — connects to LiveKit room, manages audio tracks, handles mute/speaker
+- **iOS CallEngine**: Stub (awaits LiveKit Swift SDK bridge)
+- **ActiveCallScreen**: Wired to `CallEngine` — auto-connects on `CallRoomInfo`, disconnects on `CallEnd`/dispose, mute/speaker controls delegate to engine
+
+### Added — Signal Protocol E2E Encryption (Feb 2026)
+- **SignalKeyManager**: Implements `E2EKeyManager` using `org.signal:libsignal-android:0.64.1` — Curve25519 identity keys, signed pre-keys, one-time pre-keys, X3DH session initialization, Double Ratchet encrypt/decrypt
+- **InMemorySignalProtocolStore**: Full `SignalProtocolStore` + `SenderKeyStore` implementation — identity, pre-key, signed pre-key, session, and sender key stores (in-memory for MVP)
+- **SignalEncryption**: Implements `EncryptionPort` — delegates to `SignalKeyManager` with plaintext fallback when no session exists
+- **E2ESetupService**: Post-login key registration — generates identity key pair, signed pre-key, 100 OTPKs, registers with backend via `EncryptionRepository`
+- **Platform DI split**: Android provides `SignalKeyManager` + `SignalEncryption`, iOS provides `NoOpKeyManager` + `NoOpEncryption` (moved from `AppModule` to `PlatformModule`)
+- **App.kt integration**: E2E key registration runs on app startup for logged-in users
+
+### Added — QA Engineering & Tooling (Feb 2026)
+- **JaCoCo code coverage**: Added to `backend/build.gradle.kts` with HTML/XML reports, coverage verification (30% min project, 60% min for domain services)
+- **detekt static analysis**: Kotlin linter with project-specific rules (`backend/detekt.yml`), SARIF/HTML reports
+- **ArchUnit architecture tests**: 13 tests in `HexagonalArchitectureTest` — domain independence, module boundaries, naming conventions, no Spring in domain
+- **TestData factory**: Shared test data factory object (`com.muhabbet.shared.TestData`) with builders for User, Message, Conversation, Member, DeliveryStatus
+- **Controller tests** (18 test files, 100+ tests): MessageController, ModerationController, UserDataController, ConversationController, GroupController, StatusController, ChannelController, PollController, EncryptionController, BackupController, BotController, ReactionController, DeviceController, ContactController, CallHistoryController, DisappearingMessageController, StarredMessageController, LinkPreviewController
+- **CI pipeline**: JaCoCo coverage report + verification, detekt static analysis, artifact uploads (test results, coverage, detekt), PR coverage comments via jacoco-report action
+- **k6 performance scripts**: `infra/k6/auth-load-test.js` (OTP flow), `infra/k6/api-load-test.js` (REST endpoints), `infra/k6/websocket-load-test.js` (WS connections) with P50/P95/P99 thresholds
+- **QA documentation**: 8 ISO/IEC 25010 quality attribute documents in `docs/qa/` — updated with verified codebase metrics
+
+### Added — Phase 6: Growth Features (Feb 2026)
+- **Channel analytics**: `ChannelAnalyticsService` with daily stats (messages, views, reactions, shares), subscriber tracking, REST API at `GET /api/v1/channels/{channelId}/analytics` with date-range queries
+- **Bot platform**: `Bot` domain model with `BotPermission` enum, `BotService` with secure API token generation (`mhb_` prefix + Base64), webhook support, permissions system, REST API at `/api/v1/bots` (CRUD, token regeneration, webhook management)
+- **Bot JPA persistence**: `BotJpaEntity`, `BotPersistenceAdapter`, `SpringDataBotRepository` — full hexagonal chain
+- **Channel analytics persistence**: `ChannelAnalyticsJpaEntity`, `ChannelAnalyticsPersistenceAdapter`, `SpringDataChannelAnalyticsRepository`
+
+### Added — Phase 5: Horizontal Scaling (Feb 2026)
+- **Redis Pub/Sub message broadcaster**: `RedisMessageBroadcaster` replaces in-memory broadcaster — publishes WS messages to `ws:broadcast:{userId}` Redis channels for cross-instance routing
+- **Redis broadcast listener**: `RedisBroadcastListener` subscribes to `ws:broadcast:*` pattern, delivers messages to local WebSocket sessions, enabling multi-instance deployment
+
+### Added — Phase 4: Message Backup (Feb 2026)
+- **BackupService**: Implements `ManageBackupUseCase` — initiate backup, check status, list backups, delete backup
+- **BackupController**: REST API at `/api/v1/backups` — `POST` (initiate), `GET` (list), `GET /{id}` (status), `DELETE /{id}`
+- **Backup persistence**: `MessageBackupJpaEntity`, `BackupPersistenceAdapter`, `SpringDataBackupRepository`
+- **BackupRepository out-port**: `MessageBackup` data class with status tracking (PENDING, IN_PROGRESS, COMPLETED, FAILED)
+
+### Added — Phase 3: LiveKit Integration (Feb 2026)
+- **CallRoomProvider out-port**: Interface for call room creation/token generation/room termination
+- **LiveKitRoomAdapter**: LiveKit server SDK integration with `@ConditionalOnProperty(muhabbet.livekit.enabled)` — creates rooms, generates participant tokens, terminates rooms
+- **NoOpCallRoomProvider**: Fallback when LiveKit is disabled — returns stub tokens and room IDs
+- **Outgoing call initiation**: `MainComponent` now generates callId and opens ActiveCall screen on call button press
+- **LiveKit configuration**: `muhabbet.livekit.*` properties in `application.yml` (enabled, api-key, api-secret, server-url)
+
+### Added — Phase 2: Content Moderation (Feb 2026)
+- **Moderation module**: Full hexagonal architecture — `UserReport` + `UserBlock` domain models, `ReportReason` enum (SPAM, HARASSMENT, INAPPROPRIATE_CONTENT, IMPERSONATION, OTHER), `ReportStatus` enum (PENDING, REVIEWED, RESOLVED, DISMISSED)
+- **ModerationService**: Implements `ReportUserUseCase`, `BlockUserUseCase`, `ReviewReportsUseCase` — report users, block/unblock, admin review with status updates
+- **ModerationController**: REST API at `/api/v1/moderation/reports` (CRUD), `/api/v1/moderation/blocks` (block/unblock/list), admin endpoints for report review
+- **Moderation persistence**: `ReportJpaEntity`, `BlockJpaEntity`, `ModerationPersistenceAdapter`, Spring Data repositories
+- **Error codes**: `REPORT_NOT_FOUND`, `BLOCK_SELF`, `BOT_NOT_FOUND`, `BOT_INACTIVE`, `BACKUP_NOT_FOUND`, `BACKUP_IN_PROGRESS` added to `ErrorCode` enum
+
+### Added — Phase 1: Stabilization (Feb 2026)
+- **WebSocket rate limiting**: `WebSocketRateLimiter` — per-connection sliding window (50 messages per 10-second window), integrated into `ChatWebSocketHandler`, auto-cleanup on disconnect
+- **Deep linking**: `muhabbet://` custom scheme + `https://muhabbet.app` universal links for `/invite` and `/chat` paths in AndroidManifest.xml
+- **Structured analytics**: `AnalyticsEvent` utility with SLF4J logger named "analytics" for structured event tracking with context maps
+
+### Added — Backend Test Expansion (Feb 2026)
+- **DeliveryStatusTest**: 6 tests — message delivery lifecycle (SENT → DELIVERED → READ), multi-recipient aggregation, status transitions
+- **CallSignalingServiceTest**: 7 tests — call initiation, answer, end, busy detection, call history recording, concurrent call handling
+- **EncryptionServiceTest**: 7 tests — key bundle registration, pre-key consumption, key bundle retrieval, one-time pre-key rotation
+- **ModerationServiceTest**: 8 tests — report creation, duplicate reporting, block/unblock, self-block prevention, admin report review
+- **WebSocketRateLimiterTest**: 4 tests — message allowance within limits, rate limiting enforcement, window expiry, user cleanup
+
+### Added — V15 Database Migration (Feb 2026)
+- **user_reports**: id, reporter_id, reported_user_id, reason, description, status, created_at, reviewed_at, reviewed_by
+- **user_blocks**: id, blocker_id, blocked_id, created_at (unique constraint on blocker+blocked)
+- **channel_analytics**: id, channel_id, date, message_count, view_count, reaction_count, share_count, new_subscribers, unsubscribes
+- **channel_subscriptions**: id, channel_id, user_id, subscribed_at, notification_enabled
+- **bots**: id, owner_id, user_id, name, description, api_token, webhook_url, is_active, permissions (JSONB), created_at, updated_at
+- **message_backups**: id, user_id, status, file_url, file_size_bytes, message_count, created_at, completed_at, expires_at
+- Indexes on all foreign keys and frequently queried columns
+
 ### Added — Security Hardening (Feb 2026)
 - **Security headers**: HSTS (max-age 31536000), X-Frame-Options DENY, X-Content-Type-Options nosniff, CSP (`default-src 'self'; frame-ancestors 'none'; form-action 'self'`), XSS protection, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (geolocation/camera/mic denied)
 - **InputSanitizer**: Server-side input sanitization utility — HTML entity escaping (`&`, `<`, `>`, `"`, `'`), control character stripping (preserves `\n`, `\t`, `\r`), display name trimming/length limiting, message content length limiting, HTTPS-only URL validation (rejects `javascript:` and `data:` schemes)
@@ -156,7 +255,7 @@ All notable changes to this project will be documented in this file.
 - **MessageBubble**: GIF renders as full-width async image (max 200dp), sticker renders at 150dp without bubble background
 - **MessageInputPane**: GIF menu item in attachment dropdown
 
-### Added — Phase 2: Backend Tests (~125 total)
+### Added — Phase 2: Backend Tests (201 backend, 251 total)
 - **MediaServiceTest**: Upload, download URL generation, thumbnail, validation, error cases
 - **ConversationServiceTest**: Create DM (dedup), create group, list conversations, pagination
 - **GroupServiceTest**: Add/remove members, role management, leave group, owner transfer

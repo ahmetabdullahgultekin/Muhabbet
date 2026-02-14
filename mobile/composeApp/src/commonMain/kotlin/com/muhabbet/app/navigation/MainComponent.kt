@@ -264,7 +264,8 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.CallHistory -> CallHistoryScreen(
                 onBack = component::goBack,
                 onCallUser = { userId, name, callType ->
-                    // TODO: Initiate outgoing call via WsClient
+                    val callId = kotlinx.datetime.Clock.System.now().toEpochMilliseconds().toString()
+                    component.openActiveCall(callId, userId, name, callType)
                 }
             )
         }

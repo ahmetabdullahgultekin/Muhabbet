@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 
 @Composable
 fun EmptyChatsIllustration(
@@ -121,7 +122,7 @@ fun EmptyChatsIllustration(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Small))
 
         Text(
             text = subtitle,
@@ -170,7 +171,7 @@ fun EmptySearchIllustration(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MuhabbetSpacing.Large))
 
         Text(
             text = title,

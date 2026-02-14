@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
 import com.muhabbet.app.util.sha256Hex
@@ -120,7 +121,7 @@ fun NewConversationScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -138,21 +139,21 @@ fun NewConversationScreen(
                 // Not yet granted: show permission prompt
                 !hasPermission -> {
                     Column(
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ContactPhone,
-                            contentDescription = null,
+                            contentDescription = "Contacts",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Text(
                             stringResource(Res.string.new_conversation_contacts_required),
                             style = MaterialTheme.typography.bodyLarge
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Small))
                         Text(
                             text = if (permissionDenied)
                                 stringResource(Res.string.contacts_permission_denied)
@@ -161,7 +162,7 @@ fun NewConversationScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Button(onClick = { requestPermission() }) {
                             Text(stringResource(Res.string.contacts_grant_access))
                         }
@@ -174,7 +175,7 @@ fun NewConversationScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         CircularProgressIndicator()
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Text(
                             stringResource(Res.string.contacts_syncing),
                             style = MaterialTheme.typography.bodyMedium
@@ -184,16 +185,16 @@ fun NewConversationScreen(
                 // No matched contacts
                 contacts.isEmpty() -> {
                     Column(
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ContactPhone,
-                            contentDescription = null,
+                            contentDescription = "Contacts",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(MuhabbetSpacing.Large))
                         Text(
                             stringResource(Res.string.contacts_none_found),
                             style = MaterialTheme.typography.bodyLarge
@@ -208,7 +209,7 @@ fun NewConversationScreen(
                             onValueChange = { searchQuery = it },
                             placeholder = { Text(stringResource(Res.string.contacts_search_placeholder)) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
                         )
                         LazyColumn {
                             // "Yeni Grup" button at top
@@ -217,7 +218,7 @@ fun NewConversationScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable(onClick = onCreateGroup)
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Surface(
@@ -227,13 +228,13 @@ fun NewConversationScreen(
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = Icons.Outlined.Group,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(Res.string.new_conversation_new_group),
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(24.dp)
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.width(12.dp))
+                                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
                                     Text(
                                         text = stringResource(Res.string.new_conversation_new_group),
                                         style = MaterialTheme.typography.bodyLarge,
@@ -284,7 +285,7 @@ private fun ContactItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -300,7 +301,7 @@ private fun ContactItem(
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
 
         Text(
             text = contact.displayName ?: defaultName,

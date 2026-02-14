@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.LinkPreviewResponse
 import org.koin.compose.koinInject
@@ -56,10 +57,10 @@ fun LinkPreviewCard(
         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
             .clickable { onOpenUrl(url) }
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
             if (p.imageUrl != null) {
                 AsyncImage(
                     model = p.imageUrl,
