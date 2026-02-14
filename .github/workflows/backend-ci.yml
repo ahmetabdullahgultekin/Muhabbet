@@ -89,6 +89,17 @@ jobs:
           FCM_ENABLED: 'false'
           FIREBASE_ENABLED: 'false'
 
+      - name: Generate JaCoCo coverage report
+        run: ./gradlew :backend:jacocoTestReport
+        if: always()
+
+      - name: Verify code coverage thresholds
+        run: ./gradlew :backend:jacocoTestCoverageVerification
+
+      - name: Run detekt static analysis
+        run: ./gradlew :backend:detekt
+        if: always()
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,12 +108,38 @@ jobs:
           path: backend/build/reports/tests/
           retention-days: 14
 
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: backend/build/reports/jacoco/
+          retention-days: 14
+
+      - name: Upload detekt report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detekt-report
+          path: backend/build/reports/detekt/
+          retention-days: 14
+
       - name: Publish test report
         if: always() && github.event_name == 'pull_request'
         uses: mikepenz/action-junit-report@v5
         with:
           report_paths: 'backend/build/test-results/test/*.xml'
           check_name: 'Backend Test Results'
+
+      - name: Add coverage to PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: madrapps/jacoco-report@v1.7.1
+        with:
+          paths: backend/build/reports/jacoco/test/jacocoTestReport.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 30
+          min-coverage-changed-files: 60
+          title: 'Backend Code Coverage'
 
   # ─── Docker Build ────────────────────────────
   docker:

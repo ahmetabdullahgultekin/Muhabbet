@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file.
 - **detekt static analysis**: Kotlin linter with project-specific rules (`backend/detekt.yml`), SARIF/HTML reports
 - **ArchUnit architecture tests**: 13 tests in `HexagonalArchitectureTest` — domain independence, module boundaries, naming conventions, no Spring in domain
 - **TestData factory**: Shared test data factory object (`com.muhabbet.shared.TestData`) with builders for User, Message, Conversation, Member, DeliveryStatus
-- **Controller tests**: MessageControllerTest (10 tests), ModerationControllerTest (13 tests), UserDataControllerTest (5 tests) — covering pagination, delivery status, edit/delete, block/report, KVKK export
+- **Controller tests** (18 test files, 100+ tests): MessageController, ModerationController, UserDataController, ConversationController, GroupController, StatusController, ChannelController, PollController, EncryptionController, BackupController, BotController, ReactionController, DeviceController, ContactController, CallHistoryController, DisappearingMessageController, StarredMessageController, LinkPreviewController
+- **CI pipeline**: JaCoCo coverage report + verification, detekt static analysis, artifact uploads (test results, coverage, detekt), PR coverage comments via jacoco-report action
 - **k6 performance scripts**: `infra/k6/auth-load-test.js` (OTP flow), `infra/k6/api-load-test.js` (REST endpoints), `infra/k6/websocket-load-test.js` (WS connections) with P50/P95/P99 thresholds
 - **QA documentation**: 8 ISO/IEC 25010 quality attribute documents in `docs/qa/` — updated with verified codebase metrics
 

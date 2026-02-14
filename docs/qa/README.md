@@ -29,7 +29,7 @@ This directory contains the comprehensive Quality Assurance Engineering document
 
 | Metric | Current | Target (Beta) | Target (GA) |
 |--------|---------|---------------|-------------|
-| Backend tests | 201 + ~50 new | 350+ | 500+ |
+| Backend tests | 314 | 350+ | 500+ |
 | Mobile/shared tests | 50 (23 + 27) | 100+ | 200+ |
 | Test coverage (backend) | ~45% est. (JaCoCo enabled) | 60% | 80% |
 | Test coverage (mobile) | ~10% est. | 40% | 60% |
@@ -68,14 +68,15 @@ This directory contains the comprehensive Quality Assurance Engineering document
 │                                                  │
 │  ┌──────────┐ ┌───────────┐ ┌────────────┐      │
 │  │   Auth   │ │ Messaging │ │ Media      │      │
-│  │ 13 tests │ │ 117 tests │ │ 21 tests   │      │
+│  │ 24 tests │ │ 210 tests │ │ 21 tests   │      │
 │  └────┬─────┘ └─────┬─────┘ └─────┬──────┘      │
 │       │              │             │              │
 │  ┌────┴──────────────┤  ┌──────────┴───────────┐ │
-│  │ Moderation: 8     │  │ Shared (cross-cut)   │ │
+│  │ Moderation: 22    │  │ Shared (cross-cut)   │ │
 │  └───────────────────┘  │ InputSanitizer: 15   │ │
 │                         │ RateLimitFilter: 16   │ │
 │                         │ WsRateLimiter: 4      │ │
+│                         │ ArchUnit: 14          │ │
 │                         └──────────────────────┘ │
 └──────────┬──────────────┬───────────┬───────────┘
            │              │           │
@@ -89,7 +90,7 @@ This directory contains the comprehensive Quality Assurance Engineering document
 
 ### P0 — Must Fix Before Beta
 1. Increase backend test coverage to 60% — **JaCoCo added** (`./gradlew :backend:jacocoTestReport`)
-2. Add integration tests for all REST controllers — **Started** (MessageController, ModerationController, UserDataController tests added)
+2. Add integration tests for all REST controllers — **DONE** (15 controller test files, 71 new controller tests)
 3. Run OWASP ZAP baseline scan
 4. Measure and establish P95 latency baselines — **k6 scripts created** (`infra/k6/`)
 5. Load test WebSocket at 1K concurrent connections — **k6 WS script created** (`infra/k6/websocket-load-test.js`)
@@ -145,7 +146,7 @@ k6 run --env TOKEN=eyJ... infra/k6/websocket-load-test.js
 ## CI/CD Integration
 
 Tests run automatically via GitHub Actions:
-- **backend-ci.yml**: On push to `backend/` or `shared/` — runs `./gradlew :backend:test`
+- **backend-ci.yml**: On push to `backend/` or `shared/` — runs tests, JaCoCo coverage report, coverage verification, detekt static analysis, uploads artifacts, PR coverage comments
 - **mobile-ci.yml**: On push to `mobile/` or `shared/` — Android debug build + iOS framework
 - **security.yml**: Weekly + on push — Trivy, Gitleaks, CodeQL
 
@@ -171,30 +172,45 @@ Tests run automatically via GitHub Actions:
 | **TestData** | Shared test data factory | Imported via `com.muhabbet.shared.TestData` | Implemented |
 | **Testcontainers** | Integration test DB | Automatic in `@Testcontainers` tests | Existing |
 
-## Test Inventory (~290 total)
+## Test Inventory (364 total)
 
-### Backend (~240 tests across 18 files)
+### Backend (314 tests across 33 files)
 
 | Test File | Tests | Module |
 |-----------|-------|--------|
 | AuthControllerIntegrationTest | 4 | auth (integration) |
 | AuthServiceTest | 9 | auth |
+| ContactControllerTest | 3 | auth (controller) |
+| DeviceControllerTest | 2 | auth (controller) |
+| UserDataControllerTest | 5 | auth (controller) |
 | MediaServiceTest | 21 | media |
+| BackupControllerTest | 5 | messaging (controller) |
+| BotControllerTest | 9 | messaging (controller) |
+| CallHistoryControllerTest | 2 | messaging (controller) |
+| ChannelControllerTest | 5 | messaging (controller) |
+| ConversationControllerTest | 7 | messaging (controller) |
+| DisappearingMessageControllerTest | 3 | messaging (controller) |
+| EncryptionControllerTest | 4 | messaging (controller) |
+| GroupControllerTest | 8 | messaging (controller) |
+| LinkPreviewControllerTest | 2 | messaging (controller) |
+| MessageControllerTest | 10 | messaging (controller) |
+| PollControllerTest | 5 | messaging (controller) |
+| ReactionControllerTest | 4 | messaging (controller) |
+| StarredMessageControllerTest | 4 | messaging (controller) |
+| StatusControllerTest | 7 | messaging (controller) |
 | ChatWebSocketHandlerTest | 19 | messaging (WebSocket) |
 | CallSignalingServiceTest | 7 | messaging (calls) |
-| ConversationServiceTest | 28 | messaging |
-| DeliveryStatusTest | 6 | messaging |
+| ConversationServiceTest | 28 | messaging (service) |
+| DeliveryStatusTest | 6 | messaging (service) |
 | EncryptionServiceTest | 7 | messaging (encryption) |
 | GroupServiceTest | 41 | messaging (groups) |
-| MessagingServiceTest | 16 | messaging |
-| ModerationServiceTest | 8 | moderation |
+| MessagingServiceTest | 16 | messaging (service) |
+| ModerationControllerTest | 14 | moderation (controller) |
+| ModerationServiceTest | 8 | moderation (service) |
+| HexagonalArchitectureTest | 14 | architecture |
 | InputSanitizerTest | 15 | shared/security |
 | RateLimitFilterTest | 16 | shared/security |
 | WebSocketRateLimiterTest | 4 | shared/security |
-| **HexagonalArchitectureTest** | **13** | **architecture** |
-| **MessageControllerTest** | **10** | **messaging (controller)** |
-| **ModerationControllerTest** | **13** | **moderation (controller)** |
-| **UserDataControllerTest** | **5** | **auth (controller)** |
 
 ### Mobile (23 tests across 3 files)
 

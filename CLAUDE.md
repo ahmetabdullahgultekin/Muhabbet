@@ -257,7 +257,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
 - **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
 - **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
-- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (13 rules), TestData factory, controller tests (MessageController, ModerationController, UserDataController), k6 load test scripts, 8 ISO/IEC 25010 QA documents in `docs/qa/`
+- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 8 ISO/IEC 25010 QA documents in `docs/qa/`, CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
 
 ### Remaining Work
 - WebRTC client integration (LiveKit) — signaling backend + call UI + LiveKit adapter are ready, need LiveKit client SDK in mobile
