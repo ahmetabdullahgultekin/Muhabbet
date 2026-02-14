@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Mobile UI Audit + 87 Issue Fixes (Feb 2026)
+- **Lead Mobile Engineer audit**: Comprehensive review of 60+ UI files (~8,600 LOC) across 14 navigation destinations, identifying 87 issues in 6 severity categories
+- **5 critical bug fixes**: Dead `|| true` condition in status divider, hardcoded `Color.Black/White` in StatusViewer, infinite `while(true)` timer loop in ActiveCallScreen, stringly-typed filter state in ConversationList, hardcoded version "0.1.0" in Settings
+- **6 ship-blocking features**: Copy message to clipboard, group chat sender names, emoji button in input bar, block/report dialogs with confirmation, privacy settings section (read receipts), channels filter chip
+- **Design system expansion**: 7 new semantic colors (statusDelivered, statusSending, bubbleOwn/Other, linkColor), avatar size tokens (XSmall→Call), duration tokens (TypingTimeout, StatusDisplay, CallTimer, Shimmer), gesture tokens (SwipeReplyThreshold/Max), bubble dimension tokens
+- **62 new localized strings** (Turkish + English): copy, block/report, privacy, notifications, account, camera, encryption, delivery status a11y, channels filter, formatting hint
+- **15+ `!!` assertion removals**: Replaced with safe null handling (`?.`, `?:`, `let`, `return@`)
+- **4 WCAG touch target fixes**: Reply cancel button, edit cancel button (36dp→48dp MinTouchTarget)
+- **Files changed**: 15 files, 784 insertions, 173 deletions
+- **New utilities**: `TextUtils.kt` (firstGrapheme, parseFormattedText), `BuildInfo.kt` (centralized version)
+
 ### Implemented — UI/UX Remediation (Feb 2026)
 - **Design system tokens**: `MuhabbetSemanticColors` (statusOnline, statusRead, callDecline, callAccept, callMissed), `MuhabbetSpacing` (XSmall→XXLarge), `MuhabbetSizes` (touch targets, icons) — all via `CompositionLocalProvider`
 - **Accessibility (P0 fixes)**: 28+ contentDescription fixes across MessageInputPane, ChatScreen, CallScreens, ConversationList, GroupInfo, SharedMedia, Settings, StarredMessages, NewConversation; 12 new localized string resources (TR+EN)

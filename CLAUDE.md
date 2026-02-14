@@ -212,6 +212,9 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `mobile/.../util/DateTimeFormatter.kt` — Centralized date/time formatting (DRY utility)
 - `mobile/.../ui/components/SectionHeader.kt` — Reusable section header component
 - `mobile/.../ui/components/ConfirmDialog.kt` — Reusable confirm/dismiss dialog
+- `mobile/.../util/TextUtils.kt` — firstGrapheme() + parseFormattedText() utilities
+- `mobile/.../BuildInfo.kt` — Centralized version constant
+- `docs/qa/mobile-ui-audit.md` — 87-issue mobile UI audit report
 
 ## Current Phase
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
@@ -266,8 +269,62 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
 - **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
 - **UI/UX Remediation (Phase 2)**: Reusable components (`DateTimeFormatter` utility consolidating 6 duplicate formatters, `SectionHeader` component, `ConfirmDialog` wrapper), elevation tokens (`MuhabbetElevation`), full spacing token migration (`MuhabbetSpacing`) across 30+ UI files, elevation token migration across 7 files
+- **Mobile UI Audit + 87 Fixes**: Lead Mobile Engineer audit (87 issues across 6 severity levels). Fixed: 5 critical bugs (dead condition, hardcoded colors, infinite timer loop, stringly-typed state, hardcoded version), 6 ship-blocking feature gaps (copy to clipboard, group sender names, emoji button, block/report dialogs, privacy settings, channels filter), expanded design system (7 semantic colors, avatar tokens, duration/gesture tokens), 62 new localized strings (TR+EN), 15+ `!!` assertion removals, 4 WCAG touch target fixes. Files: 15 modified, 784 insertions, 173 deletions
 
-### Remaining Work
+### Current Phase: Production Hardening (Feb 2026)
+Active implementation of 8 features for production readiness:
+
+25. ~~Mobile UI audit + 87 issue fixes~~ — **DONE** (critical bugs, feature gaps, design system, a11y)
+26. SQLDelight offline caching — **IN PROGRESS** (conversations + messages cached in local DB)
+27. iOS platform module completion — **PLANNED** (camera picker, file picker polish)
+28. KVKK Privacy Dashboard — **PLANNED** (data export, deletion, privacy controls UI)
+29. Media compression pipeline — **PLANNED** (image/video/audio compression before upload)
+30. WebSocket connection resilience — **PLANNED** (offline message queue, dedup, reconnect)
+31. Persistent E2E key storage — **PLANNED** (EncryptedSharedPreferences/Keychain replacing InMemoryStore)
+32. Background message sync — **PLANNED** (sync-on-wake when FCM push missed)
+33. Voice message transcription — **PLANNED** (Turkish ASR via Whisper/on-device)
+
+### Implementation Architecture
+
+#### SQLDelight Offline Cache
+- **Plugin**: `app.cash.sqldelight:2.2.1` (already declared in root build.gradle.kts)
+- **Schema**: `MuhabbetDatabase.sq` with tables: `CachedConversation`, `CachedMessage`, `PendingMessage`
+- **Pattern**: Repository-level cache — repositories check local DB first, fetch from API on miss, write-through on success
+- **Offline queue**: `PendingMessage` table stores unsent messages, drained on WS reconnect
+- **Platform drivers**: Android `AndroidSqliteDriver`, iOS `NativeSqliteDriver`
+
+#### WebSocket Resilience
+- **Offline queue**: Messages sent while disconnected stored in SQLDelight `PendingMessage` table
+- **Drain on reconnect**: `WsClient.connect()` drains pending queue after successful auth
+- **Deduplication**: `clientMessageId` (UUID generated client-side) used as idempotency key
+- **Exponential backoff**: Already implemented (1s→30s), enhanced with jitter
+
+#### Persistent E2E Key Storage
+- **Android**: `EncryptedSharedPreferences` for identity key pair, `SQLCipher` for session/pre-key stores
+- **iOS**: `Keychain` for identity key pair, encrypted SQLite for session stores
+- **Migration**: `InMemorySignalProtocolStore` → `PersistentSignalProtocolStore` with same interfaces
+
+#### Media Compression Pipeline
+- **Images**: Already implemented via `ImageCompressor` (1280px max, JPEG 80%). Extended to all upload paths
+- **Audio**: OGG/OPUS 32kbps (already set in AudioRecorder). Ensure consistent across platforms
+- **Video**: Extract thumbnail, compress to H.264 720p before upload (platform expect/actual)
+
+#### Background Message Sync
+- **Android**: `WorkManager` periodic sync (15min) + FCM data message trigger
+- **iOS**: `BGAppRefreshTask` + APNs silent push trigger
+- **Sync endpoint**: `GET /api/v1/messages/since?timestamp={lastSync}` — returns messages since last sync
+
+#### Privacy Dashboard (KVKK)
+- **Screen**: `PrivacyDashboardScreen` in settings navigation
+- **Features**: Data export request, account deletion, read receipts toggle, last seen visibility, profile photo visibility
+- **Backend**: Already has `GET /api/v1/users/data/export` and `DELETE /api/v1/users/data/account`
+
+#### Voice Message Transcription
+- **On-device**: Whisper.cpp via KMP expect/actual (Android NDK, iOS CoreML)
+- **Fallback**: Server-side ASR endpoint for devices without on-device capability
+- **Language**: Turkish (tr) primary, auto-detect for multilingual messages
+
+### Remaining Work (Post-Production Hardening)
 - ~~WebRTC client integration (LiveKit)~~ — **DONE** (LiveKit Android SDK + CallEngine + backend room management)
 - ~~E2E encryption client (Signal Protocol)~~ — **DONE** (libsignal-android + SignalKeyManager + E2ESetupService)
 - iOS APNs delivery, TestFlight, App Store
@@ -276,12 +333,13 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - Security penetration testing (OWASP ZAP/Burp Suite)
 - Web/Desktop client
 - Load testing at scale — k6 scripts created, need to run against production-like environment
-- Persistent E2E key storage (currently in-memory, upgrade to EncryptedSharedPreferences/SQLCipher)
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
 - **~~Single-server architecture~~**: Resolved — Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) enables horizontal WS scaling across multiple backend instances.
 - **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
+- **~~In-memory E2E key store~~**: Being resolved — migrating to persistent storage (EncryptedSharedPreferences/Keychain).
+- **No offline support**: Being resolved — SQLDelight cache layer being added.
 
 ### Localization Rules
 - **No hardcoded strings in UI code.** All user-visible text must use `stringResource(Res.string.*)`.
