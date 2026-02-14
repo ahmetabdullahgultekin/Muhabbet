@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — WebRTC Voice Calls via LiveKit (Feb 2026)
+- **CallRoomInfo WsMessage**: New `call.room` WS message type carrying `serverUrl`, `token`, `roomName` for LiveKit room connection
+- **Backend room management**: `ChatWebSocketHandler` now creates LiveKit room + generates participant tokens on `CallAnswer(accepted=true)`, closes room on `CallEnd`
+- **CallEngine expect/actual**: Platform abstraction for WebRTC — `connect(serverUrl, token)`, `disconnect()`, `setMuted()`, `setSpeaker()`
+- **Android CallEngine**: `io.livekit:livekit-android:2.5.0` — connects to LiveKit room, manages audio tracks, handles mute/speaker
+- **iOS CallEngine**: Stub (awaits LiveKit Swift SDK bridge)
+- **ActiveCallScreen**: Wired to `CallEngine` — auto-connects on `CallRoomInfo`, disconnects on `CallEnd`/dispose, mute/speaker controls delegate to engine
+
+### Added — Signal Protocol E2E Encryption (Feb 2026)
+- **SignalKeyManager**: Implements `E2EKeyManager` using `org.signal:libsignal-android:0.64.1` — Curve25519 identity keys, signed pre-keys, one-time pre-keys, X3DH session initialization, Double Ratchet encrypt/decrypt
+- **InMemorySignalProtocolStore**: Full `SignalProtocolStore` + `SenderKeyStore` implementation — identity, pre-key, signed pre-key, session, and sender key stores (in-memory for MVP)
+- **SignalEncryption**: Implements `EncryptionPort` — delegates to `SignalKeyManager` with plaintext fallback when no session exists
+- **E2ESetupService**: Post-login key registration — generates identity key pair, signed pre-key, 100 OTPKs, registers with backend via `EncryptionRepository`
+- **Platform DI split**: Android provides `SignalKeyManager` + `SignalEncryption`, iOS provides `NoOpKeyManager` + `NoOpEncryption` (moved from `AppModule` to `PlatformModule`)
+- **App.kt integration**: E2E key registration runs on app startup for logged-in users
+
 ### Added — QA Engineering & Tooling (Feb 2026)
 - **JaCoCo code coverage**: Added to `backend/build.gradle.kts` with HTML/XML reports, coverage verification (30% min project, 60% min for domain services)
 - **detekt static analysis**: Kotlin linter with project-specific rules (`backend/detekt.yml`), SARIF/HTML reports

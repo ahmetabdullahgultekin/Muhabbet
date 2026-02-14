@@ -9,6 +9,7 @@ import com.arkivanov.decompose.ComponentContext
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.di.appModule
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
@@ -95,6 +96,19 @@ private fun WebSocketLifecycle() {
                 }
             } catch (e: Exception) {
                 Log.e("App", "Push token registration failed: ${e.message}")
+            }
+        }
+    }
+
+    // Register E2E encryption keys on startup
+    val e2eSetupService: E2ESetupService = koinInject()
+    LaunchedEffect(Unit) {
+        if (tokenStorage.isLoggedIn()) {
+            try {
+                e2eSetupService.registerKeys()
+                Log.d("App", "E2E encryption keys registered")
+            } catch (e: Exception) {
+                Log.e("App", "E2E key registration failed: ${e.message}")
             }
         }
     }

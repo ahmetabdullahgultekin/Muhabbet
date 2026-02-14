@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
@@ -60,6 +62,7 @@ fun ActiveCallScreen(
 ) {
     val wsClient = koinInject<WsClient>()
     val scope = rememberCoroutineScope()
+    val callEngine = remember { CallEngine() }
 
     var isMuted by remember { mutableStateOf(false) }
     var isSpeaker by remember { mutableStateOf(false) }
@@ -83,15 +86,32 @@ fun ActiveCallScreen(
         }
     }
 
-    // Listen for call.end from other party
+    // Listen for call.room (LiveKit credentials) and call.end from other party
     LaunchedEffect(callId) {
         wsClient.incoming.collect { message ->
             when (message) {
+                is WsMessage.CallRoomInfo -> {
+                    if (message.callId == callId && message.serverUrl.isNotBlank()) {
+                        try {
+                            callEngine.connect(message.serverUrl, message.token)
+                        } catch (_: Exception) { }
+                    }
+                }
                 is WsMessage.CallEnd -> {
-                    if (message.callId == callId) onCallEnded()
+                    if (message.callId == callId) {
+                        callEngine.disconnect()
+                        onCallEnded()
+                    }
                 }
                 else -> { }
             }
+        }
+    }
+
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            callEngine.disconnect()
         }
     }
 
@@ -159,7 +179,10 @@ fun ActiveCallScreen(
                 // Mute
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
-                        onClick = { isMuted = !isMuted },
+                        onClick = {
+                            isMuted = !isMuted
+                            callEngine.setMuted(isMuted)
+                        },
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
@@ -185,6 +208,7 @@ fun ActiveCallScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = {
+                            callEngine.disconnect()
                             scope.launch {
                                 try {
                                     wsClient.send(WsMessage.CallEnd(callId = callId, reason = CallEndReason.ENDED))
@@ -211,7 +235,10 @@ fun ActiveCallScreen(
                 // Speaker
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
-                        onClick = { isSpeaker = !isSpeaker },
+                        onClick = {
+                            isSpeaker = !isSpeaker
+                            callEngine.setSpeaker(isSpeaker)
+                        },
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)

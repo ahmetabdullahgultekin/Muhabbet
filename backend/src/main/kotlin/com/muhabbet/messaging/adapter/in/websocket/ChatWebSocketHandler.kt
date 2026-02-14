@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.CallBusyException
+import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
@@ -39,6 +40,7 @@ class ChatWebSocketHandler(
     private val presencePort: PresencePort,
     private val userRepository: UserRepository,
     private val callSignalingService: CallSignalingService,
+    private val callRoomProvider: CallRoomProvider,
     private val webSocketRateLimiter: WebSocketRateLimiter
 ) : TextWebSocketHandler() {
 
@@ -289,6 +291,40 @@ class ChatWebSocketHandler(
 
         if (msg.accepted) {
             callSignalingService.answerCall(msg.callId)
+
+            // Create LiveKit room and send tokens to both participants
+            try {
+                val room = callRoomProvider.createRoom(msg.callId, otherParty, userId)
+                if (room.serverUrl.isNotBlank()) {
+                    val callerName = userRepository.findById(otherParty)?.displayName
+                    val calleeName = userRepository.findById(userId)?.displayName
+
+                    val callerToken = callRoomProvider.generateParticipantToken(room.roomName, otherParty, callerName)
+                    val calleeToken = callRoomProvider.generateParticipantToken(room.roomName, userId, calleeName)
+
+                    // Send room info to caller
+                    val callerRoomInfo = WsMessage.CallRoomInfo(
+                        callId = msg.callId,
+                        serverUrl = room.serverUrl,
+                        token = callerToken,
+                        roomName = room.roomName
+                    )
+                    sessionManager.sendToUser(otherParty, wsJson.encodeToString<WsMessage>(callerRoomInfo))
+
+                    // Send room info to callee
+                    val calleeRoomInfo = WsMessage.CallRoomInfo(
+                        callId = msg.callId,
+                        serverUrl = room.serverUrl,
+                        token = calleeToken,
+                        roomName = room.roomName
+                    )
+                    session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(calleeRoomInfo)))
+
+                    log.info("LiveKit room created: callId={}, room={}", msg.callId, room.roomName)
+                }
+            } catch (e: Exception) {
+                log.warn("Failed to create LiveKit room for callId={}: {}", msg.callId, e.message)
+            }
         } else {
             callSignalingService.endCall(msg.callId, CallStatus.DECLINED)
         }
@@ -320,6 +356,13 @@ class ChatWebSocketHandler(
         }
 
         callSignalingService.endCall(msg.callId, status)
+
+        // Close the LiveKit room
+        try {
+            callRoomProvider.closeRoom("call-${msg.callId}")
+        } catch (e: Exception) {
+            log.warn("Failed to close LiveKit room for callId={}: {}", msg.callId, e.message)
+        }
 
         // Forward call.end to the other party
         if (otherParty != null) {

@@ -86,6 +86,12 @@ kotlin {
 
             // Sentry — crash reporting
             implementation("io.sentry:sentry-android:7.19.1")
+
+            // LiveKit — WebRTC voice/video calls
+            implementation("io.livekit:livekit-android:2.5.0")
+
+            // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
+            implementation("org.signal:libsignal-android:0.64.1")
         }
 
         commonTest.dependencies {

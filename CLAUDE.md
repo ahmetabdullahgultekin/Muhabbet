@@ -253,6 +253,8 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **CI/CD Pipeline**: GitHub Actions — backend CI (test + build), mobile CI (Android + iOS), security scanning (Trivy, Gitleaks, CodeQL), deployment automation
 - **Call UI**: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen with Decompose navigation
 - **E2E Encryption Infrastructure**: E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile client for key exchange API)
+- **LiveKit WebRTC Client**: CallEngine expect/actual (Android: LiveKit SDK, iOS: stub), CallRoomInfo WsMessage, backend room creation + token generation on call answer, ActiveCallScreen wired to LiveKit, DisposableEffect cleanup
+- **Signal Protocol E2E Encryption**: SignalKeyManager (libsignal-android: X3DH + Double Ratchet), InMemorySignalProtocolStore, SignalEncryption implementing EncryptionPort, E2ESetupService for key registration on login, platform DI (Android: Signal, iOS: NoOp)
 - **Security Hardening**: HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation)
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
 - **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
@@ -260,12 +262,15 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 8 ISO/IEC 25010 QA documents in `docs/qa/`, CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
 
 ### Remaining Work
-- WebRTC client integration (LiveKit) — signaling backend + call UI + LiveKit adapter are ready, need LiveKit client SDK in mobile
-- E2E encryption client (Signal Protocol: X3DH, Double Ratchet) — key exchange infra + NoOp manager are ready, need libsignal-client
+- ~~WebRTC client integration (LiveKit)~~ — **DONE** (LiveKit Android SDK + CallEngine + backend room management)
+- ~~E2E encryption client (Signal Protocol)~~ — **DONE** (libsignal-android + SignalKeyManager + E2ESetupService)
 - iOS APNs delivery, TestFlight, App Store
+- iOS LiveKit integration (bridge LiveKit Swift SDK via Kotlin/Native)
+- iOS Signal Protocol integration (bridge libsignal-client via Kotlin/Native)
 - Security penetration testing (OWASP ZAP/Burp Suite)
 - Web/Desktop client
 - Load testing at scale — k6 scripts created, need to run against production-like environment
+- Persistent E2E key storage (currently in-memory, upgrade to EncryptedSharedPreferences/SQLCipher)
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
@@ -320,6 +325,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
   - `message.status` = StatusUpdate (server→client)
   - `ack` = ServerAck (server→client, response to send)
   - `error` = Error (server→client)
+  - `call.room` = CallRoomInfo (server→client, LiveKit room credentials)
   - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
 - **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
 - **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever

@@ -4,11 +4,15 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.muhabbet.app.crypto.SignalEncryption
+import com.muhabbet.app.crypto.SignalKeyManager
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AndroidContactsProvider
 import com.muhabbet.app.platform.AndroidPushTokenProvider
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.PushTokenProvider
+import com.muhabbet.shared.port.E2EKeyManager
+import com.muhabbet.shared.port.EncryptionPort
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -16,6 +20,8 @@ fun androidPlatformModule(context: Context): Module = module {
     single<TokenStorage> { AndroidTokenStorage(context) }
     single<ContactsProvider> { AndroidContactsProvider(context) }
     single<PushTokenProvider> { AndroidPushTokenProvider() }
+    single<E2EKeyManager> { SignalKeyManager() }
+    single<EncryptionPort> { SignalEncryption(keyManager = get()) }
 }
 
 class AndroidTokenStorage(private val context: Context) : TokenStorage {

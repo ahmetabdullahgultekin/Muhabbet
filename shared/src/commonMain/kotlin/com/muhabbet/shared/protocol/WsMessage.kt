@@ -110,6 +110,16 @@ sealed class WsMessage {
         val callType: CallType
     ) : WsMessage()
 
+    /** Server sends LiveKit room credentials to both call participants */
+    @Serializable
+    @SerialName("call.room")
+    data class CallRoomInfo(
+        val callId: String,
+        val serverUrl: String,
+        val token: String,
+        val roomName: String
+    ) : WsMessage()
+
     // ─── Server → Client ─────────────────────────────────
 
     /** Server delivers a new message to recipient */
