@@ -27,6 +27,7 @@ import com.muhabbet.app.ui.profile.UserProfileScreen
 import com.muhabbet.app.ui.settings.SettingsScreen
 import com.muhabbet.app.ui.media.SharedMediaScreen
 import com.muhabbet.app.ui.starred.StarredMessagesScreen
+import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -123,6 +124,11 @@ class MainComponent(
         navigation.push(Config.CallHistory)
     }
 
+    @OptIn(DelicateDecomposeApi::class)
+    fun openPrivacyDashboard() {
+        navigation.push(Config.PrivacyDashboard)
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -144,6 +150,7 @@ class MainComponent(
         @Serializable data class IncomingCall(val callId: String, val callerId: String, val callerName: String? = null, val callType: String = "VOICE") : Config
         @Serializable data class ActiveCall(val callId: String, val otherUserId: String, val otherUserName: String? = null, val callType: String = "VOICE") : Config
         @Serializable data object CallHistory : Config
+        @Serializable data object PrivacyDashboard : Config
     }
 }
 
@@ -221,7 +228,8 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.Settings -> SettingsScreen(
                 onBack = component::goBack,
                 onLogout = component.onLogout,
-                onStarredMessages = component::openStarredMessages
+                onStarredMessages = component::openStarredMessages,
+                onPrivacyDashboard = component::openPrivacyDashboard
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
                 onBack = component::goBack,
@@ -261,6 +269,10 @@ fun MainContent(component: MainComponent) {
                     onCallEnded = component::goBack
                 )
             }
+            is MainComponent.Config.PrivacyDashboard -> PrivacyDashboardScreen(
+                onBack = component::goBack,
+                onLogout = component.onLogout
+            )
             is MainComponent.Config.CallHistory -> CallHistoryScreen(
                 onBack = component::goBack,
                 onCallUser = { userId, name, callType ->

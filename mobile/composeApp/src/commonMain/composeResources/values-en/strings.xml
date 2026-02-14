@@ -396,4 +396,38 @@
 
     <!-- Call screen -->
     <string name="call_switch_camera">Switch Camera</string>
+
+    <!-- Privacy Dashboard (KVKK) -->
+    <string name="privacy_dashboard_title">Privacy &amp; Data</string>
+    <string name="privacy_data_section">My Data</string>
+    <string name="privacy_export_data">Download My Data</string>
+    <string name="privacy_export_data_desc">Download a copy of all your personal data (KVKK Article 11)</string>
+    <string name="privacy_export_started">Data export started</string>
+    <string name="privacy_export_failed">Failed to start data export</string>
+    <string name="privacy_delete_account">Delete My Account</string>
+    <string name="privacy_delete_account_desc">Your account and all data will be permanently deleted</string>
+    <string name="privacy_delete_confirm_title">Delete Account</string>
+    <string name="privacy_delete_confirm_message">This action cannot be undone. All your messages, media files, and personal data will be permanently deleted.</string>
+    <string name="privacy_delete_success">Account deletion request received</string>
+    <string name="privacy_visibility_section">Visibility</string>
+    <string name="privacy_last_seen">Last Seen</string>
+    <string name="privacy_last_seen_desc">Who can see your last seen time</string>
+    <string name="privacy_profile_photo">Profile Photo</string>
+    <string name="privacy_profile_photo_desc">Who can see your profile photo</string>
+    <string name="privacy_about">About</string>
+    <string name="privacy_about_desc">Who can see your about info</string>
+    <string name="privacy_visibility_everyone">Everyone</string>
+    <string name="privacy_visibility_contacts">My Contacts</string>
+    <string name="privacy_visibility_nobody">Nobody</string>
+    <string name="privacy_security_section">Security</string>
+    <string name="privacy_e2e_info">All messages are end-to-end encrypted. Only you and the recipient can read your messages.</string>
+    <string name="privacy_blocked_contacts">Blocked Contacts</string>
+    <string name="privacy_blocked_contacts_desc">Manage your blocked contacts</string>
+    <string name="privacy_kvkk_section">KVKK Rights</string>
+    <string name="privacy_kvkk_info">Your rights under the Personal Data Protection Law No. 6698</string>
+    <string name="privacy_kvkk_right_access">Right to access your data</string>
+    <string name="privacy_kvkk_right_rectification">Right to request correction of inaccurate data</string>
+    <string name="privacy_kvkk_right_erasure">Right to request deletion of your data</string>
+    <string name="privacy_kvkk_right_portability">Right to data portability</string>
+    <string name="privacy_open_dashboard">Privacy &amp; Data</string>
 </resources>

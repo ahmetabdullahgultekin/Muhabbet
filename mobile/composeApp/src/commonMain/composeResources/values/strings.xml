@@ -396,4 +396,38 @@
 
     <!-- Call screen -->
     <string name="call_switch_camera">Kamerayı Değiştir</string>
+
+    <!-- Privacy Dashboard (KVKK) -->
+    <string name="privacy_dashboard_title">Gizlilik ve Veri</string>
+    <string name="privacy_data_section">Verilerim</string>
+    <string name="privacy_export_data">Verilerimi İndir</string>
+    <string name="privacy_export_data_desc">Tüm kişisel verilerinizin bir kopyasını indirin (KVKK Madde 11)</string>
+    <string name="privacy_export_started">Veri dışa aktarma başlatıldı</string>
+    <string name="privacy_export_failed">Veri dışa aktarma başlatılamadı</string>
+    <string name="privacy_delete_account">Hesabımı Sil</string>
+    <string name="privacy_delete_account_desc">Hesabınız ve tüm verileriniz kalıcı olarak silinir</string>
+    <string name="privacy_delete_confirm_title">Hesabı Sil</string>
+    <string name="privacy_delete_confirm_message">Bu işlem geri alınamaz. Tüm mesajlarınız, medya dosyalarınız ve kişisel verileriniz kalıcı olarak silinecektir.</string>
+    <string name="privacy_delete_success">Hesap silme isteği alındı</string>
+    <string name="privacy_visibility_section">Görünürlük</string>
+    <string name="privacy_last_seen">Son Görülme</string>
+    <string name="privacy_last_seen_desc">Son görülme bilginizi kimler görebilir</string>
+    <string name="privacy_profile_photo">Profil Fotoğrafı</string>
+    <string name="privacy_profile_photo_desc">Profil fotoğrafınızı kimler görebilir</string>
+    <string name="privacy_about">Hakkımda Bilgisi</string>
+    <string name="privacy_about_desc">Hakkımda bilginizi kimler görebilir</string>
+    <string name="privacy_visibility_everyone">Herkes</string>
+    <string name="privacy_visibility_contacts">Kişilerim</string>
+    <string name="privacy_visibility_nobody">Hiç kimse</string>
+    <string name="privacy_security_section">Güvenlik</string>
+    <string name="privacy_e2e_info">Tüm mesajlar uçtan uca şifrelenir. Mesajlarınızı yalnızca siz ve karşı taraf okuyabilir.</string>
+    <string name="privacy_blocked_contacts">Engellenen Kişiler</string>
+    <string name="privacy_blocked_contacts_desc">Engellediğiniz kişileri yönetin</string>
+    <string name="privacy_kvkk_section">KVKK Hakları</string>
+    <string name="privacy_kvkk_info">6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamındaki haklarınız</string>
+    <string name="privacy_kvkk_right_access">Verilerinize erişim hakkı</string>
+    <string name="privacy_kvkk_right_rectification">Yanlış verilerin düzeltilmesini isteme hakkı</string>
+    <string name="privacy_kvkk_right_erasure">Verilerinizin silinmesini isteme hakkı</string>
+    <string name="privacy_kvkk_right_portability">Veri taşınabilirliği hakkı</string>
+    <string name="privacy_open_dashboard">Gizlilik ve Veri</string>
 </resources>

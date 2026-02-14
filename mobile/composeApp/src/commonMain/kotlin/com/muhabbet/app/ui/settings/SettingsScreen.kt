@@ -79,6 +79,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onStarredMessages: () -> Unit = {},
+    onPrivacyDashboard: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
@@ -507,6 +508,35 @@ fun SettingsScreen(
                             }
                         )
                         Text(text = label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+                // Privacy Dashboard link
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onPrivacyDashboard() },
+                    tonalElevation = MuhabbetElevation.Level1,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = stringResource(Res.string.privacy_open_dashboard),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.privacy_open_dashboard),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
                 }
 
