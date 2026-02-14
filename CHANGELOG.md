@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — QA Engineering & Tooling (Feb 2026)
+- **JaCoCo code coverage**: Added to `backend/build.gradle.kts` with HTML/XML reports, coverage verification (30% min project, 60% min for domain services)
+- **detekt static analysis**: Kotlin linter with project-specific rules (`backend/detekt.yml`), SARIF/HTML reports
+- **ArchUnit architecture tests**: 13 tests in `HexagonalArchitectureTest` — domain independence, module boundaries, naming conventions, no Spring in domain
+- **TestData factory**: Shared test data factory object (`com.muhabbet.shared.TestData`) with builders for User, Message, Conversation, Member, DeliveryStatus
+- **Controller tests**: MessageControllerTest (10 tests), ModerationControllerTest (13 tests), UserDataControllerTest (5 tests) — covering pagination, delivery status, edit/delete, block/report, KVKK export
+- **k6 performance scripts**: `infra/k6/auth-load-test.js` (OTP flow), `infra/k6/api-load-test.js` (REST endpoints), `infra/k6/websocket-load-test.js` (WS connections) with P50/P95/P99 thresholds
+- **QA documentation**: 8 ISO/IEC 25010 quality attribute documents in `docs/qa/` — updated with verified codebase metrics
+
 ### Added — Phase 6: Growth Features (Feb 2026)
 - **Channel analytics**: `ChannelAnalyticsService` with daily stats (messages, views, reactions, shares), subscriber tracking, REST API at `GET /api/v1/channels/{channelId}/analytics` with date-range queries
 - **Bot platform**: `Bot` domain model with `BotPermission` enum, `BotService` with secure API token generation (`mhb_` prefix + Base64), webhook support, permissions system, REST API at `/api/v1/bots` (CRUD, token regeneration, webhook management)

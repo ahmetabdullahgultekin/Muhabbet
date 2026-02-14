@@ -116,7 +116,7 @@ muhabbet/
 ## Quick Start
 
 ### Prerequisites
-- JDK 25+
+- JDK 21+
 - Docker & Docker Compose
 - Android SDK (API 35) for mobile development
 - Kotlin 2.3.10+ (managed by Gradle wrapper)

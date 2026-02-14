@@ -1,6 +1,6 @@
 # Muhabbet — Quality Assurance Engineering
 
-> **Last Updated**: February 13, 2026
+> **Last Updated**: February 14, 2026
 > **Project Phase**: Post-MVP, Pre-Beta
 > **QA Owner**: Engineering Team
 
@@ -29,9 +29,9 @@ This directory contains the comprehensive Quality Assurance Engineering document
 
 | Metric | Current | Target (Beta) | Target (GA) |
 |--------|---------|---------------|-------------|
-| Backend tests | 201 | 350+ | 500+ |
+| Backend tests | 201 + ~50 new | 350+ | 500+ |
 | Mobile/shared tests | 50 (23 + 27) | 100+ | 200+ |
-| Test coverage (backend) | ~45% est. | 60% | 80% |
+| Test coverage (backend) | ~45% est. (JaCoCo enabled) | 60% | 80% |
 | Test coverage (mobile) | ~10% est. | 40% | 60% |
 | P95 API latency | Unmeasured | <200ms | <100ms |
 | WebSocket message latency | Unmeasured | <50ms | <30ms |
@@ -88,11 +88,11 @@ This directory contains the comprehensive Quality Assurance Engineering document
 ## Priority Matrix
 
 ### P0 — Must Fix Before Beta
-1. Increase backend test coverage to 60%
-2. Add integration tests for all REST controllers
+1. Increase backend test coverage to 60% — **JaCoCo added** (`./gradlew :backend:jacocoTestReport`)
+2. Add integration tests for all REST controllers — **Started** (MessageController, ModerationController, UserDataController tests added)
 3. Run OWASP ZAP baseline scan
-4. Measure and establish P95 latency baselines
-5. Load test WebSocket at 1K concurrent connections
+4. Measure and establish P95 latency baselines — **k6 scripts created** (`infra/k6/`)
+5. Load test WebSocket at 1K concurrent connections — **k6 WS script created** (`infra/k6/websocket-load-test.js`)
 
 ### P1 — Must Fix Before GA
 1. Mobile test coverage to 40%
@@ -115,15 +115,31 @@ This directory contains the comprehensive Quality Assurance Engineering document
 # Backend unit tests
 ./gradlew :backend:test
 
-# Backend with coverage report
+# Backend with coverage report (JaCoCo)
 ./gradlew :backend:test :backend:jacocoTestReport
+# Report: backend/build/reports/jacoco/test/html/index.html
+
+# Coverage verification (fails if below threshold)
+./gradlew :backend:jacocoTestCoverageVerification
+
+# Static analysis (detekt)
+./gradlew :backend:detekt
+# Report: backend/build/reports/detekt/detekt.html
 
 # Specific test class
 ./gradlew :backend:test --tests "com.muhabbet.auth.domain.service.AuthServiceTest"
 
+# Architecture compliance tests only
+./gradlew :backend:test --tests "com.muhabbet.architecture.*"
+
 # Mobile/shared tests
 ./gradlew :shared:allTests
 ./gradlew :mobile:composeApp:testDebugUnitTest
+
+# k6 performance tests
+k6 run infra/k6/auth-load-test.js
+k6 run --env TOKEN=eyJ... infra/k6/api-load-test.js
+k6 run --env TOKEN=eyJ... infra/k6/websocket-load-test.js
 ```
 
 ## CI/CD Integration
@@ -138,12 +154,26 @@ Tests run automatically via GitHub Actions:
 - Test naming: `should [expected behavior] when [condition]`
 - Test framework: JUnit 5 + MockK (backend), kotlin-test + coroutines-test (mobile/shared)
 - Integration tests: Testcontainers (PostgreSQL, Redis)
-- Test data: Factories/builders, not fixtures
+- Test data: `TestData` factory object (`com.muhabbet.shared.TestData`) — not inline builders
+- Architecture: ArchUnit tests enforce hexagonal boundaries (domain independence, no Spring in domain, module isolation)
+- Coverage: JaCoCo with 30% min project-wide, 60% min for domain services
+- Static analysis: detekt with project-specific rules (`backend/detekt.yml`)
 - Flaky test policy: Quarantine → fix within 48h → delete if unfixable
 
-## Test Inventory (251 total)
+## Tooling
 
-### Backend (201 tests across 14 files)
+| Tool | Purpose | How to Run | Status |
+|------|---------|-----------|--------|
+| **JaCoCo** | Code coverage reports | `./gradlew :backend:jacocoTestReport` | Implemented |
+| **detekt** | Kotlin static analysis | `./gradlew :backend:detekt` | Implemented |
+| **ArchUnit** | Architecture compliance | `./gradlew :backend:test --tests "com.muhabbet.architecture.*"` | Implemented |
+| **k6** | Load/performance testing | `k6 run infra/k6/*.js` | Scripts created |
+| **TestData** | Shared test data factory | Imported via `com.muhabbet.shared.TestData` | Implemented |
+| **Testcontainers** | Integration test DB | Automatic in `@Testcontainers` tests | Existing |
+
+## Test Inventory (~290 total)
+
+### Backend (~240 tests across 18 files)
 
 | Test File | Tests | Module |
 |-----------|-------|--------|
@@ -161,6 +191,10 @@ Tests run automatically via GitHub Actions:
 | InputSanitizerTest | 15 | shared/security |
 | RateLimitFilterTest | 16 | shared/security |
 | WebSocketRateLimiterTest | 4 | shared/security |
+| **HexagonalArchitectureTest** | **13** | **architecture** |
+| **MessageControllerTest** | **10** | **messaging (controller)** |
+| **ModerationControllerTest** | **13** | **moderation (controller)** |
+| **UserDataControllerTest** | **5** | **auth (controller)** |
 
 ### Mobile (23 tests across 3 files)
 

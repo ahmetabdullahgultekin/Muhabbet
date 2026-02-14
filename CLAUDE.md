@@ -191,7 +191,9 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | SMS gateway | Netgsm |
 | Push | FCM (Firebase Cloud Messaging) |
 | Monitoring | SLF4J + Logback (JSON) + Spring Actuator + Sentry |
-| Testing | JUnit 5 + MockK + Testcontainers |
+| Testing | JUnit 5 + MockK + Testcontainers + ArchUnit |
+| Code quality | JaCoCo (coverage) + detekt (static analysis) |
+| Load testing | k6 |
 | CI/CD | GitHub Actions |
 
 ## Key Files
@@ -203,6 +205,9 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `backend/src/main/resources/db/migration/` — Flyway SQL migrations
 - `infra/docker-compose.yml` — Local dev (PG + Redis + MinIO)
 - `docs/api-contract.md` — REST + WebSocket API specification
+- `docs/qa/` — QA engineering documentation (8 ISO/IEC 25010 documents)
+- `backend/detekt.yml` — detekt static analysis configuration
+- `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
 
 ## Current Phase
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
@@ -252,6 +257,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
 - **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
 - **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
+- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (13 rules), TestData factory, controller tests (MessageController, ModerationController, UserDataController), k6 load test scripts, 8 ISO/IEC 25010 QA documents in `docs/qa/`
 
 ### Remaining Work
 - WebRTC client integration (LiveKit) — signaling backend + call UI + LiveKit adapter are ready, need LiveKit client SDK in mobile
@@ -259,7 +265,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - iOS APNs delivery, TestFlight, App Store
 - Security penetration testing (OWASP ZAP/Burp Suite)
 - Web/Desktop client
-- Load testing (k6/Gatling at scale)
+- Load testing at scale — k6 scripts created, need to run against production-like environment
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.

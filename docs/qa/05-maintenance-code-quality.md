@@ -17,33 +17,20 @@
 | Cross-module via events | No direct imports across module boundaries | Grep scan |
 | Services wired via AppConfig | `@Bean` definitions, not `@Service` | Code review |
 
-### 1.2 Architecture Compliance Scan
+### 1.2 Architecture Compliance Scan — IMPLEMENTED
 
-```kotlin
-// Proposed ArchUnit test
-@AnalyzeClasses(packages = ["com.muhabbet"])
-class ArchitectureTest {
+**File**: `backend/src/test/kotlin/com/muhabbet/architecture/HexagonalArchitectureTest.kt`
 
-    @ArchTest
-    val domainShouldNotDependOnAdapters = noClasses()
-        .that().resideInAPackage("..domain..")
-        .should().dependOnClassesThat().resideInAPackage("..adapter..")
+13 ArchUnit tests enforcing:
+- **Domain Independence** (4 tests): Domain models/services/ports cannot depend on Spring or adapters; no JPA in domain
+- **Adapter Rules** (2 tests): Controllers cannot use persistence entities; controllers must have `@RestController`
+- **Module Boundaries** (3 tests): Messaging, moderation, and media modules cannot directly import each other's services
+- **Naming Conventions** (2 tests): JPA entities must end with `JpaEntity`; use case interfaces must end with `UseCase`
+- **No Spring in Domain** (2 tests): Domain services must not use `@Service` or `@Component`
 
-    @ArchTest
-    val domainShouldNotDependOnSpring = noClasses()
-        .that().resideInAPackage("..domain..")
-        .should().dependOnClassesThat().resideInAPackage("org.springframework..")
-
-    @ArchTest
-    val controllersShouldNotDependOnRepositories = noClasses()
-        .that().resideInAPackage("..adapter.in.web..")
-        .should().dependOnClassesThat().resideInAPackage("..adapter.out.persistence..")
-
-    @ArchTest
-    val servicesShouldNotDependOnJpa = noClasses()
-        .that().resideInAPackage("..domain.service..")
-        .should().dependOnClassesThat().resideInAPackage("jakarta.persistence..")
-}
+```bash
+# Run architecture tests
+./gradlew :backend:test --tests "com.muhabbet.architecture.*"
 ```
 
 ### 1.3 Module Dependency Map
@@ -69,7 +56,7 @@ Communication: Spring ApplicationEvent (when needed)
 | Component | Kotlin Files | Estimated Lines |
 |-----------|-------------|-----------------|
 | Backend (main) | 210 | ~15,000 |
-| Backend (test) | 14 | ~2,500 |
+| Backend (test) | 18 | ~3,500 |
 | Mobile (main) | 98 | ~10,000 |
 | Mobile (test) | 3 | ~300 |
 | Shared (main) | 7 | ~1,500 |
