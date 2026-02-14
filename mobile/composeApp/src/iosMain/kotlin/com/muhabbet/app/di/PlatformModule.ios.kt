@@ -1,5 +1,7 @@
 package com.muhabbet.app.di
 
+import com.muhabbet.app.data.local.DatabaseDriverFactory
+import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.IosContactsProvider
@@ -15,6 +17,8 @@ import platform.Foundation.NSUserDefaults
 
 fun iosPlatformModule(): Module = module {
     single<TokenStorage> { IosTokenStorage() }
+    single { DatabaseDriverFactory() }
+    single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { IosContactsProvider() }
     single<PushTokenProvider> { IosPushTokenProvider() }
     single<E2EKeyManager> { NoOpKeyManager() }

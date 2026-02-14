@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.android.application")
     id("com.google.gms.google-services")
+    id("app.cash.sqldelight")
 }
 
 group = "com.muhabbet"
@@ -72,12 +73,16 @@ kotlin {
             // Image loading — Coil
             implementation("io.coil-kt.coil3:coil-compose:$coil")
             implementation("io.coil-kt.coil3:coil-network-ktor3:$coil")
+
+            // Local DB — SQLDelight
+            implementation("app.cash.sqldelight:coroutines-extensions:2.2.1")
         }
 
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
             implementation("androidx.activity:activity-compose:1.10.0")
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
+            implementation("app.cash.sqldelight:android-driver:2.2.1")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
@@ -103,6 +108,7 @@ kotlin {
 
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:$ktor")
+            implementation("app.cash.sqldelight:native-driver:2.2.1")
         }
     }
 }
@@ -159,5 +165,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+}
+
+sqldelight {
+    databases {
+        create("MuhabbetDatabase") {
+            packageName.set("com.muhabbet.app.db")
+        }
     }
 }

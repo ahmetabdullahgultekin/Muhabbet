@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
@@ -9,19 +10,35 @@ import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
 import com.muhabbet.shared.model.Message
 
-class MessageRepository(private val apiClient: ApiClient) {
+class MessageRepository(
+    private val apiClient: ApiClient,
+    private val localCache: LocalCache
+) {
 
     suspend fun getMessages(
         conversationId: String,
         cursor: String? = null,
         limit: Int = 50
     ): PaginatedResponse<Message> {
-        val path = buildString {
-            append("/api/v1/conversations/$conversationId/messages?limit=$limit")
-            if (cursor != null) append("&cursor=$cursor")
+        return try {
+            val path = buildString {
+                append("/api/v1/conversations/$conversationId/messages?limit=$limit")
+                if (cursor != null) append("&cursor=$cursor")
+            }
+            val response = apiClient.get<PaginatedResponse<Message>>(path)
+            val result = response.data ?: PaginatedResponse(emptyList(), null, false)
+            // Cache messages
+            localCache.upsertMessages(result.items)
+            result
+        } catch (e: Exception) {
+            // Fallback to cache on network failure
+            if (cursor == null) {
+                val cached = localCache.getMessagesByPage(conversationId, limit)
+                if (cached.isNotEmpty()) {
+                    PaginatedResponse(cached, null, false)
+                } else throw e
+            } else throw e
         }
-        val response = apiClient.get<PaginatedResponse<Message>>(path)
-        return response.data ?: PaginatedResponse(emptyList(), null, false)
     }
 
     suspend fun starMessage(messageId: String) {

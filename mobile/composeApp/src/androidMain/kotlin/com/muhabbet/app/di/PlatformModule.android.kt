@@ -6,6 +6,8 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.muhabbet.app.crypto.SignalEncryption
 import com.muhabbet.app.crypto.SignalKeyManager
+import com.muhabbet.app.data.local.DatabaseDriverFactory
+import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AndroidContactsProvider
 import com.muhabbet.app.platform.AndroidPushTokenProvider
@@ -18,6 +20,8 @@ import org.koin.dsl.module
 
 fun androidPlatformModule(context: Context): Module = module {
     single<TokenStorage> { AndroidTokenStorage(context) }
+    single { DatabaseDriverFactory(context) }
+    single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { AndroidContactsProvider(context) }
     single<PushTokenProvider> { AndroidPushTokenProvider() }
     single<E2EKeyManager> { SignalKeyManager() }

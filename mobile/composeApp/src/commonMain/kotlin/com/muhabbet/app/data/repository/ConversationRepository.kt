@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.ContactSyncRequest
 import com.muhabbet.shared.dto.ContactSyncResponse
@@ -10,15 +11,35 @@ import com.muhabbet.shared.dto.UserProfileDetailResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.UserProfile
 
-class ConversationRepository(private val apiClient: ApiClient) {
+class ConversationRepository(
+    private val apiClient: ApiClient,
+    private val localCache: LocalCache
+) {
 
     suspend fun getConversations(cursor: String? = null, limit: Int = 20): PaginatedResponse<ConversationResponse> {
-        val path = buildString {
-            append("/api/v1/conversations?limit=$limit")
-            if (cursor != null) append("&cursor=$cursor")
+        return try {
+            val path = buildString {
+                append("/api/v1/conversations?limit=$limit")
+                if (cursor != null) append("&cursor=$cursor")
+            }
+            val response = apiClient.get<PaginatedResponse<ConversationResponse>>(path)
+            val result = response.data ?: PaginatedResponse(emptyList(), null, false)
+            // Write through to cache on first page
+            if (cursor == null) {
+                localCache.upsertConversations(result.items)
+            } else {
+                localCache.upsertConversations(result.items)
+            }
+            result
+        } catch (e: Exception) {
+            // Fallback to cache on network failure
+            if (cursor == null) {
+                val cached = localCache.getConversations()
+                if (cached.isNotEmpty()) {
+                    PaginatedResponse(cached, null, false)
+                } else throw e
+            } else throw e
         }
-        val response = apiClient.get<PaginatedResponse<ConversationResponse>>(path)
-        return response.data ?: PaginatedResponse(emptyList(), null, false)
     }
 
     suspend fun createDirectConversation(otherUserId: String): ConversationResponse {
@@ -29,7 +50,9 @@ class ConversationRepository(private val apiClient: ApiClient) {
                 participantIds = listOf(otherUserId)
             )
         )
-        return response.data ?: throw Exception(response.error?.message ?: "CONVERSATION_CREATE_FAILED")
+        val conv = response.data ?: throw Exception(response.error?.message ?: "CONVERSATION_CREATE_FAILED")
+        localCache.upsertConversation(conv)
+        return conv
     }
 
     suspend fun syncContacts(phoneHashes: List<String>): ContactSyncResponse {
@@ -42,6 +65,7 @@ class ConversationRepository(private val apiClient: ApiClient) {
 
     suspend fun deleteConversation(conversationId: String) {
         apiClient.delete<Unit>("/api/v1/conversations/$conversationId")
+        localCache.deleteConversation(conversationId)
     }
 
     suspend fun getUserProfile(userId: String): UserProfile {
