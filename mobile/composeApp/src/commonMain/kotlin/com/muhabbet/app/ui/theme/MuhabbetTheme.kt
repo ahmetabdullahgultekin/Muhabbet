@@ -31,25 +31,46 @@ private val Red400 = Color(0xFFEF5350)
 data class MuhabbetSemanticColors(
     val statusOnline: Color,
     val statusRead: Color,
+    val statusDelivered: Color,
+    val statusSending: Color,
     val callDecline: Color,
     val callAccept: Color,
-    val callMissed: Color
+    val callMissed: Color,
+    val bubbleOwn: Color,
+    val bubbleOther: Color,
+    val onBubbleOwn: Color,
+    val onBubbleOther: Color,
+    val linkColor: Color
 )
 
 val LightSemanticColors = MuhabbetSemanticColors(
     statusOnline = Color(0xFF4CAF50),
     statusRead = Color(0xFF4FC3F7),
+    statusDelivered = Color(0xFF9E9E9E),
+    statusSending = Color(0xFFBDBDBD),
     callDecline = Color(0xFFE53935),
     callAccept = Color(0xFF43A047),
-    callMissed = Color(0xFFE53935)
+    callMissed = Color(0xFFE53935),
+    bubbleOwn = Color(0xFFDCF8C6),
+    bubbleOther = Color.White,
+    onBubbleOwn = Color(0xFF1C1B1F),
+    onBubbleOther = Color(0xFF1C1B1F),
+    linkColor = Color(0xFF1565C0)
 )
 
 val DarkSemanticColors = MuhabbetSemanticColors(
     statusOnline = Color(0xFF66BB6A),
     statusRead = Color(0xFF4FC3F7),
+    statusDelivered = Color(0xFF9E9E9E),
+    statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
     callAccept = Color(0xFF66BB6A),
-    callMissed = Color(0xFFEF5350)
+    callMissed = Color(0xFFEF5350),
+    bubbleOwn = Color(0xFF005D4B),
+    bubbleOther = Color(0xFF2C2C2E),
+    onBubbleOwn = Color(0xFFE6E1E5),
+    onBubbleOther = Color(0xFFE6E1E5),
+    linkColor = Color(0xFF64B5F6)
 )
 
 val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
@@ -72,6 +93,40 @@ object MuhabbetSizes {
     val IconSmall: Dp = 16.dp
     val IconMedium: Dp = 20.dp
     val IconLarge: Dp = 24.dp
+
+    // Avatar sizes
+    val AvatarXSmall: Dp = 36.dp
+    val AvatarSmall: Dp = 40.dp
+    val AvatarMedium: Dp = 48.dp
+    val AvatarLarge: Dp = 56.dp
+    val AvatarXLarge: Dp = 72.dp
+    val AvatarXXLarge: Dp = 80.dp
+    val AvatarHero: Dp = 96.dp
+    val AvatarCall: Dp = 120.dp
+
+    // Bubble dimensions
+    val BubbleMinWidth: Dp = 80.dp
+    val BubbleCornerRadius: Dp = 16.dp
+    val BubbleTailRadius: Dp = 4.dp
+    val ImagePreviewMaxHeight: Dp = 200.dp
+    val StickerSize: Dp = 150.dp
+}
+
+// ─── Duration tokens ────────────────────────────────────────
+
+object MuhabbetDurations {
+    const val TypingTimeoutMs: Long = 3000L
+    const val StatusDisplayMs: Long = 5000L
+    const val StatusProgressTickMs: Long = 50L
+    const val CallTimerTickMs: Long = 1000L
+    const val ShimmerDurationMs: Int = 1200
+}
+
+// ─── Gesture tokens ─────────────────────────────────────────
+
+object MuhabbetGestures {
+    const val SwipeReplyThreshold: Float = 80f
+    const val SwipeReplyMax: Float = 120f
 }
 
 // ─── Elevation tokens ──────────────────────────────────────

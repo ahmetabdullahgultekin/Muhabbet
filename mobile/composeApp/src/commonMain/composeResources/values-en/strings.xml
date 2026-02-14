@@ -20,6 +20,9 @@
     <string name="voice_pause">Pause</string>
     <string name="voice_record">Record</string>
     <string name="voice_stop">Stop</string>
+    <string name="voice_transcribe">Transcribe</string>
+    <string name="voice_transcribing">Transcribing…</string>
+    <string name="voice_transcript_failed">Transcription failed</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -315,4 +318,119 @@
     <!-- Accessibility -->
     <string name="action_back">Back</string>
     <string name="chat_disappearing">Disappearing messages</string>
+
+    <!-- Context Menu — Copy -->
+    <string name="chat_context_copy">Copy</string>
+    <string name="chat_copied">Message copied</string>
+
+    <!-- Block / Report -->
+    <string name="profile_block">Block</string>
+    <string name="profile_unblock">Unblock</string>
+    <string name="profile_report">Report</string>
+    <string name="profile_block_confirm">Are you sure you want to block this user?</string>
+    <string name="profile_block_success">User blocked</string>
+    <string name="profile_unblock_success">User unblocked</string>
+    <string name="profile_report_confirm">Are you sure you want to report this user?</string>
+    <string name="profile_report_success">Report submitted</string>
+    <string name="profile_report_reason_placeholder">Report reason (optional)</string>
+
+    <!-- Privacy Settings -->
+    <string name="settings_privacy_section">Privacy</string>
+    <string name="settings_privacy_last_seen">Last seen</string>
+    <string name="settings_privacy_read_receipts">Read receipts</string>
+    <string name="settings_privacy_read_receipts_subtitle">If you turn off read receipts, you won\'t be able to see others\' either</string>
+
+    <!-- Notification Settings -->
+    <string name="settings_notifications_section">Notifications</string>
+    <string name="settings_notifications_enabled">Enable Notifications</string>
+    <string name="settings_notifications_sound">Notification Sound</string>
+    <string name="settings_notifications_vibrate">Vibration</string>
+
+    <!-- Chat Settings -->
+    <string name="settings_chat_section">Chat</string>
+    <string name="settings_chat_enter_to_send">Enter to send</string>
+    <string name="settings_chat_font_size">Font size</string>
+    <string name="settings_font_small">Small</string>
+    <string name="settings_font_medium">Medium</string>
+    <string name="settings_font_large">Large</string>
+
+    <!-- Account -->
+    <string name="settings_account_section">Account</string>
+    <string name="settings_account_phone">Phone number</string>
+    <string name="settings_account_delete">Delete Account</string>
+    <string name="settings_account_delete_confirm">Your account and all data will be permanently deleted. This cannot be undone.</string>
+    <string name="settings_account_export">Export My Data</string>
+
+    <!-- Archive / Mute -->
+    <string name="conv_archive">Archive</string>
+    <string name="conv_unarchive">Unarchive</string>
+    <string name="conv_mute">Mute</string>
+    <string name="conv_unmute">Unmute</string>
+    <string name="conv_archived_section">Archived Chats</string>
+
+    <!-- Group enhancements -->
+    <string name="group_remove_confirm">Are you sure you want to remove %1$s from the group?</string>
+    <string name="group_add_members">Add Members</string>
+    <string name="group_promote_admin">Make Admin</string>
+    <string name="group_demote_admin">Remove Admin</string>
+    <string name="group_search_members">Search members...</string>
+
+    <!-- Camera -->
+    <string name="attach_camera">Camera</string>
+
+    <!-- Language change -->
+    <string name="settings_language_change_title">Change Language</string>
+    <string name="settings_language_change_confirm">The app will restart to apply the language change.</string>
+
+    <!-- Encryption -->
+    <string name="profile_encrypted">Messages are end-to-end encrypted</string>
+
+    <!-- Channels filter -->
+    <string name="filter_channels">Channels</string>
+
+    <!-- Message formatting hint -->
+    <string name="chat_format_hint">*bold* _italic_ ~strikethrough~ `code`</string>
+
+    <!-- Delivery status content descriptions -->
+    <string name="status_sending">Sending</string>
+    <string name="status_sent">Sent</string>
+    <string name="status_delivered">Delivered</string>
+    <string name="status_read">Read</string>
+
+    <!-- Call screen -->
+    <string name="call_switch_camera">Switch Camera</string>
+
+    <!-- Privacy Dashboard (KVKK) -->
+    <string name="privacy_dashboard_title">Privacy &amp; Data</string>
+    <string name="privacy_data_section">My Data</string>
+    <string name="privacy_export_data">Download My Data</string>
+    <string name="privacy_export_data_desc">Download a copy of all your personal data (KVKK Article 11)</string>
+    <string name="privacy_export_started">Data export started</string>
+    <string name="privacy_export_failed">Failed to start data export</string>
+    <string name="privacy_delete_account">Delete My Account</string>
+    <string name="privacy_delete_account_desc">Your account and all data will be permanently deleted</string>
+    <string name="privacy_delete_confirm_title">Delete Account</string>
+    <string name="privacy_delete_confirm_message">This action cannot be undone. All your messages, media files, and personal data will be permanently deleted.</string>
+    <string name="privacy_delete_success">Account deletion request received</string>
+    <string name="privacy_visibility_section">Visibility</string>
+    <string name="privacy_last_seen">Last Seen</string>
+    <string name="privacy_last_seen_desc">Who can see your last seen time</string>
+    <string name="privacy_profile_photo">Profile Photo</string>
+    <string name="privacy_profile_photo_desc">Who can see your profile photo</string>
+    <string name="privacy_about">About</string>
+    <string name="privacy_about_desc">Who can see your about info</string>
+    <string name="privacy_visibility_everyone">Everyone</string>
+    <string name="privacy_visibility_contacts">My Contacts</string>
+    <string name="privacy_visibility_nobody">Nobody</string>
+    <string name="privacy_security_section">Security</string>
+    <string name="privacy_e2e_info">All messages are end-to-end encrypted. Only you and the recipient can read your messages.</string>
+    <string name="privacy_blocked_contacts">Blocked Contacts</string>
+    <string name="privacy_blocked_contacts_desc">Manage your blocked contacts</string>
+    <string name="privacy_kvkk_section">KVKK Rights</string>
+    <string name="privacy_kvkk_info">Your rights under the Personal Data Protection Law No. 6698</string>
+    <string name="privacy_kvkk_right_access">Right to access your data</string>
+    <string name="privacy_kvkk_right_rectification">Right to request correction of inaccurate data</string>
+    <string name="privacy_kvkk_right_erasure">Right to request deletion of your data</string>
+    <string name="privacy_kvkk_right_portability">Right to data portability</string>
+    <string name="privacy_open_dashboard">Privacy &amp; Data</string>
 </resources>

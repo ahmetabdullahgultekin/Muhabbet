@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Production Hardening (Feb 2026)
+- **SQLDelight offline caching**: `MuhabbetDatabase.sq` with `CachedConversation`, `CachedMessage`, `PendingMessage` tables; cache-first repository pattern in `ConversationRepository` and `MessageRepository`; platform drivers (Android `AndroidSqliteDriver`, iOS `NativeSqliteDriver`)
+- **WebSocket connection resilience**: `ConnectionState` StateFlow, exponential backoff with ±25% jitter, offline message queue via `PendingMessage` table, drain-on-reconnect, deduplication via LinkedHashSet (500 entries max), `sendOrQueue()` method
+- **KVKK Privacy Dashboard**: `PrivacyDashboardScreen` with 4 sections (Visibility, Security, My Data, KVKK Rights), data export/account deletion via existing backend endpoints, 32 new localized strings (TR+EN)
+- **Media compression pipeline**: `MediaUploadHelper` centralizing all media uploads with guaranteed compression (images 1280px/80%, profiles 512px/75%, thumbnails 320px/60%); replaced direct `MediaRepository` + manual `compressImage` calls in ChatScreen, SettingsScreen, ConversationListScreen
+- **Persistent E2E key storage**: Android `PersistentSignalProtocolStore` with `EncryptedSharedPreferences` (identity keys, sessions, pre-keys, signed pre-keys, sender keys); iOS `KeychainHelper` for secure token storage; `SignalKeyManager` now accepts store via constructor injection
+- **Background message sync**: Backend `GET /api/v1/messages/since?timestamp=` endpoint with JPQL join query; Android `WorkManager` 15-min periodic sync; iOS `BackgroundSyncManager` with `performSync()` for BGTask; `TokenStorage.lastSyncTimestamp` for state tracking
+- **Camera picker**: `CameraPicker` (expect/actual) — Android `TakePicture` contract with `FileProvider`, iOS `UIImagePickerController` with camera source; CAMERA permission + FileProvider in AndroidManifest
+- **iOS audio recorder fix**: Returns proper `RecordedAudio(bytes, mimeType, durationSeconds)` matching common data class (was returning incompatible `filePath`/`durationMs`)
+- **Voice message transcription**: `SpeechTranscriber` (expect/actual) — Android `SpeechRecognizer`, iOS `SFSpeechRecognizer`; Turkish tr-TR primary; "Transcribe" button on VoiceBubble with loading indicator and inline transcript display; 3 new localized strings (TR+EN)
+
+### Added — Mobile UI Audit + 87 Issue Fixes (Feb 2026)
+- **Lead Mobile Engineer audit**: Comprehensive review of 60+ UI files (~8,600 LOC) across 14 navigation destinations, identifying 87 issues in 6 severity categories
+- **5 critical bug fixes**: Dead `|| true` condition in status divider, hardcoded `Color.Black/White` in StatusViewer, infinite `while(true)` timer loop in ActiveCallScreen, stringly-typed filter state in ConversationList, hardcoded version "0.1.0" in Settings
+- **6 ship-blocking features**: Copy message to clipboard, group chat sender names, emoji button in input bar, block/report dialogs with confirmation, privacy settings section (read receipts), channels filter chip
+- **Design system expansion**: 7 new semantic colors (statusDelivered, statusSending, bubbleOwn/Other, linkColor), avatar size tokens (XSmall→Call), duration tokens (TypingTimeout, StatusDisplay, CallTimer, Shimmer), gesture tokens (SwipeReplyThreshold/Max), bubble dimension tokens
+- **62 new localized strings** (Turkish + English): copy, block/report, privacy, notifications, account, camera, encryption, delivery status a11y, channels filter, formatting hint
+- **15+ `!!` assertion removals**: Replaced with safe null handling (`?.`, `?:`, `let`, `return@`)
+- **4 WCAG touch target fixes**: Reply cancel button, edit cancel button (36dp→48dp MinTouchTarget)
+- **Files changed**: 15 files, 784 insertions, 173 deletions
+- **New utilities**: `TextUtils.kt` (firstGrapheme, parseFormattedText), `BuildInfo.kt` (centralized version)
+
 ### Implemented — UI/UX Remediation (Feb 2026)
 - **Design system tokens**: `MuhabbetSemanticColors` (statusOnline, statusRead, callDecline, callAccept, callMissed), `MuhabbetSpacing` (XSmall→XXLarge), `MuhabbetSizes` (touch targets, icons) — all via `CompositionLocalProvider`
 - **Accessibility (P0 fixes)**: 28+ contentDescription fixes across MessageInputPane, ChatScreen, CallScreens, ConversationList, GroupInfo, SharedMedia, Settings, StarredMessages, NewConversation; 12 new localized string resources (TR+EN)

@@ -1,0 +1,142 @@
+-- Cached conversations for offline-first display
+CREATE TABLE cachedConversation (
+    id TEXT NOT NULL PRIMARY KEY,
+    type TEXT NOT NULL,
+    name TEXT,
+    avatarUrl TEXT,
+    lastMessagePreview TEXT,
+    lastMessageAt TEXT,
+    unreadCount INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    disappearAfterSeconds INTEGER,
+    isPinned INTEGER NOT NULL DEFAULT 0,
+    participantsJson TEXT NOT NULL DEFAULT '[]',
+    updatedAt TEXT NOT NULL
+);
+
+CREATE INDEX idx_conv_updated ON cachedConversation(updatedAt);
+CREATE INDEX idx_conv_pinned ON cachedConversation(isPinned);
+
+-- Cached messages for offline viewing
+CREATE TABLE cachedMessage (
+    id TEXT NOT NULL PRIMARY KEY,
+    conversationId TEXT NOT NULL,
+    senderId TEXT NOT NULL,
+    contentType TEXT NOT NULL,
+    content TEXT NOT NULL,
+    replyToId TEXT,
+    mediaUrl TEXT,
+    thumbnailUrl TEXT,
+    status TEXT NOT NULL DEFAULT 'SENDING',
+    serverTimestamp TEXT,
+    clientTimestamp TEXT NOT NULL,
+    editedAt TEXT,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    forwardedFrom TEXT,
+    reactionsJson TEXT NOT NULL DEFAULT '{}',
+    myReactionsJson TEXT NOT NULL DEFAULT '[]',
+    senderName TEXT,
+    senderAvatarUrl TEXT
+);
+
+CREATE INDEX idx_msg_conv ON cachedMessage(conversationId, clientTimestamp);
+CREATE INDEX idx_msg_status ON cachedMessage(status);
+
+-- Pending messages queued while offline
+CREATE TABLE pendingMessage (
+    id TEXT NOT NULL PRIMARY KEY,
+    conversationId TEXT NOT NULL,
+    contentType TEXT NOT NULL,
+    content TEXT NOT NULL,
+    replyToId TEXT,
+    mediaUrl TEXT,
+    clientTimestamp TEXT NOT NULL,
+    retryCount INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL
+);
+
+CREATE INDEX idx_pending_created ON pendingMessage(createdAt);
+
+-- getConversations: all conversations ordered by pinned first, then updatedAt
+getConversations:
+SELECT * FROM cachedConversation
+ORDER BY isPinned DESC, updatedAt DESC;
+
+-- getConversationById
+getConversationById:
+SELECT * FROM cachedConversation
+WHERE id = ?;
+
+-- upsertConversation
+upsertConversation:
+INSERT OR REPLACE INTO cachedConversation(id, type, name, avatarUrl, lastMessagePreview, lastMessageAt, unreadCount, createdAt, disappearAfterSeconds, isPinned, participantsJson, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- deleteConversation
+deleteConversation:
+DELETE FROM cachedConversation WHERE id = ?;
+
+-- clearConversations
+clearConversations:
+DELETE FROM cachedConversation;
+
+-- getMessages: messages for a conversation ordered by timestamp
+getMessages:
+SELECT * FROM cachedMessage
+WHERE conversationId = ?
+ORDER BY clientTimestamp ASC;
+
+-- getMessagesByPage: paginated messages for a conversation
+getMessagesByPage:
+SELECT * FROM cachedMessage
+WHERE conversationId = ?
+ORDER BY clientTimestamp DESC
+LIMIT ?;
+
+-- getMessageById
+getMessageById:
+SELECT * FROM cachedMessage
+WHERE id = ?;
+
+-- upsertMessage
+upsertMessage:
+INSERT OR REPLACE INTO cachedMessage(id, conversationId, senderId, contentType, content, replyToId, mediaUrl, thumbnailUrl, status, serverTimestamp, clientTimestamp, editedAt, isDeleted, forwardedFrom, reactionsJson, myReactionsJson, senderName, senderAvatarUrl)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- updateMessageStatus
+updateMessageStatus:
+UPDATE cachedMessage SET status = ? WHERE id = ?;
+
+-- deleteMessage
+deleteMessage:
+DELETE FROM cachedMessage WHERE id = ?;
+
+-- deleteMessagesForConversation
+deleteMessagesForConversation:
+DELETE FROM cachedMessage WHERE conversationId = ?;
+
+-- clearMessages
+clearMessages:
+DELETE FROM cachedMessage;
+
+-- getPendingMessages: all pending messages in order
+getPendingMessages:
+SELECT * FROM pendingMessage
+ORDER BY createdAt ASC;
+
+-- insertPendingMessage
+insertPendingMessage:
+INSERT OR REPLACE INTO pendingMessage(id, conversationId, contentType, content, replyToId, mediaUrl, clientTimestamp, retryCount, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- deletePendingMessage
+deletePendingMessage:
+DELETE FROM pendingMessage WHERE id = ?;
+
+-- clearPendingMessages
+clearPendingMessages:
+DELETE FROM pendingMessage;
+
+-- incrementRetryCount
+incrementRetryCount:
+UPDATE pendingMessage SET retryCount = retryCount + 1 WHERE id = ?;

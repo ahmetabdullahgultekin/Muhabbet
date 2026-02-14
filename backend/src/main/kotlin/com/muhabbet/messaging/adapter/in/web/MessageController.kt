@@ -80,6 +80,28 @@ class MessageController(
         )
     }
 
+    @GetMapping("/messages/since")
+    fun getMessagesSince(
+        @RequestParam timestamp: String
+    ): ResponseEntity<ApiResponse<PaginatedResponse<SharedMessage>>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val since = try {
+            java.time.Instant.parse(timestamp)
+        } catch (_: Exception) {
+            throw BusinessException(ErrorCode.MSG_INVALID_CURSOR)
+        }
+
+        val messages = getMessageHistoryUseCase.getMessagesSince(userId, since)
+        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
+        val items = messages.map { msg ->
+            msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
+        }
+
+        return ApiResponseBuilder.ok(
+            PaginatedResponse(items = items, nextCursor = null, hasMore = false)
+        )
+    }
+
     @GetMapping("/messages/{messageId}/info")
     fun getMessageInfo(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<MessageInfoResponse>> {
         val userId = AuthenticatedUser.currentUserId()

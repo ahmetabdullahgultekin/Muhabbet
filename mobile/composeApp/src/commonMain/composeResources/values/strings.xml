@@ -20,6 +20,9 @@
     <string name="voice_pause">Duraklat</string>
     <string name="voice_record">Kaydet</string>
     <string name="voice_stop">Durdur</string>
+    <string name="voice_transcribe">Yazıya Dönüştür</string>
+    <string name="voice_transcribing">Yazıya dönüştürülüyor…</string>
+    <string name="voice_transcript_failed">Yazıya dönüştürme başarısız</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -315,4 +318,119 @@
     <!-- Accessibility -->
     <string name="action_back">Geri</string>
     <string name="chat_disappearing">Kaybolan mesajlar</string>
+
+    <!-- Context Menu — Copy -->
+    <string name="chat_context_copy">Kopyala</string>
+    <string name="chat_copied">Mesaj kopyalandı</string>
+
+    <!-- Block / Report -->
+    <string name="profile_block">Engelle</string>
+    <string name="profile_unblock">Engeli Kaldır</string>
+    <string name="profile_report">Şikayet Et</string>
+    <string name="profile_block_confirm">Bu kişiyi engellemek istediğinize emin misiniz?</string>
+    <string name="profile_block_success">Kullanıcı engellendi</string>
+    <string name="profile_unblock_success">Engel kaldırıldı</string>
+    <string name="profile_report_confirm">Bu kişiyi şikayet etmek istediğinize emin misiniz?</string>
+    <string name="profile_report_success">Şikayet gönderildi</string>
+    <string name="profile_report_reason_placeholder">Şikayet nedeni (isteğe bağlı)</string>
+
+    <!-- Privacy Settings -->
+    <string name="settings_privacy_section">Gizlilik</string>
+    <string name="settings_privacy_last_seen">Son görülme</string>
+    <string name="settings_privacy_read_receipts">Okundu bilgisi</string>
+    <string name="settings_privacy_read_receipts_subtitle">Okundu bilgisini kapatırsanız diğerlerinin bilgisini de göremezsiniz</string>
+
+    <!-- Notification Settings -->
+    <string name="settings_notifications_section">Bildirimler</string>
+    <string name="settings_notifications_enabled">Bildirimleri Etkinleştir</string>
+    <string name="settings_notifications_sound">Bildirim Sesi</string>
+    <string name="settings_notifications_vibrate">Titreşim</string>
+
+    <!-- Chat Settings -->
+    <string name="settings_chat_section">Sohbet</string>
+    <string name="settings_chat_enter_to_send">Enter ile gönder</string>
+    <string name="settings_chat_font_size">Yazı boyutu</string>
+    <string name="settings_font_small">Küçük</string>
+    <string name="settings_font_medium">Orta</string>
+    <string name="settings_font_large">Büyük</string>
+
+    <!-- Account -->
+    <string name="settings_account_section">Hesap</string>
+    <string name="settings_account_phone">Telefon numarası</string>
+    <string name="settings_account_delete">Hesabı Sil</string>
+    <string name="settings_account_delete_confirm">Hesabınız ve tüm verileriniz kalıcı olarak silinecektir. Bu işlem geri alınamaz.</string>
+    <string name="settings_account_export">Verilerimi İndir</string>
+
+    <!-- Archive / Mute -->
+    <string name="conv_archive">Arşivle</string>
+    <string name="conv_unarchive">Arşivden Çıkar</string>
+    <string name="conv_mute">Sessize Al</string>
+    <string name="conv_unmute">Sesi Aç</string>
+    <string name="conv_archived_section">Arşivlenmiş Sohbetler</string>
+
+    <!-- Group enhancements -->
+    <string name="group_remove_confirm">%1$s adlı kişiyi gruptan çıkarmak istediğinize emin misiniz?</string>
+    <string name="group_add_members">Üye Ekle</string>
+    <string name="group_promote_admin">Yönetici Yap</string>
+    <string name="group_demote_admin">Yöneticilikten Al</string>
+    <string name="group_search_members">Üye ara...</string>
+
+    <!-- Camera -->
+    <string name="attach_camera">Kamera</string>
+
+    <!-- Language change -->
+    <string name="settings_language_change_title">Dil Değiştir</string>
+    <string name="settings_language_change_confirm">Dil değişikliğini uygulamak için uygulama yeniden başlatılacaktır.</string>
+
+    <!-- Encryption -->
+    <string name="profile_encrypted">Mesajlar uçtan uca şifrelidir</string>
+
+    <!-- Channels filter -->
+    <string name="filter_channels">Kanallar</string>
+
+    <!-- Message formatting hint -->
+    <string name="chat_format_hint">*kalın* _italik_ ~üstü çizili~ `kod`</string>
+
+    <!-- Delivery status content descriptions -->
+    <string name="status_sending">Gönderiliyor</string>
+    <string name="status_sent">Gönderildi</string>
+    <string name="status_delivered">İletildi</string>
+    <string name="status_read">Okundu</string>
+
+    <!-- Call screen -->
+    <string name="call_switch_camera">Kamerayı Değiştir</string>
+
+    <!-- Privacy Dashboard (KVKK) -->
+    <string name="privacy_dashboard_title">Gizlilik ve Veri</string>
+    <string name="privacy_data_section">Verilerim</string>
+    <string name="privacy_export_data">Verilerimi İndir</string>
+    <string name="privacy_export_data_desc">Tüm kişisel verilerinizin bir kopyasını indirin (KVKK Madde 11)</string>
+    <string name="privacy_export_started">Veri dışa aktarma başlatıldı</string>
+    <string name="privacy_export_failed">Veri dışa aktarma başlatılamadı</string>
+    <string name="privacy_delete_account">Hesabımı Sil</string>
+    <string name="privacy_delete_account_desc">Hesabınız ve tüm verileriniz kalıcı olarak silinir</string>
+    <string name="privacy_delete_confirm_title">Hesabı Sil</string>
+    <string name="privacy_delete_confirm_message">Bu işlem geri alınamaz. Tüm mesajlarınız, medya dosyalarınız ve kişisel verileriniz kalıcı olarak silinecektir.</string>
+    <string name="privacy_delete_success">Hesap silme isteği alındı</string>
+    <string name="privacy_visibility_section">Görünürlük</string>
+    <string name="privacy_last_seen">Son Görülme</string>
+    <string name="privacy_last_seen_desc">Son görülme bilginizi kimler görebilir</string>
+    <string name="privacy_profile_photo">Profil Fotoğrafı</string>
+    <string name="privacy_profile_photo_desc">Profil fotoğrafınızı kimler görebilir</string>
+    <string name="privacy_about">Hakkımda Bilgisi</string>
+    <string name="privacy_about_desc">Hakkımda bilginizi kimler görebilir</string>
+    <string name="privacy_visibility_everyone">Herkes</string>
+    <string name="privacy_visibility_contacts">Kişilerim</string>
+    <string name="privacy_visibility_nobody">Hiç kimse</string>
+    <string name="privacy_security_section">Güvenlik</string>
+    <string name="privacy_e2e_info">Tüm mesajlar uçtan uca şifrelenir. Mesajlarınızı yalnızca siz ve karşı taraf okuyabilir.</string>
+    <string name="privacy_blocked_contacts">Engellenen Kişiler</string>
+    <string name="privacy_blocked_contacts_desc">Engellediğiniz kişileri yönetin</string>
+    <string name="privacy_kvkk_section">KVKK Hakları</string>
+    <string name="privacy_kvkk_info">6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamındaki haklarınız</string>
+    <string name="privacy_kvkk_right_access">Verilerinize erişim hakkı</string>
+    <string name="privacy_kvkk_right_rectification">Yanlış verilerin düzeltilmesini isteme hakkı</string>
+    <string name="privacy_kvkk_right_erasure">Verilerinizin silinmesini isteme hakkı</string>
+    <string name="privacy_kvkk_right_portability">Veri taşınabilirliği hakkı</string>
+    <string name="privacy_open_dashboard">Gizlilik ve Veri</string>
 </resources>

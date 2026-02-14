@@ -4,13 +4,18 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.muhabbet.app.crypto.PersistentSignalProtocolStore
 import com.muhabbet.app.crypto.SignalEncryption
 import com.muhabbet.app.crypto.SignalKeyManager
+import com.muhabbet.app.data.local.DatabaseDriverFactory
+import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AndroidContactsProvider
 import com.muhabbet.app.platform.AndroidPushTokenProvider
+import com.muhabbet.app.platform.BackgroundSyncManager
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.PushTokenProvider
+import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.shared.port.E2EKeyManager
 import com.muhabbet.shared.port.EncryptionPort
 import org.koin.core.module.Module
@@ -18,9 +23,14 @@ import org.koin.dsl.module
 
 fun androidPlatformModule(context: Context): Module = module {
     single<TokenStorage> { AndroidTokenStorage(context) }
+    single { DatabaseDriverFactory(context) }
+    single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { AndroidContactsProvider(context) }
     single<PushTokenProvider> { AndroidPushTokenProvider() }
-    single<E2EKeyManager> { SignalKeyManager() }
+    single { BackgroundSyncManager(context) }
+    single { SpeechTranscriber(context) }
+    single { PersistentSignalProtocolStore(context) }
+    single<E2EKeyManager> { SignalKeyManager(store = get()) }
     single<EncryptionPort> { SignalEncryption(keyManager = get()) }
 }
 
@@ -66,5 +76,11 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
 
     override fun setTheme(theme: String) {
         plainPrefs.edit().putString("app_theme", theme).apply()
+    }
+
+    override fun getLastSyncTimestamp(): String? = plainPrefs.getString("last_sync_timestamp", null)
+
+    override fun setLastSyncTimestamp(timestamp: String) {
+        plainPrefs.edit().putString("last_sync_timestamp", timestamp).apply()
     }
 }

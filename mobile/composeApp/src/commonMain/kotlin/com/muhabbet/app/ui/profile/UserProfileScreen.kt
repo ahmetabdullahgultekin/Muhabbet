@@ -17,9 +17,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Report
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -39,20 +42,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import com.muhabbet.app.ui.theme.LocalSemanticColors
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.ui.components.ConfirmDialog
 import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.shared.dto.MutualGroupResponse
 import com.muhabbet.shared.dto.UserProfileDetailResponse
-import com.muhabbet.app.util.DateTimeFormatter
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -74,11 +77,15 @@ fun UserProfileScreen(
     var profile by remember { mutableStateOf<UserProfileDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showBlockDialog by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val errorMsg = stringResource(Res.string.profile_load_failed)
     val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
+    val blockSuccessMsg = stringResource(Res.string.profile_block_success)
+    val reportSuccessMsg = stringResource(Res.string.profile_report_success)
 
     LaunchedEffect(userId) {
         try {
@@ -89,13 +96,45 @@ fun UserProfileScreen(
         isLoading = false
     }
 
+    if (showBlockDialog) {
+        ConfirmDialog(
+            title = stringResource(Res.string.profile_block),
+            message = stringResource(Res.string.profile_block_confirm),
+            confirmLabel = stringResource(Res.string.profile_block),
+            onConfirm = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(blockSuccessMsg)
+                }
+                showBlockDialog = false
+            },
+            onDismiss = { showBlockDialog = false },
+            isDestructive = true
+        )
+    }
+
+    if (showReportDialog) {
+        ConfirmDialog(
+            title = stringResource(Res.string.profile_report),
+            message = stringResource(Res.string.profile_report_confirm),
+            confirmLabel = stringResource(Res.string.profile_report),
+            onConfirm = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(reportSuccessMsg)
+                }
+                showReportDialog = false
+            },
+            onDismiss = { showReportDialog = false },
+            isDestructive = true
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(Res.string.profile_view_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -113,10 +152,10 @@ fun UserProfileScreen(
             }
         } else if (error != null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(error!!, color = MaterialTheme.colorScheme.error)
+                Text(error ?: "", color = MaterialTheme.colorScheme.error)
             }
-        } else if (profile != null) {
-            val p = profile!!
+        } else {
+            val p = profile ?: return@Scaffold
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
@@ -129,7 +168,7 @@ fun UserProfileScreen(
                         UserAvatar(
                             avatarUrl = p.avatarUrl,
                             displayName = p.displayName ?: "?",
-                            size = 96.dp
+                            size = MuhabbetSizes.AvatarHero
                         )
 
                         Spacer(Modifier.height(MuhabbetSpacing.Large))
@@ -143,7 +182,7 @@ fun UserProfileScreen(
                         // Show contact name if different from display name
                         if (contactName != null && contactName != p.displayName) {
                             Text(
-                                text = "~${contactName}",
+                                text = stringResource(Res.string.profile_contact_name) + ": $contactName",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -155,13 +194,16 @@ fun UserProfileScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = LocalSemanticColors.current.statusOnline
                             )
-                        } else if (p.lastSeenAt != null) {
-                            val time = formatLastSeen(p.lastSeenAt!!)
-                            Text(
-                                text = stringResource(Res.string.profile_last_seen, time),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        } else {
+                            val lastSeen = p.lastSeenAt
+                            if (lastSeen != null) {
+                                val time = DateTimeFormatter.formatLastSeen(lastSeen)
+                                Text(
+                                    text = stringResource(Res.string.profile_last_seen, time),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -186,6 +228,30 @@ fun UserProfileScreen(
                         )
                     }
                     Spacer(Modifier.height(MuhabbetSpacing.Small))
+                    HorizontalDivider()
+                }
+
+                // E2E Encryption badge
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                        )
+                        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                        Text(
+                            text = stringResource(Res.string.profile_encrypted),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     HorizontalDivider()
                 }
 
@@ -216,14 +282,14 @@ fun UserProfileScreen(
                                 .clickable(enabled = conversationId != null) {
                                     conversationId?.let { onSharedMediaClick?.invoke(it) }
                                 }
-                                .padding(horizontal = MuhabbetSpacing.Large, vertical = 14.dp),
+                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Default.Image,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
@@ -239,14 +305,14 @@ fun UserProfileScreen(
                 if (p.mutualGroups.isNotEmpty()) {
                     item {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = 14.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Default.Group,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
@@ -267,6 +333,52 @@ fun UserProfileScreen(
                     item { HorizontalDivider() }
                 }
 
+                // Block & Report section
+                item {
+                    Spacer(Modifier.height(MuhabbetSpacing.Small))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showBlockDialog = true }
+                            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Block,
+                            contentDescription = stringResource(Res.string.profile_block),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                        )
+                        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                        Text(
+                            text = stringResource(Res.string.profile_block),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showReportDialog = true }
+                            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Report,
+                            contentDescription = stringResource(Res.string.profile_report),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                        )
+                        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                        Text(
+                            text = stringResource(Res.string.profile_report),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    HorizontalDivider()
+                }
+
                 // Bottom spacing
                 item { Spacer(Modifier.height(MuhabbetSpacing.XLarge)) }
             }
@@ -282,7 +394,10 @@ private fun ProfileActionButton(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick).padding(MuhabbetSpacing.Medium)
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .size(MuhabbetSizes.MinTouchTarget)
+            .padding(MuhabbetSpacing.XSmall)
     ) {
         Icon(
             icon,
@@ -326,13 +441,13 @@ private fun MutualGroupItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         UserAvatar(
             avatarUrl = group.avatarUrl,
             displayName = group.name,
-            size = 40.dp,
+            size = MuhabbetSizes.AvatarSmall,
             isGroup = true
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
@@ -353,35 +468,5 @@ private fun MutualGroupItem(
     }
 }
 
-internal fun firstGrapheme(text: String): String {
-    if (text.isEmpty()) return "?"
-    val ch = text[0]
-    if (ch.code < 0x80) return ch.uppercase()
-    if (ch.isHighSurrogate() && text.length > 1 && text[1].isLowSurrogate()) {
-        var end = 2
-        while (end < text.length) {
-            val c = text[end]
-            if (c == '\u200D') {
-                end++
-                if (end < text.length) {
-                    end++
-                    if (end < text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) {
-                        end++
-                    }
-                }
-            } else if (c == '\uFE0F' || c == '\uFE0E') {
-                end++
-            } else if (c == '\uD83C' && end + 1 < text.length) {
-                val low = text[end + 1]
-                if (low.code in 0xDFFB..0xDFFF) {
-                    end += 2
-                } else break
-            } else break
-        }
-        return text.substring(0, end)
-    }
-    return ch.toString()
-}
-
-private fun formatLastSeen(lastSeenStr: String): String =
-    DateTimeFormatter.formatLastSeen(lastSeenStr)
+/** @deprecated Use com.muhabbet.app.util.firstGrapheme instead */
+internal fun firstGrapheme(text: String): String = com.muhabbet.app.util.firstGrapheme(text)

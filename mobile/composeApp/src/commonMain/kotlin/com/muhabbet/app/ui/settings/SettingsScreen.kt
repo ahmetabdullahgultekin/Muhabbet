@@ -56,10 +56,9 @@ import androidx.compose.material3.RadioButton
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
-import com.muhabbet.app.data.repository.MediaRepository
+import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
-import com.muhabbet.app.platform.compressImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
 import com.muhabbet.app.ui.components.UserAvatar
@@ -79,8 +78,9 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onStarredMessages: () -> Unit = {},
+    onPrivacyDashboard: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
-    mediaRepository: MediaRepository = koinInject(),
+    mediaUploadHelper: MediaUploadHelper = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
     var displayName by remember { mutableStateOf("") }
@@ -106,10 +106,8 @@ fun SettingsScreen(
         scope.launch {
             isUploadingPhoto = true
             try {
-                val compressed = compressImage(picked.bytes)
-                val uploadResponse = mediaRepository.uploadImage(
-                    bytes = compressed,
-                    mimeType = "image/jpeg",
+                val uploadResponse = mediaUploadHelper.uploadProfilePhoto(
+                    bytes = picked.bytes,
                     fileName = picked.fileName
                 )
                 authRepository.updateProfile(avatarUrl = uploadResponse.url)
@@ -303,7 +301,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 Text(
-                    text = "${stringResource(Res.string.settings_version)}: 0.1.0",
+                    text = "${stringResource(Res.string.settings_version)}: ${com.muhabbet.app.BuildInfo.VERSION}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
@@ -362,7 +360,7 @@ fun SettingsScreen(
                         )
                     }
                 } else if (storageUsage != null) {
-                    val usage = storageUsage!!
+                    val usage = storageUsage ?: return@item
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         tonalElevation = MuhabbetElevation.Level1,
@@ -494,7 +492,7 @@ fun SettingsScreen(
                                 tokenStorage.setTheme(key)
                                 restartApp()
                             }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = MuhabbetSpacing.Small),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                     ) {
@@ -509,6 +507,136 @@ fun SettingsScreen(
                         Text(text = label, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
+
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+                // Privacy Dashboard link
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onPrivacyDashboard() },
+                    tonalElevation = MuhabbetElevation.Level1,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = stringResource(Res.string.privacy_open_dashboard),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.privacy_open_dashboard),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+                // Privacy section
+                Text(
+                    text = stringResource(Res.string.settings_privacy_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+
+                var readReceiptsEnabled by remember { mutableStateOf(true) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(Res.string.settings_privacy_read_receipts),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = readReceiptsEnabled,
+                        onCheckedChange = { readReceiptsEnabled = it }
+                    )
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+                // Notifications section
+                Text(
+                    text = stringResource(Res.string.settings_notifications_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+
+                var notificationsEnabled by remember { mutableStateOf(true) }
+                var vibrationEnabled by remember { mutableStateOf(true) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(Res.string.settings_notifications_enabled),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    androidx.compose.material3.Switch(
+                        checked = notificationsEnabled,
+                        onCheckedChange = { notificationsEnabled = it }
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(Res.string.settings_notifications_vibrate),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    androidx.compose.material3.Switch(
+                        checked = vibrationEnabled,
+                        onCheckedChange = { vibrationEnabled = it }
+                    )
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+                // Account section
+                Text(
+                    text = stringResource(Res.string.settings_account_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+
+                val phoneNumber = remember { tokenStorage.getUserId() ?: "" }
+                Text(
+                    text = "${stringResource(Res.string.settings_account_phone)}: $phoneNumber",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()

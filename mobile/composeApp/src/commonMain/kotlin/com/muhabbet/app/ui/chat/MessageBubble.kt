@@ -44,11 +44,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
@@ -64,6 +69,7 @@ fun MessageBubble(
     repliedMessage: Message? = null,
     isStarred: Boolean = false,
     showContextMenu: Boolean = false,
+    senderName: String? = null,
     onLongPress: () -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onDismissMenu: () -> Unit = {},
@@ -74,8 +80,10 @@ fun MessageBubble(
     onDelete: () -> Unit = {},
     onImageClick: (String) -> Unit = {},
     onReactionToggle: (String) -> Unit = {},
-    onInfo: () -> Unit = {}
+    onInfo: () -> Unit = {},
+    onCopy: () -> Unit = {}
 ) {
+    val clipboardManager = LocalClipboardManager.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
@@ -93,7 +101,7 @@ fun MessageBubble(
                 tonalElevation = if (isOwn) MuhabbetElevation.None else MuhabbetElevation.Level1,
                 shadowElevation = MuhabbetElevation.Level1,
                 modifier = Modifier
-                    .widthIn(min = 80.dp, max = 300.dp)
+                    .widthIn(min = MuhabbetSizes.BubbleMinWidth, max = 320.dp)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongPress,
@@ -101,6 +109,15 @@ fun MessageBubble(
                     )
             ) {
                 Column(modifier = Modifier.padding(MuhabbetSpacing.XSmall)) {
+                    // Sender name for group messages
+                    if (senderName != null && !isOwn) {
+                        Text(
+                            text = senderName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp)
+                        )
+                    }
                     // Quoted reply
                     if (repliedMessage != null) {
                         Surface(
@@ -164,7 +181,7 @@ fun MessageBubble(
                         // Voice
                         if (message.contentType == ContentType.VOICE && message.mediaUrl != null) {
                             VoiceBubble(
-                                mediaUrl = message.mediaUrl!!,
+                                mediaUrl = message.mediaUrl ?: return@Column,
                                 durationSeconds = null,
                                 isOwn = isOwn,
                                 audioPlayer = audioPlayer,
@@ -214,8 +231,8 @@ fun MessageBubble(
                         if (message.contentType == ContentType.STICKER && message.mediaUrl != null) {
                             AsyncImage(
                                 model = message.mediaUrl,
-                                contentDescription = null,
-                                modifier = Modifier.size(150.dp).padding(MuhabbetSpacing.XSmall)
+                                contentDescription = stringResource(Res.string.attach_sticker),
+                                modifier = Modifier.size(MuhabbetSizes.StickerSize).padding(MuhabbetSpacing.XSmall)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Fit
                             )
@@ -310,7 +327,13 @@ fun MessageBubble(
                                 MessageStatus.DELIVERED -> Icons.Default.DoneAll to MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                                 MessageStatus.READ -> Icons.Default.DoneAll to MaterialTheme.colorScheme.tertiary
                             }
-                            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = tint)
+                            val statusDesc = when (message.status) {
+                                MessageStatus.SENDING -> stringResource(Res.string.status_sending)
+                                MessageStatus.SENT -> stringResource(Res.string.status_sent)
+                                MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
+                                MessageStatus.READ -> stringResource(Res.string.status_read)
+                            }
+                            Icon(icon, contentDescription = statusDesc, modifier = Modifier.size(14.dp), tint = tint)
                         }
                     }
 
@@ -328,6 +351,17 @@ fun MessageBubble(
 
             // Context menu
             DropdownMenu(expanded = showContextMenu, onDismissRequest = onDismissMenu) {
+                // Copy — the most fundamental message action
+                if (message.contentType == ContentType.TEXT && !message.isDeleted) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.chat_context_copy)) },
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            onCopy()
+                        },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = stringResource(Res.string.chat_context_copy), modifier = Modifier.size(20.dp)) }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_reply)) },
                     onClick = onReply,

@@ -6,6 +6,7 @@ import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaRepository
+import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.app.data.repository.ChannelRepository
@@ -17,11 +18,12 @@ import org.koin.dsl.module
 
 fun appModule(): Module = module {
     single { ApiClient(tokenStorage = get()) }
-    single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }) }
+    single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }, localCache = get()) }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
-    single { ConversationRepository(apiClient = get()) }
-    single { MessageRepository(apiClient = get()) }
+    single { ConversationRepository(apiClient = get(), localCache = get()) }
+    single { MessageRepository(apiClient = get(), localCache = get()) }
     single { MediaRepository(apiClient = get()) }
+    single { MediaUploadHelper(mediaRepository = get()) }
     single { GroupRepository(apiClient = get()) }
     single { StatusRepository(apiClient = get()) }
     single { ChannelRepository(apiClient = get()) }

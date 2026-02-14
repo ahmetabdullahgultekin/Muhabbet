@@ -71,7 +71,19 @@ muhabbet/
 ### Calling & Encryption (Infrastructure Ready)
 - Call UI screens: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen
 - Call signaling infrastructure (WebSocket-based, LiveKit adapter ready)
-- E2E encryption key exchange endpoints + client infrastructure (ready for Signal Protocol)
+- E2E encryption key exchange endpoints + client infrastructure (Signal Protocol on Android)
+
+### Offline & Resilience (In Progress)
+- SQLDelight local cache for conversations and messages
+- Offline message queue with automatic drain on reconnect
+- WebSocket connection resilience with exponential backoff + jitter
+- Background message sync (WorkManager / BGAppRefreshTask)
+- Persistent E2E key storage (EncryptedSharedPreferences / Keychain)
+
+### Privacy & Compliance
+- KVKK Privacy Dashboard (data export, account deletion, privacy controls)
+- Media compression pipeline (images, audio, video pre-upload)
+- Voice message transcription (Turkish ASR)
 
 ### Growth & Moderation
 - Content moderation: Report/block system (BTK Law 5651 compliance)
@@ -84,7 +96,7 @@ muhabbet/
 - Input sanitization: HTML escaping, control char stripping, URL validation
 - WebSocket rate limiting: 50 msg/10s per-connection sliding window
 - CI/CD: GitHub Actions (backend CI, mobile CI, security scanning, deployment)
-- 251 tests (201 backend + 23 mobile + 27 shared)
+- 364+ tests (314 backend + 23 mobile + 27 shared)
 - Security scanning: Trivy vulnerability scanning, Gitleaks secret detection, CodeQL static analysis
 - Redis Pub/Sub for horizontal WebSocket scaling
 

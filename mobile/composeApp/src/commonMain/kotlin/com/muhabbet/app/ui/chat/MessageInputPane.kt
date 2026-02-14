@@ -17,6 +17,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
@@ -82,7 +85,7 @@ fun ReplyPreviewBar(
                     maxLines = 1
                 )
             }
-            IconButton(onClick = onCancel, modifier = Modifier.size(24.dp)) {
+            IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.app.ui.theme.MuhabbetSizes.MinTouchTarget)) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(16.dp))
             }
         }
@@ -115,7 +118,7 @@ fun EditModeBar(
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = onCancel, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.app.ui.theme.MuhabbetSizes.MinTouchTarget)) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
             }
         }
@@ -134,7 +137,8 @@ fun MessageInputBar(
     onFilePick: () -> Unit,
     onPollCreate: () -> Unit,
     onLocationShare: () -> Unit,
-    onGifPick: () -> Unit = {}
+    onGifPick: () -> Unit = {},
+    onCameraPick: () -> Unit = {}
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
 
@@ -143,6 +147,18 @@ fun MessageInputBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Emoji button (opens system keyboard emoji)
+            IconButton(
+                onClick = onGifPick,
+                enabled = !isUploading && !isEditing
+            ) {
+                Icon(
+                    imageVector = Icons.Default.EmojiEmotions,
+                    contentDescription = stringResource(Res.string.attach_sticker),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             // Attach button with menu
             Box {
                 IconButton(
@@ -186,7 +202,12 @@ fun MessageInputBar(
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_gif)) },
                         onClick = { showAttachMenu = false; onGifPick() },
-                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = stringResource(Res.string.attach_gif), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.Gif, contentDescription = stringResource(Res.string.attach_gif), modifier = Modifier.size(20.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.attach_camera)) },
+                        onClick = { showAttachMenu = false; onCameraPick() },
+                        leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = stringResource(Res.string.attach_camera), modifier = Modifier.size(20.dp)) }
                     )
                 }
             }

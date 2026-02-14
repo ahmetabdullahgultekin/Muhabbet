@@ -39,8 +39,10 @@ class MessagePersistenceAdapter(
     }
 
     override fun findUndeliveredForUser(userId: UUID, since: Instant?): List<Message> {
-        // This will be used by WebSocket reconnect — implemented when WS is added
-        return emptyList()
+        val sinceTime = since ?: Instant.now().minusSeconds(7 * 24 * 3600) // default: last 7 days
+        val pageable = PageRequest.of(0, 500) // cap at 500 messages per sync
+        return messageRepo.findMessagesSince(userId, sinceTime, pageable)
+            .map { it.toDomain() }
     }
 
     override fun saveDeliveryStatus(status: MessageDeliveryStatus) {

@@ -80,6 +80,15 @@ class AuthRepository(
         apiClient.put<Unit>("/api/v1/devices/push-token", RegisterPushTokenRequest(pushToken = token))
     }
 
+    suspend fun exportData() {
+        apiClient.get<Unit>("/api/v1/users/data/export")
+    }
+
+    suspend fun deleteAccount() {
+        apiClient.delete<Unit>("/api/v1/users/data/account")
+        tokenStorage.clear()
+    }
+
     fun logout() {
         tokenStorage.clear()
     }

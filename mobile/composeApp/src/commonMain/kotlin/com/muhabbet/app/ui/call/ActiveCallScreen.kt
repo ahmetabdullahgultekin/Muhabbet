@@ -80,10 +80,10 @@ fun ActiveCallScreen(
     else
         stringResource(Res.string.call_voice)
 
-    // Duration timer
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)
+    // Duration timer — scoped to callId so it cancels when navigation pops
+    LaunchedEffect(callId) {
+        while (kotlinx.coroutines.isActive) {
+            delay(com.muhabbet.app.ui.theme.MuhabbetDurations.CallTimerTickMs)
             callDurationSeconds++
         }
     }
