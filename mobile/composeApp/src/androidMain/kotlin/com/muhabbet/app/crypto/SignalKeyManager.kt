@@ -21,12 +21,11 @@ import java.util.Base64
  * - Double Ratchet session management
  * - AES-256-CBC + HMAC-SHA256 message encryption
  *
- * Key storage: In-memory for MVP. Sessions are lost on app restart.
- * Production: Persist via EncryptedSharedPreferences or SQLCipher.
+ * Key storage backed by PersistentSignalProtocolStore (EncryptedSharedPreferences).
+ * Keys survive app restarts and device reboots.
  */
-class SignalKeyManager : E2EKeyManager {
+class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKeyManager {
 
-    private val store = InMemorySignalProtocolStore()
     private val random = SecureRandom()
 
     override fun generateIdentityKeyPair(): String {

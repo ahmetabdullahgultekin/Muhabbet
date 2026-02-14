@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.muhabbet.app.crypto.PersistentSignalProtocolStore
 import com.muhabbet.app.crypto.SignalEncryption
 import com.muhabbet.app.crypto.SignalKeyManager
 import com.muhabbet.app.data.local.DatabaseDriverFactory
@@ -24,7 +25,8 @@ fun androidPlatformModule(context: Context): Module = module {
     single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { AndroidContactsProvider(context) }
     single<PushTokenProvider> { AndroidPushTokenProvider() }
-    single<E2EKeyManager> { SignalKeyManager() }
+    single { PersistentSignalProtocolStore(context) }
+    single<E2EKeyManager> { SignalKeyManager(store = get()) }
     single<EncryptionPort> { SignalEncryption(keyManager = get()) }
 }
 

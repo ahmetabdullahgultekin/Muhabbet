@@ -21,18 +21,22 @@ class E2ESetupService(
 ) {
 
     /**
-     * Generate keys and register with the server.
-     * Safe to call multiple times — server replaces existing bundle.
+     * Register keys with the server, generating only if not already persisted.
+     *
+     * If identity key already exists in persistent storage, reuses it
+     * and only re-registers the bundle with the server (idempotent).
+     * New keys are only generated on first run or after key wipe.
      */
     suspend fun registerKeys() {
         try {
-            // 1. Generate identity key pair
-            val identityKey = keyManager.generateIdentityKeyPair()
+            // 1. Reuse existing identity key or generate new one
+            val identityKey = keyManager.getIdentityPublicKey()
+                ?: keyManager.generateIdentityKeyPair()
 
-            // 2. Generate signed pre-key
+            // 2. Generate signed pre-key (rotated per session for forward secrecy)
             val (signedPreKeyId, signedPreKey) = keyManager.generateSignedPreKey()
 
-            // 3. Register key bundle on server
+            // 3. Register key bundle on server (idempotent — server replaces existing)
             encryptionRepository.registerKeyBundle(
                 identityKey = identityKey,
                 signedPreKey = signedPreKey,
