@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Compilation & Dependency Upgrades (Feb 15, 2026)
+- **Backend compilation fixes for Spring Boot 4.0.2**: Moved scheduled jobs from `domain/service/` to `adapter/in/scheduler/` (hexagonal compliance); added missing repository port methods; fixed Spring Boot 4.x API changes; updated all test mocks
+- **Mobile compilation fixes for Kotlin 2.3.10 + kotlinx-datetime 0.7.1**: Migrated `kotlinx.datetime.Clock` to `kotlin.time.Clock` (stdlib move) across 7 files; fixed Compose 1.10 animation imports; fixed Koin 4.1.1 API; fixed Compose Resources package
+- **Signal Protocol store fixes for libsignal-android 0.64.1**: Added Kyber pre-key methods; fixed JVM declaration clashes; fixed nullable `SenderKeyRecord`
+- **WsClient API fixes**: Fixed `SendMessage` constructor, `NewMessage.messageId` property, `CallEngine` Koin Context resolution
+- **Docker**: Updated to `eclipse-temurin:25-jdk-noble` / `25-jre-noble` (Java 25)
+- **Results**: 332/333 backend tests pass, mobile APK builds and installs successfully
+
+### Added — Monitoring & Load Testing (Feb 15, 2026)
+- **Prometheus + Grafana monitoring stack**: `infra/monitoring/` with pre-configured dashboards targeting Spring Boot Actuator metrics
+- **k6 load test scripts**: `infra/load-tests/http-endpoints.js` (REST) and `websocket-load.js` (WS)
+
 ### Added — Production Hardening (Feb 2026)
 - **SQLDelight offline caching**: `MuhabbetDatabase.sq` with `CachedConversation`, `CachedMessage`, `PendingMessage` tables; cache-first repository pattern in `ConversationRepository` and `MessageRepository`; platform drivers (Android `AndroidSqliteDriver`, iOS `NativeSqliteDriver`)
 - **WebSocket connection resilience**: `ConnectionState` StateFlow, exponential backoff with ±25% jitter, offline message queue via `PendingMessage` table, drain-on-reconnect, deduplication via LinkedHashSet (500 entries max), `sendOrQueue()` method

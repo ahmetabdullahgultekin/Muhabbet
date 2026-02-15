@@ -73,7 +73,7 @@ muhabbet/
 - Call signaling infrastructure (WebSocket-based, LiveKit adapter ready)
 - E2E encryption key exchange endpoints + client infrastructure (Signal Protocol on Android)
 
-### Offline & Resilience (In Progress)
+### Offline & Resilience
 - SQLDelight local cache for conversations and messages
 - Offline message queue with automatic drain on reconnect
 - WebSocket connection resilience with exponential backoff + jitter
@@ -128,7 +128,7 @@ muhabbet/
 ## Quick Start
 
 ### Prerequisites
-- JDK 21+
+- JDK 25+
 - Docker & Docker Compose
 - Android SDK (API 35) for mobile development
 - Kotlin 2.3.10+ (managed by Gradle wrapper)
