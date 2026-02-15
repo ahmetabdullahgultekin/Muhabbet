@@ -10,7 +10,7 @@
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Spring Boot 4.0.2 + Kotlin 2.3.10 (Java 25), PostgreSQL 16, Redis 7, MinIO |
+| **Backend** | Spring Boot 4.0.2 + Kotlin 2.3.10 (Java 21), PostgreSQL 16, Redis 7, MinIO |
 | **Mobile** | Compose Multiplatform (Android + iOS), Ktor 3.1.3, Koin, Decompose |
 | **Shared** | Kotlin Multiplatform (domain models, protocol, validation, DTOs) |
 | **Infra** | Docker Compose, Nginx, GitHub Actions CI/CD |
@@ -128,7 +128,7 @@ muhabbet/
 ## Quick Start
 
 ### Prerequisites
-- JDK 25+
+- JDK 21+
 - Docker & Docker Compose
 - Android SDK (API 35) for mobile development
 - Kotlin 2.3.10+ (managed by Gradle wrapper)
