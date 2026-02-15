@@ -1,0 +1,57 @@
+version: '3.9'
+
+# Monitoring stack — run alongside docker-compose.prod.yml
+# Usage: docker compose -f docker-compose.prod.yml -f monitoring/docker-compose.monitoring.yml up -d
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: muhabbet-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=5GB'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: muhabbet-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    restart: unless-stopped
+    networks:
+      - muhabbet-net
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  muhabbet-net:
+    external: true
+    name: infra_muhabbet-net

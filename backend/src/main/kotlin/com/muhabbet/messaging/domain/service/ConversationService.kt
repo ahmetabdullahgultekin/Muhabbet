@@ -34,6 +34,16 @@ open class ConversationService(
         participantIds: List<UUID>,
         name: String?
     ): ConversationWithMembers {
+        // Early validation for direct conversations
+        if (type == ConversationType.DIRECT) {
+            if (participantIds.size != 1) {
+                throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS, "Direct conversations require exactly 1 other participant")
+            }
+            if (participantIds[0] == creatorId) {
+                throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS, "Cannot create conversation with yourself")
+            }
+        }
+
         // Validate participants exist (batch query instead of N individual lookups)
         val allParticipantIds = (participantIds + creatorId).distinct()
         val existingUsers = userRepository.findAllByIds(allParticipantIds)
@@ -42,9 +52,6 @@ open class ConversationService(
         }
 
         if (type == ConversationType.DIRECT) {
-            if (participantIds.size != 1) {
-                throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS, "Direct conversations require exactly 1 other participant")
-            }
 
             // Check for existing direct conversation
             val (low, high) = sortUuids(creatorId, participantIds[0])

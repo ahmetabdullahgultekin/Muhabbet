@@ -27,4 +27,4 @@ muhabbet:
   otp:
     mock-enabled: ${OTP_MOCK_ENABLED:false}
   fcm:
-    enabled: ${FCM_ENABLED:false}
+    enabled: ${FCM_ENABLED:true}

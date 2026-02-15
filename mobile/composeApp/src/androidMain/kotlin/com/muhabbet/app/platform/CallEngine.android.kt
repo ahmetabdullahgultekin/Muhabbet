@@ -1,10 +1,12 @@
 package com.muhabbet.app.platform
 
+import android.content.Context
 import io.livekit.android.LiveKit
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.LocalAudioTrack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.koin.core.context.GlobalContext
 
 /**
  * Android CallEngine powered by LiveKit Android SDK.
@@ -18,8 +20,9 @@ actual class CallEngine actual constructor() {
 
     actual suspend fun connect(serverUrl: String, token: String) {
         withContext(Dispatchers.Main) {
+            val context = GlobalContext.get().get<Context>()
             val lkRoom = LiveKit.create(
-                appContext = LiveKit.appContext,
+                appContext = context,
             )
             lkRoom.connect(serverUrl, token)
             room = lkRoom

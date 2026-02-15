@@ -8,7 +8,7 @@ import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MemberRole
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

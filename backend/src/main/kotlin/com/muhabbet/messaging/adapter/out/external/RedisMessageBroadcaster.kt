@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.external
 
+import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
@@ -34,6 +35,7 @@ import java.util.UUID
 class RedisMessageBroadcaster(
     private val sessionManager: WebSocketSessionManager,
     private val pushNotificationPort: PushNotificationPort,
+    private val deviceRepository: DeviceRepository,
     private val redisTemplate: StringRedisTemplate
 ) : MessageBroadcaster {
 
@@ -79,15 +81,18 @@ class RedisMessageBroadcaster(
 
                 // Also send push notification for offline users
                 try {
-                    pushNotificationPort.sendPushNotification(
-                        userId = recipientId,
-                        title = "Yeni mesaj",
-                        body = message.content.take(100),
-                        data = mapOf(
-                            "conversationId" to message.conversationId.toString(),
-                            "messageId" to message.id.toString()
+                    val devices = deviceRepository.findByUserId(recipientId)
+                    devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
+                        pushNotificationPort.sendPush(
+                            pushToken = device.pushToken!!,
+                            title = "Yeni mesaj",
+                            body = message.content.take(100),
+                            data = mapOf(
+                                "conversationId" to message.conversationId.toString(),
+                                "messageId" to message.id.toString()
+                            )
                         )
-                    )
+                    }
                 } catch (e: Exception) {
                     log.warn("Push notification failed for userId={}: {}", recipientId, e.message)
                 }

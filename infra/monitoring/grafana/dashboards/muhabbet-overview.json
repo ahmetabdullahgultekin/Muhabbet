@@ -1,0 +1,141 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "JVM Heap Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{area=\"heap\",app=\"muhabbet\"}",
+          "legendFormat": "{{id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{app=\"muhabbet\"}[5m])",
+          "legendFormat": "{{method}} {{uri}} ({{status}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "HTTP Request Duration (P95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{app=\"muhabbet\"}[5m]))",
+          "legendFormat": "{{method}} {{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Active WebSocket Sessions",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "websocket_sessions_active{app=\"muhabbet\"}",
+          "legendFormat": "Active Sessions"
+        }
+      ]
+    },
+    {
+      "title": "JVM Threads",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "jvm_threads_live_threads{app=\"muhabbet\"}",
+          "legendFormat": "Live Threads"
+        }
+      ]
+    },
+    {
+      "title": "Database Connection Pool",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{app=\"muhabbet\"}",
+          "legendFormat": "Active"
+        },
+        {
+          "expr": "hikaricp_connections_idle{app=\"muhabbet\"}",
+          "legendFormat": "Idle"
+        },
+        {
+          "expr": "hikaricp_connections_max{app=\"muhabbet\"}",
+          "legendFormat": "Max"
+        }
+      ]
+    },
+    {
+      "title": "GC Pause Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(jvm_gc_pause_seconds_sum{app=\"muhabbet\"}[5m])",
+          "legendFormat": "{{cause}} ({{action}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "HTTP Error Rate (4xx + 5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{app=\"muhabbet\",status=~\"4..|5..\"}[5m]))",
+          "legendFormat": "Errors/sec"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "Process CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        {
+          "expr": "process_cpu_usage{app=\"muhabbet\"}",
+          "legendFormat": "CPU Usage"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["muhabbet", "backend"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Muhabbet Backend Overview",
+  "uid": "muhabbet-overview"
+}

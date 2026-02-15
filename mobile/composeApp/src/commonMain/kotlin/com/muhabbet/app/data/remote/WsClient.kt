@@ -11,6 +11,7 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -200,7 +201,7 @@ class WsClient(
                     content = sendMessage.content,
                     replyToId = sendMessage.replyToId,
                     mediaUrl = sendMessage.mediaUrl,
-                    clientTimestamp = sendMessage.clientTimestamp.toString()
+                    clientTimestamp = Clock.System.now().toString()
                 )
             )
             Log.d(TAG, "Queued pending message: ${sendMessage.requestId}")
@@ -233,7 +234,7 @@ class WsClient(
                     replyToId = msg.replyToId,
                     mediaUrl = msg.mediaUrl,
                     requestId = msg.id,
-                    clientTimestamp = kotlinx.datetime.Instant.parse(msg.clientTimestamp)
+                    messageId = msg.id
                 )
                 val json = wsJson.encodeToString<WsMessage>(wsMessage)
                 session?.outgoing?.send(Frame.Text(json))
@@ -251,7 +252,7 @@ class WsClient(
 
     private fun extractMessageId(message: WsMessage): String? {
         return when (message) {
-            is WsMessage.NewMessage -> message.message.id
+            is WsMessage.NewMessage -> message.messageId
             is WsMessage.ServerAck -> message.requestId
             is WsMessage.StatusUpdate -> "${message.messageId}_${message.status}"
             is WsMessage.MessageDeleted -> message.messageId

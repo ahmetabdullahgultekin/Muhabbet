@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing

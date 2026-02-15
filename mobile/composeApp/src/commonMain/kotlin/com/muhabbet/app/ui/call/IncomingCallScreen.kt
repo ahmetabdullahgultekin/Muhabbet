@@ -35,12 +35,12 @@ import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.launch
-import muhabbet.mobile.composeapp.generated.resources.Res
-import muhabbet.mobile.composeapp.generated.resources.call_accept
-import muhabbet.mobile.composeapp.generated.resources.call_decline
-import muhabbet.mobile.composeapp.generated.resources.call_ringing
-import muhabbet.mobile.composeapp.generated.resources.call_video
-import muhabbet.mobile.composeapp.generated.resources.call_voice
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.call_accept
+import com.muhabbet.composeapp.generated.resources.call_decline
+import com.muhabbet.composeapp.generated.resources.call_ringing
+import com.muhabbet.composeapp.generated.resources.call_video
+import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
