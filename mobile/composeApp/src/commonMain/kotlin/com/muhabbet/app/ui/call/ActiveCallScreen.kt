@@ -43,14 +43,14 @@ import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import muhabbet.mobile.composeapp.generated.resources.Res
-import muhabbet.mobile.composeapp.generated.resources.call_connected
-import muhabbet.mobile.composeapp.generated.resources.call_end
-import muhabbet.mobile.composeapp.generated.resources.call_mute
-import muhabbet.mobile.composeapp.generated.resources.call_speaker
-import muhabbet.mobile.composeapp.generated.resources.call_unmute
-import muhabbet.mobile.composeapp.generated.resources.call_video
-import muhabbet.mobile.composeapp.generated.resources.call_voice
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.call_connected
+import com.muhabbet.composeapp.generated.resources.call_end
+import com.muhabbet.composeapp.generated.resources.call_mute
+import com.muhabbet.composeapp.generated.resources.call_speaker
+import com.muhabbet.composeapp.generated.resources.call_unmute
+import com.muhabbet.composeapp.generated.resources.call_video
+import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -82,7 +82,7 @@ fun ActiveCallScreen(
 
     // Duration timer — scoped to callId so it cancels when navigation pops
     LaunchedEffect(callId) {
-        while (kotlinx.coroutines.isActive) {
+        while (true) {
             delay(com.muhabbet.app.ui.theme.MuhabbetDurations.CallTimerTickMs)
             callDurationSeconds++
         }

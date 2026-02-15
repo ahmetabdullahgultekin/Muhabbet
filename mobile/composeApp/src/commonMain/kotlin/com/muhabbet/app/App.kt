@@ -32,7 +32,7 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         }.koin
     }
 
-    KoinContext(context = koin) {
+    KoinContext(koin = koin) {
         MuhabbetTheme {
             val tokenStorage: TokenStorage = koinInject()
             val root = remember { RootComponent(componentContext, tokenStorage) }

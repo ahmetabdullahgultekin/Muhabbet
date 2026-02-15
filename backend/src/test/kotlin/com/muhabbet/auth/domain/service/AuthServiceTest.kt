@@ -125,7 +125,7 @@ class AuthServiceTest {
 
     @Test
     fun `should return AuthResult when OTP is correct and new user`() = runBlocking {
-        val otpHash = passwordEncoder.encode(validOtp)
+        val otpHash = passwordEncoder.encode(validOtp) ?: ""
         val activeOtp = OtpRequest(
             phoneNumber = validPhone,
             otpHash = otpHash,
@@ -165,7 +165,7 @@ class AuthServiceTest {
 
     @Test
     fun `should throw AUTH_OTP_INVALID when wrong OTP`() {
-        val otpHash = passwordEncoder.encode("999999")
+        val otpHash = passwordEncoder.encode("999999") ?: ""
         val activeOtp = OtpRequest(
             phoneNumber = validPhone,
             otpHash = otpHash,

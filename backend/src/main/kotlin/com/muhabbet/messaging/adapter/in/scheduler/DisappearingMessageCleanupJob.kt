@@ -1,4 +1,4 @@
-package com.muhabbet.messaging.domain.service
+package com.muhabbet.messaging.adapter.`in`.scheduler
 
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageRepository
 import org.slf4j.LoggerFactory

@@ -6,7 +6,6 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
-import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.context.ApplicationEventPublisher
 import java.time.Instant
 import java.util.UUID
 
@@ -35,8 +33,8 @@ class ConversationServiceTest {
     private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
-    private lateinit var eventPublisher: ApplicationEventPublisher
-    private lateinit var messagingService: MessagingService
+    private lateinit var conversationService: ConversationService
+    private lateinit var messageService: MessageService
 
     private val userA = UUID.randomUUID()
     private val userB = UUID.randomUUID()
@@ -48,24 +46,25 @@ class ConversationServiceTest {
         messageRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
-        eventPublisher = mockk(relaxed = true)
 
-        messagingService = MessagingService(
+        conversationService = ConversationService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            userRepository = userRepository,
-            messageBroadcaster = messageBroadcaster,
-            eventPublisher = eventPublisher
+            userRepository = userRepository
+        )
+
+        messageService = MessageService(
+            conversationRepository = conversationRepository,
+            messageRepository = messageRepository,
+            messageBroadcaster = messageBroadcaster
         )
     }
 
     private fun stubUserExists(vararg ids: UUID) {
-        ids.forEach { id ->
-            every { userRepository.findById(id) } returns User(
-                id = id, phoneNumber = "+905321234567",
-                status = UserStatus.ACTIVE
-            )
+        val users = ids.map { id ->
+            User(id = id, phoneNumber = "+905321234567", status = UserStatus.ACTIVE)
         }
+        every { userRepository.findAllByIds(any()) } returns users
     }
 
     // ─── createConversation (additional edge cases) ──────────
@@ -76,17 +75,16 @@ class ConversationServiceTest {
         @Test
         fun `should create group with max members at limit`() {
             val participantIds = (0 until 255).map { UUID.randomUUID() } // 255 + creator = 256 = MAX
-            val allIds = participantIds + userA
+            val allIds = (participantIds + userA).distinct()
 
-            allIds.forEach { id ->
-                every { userRepository.findById(id) } returns User(
-                    id = id, phoneNumber = "+905321234567", status = UserStatus.ACTIVE
-                )
+            val users = allIds.map { id ->
+                User(id = id, phoneNumber = "+905321234567", status = UserStatus.ACTIVE)
             }
+            every { userRepository.findAllByIds(any()) } returns users
             every { conversationRepository.save(any()) } answers { firstArg() }
             every { conversationRepository.saveMember(any()) } answers { firstArg() }
 
-            val result = messagingService.createConversation(
+            val result = conversationService.createConversation(
                 type = ConversationType.GROUP,
                 creatorId = userA,
                 participantIds = participantIds,
@@ -100,16 +98,15 @@ class ConversationServiceTest {
         @Test
         fun `should throw CONV_MAX_MEMBERS when group exceeds max members`() {
             val participantIds = (0 until 256).map { UUID.randomUUID() } // 256 + creator = 257 > MAX
-            val allIds = participantIds + userA
+            val allIds = (participantIds + userA).distinct()
 
-            allIds.forEach { id ->
-                every { userRepository.findById(id) } returns User(
-                    id = id, phoneNumber = "+905321234567", status = UserStatus.ACTIVE
-                )
+            val users = allIds.map { id ->
+                User(id = id, phoneNumber = "+905321234567", status = UserStatus.ACTIVE)
             }
+            every { userRepository.findAllByIds(any()) } returns users
 
             val ex = assertThrows<BusinessException> {
-                messagingService.createConversation(
+                conversationService.createConversation(
                     type = ConversationType.GROUP,
                     creatorId = userA,
                     participantIds = participantIds,
@@ -126,7 +123,7 @@ class ConversationServiceTest {
             every { conversationRepository.saveMember(any()) } answers { firstArg() }
 
             // Creator also in participant list
-            val result = messagingService.createConversation(
+            val result = conversationService.createConversation(
                 type = ConversationType.GROUP,
                 creatorId = userA,
                 participantIds = listOf(userA, userB),
@@ -142,7 +139,7 @@ class ConversationServiceTest {
             stubUserExists(userA, userB)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.createConversation(
+                conversationService.createConversation(
                     type = ConversationType.GROUP,
                     creatorId = userA,
                     participantIds = listOf(userB),
@@ -159,7 +156,7 @@ class ConversationServiceTest {
             val longName = "A".repeat(129)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.createConversation(
+                conversationService.createConversation(
                     type = ConversationType.GROUP,
                     creatorId = userA,
                     participantIds = listOf(userB),
@@ -177,7 +174,7 @@ class ConversationServiceTest {
 
             val maxName = "A".repeat(128)
 
-            val result = messagingService.createConversation(
+            val result = conversationService.createConversation(
                 type = ConversationType.GROUP,
                 creatorId = userA,
                 participantIds = listOf(userB),
@@ -189,16 +186,29 @@ class ConversationServiceTest {
 
         @Test
         fun `should not create direct conversation when self-messaging`() {
-            stubUserExists(userA)
-
             val ex = assertThrows<BusinessException> {
-                messagingService.createConversation(
+                conversationService.createConversation(
                     type = ConversationType.DIRECT,
                     creatorId = userA,
                     participantIds = listOf(userA)
                 )
             }
-            // After dedup, participantIds becomes empty => size != 1
+            assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)
+        }
+
+        @Test
+        fun `should throw CONV_INVALID_PARTICIPANTS when participant does not exist`() {
+            // Mock findAllByIds to return only userA (not userB) => size mismatch
+            val users = listOf(User(id = userA, phoneNumber = "+905321234567", status = UserStatus.ACTIVE))
+            every { userRepository.findAllByIds(any()) } returns users
+
+            val ex = assertThrows<BusinessException> {
+                conversationService.createConversation(
+                    type = ConversationType.DIRECT,
+                    creatorId = userA,
+                    participantIds = listOf(userB)
+                )
+            }
             assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)
         }
     }
@@ -212,7 +222,7 @@ class ConversationServiceTest {
         fun `should return empty list when user has no conversations`() {
             every { conversationRepository.findConversationsByUserId(userA) } returns emptyList()
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(0, page.items.size)
             assertFalse(page.hasMore)
@@ -230,23 +240,29 @@ class ConversationServiceTest {
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv1, conv2)
 
-            // conv2 has more recent message
-            every { messageRepository.getLastMessage(conv1Id) } returns Message(
-                id = UUID.randomUUID(), conversationId = conv1Id, senderId = userB,
-                content = "Older msg", serverTimestamp = now.minusSeconds(3600),
-                clientTimestamp = now
+            // Batch: conv2 has more recent message
+            every { messageRepository.getLastMessages(any()) } returns mapOf(
+                conv1Id to Message(
+                    id = UUID.randomUUID(), conversationId = conv1Id, senderId = userB,
+                    content = "Older msg", serverTimestamp = now.minusSeconds(3600),
+                    clientTimestamp = now
+                ),
+                conv2Id to Message(
+                    id = UUID.randomUUID(), conversationId = conv2Id, senderId = userC,
+                    content = "Newer msg", serverTimestamp = now.minusSeconds(60),
+                    clientTimestamp = now
+                )
             )
-            every { messageRepository.getLastMessage(conv2Id) } returns Message(
-                id = UUID.randomUUID(), conversationId = conv2Id, senderId = userC,
-                content = "Newer msg", serverTimestamp = now.minusSeconds(60),
-                clientTimestamp = now
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(
+                conv1Id to 0,
+                conv2Id to 0
             )
-            every { messageRepository.getUnreadCount(any(), eq(userA)) } returns 0
-            every { conversationRepository.findMembersByConversationId(any()) } returns listOf(
-                ConversationMember(conversationId = conv1Id, userId = userA)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                conv1Id to listOf(ConversationMember(conversationId = conv1Id, userId = userA)),
+                conv2Id to listOf(ConversationMember(conversationId = conv2Id, userId = userA))
             )
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(2, page.items.size)
             assertEquals("Newer msg", page.items[0].lastMessagePreview)
@@ -260,17 +276,23 @@ class ConversationServiceTest {
             val conv1 = Conversation(id = conv1Id, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv1)
-            every { messageRepository.getLastMessage(conv1Id) } returns Message(
-                id = UUID.randomUUID(), conversationId = conv1Id, senderId = userB,
-                content = "Hello", serverTimestamp = now, clientTimestamp = now
+            every { messageRepository.getLastMessages(any()) } returns mapOf(
+                conv1Id to Message(
+                    id = UUID.randomUUID(), conversationId = conv1Id, senderId = userB,
+                    content = "Hello", serverTimestamp = now, clientTimestamp = now
+                )
             )
-            every { messageRepository.getUnreadCount(conv1Id, userA) } returns 7
-            every { conversationRepository.findMembersByConversationId(conv1Id) } returns listOf(
-                ConversationMember(conversationId = conv1Id, userId = userA),
-                ConversationMember(conversationId = conv1Id, userId = userB)
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(
+                conv1Id to 7
+            )
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                conv1Id to listOf(
+                    ConversationMember(conversationId = conv1Id, userId = userA),
+                    ConversationMember(conversationId = conv1Id, userId = userB)
+                )
             )
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(7, page.items[0].unreadCount)
         }
@@ -278,25 +300,30 @@ class ConversationServiceTest {
         @Test
         fun `should paginate conversations when has more than limit`() {
             val now = Instant.now()
-            val conversations = (0 until 5).map { i ->
+            val conversations = (0 until 5).map {
                 Conversation(id = UUID.randomUUID(), type = ConversationType.DIRECT)
             }
 
             every { conversationRepository.findConversationsByUserId(userA) } returns conversations
 
-            conversations.forEachIndexed { i, conv ->
-                every { messageRepository.getLastMessage(conv.id) } returns Message(
+            val lastMessages = conversations.mapIndexed { i, conv ->
+                conv.id to Message(
                     id = UUID.randomUUID(), conversationId = conv.id, senderId = userB,
                     content = "msg $i", serverTimestamp = now.minusSeconds(i.toLong()),
                     clientTimestamp = now
                 )
-                every { messageRepository.getUnreadCount(conv.id, userA) } returns 0
-                every { conversationRepository.findMembersByConversationId(conv.id) } returns listOf(
-                    ConversationMember(conversationId = conv.id, userId = userA)
-                )
-            }
+            }.toMap()
+            every { messageRepository.getLastMessages(any()) } returns lastMessages
 
-            val page = messagingService.getConversations(userA, null, 3)
+            val unreadCounts = conversations.associate { it.id to 0 }
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns unreadCounts
+
+            val membersMap = conversations.associate { conv ->
+                conv.id to listOf(ConversationMember(conversationId = conv.id, userId = userA))
+            }
+            every { conversationRepository.findMembersByConversationIds(any()) } returns membersMap
+
+            val page = conversationService.getConversations(userA, null, 3)
 
             assertEquals(3, page.items.size)
             assertTrue(page.hasMore)
@@ -312,19 +339,24 @@ class ConversationServiceTest {
 
             every { conversationRepository.findConversationsByUserId(userA) } returns conversations
 
-            conversations.forEachIndexed { i, conv ->
-                every { messageRepository.getLastMessage(conv.id) } returns Message(
+            val lastMessages = conversations.mapIndexed { i, conv ->
+                conv.id to Message(
                     id = UUID.randomUUID(), conversationId = conv.id, senderId = userB,
                     content = "msg $i", serverTimestamp = now.minusSeconds(i.toLong()),
                     clientTimestamp = now
                 )
-                every { messageRepository.getUnreadCount(conv.id, userA) } returns 0
-                every { conversationRepository.findMembersByConversationId(conv.id) } returns listOf(
-                    ConversationMember(conversationId = conv.id, userId = userA)
-                )
-            }
+            }.toMap()
+            every { messageRepository.getLastMessages(any()) } returns lastMessages
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val unreadCounts = conversations.associate { it.id to 0 }
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns unreadCounts
+
+            val membersMap = conversations.associate { conv ->
+                conv.id to listOf(ConversationMember(conversationId = conv.id, userId = userA))
+            }
+            every { conversationRepository.findMembersByConversationIds(any()) } returns membersMap
+
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(2, page.items.size)
             assertFalse(page.hasMore)
@@ -339,16 +371,18 @@ class ConversationServiceTest {
             val longMessage = "A".repeat(200)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessage(convId) } returns Message(
-                id = UUID.randomUUID(), conversationId = convId, senderId = userB,
-                content = longMessage, serverTimestamp = now, clientTimestamp = now
+            every { messageRepository.getLastMessages(any()) } returns mapOf(
+                convId to Message(
+                    id = UUID.randomUUID(), conversationId = convId, senderId = userB,
+                    content = longMessage, serverTimestamp = now, clientTimestamp = now
+                )
             )
-            every { messageRepository.getUnreadCount(convId, userA) } returns 0
-            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
-                ConversationMember(conversationId = convId, userId = userA)
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(ConversationMember(conversationId = convId, userId = userA))
             )
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(100, page.items[0].lastMessagePreview?.length)
         }
@@ -359,14 +393,16 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessage(convId) } returns null
-            every { messageRepository.getUnreadCount(convId, userA) } returns 0
-            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
-                ConversationMember(conversationId = convId, userId = userA),
-                ConversationMember(conversationId = convId, userId = userB)
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    ConversationMember(conversationId = convId, userId = userA),
+                    ConversationMember(conversationId = convId, userId = userB)
+                )
             )
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(1, page.items.size)
             assertNull(page.items[0].lastMessagePreview)
@@ -378,8 +414,8 @@ class ConversationServiceTest {
             every { conversationRepository.findConversationsByUserId(userA) } returns emptyList()
 
             // Limit of 0 should be coerced to 1, limit of 100 to 50
-            val page1 = messagingService.getConversations(userA, null, 0)
-            val page2 = messagingService.getConversations(userA, null, 100)
+            val page1 = conversationService.getConversations(userA, null, 0)
+            val page2 = conversationService.getConversations(userA, null, 100)
 
             // Both should work without error
             assertEquals(0, page1.items.size)
@@ -393,21 +429,48 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessage(convId) } returns Message(
-                id = UUID.randomUUID(), conversationId = convId, senderId = userB,
-                content = "Hi", serverTimestamp = now, clientTimestamp = now
+            every { messageRepository.getLastMessages(any()) } returns mapOf(
+                convId to Message(
+                    id = UUID.randomUUID(), conversationId = convId, senderId = userB,
+                    content = "Hi", serverTimestamp = now, clientTimestamp = now
+                )
             )
-            every { messageRepository.getUnreadCount(convId, userA) } returns 0
-            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
-                ConversationMember(conversationId = convId, userId = userA),
-                ConversationMember(conversationId = convId, userId = userB)
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    ConversationMember(conversationId = convId, userId = userA),
+                    ConversationMember(conversationId = convId, userId = userB)
+                )
             )
 
-            val page = messagingService.getConversations(userA, null, 20)
+            val page = conversationService.getConversations(userA, null, 20)
 
             assertEquals(2, page.items[0].participantIds.size)
             assertTrue(page.items[0].participantIds.contains(userA))
             assertTrue(page.items[0].participantIds.contains(userB))
+        }
+
+        @Test
+        fun `should return type as lowercase string`() {
+            val convId = UUID.randomUUID()
+            val now = Instant.now()
+            val conv = Conversation(id = convId, type = ConversationType.DIRECT)
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
+            every { messageRepository.getLastMessages(any()) } returns mapOf(
+                convId to Message(
+                    id = UUID.randomUUID(), conversationId = convId, senderId = userB,
+                    content = "Hi", serverTimestamp = now, clientTimestamp = now
+                )
+            )
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(ConversationMember(conversationId = convId, userId = userA))
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertEquals("direct", page.items[0].type)
         }
     }
 
@@ -431,7 +494,7 @@ class ConversationServiceTest {
                 ConversationMember(conversationId = convId, userId = userB)
             )
 
-            messagingService.deleteMessage(messageId, userA)
+            messageService.deleteMessage(messageId, userA)
 
             verify { messageRepository.softDelete(messageId) }
             verify { messageBroadcaster.broadcastToUsers(any(), any()) }
@@ -444,7 +507,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.deleteMessage(messageId, userA)
+                messageService.deleteMessage(messageId, userA)
             }
             assertEquals(ErrorCode.MSG_NOT_FOUND, ex.errorCode)
         }
@@ -460,7 +523,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns message
 
             val ex = assertThrows<BusinessException> {
-                messagingService.deleteMessage(messageId, userA)
+                messageService.deleteMessage(messageId, userA)
             }
             assertEquals(ErrorCode.MSG_NOT_SENDER, ex.errorCode)
         }
@@ -477,7 +540,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns message
 
             val ex = assertThrows<BusinessException> {
-                messagingService.deleteMessage(messageId, userA)
+                messageService.deleteMessage(messageId, userA)
             }
             assertEquals(ErrorCode.MSG_ALREADY_DELETED, ex.errorCode)
         }
@@ -504,7 +567,7 @@ class ConversationServiceTest {
                 ConversationMember(conversationId = convId, userId = userB)
             )
 
-            val result = messagingService.editMessage(messageId, userA, "edited content")
+            val result = messageService.editMessage(messageId, userA, "edited content")
 
             assertEquals("edited content", result.content)
             assertNotNull(result.editedAt)
@@ -519,7 +582,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.editMessage(messageId, userA, "new content")
+                messageService.editMessage(messageId, userA, "new content")
             }
             assertEquals(ErrorCode.MSG_NOT_FOUND, ex.errorCode)
         }
@@ -536,7 +599,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns message
 
             val ex = assertThrows<BusinessException> {
-                messagingService.editMessage(messageId, userA, "hacked content")
+                messageService.editMessage(messageId, userA, "hacked content")
             }
             assertEquals(ErrorCode.MSG_NOT_SENDER, ex.errorCode)
         }
@@ -554,7 +617,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns message
 
             val ex = assertThrows<BusinessException> {
-                messagingService.editMessage(messageId, userA, "new content")
+                messageService.editMessage(messageId, userA, "new content")
             }
             assertEquals(ErrorCode.MSG_ALREADY_DELETED, ex.errorCode)
         }
@@ -571,7 +634,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns message
 
             val ex = assertThrows<BusinessException> {
-                messagingService.editMessage(messageId, userA, "too late")
+                messageService.editMessage(messageId, userA, "too late")
             }
             assertEquals(ErrorCode.MSG_EDIT_WINDOW_EXPIRED, ex.errorCode)
         }
@@ -588,7 +651,7 @@ class ConversationServiceTest {
             every { messageRepository.findById(messageId) } returns message
 
             val ex = assertThrows<BusinessException> {
-                messagingService.editMessage(messageId, userA, "   ")
+                messageService.editMessage(messageId, userA, "   ")
             }
             assertEquals(ErrorCode.MSG_EMPTY_CONTENT, ex.errorCode)
         }
@@ -607,7 +670,7 @@ class ConversationServiceTest {
             val longContent = "A".repeat(10_001)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.editMessage(messageId, userA, longContent)
+                messageService.editMessage(messageId, userA, longContent)
             }
             assertEquals(ErrorCode.MSG_CONTENT_TOO_LONG, ex.errorCode)
         }
@@ -628,7 +691,7 @@ class ConversationServiceTest {
             )
 
             // At exactly 15 minutes, the Duration.toMinutes() returns 15 which is NOT > 15
-            val result = messagingService.editMessage(messageId, userA, "just in time")
+            val result = messageService.editMessage(messageId, userA, "just in time")
 
             assertEquals("just in time", result.content)
         }

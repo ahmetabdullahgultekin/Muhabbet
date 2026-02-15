@@ -6,13 +6,16 @@ import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtClaims
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
+import com.muhabbet.shared.security.WebSocketRateLimiter
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -40,6 +43,9 @@ class ChatWebSocketHandlerTest {
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var presencePort: PresencePort
     private lateinit var userRepository: UserRepository
+    private lateinit var callSignalingService: CallSignalingService
+    private lateinit var callRoomProvider: CallRoomProvider
+    private lateinit var webSocketRateLimiter: WebSocketRateLimiter
     private lateinit var handler: ChatWebSocketHandler
 
     private val userId = UUID.randomUUID()
@@ -61,6 +67,12 @@ class ChatWebSocketHandlerTest {
         conversationRepository = mockk(relaxed = true)
         presencePort = mockk(relaxed = true)
         userRepository = mockk(relaxed = true)
+        callSignalingService = mockk(relaxed = true)
+        callRoomProvider = mockk(relaxed = true)
+        webSocketRateLimiter = mockk(relaxed = true)
+
+        // Rate limiter always allows in tests
+        every { webSocketRateLimiter.allowMessage(any()) } returns true
 
         handler = ChatWebSocketHandler(
             jwtProvider = jwtProvider,
@@ -69,7 +81,10 @@ class ChatWebSocketHandlerTest {
             updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
             conversationRepository = conversationRepository,
             presencePort = presencePort,
-            userRepository = userRepository
+            userRepository = userRepository,
+            callSignalingService = callSignalingService,
+            callRoomProvider = callRoomProvider,
+            webSocketRateLimiter = webSocketRateLimiter
         )
     }
 
@@ -209,7 +224,7 @@ class ChatWebSocketHandlerTest {
             )
 
             val json = wsJson.encodeToString<WsMessage>(sendMessage)
-            handler.handleTextMessage(session, TextMessage(json))
+            handler.handleMessage(session, TextMessage(json))
 
             val messageSlot = slot<TextMessage>()
             verify { session.sendMessage(capture(messageSlot)) }
@@ -235,7 +250,7 @@ class ChatWebSocketHandlerTest {
             every { sendMessageUseCase.sendMessage(any()) } throws RuntimeException("DB down")
 
             val json = wsJson.encodeToString<WsMessage>(sendMessage)
-            handler.handleTextMessage(session, TextMessage(json))
+            handler.handleMessage(session, TextMessage(json))
 
             val messageSlot = slot<TextMessage>()
             verify { session.sendMessage(capture(messageSlot)) }
@@ -250,7 +265,7 @@ class ChatWebSocketHandlerTest {
             val attrs = mutableMapOf<String, Any>("userId" to userId)
             every { session.attributes } returns attrs
 
-            handler.handleTextMessage(session, TextMessage("{invalid json"))
+            handler.handleMessage(session, TextMessage("{invalid json"))
 
             val messageSlot = slot<TextMessage>()
             verify { session.sendMessage(capture(messageSlot)) }
@@ -273,7 +288,7 @@ class ChatWebSocketHandlerTest {
             )
 
             val json = wsJson.encodeToString<WsMessage>(sendMessage)
-            handler.handleTextMessage(session, TextMessage(json))
+            handler.handleMessage(session, TextMessage(json))
 
             // Should not process the message at all
             verify(exactly = 0) { sendMessageUseCase.sendMessage(any()) }
@@ -286,7 +301,7 @@ class ChatWebSocketHandlerTest {
             every { session.attributes } returns attrs
 
             val pingJson = wsJson.encodeToString<WsMessage>(WsMessage.Ping)
-            handler.handleTextMessage(session, TextMessage(pingJson))
+            handler.handleMessage(session, TextMessage(pingJson))
 
             val messageSlot = slot<TextMessage>()
             verify { session.sendMessage(capture(messageSlot)) }
@@ -303,7 +318,7 @@ class ChatWebSocketHandlerTest {
             every { session.attributes } returns attrs
 
             val goOnlineJson = wsJson.encodeToString<WsMessage>(WsMessage.GoOnline)
-            handler.handleTextMessage(session, TextMessage(goOnlineJson))
+            handler.handleMessage(session, TextMessage(goOnlineJson))
 
             verify { presencePort.setOnline(userId) }
         }
@@ -328,7 +343,7 @@ class ChatWebSocketHandlerTest {
                 isTyping = true
             )
             val json = wsJson.encodeToString<WsMessage>(typing)
-            handler.handleTextMessage(session, TextMessage(json))
+            handler.handleMessage(session, TextMessage(json))
 
             verify { sessionManager.sendToUser(otherUserId, any()) }
             // Should NOT send to the sender
@@ -355,7 +370,7 @@ class ChatWebSocketHandlerTest {
                 isTyping = true
             )
             val json = wsJson.encodeToString<WsMessage>(typing)
-            handler.handleTextMessage(session, TextMessage(json))
+            handler.handleMessage(session, TextMessage(json))
 
             verify(exactly = 0) { sessionManager.sendToUser(offlineUserId, any()) }
         }

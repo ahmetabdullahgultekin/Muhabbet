@@ -51,7 +51,7 @@ data class FormattedSegment(
 )
 
 private val URL_REGEX = Regex(
-    """(https?://[^\s<>"\])+)""",
+    """(https?://[^\s<>"]+)""",
     RegexOption.IGNORE_CASE
 )
 

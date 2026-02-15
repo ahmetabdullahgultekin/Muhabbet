@@ -47,10 +47,8 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 5000
 
-  # Jackson
+  # Jackson (Jackson 3.x in Spring Boot 4.x — dates are ISO-8601 by default)
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
     default-property-inclusion: non_null
 
   # Servlet

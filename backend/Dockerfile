@@ -1,5 +1,5 @@
 # ─── Stage 1: Build ────────────────────────
-FROM eclipse-temurin:25-jdk-noble AS builder
+FROM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ COPY backend/src backend/src
 RUN ./gradlew :backend:bootJar --no-daemon -x test
 
 # ─── Stage 2: Runtime ─────────────────────
-FROM eclipse-temurin:25-jre-noble
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 

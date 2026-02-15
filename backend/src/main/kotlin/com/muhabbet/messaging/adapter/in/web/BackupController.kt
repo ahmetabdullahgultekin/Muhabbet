@@ -4,7 +4,6 @@ import com.muhabbet.messaging.domain.port.`in`.ManageBackupUseCase
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 
 @RestController
@@ -14,26 +13,23 @@ class BackupController(
 ) {
 
     @PostMapping
-    fun createBackup(
-        @AuthenticationPrincipal user: AuthenticatedUser
-    ): ResponseEntity<*> {
-        val backup = manageBackupUseCase.createBackup(user.userId)
+    fun createBackup(): ResponseEntity<*> {
+        val userId = AuthenticatedUser.currentUserId()
+        val backup = manageBackupUseCase.createBackup(userId)
         return ApiResponseBuilder.ok(backup)
     }
 
     @GetMapping("/latest")
-    fun getLatestBackup(
-        @AuthenticationPrincipal user: AuthenticatedUser
-    ): ResponseEntity<*> {
-        val backup = manageBackupUseCase.getLatestBackup(user.userId)
+    fun getLatestBackup(): ResponseEntity<*> {
+        val userId = AuthenticatedUser.currentUserId()
+        val backup = manageBackupUseCase.getLatestBackup(userId)
         return ApiResponseBuilder.ok(backup)
     }
 
     @GetMapping
-    fun listBackups(
-        @AuthenticationPrincipal user: AuthenticatedUser
-    ): ResponseEntity<*> {
-        val backups = manageBackupUseCase.listBackups(user.userId)
+    fun listBackups(): ResponseEntity<*> {
+        val userId = AuthenticatedUser.currentUserId()
+        val backups = manageBackupUseCase.listBackups(userId)
         return ApiResponseBuilder.ok(backups)
     }
 }

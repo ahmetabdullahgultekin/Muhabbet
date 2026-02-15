@@ -22,6 +22,7 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 fun androidPlatformModule(context: Context): Module = module {
+    single<Context> { context }
     single<TokenStorage> { AndroidTokenStorage(context) }
     single { DatabaseDriverFactory(context) }
     single { LocalCache(driverFactory = get()) }

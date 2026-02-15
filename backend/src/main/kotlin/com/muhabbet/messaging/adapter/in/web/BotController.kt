@@ -5,7 +5,6 @@ import com.muhabbet.messaging.domain.port.`in`.ManageBotUseCase
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
@@ -17,12 +16,12 @@ class BotController(
 
     @PostMapping
     fun createBot(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestBody request: CreateBotRequest
     ): ResponseEntity<*> {
+        val userId = AuthenticatedUser.currentUserId()
         val bot = manageBotUseCase.createBot(
             CreateBotCommand(
-                ownerId = user.userId,
+                ownerId = userId,
                 name = request.name,
                 description = request.description,
                 webhookUrl = request.webhookUrl,
@@ -40,10 +39,9 @@ class BotController(
     }
 
     @GetMapping
-    fun listMyBots(
-        @AuthenticationPrincipal user: AuthenticatedUser
-    ): ResponseEntity<*> {
-        val bots = manageBotUseCase.listBotsByOwner(user.userId)
+    fun listMyBots(): ResponseEntity<*> {
+        val userId = AuthenticatedUser.currentUserId()
+        val bots = manageBotUseCase.listBotsByOwner(userId)
         return ApiResponseBuilder.ok(bots.map { bot ->
             mapOf(
                 "botId" to bot.id.toString(),
@@ -58,7 +56,6 @@ class BotController(
 
     @GetMapping("/{botId}")
     fun getBot(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable botId: String
     ): ResponseEntity<*> {
         val bot = manageBotUseCase.getBot(UUID.fromString(botId))
@@ -67,29 +64,29 @@ class BotController(
 
     @PatchMapping("/{botId}/webhook")
     fun updateWebhook(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable botId: String,
         @RequestBody request: UpdateWebhookRequest
     ): ResponseEntity<*> {
-        manageBotUseCase.updateWebhook(UUID.fromString(botId), user.userId, request.webhookUrl)
+        val userId = AuthenticatedUser.currentUserId()
+        manageBotUseCase.updateWebhook(UUID.fromString(botId), userId, request.webhookUrl)
         return ApiResponseBuilder.ok(mapOf("updated" to true))
     }
 
     @PostMapping("/{botId}/regenerate-token")
     fun regenerateToken(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable botId: String
     ): ResponseEntity<*> {
-        val newToken = manageBotUseCase.regenerateToken(UUID.fromString(botId), user.userId)
+        val userId = AuthenticatedUser.currentUserId()
+        val newToken = manageBotUseCase.regenerateToken(UUID.fromString(botId), userId)
         return ApiResponseBuilder.ok(mapOf("apiToken" to newToken))
     }
 
     @DeleteMapping("/{botId}")
     fun deactivateBot(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable botId: String
     ): ResponseEntity<*> {
-        manageBotUseCase.deactivateBot(UUID.fromString(botId), user.userId)
+        val userId = AuthenticatedUser.currentUserId()
+        manageBotUseCase.deactivateBot(UUID.fromString(botId), userId)
         return ApiResponseBuilder.ok(mapOf("deactivated" to true))
     }
 }

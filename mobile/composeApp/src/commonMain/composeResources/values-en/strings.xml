@@ -385,9 +385,6 @@
     <!-- Encryption -->
     <string name="profile_encrypted">Messages are end-to-end encrypted</string>
 
-    <!-- Channels filter -->
-    <string name="filter_channels">Channels</string>
-
     <!-- Message formatting hint -->
     <string name="chat_format_hint">*bold* _italic_ ~strikethrough~ `code`</string>
 

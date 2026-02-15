@@ -31,6 +31,7 @@ import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 
 class MainComponent(
@@ -276,7 +277,7 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.CallHistory -> CallHistoryScreen(
                 onBack = component::goBack,
                 onCallUser = { userId, name, callType ->
-                    val callId = kotlinx.datetime.Clock.System.now().toEpochMilliseconds().toString()
+                    val callId = Clock.System.now().toEpochMilliseconds().toString()
                     component.openActiveCall(callId, userId, name, callType)
                 }
             )

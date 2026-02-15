@@ -30,19 +30,19 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
 
     override fun generateIdentityKeyPair(): String {
         val keyPair = IdentityKeyPair.generate()
-        store.identityKeyPair = keyPair
-        store.localRegistrationId = generateRegistrationId()
+        store.storedIdentityKeyPair = keyPair
+        store.storedRegistrationId = generateRegistrationId()
         return Base64.getEncoder().encodeToString(keyPair.publicKey.serialize())
     }
 
     override fun getIdentityPublicKey(): String? {
-        return store.identityKeyPair?.let {
+        return store.storedIdentityKeyPair?.let {
             Base64.getEncoder().encodeToString(it.publicKey.serialize())
         }
     }
 
     override fun generateSignedPreKey(): Pair<Int, String> {
-        val keyPair = store.identityKeyPair
+        val keyPair = store.storedIdentityKeyPair
             ?: throw IllegalStateException("Identity key pair not generated")
 
         val signedPreKeyId = random.nextInt(0xFFFFFF)
@@ -72,7 +72,7 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
         }
     }
 
-    override fun getRegistrationId(): Int = store.localRegistrationId
+    override fun getRegistrationId(): Int = store.storedRegistrationId
 
     override suspend fun initializeSession(
         recipientId: String,
@@ -88,7 +88,7 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
         val remoteSignedPreKey = Curve.decodePoint(Base64.getDecoder().decode(signedPreKey), 0)
 
         val bundleBuilder = PreKeyBundle(
-            store.localRegistrationId,
+            store.storedRegistrationId,
             1, // deviceId
             oneTimePreKeyId ?: 0,
             oneTimePreKey?.let { Curve.decodePoint(Base64.getDecoder().decode(it), 0) },

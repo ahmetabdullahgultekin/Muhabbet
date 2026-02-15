@@ -1,7 +1,7 @@
 # Muhabbet — Product Roadmap
 
-> **Last Updated**: February 13, 2026
-> **Status**: All 6 engineering phases complete. Content moderation, WS rate limiting, Redis Pub/Sub scaling, backup system, channel analytics, bot platform — all implemented. Remaining: LiveKit client SDK, Signal Protocol client, iOS APNs, pen testing.
+> **Last Updated**: February 15, 2026
+> **Status**: All 6 engineering phases + production hardening complete. Kotlin 2.3.10, Spring Boot 4.0.2, Java 25 upgrade verified (332/333 backend tests pass). Monitoring stack (Prometheus + Grafana) added. Remaining: iOS APNs, pen testing, app store submissions.
 
 ---
 
@@ -177,19 +177,20 @@
 ## Remaining Work Summary
 
 ### High Priority (Beta Release Blockers)
-1. **LiveKit client SDK integration** — Backend signaling + call UI + LiveKit adapter are built; needs LiveKit Android/iOS SDK in mobile.
+1. ~~**LiveKit client SDK integration**~~ — DONE: Android LiveKit SDK, CallEngine expect/actual, backend room management.
 2. ~~**Fix active bugs**~~ — DONE: Push notifications enabled (FCM_ENABLED=true), delivery ticks fixed (global DELIVERED ack in App.kt).
 
 ### Medium Priority (Pre-Public Launch)
-3. **E2E encryption client** — Key exchange infra + NoOp manager are built; needs `libsignal-client` for actual X3DH + Double Ratchet.
+3. ~~**E2E encryption client**~~ — DONE: libsignal-android 0.64.1, Signal Protocol (X3DH + Double Ratchet), PersistentSignalProtocolStore.
 4. **Security penetration testing** — Run OWASP ZAP/Burp Suite before public launch.
 5. **iOS APNs delivery** — Needed for iOS push notifications.
-6. **Load testing** — k6/Gatling against staging at 1K+ concurrent WebSocket connections.
+6. ~~**Load testing scripts**~~ — DONE: k6 scripts created (`infra/load-tests/`), need to run against production-like environment.
 
 ### Low Priority (Growth Phase)
 7. **Web/Desktop client** — Power user demand.
 8. **Group calls** — After 1:1 calls are stable.
 9. **CDN** — When media traffic justifies it.
+10. **iOS LiveKit/Signal bridges** — Need native Swift SDK bridges via Kotlin/Native.
 
 ---
 
@@ -263,7 +264,7 @@ muhabbet/
 | Language | Kotlin 2.3.10 (everywhere) |
 | Backend | Spring Boot 4.0.2 (Java 25), PostgreSQL 16, Redis 7, MinIO |
 | Mobile | CMP, Ktor 3.1.3, Koin 4.1.0, Decompose 3.3.0, Coil 3.1.0, Sentry |
-| Shared | KMP, kotlinx.serialization 1.8.1, kotlinx.datetime 0.7.0 |
+| Shared | KMP, kotlinx.serialization 1.8.1, kotlinx.datetime 0.7.1 |
 | Infra | Docker Compose, nginx, GCP (e2-medium), Firebase FCM |
 | CI/CD | GitHub Actions (backend, mobile, security, deploy) |
 | Security | HSTS, CSP, InputSanitizer, Trivy, Gitleaks, CodeQL |

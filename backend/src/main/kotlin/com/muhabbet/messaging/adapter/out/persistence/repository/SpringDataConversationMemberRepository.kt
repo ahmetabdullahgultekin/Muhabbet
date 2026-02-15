@@ -10,6 +10,7 @@ import java.util.UUID
 
 interface SpringDataConversationMemberRepository : JpaRepository<ConversationMemberJpaEntity, ConversationMemberId> {
     fun findByConversationId(conversationId: UUID): List<ConversationMemberJpaEntity>
+    fun countByConversationId(conversationId: UUID): Long
     fun findByConversationIdIn(conversationIds: List<UUID>): List<ConversationMemberJpaEntity>
     fun findByUserId(userId: UUID): List<ConversationMemberJpaEntity>
     fun findByConversationIdAndUserId(conversationId: UUID, userId: UUID): ConversationMemberJpaEntity?

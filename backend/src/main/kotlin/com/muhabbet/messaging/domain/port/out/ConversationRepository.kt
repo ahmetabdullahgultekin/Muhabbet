@@ -22,6 +22,10 @@ interface ConversationRepository {
     fun updateConversation(conversation: Conversation): Conversation
     fun updateMemberRole(conversationId: UUID, userId: UUID, role: com.muhabbet.messaging.domain.model.MemberRole)
 
+    // Pin management
+    fun pinConversation(conversationId: UUID, userId: UUID)
+    fun unpinConversation(conversationId: UUID, userId: UUID)
+
     // Channel
     fun findByType(type: com.muhabbet.messaging.domain.model.ConversationType): List<Conversation>
 }

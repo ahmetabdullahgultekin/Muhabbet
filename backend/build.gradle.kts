@@ -60,13 +60,14 @@ dependencies {
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-starter-jakarta:7.19.1")
+    implementation("io.sentry:sentry-spring-boot-4:8.26.0")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("org.testcontainers:junit-jupiter:1.20.4")

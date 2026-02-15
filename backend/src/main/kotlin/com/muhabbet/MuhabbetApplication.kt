@@ -5,7 +5,9 @@ import org.springframework.boot.runApplication
 import org.springframework.scheduling.annotation.EnableAsync
 import org.springframework.scheduling.annotation.EnableScheduling
 
-@SpringBootApplication
+@SpringBootApplication(
+    excludeName = ["io.sentry.spring.boot.jakarta.SentryAutoConfiguration"]
+)
 @EnableAsync
 @EnableScheduling
 class MuhabbetApplication

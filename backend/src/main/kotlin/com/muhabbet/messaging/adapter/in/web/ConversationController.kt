@@ -14,8 +14,6 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
-import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataConversationMemberRepository
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -25,7 +23,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import java.time.Instant
 import java.util.UUID
 
 @RestController
@@ -36,8 +33,7 @@ class ConversationController(
     private val manageGroupUseCase: com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase,
     private val conversationRepository: com.muhabbet.messaging.domain.port.out.ConversationRepository,
     private val userRepository: UserRepository,
-    private val presencePort: PresencePort,
-    private val memberRepo: SpringDataConversationMemberRepository
+    private val presencePort: PresencePort
 ) {
 
     @PostMapping
@@ -147,26 +143,16 @@ class ConversationController(
     }
 
     @PutMapping("/{conversationId}/pin")
-    @Transactional
     fun pinConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
-            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
-        member.pinned = true
-        member.pinnedAt = Instant.now()
-        memberRepo.save(member)
+        conversationRepository.pinConversation(conversationId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 
     @DeleteMapping("/{conversationId}/pin")
-    @Transactional
     fun unpinConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
-            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
-        member.pinned = false
-        member.pinnedAt = null
-        memberRepo.save(member)
+        conversationRepository.unpinConversation(conversationId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 }

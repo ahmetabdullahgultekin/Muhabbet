@@ -7,7 +7,6 @@ import com.muhabbet.moderation.domain.port.`in`.ReviewReportsUseCase
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
@@ -23,11 +22,11 @@ class ModerationController(
 
     @PostMapping("/reports")
     fun createReport(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestBody request: CreateReportRequest
     ): ResponseEntity<*> {
+        val currentUserId = AuthenticatedUser.currentUserId()
         val report = reportUserUseCase.reportUser(
-            reporterId = user.userId,
+            reporterId = currentUserId,
             reportedUserId = request.reportedUserId?.let { UUID.fromString(it) },
             reportedMessageId = request.reportedMessageId?.let { UUID.fromString(it) },
             reportedConversationId = request.reportedConversationId?.let { UUID.fromString(it) },
@@ -41,36 +40,35 @@ class ModerationController(
 
     @PostMapping("/blocks/{userId}")
     fun blockUser(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable userId: String
     ): ResponseEntity<*> {
-        blockUserUseCase.blockUser(user.userId, UUID.fromString(userId))
+        val currentUserId = AuthenticatedUser.currentUserId()
+        blockUserUseCase.blockUser(currentUserId, UUID.fromString(userId))
         return ApiResponseBuilder.ok(mapOf("blocked" to true))
     }
 
     @DeleteMapping("/blocks/{userId}")
     fun unblockUser(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable userId: String
     ): ResponseEntity<*> {
-        blockUserUseCase.unblockUser(user.userId, UUID.fromString(userId))
+        val currentUserId = AuthenticatedUser.currentUserId()
+        blockUserUseCase.unblockUser(currentUserId, UUID.fromString(userId))
         return ApiResponseBuilder.ok(mapOf("blocked" to false))
     }
 
     @GetMapping("/blocks")
-    fun getBlockedUsers(
-        @AuthenticationPrincipal user: AuthenticatedUser
-    ): ResponseEntity<*> {
-        val blockedIds = blockUserUseCase.getBlockedUsers(user.userId)
+    fun getBlockedUsers(): ResponseEntity<*> {
+        val currentUserId = AuthenticatedUser.currentUserId()
+        val blockedIds = blockUserUseCase.getBlockedUsers(currentUserId)
         return ApiResponseBuilder.ok(mapOf("blockedUserIds" to blockedIds.map { it.toString() }))
     }
 
     @GetMapping("/blocks/{userId}")
     fun checkBlocked(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable userId: String
     ): ResponseEntity<*> {
-        val blocked = blockUserUseCase.isBlocked(user.userId, UUID.fromString(userId))
+        val currentUserId = AuthenticatedUser.currentUserId()
+        val blocked = blockUserUseCase.isBlocked(currentUserId, UUID.fromString(userId))
         return ApiResponseBuilder.ok(mapOf("blocked" to blocked))
     }
 
@@ -78,7 +76,6 @@ class ModerationController(
 
     @GetMapping("/reports/pending")
     fun getPendingReports(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int
     ): ResponseEntity<*> {
@@ -88,11 +85,11 @@ class ModerationController(
 
     @PostMapping("/reports/{reportId}/resolve")
     fun resolveReport(
-        @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable reportId: String,
         @RequestParam(defaultValue = "false") dismiss: Boolean
     ): ResponseEntity<*> {
-        reviewReportsUseCase.resolveReport(UUID.fromString(reportId), user.userId, dismiss)
+        val currentUserId = AuthenticatedUser.currentUserId()
+        reviewReportsUseCase.resolveReport(UUID.fromString(reportId), currentUserId, dismiss)
         return ApiResponseBuilder.ok(mapOf("resolved" to true))
     }
 }

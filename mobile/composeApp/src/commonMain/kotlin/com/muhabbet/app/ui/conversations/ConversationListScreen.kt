@@ -1,6 +1,7 @@
 package com.muhabbet.app.ui.conversations
 
 import com.muhabbet.app.ui.components.ConfirmDialog
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -646,7 +647,7 @@ fun ConversationListScreen(
                             item {
                                 FilterChip(
                                     selected = activeFilter == ConversationFilter.UNREAD,
-                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.UNREAD) "all" else ConversationFilter.UNREAD },
+                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD },
                                     label = { Text(stringResource(Res.string.filter_unread)) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -886,7 +887,7 @@ private fun ConversationSkeletonItem() {
 
 @Composable
 private fun shimmerAlpha(): Float {
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmerTransition")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
@@ -896,7 +897,8 @@ private fun shimmerAlpha(): Float {
                 easing = androidx.compose.animation.core.LinearEasing
             ),
             repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        )
+        ),
+        label = "shimmer"
     )
     return alpha
 }

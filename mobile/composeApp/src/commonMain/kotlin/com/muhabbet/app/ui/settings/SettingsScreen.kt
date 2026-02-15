@@ -56,6 +56,7 @@ import androidx.compose.material3.RadioButton
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
@@ -80,6 +81,7 @@ fun SettingsScreen(
     onStarredMessages: () -> Unit = {},
     onPrivacyDashboard: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
+    mediaRepository: MediaRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
@@ -360,7 +362,7 @@ fun SettingsScreen(
                         )
                     }
                 } else if (storageUsage != null) {
-                    val usage = storageUsage ?: return@item
+                    val usage = storageUsage ?: return@Scaffold
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         tonalElevation = MuhabbetElevation.Level1,

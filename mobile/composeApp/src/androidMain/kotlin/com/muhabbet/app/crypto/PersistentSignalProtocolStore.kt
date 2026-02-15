@@ -6,8 +6,10 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.IdentityKeyPair
+import org.signal.libsignal.protocol.InvalidKeyIdException
 import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.state.IdentityKeyStore
+import org.signal.libsignal.protocol.state.KyberPreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyStore
 import org.signal.libsignal.protocol.state.SessionRecord
@@ -51,7 +53,7 @@ class PersistentSignalProtocolStore(context: Context) : SignalProtocolStore, Sen
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
-    var identityKeyPair: IdentityKeyPair?
+    var storedIdentityKeyPair: IdentityKeyPair?
         get() {
             val serialized = identityPrefs.getString("identity_key_pair", null) ?: return null
             return IdentityKeyPair(Base64.getDecoder().decode(serialized))
@@ -66,7 +68,7 @@ class PersistentSignalProtocolStore(context: Context) : SignalProtocolStore, Sen
             }
         }
 
-    var localRegistrationId: Int
+    var storedRegistrationId: Int
         get() = identityPrefs.getInt("registration_id", 0)
         set(value) { identityPrefs.edit().putInt("registration_id", value).apply() }
 
@@ -77,10 +79,10 @@ class PersistentSignalProtocolStore(context: Context) : SignalProtocolStore, Sen
     // ─── IdentityKeyStore ────────────────────────────
 
     override fun getIdentityKeyPair(): IdentityKeyPair {
-        return identityKeyPair ?: throw IllegalStateException("Identity key pair not initialized")
+        return storedIdentityKeyPair ?: throw IllegalStateException("Identity key pair not initialized")
     }
 
-    override fun getLocalRegistrationId(): Int = localRegistrationId
+    override fun getLocalRegistrationId(): Int = storedRegistrationId
 
     override fun saveIdentity(address: SignalProtocolAddress, identityKey: IdentityKey): Boolean {
         val key = "identity:${address.name}:${address.deviceId}"
@@ -214,10 +216,39 @@ class PersistentSignalProtocolStore(context: Context) : SignalProtocolStore, Sen
             .apply()
     }
 
-    override fun loadSenderKey(sender: SignalProtocolAddress, distributionId: UUID): SenderKeyRecord {
+    override fun loadSenderKey(sender: SignalProtocolAddress, distributionId: UUID): SenderKeyRecord? {
         val key = "senderkey:${sender.name}::${sender.deviceId}::$distributionId"
-        val serialized = keyStorePrefs.getString(key, null)
-            ?: return SenderKeyRecord()
+        val serialized = keyStorePrefs.getString(key, null) ?: return null
         return SenderKeyRecord(Base64.getDecoder().decode(serialized))
+    }
+
+    // ─── KyberPreKeyStore ────────────────────────────
+
+    override fun loadKyberPreKey(kyberPreKeyId: Int): KyberPreKeyRecord {
+        val key = "kyber_pre_key_$kyberPreKeyId"
+        val serialized = keyStorePrefs.getString(key, null)
+            ?: throw InvalidKeyIdException("No such Kyber pre-key: $kyberPreKeyId")
+        return KyberPreKeyRecord(Base64.getDecoder().decode(serialized))
+    }
+
+    override fun loadKyberPreKeys(): List<KyberPreKeyRecord> {
+        return keyStorePrefs.all.entries
+            .filter { it.key.startsWith("kyber_pre_key_") }
+            .mapNotNull { (_, value) ->
+                (value as? String)?.let { KyberPreKeyRecord(Base64.getDecoder().decode(it)) }
+            }
+    }
+
+    override fun storeKyberPreKey(kyberPreKeyId: Int, record: KyberPreKeyRecord) {
+        keyStorePrefs.edit()
+            .putString("kyber_pre_key_$kyberPreKeyId", Base64.getEncoder().encodeToString(record.serialize()))
+            .apply()
+    }
+
+    override fun containsKyberPreKey(kyberPreKeyId: Int): Boolean =
+        keyStorePrefs.contains("kyber_pre_key_$kyberPreKeyId")
+
+    override fun markKyberPreKeyUsed(kyberPreKeyId: Int) {
+        keyStorePrefs.edit().remove("kyber_pre_key_$kyberPreKeyId").apply()
     }
 }

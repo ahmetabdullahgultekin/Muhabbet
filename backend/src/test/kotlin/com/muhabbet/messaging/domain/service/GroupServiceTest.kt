@@ -9,7 +9,6 @@ import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
-import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -20,18 +19,15 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.context.ApplicationEventPublisher
 import java.time.Instant
 import java.util.UUID
 
 class GroupServiceTest {
 
     private lateinit var conversationRepository: ConversationRepository
-    private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
-    private lateinit var eventPublisher: ApplicationEventPublisher
-    private lateinit var messagingService: MessagingService
+    private lateinit var groupService: GroupService
 
     private val ownerId = UUID.randomUUID()
     private val adminId = UUID.randomUUID()
@@ -60,28 +56,21 @@ class GroupServiceTest {
         )
 
     private fun stubUser(id: UUID, name: String? = null) {
-        every { userRepository.findById(id) } returns User(
-            id = id,
-            phoneNumber = "+905321234567",
-            displayName = name,
-            status = UserStatus.ACTIVE
+        every { userRepository.findAllByIds(any()) } returns listOf(
+            User(id = id, phoneNumber = "+905321234567", displayName = name, status = UserStatus.ACTIVE)
         )
     }
 
     @BeforeEach
     fun setUp() {
         conversationRepository = mockk(relaxed = true)
-        messageRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
-        eventPublisher = mockk(relaxed = true)
 
-        messagingService = MessagingService(
+        groupService = GroupService(
             conversationRepository = conversationRepository,
-            messageRepository = messageRepository,
             userRepository = userRepository,
-            messageBroadcaster = messageBroadcaster,
-            eventPublisher = eventPublisher
+            messageBroadcaster = messageBroadcaster
         )
     }
 
@@ -104,7 +93,7 @@ class GroupServiceTest {
             every { conversationRepository.saveMember(any()) } answers { firstArg() }
             stubUser(newUserId, "New User")
 
-            val result = messagingService.addMembers(groupId, ownerId, listOf(newUserId))
+            val result = groupService.addMembers(groupId, ownerId, listOf(newUserId))
 
             assertEquals(1, result.size)
             assertEquals(newUserId, result[0].userId)
@@ -126,7 +115,7 @@ class GroupServiceTest {
             every { conversationRepository.saveMember(any()) } answers { firstArg() }
             stubUser(newUserId)
 
-            val result = messagingService.addMembers(groupId, adminId, listOf(newUserId))
+            val result = groupService.addMembers(groupId, adminId, listOf(newUserId))
 
             assertEquals(1, result.size)
         }
@@ -144,7 +133,7 @@ class GroupServiceTest {
             every { conversationRepository.findMembersByConversationId(groupId) } returns existingMembers
 
             val ex = assertThrows<BusinessException> {
-                messagingService.addMembers(groupId, ownerId, listOf(memberId))
+                groupService.addMembers(groupId, ownerId, listOf(memberId))
             }
             assertEquals(ErrorCode.GROUP_ALREADY_MEMBER, ex.errorCode)
         }
@@ -163,7 +152,7 @@ class GroupServiceTest {
             every { conversationRepository.findMembersByConversationId(groupId) } returns existingMembers
 
             val ex = assertThrows<BusinessException> {
-                messagingService.addMembers(groupId, ownerId, listOf(newUserId))
+                groupService.addMembers(groupId, ownerId, listOf(newUserId))
             }
             assertEquals(ErrorCode.CONV_MAX_MEMBERS, ex.errorCode)
         }
@@ -173,7 +162,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.addMembers(groupId, ownerId, listOf(newUserId))
+                groupService.addMembers(groupId, ownerId, listOf(newUserId))
             }
             assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
         }
@@ -183,7 +172,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns directConversation(groupId)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.addMembers(groupId, ownerId, listOf(newUserId))
+                groupService.addMembers(groupId, ownerId, listOf(newUserId))
             }
             assertEquals(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT, ex.errorCode)
         }
@@ -197,7 +186,7 @@ class GroupServiceTest {
                     member(groupId, memberId, MemberRole.MEMBER)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.addMembers(groupId, memberId, listOf(newUserId))
+                groupService.addMembers(groupId, memberId, listOf(newUserId))
             }
             assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         }
@@ -210,10 +199,10 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns group
             every { conversationRepository.findMember(groupId, ownerId) } returns existingMembers[0]
             every { conversationRepository.findMembersByConversationId(groupId) } returns existingMembers
-            every { userRepository.findById(newUserId) } returns null
+            every { userRepository.findAllByIds(any()) } returns emptyList()
 
             val ex = assertThrows<BusinessException> {
-                messagingService.addMembers(groupId, ownerId, listOf(newUserId))
+                groupService.addMembers(groupId, ownerId, listOf(newUserId))
             }
             assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)
         }
@@ -229,7 +218,7 @@ class GroupServiceTest {
             every { conversationRepository.saveMember(any()) } answers { firstArg() }
             stubUser(newUserId, "New User")
 
-            messagingService.addMembers(groupId, ownerId, listOf(newUserId))
+            groupService.addMembers(groupId, ownerId, listOf(newUserId))
 
             verify { messageBroadcaster.broadcastToUsers(any(), any()) }
         }
@@ -253,7 +242,7 @@ class GroupServiceTest {
                 member(groupId, ownerId, MemberRole.OWNER)
             )
 
-            messagingService.removeMember(groupId, ownerId, memberId)
+            groupService.removeMember(groupId, ownerId, memberId)
 
             verify { conversationRepository.removeMember(groupId, memberId) }
         }
@@ -272,7 +261,7 @@ class GroupServiceTest {
                 member(groupId, adminId, MemberRole.ADMIN)
             )
 
-            messagingService.removeMember(groupId, adminId, memberId)
+            groupService.removeMember(groupId, adminId, memberId)
 
             verify { conversationRepository.removeMember(groupId, memberId) }
         }
@@ -286,7 +275,7 @@ class GroupServiceTest {
                     member(groupId, ownerId, MemberRole.OWNER)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.removeMember(groupId, adminId, ownerId)
+                groupService.removeMember(groupId, adminId, ownerId)
             }
             assertEquals(ErrorCode.GROUP_CANNOT_REMOVE_OWNER, ex.errorCode)
         }
@@ -299,7 +288,7 @@ class GroupServiceTest {
             every { conversationRepository.findMember(groupId, newUserId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.removeMember(groupId, ownerId, newUserId)
+                groupService.removeMember(groupId, ownerId, newUserId)
             }
             assertEquals(ErrorCode.GROUP_NOT_MEMBER, ex.errorCode)
         }
@@ -316,7 +305,7 @@ class GroupServiceTest {
                     member(groupId, memberId, MemberRole.MEMBER)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.removeMember(groupId, memberId, targetId)
+                groupService.removeMember(groupId, memberId, targetId)
             }
             assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         }
@@ -333,7 +322,7 @@ class GroupServiceTest {
                     member(groupId, adminId, MemberRole.ADMIN)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.removeMember(groupId, adminId, otherAdminId)
+                groupService.removeMember(groupId, adminId, otherAdminId)
             }
             assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         }
@@ -343,7 +332,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.removeMember(groupId, ownerId, memberId)
+                groupService.removeMember(groupId, ownerId, memberId)
             }
             assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
         }
@@ -353,7 +342,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns directConversation(groupId)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.removeMember(groupId, ownerId, memberId)
+                groupService.removeMember(groupId, ownerId, memberId)
             }
             assertEquals(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT, ex.errorCode)
         }
@@ -371,7 +360,7 @@ class GroupServiceTest {
                 member(groupId, ownerId, MemberRole.OWNER)
             )
 
-            messagingService.removeMember(groupId, ownerId, memberId)
+            groupService.removeMember(groupId, ownerId, memberId)
 
             verify { messageBroadcaster.broadcastToUsers(any(), any()) }
         }
@@ -394,7 +383,7 @@ class GroupServiceTest {
                 member(groupId, ownerId, MemberRole.OWNER)
             )
 
-            val result = messagingService.updateGroupInfo(groupId, ownerId, "New Name", null)
+            val result = groupService.updateGroupInfo(groupId, ownerId, "New Name", null)
 
             assertEquals("New Name", result.name)
         }
@@ -412,7 +401,7 @@ class GroupServiceTest {
                 member(groupId, adminId, MemberRole.ADMIN)
             )
 
-            val result = messagingService.updateGroupInfo(groupId, adminId, null, "New Description")
+            val result = groupService.updateGroupInfo(groupId, adminId, null, "New Description")
 
             assertEquals("New Description", result.description)
             assertEquals("Test Group", result.name) // Name should remain unchanged
@@ -427,7 +416,7 @@ class GroupServiceTest {
                     member(groupId, memberId, MemberRole.MEMBER)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateGroupInfo(groupId, memberId, "Hacked Name", null)
+                groupService.updateGroupInfo(groupId, memberId, "Hacked Name", null)
             }
             assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         }
@@ -441,7 +430,7 @@ class GroupServiceTest {
                     member(groupId, ownerId, MemberRole.OWNER)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateGroupInfo(groupId, ownerId, "   ", null)
+                groupService.updateGroupInfo(groupId, ownerId, "   ", null)
             }
             assertEquals(ErrorCode.VALIDATION_ERROR, ex.errorCode)
         }
@@ -457,7 +446,7 @@ class GroupServiceTest {
             val longName = "A".repeat(129) // MAX is 128
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateGroupInfo(groupId, ownerId, longName, null)
+                groupService.updateGroupInfo(groupId, ownerId, longName, null)
             }
             assertEquals(ErrorCode.VALIDATION_ERROR, ex.errorCode)
         }
@@ -467,7 +456,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateGroupInfo(groupId, ownerId, "New Name", null)
+                groupService.updateGroupInfo(groupId, ownerId, "New Name", null)
             }
             assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
         }
@@ -477,7 +466,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns directConversation(groupId)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateGroupInfo(groupId, ownerId, "New Name", null)
+                groupService.updateGroupInfo(groupId, ownerId, "New Name", null)
             }
             assertEquals(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT, ex.errorCode)
         }
@@ -495,7 +484,7 @@ class GroupServiceTest {
                 member(groupId, memberId, MemberRole.MEMBER)
             )
 
-            messagingService.updateGroupInfo(groupId, ownerId, "Updated Name", "Updated Desc")
+            groupService.updateGroupInfo(groupId, ownerId, "Updated Name", "Updated Desc")
 
             verify { messageBroadcaster.broadcastToUsers(match { it.size == 2 }, any()) }
         }
@@ -520,7 +509,7 @@ class GroupServiceTest {
                 member(groupId, memberId, MemberRole.MEMBER)
             )
 
-            messagingService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
+            groupService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
 
             verify { conversationRepository.updateMemberRole(groupId, memberId, MemberRole.ADMIN) }
         }
@@ -534,7 +523,7 @@ class GroupServiceTest {
                     member(groupId, adminId, MemberRole.ADMIN)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateMemberRole(groupId, adminId, memberId, MemberRole.ADMIN)
+                groupService.updateMemberRole(groupId, adminId, memberId, MemberRole.ADMIN)
             }
             assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         }
@@ -548,7 +537,7 @@ class GroupServiceTest {
                     member(groupId, memberId, MemberRole.MEMBER)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateMemberRole(groupId, memberId, adminId, MemberRole.MEMBER)
+                groupService.updateMemberRole(groupId, memberId, adminId, MemberRole.MEMBER)
             }
             assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         }
@@ -563,7 +552,7 @@ class GroupServiceTest {
             every { conversationRepository.findMember(groupId, newUserId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateMemberRole(groupId, ownerId, newUserId, MemberRole.ADMIN)
+                groupService.updateMemberRole(groupId, ownerId, newUserId, MemberRole.ADMIN)
             }
             assertEquals(ErrorCode.GROUP_NOT_MEMBER, ex.errorCode)
         }
@@ -573,7 +562,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
+                groupService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
             }
             assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
         }
@@ -583,7 +572,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns directConversation(groupId)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
+                groupService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
             }
             assertEquals(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT, ex.errorCode)
         }
@@ -602,7 +591,7 @@ class GroupServiceTest {
                 member(groupId, memberId, MemberRole.MEMBER)
             )
 
-            messagingService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
+            groupService.updateMemberRole(groupId, ownerId, memberId, MemberRole.ADMIN)
 
             verify { messageBroadcaster.broadcastToUsers(any(), any()) }
         }
@@ -624,7 +613,7 @@ class GroupServiceTest {
                 member(groupId, ownerId, MemberRole.OWNER)
             )
 
-            messagingService.leaveGroup(groupId, memberId)
+            groupService.leaveGroup(groupId, memberId)
 
             verify { conversationRepository.removeMember(groupId, memberId) }
         }
@@ -652,7 +641,7 @@ class GroupServiceTest {
                 )
             )
 
-            messagingService.leaveGroup(groupId, ownerId)
+            groupService.leaveGroup(groupId, ownerId)
 
             verify { conversationRepository.updateMemberRole(groupId, adminId, MemberRole.OWNER) }
             verify { conversationRepository.removeMember(groupId, ownerId) }
@@ -681,7 +670,7 @@ class GroupServiceTest {
                 )
             )
 
-            messagingService.leaveGroup(groupId, ownerId)
+            groupService.leaveGroup(groupId, ownerId)
 
             verify { conversationRepository.updateMemberRole(groupId, oldMemberId, MemberRole.OWNER) }
             verify { conversationRepository.removeMember(groupId, ownerId) }
@@ -698,7 +687,7 @@ class GroupServiceTest {
                 member(groupId, ownerId, MemberRole.OWNER)
             )
 
-            messagingService.leaveGroup(groupId, ownerId)
+            groupService.leaveGroup(groupId, ownerId)
 
             verify { conversationRepository.removeMember(groupId, ownerId) }
             verify(exactly = 0) { conversationRepository.updateMemberRole(any(), any(), any()) }
@@ -709,7 +698,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.leaveGroup(groupId, memberId)
+                groupService.leaveGroup(groupId, memberId)
             }
             assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
         }
@@ -719,7 +708,7 @@ class GroupServiceTest {
             every { conversationRepository.findById(groupId) } returns directConversation(groupId)
 
             val ex = assertThrows<BusinessException> {
-                messagingService.leaveGroup(groupId, memberId)
+                groupService.leaveGroup(groupId, memberId)
             }
             assertEquals(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT, ex.errorCode)
         }
@@ -732,7 +721,7 @@ class GroupServiceTest {
             every { conversationRepository.findMember(groupId, newUserId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                messagingService.leaveGroup(groupId, newUserId)
+                groupService.leaveGroup(groupId, newUserId)
             }
             assertEquals(ErrorCode.GROUP_NOT_MEMBER, ex.errorCode)
         }
@@ -749,7 +738,7 @@ class GroupServiceTest {
                 member(groupId, adminId, MemberRole.ADMIN)
             )
 
-            messagingService.leaveGroup(groupId, memberId)
+            groupService.leaveGroup(groupId, memberId)
 
             verify { messageBroadcaster.broadcastToUsers(match { it.size == 2 }, any()) }
         }

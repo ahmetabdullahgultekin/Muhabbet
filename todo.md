@@ -91,15 +91,17 @@
 
 ## Pending Features
 
-- [ ] **LiveKit client SDK** — Android/iOS LiveKit SDK integration — backend signaling + call UI + LiveKit adapter are ready
-- [ ] **E2E encryption client** — Signal Protocol (X3DH, Double Ratchet) via libsignal-client — key exchange infra + NoOp manager are ready
+- [x] **LiveKit client SDK** — Android LiveKit SDK, CallEngine, backend room management — DONE
+- [x] **E2E encryption client** — Signal Protocol (X3DH, Double Ratchet) via libsignal-android 0.64.1 — DONE
+- [x] **Load testing scripts** — k6 scripts in `infra/load-tests/` — DONE (need production run)
+- [x] **Monitoring stack** — Prometheus + Grafana in `infra/monitoring/` — DONE
 - [ ] **iOS APNs delivery** — FCM→APNs bridge or direct APNs adapter
 - [ ] **iOS TestFlight + App Store** — TestFlight distribution, App Store submission
 - [ ] **Google Play Store launch** — App signing, listing, review
 - [ ] **Security penetration testing** — OWASP ZAP/Burp Suite scan
-- [ ] **Load testing** — k6/Gatling for WS + HTTP at scale
 - [ ] **Web/Desktop client** — React+TS or Kotlin/JS, QR device linking
 - [ ] **Multi-device E2E** — Signal Protocol multi-device support
+- [ ] **iOS LiveKit/Signal bridges** — Need native Swift SDK bridges via Kotlin/Native
 
 ## Infrastructure
 
@@ -112,6 +114,7 @@
 - [x] Database performance indexes (12 indexes)
 - [x] Security headers (HSTS, CSP, X-Frame-Options, etc.)
 - [x] Input sanitization (InputSanitizer utility)
+- [x] Monitoring stack — Prometheus + Grafana dashboards (`infra/monitoring/`)
 
 ## Localization Rules
 

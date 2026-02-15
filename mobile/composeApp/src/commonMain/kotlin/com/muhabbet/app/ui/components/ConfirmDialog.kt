@@ -21,7 +21,7 @@ fun ConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     isDestructive: Boolean = false,
-    dismissLabel: String = stringResource(Res.cancel)
+    dismissLabel: String = stringResource(Res.string.cancel)
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,

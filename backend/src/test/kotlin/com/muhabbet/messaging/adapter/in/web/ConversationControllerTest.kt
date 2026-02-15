@@ -5,6 +5,9 @@ import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.`in`.ConversationPage
+import com.muhabbet.messaging.domain.port.`in`.ConversationSummary
+import com.muhabbet.messaging.domain.port.`in`.ConversationWithMembers
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
@@ -58,7 +61,7 @@ class ConversationControllerTest {
                 TestData.member(conversationId = conv.id, userId = userId),
                 TestData.member(conversationId = conv.id, userId = otherUserId)
             )
-            val result = CreateConversationUseCase.CreateConversationResult(
+            val result = ConversationWithMembers(
                 conversation = conv,
                 members = members
             )
@@ -95,7 +98,7 @@ class ConversationControllerTest {
                 TestData.owner(conversationId = conv.id, userId = userId),
                 TestData.member(conversationId = conv.id, userId = otherUserId)
             )
-            val result = CreateConversationUseCase.CreateConversationResult(
+            val result = ConversationWithMembers(
                 conversation = conv,
                 members = members
             )
@@ -128,9 +131,9 @@ class ConversationControllerTest {
 
         @Test
         fun `should return paginated conversations`() {
-            val page = GetConversationsUseCase.ConversationPage(
+            val page = ConversationPage(
                 items = listOf(
-                    GetConversationsUseCase.ConversationSummary(
+                    ConversationSummary(
                         conversationId = conversationId,
                         type = "DIRECT",
                         name = null,
@@ -162,7 +165,7 @@ class ConversationControllerTest {
 
         @Test
         fun `should return empty list for new user`() {
-            val page = GetConversationsUseCase.ConversationPage(
+            val page = ConversationPage(
                 items = emptyList(), nextCursor = null, hasMore = false
             )
 
