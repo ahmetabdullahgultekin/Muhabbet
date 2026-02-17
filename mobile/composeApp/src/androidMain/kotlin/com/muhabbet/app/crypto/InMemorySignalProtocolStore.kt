@@ -2,8 +2,10 @@ package com.muhabbet.app.crypto
 
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.IdentityKeyPair
+import org.signal.libsignal.protocol.InvalidKeyIdException
 import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.state.IdentityKeyStore
+import org.signal.libsignal.protocol.state.KyberPreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyStore
 import org.signal.libsignal.protocol.state.SessionRecord
@@ -24,8 +26,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class InMemorySignalProtocolStore : SignalProtocolStore, SenderKeyStore {
 
-    var identityKeyPair: IdentityKeyPair? = null
-    var localRegistrationId: Int = 0
+    var storedIdentityKeyPair: IdentityKeyPair? = null
+    var storedRegistrationId: Int = 0
     var nextPreKeyId: Int = 1
 
     private val preKeys = ConcurrentHashMap<Int, PreKeyRecord>()
@@ -33,14 +35,15 @@ class InMemorySignalProtocolStore : SignalProtocolStore, SenderKeyStore {
     private val sessions = ConcurrentHashMap<SignalProtocolAddress, SessionRecord>()
     private val identities = ConcurrentHashMap<SignalProtocolAddress, IdentityKey>()
     private val senderKeys = ConcurrentHashMap<String, SenderKeyRecord>()
+    private val kyberPreKeys = ConcurrentHashMap<Int, KyberPreKeyRecord>()
 
     // ─── IdentityKeyStore ────────────────────────────
 
     override fun getIdentityKeyPair(): IdentityKeyPair {
-        return identityKeyPair ?: throw IllegalStateException("Identity key pair not initialized")
+        return storedIdentityKeyPair ?: throw IllegalStateException("Identity key pair not initialized")
     }
 
-    override fun getLocalRegistrationId(): Int = localRegistrationId
+    override fun getLocalRegistrationId(): Int = storedRegistrationId
 
     override fun saveIdentity(address: SignalProtocolAddress, identityKey: IdentityKey): Boolean {
         val existing = identities.put(address, identityKey)
@@ -134,7 +137,27 @@ class InMemorySignalProtocolStore : SignalProtocolStore, SenderKeyStore {
         senderKeys["${sender.name}::${sender.deviceId}::$distributionId"] = record
     }
 
-    override fun loadSenderKey(sender: SignalProtocolAddress, distributionId: UUID): SenderKeyRecord {
-        return senderKeys["${sender.name}::${sender.deviceId}::$distributionId"] ?: SenderKeyRecord()
+    override fun loadSenderKey(sender: SignalProtocolAddress, distributionId: UUID): SenderKeyRecord? {
+        return senderKeys["${sender.name}::${sender.deviceId}::$distributionId"]
+    }
+
+    // ─── KyberPreKeyStore ────────────────────────────
+
+    override fun loadKyberPreKey(kyberPreKeyId: Int): KyberPreKeyRecord {
+        return kyberPreKeys[kyberPreKeyId]
+            ?: throw InvalidKeyIdException("No such Kyber pre-key: $kyberPreKeyId")
+    }
+
+    override fun loadKyberPreKeys(): List<KyberPreKeyRecord> = kyberPreKeys.values.toList()
+
+    override fun storeKyberPreKey(kyberPreKeyId: Int, record: KyberPreKeyRecord) {
+        kyberPreKeys[kyberPreKeyId] = record
+    }
+
+    override fun containsKyberPreKey(kyberPreKeyId: Int): Boolean =
+        kyberPreKeys.containsKey(kyberPreKeyId)
+
+    override fun markKyberPreKeyUsed(kyberPreKeyId: Int) {
+        kyberPreKeys.remove(kyberPreKeyId)
     }
 }

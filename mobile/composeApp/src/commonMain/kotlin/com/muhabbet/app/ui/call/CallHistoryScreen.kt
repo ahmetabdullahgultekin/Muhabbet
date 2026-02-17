@@ -44,14 +44,14 @@ import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
-import muhabbet.mobile.composeapp.generated.resources.Res
-import muhabbet.mobile.composeapp.generated.resources.call_history_empty
-import muhabbet.mobile.composeapp.generated.resources.call_incoming
-import muhabbet.mobile.composeapp.generated.resources.call_missed
-import muhabbet.mobile.composeapp.generated.resources.call_outgoing
-import muhabbet.mobile.composeapp.generated.resources.call_video
-import muhabbet.mobile.composeapp.generated.resources.call_voice
-import muhabbet.mobile.composeapp.generated.resources.calls_title
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.call_history_empty
+import com.muhabbet.composeapp.generated.resources.call_incoming
+import com.muhabbet.composeapp.generated.resources.call_missed
+import com.muhabbet.composeapp.generated.resources.call_outgoing
+import com.muhabbet.composeapp.generated.resources.call_video
+import com.muhabbet.composeapp.generated.resources.call_voice
+import com.muhabbet.composeapp.generated.resources.calls_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 

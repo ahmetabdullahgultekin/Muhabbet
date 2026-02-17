@@ -87,6 +87,22 @@ class ConversationPersistenceAdapter(
         memberRepo.updateRole(conversationId, userId, role)
     }
 
+    override fun pinConversation(conversationId: UUID, userId: UUID) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.pinned = true
+        member.pinnedAt = Instant.now()
+        memberRepo.save(member)
+    }
+
+    override fun unpinConversation(conversationId: UUID, userId: UUID) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.pinned = false
+        member.pinnedAt = null
+        memberRepo.save(member)
+    }
+
     override fun findByType(type: ConversationType): List<Conversation> =
         conversationRepo.findByType(type.name.lowercase())
             .map { it.toDomain() }

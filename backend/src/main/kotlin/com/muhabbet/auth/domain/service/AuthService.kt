@@ -70,7 +70,7 @@ open class AuthService(
 
         // Generate OTP
         val otp = generateOtp()
-        val otpHash = passwordEncoder.encode(otp)
+        val otpHash = passwordEncoder.encode(otp) ?: ""
 
         val otpRequest = OtpRequest(
             phoneNumber = phoneNumber,

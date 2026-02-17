@@ -69,6 +69,8 @@ import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
+import kotlinx.datetime.Instant
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -161,7 +163,7 @@ fun ChatScreen(
                 val msgId = generateMessageId(); val reqId = generateMessageId()
                 messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
                     contentType = ContentType.DOCUMENT, content = picked.fileName, mediaUrl = upload.url,
-                    status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                    status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
                     content = picked.fileName, contentType = ContentType.DOCUMENT, mediaUrl = upload.url))
             } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
@@ -178,7 +180,7 @@ fun ChatScreen(
                 val msgId = generateMessageId(); val reqId = generateMessageId()
                 messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
                     contentType = ContentType.IMAGE, content = chatPhotoText, mediaUrl = upload.url,
-                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
                     content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url, thumbnailUrl = upload.thumbnailUrl))
             } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
@@ -214,8 +216,8 @@ fun ChatScreen(
                     if (ws.conversationId == conversationId && messages.none { it.id == ws.messageId }) {
                         messages = messages + Message(id = ws.messageId, conversationId = ws.conversationId, senderId = ws.senderId,
                             contentType = ws.contentType, content = ws.content, replyToId = ws.replyToId, mediaUrl = ws.mediaUrl,
-                            thumbnailUrl = ws.thumbnailUrl, serverTimestamp = kotlinx.datetime.Instant.fromEpochMilliseconds(ws.serverTimestamp),
-                            clientTimestamp = kotlinx.datetime.Clock.System.now(), forwardedFrom = ws.forwardedFrom)
+                            thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
+                            clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom)
                         if (ws.senderId != currentUserId) {
                             try { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) } catch (_: Exception) { }
                         }
@@ -223,7 +225,7 @@ fun ChatScreen(
                 }
                 is WsMessage.ServerAck -> {
                     if (ws.status == AckStatus.OK) {
-                        messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { kotlinx.datetime.Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
+                        messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
                     } else scope.launch { snackbarHostState.showSnackbar(errorSendMsg) }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
@@ -241,7 +243,7 @@ fun ChatScreen(
                     }
                 }
                 is WsMessage.MessageDeleted -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(isDeleted = true, content = "") else m }
-                is WsMessage.MessageEdited -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(content = ws.newContent, editedAt = kotlinx.datetime.Instant.fromEpochMilliseconds(ws.editedAt)) else m }
+                is WsMessage.MessageEdited -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(content = ws.newContent, editedAt = Instant.fromEpochMilliseconds(ws.editedAt)) else m }
                 is WsMessage.MessageReaction -> if (ws.conversationId == conversationId) {
                     messages = messages.map { m ->
                         if (m.id == ws.messageId) {
@@ -295,7 +297,7 @@ fun ChatScreen(
 
     val subtitle = when {
         peerTyping -> typingText; peerOnline -> chatOnlineText
-        peerLastSeen != null -> "$chatLastSeenText ${formatMessageTime(kotlinx.datetime.Instant.fromEpochMilliseconds(peerLastSeen!!))}"
+        peerLastSeen != null -> "$chatLastSeenText ${formatMessageTime(Instant.fromEpochMilliseconds(peerLastSeen!!))}"
         else -> null
     }
 
@@ -307,8 +309,8 @@ fun ChatScreen(
         onDismiss = { showDeleteDialog = false; deleteTargetId = null }
     )
     if (showDisappearDialog) DisappearTimerDialog(disappearAfterSeconds, onSelect = { s -> showDisappearDialog = false; disappearAfterSeconds = s; scope.launch { try { conversationRepository.setDisappearTimer(conversationId, s) } catch (_: Exception) { } } }, onDismiss = { showDisappearDialog = false })
-    if (showLocationDialog) LocationShareDialog(onSend = { loc -> showLocationDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), loc); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.LOCATION, content = json, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
-    if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.POLL, content = json, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
+    if (showLocationDialog) LocationShareDialog(onSend = { loc -> showLocationDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), loc); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.LOCATION, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
+    if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.POLL, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
 
     // ── Scaffold UI ──────────────────────────
     Scaffold(
@@ -407,9 +409,9 @@ fun ChatScreen(
                             if (audio != null) scope.launch {
                                 isUploading = true
                                 try {
-                                    val upload = mediaUploadHelper.uploadAudio(audio.bytes, "voice_${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}.ogg", audio.mimeType, audio.durationSeconds)
+                                    val upload = mediaUploadHelper.uploadAudio(audio.bytes, "voice_${Clock.System.now().toEpochMilliseconds()}.ogg", audio.mimeType, audio.durationSeconds)
                                     val mid = generateMessageId(); val rid = generateMessageId()
-                                    messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.VOICE, content = chatVoiceText, mediaUrl = upload.url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                                    messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.VOICE, content = chatVoiceText, mediaUrl = upload.url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                                     wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
                                 } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
                                 isUploading = false
@@ -431,12 +433,12 @@ fun ChatScreen(
                         if (messageText.isBlank()) return@MessageInputBar
                         if (editingMessageId != null) {
                             val id = editingMessageId ?: return@MessageInputBar; val content = messageText.trim(); editingMessageId = null; messageText = ""
-                            scope.launch { try { groupRepository.editMessage(id, content); messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = kotlinx.datetime.Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
+                            scope.launch { try { groupRepository.editMessage(id, content); messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
                         } else {
                             val text = messageText; val replyId = replyingTo?.id; messageText = ""; replyingTo = null; typingJob?.cancel()
                             if (isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { } }; isTypingSent = false }
                             val mid = generateMessageId(); val rid = generateMessageId()
-                            messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.TEXT, content = text, replyToId = replyId, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                            messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.TEXT, content = text, replyToId = replyId, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                             scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
                         }
                     },
@@ -457,14 +459,14 @@ fun ChatScreen(
                 showGifPicker = false
                 val mid = generateMessageId()
                 val rid = generateMessageId()
-                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.GIF, content = gifContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.GIF, content = gifContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
             },
             onStickerSelected = { url, _ ->
                 showGifPicker = false
                 val mid = generateMessageId()
                 val rid = generateMessageId()
-                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.STICKER, content = stickerContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = kotlinx.datetime.Clock.System.now())
+                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.STICKER, content = stickerContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
             }
         )

@@ -143,6 +143,7 @@ class HexagonalArchitectureTest {
         fun `use case interfaces should end with UseCase`() {
             val rule: ArchRule = classes()
                 .that().resideInAPackage("..domain.port.in..")
+                .and().areInterfaces()
                 .should().haveSimpleNameEndingWith("UseCase")
 
             rule.check(importedClasses)

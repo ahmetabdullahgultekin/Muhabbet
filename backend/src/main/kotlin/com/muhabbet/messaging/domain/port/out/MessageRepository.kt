@@ -39,4 +39,8 @@ interface MessageRepository {
 
     // Media messages for shared media screen
     fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message>
+
+    // Search
+    fun searchInConversation(conversationId: UUID, query: String, limit: Int, offset: Int): List<Message>
+    fun searchGlobal(query: String, limit: Int, offset: Int): List<Message>
 }

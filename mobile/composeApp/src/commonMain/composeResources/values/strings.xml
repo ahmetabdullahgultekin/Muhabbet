@@ -385,9 +385,6 @@
     <!-- Encryption -->
     <string name="profile_encrypted">Mesajlar uçtan uca şifrelidir</string>
 
-    <!-- Channels filter -->
-    <string name="filter_channels">Kanallar</string>
-
     <!-- Message formatting hint -->
     <string name="chat_format_hint">*kalın* _italik_ ~üstü çizili~ `kod`</string>
 
