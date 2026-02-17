@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Production Deployment (Feb 17, 2026)
+- **Sentry auto-configuration crash**: Excluded `SentryAutoConfiguration` from Spring Boot 4.x — Sentry 8.26.0 references removed `RestClientAutoConfiguration`
+- **MessageBroadcaster bean ambiguity**: Added `@Primary` to `RedisMessageBroadcaster` — Spring Boot 4.x stricter bean resolution rejected two `MessageBroadcaster` implementations
+- **Jackson 3.x config**: Removed deprecated `write-dates-as-timestamps: false` from `application.yml` — Jackson 3.x (Spring Boot 4.x) defaults to ISO-8601
+- **Flyway V14/V15 migrations**: Applied performance indexes and moderation/analytics/backup/bot tables to production DB
+
+### Changed — Infrastructure (Feb 17, 2026)
+- **GCP VM upgrade**: `e2-medium` (4GB) → `e2-standard-2` (8GB) to prevent OOM kills during Docker builds
+- **Static IP**: Promoted ephemeral IP to static for DNS stability
+- **Docker runtime**: Java 21 (eclipse-temurin:21-jre-jammy) — matches build toolchain
+
 ### Fixed — Compilation & Dependency Upgrades (Feb 15, 2026)
 - **Backend compilation fixes for Spring Boot 4.0.2**: Moved scheduled jobs from `domain/service/` to `adapter/in/scheduler/` (hexagonal compliance); added missing repository port methods; fixed Spring Boot 4.x API changes; updated all test mocks
 - **Mobile compilation fixes for Kotlin 2.3.10 + kotlinx-datetime 0.7.1**: Migrated `kotlinx.datetime.Clock` to `kotlin.time.Clock` (stdlib move) across 7 files; fixed Compose 1.10 animation imports; fixed Koin 4.1.1 API; fixed Compose Resources package
