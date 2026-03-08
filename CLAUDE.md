@@ -368,9 +368,11 @@ All 9 production hardening features completed:
 
 ## Deployment & Infrastructure
 - **Cloud Provider**: GCP (europe-west1 region)
-- **VM Spec**: e2-medium (2 vCPU, 4GB RAM + 4GB swap) — swap required for Docker Gradle builds
+- **VM Spec**: e2-standard-2 (2 vCPU, 8GB RAM) — upgraded from e2-medium (4GB) due to OOM kills during Docker Gradle builds
+- **Static IP**: Promoted to static IP for DNS stability (was ephemeral, changed on VM resize)
 - **Domain**: Configured via environment — see `infra/docker-compose.prod.yml`
 - **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis`, `muhabbet-minio`, `muhabbet-nginx` (via `infra/docker-compose.prod.yml`)
+- **Docker runtime**: Java 21 (eclipse-temurin:21-jdk-jammy for build, 21-jre-jammy for runtime)
 - **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials path via `FIREBASE_CREDENTIALS_PATH` env var
 - **Deploy**: `cd infra && docker compose -f docker-compose.prod.yml up -d --build backend` (add `&& ... restart nginx` when nginx config changes)
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
@@ -416,3 +418,7 @@ All 9 production hardening features completed:
 - **JPQL enum IN clause**: Do NOT use fully-qualified enum references (`com.example.Enum.VALUE`) in JPQL `IN` clauses — may fail at runtime in Hibernate 6. Use `@Param` with `List<EnumType>` parameter instead: `WHERE m.field IN :paramList`.
 - **Delivery status hardcoded SENT**: `MessageMapper.toSharedMessage()` originally hardcoded `status = MessageStatus.SENT`. Fixed by adding `resolvedStatus` parameter and batch-querying `message_delivery_status` table. Sender sees aggregate min (all READ → READ, any DELIVERED → DELIVERED), recipient sees their own row.
 - **Navigation stack pop-then-push anti-pattern**: Calling `goBack()` then `openChat()` pops the current screen before pushing the new one, so back button skips the popped screen. Instead, just `push()` directly to keep the full stack intact.
+- **Sentry 8.x + Spring Boot 4.x**: Sentry's `SentryAutoConfiguration` references `RestClientAutoConfiguration` which was relocated in Spring Boot 4.x. Fix: `@SpringBootApplication(excludeName = ["io.sentry.spring.boot.jakarta.SentryAutoConfiguration"])`. Wait for Sentry to release a Spring Boot 4.x-compatible version.
+- **Spring Boot 4.x bean ambiguity**: Spring Boot 4.x is stricter about bean resolution. When multiple implementations of an interface exist (e.g., `WebSocketMessageBroadcaster` and `RedisMessageBroadcaster`), you must use `@Primary` or `@Qualifier` — Spring Boot 3.x was more lenient.
+- **Jackson 3.x (Spring Boot 4.x)**: `SerializationFeature.write-dates-as-timestamps` no longer exists. Jackson 3.x writes dates as ISO-8601 by default. Remove the property from `application.yml` or it crashes at startup.
+- **GCP VM resize changes IP**: Resizing a GCP VM (e.g., e2-medium → e2-standard-2) assigns a new ephemeral IP. Promote to static IP immediately, then update DNS A records. Android caches DNS aggressively — toggle airplane mode to flush.
