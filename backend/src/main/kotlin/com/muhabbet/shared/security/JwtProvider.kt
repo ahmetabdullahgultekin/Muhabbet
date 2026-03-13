@@ -12,7 +12,8 @@ import javax.crypto.SecretKey
 
 data class JwtClaims(
     val userId: UUID,
-    val deviceId: UUID
+    val deviceId: UUID,
+    val isAdmin: Boolean = false
 )
 
 @Component
@@ -58,7 +59,8 @@ class JwtProvider(private val jwtProperties: JwtProperties) {
 
             JwtClaims(
                 userId = UUID.fromString(claims.subject),
-                deviceId = UUID.fromString(claims["deviceId"] as String)
+                deviceId = UUID.fromString(claims["deviceId"] as String),
+                isAdmin = claims["admin"] as? Boolean ?: false
             )
         } catch (ex: Exception) {
             log.debug("JWT validation failed: {}", ex.message)

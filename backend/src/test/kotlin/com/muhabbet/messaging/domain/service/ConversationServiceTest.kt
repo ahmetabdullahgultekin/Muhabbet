@@ -190,7 +190,8 @@ class ConversationServiceTest {
                 conversationService.createConversation(
                     type = ConversationType.DIRECT,
                     creatorId = userA,
-                    participantIds = listOf(userA)
+                    participantIds = listOf(userA),
+                    name = null
                 )
             }
             assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)
@@ -206,7 +207,8 @@ class ConversationServiceTest {
                 conversationService.createConversation(
                     type = ConversationType.DIRECT,
                     creatorId = userA,
-                    participantIds = listOf(userB)
+                    participantIds = listOf(userB),
+                    name = null
                 )
             }
             assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)

@@ -48,7 +48,7 @@ open class ModerationService(
     @Transactional
     override fun blockUser(blockerId: UUID, blockedId: UUID) {
         if (blockerId == blockedId) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Kendinizi engelleyemezsiniz")
+            throw BusinessException(ErrorCode.BLOCK_SELF)
         }
         if (!blockRepository.exists(blockerId, blockedId)) {
             blockRepository.save(UserBlock(blockerId = blockerId, blockedId = blockedId))
@@ -80,7 +80,7 @@ open class ModerationService(
     @Transactional
     override fun resolveReport(reportId: UUID, reviewerId: UUID, dismiss: Boolean) {
         val report = reportRepository.findById(reportId)
-            ?: throw BusinessException(ErrorCode.VALIDATION_ERROR, "Rapor bulunamadı")
+            ?: throw BusinessException(ErrorCode.REPORT_NOT_FOUND)
         val newStatus = if (dismiss) ReportStatus.DISMISSED else ReportStatus.RESOLVED
         reportRepository.updateStatus(reportId, newStatus, reviewerId)
         log.info("Report {} {} by {}", reportId, newStatus, reviewerId)

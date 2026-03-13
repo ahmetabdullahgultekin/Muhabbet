@@ -2,6 +2,8 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.port.`in`.CreateBotCommand
 import com.muhabbet.messaging.domain.port.`in`.ManageBotUseCase
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -59,6 +61,7 @@ class BotController(
         @PathVariable botId: String
     ): ResponseEntity<*> {
         val bot = manageBotUseCase.getBot(UUID.fromString(botId))
+            ?: throw BusinessException(ErrorCode.BOT_NOT_FOUND)
         return ApiResponseBuilder.ok(bot)
     }
 

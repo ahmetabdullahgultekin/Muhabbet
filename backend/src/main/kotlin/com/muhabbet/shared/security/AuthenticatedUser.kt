@@ -17,6 +17,13 @@ object AuthenticatedUser {
         return claims.deviceId
     }
 
+    fun requireAdmin() {
+        val claims = currentClaims()
+        if (!claims.isAdmin) {
+            throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED)
+        }
+    }
+
     private fun currentClaims(): JwtClaims {
         val auth = SecurityContextHolder.getContext().authentication
             ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED)
