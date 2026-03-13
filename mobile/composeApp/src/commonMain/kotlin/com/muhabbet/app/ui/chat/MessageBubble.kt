@@ -84,21 +84,20 @@ fun MessageBubble(
     onCopy: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val semanticColors = LocalSemanticColors.current
+    val bubbleColor = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        else if (isOwn) semanticColors.bubbleOwn
+        else semanticColors.bubbleOther
+    val onBubbleColor = if (isOwn) semanticColors.onBubbleOwn else semanticColors.onBubbleOther
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
         Box {
             Surface(
-                shape = RoundedCornerShape(
-                    topStart = 16.dp, topEnd = 16.dp,
-                    bottomStart = if (isOwn) 16.dp else 4.dp,
-                    bottomEnd = if (isOwn) 4.dp else 16.dp
-                ),
-                color = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                else if (isOwn) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = if (isOwn) MuhabbetElevation.None else MuhabbetElevation.Level1,
+                shape = RoundedCornerShape(MuhabbetSizes.BubbleCornerRadius),
+                color = bubbleColor,
+                tonalElevation = MuhabbetElevation.None,
                 shadowElevation = MuhabbetElevation.Level1,
                 modifier = Modifier
                     .widthIn(min = MuhabbetSizes.BubbleMinWidth, max = 320.dp)
@@ -108,7 +107,10 @@ fun MessageBubble(
                         onDoubleClick = onDoubleTap
                     )
             ) {
-                Column(modifier = Modifier.padding(MuhabbetSpacing.XSmall)) {
+                Column(modifier = Modifier.padding(
+                    horizontal = MuhabbetSizes.BubblePaddingHorizontal,
+                    vertical = MuhabbetSizes.BubblePaddingVertical
+                )) {
                     // Sender name for group messages
                     if (senderName != null && !isOwn) {
                         Text(
@@ -122,8 +124,7 @@ fun MessageBubble(
                     if (repliedMessage != null) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            color = onBubbleColor.copy(alpha = 0.1f),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
                         ) {
                             Row(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
@@ -135,8 +136,7 @@ fun MessageBubble(
                                     Text(
                                         text = repliedMessage.content.take(60),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = onBubbleColor.copy(alpha = 0.8f),
                                         maxLines = 2
                                     )
                                 }
@@ -155,8 +155,7 @@ fun MessageBubble(
                                 Icons.AutoMirrored.Filled.Send,
                                 contentDescription = stringResource(Res.string.chat_forwarded),
                                 modifier = Modifier.size(12.dp),
-                                tint = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                tint = onBubbleColor.copy(alpha = 0.8f)
                             )
                             Text(
                                 text = stringResource(Res.string.chat_forwarded),
@@ -164,8 +163,7 @@ fun MessageBubble(
                                     fontSize = 12.sp,
                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                                 ),
-                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                color = onBubbleColor.copy(alpha = 0.8f),
                             )
                         }
                     }
@@ -192,17 +190,16 @@ fun MessageBubble(
                         if (message.contentType == ContentType.DOCUMENT && message.mediaUrl != null) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                                else MaterialTheme.colorScheme.surfaceVariant,
+                                color = onBubbleColor.copy(alpha = 0.1f),
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
                                     .clickable { /* open URL */ }
                             ) {
                                 Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
-                                        tint = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
+                                        tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(MuhabbetSpacing.Small))
                                     Text(message.content, style = MaterialTheme.typography.bodySmall,
-                                        color = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = onBubbleColor,
                                         maxLines = 2)
                                 }
                             }
@@ -285,8 +282,8 @@ fun MessageBubble(
                         ) {
                             Text(
                                 text = message.content,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                                color = onBubbleColor,
                                 modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)
                             )
                             if (message.contentType == ContentType.TEXT) {
@@ -309,23 +306,21 @@ fun MessageBubble(
                             Text(
                                 text = stringResource(Res.string.chat_edited),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                color = onBubbleColor.copy(alpha = 0.5f)
                             )
                         }
                         val timestamp = message.serverTimestamp ?: message.clientTimestamp
                         Text(
                             text = formatMessageTime(timestamp),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            color = onBubbleColor.copy(alpha = 0.6f)
                         )
                         if (isOwn && !message.isDeleted) {
                             val (icon, tint) = when (message.status) {
-                                MessageStatus.SENDING -> Icons.Default.AccessTime to MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
-                                MessageStatus.SENT -> Icons.Default.Check to MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                MessageStatus.DELIVERED -> Icons.Default.DoneAll to MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                MessageStatus.READ -> Icons.Default.DoneAll to MaterialTheme.colorScheme.tertiary
+                                MessageStatus.SENDING -> Icons.Default.AccessTime to onBubbleColor.copy(alpha = 0.5f)
+                                MessageStatus.SENT -> Icons.Default.Check to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.DELIVERED -> Icons.Default.DoneAll to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.READ -> Icons.Default.DoneAll to semanticColors.statusRead
                             }
                             val statusDesc = when (message.status) {
                                 MessageStatus.SENDING -> stringResource(Res.string.status_sending)

@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +76,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import org.koin.compose.koinInject
 
@@ -319,12 +321,12 @@ fun ChatScreen(
                 title = {
                     Column(modifier = Modifier.clickable { onTitleClick() }) {
                         Text(conversationName)
-                        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
+                        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = LocalSemanticColors.current.secondaryText)
                     }
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back)) } },
                 actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Icons.Default.Timer else Icons.Default.TimerOff, contentDescription = stringResource(Res.string.chat_disappearing)) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary, navigationIconContentColor = MaterialTheme.colorScheme.onPrimary, actionIconContentColor = MaterialTheme.colorScheme.onPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface, titleContentColor = MaterialTheme.colorScheme.onSurface, navigationIconContentColor = MaterialTheme.colorScheme.onSurface, actionIconContentColor = MaterialTheme.colorScheme.onSurface)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -336,7 +338,7 @@ fun ChatScreen(
                 var reactionTargetId by remember { mutableStateOf<String?>(null) }
                 val showScrollToBottom = remember { derivedStateOf { val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0; messages.isNotEmpty() && last < messages.lastIndex - 2 } }
 
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth().background(LocalSemanticColors.current.chatWallpaper)) {
                     LazyColumn(modifier = Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small), verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)) {
                         if (isLoadingMore) item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) } }
                         var lastDateStr = ""

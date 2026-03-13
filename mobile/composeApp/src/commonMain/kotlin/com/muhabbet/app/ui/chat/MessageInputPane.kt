@@ -52,6 +52,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 
@@ -142,7 +143,10 @@ fun MessageInputBar(
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
 
-    Surface(tonalElevation = MuhabbetElevation.Level2) {
+    Surface(
+        color = LocalSemanticColors.current.inputBarBackground,
+        tonalElevation = MuhabbetElevation.None
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically

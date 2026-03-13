@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyRow
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
@@ -429,22 +430,22 @@ fun ConversationListScreen(
                 TopAppBar(
                     title = { Text(stringResource(Res.string.app_name), fontWeight = FontWeight.Bold) },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
                     ),
                     actions = {
                         IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
                             Icon(
                                 imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
                                 contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         IconButton(onClick = onSettings) {
                             Icon(
                                 imageVector = Icons.Outlined.Settings,
                                 contentDescription = stringResource(Res.string.settings_title),
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -552,8 +553,8 @@ fun ConversationListScreen(
                 // Filter conversations
                 val filteredConversations = when (activeFilter) {
                     ConversationFilter.UNREAD -> conversations.filter { it.unreadCount > 0 }
+                    ConversationFilter.FAVORITES -> conversations.filter { it.isPinned }
                     ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
-                    ConversationFilter.CHANNELS -> conversations.filter { it.type == ConversationType.CHANNEL }
                     else -> conversations
                 }
                 // Sort: pinned first, then by lastMessageAt
@@ -642,6 +643,12 @@ fun ConversationListScreen(
                     }
                     // Filter chips
                     item(key = "filter_chips") {
+                        val chipColors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.Transparent,
+                            labelColor = LocalSemanticColors.current.secondaryText
+                        )
                         LazyRow(
                             modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.XSmall),
                             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small),
@@ -652,10 +659,7 @@ fun ConversationListScreen(
                                     selected = activeFilter == ConversationFilter.ALL,
                                     onClick = { activeFilter = ConversationFilter.ALL },
                                     label = { Text(stringResource(Res.string.filter_all)) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    colors = chipColors
                                 )
                             }
                             item {
@@ -663,10 +667,15 @@ fun ConversationListScreen(
                                     selected = activeFilter == ConversationFilter.UNREAD,
                                     onClick = { activeFilter = if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD },
                                     label = { Text(stringResource(Res.string.filter_unread)) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    colors = chipColors
+                                )
+                            }
+                            item {
+                                FilterChip(
+                                    selected = activeFilter == ConversationFilter.FAVORITES,
+                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.FAVORITES) ConversationFilter.ALL else ConversationFilter.FAVORITES },
+                                    label = { Text(stringResource(Res.string.filter_favorites)) },
+                                    colors = chipColors
                                 )
                             }
                             item {
@@ -674,21 +683,7 @@ fun ConversationListScreen(
                                     selected = activeFilter == ConversationFilter.GROUPS,
                                     onClick = { activeFilter = if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS },
                                     label = { Text(stringResource(Res.string.filter_groups)) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                )
-                            }
-                            item {
-                                FilterChip(
-                                    selected = activeFilter == ConversationFilter.CHANNELS,
-                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.CHANNELS) ConversationFilter.ALL else ConversationFilter.CHANNELS },
-                                    label = { Text(stringResource(Res.string.filter_channels)) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    colors = chipColors
                                 )
                             }
                         }
@@ -735,7 +730,9 @@ fun ConversationListScreen(
                                 }
                             }
                         )
-                        HorizontalDivider()
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
+                        )
                     }
                 }
             }
@@ -763,6 +760,7 @@ private fun ConversationItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = MuhabbetSizes.ChatListItemMinHeight)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
@@ -772,7 +770,7 @@ private fun ConversationItem(
             com.muhabbet.app.ui.components.UserAvatar(
                 avatarUrl = avatarUrl,
                 displayName = displayName,
-                size = 48.dp,
+                size = MuhabbetSizes.AvatarChatList,
                 isGroup = isGroup
             )
             // Green online dot
@@ -788,14 +786,16 @@ private fun ConversationItem(
             }
         }
 
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+        Spacer(Modifier.width(MuhabbetSpacing.Large))
 
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = displayName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 17.sp,
+                        fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -811,10 +811,10 @@ private fun ConversationItem(
                 }
             }
             val preview = conversation.lastMessagePreview
-        if (preview != null) {
+            if (preview != null) {
                 Text(
                     text = preview,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
                     fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (hasUnread) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -829,7 +829,7 @@ private fun ConversationItem(
             if (lastAt != null) {
                 Text(
                     text = formatTimestamp(lastAt),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
                     color = if (hasUnread) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -837,8 +837,8 @@ private fun ConversationItem(
             if (hasUnread) {
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 Badge(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = LocalSemanticColors.current.unreadBadge,
+                    contentColor = Color.White
                 ) {
                     Text(conversation.unreadCount.toString())
                 }
@@ -848,7 +848,7 @@ private fun ConversationItem(
 }
 
 private enum class ConversationFilter {
-    ALL, UNREAD, GROUPS, CHANNELS
+    ALL, UNREAD, FAVORITES, GROUPS
 }
 
 @Composable

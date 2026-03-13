@@ -212,6 +212,7 @@
     <string name="home_tab_chats">Chats</string>
     <string name="home_tab_updates">Updates</string>
     <string name="home_tab_calls">Calls</string>
+    <string name="home_tab_communities">Communities</string>
 
     <!-- Channels -->
     <string name="channels_title">Channels</string>
@@ -226,6 +227,7 @@
     <!-- Filter Chips -->
     <string name="filter_all">All</string>
     <string name="filter_unread">Unread</string>
+    <string name="filter_favorites">Favorites</string>
     <string name="filter_groups">Groups</string>
     <string name="filter_channels">Channels</string>
 
