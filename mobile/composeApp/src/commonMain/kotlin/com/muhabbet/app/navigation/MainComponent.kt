@@ -20,6 +20,7 @@ import com.muhabbet.app.ui.call.IncomingCallScreen
 import com.muhabbet.app.ui.chat.ChatScreen
 import com.muhabbet.app.ui.chat.MessageInfoScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
+import com.muhabbet.app.ui.home.HomeShellScreen
 import com.muhabbet.app.ui.conversations.NewConversationScreen
 import com.muhabbet.app.ui.group.CreateGroupScreen
 import com.muhabbet.app.ui.group.GroupInfoScreen
@@ -47,7 +48,7 @@ class MainComponent(
     val childStack: Value<ChildStack<Config, Config>> = childStack(
         source = navigation,
         serializer = Config.serializer(),
-        initialConfiguration = Config.ConversationList,
+        initialConfiguration = Config.HomeShell,
         handleBackButton = true,
         childFactory = { config, _ -> config }
     )
@@ -137,6 +138,7 @@ class MainComponent(
 
     @Serializable
     sealed interface Config {
+        @Serializable data object HomeShell : Config
         @Serializable data object ConversationList : Config
         @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null) : Config
         @Serializable data object NewConversation : Config
@@ -162,6 +164,17 @@ fun MainContent(component: MainComponent) {
         animation = stackAnimation(slide())
     ) { child ->
         when (val config = child.instance) {
+            is MainComponent.Config.HomeShell -> HomeShellScreen(
+                onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
+                onNewConversation = component::openNewConversation,
+                onSettings = component::openSettings,
+                onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
+                onCallUser = { userId, name, callType ->
+                    val callId = Clock.System.now().toEpochMilliseconds().toString()
+                    component.openActiveCall(callId, userId, name, callType)
+                },
+                refreshKey = component.refreshTrigger.collectAsState(0).value
+            )
             is MainComponent.Config.ConversationList -> ConversationListScreen(
                 onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
                 onNewConversation = component::openNewConversation,

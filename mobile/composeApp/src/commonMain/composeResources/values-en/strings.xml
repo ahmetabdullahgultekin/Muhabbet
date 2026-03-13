@@ -204,6 +204,14 @@
     <string name="status_post">Share</string>
     <string name="status_no_statuses">No statuses found</string>
     <string name="status_load_failed">Failed to load statuses</string>
+    <string name="updates_title">Updates</string>
+    <string name="updates_recent">Recent updates</string>
+    <string name="updates_status_meta">%1$d updates • %2$s</string>
+
+    <!-- Home Tabs -->
+    <string name="home_tab_chats">Chats</string>
+    <string name="home_tab_updates">Updates</string>
+    <string name="home_tab_calls">Calls</string>
 
     <!-- Channels -->
     <string name="channels_title">Channels</string>

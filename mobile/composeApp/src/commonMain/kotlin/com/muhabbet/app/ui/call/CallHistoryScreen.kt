@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,7 +60,9 @@ import org.koin.compose.koinInject
 @Composable
 fun CallHistoryScreen(
     onBack: () -> Unit,
-    onCallUser: (userId: String, name: String?, callType: String) -> Unit
+    onCallUser: (userId: String, name: String?, callType: String) -> Unit,
+    showBackButton: Boolean = true,
+    showTopBar: Boolean = true
 ) {
     val callRepository = koinInject<CallRepository>()
     val tokenStorage = koinInject<TokenStorage>()
@@ -86,19 +89,26 @@ fun CallHistoryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+            if (showTopBar) {
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null
+                                )
+                            }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("...")
+                CircularProgressIndicator()
             }
         } else if (calls.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

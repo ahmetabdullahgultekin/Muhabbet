@@ -109,6 +109,8 @@ fun ConversationListScreen(
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit = { _, _ -> },
     refreshKey: Int = 0,
+    showTopBar: Boolean = true,
+    showStatusRow: Boolean = true,
     conversationRepository: ConversationRepository = koinInject(),
     messageRepository: MessageRepository = koinInject(),
     wsClient: WsClient = koinInject(),
@@ -179,9 +181,17 @@ fun ConversationListScreen(
     }
 
     // Load on initial + refreshKey changes
-    LaunchedEffect(refreshKey) {
+    LaunchedEffect(refreshKey, showStatusRow) {
         loadConversations()
-        try { statusGroups = statusRepository.getContactStatuses() } catch (_: Exception) { }
+        if (showStatusRow) {
+            try {
+                statusGroups = statusRepository.getContactStatuses()
+            } catch (_: Exception) {
+                statusGroups = emptyList()
+            }
+        } else {
+            statusGroups = emptyList()
+        }
         isLoading = false
     }
 
@@ -415,29 +425,31 @@ fun ConversationListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.app_name), fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                actions = {
-                    IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
-                        Icon(
-                            imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
+            if (showTopBar) {
+                TopAppBar(
+                    title = { Text(stringResource(Res.string.app_name), fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    actions = {
+                        IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
+                            Icon(
+                                imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        IconButton(onClick = onSettings) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = stringResource(Res.string.settings_title),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
                     }
-                    IconButton(onClick = onSettings) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(Res.string.settings_title),
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -456,7 +468,7 @@ fun ConversationListScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Search bar
-            if (isSearching) {
+            if (showTopBar && isSearching) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { newQuery ->
@@ -552,78 +564,80 @@ fun ConversationListScreen(
 
                 LazyColumn {
                     // Status row
-                    item(key = "status_row") {
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
-                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = MuhabbetSpacing.Medium)
-                        ) {
-                            // "Add status" button
-                            item(key = "add_status") {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable { showStatusInput = true }.width(64.dp)
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        modifier = Modifier.size(56.dp)
+                    if (showStatusRow) {
+                        item(key = "status_row") {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
+                                horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = MuhabbetSpacing.Medium)
+                            ) {
+                                // "Add status" button
+                                item(key = "add_status") {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable { showStatusInput = true }.width(64.dp)
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Icons.Default.Add,
-                                                contentDescription = stringResource(Res.string.status_create_title),
-                                                modifier = Modifier.size(24.dp),
-                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.size(56.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Default.Add,
+                                                    contentDescription = stringResource(Res.string.status_create_title),
+                                                    modifier = Modifier.size(24.dp),
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
                                         }
-                                    }
-                                    Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                                    Text(
-                                        text = stringResource(Res.string.status_my),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                            // Contact statuses
-                            items(
-                                count = statusGroups.size,
-                                key = { statusGroups[it].userId }
-                            ) { index ->
-                                val group = statusGroups[index]
-                                val conv = conversations.flatMap { it.participants }
-                                    .firstOrNull { it.userId == group.userId }
-                                val displayName = conv?.displayName ?: conv?.phoneNumber ?: group.userId.take(8)
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.width(64.dp).clickable { onStatusClick(group.userId, displayName) }
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                    ) {
-                                        com.muhabbet.app.ui.components.UserAvatar(
-                                            avatarUrl = conv?.avatarUrl,
-                                            displayName = displayName,
-                                            size = 56.dp
+                                        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+                                        Text(
+                                            text = stringResource(Res.string.status_my),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                    Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                                    Text(
-                                        text = displayName,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                }
+                                // Contact statuses
+                                items(
+                                    count = statusGroups.size,
+                                    key = { statusGroups[it].userId }
+                                ) { index ->
+                                    val group = statusGroups[index]
+                                    val conv = conversations.flatMap { it.participants }
+                                        .firstOrNull { it.userId == group.userId }
+                                    val displayName = conv?.displayName ?: conv?.phoneNumber ?: group.userId.take(8)
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.width(64.dp).clickable { onStatusClick(group.userId, displayName) }
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            modifier = Modifier
+                                                .size(56.dp)
+                                                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                        ) {
+                                            com.muhabbet.app.ui.components.UserAvatar(
+                                                avatarUrl = conv?.avatarUrl,
+                                                displayName = displayName,
+                                                size = 56.dp
+                                            )
+                                        }
+                                        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+                                        Text(
+                                            text = displayName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
-                        }
-                        if (statusGroups.isNotEmpty()) {
-                            HorizontalDivider()
+                            if (statusGroups.isNotEmpty()) {
+                                HorizontalDivider()
+                            }
                         }
                     }
                     // Filter chips
