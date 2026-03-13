@@ -272,6 +272,7 @@ data class ReactionResponse(
 data class RegisterKeyBundleRequest(
     val identityKey: String,
     val signedPreKey: String,
+    val signedPreKeySignature: String,
     val signedPreKeyId: Int,
     val registrationId: Int
 )
@@ -291,6 +292,7 @@ data class PreKeyDto(
 data class PreKeyBundleResponse(
     val identityKey: String,
     val signedPreKey: String,
+    val signedPreKeySignature: String? = null,
     val signedPreKeyId: Int,
     val registrationId: Int,
     val oneTimePreKey: String? = null,

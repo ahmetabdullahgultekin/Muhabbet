@@ -23,6 +23,9 @@ class EncryptionKeyJpaEntity(
     @Column(name = "signed_pre_key", nullable = false)
     val signedPreKey: String,
 
+    @Column(name = "signed_pre_key_signature", nullable = true)
+    val signedPreKeySignature: String?,
+
     @Column(name = "signed_pre_key_id", nullable = false)
     val signedPreKeyId: Int,
 
@@ -40,6 +43,7 @@ class EncryptionKeyJpaEntity(
         userId = userId,
         identityKey = identityKey,
         signedPreKey = signedPreKey,
+        signedPreKeySignature = signedPreKeySignature,
         signedPreKeyId = signedPreKeyId,
         registrationId = registrationId,
         createdAt = createdAt,
@@ -52,6 +56,7 @@ class EncryptionKeyJpaEntity(
             userId = bundle.userId,
             identityKey = bundle.identityKey,
             signedPreKey = bundle.signedPreKey,
+            signedPreKeySignature = bundle.signedPreKeySignature,
             signedPreKeyId = bundle.signedPreKeyId,
             registrationId = bundle.registrationId,
             createdAt = bundle.createdAt,

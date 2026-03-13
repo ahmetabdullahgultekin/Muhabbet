@@ -30,21 +30,21 @@ class ModerationController(
         val reason = try {
             ReportReason.valueOf(request.reason)
         } catch (_: IllegalArgumentException) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz rapor sebebi: ${request.reason}")
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
         }
         val reportedUserId = request.reportedUserId?.let {
             try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz kullanıcı ID: $it")
+                throw BusinessException(ErrorCode.VALIDATION_ERROR)
             }
         }
         val reportedMessageId = request.reportedMessageId?.let {
             try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz mesaj ID: $it")
+                throw BusinessException(ErrorCode.VALIDATION_ERROR)
             }
         }
         val reportedConversationId = request.reportedConversationId?.let {
             try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz konuşma ID: $it")
+                throw BusinessException(ErrorCode.VALIDATION_ERROR)
             }
         }
         val report = reportUserUseCase.reportUser(
@@ -66,7 +66,7 @@ class ModerationController(
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
         val targetId = try { UUID.fromString(userId) } catch (_: IllegalArgumentException) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz kullanıcı ID: $userId")
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
         }
         blockUserUseCase.blockUser(currentUserId, targetId)
         return ApiResponseBuilder.ok(mapOf("blocked" to true))
@@ -78,7 +78,7 @@ class ModerationController(
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
         val targetId = try { UUID.fromString(userId) } catch (_: IllegalArgumentException) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz kullanıcı ID: $userId")
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
         }
         blockUserUseCase.unblockUser(currentUserId, targetId)
         return ApiResponseBuilder.ok(mapOf("blocked" to false))
@@ -97,7 +97,7 @@ class ModerationController(
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
         val targetId = try { UUID.fromString(userId) } catch (_: IllegalArgumentException) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz kullanıcı ID: $userId")
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
         }
         val blocked = blockUserUseCase.isBlocked(currentUserId, targetId)
         return ApiResponseBuilder.ok(mapOf("blocked" to blocked))
@@ -123,7 +123,7 @@ class ModerationController(
         AuthenticatedUser.requireAdmin()
         val currentUserId = AuthenticatedUser.currentUserId()
         val reportUUID = try { UUID.fromString(reportId) } catch (_: IllegalArgumentException) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz rapor ID: $reportId")
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
         }
         reviewReportsUseCase.resolveReport(reportUUID, currentUserId, dismiss)
         return ApiResponseBuilder.ok(mapOf("resolved" to true))

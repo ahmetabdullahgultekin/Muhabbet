@@ -176,6 +176,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) {
         return queries.getPendingMessages().executeAsList().map { row ->
             PendingMessageData(
                 id = row.id,
+                messageId = row.messageId,
                 conversationId = row.conversationId,
                 contentType = row.contentType,
                 content = row.content,
@@ -190,6 +191,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) {
     fun insertPendingMessage(msg: PendingMessageData) {
         queries.insertPendingMessage(
             id = msg.id,
+            messageId = msg.messageId,
             conversationId = msg.conversationId,
             contentType = msg.contentType,
             content = msg.content,
@@ -222,6 +224,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) {
 
 data class PendingMessageData(
     val id: String,
+    val messageId: String,
     val conversationId: String,
     val contentType: String,
     val content: String,

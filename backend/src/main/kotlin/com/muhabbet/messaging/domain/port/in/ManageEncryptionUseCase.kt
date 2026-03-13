@@ -14,6 +14,7 @@ interface ManageEncryptionUseCase {
 data class PreKeyBundle(
     val identityKey: String,
     val signedPreKey: String,
+    val signedPreKeySignature: String?,
     val signedPreKeyId: Int,
     val registrationId: Int,
     val oneTimePreKey: String?,

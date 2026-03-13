@@ -43,6 +43,7 @@ class EncryptionControllerTest {
                 com.muhabbet.shared.dto.RegisterKeyBundleRequest(
                     identityKey = "identity-key-base64",
                     signedPreKey = "signed-prekey-base64",
+                    signedPreKeySignature = "signed-prekey-signature-base64",
                     signedPreKeyId = 1,
                     registrationId = 12345
                 )
@@ -82,6 +83,7 @@ class EncryptionControllerTest {
             val bundle = PreKeyBundle(
                 identityKey = "target-identity-key",
                 signedPreKey = "target-signed-prekey",
+                signedPreKeySignature = "target-signed-prekey-signature",
                 signedPreKeyId = 1,
                 registrationId = 54321,
                 oneTimePreKey = "one-time-key",

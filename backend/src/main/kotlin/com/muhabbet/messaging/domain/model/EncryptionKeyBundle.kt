@@ -8,6 +8,7 @@ data class EncryptionKeyBundle(
     val userId: UUID,
     val identityKey: String,
     val signedPreKey: String,
+    val signedPreKeySignature: String?,
     val signedPreKeyId: Int,
     val registrationId: Int,
     val createdAt: Instant = Instant.now(),

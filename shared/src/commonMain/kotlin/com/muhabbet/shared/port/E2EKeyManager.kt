@@ -25,8 +25,8 @@ interface E2EKeyManager {
     /** Get the current identity public key (Base64). */
     fun getIdentityPublicKey(): String?
 
-    /** Generate a signed pre-key. Returns (keyId, Base64 public key). */
-    fun generateSignedPreKey(): Pair<Int, String>
+    /** Generate a signed pre-key. Returns Triple(keyId, Base64 public key, Base64 signature). */
+    fun generateSignedPreKey(): Triple<Int, String, String>
 
     /** Generate N one-time pre-keys. Returns list of (keyId, Base64 public key). */
     fun generateOneTimePreKeys(count: Int): List<Pair<Int, String>>
@@ -42,6 +42,7 @@ interface E2EKeyManager {
         recipientId: String,
         identityKey: String,
         signedPreKey: String,
+        signedPreKeySignature: String?,
         signedPreKeyId: Int,
         oneTimePreKey: String?,
         oneTimePreKeyId: Int?
@@ -75,8 +76,8 @@ class NoOpKeyManager : E2EKeyManager {
 
     override fun getIdentityPublicKey(): String? = identityKey
 
-    override fun generateSignedPreKey(): Pair<Int, String> {
-        return 1 to "noop-signed-pre-key"
+    override fun generateSignedPreKey(): Triple<Int, String, String> {
+        return Triple(1, "noop-signed-pre-key", "noop-signature")
     }
 
     override fun generateOneTimePreKeys(count: Int): List<Pair<Int, String>> {
@@ -92,6 +93,7 @@ class NoOpKeyManager : E2EKeyManager {
         recipientId: String,
         identityKey: String,
         signedPreKey: String,
+        signedPreKeySignature: String?,
         signedPreKeyId: Int,
         oneTimePreKey: String?,
         oneTimePreKeyId: Int?

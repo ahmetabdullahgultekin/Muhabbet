@@ -11,6 +11,8 @@ import platform.UIKit.UIImagePickerControllerSourceType
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIImage
 import platform.UIKit.UINavigationControllerDelegateProtocol
+import platform.UIKit.UIWindow
+import platform.UIKit.UIWindowScene
 import platform.Foundation.NSData
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
@@ -20,31 +22,53 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 
 actual class CameraPickerLauncher(
-    private val launcher: () -> Unit
+    private val onResult: (PickedImage?) -> Unit
 ) {
-    actual fun launch() = launcher()
+    // Strong reference: kept alive for the full lifetime of the picker session.
+    // UIImagePickerController.delegate is a weak reference in ObjC, so we must
+    // retain the delegate ourselves to prevent premature deallocation.
+    private var activeDelegate: CameraPickerDelegate? = null
+
+    actual fun launch() {
+        if (!UIImagePickerController.isSourceTypeAvailable(UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera)) {
+            onResult(null)
+            return
+        }
+
+        val picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera
+        picker.allowsEditing = false
+
+        val delegate = CameraPickerDelegate {
+            activeDelegate = null  // release after use
+            onResult(it)
+        }
+        activeDelegate = delegate  // retain strongly
+        picker.delegate = delegate
+
+        val rootViewController = findKeyWindow()?.rootViewController
+        rootViewController?.presentViewController(picker, animated = true, completion = null)
+    }
 }
 
 @Composable
 actual fun rememberCameraPickerLauncher(onResult: (PickedImage?) -> Unit): CameraPickerLauncher {
-    return remember {
-        CameraPickerLauncher {
-            if (!UIImagePickerController.isSourceTypeAvailable(UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera)) {
-                onResult(null)
-                return@CameraPickerLauncher
-            }
+    return remember { CameraPickerLauncher(onResult) }
+}
 
-            val picker = UIImagePickerController()
-            picker.sourceType = UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera
-            picker.allowsEditing = false
-
-            val delegate = CameraPickerDelegate(onResult)
-            picker.delegate = delegate
-
-            val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
-            rootViewController?.presentViewController(picker, animated = true, completion = null)
-        }
+/**
+ * Returns the key window's root view controller using the scene-based API
+ * (iOS 13+). Falls back to the legacy `keyWindow` for compatibility.
+ */
+private fun findKeyWindow(): UIWindow? {
+    val connectedScenes = UIApplication.sharedApplication.connectedScenes
+    for (scene in connectedScenes) {
+        val windowScene = scene as? UIWindowScene ?: continue
+        val keyWindow = windowScene.windows.firstOrNull { (it as UIWindow).isKeyWindow }
+        if (keyWindow != null) return keyWindow as UIWindow
     }
+    @Suppress("DEPRECATION")
+    return UIApplication.sharedApplication.keyWindow
 }
 
 @OptIn(ExperimentalForeignApi::class)

@@ -51,6 +51,7 @@ open class EncryptionService(
         return PreKeyBundle(
             identityKey = keyBundle.identityKey,
             signedPreKey = keyBundle.signedPreKey,
+            signedPreKeySignature = keyBundle.signedPreKeySignature,
             signedPreKeyId = keyBundle.signedPreKeyId,
             registrationId = keyBundle.registrationId,
             oneTimePreKey = oneTimePreKey?.publicKey,
