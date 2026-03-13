@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
+@Deprecated("Beta design uses uniform rounded corners (18dp). Use RoundedCornerShape(MuhabbetSizes.BubbleCornerRadius) instead.")
 class BubbleTailShape(
     private val isOwn: Boolean,
     private val cornerRadius: Float = 48f,

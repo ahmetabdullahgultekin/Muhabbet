@@ -212,6 +212,7 @@
     <string name="home_tab_chats">Sohbetler</string>
     <string name="home_tab_updates">Güncellemeler</string>
     <string name="home_tab_calls">Aramalar</string>
+    <string name="home_tab_communities">Topluluklar</string>
 
     <!-- Channels -->
     <string name="channels_title">Kanallar</string>
@@ -226,6 +227,7 @@
     <!-- Filter Chips -->
     <string name="filter_all">Tümü</string>
     <string name="filter_unread">Okunmamış</string>
+    <string name="filter_favorites">Favoriler</string>
     <string name="filter_groups">Gruplar</string>
     <string name="filter_channels">Kanallar</string>
 
