@@ -190,15 +190,15 @@ These features are **non-negotiable** — users will uninstall without them.
 
 | Aspect | WhatsApp | Muhabbet |
 |--------|----------|---------|
-| Notification grouping | By conversation | Unknown (basic FCM) |
-| Reply from notification | Inline reply action | Not implemented |
+| Notification grouping | By conversation | **Implemented** (Android — grouped by `conversationId`) |
+| Reply from notification | Inline reply action | **Implemented** (Android — `RemoteInput` + `NotificationReplyReceiver`) |
 | Mark as read | Action button | Not implemented |
 | React from notification | Quick reaction | Not implemented |
 | Media preview | Show thumbnail | Not implemented |
 
-**What exists:** `FcmPushNotificationAdapter`, push token registration, basic notification delivery
+**What exists:** `FcmPushNotificationAdapter`, push token registration, `MuhabbetFirebaseMessagingService` with notification channels (`CHANNEL_ID_DM`, `CHANNEL_ID_GROUP`), `RemoteInput` inline reply, conversation grouping, summary notifications, deep link to conversation on tap
 
-**What's missing:** `NotificationCompat.MessagingStyle`, `RemoteInput` for inline reply, action buttons, conversation grouping, media BigPictureStyle
+**What's missing:** Mark-as-read action button, reaction from notification, `BigPictureStyle` for media previews, iOS notification actions
 
 **Complexity:** M | **Layers:** Mobile (M, platform-specific)
 
@@ -303,7 +303,7 @@ These features are **non-negotiable** — users will uninstall without them.
 | Multi-Device | 0/10 | Soft blocker |
 | UX Polish | 7/10 | No |
 | Security (2FA) | 3/10 | **YES** |
-| Notifications | 5/10 | Soft blocker |
+| Notifications | 7/10 | No |
 | Communities | 0/10 | No |
 
 ---
