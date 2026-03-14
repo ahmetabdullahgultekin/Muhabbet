@@ -48,6 +48,12 @@ open class MessageService(
         val member = conversationRepository.findMember(command.conversationId, command.senderId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
+        // Check announcement mode — only admins/owners can send
+        val conv = conversationRepository.findById(command.conversationId)
+        if (conv != null && conv.announcementOnly && member.role == com.muhabbet.messaging.domain.model.MemberRole.MEMBER) {
+            throw BusinessException(ErrorCode.MSG_ANNOUNCEMENT_ONLY)
+        }
+
         // Idempotency check
         if (messageRepository.existsById(command.messageId)) {
             throw BusinessException(ErrorCode.MSG_DUPLICATE)
@@ -59,6 +65,8 @@ open class MessageService(
         val expiresAt = conversation?.disappearAfterSeconds?.let {
             now.plusSeconds(it.toLong())
         }
+
+        val isScheduled = command.scheduledAt != null && command.scheduledAt.isAfter(now)
 
         val message = messageRepository.save(
             Message(
@@ -73,9 +81,18 @@ open class MessageService(
                 serverTimestamp = now,
                 clientTimestamp = command.clientTimestamp,
                 expiresAt = expiresAt,
-                forwardedFrom = command.forwardedFrom
+                forwardedFrom = command.forwardedFrom,
+                viewOnce = command.viewOnce,
+                scheduledAt = command.scheduledAt,
+                isScheduled = isScheduled
             )
         )
+
+        // Scheduled messages are not delivered immediately
+        if (isScheduled) {
+            log.info("Scheduled message saved: id={}, conv={}, scheduledAt={}", message.id, command.conversationId, command.scheduledAt)
+            return message
+        }
 
         // Create delivery status for all recipients
         val members = conversationRepository.findMembersByConversationId(command.conversationId)
@@ -251,5 +268,56 @@ open class MessageService(
 
         log.info("Message {} edited by {}", messageId, requesterId)
         return message.copy(content = newContent, editedAt = editedAt)
+    }
+
+    // ─── View-Once ────────────────────────────────────────────
+
+    @Transactional
+    fun markViewOnceViewed(messageId: UUID, userId: UUID) {
+        val message = messageRepository.findById(messageId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
+
+        if (!message.viewOnce) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+
+        if (message.viewedAt != null) {
+            throw BusinessException(ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED)
+        }
+
+        if (message.senderId == userId) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+
+        messageRepository.markViewOnceViewed(messageId, userId)
+        log.info("View-once message viewed: msg={}, user={}", messageId, userId)
+    }
+
+    // ─── Scheduled Messages ──────────────────────────────────
+
+    @Transactional
+    fun deliverScheduledMessages() {
+        val now = Instant.now()
+        val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now)
+
+        for (message in scheduledMessages) {
+            messageRepository.markAsDelivered(message.id)
+
+            val members = conversationRepository.findMembersByConversationId(message.conversationId)
+            val recipientIds = members.map { it.userId }.filter { it != message.senderId }
+
+            recipientIds.forEach { recipientId ->
+                messageRepository.saveDeliveryStatus(
+                    MessageDeliveryStatus(
+                        messageId = message.id,
+                        userId = recipientId,
+                        status = DeliveryStatus.SENT
+                    )
+                )
+            }
+
+            messageBroadcaster.broadcastMessage(message, recipientIds)
+            log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
+        }
     }
 }

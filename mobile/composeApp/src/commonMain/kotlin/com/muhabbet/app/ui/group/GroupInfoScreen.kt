@@ -19,8 +19,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -51,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
@@ -72,14 +77,18 @@ fun GroupInfoScreen(
     onBack: () -> Unit,
     onMemberClick: (userId: String) -> Unit = {},
     onSharedMediaClick: (() -> Unit)? = null,
+    onEventsClick: (() -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
-    tokenStorage: TokenStorage = koinInject()
+    tokenStorage: TokenStorage = koinInject(),
+    apiClient: ApiClient = koinInject()
 ) {
     var conversation by remember { mutableStateOf<ConversationResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
+    var showInviteLinkSheet by remember { mutableStateOf(false) }
+    var announcementOnly by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -87,11 +96,14 @@ fun GroupInfoScreen(
     val updateFailedMsg = stringResource(Res.string.group_update_failed)
     val leaveFailedMsg = stringResource(Res.string.group_leave_failed)
     val removeFailedMsg = stringResource(Res.string.group_remove_failed)
+    val announcementEnabledMsg = stringResource(Res.string.announcement_mode_enabled)
+    val announcementDisabledMsg = stringResource(Res.string.announcement_mode_disabled)
 
     LaunchedEffect(conversationId) {
         try {
             val convs = conversationRepository.getConversations()
             conversation = convs.items.firstOrNull { it.id == conversationId }
+            announcementOnly = conversation?.announcementOnly ?: false
         } catch (_: Exception) { }
         isLoading = false
     }
@@ -131,6 +143,14 @@ fun GroupInfoScreen(
             dismissButton = {
                 TextButton(onClick = { showEditDialog = false }) { Text(stringResource(Res.string.cancel)) }
             }
+        )
+    }
+
+    if (showInviteLinkSheet) {
+        InviteLinkSheet(
+            conversationId = conversationId,
+            onDismiss = { showInviteLinkSheet = false },
+            snackbarHostState = snackbarHostState
         )
     }
 
@@ -243,6 +263,105 @@ fun GroupInfoScreen(
                             Text(
                                 text = stringResource(Res.string.shared_media_title),
                                 style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+
+                // Invite link row
+                if (isAdminOrOwner) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showInviteLinkSheet = true }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                            Text(
+                                text = stringResource(Res.string.invite_link_title),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+
+                // Events row
+                if (onEventsClick != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onEventsClick)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                            Text(
+                                text = stringResource(Res.string.group_event_title),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+
+                // Announcement mode toggle
+                if (isAdminOrOwner) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Campaign,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                            Text(
+                                text = stringResource(Res.string.announcement_mode),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = announcementOnly,
+                                onCheckedChange = { enabled ->
+                                    announcementOnly = enabled
+                                    scope.launch {
+                                        try {
+                                            apiClient.patch<Unit>(
+                                                "/api/v1/conversations/$conversationId",
+                                                mapOf("announcementOnly" to enabled)
+                                            )
+                                            conversation = conversation?.copy(announcementOnly = enabled)
+                                            snackbarHostState.showSnackbar(
+                                                if (enabled) announcementEnabledMsg else announcementDisabledMsg
+                                            )
+                                        } catch (_: Exception) {
+                                            announcementOnly = !enabled
+                                            snackbarHostState.showSnackbar(updateFailedMsg)
+                                        }
+                                    }
+                                }
                             )
                         }
                         HorizontalDivider()

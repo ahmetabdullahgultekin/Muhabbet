@@ -108,6 +108,70 @@ open class CallSignalingService(
         }
     }
 
+    /**
+     * Initiates a group call. All members of the conversation can join.
+     */
+    fun initiateGroupCall(callId: String, callerId: UUID, conversationId: UUID, callType: CallType, participantIds: Set<UUID>): CallSession {
+        if (userActiveCalls.containsKey(callerId)) {
+            throw CallBusyException(callerId)
+        }
+
+        // For group calls, calleeId is set to callerId (self-referential) since there's no single callee
+        val session = CallSession(
+            callId = callId,
+            callerId = callerId,
+            calleeId = callerId,
+            callType = callType,
+            status = CallStatus.INITIATED,
+            conversationId = conversationId,
+            isGroupCall = true,
+            participantIds = participantIds
+        )
+
+        activeCalls[callId] = session
+        userActiveCalls[callerId] = callId
+
+        log.info("Group call initiated: callId={}, caller={}, conv={}, participants={}", callId, callerId, conversationId, participantIds.size)
+        return session
+    }
+
+    /**
+     * Adds a participant to a group call.
+     */
+    fun joinGroupCall(callId: String, userId: UUID): CallSession? {
+        val session = activeCalls[callId] ?: return null
+        if (!session.isGroupCall) return null
+
+        val updated = session.copy(
+            participantIds = session.participantIds + userId
+        )
+        activeCalls[callId] = updated
+        userActiveCalls[userId] = callId
+
+        log.info("User {} joined group call {}", userId, callId)
+        return updated
+    }
+
+    /**
+     * Removes a participant from a group call.
+     */
+    fun leaveGroupCall(callId: String, userId: UUID): CallSession? {
+        val session = activeCalls[callId] ?: return null
+        userActiveCalls.remove(userId)
+
+        val remaining = session.participantIds - userId
+        if (remaining.isEmpty()) {
+            // Last participant left — end the call
+            return endCall(callId, CallStatus.ENDED)
+        }
+
+        val updated = session.copy(participantIds = remaining)
+        activeCalls[callId] = updated
+
+        log.info("User {} left group call {}, {} remaining", userId, callId, remaining.size)
+        return updated
+    }
+
     private fun persistCallHistory(session: CallSession) {
         try {
             val durationSeconds = if (session.answeredAt != null && session.endedAt != null) {
@@ -126,7 +190,10 @@ open class CallSignalingService(
                     startedAt = session.startedAt,
                     answeredAt = session.answeredAt,
                     endedAt = session.endedAt,
-                    durationSeconds = durationSeconds
+                    durationSeconds = durationSeconds,
+                    conversationId = session.conversationId,
+                    isGroupCall = session.isGroupCall,
+                    participantCount = if (session.isGroupCall) session.participantIds.size else null
                 )
             )
         } catch (e: Exception) {
@@ -148,7 +215,10 @@ data class CallHistoryRecord(
     val startedAt: Instant,
     val answeredAt: Instant? = null,
     val endedAt: Instant? = null,
-    val durationSeconds: Int? = null
+    val durationSeconds: Int? = null,
+    val conversationId: UUID? = null,
+    val isGroupCall: Boolean = false,
+    val participantCount: Int? = null
 )
 
 /**

@@ -8,20 +8,37 @@ import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 import java.util.UUID
 
 open class EncryptionService(
-    private val encryptionKeyRepository: EncryptionKeyRepository
+    private val encryptionKeyRepository: EncryptionKeyRepository,
+    private val eventPublisher: ApplicationEventPublisher? = null
 ) : ManageEncryptionUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
     override fun registerKeyBundle(userId: UUID, bundle: EncryptionKeyBundle) {
-        val bundleWithUser = bundle.copy(userId = userId)
-        encryptionKeyRepository.saveKeyBundle(userId, bundleWithUser)
-        log.info("Key bundle registered for user={}", userId)
+        val existingBundle = encryptionKeyRepository.getKeyBundle(userId)
+
+        val bundleToSave = if (existingBundle != null && existingBundle.identityKey != bundle.identityKey) {
+            // Identity key changed — track for security notifications
+            log.warn("Identity key changed for user={}, version {} -> {}", userId, existingBundle.keyVersion, existingBundle.keyVersion + 1)
+            bundle.copy(
+                userId = userId,
+                keyVersion = existingBundle.keyVersion + 1,
+                previousIdentityKey = existingBundle.identityKey,
+                keyChangedAt = Instant.now()
+            )
+        } else {
+            bundle.copy(userId = userId)
+        }
+
+        encryptionKeyRepository.saveKeyBundle(userId, bundleToSave)
+        log.info("Key bundle registered for user={}, version={}", userId, bundleToSave.keyVersion)
     }
 
     @Transactional(readOnly = true)

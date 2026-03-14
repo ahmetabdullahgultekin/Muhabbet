@@ -163,6 +163,15 @@ fun ConversationListScreen(
     val deleteText = stringResource(Res.string.delete)
     val pinText = stringResource(Res.string.conv_pin)
     val unpinText = stringResource(Res.string.conv_unpin)
+    val archiveText = stringResource(Res.string.conv_archive)
+    val unarchiveText = stringResource(Res.string.conv_unarchive)
+    val muteText = stringResource(Res.string.conv_mute)
+    val unmuteText = stringResource(Res.string.conv_unmute)
+    val lockText = stringResource(Res.string.chat_lock)
+    val unlockText = stringResource(Res.string.chat_unlock)
+
+    var showMuteDialog by remember { mutableStateOf(false) }
+    var muteTargetConvId by remember { mutableStateOf<String?>(null) }
 
     suspend fun loadConversations() {
         try {
@@ -362,6 +371,91 @@ fun ConversationListScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
+                    // Archive option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showLongPressMenu = false
+                                val conv = longPressTargetConv ?: return@clickable
+                                longPressTargetConv = null
+                                scope.launch {
+                                    try {
+                                        if (conv.isArchived) {
+                                            conversationRepository.unarchiveConversation(conv.id)
+                                        } else {
+                                            conversationRepository.archiveConversation(conv.id)
+                                        }
+                                        loadConversations()
+                                    } catch (_: Exception) { }
+                                }
+                            }
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
+                        Text(
+                            text = if (targetConv.isArchived) unarchiveText else archiveText,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    // Mute option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showLongPressMenu = false
+                                val conv = longPressTargetConv ?: return@clickable
+                                longPressTargetConv = null
+                                if (conv.isMuted) {
+                                    scope.launch {
+                                        try {
+                                            conversationRepository.unmuteConversation(conv.id)
+                                            loadConversations()
+                                        } catch (_: Exception) { }
+                                    }
+                                } else {
+                                    muteTargetConvId = conv.id
+                                    showMuteDialog = true
+                                }
+                            }
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
+                        Text(
+                            text = if (targetConv.isMuted) unmuteText else muteText,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    // Lock option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showLongPressMenu = false
+                                val conv = longPressTargetConv ?: return@clickable
+                                longPressTargetConv = null
+                                scope.launch {
+                                    try {
+                                        if (conv.isLocked) {
+                                            conversationRepository.unlockConversation(conv.id)
+                                        } else {
+                                            conversationRepository.lockConversation(conv.id)
+                                        }
+                                        loadConversations()
+                                    } catch (_: Exception) { }
+                                }
+                            }
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
+                        Text(
+                            text = if (targetConv.isLocked) unlockText else lockText,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                     // Delete option
                     Row(
                         modifier = Modifier
@@ -421,6 +515,23 @@ fun ConversationListScreen(
             onDismiss = { showDeleteDialog = false; deleteTargetConv = null },
             isDestructive = true,
             dismissLabel = cancelText
+        )
+    }
+
+    // Mute duration picker
+    if (showMuteDialog && muteTargetConvId != null) {
+        MutePickerDialog(
+            onDismiss = { showMuteDialog = false; muteTargetConvId = null },
+            onMuteDuration = { duration ->
+                val convId = muteTargetConvId ?: return@MutePickerDialog
+                scope.launch {
+                    try {
+                        conversationRepository.muteConversation(convId, duration)
+                        loadConversations()
+                    } catch (_: Exception) { }
+                }
+                muteTargetConvId = null
+            }
         )
     }
 
@@ -557,8 +668,12 @@ fun ConversationListScreen(
                     ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
                     else -> conversations
                 }
+                // Split active vs archived
+                val activeConversations = filteredConversations.filter { !it.isArchived }
+                val archivedConversations = filteredConversations.filter { it.isArchived }
+
                 // Sort: pinned first, then by lastMessageAt
-                val sortedConversations = filteredConversations.sortedWith(
+                val sortedConversations = activeConversations.sortedWith(
                     compareByDescending<ConversationResponse> { it.isPinned }
                         .thenByDescending { it.lastMessageAt ?: "" }
                 )
@@ -733,6 +848,66 @@ fun ConversationListScreen(
                         HorizontalDivider(
                             modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
                         )
+                    }
+
+                    // Archived section
+                    if (archivedConversations.isNotEmpty()) {
+                        item(key = "archived_header") {
+                            Spacer(Modifier.height(MuhabbetSpacing.Medium))
+                            HorizontalDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(Res.string.conv_archived_section),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(MuhabbetSpacing.Small))
+                                Text(
+                                    text = "(${archivedConversations.size})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        items(archivedConversations, key = { "archived_${it.id}" }) { conv ->
+                            val otherParticipant = conv.participants
+                                .firstOrNull { it.userId != currentUserId }
+                            val isGroup = conv.type == ConversationType.GROUP
+                            val contactName = if (!isGroup) {
+                                otherParticipant?.phoneNumber?.let { contactNameMap[it] }
+                            } else null
+                            val resolvedName = conv.name
+                                ?: contactName
+                                ?: otherParticipant?.displayName
+                                ?: otherParticipant?.phoneNumber
+                                ?: defaultChatName
+                            val isOtherOnline = otherParticipant?.let {
+                                onlineUsers[it.userId] ?: it.isOnline
+                            } ?: false
+                            val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
+                            ConversationItem(
+                                conversation = conv,
+                                displayName = resolvedName,
+                                avatarUrl = avatarUrl,
+                                isOnline = isOtherOnline,
+                                isGroup = isGroup,
+                                isPinned = false,
+                                onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
+                                onLongClick = {
+                                    longPressTargetConv = conv
+                                    showLongPressMenu = true
+                                }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
+                            )
+                        }
                     }
                 }
             }

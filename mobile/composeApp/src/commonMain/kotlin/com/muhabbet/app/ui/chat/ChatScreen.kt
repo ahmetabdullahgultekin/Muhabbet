@@ -56,6 +56,7 @@ import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
+import com.muhabbet.app.platform.rememberCameraPickerLauncher
 import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.ConversationResponse
@@ -147,6 +148,11 @@ fun ChatScreen(
     var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     val starredIds = remember { mutableStateOf(setOf<String>()) }
 
+    // View-once and announcement mode
+    var viewOnceEnabled by remember { mutableStateOf(false) }
+    var isAnnouncementOnly by remember { mutableStateOf(false) }
+    var isAdminOrOwner by remember { mutableStateOf(false) }
+
     // Voice recording
     val audioRecorder = rememberAudioRecorder()
     val audioPlayer = rememberAudioPlayer()
@@ -190,10 +196,35 @@ fun ChatScreen(
         }
     }
 
+    // Camera picker
+    val cameraPickerLauncher = rememberCameraPickerLauncher { picked ->
+        if (picked == null) return@rememberCameraPickerLauncher
+        scope.launch {
+            isUploading = true
+            try {
+                val upload = mediaUploadHelper.uploadImage(picked.bytes, picked.fileName)
+                val msgId = generateMessageId(); val reqId = generateMessageId()
+                messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
+                    contentType = ContentType.IMAGE, content = chatPhotoText, mediaUrl = upload.url,
+                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now(),
+                    viewOnce = viewOnceEnabled)
+                wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
+                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url, thumbnailUrl = upload.thumbnailUrl))
+                if (viewOnceEnabled) viewOnceEnabled = false
+            } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
+            isUploading = false
+        }
+    }
+
     // ── Data loading effects ─────────────────
     LaunchedEffect(conversationId) {
         try {
-            disappearAfterSeconds = conversationRepository.getConversations().items.firstOrNull { it.id == conversationId }?.disappearAfterSeconds
+            val conv = conversationRepository.getConversations().items.firstOrNull { it.id == conversationId }
+            disappearAfterSeconds = conv?.disappearAfterSeconds
+            isAnnouncementOnly = conv?.announcementOnly ?: false
+            val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
+            isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
+                myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
         } catch (_: Exception) { }
     }
 
@@ -422,7 +453,25 @@ fun ChatScreen(
                     }
                 }
             } else {
-                MessageInputBar(messageText,
+                val inputEnabled = !isAnnouncementOnly || isAdminOrOwner
+
+                if (!inputEnabled) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = MuhabbetElevation.None
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.Large),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.announcement_mode),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else MessageInputBar(messageText,
                     onTextChange = { new ->
                         messageText = new
                         if (new.isNotEmpty() && editingMessageId == null) {
@@ -447,7 +496,10 @@ fun ChatScreen(
                     onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
                     onImagePick = { imagePickerLauncher.launch() }, onFilePick = { filePickerLauncher.launch() },
                     onPollCreate = { showPollDialog = true }, onLocationShare = { showLocationDialog = true },
-                    onGifPick = { showGifPicker = true }
+                    onGifPick = { showGifPicker = true },
+                    onCameraPick = { cameraPickerLauncher.launch() },
+                    viewOnceEnabled = viewOnceEnabled,
+                    onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled }
                 )
             }
         }

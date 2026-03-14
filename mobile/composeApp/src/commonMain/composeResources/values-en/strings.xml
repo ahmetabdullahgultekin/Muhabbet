@@ -440,4 +440,126 @@
     <string name="privacy_kvkk_right_erasure">Right to request deletion of your data</string>
     <string name="privacy_kvkk_right_portability">Right to data portability</string>
     <string name="privacy_open_dashboard">Privacy &amp; Data</string>
+
+    <!-- Two-Step Verification -->
+    <string name="two_step_title">Two-Step Verification</string>
+    <string name="two_step_description">Create a 6-digit PIN to protect your account</string>
+    <string name="two_step_pin_hint">6-digit PIN</string>
+    <string name="two_step_confirm_pin">Confirm PIN</string>
+    <string name="two_step_email_hint">Recovery email (optional)</string>
+    <string name="two_step_enable">Enable</string>
+    <string name="two_step_disable">Disable</string>
+    <string name="two_step_enabled">Two-step verification is enabled</string>
+    <string name="two_step_pin_mismatch">PINs do not match</string>
+    <string name="two_step_pin_length">PIN must be 6 digits</string>
+
+    <!-- Mute Duration -->
+    <string name="mute_8_hours">8 hours</string>
+    <string name="mute_1_week">1 week</string>
+    <string name="mute_always">Always</string>
+    <string name="mute_title">Mute notifications</string>
+
+    <!-- Wallpaper -->
+    <string name="wallpaper_title">Chat Wallpaper</string>
+    <string name="wallpaper_default">Default</string>
+    <string name="wallpaper_solid">Solid Color</string>
+    <string name="wallpaper_custom">Gallery</string>
+    <string name="wallpaper_remove">Remove wallpaper</string>
+    <string name="wallpaper_dark_mode">Dark mode wallpaper</string>
+
+    <!-- View Once -->
+    <string name="view_once_label">View once</string>
+    <string name="view_once_opened">Opened</string>
+    <string name="view_once_tap_to_view">Tap to view</string>
+    <string name="view_once_photo">Photo</string>
+    <string name="view_once_video">Video</string>
+
+    <!-- App Lock -->
+    <string name="app_lock_title">App Lock</string>
+    <string name="app_lock_description">Lock app with biometrics or PIN</string>
+    <string name="app_lock_enable">Enable app lock</string>
+    <string name="app_lock_timeout">Lock timeout</string>
+    <string name="app_lock_immediately">Immediately</string>
+    <string name="app_lock_1_minute">After 1 minute</string>
+    <string name="app_lock_30_minutes">After 30 minutes</string>
+    <string name="chat_lock">Lock chat</string>
+    <string name="chat_unlock">Unlock chat</string>
+    <string name="locked_chats">Locked Chats</string>
+
+    <!-- HD Toggle -->
+    <string name="media_quality_title">Media Quality</string>
+    <string name="media_quality_standard">Standard</string>
+    <string name="media_quality_hd">HD</string>
+    <string name="media_quality_description">HD photos and videos use more data</string>
+
+    <!-- Video Messages -->
+    <string name="video_message">Video message</string>
+    <string name="video_message_hold">Hold to record video</string>
+
+    <!-- Communities -->
+    <string name="communities_title">Communities</string>
+    <string name="community_create">Create Community</string>
+    <string name="community_name_hint">Community name</string>
+    <string name="community_description_hint">Description (optional)</string>
+    <string name="community_groups">Groups</string>
+    <string name="community_members">Members</string>
+    <string name="community_add_group">Add Group</string>
+
+    <!-- Group Invite Links -->
+    <string name="invite_link_title">Invite Link</string>
+    <string name="invite_link_create">Create Link</string>
+    <string name="invite_link_copy">Copy link</string>
+    <string name="invite_link_share">Share link</string>
+    <string name="invite_link_revoke">Revoke link</string>
+    <string name="invite_link_require_approval">Require admin approval</string>
+    <string name="invite_link_copied">Link copied</string>
+
+    <!-- Group Events -->
+    <string name="group_event_title">Event</string>
+    <string name="group_event_create">Create Event</string>
+    <string name="group_event_name_hint">Event name</string>
+    <string name="group_event_date">Date and time</string>
+    <string name="group_event_location">Location (optional)</string>
+    <string name="group_event_going">Going</string>
+    <string name="group_event_not_going">Not Going</string>
+    <string name="group_event_maybe">Maybe</string>
+
+    <!-- Contact Sharing -->
+    <string name="share_contact">Share contact</string>
+    <string name="contact_shared">Shared Contact</string>
+    <string name="contact_message_action">Send Message</string>
+
+    <!-- Broadcast Lists -->
+    <string name="broadcast_list_title">Broadcast Lists</string>
+    <string name="broadcast_list_create">New List</string>
+    <string name="broadcast_list_name_hint">List name</string>
+
+    <!-- Media Management -->
+    <string name="save_to_gallery">Save to Gallery</string>
+    <string name="share_media">Share</string>
+    <string name="media_saved">Saved to gallery</string>
+    <string name="auto_download_title">Auto-Download</string>
+    <string name="auto_download_wifi">On Wi-Fi</string>
+    <string name="auto_download_mobile">On mobile data</string>
+
+    <!-- Announcement Mode -->
+    <string name="announcement_mode">Only admins can send messages</string>
+    <string name="announcement_mode_enabled">Announcement mode enabled</string>
+    <string name="announcement_mode_disabled">Announcement mode disabled</string>
+
+    <!-- Security -->
+    <string name="security_code_changed">Security code changed</string>
+    <string name="login_approval_title">Login Approval</string>
+    <string name="login_approval_description">A new device is trying to log into your account</string>
+    <string name="login_approval_approve">Approve</string>
+    <string name="login_approval_deny">Deny</string>
+
+    <!-- Rich Text -->
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_strikethrough">Strikethrough</string>
+    <string name="format_monospace">Code</string>
+    <string name="format_quote">Quote</string>
+    <string name="format_bullet_list">Bullet list</string>
+    <string name="format_number_list">Numbered list</string>
 </resources>

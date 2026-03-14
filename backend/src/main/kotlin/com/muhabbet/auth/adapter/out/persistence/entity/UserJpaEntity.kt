@@ -43,7 +43,27 @@ class UserJpaEntity(
     var deletedAt: Instant? = null,
 
     @Column(name = "last_seen_at")
-    var lastSeenAt: Instant? = null
+    var lastSeenAt: Instant? = null,
+
+    // Two-Step Verification
+    @Column(name = "two_step_pin_hash")
+    var twoStepPinHash: String? = null,
+
+    @Column(name = "two_step_email")
+    var twoStepEmail: String? = null,
+
+    @Column(name = "two_step_enabled_at")
+    var twoStepEnabledAt: Instant? = null,
+
+    // Privacy Settings
+    @Column(name = "read_receipts_enabled", nullable = false)
+    var readReceiptsEnabled: Boolean = true,
+
+    @Column(name = "online_status_visibility", nullable = false)
+    var onlineStatusVisibility: String = "everyone",
+
+    @Column(name = "about_visibility", nullable = false)
+    var aboutVisibility: String = "everyone"
 ) {
     fun toDomain(): User = User(
         id = id,
@@ -55,7 +75,13 @@ class UserJpaEntity(
         createdAt = createdAt,
         updatedAt = updatedAt,
         deletedAt = deletedAt,
-        lastSeenAt = lastSeenAt
+        lastSeenAt = lastSeenAt,
+        twoStepPinHash = twoStepPinHash,
+        twoStepEmail = twoStepEmail,
+        twoStepEnabledAt = twoStepEnabledAt,
+        readReceiptsEnabled = readReceiptsEnabled,
+        onlineStatusVisibility = onlineStatusVisibility,
+        aboutVisibility = aboutVisibility
     )
 
     companion object {
@@ -68,7 +94,14 @@ class UserJpaEntity(
             status = user.status,
             createdAt = user.createdAt,
             updatedAt = user.updatedAt,
-            deletedAt = user.deletedAt
+            deletedAt = user.deletedAt,
+            lastSeenAt = user.lastSeenAt,
+            twoStepPinHash = user.twoStepPinHash,
+            twoStepEmail = user.twoStepEmail,
+            twoStepEnabledAt = user.twoStepEnabledAt,
+            readReceiptsEnabled = user.readReceiptsEnabled,
+            onlineStatusVisibility = user.onlineStatusVisibility,
+            aboutVisibility = user.aboutVisibility
         )
     }
 }

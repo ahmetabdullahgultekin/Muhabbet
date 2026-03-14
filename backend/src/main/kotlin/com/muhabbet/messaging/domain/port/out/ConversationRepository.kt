@@ -28,4 +28,15 @@ interface ConversationRepository {
 
     // Channel
     fun findByType(type: com.muhabbet.messaging.domain.model.ConversationType): List<Conversation>
+
+    // Archive
+    fun archiveConversation(conversationId: UUID, userId: UUID)
+    fun unarchiveConversation(conversationId: UUID, userId: UUID)
+
+    // Mute
+    fun muteConversation(conversationId: UUID, userId: UUID, mutedUntil: java.time.Instant?)
+
+    // Lock
+    fun lockConversation(conversationId: UUID, userId: UUID)
+    fun unlockConversation(conversationId: UUID, userId: UUID)
 }

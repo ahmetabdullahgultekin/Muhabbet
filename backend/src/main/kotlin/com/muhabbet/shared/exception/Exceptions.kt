@@ -94,6 +94,42 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     BACKUP_NOT_FOUND(HttpStatus.NOT_FOUND, "Yedek bulunamadı"),
     BACKUP_IN_PROGRESS(HttpStatus.CONFLICT, "Yedekleme zaten devam ediyor"),
 
+    // Two-Step Verification (2FA)
+    AUTH_2FA_PIN_REQUIRED(HttpStatus.FORBIDDEN, "İki adımlı doğrulama PIN'i gerekli"),
+    AUTH_2FA_PIN_INVALID(HttpStatus.UNAUTHORIZED, "Geçersiz iki adımlı doğrulama PIN'i"),
+    AUTH_2FA_ALREADY_ENABLED(HttpStatus.CONFLICT, "İki adımlı doğrulama zaten etkin"),
+    AUTH_2FA_NOT_ENABLED(HttpStatus.BAD_REQUEST, "İki adımlı doğrulama etkin değil"),
+
+    // Invite Links
+    INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "Davet bağlantısı bulunamadı"),
+    INVITE_LINK_EXPIRED(HttpStatus.GONE, "Davet bağlantısının süresi dolmuş"),
+    INVITE_LINK_MAX_USES(HttpStatus.CONFLICT, "Davet bağlantısı maksimum kullanım sayısına ulaştı"),
+
+    // Join Requests
+    JOIN_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Katılma isteği bulunamadı"),
+    JOIN_REQUEST_ALREADY_EXISTS(HttpStatus.CONFLICT, "Katılma isteği zaten mevcut"),
+
+    // Communities
+    COMMUNITY_NOT_FOUND(HttpStatus.NOT_FOUND, "Topluluk bulunamadı"),
+    COMMUNITY_PERMISSION_DENIED(HttpStatus.FORBIDDEN, "Bu topluluk işlemi için yetkiniz yok"),
+
+    // Events
+    EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Etkinlik bulunamadı"),
+
+    // View-Once & Announcement
+    MSG_VIEW_ONCE_ALREADY_VIEWED(HttpStatus.CONFLICT, "Bu mesaj zaten görüntülendi"),
+    MSG_ANNOUNCEMENT_ONLY(HttpStatus.FORBIDDEN, "Bu grupta sadece yöneticiler mesaj gönderebilir"),
+
+    // Broadcast Lists
+    BROADCAST_LIST_NOT_FOUND(HttpStatus.NOT_FOUND, "Yayın listesi bulunamadı"),
+
+    // Wallpaper
+    WALLPAPER_NOT_FOUND(HttpStatus.NOT_FOUND, "Duvar kağıdı bulunamadı"),
+
+    // Login Approval
+    LOGIN_APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Giriş onayı bulunamadı"),
+    LOGIN_APPROVAL_EXPIRED(HttpStatus.GONE, "Giriş onayının süresi dolmuş"),
+
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),

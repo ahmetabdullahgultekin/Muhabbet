@@ -47,7 +47,11 @@ data class FormattedSegment(
     val isStrikethrough: Boolean = false,
     val isCode: Boolean = false,
     val isLink: Boolean = false,
-    val linkUrl: String? = null
+    val linkUrl: String? = null,
+    val isQuote: Boolean = false,
+    val isBulletItem: Boolean = false,
+    val isNumberedItem: Boolean = false,
+    val listNumber: Int? = null
 )
 
 private val URL_REGEX = Regex(
@@ -57,7 +61,67 @@ private val URL_REGEX = Regex(
 
 fun parseFormattedText(input: String): List<FormattedSegment> {
     val segments = mutableListOf<FormattedSegment>()
-    var remaining = input
+
+    // First, handle line-level formatting (quotes, bullet lists, numbered lists)
+    val lines = input.split("\n")
+    val processedLines = mutableListOf<String>()
+    var hasBlockFormatting = false
+
+    for (line in lines) {
+        val trimmedLine = line.trimStart()
+        when {
+            trimmedLine.startsWith("> ") -> {
+                hasBlockFormatting = true
+                val content = trimmedLine.removePrefix("> ")
+                segments.addAll(parseInlineFormatting(content).map { it.copy(isQuote = true) })
+                segments.add(FormattedSegment("\n"))
+            }
+            trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") && !trimmedLine.startsWith("**") -> {
+                hasBlockFormatting = true
+                val bullet = if (trimmedLine.startsWith("- ")) "- " else "* "
+                val content = trimmedLine.removePrefix(bullet)
+                segments.addAll(parseInlineFormatting(content).map { it.copy(isBulletItem = true) })
+                segments.add(FormattedSegment("\n"))
+            }
+            trimmedLine.matches(Regex("""^\d+\.\s.+""")) -> {
+                hasBlockFormatting = true
+                val dotIndex = trimmedLine.indexOf(". ")
+                val number = trimmedLine.substring(0, dotIndex).toIntOrNull()
+                val content = trimmedLine.substring(dotIndex + 2)
+                segments.addAll(parseInlineFormatting(content).map {
+                    it.copy(isNumberedItem = true, listNumber = number)
+                })
+                segments.add(FormattedSegment("\n"))
+            }
+            else -> {
+                processedLines.add(line)
+            }
+        }
+    }
+
+    // If no block formatting was found, process as inline-only
+    if (!hasBlockFormatting) {
+        return parseInlineFormatting(input)
+    }
+
+    // For remaining lines without block formatting, process inline
+    if (processedLines.isNotEmpty()) {
+        val remainingText = processedLines.joinToString("\n")
+        if (remainingText.isNotBlank()) {
+            segments.addAll(parseInlineFormatting(remainingText))
+        }
+    }
+
+    // Remove trailing newline if present
+    if (segments.isNotEmpty() && segments.last().text == "\n") {
+        segments.removeAt(segments.lastIndex)
+    }
+
+    return segments.ifEmpty { parseLinks(input) }
+}
+
+private fun parseInlineFormatting(input: String): List<FormattedSegment> {
+    val segments = mutableListOf<FormattedSegment>()
 
     // Simple single-pass for formatting markers
     val pattern = Regex("""(\*(.+?)\*|_(.+?)_|~(.+?)~|`(.+?)`)""")

@@ -26,7 +26,14 @@ data class Message(
     val deletedAt: Instant? = null,
     val editedAt: Instant? = null,
     val expiresAt: Instant? = null,
-    val forwardedFrom: UUID? = null
+    val forwardedFrom: UUID? = null,
+    // View-Once Media
+    val viewOnce: Boolean = false,
+    val viewedAt: Instant? = null,
+    val viewedBy: UUID? = null,
+    // Message Scheduling
+    val scheduledAt: Instant? = null,
+    val isScheduled: Boolean = false
 )
 
 data class MessageDeliveryStatus(

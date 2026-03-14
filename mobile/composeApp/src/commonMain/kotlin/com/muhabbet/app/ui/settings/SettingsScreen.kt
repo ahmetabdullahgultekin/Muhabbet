@@ -80,6 +80,9 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     onStarredMessages: () -> Unit = {},
     onPrivacyDashboard: () -> Unit = {},
+    onTwoStepVerification: () -> Unit = {},
+    onAppLock: () -> Unit = {},
+    onWallpaper: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
@@ -333,6 +336,119 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+
+                // Two-Step Verification row
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onTwoStepVerification() },
+                    tonalElevation = MuhabbetElevation.Level1,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = stringResource(Res.string.two_step_title),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.two_step_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+
+                // App Lock row
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onAppLock() },
+                    tonalElevation = MuhabbetElevation.Level1,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = stringResource(Res.string.app_lock_title),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.app_lock_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+
+                // Chat Wallpaper row
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onWallpaper() },
+                    tonalElevation = MuhabbetElevation.Level1,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = stringResource(Res.string.wallpaper_title),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.wallpaper_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+
+                // Media Quality row
+                var showMediaQualityDialog by remember { mutableStateOf(false) }
+                Surface(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { showMediaQualityDialog = true },
+                    tonalElevation = MuhabbetElevation.Level1,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = stringResource(Res.string.media_quality_title),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = stringResource(Res.string.media_quality_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+
+                if (showMediaQualityDialog) {
+                    MediaQualityDialog(onDismiss = { showMediaQualityDialog = false })
                 }
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))

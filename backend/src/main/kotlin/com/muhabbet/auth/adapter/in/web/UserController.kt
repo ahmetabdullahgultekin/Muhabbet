@@ -124,6 +124,30 @@ class UserController(
         )
     }
 
+    @PatchMapping("/me/privacy")
+    fun updatePrivacy(@RequestBody request: UpdatePrivacyRequest): ResponseEntity<ApiResponse<PrivacySettingsResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val user = userRepository.findById(userId)
+            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED)
+
+        val updated = userRepository.save(
+            user.copy(
+                readReceiptsEnabled = request.readReceiptsEnabled ?: user.readReceiptsEnabled,
+                onlineStatusVisibility = request.onlineStatusVisibility ?: user.onlineStatusVisibility,
+                aboutVisibility = request.aboutVisibility ?: user.aboutVisibility,
+                updatedAt = java.time.Instant.now()
+            )
+        )
+
+        return ApiResponseBuilder.ok(
+            PrivacySettingsResponse(
+                readReceiptsEnabled = updated.readReceiptsEnabled,
+                onlineStatusVisibility = updated.onlineStatusVisibility,
+                aboutVisibility = updated.aboutVisibility
+            )
+        )
+    }
+
     @PatchMapping("/me")
     fun updateMe(@RequestBody request: UpdateProfileRequest): ResponseEntity<ApiResponse<UserProfile>> {
         val userId = AuthenticatedUser.currentUserId()
@@ -161,3 +185,15 @@ class UserController(
         )
     }
 }
+
+data class UpdatePrivacyRequest(
+    val readReceiptsEnabled: Boolean? = null,
+    val onlineStatusVisibility: String? = null,
+    val aboutVisibility: String? = null
+)
+
+data class PrivacySettingsResponse(
+    val readReceiptsEnabled: Boolean,
+    val onlineStatusVisibility: String,
+    val aboutVisibility: String
+)

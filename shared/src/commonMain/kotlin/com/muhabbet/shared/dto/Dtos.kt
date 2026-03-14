@@ -118,7 +118,12 @@ data class ConversationResponse(
     val unreadCount: Int,
     val createdAt: String,
     val disappearAfterSeconds: Int? = null,
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val isMuted: Boolean = false,
+    val isArchived: Boolean = false,
+    val isLocked: Boolean = false,
+    val announcementOnly: Boolean = false,
+    val inviteLink: String? = null
 )
 
 @Serializable
@@ -382,4 +387,181 @@ data class PaginatedResponse<T>(
     val items: List<T>,
     val nextCursor: String?,            // null = no more pages
     val hasMore: Boolean
+)
+
+// ─── Two-Step Verification DTOs ─────────────────────────
+@Serializable
+data class SetupTwoStepRequest(val pin: String, val email: String? = null)
+
+@Serializable
+data class VerifyTwoStepRequest(val pin: String)
+
+@Serializable
+data class TwoStepStatusResponse(val enabled: Boolean, val hasEmail: Boolean = false)
+
+// ─── Archive/Mute DTOs ──────────────────────────────────
+@Serializable
+data class MuteRequest(val duration: String)  // "8h", "1w", "always"
+
+// ─── Invite Link DTOs ───────────────────────────────────
+@Serializable
+data class CreateInviteLinkRequest(
+    val requiresApproval: Boolean = false,
+    val maxUses: Int? = null,
+    val expiresInHours: Int? = null
+)
+
+@Serializable
+data class InviteLinkResponse(
+    val id: String,
+    val conversationId: String,
+    val inviteToken: String,
+    val inviteUrl: String,
+    val requiresApproval: Boolean,
+    val isActive: Boolean,
+    val maxUses: Int?,
+    val useCount: Int,
+    val expiresAt: String?,
+    val createdAt: String
+)
+
+@Serializable
+data class JoinViaLinkRequest(val token: String)
+
+// ─── Join Request DTOs ──────────────────────────────────
+@Serializable
+data class JoinRequestResponse(
+    val id: String,
+    val userId: String,
+    val displayName: String?,
+    val avatarUrl: String?,
+    val status: String,
+    val createdAt: String
+)
+
+// ─── Community DTOs ─────────────────────────────────────
+@Serializable
+data class CreateCommunityRequest(
+    val name: String,
+    val description: String? = null
+)
+
+@Serializable
+data class CommunityResponse(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val avatarUrl: String?,
+    val groupCount: Int,
+    val memberCount: Int,
+    val createdAt: String
+)
+
+@Serializable
+data class CommunityDetailResponse(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val avatarUrl: String?,
+    val groups: List<CommunityGroupInfo>,
+    val memberCount: Int,
+    val myRole: String?,
+    val createdAt: String
+)
+
+@Serializable
+data class CommunityGroupInfo(
+    val conversationId: String,
+    val name: String?,
+    val avatarUrl: String?,
+    val memberCount: Int
+)
+
+// ─── Group Event DTOs ───────────────────────────────────
+@Serializable
+data class CreateGroupEventRequest(
+    val title: String,
+    val description: String? = null,
+    val eventTime: Long,  // epoch millis
+    val location: String? = null
+)
+
+@Serializable
+data class GroupEventResponse(
+    val id: String,
+    val title: String,
+    val description: String?,
+    val eventTime: Long,
+    val location: String?,
+    val createdBy: String,
+    val goingCount: Int,
+    val createdAt: String
+)
+
+@Serializable
+data class RsvpRequest(val status: String)  // GOING, NOT_GOING, MAYBE
+
+// ─── View-Once DTOs ─────────────────────────────────────
+@Serializable
+data class ViewOnceStatusResponse(
+    val messageId: String,
+    val viewed: Boolean,
+    val viewedAt: Long? = null
+)
+
+// ─── Wallpaper DTOs ─────────────────────────────────────
+@Serializable
+data class SetWallpaperRequest(
+    val wallpaperType: String,  // DEFAULT, SOLID, CUSTOM
+    val wallpaperValue: String? = null,
+    val darkModeValue: String? = null
+)
+
+@Serializable
+data class WallpaperResponse(
+    val wallpaperType: String,
+    val wallpaperValue: String?,
+    val darkModeValue: String?
+)
+
+// ─── Privacy Settings DTOs ──────────────────────────────
+@Serializable
+data class UpdatePrivacyRequest(
+    val readReceiptsEnabled: Boolean? = null,
+    val onlineStatusVisibility: String? = null,  // everyone, contacts, nobody
+    val aboutVisibility: String? = null
+)
+
+@Serializable
+data class PrivacySettingsResponse(
+    val readReceiptsEnabled: Boolean,
+    val onlineStatusVisibility: String,
+    val aboutVisibility: String,
+    val lastSeenVisibility: String,
+    val profilePhotoVisibility: String
+)
+
+// ─── Broadcast List DTOs ────────────────────────────────
+@Serializable
+data class CreateBroadcastListRequest(
+    val name: String,
+    val memberIds: List<String>
+)
+
+@Serializable
+data class BroadcastListResponse(
+    val id: String,
+    val name: String,
+    val memberCount: Int,
+    val createdAt: String
+)
+
+// ─── Login Approval DTOs ────────────────────────────────
+@Serializable
+data class LoginApprovalNotification(
+    val approvalId: String,
+    val deviceName: String?,
+    val platform: String?,
+    val ipAddress: String?,
+    val createdAt: Long
 )

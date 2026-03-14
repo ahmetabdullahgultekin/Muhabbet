@@ -14,4 +14,18 @@ interface TokenStorage {
     fun setTheme(theme: String) {}
     fun getLastSyncTimestamp(): String? = null
     fun setLastSyncTimestamp(timestamp: String) {}
+    fun getAppLockEnabled(): Boolean = false
+    fun setAppLockEnabled(enabled: Boolean) {}
+    fun getAppLockTimeout(): String? = null
+    fun setAppLockTimeout(timeout: String) {}
+    fun getMediaQuality(): String? = null
+    fun setMediaQuality(quality: String) {}
+    fun getWallpaperType(): String? = null
+    fun setWallpaperType(type: String) {}
+    fun getSolidColor(): String? = null
+    fun setSolidColor(color: String?) {}
+    fun getCustomWallpaperPath(): String? = null
+    fun setCustomWallpaperPath(path: String?) {}
+    fun getDarkModeWallpaperEnabled(): Boolean = false
+    fun setDarkModeWallpaperEnabled(enabled: Boolean) {}
 }

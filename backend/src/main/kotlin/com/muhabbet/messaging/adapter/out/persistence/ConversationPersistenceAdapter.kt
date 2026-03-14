@@ -80,6 +80,7 @@ class ConversationPersistenceAdapter(
         entity.description = conversation.description
         entity.updatedAt = conversation.updatedAt
         entity.disappearAfterSeconds = conversation.disappearAfterSeconds
+        entity.announcementOnly = conversation.announcementOnly
         return conversationRepo.save(entity).toDomain()
     }
 
@@ -106,4 +107,43 @@ class ConversationPersistenceAdapter(
     override fun findByType(type: ConversationType): List<Conversation> =
         conversationRepo.findByType(type.name.lowercase())
             .map { it.toDomain() }
+
+    override fun archiveConversation(conversationId: UUID, userId: UUID) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.archived = true
+        member.archivedAt = Instant.now()
+        memberRepo.save(member)
+    }
+
+    override fun unarchiveConversation(conversationId: UUID, userId: UUID) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.archived = false
+        member.archivedAt = null
+        memberRepo.save(member)
+    }
+
+    override fun muteConversation(conversationId: UUID, userId: UUID, mutedUntil: Instant?) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.mutedUntil = mutedUntil
+        memberRepo.save(member)
+    }
+
+    override fun lockConversation(conversationId: UUID, userId: UUID) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.locked = true
+        member.lockedAt = Instant.now()
+        memberRepo.save(member)
+    }
+
+    override fun unlockConversation(conversationId: UUID, userId: UUID) {
+        val member = memberRepo.findByConversationIdAndUserId(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+        member.locked = false
+        member.lockedAt = null
+        memberRepo.save(member)
+    }
 }

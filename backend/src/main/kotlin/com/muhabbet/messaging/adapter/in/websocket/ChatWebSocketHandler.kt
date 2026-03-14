@@ -161,7 +161,9 @@ class ChatWebSocketHandler(
                     mediaUrl = msg.mediaUrl,
                     thumbnailUrl = msg.thumbnailUrl,
                     clientTimestamp = Instant.now(),
-                    forwardedFrom = msg.forwardedFrom?.let { try { UUID.fromString(it) } catch (_: Exception) { null } }
+                    forwardedFrom = msg.forwardedFrom?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
+                    viewOnce = msg.viewOnce,
+                    scheduledAt = msg.scheduledAt?.let { Instant.ofEpochMilli(it) }
                 )
             )
 
