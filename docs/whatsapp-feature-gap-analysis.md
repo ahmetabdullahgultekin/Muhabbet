@@ -268,20 +268,82 @@ These features are **non-negotiable** — users will uninstall without them.
 
 ---
 
+### 3.6 Security & Account Protection
+
+| Feature | WhatsApp | Muhabbet |
+|---------|----------|---------|
+| Security notifications | "Security code changed" when contact re-registers | Not implemented — no key change detection |
+| Login approval | Existing device approves new device registration | Not implemented — OTP on new device just works |
+| Silence unknown callers | Auto-reject calls from non-contacts | Not implemented |
+
+**What's missing:** Track identity key per contact, detect key change → system message in chat. On OTP request for existing number → push approval to current device. Unknown caller toggle.
+
+**Complexity:** M | **Layers:** Both
+
+---
+
+### 3.7 View-Once Media
+
+| Feature | WhatsApp | Muhabbet |
+|---------|----------|---------|
+| View-once photos/videos | Send media that can only be viewed once | Not implemented — disappearing messages exist but no per-message view-once |
+| Screenshot detection | Alert sender if recipient screenshots | Not implemented |
+
+**What's missing:** `viewOnce` flag on Message, view tracking (mark viewed after first open), prevent re-open, view-once toggle in media send UI, view-once indicator bubble
+
+**Complexity:** M | **Layers:** Both
+
+---
+
+### 3.8 Group Invite Links
+
+| Feature | WhatsApp | Muhabbet |
+|---------|----------|---------|
+| Shareable invite link | Generate link to join group | Not implemented |
+| QR code join | Scan QR to join | Not implemented |
+| Link revocation | Admin can reset link | Not implemented |
+
+**What's missing:** Invite link generation (unique token), join-via-link endpoint, QR code, link revocation by admin
+
+**Complexity:** M | **Layers:** Both
+
+---
+
+### 3.9 Cloud Backup (Google Drive / iCloud)
+
+| Feature | WhatsApp | Muhabbet |
+|---------|----------|---------|
+| Auto cloud backup | Google Drive (Android) / iCloud (iOS) | Not implemented — server-side `BackupService` exists but no cloud storage integration |
+| Encrypted backup | Password or 64-digit key | Not implemented |
+| Backup restore | Restore on new device | Not implemented |
+
+**What exists:** `BackupService`, `BackupController`, server-side message export with pre-signed URLs
+
+**What's missing:** Google Drive API (Android), iCloud CloudKit (iOS), incremental backup, user-provided encryption password, restore flow
+
+**Complexity:** L | **Layers:** Mobile + Infra
+
+---
+
 ## TIER 4: LOWER PRIORITY (Competitive parity, post-launch)
 
 | Feature | Complexity | Notes |
 |---------|-----------|-------|
 | WhatsApp Business profiles | L | Bot platform provides partial coverage |
 | AI features (chat summarization, AI stickers) | L | Differentiator opportunity for Turkish market |
-| View once (single-view photo/video) | S | Disappearing exists, need single-view variant |
 | Broadcast lists (1-to-many DM) | M | Different from Channels — recipient sees as DM |
-| Message scheduling | S | Send later |
+| Message scheduling | M | Send later — needs scheduled message storage + scheduler service |
+| Status audience selection | M | "My contacts except..." / "Only share with..." — no visibility controls on statuses |
 | Chat export as text file | S | Backup exists, need shareable format |
 | Keep messages in disappearing chats | S | Save specific messages from TTL |
+| Call links (shareable join URL) | M | Like Google Meet links — depends on calls working |
+| Call waiting / hold | M | Multiple concurrent call sessions — depends on calls working |
 | Animated avatars | L | |
 | Dual SIM support | M | |
-| Proxy server support | M | For restricted networks |
+| Proxy server support (SOCKS5) | M | For restricted networks — proxy-aware Ktor + WS |
+| Companion mode (second phone) | XL | Depends on multi-device |
+| Video call filters/backgrounds | XL | AR face filters, background blur/replacement |
+| Tablet-optimized layout | L | Split-pane master-detail for tablets |
 | In-app browser | S | Links open external browser currently |
 | Database sharding | XL | Single PostgreSQL OK until 100K+ users |
 | Media CDN | L | MinIO single instance OK for MVP |
@@ -322,14 +384,21 @@ Pre-launch (must complete):
   ─────────────────────────────────────────────────────
   Total for credible launch:                ~12-16 weeks
 
-Post-launch priority:
-  8. Multi-device (Web + Desktop)          — 8-12 weeks
-  9. Advanced Group Features               — 3-4 weeks
-  10. Communities                          — 4-6 weeks
-  11. Video Compression + HD Toggle        — 2 weeks
+Post-launch (first 3 months):
+  8. Login Approval / Account Protect      — 1-2 weeks
+  9. Security Notifications (key change)   — 1-2 weeks
+  10. View-Once Media                      — 1-2 weeks
+  11. Group Invite Links                   — 1-2 weeks
   12. App Lock / Chat Lock                 — 1-2 weeks
   13. Save to Gallery / Share              — 1 week
-  14. Business Features                    — 6-8 weeks
+  14. Video Compression + HD Toggle        — 2 weeks
+  15. Cloud Backup (GDrive / iCloud)       — 3-4 weeks
+
+Post-launch (3-6 months):
+  16. Multi-device (Web + Desktop)         — 8-12 weeks
+  17. Advanced Group Features              — 3-4 weeks
+  18. Communities                          — 4-6 weeks
+  19. Business Features                    — 6-8 weeks
 ```
 
 ---
