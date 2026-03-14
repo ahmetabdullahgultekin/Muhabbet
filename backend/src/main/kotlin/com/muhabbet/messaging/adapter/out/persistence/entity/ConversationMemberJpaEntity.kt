@@ -47,19 +47,33 @@ class ConversationMemberJpaEntity(
     var pinned: Boolean = false,
 
     @Column(name = "pinned_at")
-    var pinnedAt: Instant? = null
+    var pinnedAt: Instant? = null,
+
+    @Column(name = "archived", nullable = false)
+    var archived: Boolean = false,
+
+    @Column(name = "archived_at")
+    var archivedAt: Instant? = null,
+
+    @Column(name = "locked", nullable = false)
+    var locked: Boolean = false,
+
+    @Column(name = "locked_at")
+    var lockedAt: Instant? = null
 ) {
     fun toDomain(): ConversationMember = ConversationMember(
         conversationId = conversationId, userId = userId, role = role,
         joinedAt = joinedAt, mutedUntil = mutedUntil, lastReadAt = lastReadAt,
-        pinned = pinned
+        pinned = pinned, archived = archived, archivedAt = archivedAt,
+        locked = locked, lockedAt = lockedAt
     )
 
     companion object {
         fun fromDomain(m: ConversationMember): ConversationMemberJpaEntity = ConversationMemberJpaEntity(
             conversationId = m.conversationId, userId = m.userId, role = m.role,
             joinedAt = m.joinedAt, mutedUntil = m.mutedUntil, lastReadAt = m.lastReadAt,
-            pinned = m.pinned
+            pinned = m.pinned, archived = m.archived, archivedAt = m.archivedAt,
+            locked = m.locked, lockedAt = m.lockedAt
         )
     }
 }

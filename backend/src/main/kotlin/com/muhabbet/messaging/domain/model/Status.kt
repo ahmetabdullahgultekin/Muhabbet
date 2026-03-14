@@ -9,5 +9,9 @@ data class Status(
     val content: String? = null,
     val mediaUrl: String? = null,
     val createdAt: Instant = Instant.now(),
-    val expiresAt: Instant = Instant.now().plusSeconds(86400)
+    val expiresAt: Instant = Instant.now().plusSeconds(86400),
+    // Audience
+    val visibility: String = "everyone",
+    val excludedUserIds: List<UUID> = emptyList(),
+    val includedUserIds: List<UUID> = emptyList()
 )

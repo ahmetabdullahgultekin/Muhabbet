@@ -63,6 +63,18 @@ enum class CallEndReason {
     FAILED
 }
 
+@Serializable
+enum class JoinRequestStatus { PENDING, APPROVED, REJECTED }
+
+@Serializable
+enum class RsvpStatus { GOING, NOT_GOING, MAYBE }
+
+@Serializable
+enum class WallpaperType { DEFAULT, SOLID, CUSTOM }
+
+@Serializable
+enum class VisibilityLevel { EVERYONE, CONTACTS, NOBODY }
+
 // ─── Domain Models ───────────────────────────────────────
 
 @Serializable
@@ -82,7 +94,8 @@ data class Message(
     val isDeleted: Boolean = false,
     val forwardedFrom: String? = null,
     val reactions: Map<String, Int> = emptyMap(),
-    val myReactions: Set<String> = emptySet()
+    val myReactions: Set<String> = emptySet(),
+    val viewOnce: Boolean = false
 )
 
 @Serializable
@@ -93,7 +106,12 @@ data class Conversation(
     val avatarUrl: String? = null,
     val lastMessage: Message? = null,
     val unreadCount: Int = 0,
-    val updatedAt: Instant
+    val updatedAt: Instant,
+    val isPinned: Boolean = false,
+    val isMuted: Boolean = false,
+    val isArchived: Boolean = false,
+    val isLocked: Boolean = false,
+    val announcementOnly: Boolean = false
 )
 
 @Serializable

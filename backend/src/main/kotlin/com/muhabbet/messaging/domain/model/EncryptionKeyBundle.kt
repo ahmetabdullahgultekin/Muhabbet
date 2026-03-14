@@ -11,5 +11,9 @@ data class EncryptionKeyBundle(
     val signedPreKeyId: Int,
     val registrationId: Int,
     val createdAt: Instant = Instant.now(),
-    val updatedAt: Instant = Instant.now()
+    val updatedAt: Instant = Instant.now(),
+    // Security Notifications (Key Change Tracking)
+    val keyVersion: Int = 1,
+    val previousIdentityKey: String? = null,
+    val keyChangedAt: Instant? = null
 )

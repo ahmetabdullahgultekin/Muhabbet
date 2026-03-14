@@ -39,7 +39,16 @@ class CallHistoryJpaEntity(
     val endedAt: Instant? = null,
 
     @Column(name = "duration_seconds")
-    val durationSeconds: Int? = null
+    val durationSeconds: Int? = null,
+
+    @Column(name = "conversation_id")
+    val conversationId: UUID? = null,
+
+    @Column(name = "is_group_call")
+    val isGroupCall: Boolean = false,
+
+    @Column(name = "participant_count")
+    val participantCount: Int? = null
 ) {
     fun toDomain(): CallHistoryRecord = CallHistoryRecord(
         id = id,
@@ -51,7 +60,10 @@ class CallHistoryJpaEntity(
         startedAt = startedAt,
         answeredAt = answeredAt,
         endedAt = endedAt,
-        durationSeconds = durationSeconds
+        durationSeconds = durationSeconds,
+        conversationId = conversationId,
+        isGroupCall = isGroupCall,
+        participantCount = participantCount
     )
 
     companion object {
@@ -65,7 +77,10 @@ class CallHistoryJpaEntity(
             startedAt = record.startedAt,
             answeredAt = record.answeredAt,
             endedAt = record.endedAt,
-            durationSeconds = record.durationSeconds
+            durationSeconds = record.durationSeconds,
+            conversationId = record.conversationId,
+            isGroupCall = record.isGroupCall,
+            participantCount = record.participantCount
         )
     }
 }

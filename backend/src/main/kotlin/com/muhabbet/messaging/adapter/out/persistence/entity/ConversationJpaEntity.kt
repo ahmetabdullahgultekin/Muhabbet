@@ -40,19 +40,22 @@ class ConversationJpaEntity(
     var updatedAt: Instant = Instant.now(),
 
     @Column(name = "disappear_after_seconds")
-    var disappearAfterSeconds: Int? = null
+    var disappearAfterSeconds: Int? = null,
+
+    @Column(name = "announcement_only", nullable = false)
+    var announcementOnly: Boolean = false
 ) {
     fun toDomain(): Conversation = Conversation(
         id = id, type = type, name = name, avatarUrl = avatarUrl,
         description = description, createdBy = createdBy, createdAt = createdAt, updatedAt = updatedAt,
-        disappearAfterSeconds = disappearAfterSeconds
+        disappearAfterSeconds = disappearAfterSeconds, announcementOnly = announcementOnly
     )
 
     companion object {
         fun fromDomain(c: Conversation): ConversationJpaEntity = ConversationJpaEntity(
             id = c.id, type = c.type, name = c.name, avatarUrl = c.avatarUrl,
             description = c.description, createdBy = c.createdBy, createdAt = c.createdAt, updatedAt = c.updatedAt,
-            disappearAfterSeconds = c.disappearAfterSeconds
+            disappearAfterSeconds = c.disappearAfterSeconds, announcementOnly = c.announcementOnly
         )
     }
 }

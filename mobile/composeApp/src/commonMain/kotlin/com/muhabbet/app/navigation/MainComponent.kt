@@ -28,7 +28,15 @@ import com.muhabbet.app.ui.profile.UserProfileScreen
 import com.muhabbet.app.ui.settings.SettingsScreen
 import com.muhabbet.app.ui.media.SharedMediaScreen
 import com.muhabbet.app.ui.starred.StarredMessagesScreen
+import com.muhabbet.app.ui.communities.CommunityDetailScreen
+import com.muhabbet.app.ui.communities.CommunityListScreen
+import com.muhabbet.app.ui.communities.CreateCommunityScreen
+import com.muhabbet.app.ui.conversations.BroadcastListScreen
+import com.muhabbet.app.ui.group.GroupEventScreen
 import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
+import com.muhabbet.app.ui.settings.AppLockScreen
+import com.muhabbet.app.ui.settings.TwoStepSetupScreen
+import com.muhabbet.app.ui.settings.WallpaperPickerScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -131,6 +139,41 @@ class MainComponent(
         navigation.push(Config.PrivacyDashboard)
     }
 
+    @OptIn(DelicateDecomposeApi::class)
+    fun openTwoStepVerification() {
+        navigation.push(Config.TwoStepVerification)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openAppLock() {
+        navigation.push(Config.AppLock)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openWallpaper() {
+        navigation.push(Config.Wallpaper)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openCommunityDetail(communityId: String) {
+        navigation.push(Config.CommunityDetail(communityId))
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openCreateCommunity() {
+        navigation.push(Config.CreateCommunity)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openGroupEvents(conversationId: String) {
+        navigation.push(Config.GroupEvents(conversationId))
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
+    fun openBroadcastLists() {
+        navigation.push(Config.BroadcastLists)
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -154,6 +197,13 @@ class MainComponent(
         @Serializable data class ActiveCall(val callId: String, val otherUserId: String, val otherUserName: String? = null, val callType: String = "VOICE") : Config
         @Serializable data object CallHistory : Config
         @Serializable data object PrivacyDashboard : Config
+        @Serializable data object TwoStepVerification : Config
+        @Serializable data object AppLock : Config
+        @Serializable data object Wallpaper : Config
+        @Serializable data class CommunityDetail(val communityId: String) : Config
+        @Serializable data object CreateCommunity : Config
+        @Serializable data class GroupEvents(val conversationId: String) : Config
+        @Serializable data object BroadcastLists : Config
     }
 }
 
@@ -173,6 +223,8 @@ fun MainContent(component: MainComponent) {
                     val callId = Clock.System.now().toEpochMilliseconds().toString()
                     component.openActiveCall(callId, userId, name, callType)
                 },
+                onCommunityClick = { communityId -> component.openCommunityDetail(communityId) },
+                onCreateCommunity = component::openCreateCommunity,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.ConversationList -> ConversationListScreen(
@@ -223,7 +275,8 @@ fun MainContent(component: MainComponent) {
                 conversationName = config.name,
                 onBack = component::goBack,
                 onMemberClick = { userId -> component.openUserProfile(userId) },
-                onSharedMediaClick = { component.openSharedMedia(config.conversationId) }
+                onSharedMediaClick = { component.openSharedMedia(config.conversationId) },
+                onEventsClick = { component.openGroupEvents(config.conversationId) }
             )
             is MainComponent.Config.UserProfile -> UserProfileScreen(
                 userId = config.userId,
@@ -243,7 +296,10 @@ fun MainContent(component: MainComponent) {
                 onBack = component::goBack,
                 onLogout = component.onLogout,
                 onStarredMessages = component::openStarredMessages,
-                onPrivacyDashboard = component::openPrivacyDashboard
+                onPrivacyDashboard = component::openPrivacyDashboard,
+                onTwoStepVerification = component::openTwoStepVerification,
+                onAppLock = component::openAppLock,
+                onWallpaper = component::openWallpaper
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
                 onBack = component::goBack,
@@ -293,6 +349,36 @@ fun MainContent(component: MainComponent) {
                     val callId = Clock.System.now().toEpochMilliseconds().toString()
                     component.openActiveCall(callId, userId, name, callType)
                 }
+            )
+            is MainComponent.Config.TwoStepVerification -> TwoStepSetupScreen(
+                onBack = component::goBack
+            )
+            is MainComponent.Config.AppLock -> AppLockScreen(
+                onBack = component::goBack
+            )
+            is MainComponent.Config.Wallpaper -> WallpaperPickerScreen(
+                onBack = component::goBack
+            )
+            is MainComponent.Config.CommunityDetail -> CommunityDetailScreen(
+                communityId = config.communityId,
+                onBack = component::goBack,
+                onGroupClick = { conversationId ->
+                    component.openChat(conversationId, "", isGroup = true)
+                }
+            )
+            is MainComponent.Config.CreateCommunity -> CreateCommunityScreen(
+                onBack = component::goBack,
+                onCommunityCreated = { communityId ->
+                    component.goBack()
+                    component.openCommunityDetail(communityId)
+                }
+            )
+            is MainComponent.Config.GroupEvents -> GroupEventScreen(
+                conversationId = config.conversationId,
+                onBack = component::goBack
+            )
+            is MainComponent.Config.BroadcastLists -> BroadcastListScreen(
+                onBack = component::goBack
             )
         }
     }

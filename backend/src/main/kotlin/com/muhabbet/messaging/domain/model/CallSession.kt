@@ -4,7 +4,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Tracks an active call between two users.
+ * Tracks an active call between two users or a group call.
  * Stored in-memory only (ConcurrentHashMap) — not persisted until call ends.
  */
 data class CallSession(
@@ -15,7 +15,11 @@ data class CallSession(
     val status: CallStatus,
     val startedAt: Instant = Instant.now(),
     val answeredAt: Instant? = null,
-    val endedAt: Instant? = null
+    val endedAt: Instant? = null,
+    // Group call support
+    val conversationId: UUID? = null,
+    val isGroupCall: Boolean = false,
+    val participantIds: Set<UUID> = emptySet()
 )
 
 enum class CallType {

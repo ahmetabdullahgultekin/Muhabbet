@@ -114,4 +114,15 @@ class MessagePersistenceAdapter(
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
         return messageRepo.searchGlobal(query, pageable).map { it.toDomain() }
     }
+
+    override fun markViewOnceViewed(messageId: UUID, viewedBy: UUID) {
+        messageRepo.markViewOnceViewed(messageId, viewedBy, Instant.now())
+    }
+
+    override fun findScheduledMessagesReadyToSend(now: Instant): List<Message> =
+        messageRepo.findScheduledMessagesReadyToSend(now).map { it.toDomain() }
+
+    override fun markAsDelivered(messageId: UUID) {
+        messageRepo.markScheduledAsDelivered(messageId)
+    }
 }

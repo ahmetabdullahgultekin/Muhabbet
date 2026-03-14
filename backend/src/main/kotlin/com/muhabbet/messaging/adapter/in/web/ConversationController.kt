@@ -155,4 +155,87 @@ class ConversationController(
         conversationRepository.unpinConversation(conversationId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
+
+    // ─── Archive ──────────────────────────────────────────────
+
+    @PutMapping("/{conversationId}/archive")
+    fun archiveConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        conversationRepository.archiveConversation(conversationId, userId)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    @DeleteMapping("/{conversationId}/archive")
+    fun unarchiveConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        conversationRepository.unarchiveConversation(conversationId, userId)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    // ─── Mute ─────────────────────────────────────────────────
+
+    @PutMapping("/{conversationId}/mute")
+    fun muteConversation(
+        @PathVariable conversationId: UUID,
+        @RequestBody request: MuteRequest
+    ): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val mutedUntil = when (request.duration) {
+            "8h" -> java.time.Instant.now().plusSeconds(8 * 3600)
+            "1w" -> java.time.Instant.now().plusSeconds(7 * 24 * 3600)
+            "always" -> java.time.Instant.parse("2099-12-31T23:59:59Z")
+            else -> java.time.Instant.now().plusSeconds(8 * 3600)
+        }
+        conversationRepository.muteConversation(conversationId, userId, mutedUntil)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    @DeleteMapping("/{conversationId}/mute")
+    fun unmuteConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        conversationRepository.muteConversation(conversationId, userId, null)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    // ─── Lock ─────────────────────────────────────────────────
+
+    @PutMapping("/{conversationId}/lock")
+    fun lockConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        conversationRepository.lockConversation(conversationId, userId)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    @DeleteMapping("/{conversationId}/lock")
+    fun unlockConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        conversationRepository.unlockConversation(conversationId, userId)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    // ─── Announcement Mode ────────────────────────────────────
+
+    @PutMapping("/{conversationId}/announcement")
+    fun setAnnouncementMode(
+        @PathVariable conversationId: UUID,
+        @RequestBody request: AnnouncementRequest
+    ): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val conversation = conversationRepository.findById(conversationId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
+
+        // Only admin/owner can toggle announcement mode
+        val member = conversationRepository.findMember(conversationId, userId)
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.GROUP_NOT_MEMBER)
+        if (member.role == com.muhabbet.messaging.domain.model.MemberRole.MEMBER) {
+            throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.GROUP_PERMISSION_DENIED)
+        }
+
+        val updated = conversation.copy(announcementOnly = request.enabled, updatedAt = java.time.Instant.now())
+        conversationRepository.updateConversation(updated)
+        return ApiResponseBuilder.ok(Unit)
+    }
 }
+
+data class MuteRequest(val duration: String)
+data class AnnouncementRequest(val enabled: Boolean)

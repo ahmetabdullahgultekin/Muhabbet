@@ -83,6 +83,17 @@ fun MessageBubble(
     onInfo: () -> Unit = {},
     onCopy: () -> Unit = {}
 ) {
+    // Dispatch view-once messages to ViewOnceBubble
+    if (message.viewOnce && !message.isDeleted) {
+        ViewOnceBubble(
+            message = message,
+            isOwn = isOwn,
+            onViewOnce = { /* TODO: mark view-once via repository */ },
+            modifier = Modifier
+        )
+        return
+    }
+
     val clipboardManager = LocalClipboardManager.current
     val semanticColors = LocalSemanticColors.current
     val bubbleColor = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)

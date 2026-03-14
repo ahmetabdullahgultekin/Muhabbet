@@ -440,4 +440,126 @@
     <string name="privacy_kvkk_right_erasure">Verilerinizin silinmesini isteme hakkı</string>
     <string name="privacy_kvkk_right_portability">Veri taşınabilirliği hakkı</string>
     <string name="privacy_open_dashboard">Gizlilik ve Veri</string>
+
+    <!-- Two-Step Verification -->
+    <string name="two_step_title">İki Adımlı Doğrulama</string>
+    <string name="two_step_description">Hesabınızı korumak için 6 haneli PIN oluşturun</string>
+    <string name="two_step_pin_hint">6 haneli PIN</string>
+    <string name="two_step_confirm_pin">PIN\'i onaylayın</string>
+    <string name="two_step_email_hint">Kurtarma e-postası (isteğe bağlı)</string>
+    <string name="two_step_enable">Etkinleştir</string>
+    <string name="two_step_disable">Devre Dışı Bırak</string>
+    <string name="two_step_enabled">İki adımlı doğrulama etkin</string>
+    <string name="two_step_pin_mismatch">PIN\'ler eşleşmiyor</string>
+    <string name="two_step_pin_length">PIN 6 haneli olmalıdır</string>
+
+    <!-- Mute Duration -->
+    <string name="mute_8_hours">8 saat</string>
+    <string name="mute_1_week">1 hafta</string>
+    <string name="mute_always">Her zaman</string>
+    <string name="mute_title">Bildirim sesini kapat</string>
+
+    <!-- Wallpaper -->
+    <string name="wallpaper_title">Sohbet Arka Planı</string>
+    <string name="wallpaper_default">Varsayılan</string>
+    <string name="wallpaper_solid">Düz Renk</string>
+    <string name="wallpaper_custom">Galeri</string>
+    <string name="wallpaper_remove">Arka planı kaldır</string>
+    <string name="wallpaper_dark_mode">Karanlık mod arka planı</string>
+
+    <!-- View Once -->
+    <string name="view_once_label">Bir kez görüntüle</string>
+    <string name="view_once_opened">Açıldı</string>
+    <string name="view_once_tap_to_view">Görüntülemek için dokunun</string>
+    <string name="view_once_photo">Fotoğraf</string>
+    <string name="view_once_video">Video</string>
+
+    <!-- App Lock -->
+    <string name="app_lock_title">Uygulama Kilidi</string>
+    <string name="app_lock_description">Biyometrik veya PIN ile uygulamayı kilitle</string>
+    <string name="app_lock_enable">Uygulama kilidini aç</string>
+    <string name="app_lock_timeout">Kilit zaman aşımı</string>
+    <string name="app_lock_immediately">Hemen</string>
+    <string name="app_lock_1_minute">1 dakika sonra</string>
+    <string name="app_lock_30_minutes">30 dakika sonra</string>
+    <string name="chat_lock">Sohbeti kilitle</string>
+    <string name="chat_unlock">Sohbet kilidini aç</string>
+    <string name="locked_chats">Kilitli Sohbetler</string>
+
+    <!-- HD Toggle -->
+    <string name="media_quality_title">Medya Kalitesi</string>
+    <string name="media_quality_standard">Standart</string>
+    <string name="media_quality_hd">HD</string>
+    <string name="media_quality_description">HD fotoğraf ve videolar daha fazla veri kullanır</string>
+
+    <!-- Video Messages -->
+    <string name="video_message">Video mesaj</string>
+    <string name="video_message_hold">Video kaydetmek için basılı tutun</string>
+
+    <!-- Communities -->
+    <string name="communities_title">Topluluklar</string>
+    <string name="community_create">Topluluk Oluştur</string>
+    <string name="community_name_hint">Topluluk adı</string>
+    <string name="community_description_hint">Açıklama (isteğe bağlı)</string>
+    <string name="community_groups">Gruplar</string>
+    <string name="community_members">Üyeler</string>
+    <string name="community_add_group">Grup Ekle</string>
+
+    <!-- Group Invite Links -->
+    <string name="invite_link_title">Davet Bağlantısı</string>
+    <string name="invite_link_create">Bağlantı Oluştur</string>
+    <string name="invite_link_copy">Bağlantıyı kopyala</string>
+    <string name="invite_link_share">Bağlantıyı paylaş</string>
+    <string name="invite_link_revoke">Bağlantıyı iptal et</string>
+    <string name="invite_link_require_approval">Yönetici onayı gereksin</string>
+    <string name="invite_link_copied">Bağlantı kopyalandı</string>
+
+    <!-- Group Events -->
+    <string name="group_event_title">Etkinlik</string>
+    <string name="group_event_create">Etkinlik Oluştur</string>
+    <string name="group_event_name_hint">Etkinlik adı</string>
+    <string name="group_event_date">Tarih ve saat</string>
+    <string name="group_event_location">Konum (isteğe bağlı)</string>
+    <string name="group_event_going">Katılıyorum</string>
+    <string name="group_event_not_going">Katılmıyorum</string>
+    <string name="group_event_maybe">Belki</string>
+
+    <!-- Contact Sharing -->
+    <string name="share_contact">Kişi paylaş</string>
+    <string name="contact_shared">Paylaşılan Kişi</string>
+    <string name="contact_message_action">Mesaj Gönder</string>
+
+    <!-- Broadcast Lists -->
+    <string name="broadcast_list_title">Yayın Listeleri</string>
+    <string name="broadcast_list_create">Yeni Liste</string>
+    <string name="broadcast_list_name_hint">Liste adı</string>
+
+    <!-- Media Management -->
+    <string name="save_to_gallery">Galeriye Kaydet</string>
+    <string name="share_media">Paylaş</string>
+    <string name="media_saved">Galeriye kaydedildi</string>
+    <string name="auto_download_title">Otomatik İndirme</string>
+    <string name="auto_download_wifi">Wi-Fi\'da</string>
+    <string name="auto_download_mobile">Mobil veride</string>
+
+    <!-- Announcement Mode -->
+    <string name="announcement_mode">Yalnızca yöneticiler mesaj gönderebilir</string>
+    <string name="announcement_mode_enabled">Duyuru modu etkin</string>
+    <string name="announcement_mode_disabled">Duyuru modu devre dışı</string>
+
+    <!-- Security -->
+    <string name="security_code_changed">Güvenlik kodu değişti</string>
+    <string name="login_approval_title">Giriş Onayı</string>
+    <string name="login_approval_description">Yeni bir cihaz hesabınıza giriş yapmaya çalışıyor</string>
+    <string name="login_approval_approve">Onayla</string>
+    <string name="login_approval_deny">Reddet</string>
+
+    <!-- Rich Text -->
+    <string name="format_bold">Kalın</string>
+    <string name="format_italic">İtalik</string>
+    <string name="format_strikethrough">Üstü çizili</string>
+    <string name="format_monospace">Kod</string>
+    <string name="format_quote">Alıntı</string>
+    <string name="format_bullet_list">Madde listesi</string>
+    <string name="format_number_list">Numaralı liste</string>
 </resources>

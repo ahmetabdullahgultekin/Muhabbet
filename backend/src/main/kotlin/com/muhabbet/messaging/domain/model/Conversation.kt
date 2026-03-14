@@ -20,7 +20,8 @@ data class Conversation(
     val createdBy: UUID? = null,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
-    val disappearAfterSeconds: Int? = null
+    val disappearAfterSeconds: Int? = null,
+    val announcementOnly: Boolean = false
 )
 
 data class ConversationMember(
@@ -30,5 +31,9 @@ data class ConversationMember(
     val joinedAt: Instant = Instant.now(),
     val mutedUntil: Instant? = null,
     val lastReadAt: Instant? = null,
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    val archived: Boolean = false,
+    val archivedAt: Instant? = null,
+    val locked: Boolean = false,
+    val lockedAt: Instant? = null
 )

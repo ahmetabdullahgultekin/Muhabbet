@@ -17,10 +17,12 @@ import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
+import com.muhabbet.messaging.domain.service.MessageService
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -33,7 +35,8 @@ class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val manageMessageUseCase: ManageMessageUseCase,
     private val messageRepository: MessageRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val messageService: MessageService
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -149,6 +152,13 @@ class MessageController(
         val userId = AuthenticatedUser.currentUserId()
         val msg = manageMessageUseCase.editMessage(messageId, userId, request.content)
         return ApiResponseBuilder.ok(msg.toSharedMessage())
+    }
+
+    @PostMapping("/messages/{messageId}/view-once")
+    fun markViewOnceViewed(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        messageService.markViewOnceViewed(messageId, userId)
+        return ApiResponseBuilder.ok(Unit)
     }
 }
 

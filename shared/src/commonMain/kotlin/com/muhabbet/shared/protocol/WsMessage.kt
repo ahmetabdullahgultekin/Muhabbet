@@ -31,7 +31,9 @@ sealed class WsMessage {
         val replyToId: String? = null,
         val mediaUrl: String? = null,
         val thumbnailUrl: String? = null,
-        val forwardedFrom: String? = null   // original messageId if forwarded
+        val forwardedFrom: String? = null,  // original messageId if forwarded
+        val viewOnce: Boolean = false,
+        val scheduledAt: Long? = null        // epoch millis, null = send immediately
     ) : WsMessage()
 
     /** Client acknowledges received message (delivered/read) */
@@ -266,6 +268,47 @@ sealed class WsMessage {
     data class Error(
         val code: String,
         val message: String
+    ) : WsMessage()
+
+    // ─── Security & Auth (Server → Client) ──────────────────
+
+    /** Server notifies about a security key change */
+    @Serializable
+    @SerialName("security.key_changed")
+    data class SecurityKeyChanged(
+        val userId: String,
+        val conversationId: String?,
+        val timestamp: Long
+    ) : WsMessage()
+
+    /** Server sends login approval request to existing device */
+    @Serializable
+    @SerialName("auth.login_approval")
+    data class LoginApprovalRequest(
+        val approvalId: String,
+        val deviceName: String?,
+        val platform: String?,
+        val timestamp: Long
+    ) : WsMessage()
+
+    /** Client responds to login approval */
+    @Serializable
+    @SerialName("auth.login_response")
+    data class LoginApprovalResponse(
+        val approvalId: String,
+        val approved: Boolean
+    ) : WsMessage()
+
+    /** Server notifies about a group call starting */
+    @Serializable
+    @SerialName("call.group_start")
+    data class GroupCallStarted(
+        val callId: String,
+        val conversationId: String,
+        val callerId: String,
+        val callerName: String?,
+        val callType: CallType,
+        val participantCount: Int
     ) : WsMessage()
 }
 

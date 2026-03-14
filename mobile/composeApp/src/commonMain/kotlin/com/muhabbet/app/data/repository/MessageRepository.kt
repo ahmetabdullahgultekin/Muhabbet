@@ -104,6 +104,10 @@ class MessageRepository(
      * Used by background sync to catch up on missed messages.
      * Returns the list of synced messages and caches them locally.
      */
+    suspend fun markViewOnce(messageId: String) {
+        apiClient.post<Unit>("/api/v1/messages/$messageId/view-once", Unit)
+    }
+
     suspend fun syncMessagesSince(timestamp: String): List<Message> {
         val response = apiClient.get<PaginatedResponse<Message>>(
             "/api/v1/messages/since?timestamp=$timestamp"

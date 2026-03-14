@@ -43,4 +43,11 @@ interface MessageRepository {
     // Search
     fun searchInConversation(conversationId: UUID, query: String, limit: Int, offset: Int): List<Message>
     fun searchGlobal(query: String, limit: Int, offset: Int): List<Message>
+
+    // View-Once
+    fun markViewOnceViewed(messageId: UUID, viewedBy: UUID)
+
+    // Scheduled messages
+    fun findScheduledMessagesReadyToSend(now: Instant): List<Message>
+    fun markAsDelivered(messageId: UUID)
 }

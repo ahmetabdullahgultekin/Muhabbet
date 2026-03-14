@@ -19,5 +19,7 @@ data class SendMessageCommand(
     val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
     val clientTimestamp: Instant,
-    val forwardedFrom: UUID? = null
+    val forwardedFrom: UUID? = null,
+    val viewOnce: Boolean = false,
+    val scheduledAt: Instant? = null
 )

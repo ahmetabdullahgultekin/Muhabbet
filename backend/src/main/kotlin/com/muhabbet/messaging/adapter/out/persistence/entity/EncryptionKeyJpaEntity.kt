@@ -33,7 +33,16 @@ class EncryptionKeyJpaEntity(
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: Instant = Instant.now()
+    val updatedAt: Instant = Instant.now(),
+
+    @Column(name = "key_version", nullable = false)
+    val keyVersion: Int = 1,
+
+    @Column(name = "previous_identity_key")
+    val previousIdentityKey: String? = null,
+
+    @Column(name = "key_changed_at")
+    val keyChangedAt: Instant? = null
 ) {
     fun toDomain(): EncryptionKeyBundle = EncryptionKeyBundle(
         id = id,
@@ -43,7 +52,10 @@ class EncryptionKeyJpaEntity(
         signedPreKeyId = signedPreKeyId,
         registrationId = registrationId,
         createdAt = createdAt,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        keyVersion = keyVersion,
+        previousIdentityKey = previousIdentityKey,
+        keyChangedAt = keyChangedAt
     )
 
     companion object {
@@ -55,7 +67,10 @@ class EncryptionKeyJpaEntity(
             signedPreKeyId = bundle.signedPreKeyId,
             registrationId = bundle.registrationId,
             createdAt = bundle.createdAt,
-            updatedAt = bundle.updatedAt
+            updatedAt = bundle.updatedAt,
+            keyVersion = bundle.keyVersion,
+            previousIdentityKey = bundle.previousIdentityKey,
+            keyChangedAt = bundle.keyChangedAt
         )
     }
 }

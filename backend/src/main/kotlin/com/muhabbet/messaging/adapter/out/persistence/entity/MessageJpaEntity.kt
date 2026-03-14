@@ -58,7 +58,24 @@ class MessageJpaEntity(
     var expiresAt: Instant? = null,
 
     @Column(name = "forwarded_from")
-    val forwardedFrom: UUID? = null
+    val forwardedFrom: UUID? = null,
+
+    // View-Once Media
+    @Column(name = "view_once", nullable = false)
+    var viewOnce: Boolean = false,
+
+    @Column(name = "viewed_at")
+    var viewedAt: Instant? = null,
+
+    @Column(name = "viewed_by")
+    var viewedBy: UUID? = null,
+
+    // Message Scheduling
+    @Column(name = "scheduled_at")
+    var scheduledAt: Instant? = null,
+
+    @Column(name = "is_scheduled", nullable = false)
+    var isScheduled: Boolean = false
 ) {
     fun toDomain(): Message = Message(
         id = id, conversationId = conversationId, senderId = senderId,
@@ -66,7 +83,9 @@ class MessageJpaEntity(
         mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl,
         serverTimestamp = serverTimestamp, clientTimestamp = clientTimestamp,
         isDeleted = isDeleted, deletedAt = deletedAt, editedAt = editedAt,
-        expiresAt = expiresAt, forwardedFrom = forwardedFrom
+        expiresAt = expiresAt, forwardedFrom = forwardedFrom,
+        viewOnce = viewOnce, viewedAt = viewedAt, viewedBy = viewedBy,
+        scheduledAt = scheduledAt, isScheduled = isScheduled
     )
 
     companion object {
@@ -76,7 +95,9 @@ class MessageJpaEntity(
             mediaUrl = m.mediaUrl, thumbnailUrl = m.thumbnailUrl,
             serverTimestamp = m.serverTimestamp, clientTimestamp = m.clientTimestamp,
             isDeleted = m.isDeleted, deletedAt = m.deletedAt, editedAt = m.editedAt,
-            expiresAt = m.expiresAt, forwardedFrom = m.forwardedFrom
+            expiresAt = m.expiresAt, forwardedFrom = m.forwardedFrom,
+            viewOnce = m.viewOnce, viewedAt = m.viewedAt, viewedBy = m.viewedBy,
+            scheduledAt = m.scheduledAt, isScheduled = m.isScheduled
         )
     }
 }

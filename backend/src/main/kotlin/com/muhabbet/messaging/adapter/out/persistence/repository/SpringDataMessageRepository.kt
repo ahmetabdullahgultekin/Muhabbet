@@ -129,4 +129,24 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         """
     )
     fun findMessagesSince(userId: UUID, since: Instant, pageable: Pageable): List<MessageJpaEntity>
+
+    @Modifying
+    @Query("UPDATE MessageJpaEntity m SET m.viewedAt = :viewedAt, m.viewedBy = :viewedBy WHERE m.id = :messageId AND m.viewOnce = true AND m.viewedAt IS NULL")
+    fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant)
+
+    @Query(
+        """
+        SELECT m FROM MessageJpaEntity m
+        WHERE m.isScheduled = true
+          AND m.scheduledAt IS NOT NULL
+          AND m.scheduledAt <= :now
+          AND m.isDeleted = false
+        ORDER BY m.scheduledAt ASC
+        """
+    )
+    fun findScheduledMessagesReadyToSend(now: Instant): List<MessageJpaEntity>
+
+    @Modifying
+    @Query("UPDATE MessageJpaEntity m SET m.isScheduled = false WHERE m.id = :messageId")
+    fun markScheduledAsDelivered(messageId: UUID)
 }

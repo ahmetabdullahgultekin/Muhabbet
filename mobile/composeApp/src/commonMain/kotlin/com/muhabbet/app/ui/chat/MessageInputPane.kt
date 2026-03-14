@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Poll
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -139,7 +142,10 @@ fun MessageInputBar(
     onPollCreate: () -> Unit,
     onLocationShare: () -> Unit,
     onGifPick: () -> Unit = {},
-    onCameraPick: () -> Unit = {}
+    onCameraPick: () -> Unit = {},
+    viewOnceEnabled: Boolean = false,
+    onViewOnceToggle: () -> Unit = {},
+    onVideoRecord: () -> Unit = {}
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
 
@@ -213,7 +219,25 @@ fun MessageInputBar(
                         onClick = { showAttachMenu = false; onCameraPick() },
                         leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = stringResource(Res.string.attach_camera), modifier = Modifier.size(20.dp)) }
                     )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.video_message)) },
+                        onClick = { showAttachMenu = false; onVideoRecord() },
+                        leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = stringResource(Res.string.video_message), modifier = Modifier.size(20.dp)) }
+                    )
                 }
+            }
+
+            // View-once toggle
+            IconButton(
+                onClick = onViewOnceToggle,
+                enabled = !isEditing
+            ) {
+                Icon(
+                    imageVector = if (viewOnceEnabled) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    contentDescription = stringResource(Res.string.view_once_label),
+                    tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             }
 
             OutlinedTextField(

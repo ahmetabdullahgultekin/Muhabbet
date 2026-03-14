@@ -1,6 +1,7 @@
 package com.muhabbet.shared.config
 
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
@@ -9,26 +10,40 @@ import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
 import com.muhabbet.auth.domain.service.ContactSyncService
+import com.muhabbet.auth.domain.service.LoginApprovalService
+import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
 import com.muhabbet.media.domain.service.MediaService
+import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
+import com.muhabbet.messaging.domain.port.out.ChatWallpaperRepository
+import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
+import com.muhabbet.messaging.domain.port.out.GroupEventRepository
+import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
+import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
+import com.muhabbet.messaging.domain.service.ChatWallpaperService
+import com.muhabbet.messaging.domain.service.CommunityService
 import com.muhabbet.messaging.domain.service.ConversationService
 import com.muhabbet.messaging.domain.service.DisappearingMessageService
 import com.muhabbet.messaging.domain.service.EncryptionService
+import com.muhabbet.messaging.domain.service.GroupEventService
 import com.muhabbet.messaging.domain.service.GroupService
+import com.muhabbet.messaging.domain.service.InviteLinkService
+import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.messaging.domain.service.PollService
 import com.muhabbet.messaging.domain.service.ReactionService
@@ -247,4 +262,74 @@ class AppConfig {
             botRepository = botRepository,
             userRepository = userRepository
         )
+
+    // ─── WhatsApp Feature Parity ──────────────────────
+
+    @Bean
+    fun twoStepVerificationService(
+        userRepository: UserRepository,
+        passwordEncoder: PasswordEncoder
+    ): TwoStepVerificationService = TwoStepVerificationService(
+        userRepository = userRepository,
+        passwordEncoder = passwordEncoder
+    )
+
+    @Bean
+    fun loginApprovalService(
+        loginApprovalRepository: LoginApprovalRepository
+    ): LoginApprovalService = LoginApprovalService(
+        loginApprovalRepository = loginApprovalRepository
+    )
+
+    @Bean
+    fun inviteLinkService(
+        inviteLinkRepository: GroupInviteLinkRepository,
+        joinRequestRepository: GroupJoinRequestRepository,
+        conversationRepository: ConversationRepository
+    ): InviteLinkService = InviteLinkService(
+        inviteLinkRepository = inviteLinkRepository,
+        joinRequestRepository = joinRequestRepository,
+        conversationRepository = conversationRepository
+    )
+
+    @Bean
+    fun joinRequestService(
+        joinRequestRepository: GroupJoinRequestRepository,
+        conversationRepository: ConversationRepository,
+        inviteLinkRepository: GroupInviteLinkRepository
+    ): JoinRequestService = JoinRequestService(
+        joinRequestRepository = joinRequestRepository,
+        conversationRepository = conversationRepository,
+        inviteLinkRepository = inviteLinkRepository
+    )
+
+    @Bean
+    fun communityService(
+        communityRepository: CommunityRepository
+    ): CommunityService = CommunityService(
+        communityRepository = communityRepository
+    )
+
+    @Bean
+    fun groupEventService(
+        groupEventRepository: GroupEventRepository,
+        conversationRepository: ConversationRepository
+    ): GroupEventService = GroupEventService(
+        groupEventRepository = groupEventRepository,
+        conversationRepository = conversationRepository
+    )
+
+    @Bean
+    fun chatWallpaperService(
+        chatWallpaperRepository: ChatWallpaperRepository
+    ): ChatWallpaperService = ChatWallpaperService(
+        chatWallpaperRepository = chatWallpaperRepository
+    )
+
+    @Bean
+    fun broadcastListService(
+        broadcastListRepository: BroadcastListRepository
+    ): BroadcastListService = BroadcastListService(
+        broadcastListRepository = broadcastListRepository
+    )
 }

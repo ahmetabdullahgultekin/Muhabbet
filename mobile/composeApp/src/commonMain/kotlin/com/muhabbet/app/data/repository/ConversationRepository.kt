@@ -89,4 +89,31 @@ class ConversationRepository(
     suspend fun unpinConversation(conversationId: String) {
         apiClient.delete<Unit>("/api/v1/conversations/$conversationId/pin")
     }
+
+    suspend fun archiveConversation(conversationId: String) {
+        apiClient.put<Unit>("/api/v1/conversations/$conversationId/archive", Unit)
+    }
+
+    suspend fun unarchiveConversation(conversationId: String) {
+        apiClient.delete<Unit>("/api/v1/conversations/$conversationId/archive")
+    }
+
+    suspend fun muteConversation(conversationId: String, duration: String) {
+        apiClient.put<Unit>(
+            "/api/v1/conversations/$conversationId/mute",
+            com.muhabbet.shared.dto.MuteRequest(duration)
+        )
+    }
+
+    suspend fun unmuteConversation(conversationId: String) {
+        apiClient.delete<Unit>("/api/v1/conversations/$conversationId/mute")
+    }
+
+    suspend fun lockConversation(conversationId: String) {
+        apiClient.put<Unit>("/api/v1/conversations/$conversationId/lock", Unit)
+    }
+
+    suspend fun unlockConversation(conversationId: String) {
+        apiClient.delete<Unit>("/api/v1/conversations/$conversationId/lock")
+    }
 }

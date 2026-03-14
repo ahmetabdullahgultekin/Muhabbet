@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.muhabbet.app.ui.call.CallHistoryScreen
+import com.muhabbet.app.ui.communities.CommunityListScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.status.UpdatesTabScreen
 import com.muhabbet.app.ui.theme.LocalSemanticColors
@@ -64,6 +65,8 @@ fun HomeShellScreen(
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit,
     onCallUser: (userId: String, name: String?, callType: String) -> Unit,
+    onCommunityClick: (String) -> Unit = {},
+    onCreateCommunity: () -> Unit = {},
     refreshKey: Int = 0
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.CHATS) }
@@ -192,7 +195,10 @@ fun HomeShellScreen(
         ) {
             Crossfade(targetState = selectedTab, label = "homeTabTransition") { tab ->
                 when (tab) {
-                    HomeTab.COMMUNITIES -> CommunitiesPlaceholder()
+                    HomeTab.COMMUNITIES -> CommunityListScreen(
+                        onCommunityClick = onCommunityClick,
+                        onCreateCommunity = onCreateCommunity
+                    )
                     HomeTab.CHATS -> ConversationListScreen(
                         onConversationClick = onConversationClick,
                         onNewConversation = onNewConversation,
@@ -220,16 +226,3 @@ fun HomeShellScreen(
     }
 }
 
-@Composable
-private fun CommunitiesPlaceholder() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = stringResource(Res.string.home_tab_communities),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
