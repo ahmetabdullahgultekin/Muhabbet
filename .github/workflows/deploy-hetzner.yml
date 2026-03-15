@@ -1,0 +1,39 @@
+name: Deploy to Hetzner VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'shared/**'
+      - 'Dockerfile*'
+      - 'docker-compose.prod.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-muhabbet
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Muhabbet
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/projects/Muhabbet
+            git pull origin main
+            cd /root/projects
+            ./infra/deploy.sh build muhabbet
+            ./infra/deploy.sh restart muhabbet
+            # Health check
+            sleep 10
+            curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health || exit 1
+            echo "Muhabbet deployed successfully"
