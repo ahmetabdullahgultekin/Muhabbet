@@ -44,11 +44,11 @@ class CallHistoryJpaEntity(
     @Column(name = "conversation_id")
     val conversationId: UUID? = null,
 
-    @Column(name = "is_group_call")
+    @Column(name = "is_group_call", nullable = false)
     val isGroupCall: Boolean = false,
 
-    @Column(name = "participant_count")
-    val participantCount: Int? = null
+    @Column(name = "participant_count", nullable = false)
+    val participantCount: Int = 2
 ) {
     fun toDomain(): CallHistoryRecord = CallHistoryRecord(
         id = id,

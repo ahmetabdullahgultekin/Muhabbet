@@ -1,0 +1,77 @@
+services:
+  muhabbet-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: muhabbet-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: shared-postgres
+      DB_PORT: 5432
+      DB_NAME: muhabbet
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: shared-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_ENDPOINT: http://shared-minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: muhabbet-media
+      NETGSM_USERCODE: ${NETGSM_USERCODE:-}
+      NETGSM_PASSWORD: ${NETGSM_PASSWORD:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      FCM_ENABLED: "false"
+      FCM_CREDENTIALS_PATH: /app/firebase-adminsdk.json
+      CORS_ALLOWED_ORIGINS: https://muhabbet.rollingcatsoftware.com
+    volumes:
+      - ./firebase-adminsdk.json:/app/firebase-adminsdk.json:ro
+    networks:
+      - backend
+      - proxy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 45s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.muhabbet-api.rule=Host(`muhabbet-api.rollingcatsoftware.com`)"
+      - "traefik.http.routers.muhabbet-api.entrypoints=websecure"
+      - "traefik.http.routers.muhabbet-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.muhabbet-api.middlewares=secure-headers@file"
+      - "traefik.http.services.muhabbet-api.loadbalancer.server.port=8080"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # Initialize MinIO bucket for Muhabbet media
+  minio-init:
+    image: minio/mc:latest
+    container_name: muhabbet-minio-init
+    depends_on:
+      muhabbet-backend:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://shared-minio:9000 minioadmin ${MINIO_ROOT_PASSWORD};
+      mc mb local/muhabbet-media --ignore-existing;
+      mc anonymous set download local/muhabbet-media/thumbnails;
+      echo 'MinIO bucket initialized.';
+      "
+    networks:
+      - backend
+    restart: "no"
+
+networks:
+  backend:
+    name: backend
+    external: true
+  proxy:
+    name: proxy
+    external: true

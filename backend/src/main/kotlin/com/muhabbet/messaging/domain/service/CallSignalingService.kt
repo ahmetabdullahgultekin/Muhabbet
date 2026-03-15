@@ -193,7 +193,7 @@ open class CallSignalingService(
                     durationSeconds = durationSeconds,
                     conversationId = session.conversationId,
                     isGroupCall = session.isGroupCall,
-                    participantCount = if (session.isGroupCall) session.participantIds.size else null
+                    participantCount = if (session.isGroupCall) session.participantIds.size else 2
                 )
             )
         } catch (e: Exception) {
@@ -218,7 +218,7 @@ data class CallHistoryRecord(
     val durationSeconds: Int? = null,
     val conversationId: UUID? = null,
     val isGroupCall: Boolean = false,
-    val participantCount: Int? = null
+    val participantCount: Int = 2
 )
 
 /**
