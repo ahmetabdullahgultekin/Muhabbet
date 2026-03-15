@@ -22,10 +22,12 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        timeout-minutes: 8
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 6m
           script: |
             set -e
             cd /root/projects/Muhabbet
@@ -33,7 +35,14 @@ jobs:
             cd /root/projects
             ./infra/deploy.sh build muhabbet
             ./infra/deploy.sh restart muhabbet
-            # Health check
-            sleep 10
-            curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health || exit 1
+            # Health check with retries (Spring Boot startup ~30s)
+            for i in 1 2 3 4 5; do
+              sleep 15
+              if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
+                echo "API healthy after attempt $i"
+                break
+              fi
+              echo "Attempt $i: API not ready yet..."
+              if [ "$i" = "5" ]; then echo "Health check failed after 75s" && exit 1; fi
+            done
             echo "Muhabbet deployed successfully"
