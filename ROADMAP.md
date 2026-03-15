@@ -1,7 +1,27 @@
 # Muhabbet — Product Roadmap
 
-> **Last Updated**: February 15, 2026
+> **Last Updated**: 2026-03-15
 > **Status**: All 6 engineering phases + production hardening complete. Kotlin 2.3.10, Spring Boot 4.0.2, Java 25 upgrade verified (332/333 backend tests pass). Monitoring stack (Prometheus + Grafana) added. Remaining: iOS APNs, pen testing, app store submissions.
+
+## Deployment Status
+
+**Deployed at:** https://muhabbet-api.rollingcatsoftware.com
+**Stack:** Kotlin / Spring Boot 4
+**Server:** Hetzner VPS (Docker + Traefik + Let's Encrypt)
+**Health:** UP (all 7 components healthy)
+
+### Deployment Remaining
+
+- [ ] Firebase Cloud Messaging (FCM) credentials for production push notifications
+- [ ] Netgsm SMS gateway credentials for production SMS delivery
+- [ ] Connect Android app to production API
+- [ ] Sentry error tracking on server
+- [ ] Automated database backups
+
+### Known Behaviors
+
+- API root may return 403 due to Spring Security — use `/actuator/health` to verify.
+- `favicon.ico` requests return 401/403 — APIs don't serve favicons.
 
 ---
 
