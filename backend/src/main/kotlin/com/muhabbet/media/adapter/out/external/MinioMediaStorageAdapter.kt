@@ -35,10 +35,14 @@ class MinioMediaStorageAdapter(
             log.info("MinIO public endpoint configured: {}", mediaProperties.minio.publicEndpoint)
         }
 
-        val bucket = mediaProperties.minio.bucket
-        if (!client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
-            client.makeBucket(MakeBucketArgs.builder().bucket(bucket).build())
-            log.info("Created MinIO bucket: {}", bucket)
+        try {
+            val bucket = mediaProperties.minio.bucket
+            if (!client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
+                client.makeBucket(MakeBucketArgs.builder().bucket(bucket).build())
+                log.info("Created MinIO bucket: {}", bucket)
+            }
+        } catch (e: Exception) {
+            log.warn("MinIO not reachable at startup ({}): media uploads unavailable until connected", mediaProperties.minio.endpoint)
         }
     }
 
