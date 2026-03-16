@@ -30,9 +30,9 @@ jobs:
           command_timeout: 6m
           script: |
             set -e
-            cd /root/projects/Muhabbet
+            cd /opt/projects/Muhabbet
             git pull origin main
-            cd /root/projects
+            cd /opt/projects
             ./infra/deploy.sh build muhabbet
             ./infra/deploy.sh restart muhabbet
             # Health check with retries (Spring Boot startup ~30s)
