@@ -5,7 +5,7 @@ import com.muhabbet.shared.dto.RequestOtpRequest
 import com.muhabbet.shared.dto.VerifyOtpRequest
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
@@ -29,8 +29,7 @@ class AuthControllerIntegrationTest {
     @Autowired
     private lateinit var mockMvc: MockMvc
 
-    @Autowired
-    private lateinit var objectMapper: ObjectMapper
+    private val objectMapper = ObjectMapper()
 
     companion object {
         @Container
