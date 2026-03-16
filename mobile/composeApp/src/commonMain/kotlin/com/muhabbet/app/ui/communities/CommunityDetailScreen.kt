@@ -128,10 +128,10 @@ fun CommunityDetailScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        if (community.description != null) {
+                        community.description?.let { desc ->
                             Spacer(Modifier.height(MuhabbetSpacing.Small))
                             Text(
-                                text = community.description,
+                                text = desc,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -204,7 +204,7 @@ private fun GroupItem(
         ) {
             UserAvatar(
                 avatarUrl = group.avatarUrl,
-                displayName = group.name,
+                displayName = group.name ?: "",
                 size = 44.dp
             )
             Spacer(Modifier.width(MuhabbetSpacing.Medium))

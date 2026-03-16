@@ -70,7 +70,7 @@ class NoOpKeyManager : E2EKeyManager {
     private val sessions = mutableSetOf<String>()
 
     override fun generateIdentityKeyPair(): String {
-        identityKey = "noop-identity-key-${System.currentTimeMillis()}"
+        identityKey = "noop-identity-key-${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}"
         return identityKey!!
     }
 

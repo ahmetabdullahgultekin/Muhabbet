@@ -61,7 +61,6 @@ import com.muhabbet.shared.dto.CreateGroupEventRequest
 import com.muhabbet.shared.dto.GroupEventResponse
 import com.muhabbet.shared.dto.RsvpRequest
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Instant
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -215,10 +214,10 @@ private fun EventCard(
                 fontWeight = FontWeight.Bold
             )
 
-            if (event.description != null) {
+            event.description?.let { desc ->
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 Text(
-                    text = event.description,
+                    text = desc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -235,12 +234,12 @@ private fun EventCard(
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.Small))
                 Text(
-                    text = DateTimeFormatter.formatDateTime(Instant.fromEpochMilliseconds(event.eventTime)),
+                    text = DateTimeFormatter.formatTime(event.eventTime),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            if (event.location != null) {
+            event.location?.let { loc ->
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -251,7 +250,7 @@ private fun EventCard(
                     )
                     Spacer(Modifier.width(MuhabbetSpacing.Small))
                     Text(
-                        text = event.location,
+                        text = loc,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
