@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
+import com.muhabbet.messaging.domain.service.StatusService
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
@@ -21,6 +22,7 @@ import java.util.UUID
 class StatusControllerTest {
 
     private lateinit var manageStatusUseCase: ManageStatusUseCase
+    private lateinit var statusService: StatusService
     private lateinit var controller: StatusController
 
     private val userId = TestData.USER_ID_1
@@ -28,7 +30,8 @@ class StatusControllerTest {
     @BeforeEach
     fun setUp() {
         manageStatusUseCase = mockk()
-        controller = StatusController(manageStatusUseCase)
+        statusService = mockk()
+        controller = StatusController(manageStatusUseCase, statusService)
         setAuthenticatedUser(userId, TestData.DEVICE_ID_1)
     }
 
