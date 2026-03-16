@@ -44,10 +44,14 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
-      - name: Create dummy google-services.json
+      - name: Inject google-services.json
         run: |
-          mkdir -p mobile/composeApp/src
-          cat > mobile/composeApp/google-services.json << 'GSEOF'
+          mkdir -p mobile/composeApp
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode > mobile/composeApp/google-services.json
+            echo "Using real google-services.json from secret"
+          else
+            cat > mobile/composeApp/google-services.json << 'GSEOF'
           {
             "project_info": {
               "project_number": "000000000000",
@@ -66,6 +70,16 @@ jobs:
             "configuration_version": "1"
           }
           GSEOF
+            echo "WARNING: Using dummy google-services.json — Firebase Phone Auth will not work in this build"
+          fi
+
+      - name: Print debug keystore SHA-1 (for Firebase Console registration)
+        run: |
+          keytool -list -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:" || echo "Could not read debug keystore"
 
       - name: Build shared module
         run: ./gradlew :shared:jvmJar :shared:assembleRelease
