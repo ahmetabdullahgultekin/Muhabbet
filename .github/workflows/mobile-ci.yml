@@ -8,6 +8,7 @@ on:
       - 'shared/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
+      - 'gradle.properties'
       - 'gradle/**'
   pull_request:
     branches: [main, develop]
@@ -16,6 +17,7 @@ on:
       - 'shared/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
+      - 'gradle.properties'
       - 'gradle/**'
 
 env:
