@@ -22,6 +22,6 @@ actual fun rememberRestartApp(): () -> Unit {
         NSLog("LocaleHelper: language set to $appleLanguage — restart required")
 
         // Force terminate and relaunch (standard iOS pattern for language change)
-        platform.darwin.exit(0)
+        platform.posix.exit(0)
     }
 }

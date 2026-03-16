@@ -34,7 +34,8 @@ class IosContactsProvider : ContactsProvider {
                 val name = "${contact?.givenName ?: ""} ${contact?.familyName ?: ""}".trim()
                 val phones = (contact?.phoneNumbers as? List<*>)?.mapNotNull { labeledValue ->
                     @Suppress("UNCHECKED_CAST")
-                    val phoneNumber = (labeledValue as? platform.Contacts.CNLabeledValue<*>)?.value
+                    @Suppress("UNCHECKED_CAST")
+                    val phoneNumber = (labeledValue as? platform.Contacts.CNLabeledValue)?.value
                     (phoneNumber as? platform.Contacts.CNPhoneNumber)?.stringValue
                 } ?: emptyList()
 

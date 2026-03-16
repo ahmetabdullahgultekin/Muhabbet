@@ -14,6 +14,7 @@ import platform.UIKit.UINavigationControllerDelegateProtocol
 import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
 import platform.Foundation.NSData
+import kotlin.time.Clock
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.darwin.NSObject
@@ -64,7 +65,7 @@ private fun findKeyWindow(): UIWindow? {
     val connectedScenes = UIApplication.sharedApplication.connectedScenes
     for (scene in connectedScenes) {
         val windowScene = scene as? UIWindowScene ?: continue
-        val keyWindow = windowScene.windows.firstOrNull { (it as UIWindow).isKeyWindow }
+        val keyWindow = windowScene.windows.firstOrNull { (it as UIWindow).isKeyWindow() }
         if (keyWindow != null) return keyWindow as UIWindow
     }
     @Suppress("DEPRECATION")
@@ -94,7 +95,7 @@ private class CameraPickerDelegate(
             }
 
             val bytes = data.toByteArray()
-            val fileName = "camera_${platform.Foundation.NSDate().timeIntervalSince1970.toLong()}.jpg"
+            val fileName = "camera_${Clock.System.now().toEpochMilliseconds()}.jpg"
             onResult(PickedImage(bytes = bytes, mimeType = "image/jpeg", fileName = fileName))
         }
     }

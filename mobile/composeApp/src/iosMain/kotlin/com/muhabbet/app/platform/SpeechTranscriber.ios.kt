@@ -6,6 +6,7 @@ import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
+import kotlin.time.Clock
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import platform.Speech.SFSpeechRecognizer
@@ -39,7 +40,7 @@ actual class SpeechTranscriber {
 
         return try {
             // Write audio to temp file
-            val path = NSTemporaryDirectory() + "transcribe_${platform.Foundation.NSDate().timeIntervalSince1970.toLong()}.m4a"
+            val path = NSTemporaryDirectory() + "transcribe_${Clock.System.now().toEpochMilliseconds()}.m4a"
             val data = audioBytes.toNSData()
             data.writeToFile(path, atomically = true)
 

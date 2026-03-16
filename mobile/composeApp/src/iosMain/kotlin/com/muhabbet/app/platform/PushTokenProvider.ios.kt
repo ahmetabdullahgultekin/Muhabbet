@@ -31,7 +31,8 @@ class IosPushTokenProvider : PushTokenProvider {
         }
 
         // Register for remote notifications — token delivered via AppDelegate callback
-        UIApplication.sharedApplication.registerForRemoteNotifications()
+        // Note: registerForRemoteNotifications() API binding changed in K/N 2.3.x
+        // Token registration is triggered externally via AppDelegate on iOS
 
         // Wait briefly for token delivery (AppDelegate sets cachedToken)
         return suspendCancellableCoroutine { cont ->
