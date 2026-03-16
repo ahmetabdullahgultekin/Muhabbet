@@ -74,19 +74,19 @@ jobs:
             echo "WARNING: Using dummy google-services.json — Firebase Phone Auth will not work in this build"
           fi
 
-      - name: Print debug keystore SHA-1 (for Firebase Console registration)
+      - name: Build shared module
+        run: ./gradlew :shared:jvmJar :shared:assembleRelease
+
+      - name: Build Android debug APK
+        run: ./gradlew :mobile:composeApp:assembleDebug
+
+      - name: Print debug keystore SHA-1 (register this in Firebase Console)
         run: |
           keytool -list -v \
             -keystore ~/.android/debug.keystore \
             -alias androiddebugkey \
             -storepass android \
             -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:" || echo "Could not read debug keystore"
-
-      - name: Build shared module
-        run: ./gradlew :shared:jvmJar :shared:assembleRelease
-
-      - name: Build Android debug APK
-        run: ./gradlew :mobile:composeApp:assembleDebug
 
       - name: Run Android lint
         run: ./gradlew :mobile:composeApp:lintDebug
