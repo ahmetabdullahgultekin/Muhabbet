@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -27,6 +28,7 @@ class MessageControllerTest {
     private lateinit var manageMessageUseCase: ManageMessageUseCase
     private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
+    private lateinit var messageService: MessageService
     private lateinit var controller: MessageController
 
     private val userId = TestData.USER_ID_1
@@ -40,11 +42,13 @@ class MessageControllerTest {
         manageMessageUseCase = mockk()
         messageRepository = mockk()
         userRepository = mockk()
+        messageService = mockk()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             manageMessageUseCase = manageMessageUseCase,
             messageRepository = messageRepository,
-            userRepository = userRepository
+            userRepository = userRepository,
+            messageService = messageService
         )
         setAuthenticatedUser(userId, deviceId)
     }

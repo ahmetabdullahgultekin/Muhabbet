@@ -44,7 +44,7 @@ class StatusControllerTest {
             } returns status
 
             val response = controller.createStatus(
-                com.muhabbet.shared.dto.StatusCreateRequest(content = "Hello world!", mediaUrl = null)
+                StatusCreateWithAudienceRequest(content = "Hello world!", mediaUrl = null)
             )
 
             assert(response.statusCode.value() == 200)
@@ -60,7 +60,7 @@ class StatusControllerTest {
             } returns status
 
             val response = controller.createStatus(
-                com.muhabbet.shared.dto.StatusCreateRequest(content = null, mediaUrl = "https://media.muhabbet.com/status/img.jpg")
+                StatusCreateWithAudienceRequest(content = null, mediaUrl = "https://media.muhabbet.com/status/img.jpg")
             )
 
             assert(response.statusCode.value() == 200)
