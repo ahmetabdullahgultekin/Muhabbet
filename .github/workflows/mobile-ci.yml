@@ -82,11 +82,30 @@ jobs:
 
       - name: Print debug keystore SHA-1 (register this in Firebase Console)
         run: |
-          keytool -list -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -storepass android \
-            -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:" || echo "Could not read debug keystore"
+          KEYSTORE=$(find ~ /root /home -name "debug.keystore" 2>/dev/null | head -1)
+          if [ -n "$KEYSTORE" ]; then
+            echo "Found keystore at: $KEYSTORE"
+            keytool -list -v \
+              -keystore "$KEYSTORE" \
+              -alias androiddebugkey \
+              -storepass android \
+              -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:"
+          else
+            echo "Generating debug keystore to extract SHA-1..."
+            mkdir -p ~/.android
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 \
+              -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
+            keytool -list -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -storepass android \
+              -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:"
+          fi
 
       - name: Run Android lint
         run: ./gradlew :mobile:composeApp:lintDebug
