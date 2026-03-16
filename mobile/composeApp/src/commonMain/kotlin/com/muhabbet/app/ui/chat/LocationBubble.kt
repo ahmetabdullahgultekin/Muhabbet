@@ -63,11 +63,19 @@ fun LocationBubble(
                 )
             }
             Text(
-                text = "%.5f, %.5f".format(locationData.latitude, locationData.longitude),
+                text = "${formatCoord(locationData.latitude)}, ${formatCoord(locationData.longitude)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
     }
+}
+
+private fun formatCoord(d: Double): String {
+    val sign = if (d < 0) "-" else ""
+    val abs = if (d < 0) -d else d
+    val whole = abs.toLong()
+    val frac = ((abs - whole) * 100000 + 0.5).toLong()
+    return "$sign$whole.${frac.toString().padStart(5, '0')}"
 }

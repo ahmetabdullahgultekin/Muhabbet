@@ -162,7 +162,10 @@ fun CallHistoryScreen(
                                 text = buildString {
                                     append(if (isVideo) videoLabel else voiceLabel)
                                     call.durationSeconds?.let { dur ->
-                                        if (dur > 0) append(" · %02d:%02d".format(dur / 60, dur % 60))
+                                        if (dur > 0) {
+                                            val m = dur / 60; val s = dur % 60
+                                            append(" · ${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}")
+                                        }
                                     }
                                 },
                                 style = MaterialTheme.typography.bodySmall,

@@ -814,9 +814,18 @@ private fun StorageRow(label: String, bytes: Long, count: Int, color: androidx.c
 private fun formatBytes(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val kb = bytes / 1024.0
-    if (kb < 1024) return "%.1f KB".format(kb)
+    if (kb < 1024) return "${formatDecimal(kb, 1)} KB"
     val mb = kb / 1024.0
-    if (mb < 1024) return "%.1f MB".format(mb)
+    if (mb < 1024) return "${formatDecimal(mb, 1)} MB"
     val gb = mb / 1024.0
-    return "%.2f GB".format(gb)
+    return "${formatDecimal(gb, 2)} GB"
+}
+
+private fun formatDecimal(value: Double, places: Int): String {
+    var factor = 1L
+    repeat(places) { factor *= 10 }
+    val rounded = ((value * factor) + 0.5).toLong()
+    val intPart = rounded / factor
+    val fracPart = (rounded % factor).toString().padStart(places, '0')
+    return "$intPart.$fracPart"
 }

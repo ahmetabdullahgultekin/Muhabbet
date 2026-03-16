@@ -20,16 +20,16 @@ import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
-import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
+import org.koin.mp.KoinPlatform
 import org.koin.core.module.Module
 
 @Composable
 fun App(componentContext: ComponentContext, platformModule: Module) {
     val koin = remember {
-        GlobalContext.getOrNull() ?: startKoin {
-            modules(platformModule, appModule())
-        }.koin
+        runCatching {
+            startKoin { modules(platformModule, appModule()) }.koin
+        }.getOrElse { KoinPlatform.getKoin() }
     }
 
     KoinContext(koin = koin) {

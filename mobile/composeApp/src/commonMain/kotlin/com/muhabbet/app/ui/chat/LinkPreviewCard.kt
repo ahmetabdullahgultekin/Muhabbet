@@ -26,6 +26,7 @@ import coil3.compose.AsyncImage
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.LinkPreviewResponse
+import io.ktor.http.encodeURLQueryComponent
 import org.koin.compose.koinInject
 
 private val URL_REGEX = Regex("https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+")
@@ -43,7 +44,7 @@ fun LinkPreviewCard(
 
     LaunchedEffect(url) {
         try {
-            val response = apiClient.get<LinkPreviewResponse>("/api/v1/link-preview?url=${java.net.URLEncoder.encode(url, "UTF-8")}")
+            val response = apiClient.get<LinkPreviewResponse>("/api/v1/link-preview?url=${url.encodeURLQueryComponent()}")
             preview = response.data
         } catch (_: Exception) { }
     }

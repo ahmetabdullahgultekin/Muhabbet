@@ -67,7 +67,11 @@ object KeychainHelper {
 
         memScoped {
             val result = alloc<kotlinx.cinterop.ObjCObjectVar<Any?>>()
-            val status = SecItemCopyMatching(query as CFDictionaryRef, result.ptr)
+            @Suppress("UNCHECKED_CAST")
+            val status = SecItemCopyMatching(
+                query as CFDictionaryRef,
+                result.ptr as kotlinx.cinterop.CValuesRef<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>>>
+            )
 
             if (status == errSecSuccess) {
                 val data = result.value as? NSData ?: return null

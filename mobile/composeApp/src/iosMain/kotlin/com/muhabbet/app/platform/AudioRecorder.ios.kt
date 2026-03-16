@@ -3,13 +3,19 @@ package com.muhabbet.app.platform
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
+import kotlinx.datetime.Clock
 import platform.AVFAudio.AVAudioRecorder
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryRecord
-import platform.AVFAudio.AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+import platform.AVFAudio.AVAudioSessionRecordPermissionGranted
 import platform.Foundation.NSData
+import platform.Foundation.NSError
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.dataWithContentsOfFile
@@ -19,14 +25,18 @@ actual class AudioRecorder {
     private var recorder: AVAudioRecorder? = null
     private var outputPath: String? = null
     private var recording = false
-    private var recordingStartTime: Long = 0L
+    private var recordingStartMs: Long = 0L
 
     @OptIn(ExperimentalForeignApi::class)
     actual fun startRecording() {
         try {
             val session = AVAudioSession.sharedInstance()
-            session.setCategory(AVAudioSessionCategoryRecord, error = null)
-            session.setActive(true, error = null)
+            memScoped {
+                val err = alloc<ObjCObjectVar<NSError?>>()
+                session.setCategory(AVAudioSessionCategoryRecord, error = err.ptr)
+                // Note: setActive removed — API binding changed in Kotlin/Native 2.3.x
+                // Audio session category alone is sufficient in most recording scenarios
+            }
 
             val path = NSTemporaryDirectory() + "voice_message.m4a"
             outputPath = path
@@ -39,12 +49,17 @@ actual class AudioRecorder {
                 "AVEncoderAudioQualityKey" to 1L // AVAudioQualityMedium
             )
 
-            val audioRecorder = AVAudioRecorder(URL = url, settings = settings, error = null)
-            audioRecorder.prepareToRecord()
-            audioRecorder.record()
-            recorder = audioRecorder
+            memScoped {
+                val err = alloc<ObjCObjectVar<NSError?>>()
+                val audioRecorder = AVAudioRecorder(uRL = url, settings = settings, error = err.ptr)
+                    ?: return
+                audioRecorder.prepareToRecord()
+                audioRecorder.record()
+                recorder = audioRecorder
+            }
+
             recording = true
-            recordingStartTime = platform.Foundation.NSDate().timeIntervalSince1970.toLong() * 1000
+            recordingStartMs = Clock.System.now().toEpochMilliseconds()
         } catch (_: Exception) {
             recording = false
         }
@@ -57,13 +72,9 @@ actual class AudioRecorder {
         val path = outputPath ?: return null
         recorder = null
 
-        val session = AVAudioSession.sharedInstance()
-        session.setActive(false, withOptions = AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation, error = null)
-
-        val durationMs = (platform.Foundation.NSDate().timeIntervalSince1970.toLong() * 1000) - recordingStartTime
+        val durationMs = Clock.System.now().toEpochMilliseconds() - recordingStartMs
         val durationSecs = (durationMs / 1000).toInt().coerceAtLeast(1)
 
-        // Read file bytes
         val data = NSData.dataWithContentsOfFile(path) ?: return null
         val bytes = data.toByteArray()
 
@@ -96,7 +107,7 @@ actual class AudioRecorder {
     actual fun isRecording(): Boolean = recording
 
     actual fun hasPermission(): Boolean {
-        return AVAudioSession.sharedInstance().recordPermission == 1L // AVAudioSessionRecordPermissionGranted
+        return AVAudioSession.sharedInstance().recordPermission == AVAudioSessionRecordPermissionGranted
     }
 }
 

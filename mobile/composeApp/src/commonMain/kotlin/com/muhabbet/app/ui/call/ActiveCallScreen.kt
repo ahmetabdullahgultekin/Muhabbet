@@ -166,7 +166,7 @@ fun ActiveCallScreen(
 
             // Duration
             Text(
-                text = "%02d:%02d".format(minutes, seconds),
+                text = "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
