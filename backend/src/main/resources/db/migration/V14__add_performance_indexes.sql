@@ -27,6 +27,8 @@ CREATE INDEX idx_messages_conv_latest_covering
     WHERE is_deleted = FALSE;
 
 -- Index for expired messages cleanup job
+-- V6 already creates idx_messages_expires_at; drop and recreate with improved predicate
+DROP INDEX IF EXISTS idx_messages_expires_at;
 CREATE INDEX idx_messages_expires_at
     ON messages(expires_at)
     WHERE expires_at IS NOT NULL AND is_deleted = FALSE;

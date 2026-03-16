@@ -111,7 +111,7 @@ class StatusControllerTest {
                 )
             )
 
-            every { manageStatusUseCase.getContactStatuses() } returns groups
+            every { statusService.getContactStatusesForUser(userId) } returns groups
 
             val response = controller.getContactStatuses()
 
