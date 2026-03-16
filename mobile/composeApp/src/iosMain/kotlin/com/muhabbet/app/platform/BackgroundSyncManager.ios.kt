@@ -9,6 +9,7 @@ import kotlin.time.Clock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import kotlin.time.Duration.Companion.minutes
+import platform.Foundation.NSLog
 
 /**
  * iOS background sync manager.
@@ -23,9 +24,15 @@ actual class BackgroundSyncManager : KoinComponent {
     private val tokenStorage: TokenStorage by inject()
 
     actual fun schedulePeriodicSync() {
-        // BGTaskScheduler.shared.register() must be called from Swift/ObjC app delegate.
-        // This is a placeholder — iOS background task scheduling requires native code.
-        // The sync logic is available via performSync() for the native task handler.
+        // BGTaskScheduler.shared.register() must be called from the Swift/ObjC app delegate.
+        // This Kotlin method is intentionally a no-op: iOS background task scheduling
+        // requires native bridge code that calls BGTaskScheduler from Swift.
+        // To enable background sync on iOS, register BGAppRefreshTask in AppDelegate.swift
+        // and call performSync() from the task handler.
+        NSLog(
+            "BackgroundSyncManager: schedulePeriodicSync() has no effect on iOS. " +
+            "Register BGAppRefreshTask in AppDelegate.swift and call performSync() from the task handler."
+        )
     }
 
     actual fun cancelPeriodicSync() {

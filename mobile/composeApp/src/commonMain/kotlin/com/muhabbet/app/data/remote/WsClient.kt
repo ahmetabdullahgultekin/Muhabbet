@@ -196,6 +196,7 @@ class WsClient(
             cache.insertPendingMessage(
                 PendingMessageData(
                     id = sendMessage.requestId,
+                    messageId = sendMessage.messageId,
                     conversationId = sendMessage.conversationId,
                     contentType = sendMessage.contentType.name,
                     content = sendMessage.content,
@@ -234,7 +235,7 @@ class WsClient(
                     replyToId = msg.replyToId,
                     mediaUrl = msg.mediaUrl,
                     requestId = msg.id,
-                    messageId = msg.id
+                    messageId = msg.messageId
                 )
                 val json = wsJson.encodeToString<WsMessage>(wsMessage)
                 session?.outgoing?.send(Frame.Text(json))

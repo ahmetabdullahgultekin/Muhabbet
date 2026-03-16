@@ -45,6 +45,7 @@ CREATE INDEX idx_msg_status ON cachedMessage(status);
 -- Pending messages queued while offline
 CREATE TABLE pendingMessage (
     id TEXT NOT NULL PRIMARY KEY,
+    messageId TEXT NOT NULL,
     conversationId TEXT NOT NULL,
     contentType TEXT NOT NULL,
     content TEXT NOT NULL,
@@ -126,8 +127,8 @@ ORDER BY createdAt ASC;
 
 -- insertPendingMessage
 insertPendingMessage:
-INSERT OR REPLACE INTO pendingMessage(id, conversationId, contentType, content, replyToId, mediaUrl, clientTimestamp, retryCount, createdAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO pendingMessage(id, messageId, conversationId, contentType, content, replyToId, mediaUrl, clientTimestamp, retryCount, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- deletePendingMessage
 deletePendingMessage:

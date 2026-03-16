@@ -30,6 +30,7 @@ class EncryptionServiceTest {
         userId = uid,
         identityKey = "identity-key-base64",
         signedPreKey = "signed-pre-key-base64",
+        signedPreKeySignature = "signed-pre-key-signature-base64",
         signedPreKeyId = 1,
         registrationId = 12345
     )
@@ -164,6 +165,7 @@ class EncryptionServiceTest {
             assertNotNull(result)
             assertEquals("identity-key-base64", result!!.identityKey)
             assertEquals("signed-pre-key-base64", result.signedPreKey)
+            assertEquals("signed-pre-key-signature-base64", result.signedPreKeySignature)
             assertEquals(1, result.signedPreKeyId)
             assertEquals(12345, result.registrationId)
             assertEquals("one-time-key-42-base64", result.oneTimePreKey)

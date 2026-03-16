@@ -36,6 +36,7 @@ class EncryptionController(
             userId = userId,
             identityKey = request.identityKey,
             signedPreKey = request.signedPreKey,
+            signedPreKeySignature = request.signedPreKeySignature,
             signedPreKeyId = request.signedPreKeyId,
             registrationId = request.registrationId
         )
@@ -69,6 +70,7 @@ class EncryptionController(
         val response = PreKeyBundleResponse(
             identityKey = bundle.identityKey,
             signedPreKey = bundle.signedPreKey,
+            signedPreKeySignature = bundle.signedPreKeySignature,
             signedPreKeyId = bundle.signedPreKeyId,
             registrationId = bundle.registrationId,
             oneTimePreKey = bundle.oneTimePreKey,

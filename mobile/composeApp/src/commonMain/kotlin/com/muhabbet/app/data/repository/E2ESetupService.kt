@@ -28,31 +28,28 @@ class E2ESetupService(
      * New keys are only generated on first run or after key wipe.
      */
     suspend fun registerKeys() {
-        try {
-            // 1. Reuse existing identity key or generate new one
-            val identityKey = keyManager.getIdentityPublicKey()
-                ?: keyManager.generateIdentityKeyPair()
+        // 1. Reuse existing identity key or generate new one
+        val identityKey = keyManager.getIdentityPublicKey()
+            ?: keyManager.generateIdentityKeyPair()
 
-            // 2. Generate signed pre-key (rotated per session for forward secrecy)
-            val (signedPreKeyId, signedPreKey) = keyManager.generateSignedPreKey()
+        // 2. Generate signed pre-key (rotated per session for forward secrecy)
+        val (signedPreKeyId, signedPreKey, signedPreKeySignature) = keyManager.generateSignedPreKey()
 
-            // 3. Register key bundle on server (idempotent — server replaces existing)
-            encryptionRepository.registerKeyBundle(
-                identityKey = identityKey,
-                signedPreKey = signedPreKey,
-                signedPreKeyId = signedPreKeyId,
-                registrationId = keyManager.getRegistrationId()
-            )
+        // 3. Register key bundle on server (idempotent — server replaces existing)
+        encryptionRepository.registerKeyBundle(
+            identityKey = identityKey,
+            signedPreKey = signedPreKey,
+            signedPreKeySignature = signedPreKeySignature,
+            signedPreKeyId = signedPreKeyId,
+            registrationId = keyManager.getRegistrationId()
+        )
 
-            // 4. Generate and upload one-time pre-keys
-            val preKeys = keyManager.generateOneTimePreKeys(count = INITIAL_PREKEY_COUNT)
-            val preKeyDtos = preKeys.map { (keyId, publicKey) ->
-                PreKeyDto(keyId = keyId, publicKey = publicKey)
-            }
-            encryptionRepository.uploadPreKeys(preKeyDtos)
-        } catch (_: Exception) {
-            // E2E setup failure is non-fatal — messaging still works via TLS
+        // 4. Generate and upload one-time pre-keys
+        val preKeys = keyManager.generateOneTimePreKeys(count = INITIAL_PREKEY_COUNT)
+        val preKeyDtos = preKeys.map { (keyId, publicKey) ->
+            PreKeyDto(keyId = keyId, publicKey = publicKey)
         }
+        encryptionRepository.uploadPreKeys(preKeyDtos)
     }
 
     /**
@@ -69,6 +66,7 @@ class E2ESetupService(
                 recipientId = recipientId,
                 identityKey = bundle.identityKey,
                 signedPreKey = bundle.signedPreKey,
+                signedPreKeySignature = bundle.signedPreKeySignature,
                 signedPreKeyId = bundle.signedPreKeyId,
                 oneTimePreKey = bundle.oneTimePreKey,
                 oneTimePreKeyId = bundle.oneTimePreKeyId

@@ -4,6 +4,8 @@ import com.muhabbet.moderation.domain.model.ReportReason
 import com.muhabbet.moderation.domain.port.`in`.BlockUserUseCase
 import com.muhabbet.moderation.domain.port.`in`.ReportUserUseCase
 import com.muhabbet.moderation.domain.port.`in`.ReviewReportsUseCase
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -25,12 +27,32 @@ class ModerationController(
         @RequestBody request: CreateReportRequest
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
+        val reason = try {
+            ReportReason.valueOf(request.reason)
+        } catch (_: IllegalArgumentException) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+        val reportedUserId = request.reportedUserId?.let {
+            try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
+                throw BusinessException(ErrorCode.VALIDATION_ERROR)
+            }
+        }
+        val reportedMessageId = request.reportedMessageId?.let {
+            try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
+                throw BusinessException(ErrorCode.VALIDATION_ERROR)
+            }
+        }
+        val reportedConversationId = request.reportedConversationId?.let {
+            try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
+                throw BusinessException(ErrorCode.VALIDATION_ERROR)
+            }
+        }
         val report = reportUserUseCase.reportUser(
             reporterId = currentUserId,
-            reportedUserId = request.reportedUserId?.let { UUID.fromString(it) },
-            reportedMessageId = request.reportedMessageId?.let { UUID.fromString(it) },
-            reportedConversationId = request.reportedConversationId?.let { UUID.fromString(it) },
-            reason = ReportReason.valueOf(request.reason),
+            reportedUserId = reportedUserId,
+            reportedMessageId = reportedMessageId,
+            reportedConversationId = reportedConversationId,
+            reason = reason,
             description = request.description
         )
         return ApiResponseBuilder.ok(mapOf("reportId" to report.id.toString()))
@@ -43,7 +65,10 @@ class ModerationController(
         @PathVariable userId: String
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
-        blockUserUseCase.blockUser(currentUserId, UUID.fromString(userId))
+        val targetId = try { UUID.fromString(userId) } catch (_: IllegalArgumentException) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+        blockUserUseCase.blockUser(currentUserId, targetId)
         return ApiResponseBuilder.ok(mapOf("blocked" to true))
     }
 
@@ -52,7 +77,10 @@ class ModerationController(
         @PathVariable userId: String
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
-        blockUserUseCase.unblockUser(currentUserId, UUID.fromString(userId))
+        val targetId = try { UUID.fromString(userId) } catch (_: IllegalArgumentException) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+        blockUserUseCase.unblockUser(currentUserId, targetId)
         return ApiResponseBuilder.ok(mapOf("blocked" to false))
     }
 
@@ -68,7 +96,10 @@ class ModerationController(
         @PathVariable userId: String
     ): ResponseEntity<*> {
         val currentUserId = AuthenticatedUser.currentUserId()
-        val blocked = blockUserUseCase.isBlocked(currentUserId, UUID.fromString(userId))
+        val targetId = try { UUID.fromString(userId) } catch (_: IllegalArgumentException) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+        val blocked = blockUserUseCase.isBlocked(currentUserId, targetId)
         return ApiResponseBuilder.ok(mapOf("blocked" to blocked))
     }
 
@@ -79,6 +110,7 @@ class ModerationController(
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int
     ): ResponseEntity<*> {
+        AuthenticatedUser.requireAdmin()
         val reports = reviewReportsUseCase.getPendingReports(limit, offset)
         return ApiResponseBuilder.ok(reports)
     }
@@ -88,8 +120,12 @@ class ModerationController(
         @PathVariable reportId: String,
         @RequestParam(defaultValue = "false") dismiss: Boolean
     ): ResponseEntity<*> {
+        AuthenticatedUser.requireAdmin()
         val currentUserId = AuthenticatedUser.currentUserId()
-        reviewReportsUseCase.resolveReport(UUID.fromString(reportId), currentUserId, dismiss)
+        val reportUUID = try { UUID.fromString(reportId) } catch (_: IllegalArgumentException) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+        reviewReportsUseCase.resolveReport(reportUUID, currentUserId, dismiss)
         return ApiResponseBuilder.ok(mapOf("resolved" to true))
     }
 }

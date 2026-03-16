@@ -24,6 +24,7 @@ class EncryptionRepository(private val apiClient: ApiClient) {
     suspend fun registerKeyBundle(
         identityKey: String,
         signedPreKey: String,
+        signedPreKeySignature: String,
         signedPreKeyId: Int,
         registrationId: Int
     ) {
@@ -32,6 +33,7 @@ class EncryptionRepository(private val apiClient: ApiClient) {
             RegisterKeyBundleRequest(
                 identityKey = identityKey,
                 signedPreKey = signedPreKey,
+                signedPreKeySignature = signedPreKeySignature,
                 signedPreKeyId = signedPreKeyId,
                 registrationId = registrationId
             )

@@ -41,7 +41,7 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
         }
     }
 
-    override fun generateSignedPreKey(): Pair<Int, String> {
+    override fun generateSignedPreKey(): Triple<Int, String, String> {
         val keyPair = store.storedIdentityKeyPair
             ?: throw IllegalStateException("Identity key pair not generated")
 
@@ -57,7 +57,8 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
         store.storeSignedPreKey(signedPreKeyId, record)
 
         val publicKeyBase64 = Base64.getEncoder().encodeToString(signedPreKeyPair.publicKey.serialize())
-        return signedPreKeyId to publicKeyBase64
+        val signatureBase64 = Base64.getEncoder().encodeToString(signature)
+        return Triple(signedPreKeyId, publicKeyBase64, signatureBase64)
     }
 
     override fun generateOneTimePreKeys(count: Int): List<Pair<Int, String>> {
@@ -78,6 +79,7 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
         recipientId: String,
         identityKey: String,
         signedPreKey: String,
+        signedPreKeySignature: String?,
         signedPreKeyId: Int,
         oneTimePreKey: String?,
         oneTimePreKeyId: Int?
@@ -86,6 +88,9 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
 
         val remoteIdentityKey = IdentityKey(Base64.getDecoder().decode(identityKey))
         val remoteSignedPreKey = Curve.decodePoint(Base64.getDecoder().decode(signedPreKey), 0)
+        val remoteSignature = signedPreKeySignature
+            ?.let { Base64.getDecoder().decode(it) }
+            ?: ByteArray(64) // legacy rows without signature: server validates on registration
 
         val bundleBuilder = PreKeyBundle(
             store.storedRegistrationId,
@@ -94,7 +99,7 @@ class SignalKeyManager(private val store: PersistentSignalProtocolStore) : E2EKe
             oneTimePreKey?.let { Curve.decodePoint(Base64.getDecoder().decode(it), 0) },
             signedPreKeyId,
             remoteSignedPreKey,
-            ByteArray(64), // signature placeholder — server validates this
+            remoteSignature,
             remoteIdentityKey
         )
 
