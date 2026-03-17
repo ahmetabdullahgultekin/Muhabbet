@@ -80,31 +80,17 @@ jobs:
       - name: Build Android debug APK
         run: ./gradlew :mobile:composeApp:assembleDebug
 
-      - name: Print debug keystore SHA-1 (register this in Firebase Console)
+      - name: Print APK signing certificate SHA-1 (register this in Firebase Console)
         run: |
-          KEYSTORE=$(find ~ /root /home -name "debug.keystore" 2>/dev/null | head -1)
-          if [ -n "$KEYSTORE" ]; then
-            echo "Found keystore at: $KEYSTORE"
-            keytool -list -v \
-              -keystore "$KEYSTORE" \
-              -alias androiddebugkey \
-              -storepass android \
-              -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:"
+          APK=$(find mobile/composeApp/build/outputs/apk/debug -name "*.apk" | head -1)
+          if [ -n "$APK" ]; then
+            echo "=== APK Signing Certificate ==="
+            echo "APK: $APK"
+            keytool -printcert -jarfile "$APK" 2>/dev/null | grep -E "SHA1:|SHA256:|Owner:|Issuer:"
+            echo "================================"
+            echo "Register the SHA1 above in Firebase Console -> Project Settings -> Your Android App -> SHA certificate fingerprints"
           else
-            echo "Generating debug keystore to extract SHA-1..."
-            mkdir -p ~/.android
-            keytool -genkeypair -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA -keysize 2048 \
-              -validity 10000 \
-              -storepass android -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
-            keytool -list -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -storepass android \
-              -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:"
+            echo "ERROR: No debug APK found"
           fi
 
       - name: Run Android lint
