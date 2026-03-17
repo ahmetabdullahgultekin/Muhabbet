@@ -45,6 +45,14 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
+      - name: Inject stable debug keystore
+        run: |
+          if [ -n "${{ secrets.DEBUG_KEYSTORE }}" ]; then
+            mkdir -p ~/.android
+            echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 --decode > ~/.android/debug.keystore
+            echo "Using stable debug keystore from secret"
+          fi
+
       - name: Inject google-services.json
         run: |
           mkdir -p mobile/composeApp
