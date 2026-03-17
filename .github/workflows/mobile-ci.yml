@@ -86,12 +86,21 @@ jobs:
           if [ -n "$APK" ]; then
             echo "=== APK Signing Certificate ==="
             echo "APK: $APK"
-            keytool -printcert -jarfile "$APK" 2>/dev/null | grep -E "SHA1:|SHA256:|Owner:|Issuer:"
+            APKSIGNER=$(find $ANDROID_HOME/build-tools -name "apksigner" | sort -V | tail -1)
+            if [ -n "$APKSIGNER" ]; then
+              "$APKSIGNER" verify --print-certs "$APK" 2>&1 | grep -i "SHA-1\|SHA-256\|certificate DN"
+            fi
+            echo "=== Fallback: all debug keystores ==="
+            find / -name "debug.keystore" 2>/dev/null | while read ks; do
+              echo "Keystore: $ks"
+              keytool -list -v -keystore "$ks" -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:"
+            done
             echo "================================"
-            echo "Register the SHA1 above in Firebase Console -> Project Settings -> Your Android App -> SHA certificate fingerprints"
+            echo "Register the SHA1 above in Firebase Console"
           else
             echo "ERROR: No debug APK found"
           fi
+        continue-on-error: true
 
       - name: Run Android lint
         run: ./gradlew :mobile:composeApp:lintDebug
