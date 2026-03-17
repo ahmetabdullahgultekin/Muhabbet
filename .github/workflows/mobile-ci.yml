@@ -48,9 +48,14 @@ jobs:
       - name: Inject stable debug keystore
         run: |
           if [ -n "${{ secrets.DEBUG_KEYSTORE }}" ]; then
+            # GitHub Actions uses ANDROID_USER_HOME for debug keystore, not ~/.android
+            KEYSTORE_DIR="${ANDROID_USER_HOME:-$HOME/.android}"
+            mkdir -p "$KEYSTORE_DIR"
+            echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 --decode > "$KEYSTORE_DIR/debug.keystore"
+            # Also copy to ~/.android as fallback
             mkdir -p ~/.android
-            echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 --decode > ~/.android/debug.keystore
-            echo "Using stable debug keystore from secret"
+            cp "$KEYSTORE_DIR/debug.keystore" ~/.android/debug.keystore
+            echo "Injected stable debug keystore to $KEYSTORE_DIR/debug.keystore"
           fi
 
       - name: Inject google-services.json
