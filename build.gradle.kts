@@ -6,7 +6,7 @@ plugins {
     kotlin("plugin.jpa") version "2.3.10" apply false
     id("org.springframework.boot") version "4.0.2" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
-    id("com.android.library") version "8.7.3" apply false
+    id("com.android.library") version "9.1.0" apply false
     id("com.android.application") version "8.7.3" apply false
     id("org.jetbrains.compose") version "1.10.1" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10" apply false
