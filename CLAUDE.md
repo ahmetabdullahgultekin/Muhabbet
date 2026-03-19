@@ -367,9 +367,7 @@ All 9 production hardening features completed:
 - Phone hash: SHA-256 of phone number stored in `phone_hashes` table on user creation
 
 ## Deployment & Infrastructure
-- **Cloud Provider**: GCP (europe-west1 region)
-- **VM Spec**: e2-standard-2 (2 vCPU, 8GB RAM) — upgraded from e2-medium (4GB) due to OOM kills during Docker Gradle builds
-- **Static IP**: Promoted to static IP for DNS stability (was ephemeral, changed on VM resize)
+- **Server**: Hetzner VPS (IP: 116.203.222.213, deploy user, `/opt/projects/Muhabbet/`)
 - **Domain**: Configured via environment — see `infra/docker-compose.prod.yml`
 - **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis`, `muhabbet-minio`, `muhabbet-nginx` (via `infra/docker-compose.prod.yml`)
 - **Docker runtime**: Java 21 (eclipse-temurin:21-jdk-jammy for build, 21-jre-jammy for runtime)
@@ -421,9 +419,9 @@ All 9 production hardening features completed:
 - **Sentry 8.x + Spring Boot 4.x**: Sentry's `SentryAutoConfiguration` references `RestClientAutoConfiguration` which was relocated in Spring Boot 4.x. Fix: `@SpringBootApplication(excludeName = ["io.sentry.spring.boot.jakarta.SentryAutoConfiguration"])`. Wait for Sentry to release a Spring Boot 4.x-compatible version.
 - **Spring Boot 4.x bean ambiguity**: Spring Boot 4.x is stricter about bean resolution. When multiple implementations of an interface exist (e.g., `WebSocketMessageBroadcaster` and `RedisMessageBroadcaster`), you must use `@Primary` or `@Qualifier` — Spring Boot 3.x was more lenient.
 - **Jackson 3.x (Spring Boot 4.x)**: `SerializationFeature.write-dates-as-timestamps` no longer exists. Jackson 3.x writes dates as ISO-8601 by default. Remove the property from `application.yml` or it crashes at startup.
-- **GCP VM resize changes IP**: Resizing a GCP VM (e.g., e2-medium → e2-standard-2) assigns a new ephemeral IP. Promote to static IP immediately, then update DNS A records. Android caches DNS aggressively — toggle airplane mode to flush.
+- **VM IP changes**: If a VM is resized or reprovisioned, the IP may change. Update DNS A records accordingly. Android caches DNS aggressively — toggle airplane mode to flush.
 - **Spring Boot 4.x `@AutoConfigureMockMvc`**: Import path changed to `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`. The old 3.x path `org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc` is NOT available — causes "Unresolved reference 'web'" compile error.
 - **Flyway `validate-on-migrate: false`**: Set this to safely modify existing migration files in dev. In prod, never modify existing migrations — add a new one.
 - **MinIO `@PostConstruct` in tests**: Any `@PostConstruct` that connects to MinIO on startup will crash the Spring test context if MinIO isn't running. Wrap in try-catch and log a warning instead of failing.
 - **MockK test stubs must match what the controller actually calls**: If the controller calls `statusService.getContactStatusesForUser(userId)`, stub THAT — not a different method like `manageStatusUseCase.getContactStatuses()`. Stubs that don't match throw `MockKException: no answer found`.
-- **Deployment is on Hetzner VPS (not GCP)**: IP 116.203.222.213, deploy user, `/opt/projects/Muhabbet/`. Firebase credentials at `infra/firebase-adminsdk.json` (gitignored, mounted in docker-compose.prod.yml).
+- **Firebase credentials**: `infra/firebase-adminsdk.json` (gitignored, mounted in docker-compose.prod.yml).

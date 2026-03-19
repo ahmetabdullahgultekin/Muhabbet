@@ -10,13 +10,17 @@
 **Server:** Hetzner VPS (Docker + Traefik + Let's Encrypt)
 **Health:** UP (all 7 components healthy)
 
-### Deployment Remaining
+### Deployment Status
 
-- [ ] Firebase Cloud Messaging (FCM) credentials for production push notifications
-- [ ] Netgsm SMS gateway credentials for production SMS delivery
-- [ ] Connect Android app to production API
-- [ ] Sentry error tracking on server
-- [ ] Automated database backups
+- [x] Firebase Cloud Messaging (FCM) — `FCM_ENABLED=true`, credentials mounted at `infra/firebase-adminsdk.json`
+- [x] Netgsm SMS OTP — `NetgsmOtpSender` active via `@ConditionalOnProperty`
+- [x] Android app production API URLs configured
+- [x] Automated database backups (shared Hetzner pg_dump cron)
+- [ ] Sentry DSN configured (code ready, needs env var in .env.prod)
+- [ ] iOS APNs delivery (APNs key + TestFlight setup pending)
+- [ ] iOS LiveKit / Signal Protocol bridge (Kotlin/Native)
+- [ ] Security penetration testing (OWASP ZAP / Burp Suite)
+- [ ] App Store / Google Play submission
 
 ### Known Behaviors
 

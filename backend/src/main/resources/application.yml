@@ -64,7 +64,7 @@ server:
   shutdown: graceful
   tomcat:
     threads:
-      max: 200               # Match e2-medium VM (2 vCPU)
+      max: 200               # Match Hetzner VPS (2 vCPU)
       min-spare: 10          # Keep 10 threads warm
     accept-count: 100        # Queue size before rejecting connections
     connection-timeout: 20000  # 20s timeout for slow clients
