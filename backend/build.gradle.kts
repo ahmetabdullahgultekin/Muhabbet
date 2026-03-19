@@ -50,7 +50,7 @@ dependencies {
     implementation("io.minio:minio:8.5.14")
 
     // HTML parsing for link previews
-    implementation("org.jsoup:jsoup:1.18.3")
+    implementation("org.jsoup:jsoup:1.22.1")
 
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-admin:9.4.2")
