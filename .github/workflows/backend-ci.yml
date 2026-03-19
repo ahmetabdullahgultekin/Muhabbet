@@ -99,6 +99,7 @@ jobs:
       - name: Run detekt static analysis
         run: ./gradlew :backend:detekt
         if: always()
+        continue-on-error: true  # detekt 1.23.x incompatible with Kotlin 2.3.x (compiled with 2.0.21). Upgrade to detekt 2.0 stable when released.
 
       - name: Upload test results
         if: always()
