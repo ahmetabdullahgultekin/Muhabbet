@@ -47,7 +47,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // MinIO (S3-compatible media storage)
-    implementation("io.minio:minio:8.5.14")
+    implementation("io.minio:minio:8.6.0")
 
     // HTML parsing for link previews
     implementation("org.jsoup:jsoup:1.18.3")
