@@ -73,14 +73,14 @@ kotlin {
             implementation("io.coil-kt.coil3:coil-network-ktor3:$coil")
 
             // Local DB — SQLDelight
-            implementation("app.cash.sqldelight:coroutines-extensions:2.2.1")
+            implementation("app.cash.sqldelight:coroutines-extensions:2.3.2")
         }
 
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
             implementation("androidx.activity:activity-compose:1.10.0")
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
-            implementation("app.cash.sqldelight:android-driver:2.2.1")
+            implementation("app.cash.sqldelight:android-driver:2.3.2")
 
             // WorkManager — background sync
             implementation("androidx.work:work-runtime-ktx:2.10.0")
@@ -109,7 +109,7 @@ kotlin {
 
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:$ktor")
-            implementation("app.cash.sqldelight:native-driver:2.2.1")
+            implementation("app.cash.sqldelight:native-driver:2.3.2")
         }
     }
 }
