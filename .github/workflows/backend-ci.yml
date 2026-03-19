@@ -1,6 +1,7 @@
 name: Backend CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop]
     paths:
@@ -9,6 +10,7 @@ on:
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
       - 'gradle/**'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
     branches: [main, develop]
     paths:
