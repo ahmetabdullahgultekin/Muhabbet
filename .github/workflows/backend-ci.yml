@@ -22,7 +22,7 @@ on:
 
 env:
   SKIP_MOBILE: 'true'
-  JAVA_VERSION: '21'
+  JAVA_VERSION: '25'
   GRADLE_OPTS: '-Dorg.gradle.daemon=false'
 
 jobs:

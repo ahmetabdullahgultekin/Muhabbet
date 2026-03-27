@@ -65,7 +65,7 @@ private fun findKeyWindow(): UIWindow? {
     val connectedScenes = UIApplication.sharedApplication.connectedScenes
     for (scene in connectedScenes) {
         val windowScene = scene as? UIWindowScene ?: continue
-        val keyWindow = windowScene.windows.firstOrNull { (it as UIWindow).isKeyWindow() }
+        val keyWindow = windowScene.windows.firstOrNull { (it as UIWindow).isKeyWindow }
         if (keyWindow != null) return keyWindow as UIWindow
     }
     @Suppress("DEPRECATION")
