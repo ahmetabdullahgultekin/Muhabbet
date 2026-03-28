@@ -32,7 +32,7 @@ kotlin {
     sourceSets {
         val decompose = "3.4.0"
         val koin = "4.1.1"
-        val ktor = "3.4.0"
+        val ktor = "3.4.1"
         val coil = "3.3.0"
 
         commonMain.dependencies {
