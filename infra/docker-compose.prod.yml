@@ -45,6 +45,7 @@ services:
         limits:
           cpus: '1.5'
           memory: 1G
+          pids: 512
         reservations:
           cpus: '0.5'
           memory: 768M
@@ -80,6 +81,7 @@ services:
         limits:
           cpus: '1'
           memory: 1536M
+          pids: 256
         reservations:
           cpus: '0.25'
           memory: 512M
@@ -112,6 +114,7 @@ services:
         limits:
           cpus: '0.5'
           memory: 384M
+          pids: 256
         reservations:
           cpus: '0.1'
           memory: 128M
@@ -139,6 +142,7 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
+          pids: 256
         reservations:
           cpus: '0.1'
           memory: 256M
@@ -169,6 +173,7 @@ services:
         limits:
           cpus: '0.5'
           memory: 128M
+          pids: 256
     restart: unless-stopped
     networks:
       - muhabbet-net

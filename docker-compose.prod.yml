@@ -42,7 +42,7 @@ services:
       - "traefik.http.routers.muhabbet-api.rule=Host(`muhabbet-api.rollingcatsoftware.com`)"
       - "traefik.http.routers.muhabbet-api.entrypoints=websecure"
       - "traefik.http.routers.muhabbet-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.muhabbet-api.middlewares=secure-headers@file"
+      - "traefik.http.routers.muhabbet-api.middlewares=secure-headers@file,rate-limit@file"
       - "traefik.http.services.muhabbet-api.loadbalancer.server.port=8080"
     deploy:
       resources:
