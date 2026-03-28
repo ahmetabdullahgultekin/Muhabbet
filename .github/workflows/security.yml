@@ -3,11 +3,28 @@ name: Security & Quality
 on:
   push:
     branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - 'shared/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+      - 'Dockerfile*'
+      - '.github/workflows/security.yml'
   pull_request:
     branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - 'shared/**'
+      - 'build.gradle.kts'
+      - 'Dockerfile*'
   schedule:
     # Run weekly on Monday at 06:00 UTC
     - cron: '0 6 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -19,10 +36,10 @@ env:
   SKIP_MOBILE: 'true'
 
 jobs:
-  # ─── Dependency Vulnerability Scan ──────────
+  # --- Dependency Vulnerability Scan ---
   dependency-check:
     name: Dependency Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
 
     steps:
       - uses: actions/checkout@v4
@@ -63,10 +80,10 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-  # ─── Docker Image Scan ─────────────────────
+  # --- Docker Image Scan ---
   docker-scan:
     name: Docker Image Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     if: github.event_name != 'schedule'
 
     steps:
@@ -99,10 +116,10 @@ jobs:
         with:
           sarif_file: 'docker-trivy-results.sarif'
 
-  # ─── Secret Scanning ───────────────────────
+  # --- Secret Scanning ---
   secrets-scan:
     name: Secret Detection
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
 
     steps:
       - uses: actions/checkout@v4
@@ -114,10 +131,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ─── CodeQL Analysis ───────────────────────
+  # --- CodeQL Analysis ---
   codeql:
     name: CodeQL Analysis
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     if: github.event_name != 'schedule'
 
     steps:

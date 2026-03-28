@@ -17,7 +17,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Muhabbet
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     environment: production
     steps:
       - name: Deploy via SSH

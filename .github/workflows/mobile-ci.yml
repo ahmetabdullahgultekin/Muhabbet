@@ -11,6 +11,7 @@ on:
       - 'settings.gradle.kts'
       - 'gradle.properties'
       - 'gradle/**'
+      - '.github/workflows/mobile-ci.yml'
   pull_request:
     branches: [main, develop]
     paths:
@@ -21,15 +22,19 @@ on:
       - 'gradle.properties'
       - 'gradle/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   JAVA_VERSION: '21'
   GRADLE_OPTS: '-Dorg.gradle.daemon=false'
 
 jobs:
-  # ─── Android Build ──────────────────────────
+  # --- Android Build ---
   android-build:
     name: Android Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
 
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +138,7 @@ jobs:
           path: mobile/composeApp/build/outputs/apk/debug/*.apk
           retention-days: 7
 
-  # ─── iOS Framework Build ────────────────────
+  # --- iOS Framework Build ---
   ios-framework:
     name: iOS Framework Build
     runs-on: macos-latest

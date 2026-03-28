@@ -20,16 +20,20 @@ on:
       - 'settings.gradle.kts'
       - 'gradle/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   SKIP_MOBILE: 'true'
   JAVA_VERSION: '21'
   GRADLE_OPTS: '-Dorg.gradle.daemon=false'
 
 jobs:
-  # ─── Build & Test ────────────────────────────
+  # --- Build & Test ---
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
 
     services:
       postgres:
@@ -97,12 +101,12 @@ jobs:
 
       - name: Verify code coverage thresholds
         run: ./gradlew :backend:jacocoTestCoverageVerification
-        continue-on-error: true  # 20+ domain services below 60% threshold — coverage will improve incrementally
+        continue-on-error: true
 
       - name: Run detekt static analysis
         run: ./gradlew :backend:detekt
         if: always()
-        continue-on-error: true  # detekt 1.23.x incompatible with Kotlin 2.3.x (compiled with 2.0.21). Upgrade to detekt 2.0 stable when released.
+        continue-on-error: true
 
       - name: Upload test results
         if: always()
@@ -145,10 +149,10 @@ jobs:
           min-coverage-changed-files: 60
           title: 'Backend Code Coverage'
 
-  # ─── Docker Build ────────────────────────────
+  # --- Docker Build ---
   docker:
     name: Docker Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     needs: build-and-test
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
 
