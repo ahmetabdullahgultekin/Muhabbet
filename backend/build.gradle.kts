@@ -72,7 +72,7 @@ dependencies {
     testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("org.testcontainers:junit-jupiter:1.20.4")
     testImplementation("org.testcontainers:postgresql:1.20.4")
-    testImplementation("com.redis:testcontainers-redis:2.2.2")
+    testImplementation("com.redis:testcontainers-redis:2.2.4")
 
     // Architecture testing
     testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
