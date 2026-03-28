@@ -11,20 +11,41 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-// ─── Base palette ───────────────────────────────────────────
+// ─── WhatsApp-spec palette (March 2026) ─────────────────────
 
-private val Teal700 = Color(0xFF00796B)
-private val Teal800 = Color(0xFF00695C)
-private val Teal50 = Color(0xFFE0F2F1)
-private val Teal100 = Color(0xFFB2DFDB)
-private val Teal200 = Color(0xFF80CBC4)
-private val Green600 = Color(0xFF43A047)
-private val Green100 = Color(0xFFC8E6C9)
-private val Green300 = Color(0xFF81C784)
-private val Amber600 = Color(0xFFFFB300)
-private val Amber100 = Color(0xFFFFECB3)
-private val Red700 = Color(0xFFD32F2F)
+// Dark mode surfaces
+private val WaDarkBg        = Color(0xFF111B21)  // main background
+private val WaDarkSurface   = Color(0xFF1F2C34)  // cards, top bar, bottom nav
+private val WaDarkElevated  = Color(0xFF2A3942)  // input field, dividers
+
+// Light mode surfaces
+private val WaLightBg       = Color(0xFFFFFFFF)
+private val WaLightSurface  = Color(0xFFFFFFFF)
+private val WaLightInput    = Color(0xFFF0F2F5)
+private val WaLightWallpaper = Color(0xFFECE5DD)
+
+// Accent greens
+private val WaGreen         = Color(0xFF00A884)  // primary accent (2024+ redesign)
+private val WaGreenClassic  = Color(0xFF25D366)  // classic green (light mode badge)
+
+// Text
+private val WaPrimaryText   = Color(0xFFE9EDEF)  // dark mode primary text
+private val WaSecondaryText = Color(0xFF8696A0)  // timestamps, previews
+
+// Bubbles
+private val WaOwnBubbleDark  = Color(0xFF005C4B)
+private val WaOtherBubbleDark = Color(0xFF1F2C34)
+private val WaOwnBubbleLight  = Color(0xFFD9FDD3)
+private val WaOtherBubbleLight = Color(0xFFFFFFFF)
+
+// Ticks
+private val WaTickReadDark  = Color(0xFF53BDEB)
+private val WaTickReadLight = Color(0xFF4FB6EC)
+private val WaTickGray      = Color(0xFF8696A0)
+
+// Error
 private val Red400 = Color(0xFFEF5350)
+private val Red700 = Color(0xFFD32F2F)
 
 // ─── Semantic colors (beyond M3 colorScheme) ────────────────
 
@@ -44,33 +65,33 @@ data class MuhabbetSemanticColors(
 )
 
 val LightSemanticColors = MuhabbetSemanticColors(
-    statusOnline = Color(0xFF4CAF50),
-    statusRead = Color(0xFF4FC3F7),
-    statusDelivered = Color(0xFF9E9E9E),
-    statusSending = Color(0xFFBDBDBD),
+    statusOnline = WaGreenClassic,
+    statusRead = WaTickReadLight,
+    statusDelivered = WaTickGray,
+    statusSending = WaTickGray,
     callDecline = Color(0xFFE53935),
-    callAccept = Color(0xFF43A047),
+    callAccept = WaGreen,
     callMissed = Color(0xFFE53935),
-    bubbleOwn = Color(0xFFDCF8C6),
-    bubbleOther = Color.White,
-    onBubbleOwn = Color(0xFF1C1B1F),
-    onBubbleOther = Color(0xFF1C1B1F),
-    linkColor = Color(0xFF1565C0)
+    bubbleOwn = WaOwnBubbleLight,
+    bubbleOther = WaOtherBubbleLight,
+    onBubbleOwn = Color(0xFF111B21),
+    onBubbleOther = Color(0xFF111B21),
+    linkColor = Color(0xFF027EB5)
 )
 
 val DarkSemanticColors = MuhabbetSemanticColors(
-    statusOnline = Color(0xFF66BB6A),
-    statusRead = Color(0xFF4FC3F7),
-    statusDelivered = Color(0xFF9E9E9E),
-    statusSending = Color(0xFF757575),
-    callDecline = Color(0xFFEF5350),
-    callAccept = Color(0xFF66BB6A),
-    callMissed = Color(0xFFEF5350),
-    bubbleOwn = Color(0xFF005D4B),
-    bubbleOther = Color(0xFF2C2C2E),
-    onBubbleOwn = Color(0xFFE6E1E5),
-    onBubbleOther = Color(0xFFE6E1E5),
-    linkColor = Color(0xFF64B5F6)
+    statusOnline = WaGreen,
+    statusRead = WaTickReadDark,
+    statusDelivered = WaTickGray,
+    statusSending = WaTickGray,
+    callDecline = Red400,
+    callAccept = WaGreen,
+    callMissed = Red400,
+    bubbleOwn = WaOwnBubbleDark,
+    bubbleOther = WaOtherBubbleDark,
+    onBubbleOwn = WaPrimaryText,
+    onBubbleOther = WaPrimaryText,
+    linkColor = Color(0xFF53BDEB)
 )
 
 val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
@@ -144,75 +165,65 @@ object MuhabbetElevation {
 // ─── M3 Color schemes ──────────────────────────────────────
 
 val MuhabbetLightColorScheme = lightColorScheme(
-    primary = Teal700,
+    primary = WaGreen,
     onPrimary = Color.White,
-    primaryContainer = Teal100,
-    onPrimaryContainer = Teal800,
-    secondary = Green600,
+    primaryContainer = Color(0xFFD9FDD3),
+    onPrimaryContainer = Color(0xFF002114),
+    secondary = WaGreenClassic,
     onSecondary = Color.White,
-    secondaryContainer = Green100,
-    onSecondaryContainer = Color(0xFF1B5E20),
-    tertiary = Amber600,
-    onTertiary = Color.White,
-    tertiaryContainer = Amber100,
-    onTertiaryContainer = Color(0xFF7F6003),
+    secondaryContainer = Color(0xFFC8F5D8),
+    onSecondaryContainer = Color(0xFF002111),
     error = Red700,
     onError = Color.White,
-    surface = Color.White,
-    onSurface = Color(0xFF1C1B1F),
-    surfaceVariant = Color(0xFFF0F4F3),
-    onSurfaceVariant = Color(0xFF49454F),
-    outline = Color(0xFF79747E),
-    outlineVariant = Color(0xFFCAC4D0)
+    background = WaLightBg,
+    onBackground = Color(0xFF111B21),
+    surface = WaLightSurface,
+    onSurface = Color(0xFF111B21),
+    surfaceVariant = WaLightInput,
+    onSurfaceVariant = Color(0xFF667781),
+    outline = Color(0xFFCCD0D4),
+    outlineVariant = Color(0xFFE9EDEF)
 )
 
 val MuhabbetDarkColorScheme = darkColorScheme(
-    primary = Teal200,
-    onPrimary = Color(0xFF003731),
-    primaryContainer = Color(0xFF005048),
-    onPrimaryContainer = Teal100,
-    secondary = Green300,
-    onSecondary = Color(0xFF003A08),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Green100,
-    tertiary = Amber600,
-    onTertiary = Color(0xFF3F2E00),
-    tertiaryContainer = Color(0xFF5B4300),
-    onTertiaryContainer = Amber100,
+    primary = WaGreen,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF00382B),
+    onPrimaryContainer = Color(0xFFD9FDD3),
+    secondary = WaGreenClassic,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFF003820),
+    onSecondaryContainer = Color(0xFFD9FDD3),
     error = Red400,
     onError = Color(0xFF601410),
-    surface = Color(0xFF1C1B1F),
-    onSurface = Color(0xFFE6E1E5),
-    surfaceVariant = Color(0xFF2C2C2E),
-    onSurfaceVariant = Color(0xFFCAC4D0),
-    outline = Color(0xFF938F99),
-    outlineVariant = Color(0xFF49454F)
+    background = WaDarkBg,
+    onBackground = WaPrimaryText,
+    surface = WaDarkSurface,
+    onSurface = WaPrimaryText,
+    surfaceVariant = WaDarkElevated,
+    onSurfaceVariant = WaSecondaryText,
+    outline = WaSecondaryText,
+    outlineVariant = WaDarkElevated
 )
 
-// OLED Black theme — true black backgrounds for AMOLED displays
+// AMOLED Black theme
 val MuhabbetOledBlackColorScheme = darkColorScheme(
-    primary = Teal200,
-    onPrimary = Color(0xFF003731),
-    primaryContainer = Color(0xFF003D36),
-    onPrimaryContainer = Teal100,
-    secondary = Green300,
-    onSecondary = Color(0xFF003A08),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Green100,
-    tertiary = Amber600,
-    onTertiary = Color(0xFF3F2E00),
-    tertiaryContainer = Color(0xFF5B4300),
-    onTertiaryContainer = Amber100,
+    primary = WaGreen,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF00382B),
+    onPrimaryContainer = Color(0xFFD9FDD3),
+    secondary = WaGreenClassic,
+    onSecondary = Color.White,
     error = Red400,
     onError = Color(0xFF601410),
-    surface = Color.Black,
-    onSurface = Color(0xFFE6E1E5),
-    surfaceVariant = Color(0xFF161618),
-    onSurfaceVariant = Color(0xFFCAC4D0),
-    outline = Color(0xFF938F99),
-    outlineVariant = Color(0xFF49454F),
-    background = Color.Black,
-    onBackground = Color(0xFFE6E1E5)
+    background = Color(0xFF000000),
+    onBackground = WaPrimaryText,
+    surface = Color(0xFF0A1014),
+    onSurface = WaPrimaryText,
+    surfaceVariant = Color(0xFF111B21),
+    onSurfaceVariant = WaSecondaryText,
+    outline = WaSecondaryText,
+    outlineVariant = Color(0xFF111B21)
 )
 
 @Composable
