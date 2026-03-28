@@ -6,7 +6,7 @@ plugins {
     id("org.springframework.boot")
     id("io.spring.dependency-management")
     jacoco
-    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    id("io.gitlab.arturbosch.detekt") version "2.0.0-RC1"
 }
 
 group = "com.muhabbet"
@@ -144,7 +144,6 @@ detekt {
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-    jvmTarget = "21"
     reports {
         html.required.set(true)
         xml.required.set(true)

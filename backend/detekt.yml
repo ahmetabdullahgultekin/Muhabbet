@@ -1,5 +1,4 @@
-build:
-  maxIssues: 50
+maxIssues: 50
 
 complexity:
   LongMethod:
