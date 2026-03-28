@@ -30,10 +30,10 @@ kotlin {
     }
 
     sourceSets {
-        val decompose = "3.4.0"
-        val koin = "4.1.1"
-        val ktor = "3.4.1"
-        val coil = "3.3.0"
+        val decompose = "3.5.0"
+        val koin = "4.2.0"
+        val ktor = "3.4.2"
+        val coil = "3.4.0"
 
         commonMain.dependencies {
             // Shared KMP module
@@ -78,26 +78,26 @@ kotlin {
 
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
-            implementation("androidx.activity:activity-compose:1.10.0")
-            implementation("androidx.security:security-crypto:1.1.0")
+            implementation("androidx.activity:activity-compose:1.13.0")
+            implementation("androidx.security:security-crypto:1.1.0-alpha06")
             implementation("app.cash.sqldelight:android-driver:2.3.2")
 
             // WorkManager — background sync
-            implementation("androidx.work:work-runtime-ktx:2.10.0")
+            implementation("androidx.work:work-runtime-ktx:2.11.2")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.11.0"))
             implementation("com.google.firebase:firebase-auth-ktx")
             implementation("com.google.firebase:firebase-messaging-ktx")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:7.19.1")
+            implementation("io.sentry:sentry-android:8.37.1")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.5.0")
+            implementation("io.livekit:livekit-android:2.24.0")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
-            implementation("org.signal:libsignal-android:0.64.1")
+            implementation("org.signal:libsignal-android:0.86.5")
         }
 
         commonTest.dependencies {
@@ -171,7 +171,7 @@ android {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
 sqldelight {

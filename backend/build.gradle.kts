@@ -37,9 +37,9 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     // JWT
-    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     // Database
     runtimeOnly("org.postgresql:postgresql")
@@ -47,20 +47,20 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // MinIO (S3-compatible media storage)
-    implementation("io.minio:minio:8.6.0")
+    implementation("io.minio:minio:9.0.0")
 
     // HTML parsing for link previews
     implementation("org.jsoup:jsoup:1.22.1")
 
     // Firebase Cloud Messaging
-    implementation("com.google.firebase:firebase-admin:9.4.2")
+    implementation("com.google.firebase:firebase-admin:9.8.0")
 
     // Twilio SMS
-    implementation("com.twilio.sdk:twilio:10.6.4")
+    implementation("com.twilio.sdk:twilio:11.3.6")
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-4:8.26.0")
+    implementation("io.sentry:sentry-spring-boot-4:8.37.1")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
@@ -70,12 +70,12 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("io.mockk:mockk:1.14.9")
-    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
-    testImplementation("org.testcontainers:postgresql:1.20.4")
+    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
+    testImplementation("org.testcontainers:postgresql:1.21.4")
     testImplementation("com.redis:testcontainers-redis:2.2.4")
 
     // Architecture testing
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.1")
 }
 
 kotlin {
