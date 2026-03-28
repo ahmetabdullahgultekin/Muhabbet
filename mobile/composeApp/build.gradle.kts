@@ -79,7 +79,7 @@ kotlin {
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
             implementation("androidx.activity:activity-compose:1.10.0")
-            implementation("androidx.security:security-crypto:1.1.0-alpha06")
+            implementation("androidx.security:security-crypto:1.1.0")
             implementation("app.cash.sqldelight:android-driver:2.3.2")
 
             // WorkManager — background sync
