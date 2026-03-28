@@ -8,7 +8,7 @@ import io.minio.MakeBucketArgs
 import io.minio.MinioClient
 import io.minio.PutObjectArgs
 import io.minio.RemoveObjectArgs
-import io.minio.http.Method
+import io.minio.Http
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -60,7 +60,7 @@ class MinioMediaStorageAdapter(
     override fun getPresignedUrl(key: String, expirySeconds: Int): String {
         val url = client.getPresignedObjectUrl(
             GetPresignedObjectUrlArgs.builder()
-                .method(Method.GET)
+                .method(Http.Method.GET)
                 .bucket(mediaProperties.minio.bucket)
                 .`object`(key)
                 .expiry(expirySeconds, TimeUnit.SECONDS)
