@@ -6,7 +6,7 @@ plugins {
     id("org.springframework.boot")
     id("io.spring.dependency-management")
     jacoco
-    id("io.gitlab.arturbosch.detekt") version "2.0.0-RC1"
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
 group = "com.muhabbet"

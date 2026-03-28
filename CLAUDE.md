@@ -181,8 +181,8 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 ## Tech Stack Quick Reference
 | Component | Technology |
 |-----------|-----------|
-| Language | Kotlin (everywhere) |
-| Backend framework | Spring Boot 4.0.2 |
+| Language | Kotlin 2.3.20 (everywhere) |
+| Backend framework | Spring Boot 4.0.5 |
 | Mobile framework | CMP (Compose Multiplatform) |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
@@ -194,7 +194,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Testing | JUnit 5 + MockK + Testcontainers + ArchUnit |
 | Code quality | JaCoCo (coverage) + detekt (static analysis) |
 | Load testing | k6 |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions on self-hosted runner `hetzner-cx43` |
 
 ## Key Files
 - `settings.gradle.kts` — Root, includes all subprojects
@@ -264,7 +264,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Round 5 UI/UX Polish**: MediaViewer with action bars (forward/delete), SharedMediaScreen long-press context menu + Crossfade tab transitions, MessageInfoScreen with cards/avatars/timeline sections
 - **Round 6 Media UX & Storage**: Chat scroll fix (start at bottom), pinch-to-zoom (1x–5x + double-tap), SharedMedia video/voice/doc playback, forward fix, MessageInfo media preview + avatars, storage usage stats (`GET /api/v1/media/storage` with full hexagonal chain)
 - **System Optimization**: Database indexes (12 performance indexes), N+1 query fixes (batch fetching), Redis connection pooling, Ktor connection pooling, nginx gzip/caching, PostgreSQL tuning
-- **Dependency Upgrades (Feb 2026)**: Kotlin 2.3.10, Spring Boot 4.0.2, Java 25, Gradle 8.14.4, Ktor 3.1.3, Compose BOM 2025.04.01
+- **Dependency Upgrades (Mar 2026)**: Kotlin 2.3.20, Spring Boot 4.0.5, Java 21 (toolchain), Gradle 8.14.4, Ktor 3.1.3, Compose BOM 2025.04.01
 - **CI/CD Pipeline**: GitHub Actions — backend CI (test + build), mobile CI (Android + iOS), security scanning (Trivy, Gitleaks, CodeQL), deployment automation
 - **Call UI**: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen with Decompose navigation
 - **E2E Encryption Infrastructure**: E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile client for key exchange API)
