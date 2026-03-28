@@ -22,7 +22,7 @@ if sys.platform == "win32":
 
 # ─── Config ──────────────────────────────────────────────
 WS_URL = "wss://muhabbet.rollingcatsoftware.com/ws"
-JWT_SECRET = "4CXSYHqi6f7trVF7YtKarOvOGxhHG8r9ROsnloP3Hd6LcolZCXaiUjjHsUfutu5e"
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
 BOT_USER_ID = "52b2e3ee-bd2e-4d6d-8819-f8fc29d07e54"
 BOT_DEVICE_ID = "f60b6ec8-2178-4466-b128-269dd0778fda"
 BOT_NAME = "Test Bot"

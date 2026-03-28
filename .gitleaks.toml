@@ -1,0 +1,25 @@
+# Gitleaks configuration — allowlist for false positives and historical findings
+# https://github.com/gitleaks/gitleaks#configuration
+
+title = "Muhabbet Gitleaks Config"
+
+[allowlist]
+  description = "Global allowlist"
+
+  # Historical .env.prod — removed from tracking in commit 3925f70
+  paths = [
+    '''\.env\.prod''',
+  ]
+
+  # Allowlist specific commits/fingerprints for false positives
+  regexTarget = "match"
+  regexes = [
+    # GIPHY public beta key — well-known, non-secret
+    '''dc6zaTOxFJmzC''',
+    # Placeholder ACCESS_TOKEN in docs
+    '''ACCESS_TOKEN''',
+    # Example JWT fragment in API contract docs
+    '''bmV3IHJlZnJlc2g\.\.\.''',
+    # RFC 6455 WebSocket example key
+    '''dGhlIHNhbXBsZSBub25jZQ==''',
+  ]

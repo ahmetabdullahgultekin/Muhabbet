@@ -11,6 +11,8 @@ on:
       - 'gradle/**'
       - 'Dockerfile*'
       - '.github/workflows/security.yml'
+      - '.gitleaks.toml'
+      - 'infra/scripts/**'
   pull_request:
     branches: [main, develop]
     paths:
@@ -18,6 +20,8 @@ on:
       - 'shared/**'
       - 'build.gradle.kts'
       - 'Dockerfile*'
+      - '.gitleaks.toml'
+      - 'infra/scripts/**'
   schedule:
     # Run weekly on Monday at 06:00 UTC
     - cron: '0 6 * * 1'
