@@ -40,8 +40,10 @@ infra/minio_data/
 
 # ─── Environment / Secrets ────────────────
 .env
+.env.*
 .env.local
 .env.production
+.env.prod
 *.pem
 *.key
 google-services.json
