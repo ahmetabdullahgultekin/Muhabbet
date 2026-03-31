@@ -273,7 +273,7 @@ open class MessageService(
     // ─── View-Once ────────────────────────────────────────────
 
     @Transactional
-    fun markViewOnceViewed(messageId: UUID, userId: UUID) {
+    open fun markViewOnceViewed(messageId: UUID, userId: UUID) {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 
@@ -295,8 +295,7 @@ open class MessageService(
 
     // ─── Scheduled Messages ──────────────────────────────────
 
-    @Transactional
-    fun deliverScheduledMessages() {
+    open fun deliverScheduledMessages() {
         val now = Instant.now()
         val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now)
 
