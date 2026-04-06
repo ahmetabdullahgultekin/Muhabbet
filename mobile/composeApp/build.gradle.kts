@@ -94,7 +94,7 @@ kotlin {
             implementation("io.sentry:sentry-android:8.37.1")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.24.0")
+            implementation("io.livekit:livekit-android:2.24.1")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
             implementation("org.signal:libsignal-android:0.86.5")
