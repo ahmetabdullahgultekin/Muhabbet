@@ -32,7 +32,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -60,7 +60,7 @@ dependencies {
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-4:8.37.1")
+    implementation("io.sentry:sentry-spring-boot-4:8.38.0")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
