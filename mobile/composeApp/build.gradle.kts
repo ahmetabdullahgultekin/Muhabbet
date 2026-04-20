@@ -31,7 +31,7 @@ kotlin {
 
     sourceSets {
         val decompose = "3.5.0"
-        val koin = "4.2.0"
+        val koin = "4.2.1"
         val ktor = "3.4.2"
         val coil = "3.4.0"
 
@@ -64,7 +64,7 @@ kotlin {
             implementation("io.ktor:ktor-client-websockets:$ktor")
 
             // Serialization
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
 
@@ -86,15 +86,15 @@ kotlin {
             implementation("androidx.work:work-runtime-ktx:2.11.2")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.11.0"))
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.12.0"))
             implementation("com.google.firebase:firebase-auth-ktx")
             implementation("com.google.firebase:firebase-messaging-ktx")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:8.37.1")
+            implementation("io.sentry:sentry-android:8.39.1")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.24.0")
+            implementation("io.livekit:livekit-android:2.24.1")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
             implementation("org.signal:libsignal-android:0.86.5")
