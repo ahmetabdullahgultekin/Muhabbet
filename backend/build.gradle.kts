@@ -32,7 +32,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -50,17 +50,17 @@ dependencies {
     implementation("io.minio:minio:9.0.0")
 
     // HTML parsing for link previews
-    implementation("org.jsoup:jsoup:1.22.1")
+    implementation("org.jsoup:jsoup:1.22.2")
 
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-admin:9.8.0")
 
     // Twilio SMS
-    implementation("com.twilio.sdk:twilio:11.3.6")
+    implementation("com.twilio.sdk:twilio:12.0.0")
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-4:8.37.1")
+    implementation("io.sentry:sentry-spring-boot-4:8.40.0")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
@@ -75,7 +75,7 @@ dependencies {
     testImplementation("com.redis:testcontainers-redis:2.2.4")
 
     // Architecture testing
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.1")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
 }
 
 kotlin {
