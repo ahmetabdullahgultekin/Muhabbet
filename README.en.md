@@ -92,3 +92,11 @@ curl http://localhost:8080/actuator/health
 ## License
 
 Private repository — all rights reserved.
+
+
+---
+
+## More from Ahmet Abdullah Gültekin
+
+Personal portfolio + writing: **[ahmetabdullah.gultek.in](https://ahmetabdullah.gultek.in)**
+LinkedIn: **[ahmet-abdullah-gultekin](https://www.linkedin.com/in/ahmet-abdullah-gultekin)**
