@@ -24,3 +24,11 @@ muhabbet/
 ├── infra/     # Docker Compose, nginx, deploy scripts
 └── docs/      # API, architecture, decisions, QA
 ```
+
+
+---
+
+## More from Ahmet Abdullah Gültekin
+
+Personal portfolio + writing: **[ahmetabdullah.gultek.in](https://ahmetabdullah.gultek.in)**
+LinkedIn: **[ahmet-abdullah-gultekin](https://www.linkedin.com/in/ahmet-abdullah-gultekin)**

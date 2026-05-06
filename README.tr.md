@@ -92,3 +92,11 @@ curl http://localhost:8080/actuator/health
 ## Lisans
 
 Özel depo — tüm hakları saklıdır.
+
+
+---
+
+## Ahmet Abdullah Gültekinden daha fazlası
+
+Kişisel portföy + yazılar: **[ahmetabdullah.gultek.in](https://ahmetabdullah.gultek.in)**
+LinkedIn: **[ahmet-abdullah-gultekin](https://www.linkedin.com/in/ahmet-abdullah-gultekin)**
