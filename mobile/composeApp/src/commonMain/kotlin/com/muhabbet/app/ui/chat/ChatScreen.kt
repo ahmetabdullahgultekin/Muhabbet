@@ -413,7 +413,8 @@ fun ChatScreen(
                                                     } catch (_: Exception) { }
                                                 }
                                             },
-                                            onInfo = { contextMenuMessageId = null; onMessageInfo?.invoke(message.id) }
+                                            onInfo = { contextMenuMessageId = null; onMessageInfo?.invoke(message.id) },
+                                            onViewOnce = { id -> scope.launch { try { messageRepository.markViewOnce(id) } catch (_: Exception) { } } }
                                         )
                                     }
                                 }

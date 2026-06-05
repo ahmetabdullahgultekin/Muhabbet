@@ -1,7 +1,7 @@
 # Muhabbet — WhatsApp-Parity Roadmap
 
 > **Vision:** *"Muhabbet should become WhatsApp tier by tier, iter by iter."*
-> **Last updated:** 2026-06-05 (code-grounded at branch `exec/p0-2026-06-05` / PR #31).
+> **Last updated:** 2026-06-05 (§1.2 DONE + §1.5 partial / PR #35).
 > **Tactical companion:** [`TODO.md`](TODO.md) — P0/P1 are aligned to **Tier 1** below.
 > **History:** prior launch-blocker framing is preserved in §"History & Current State" and in
 > `CHANGELOG.md` + `docs/engineering-roadmap.md`. The 2026-03-14 feature-by-feature comparison
@@ -33,7 +33,7 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 |---|---|---|
 | 1:1 messaging (real-time) | **Done** | `MessageService.sendMessage`, WS `WsMessage.SendMessage`/`NewMessage`, `WsClient` |
 | Group messaging | **Done (1:1-grade)** | `GroupService.kt`, `WsMessage.GroupMember*`, announcement mode in `MessageService` (`MSG_ANNOUNCEMENT_ONLY`) |
-| Delivery / read receipts | **Done** | `MessageService.resolveDeliveryStatuses` (sender-aggregate min, recipient own-row), `updateStatus`, `markConversationRead`; `MessageStatus{SENDING,SENT,DELIVERED,READ}` in `shared/.../Models.kt` |
+| Delivery / read receipts | **Done** | `MessageService.resolveDeliveryStatuses` (sender-aggregate min, recipient own-row), `updateStatus`, `markConversationRead`; `MessageStatus{SENDING,SENT,DELIVERED,READ}` in `shared/.../Models.kt`; 13-scenario `DeliveryStatusTest` locks the contract (PR #35) |
 | Typing indicators | **Done** | `WsMessage.TypingIndicator` / `PresenceUpdate`, presence module (Redis) |
 | Presence (online / last seen) | **Done** | Redis TTL presence, `WsMessage.PresenceUpdate.lastSeenAt`, `V2__add_last_seen_at.sql` |
 | Media — image / video / docs | **Done** | `MediaService.kt`, MinIO adapter, `ContentType{IMAGE,VIDEO,DOCUMENT}`, `V3__add_media_duration.sql` |
@@ -89,13 +89,15 @@ Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
   a manual two-device test confirms the DB stores an `mhbt-e2e-1` envelope, not readable text;
   rollback path documented and exercised.
 
-### 1.2 Delivery/read-receipt correctness (provable)
+### 1.2 Delivery/read-receipt correctness (provable) — **DONE (PR #35)**
 - **Files:** `MessageService.resolveDeliveryStatuses`/`updateStatus`/`markConversationRead`,
   `DeliveryStatusTest.kt`.
 - **Why:** aggregation is subtle (sender sees min across recipients; group read = all-read). Lock it
   with explicit group-scenario tests so receipts never regress under E2E re-wiring.
-- **DONE =** `DeliveryStatusTest` covers: 1:1 SENT→DELIVERED→READ; group partial-read stays
-  DELIVERED; group all-read → READ; recipient sees own row only. Tests green in CI.
+- **DONE =** `DeliveryStatusTest` covers 13 scenarios including: 1:1 SENT→DELIVERED→READ state
+  machine; group partial-read stays DELIVERED; group all-read → READ; recipient sees only their own
+  row (never another member's status); `updateStatus` persists + broadcasts; `markConversationRead`
+  bulk-marks + advances last-read. All 346 backend tests green (0 failures).
 
 ### 1.3 Media robustness
 - **Files:** `MediaService.kt`, `MediaUploadHelper.kt`, nginx MinIO proxy.
@@ -111,10 +113,17 @@ Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
 - **DONE =** an image sent with the flag ON is unreadable in MinIO without the per-message key;
   recipient renders it; flag OFF path unchanged.
 
-### 1.5 Finish group & community surfaces (kill dead buttons)
+### 1.5 Finish group & community surfaces (kill dead buttons) — **PARTIAL (PR #35)**
 - **Files (6 dead `onClick = { /* TODO */ }`):** `HomeShellScreen.kt` L98, `MessageBubble.kt` L91,
   `WallpaperPickerScreen.kt` L191, `InviteLinkSheet.kt` L149, `CommunityDetailScreen.kt` L167,
   `BroadcastListScreen.kt` L191.
+- **Progress (2 of 6 wired in PR #35):**
+  - `InviteLinkSheet.kt` — share button now calls `shareLauncher(link.inviteUrl)` via new
+    `ShareLauncher` expect/actual (`ShareLauncher.kt` + `ShareLauncher.android.kt` +
+    `ShareLauncher.ios.kt`). Android: `Intent.ACTION_SEND`; iOS: `UIActivityViewController`.
+  - `MessageBubble.kt` — ViewOnceBubble `onViewOnce` wired through to `messageRepository.markViewOnce(id)` in `ChatScreen.kt`; sender-side guard (`!isOwn`) prevents self-view.
+- **Remaining (4 of 6, follow-up PR):** `HomeShellScreen.kt` search, `WallpaperPickerScreen.kt`
+  gallery picker, `CommunityDetailScreen.kt` add-group, `BroadcastListScreen.kt` detail.
 - **DONE =** each implemented or hidden; no `/* TODO */` remains in those onClick blocks.
 
 ### 1.6 Trust hardening (must precede broad E2E)
