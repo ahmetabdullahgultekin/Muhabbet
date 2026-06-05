@@ -81,14 +81,17 @@ fun MessageBubble(
     onImageClick: (String) -> Unit = {},
     onReactionToggle: (String) -> Unit = {},
     onInfo: () -> Unit = {},
-    onCopy: () -> Unit = {}
+    onCopy: () -> Unit = {},
+    onViewOnce: (String) -> Unit = {}
 ) {
     // Dispatch view-once messages to ViewOnceBubble
     if (message.viewOnce && !message.isDeleted) {
         ViewOnceBubble(
             message = message,
             isOwn = isOwn,
-            onViewOnce = { /* TODO: mark view-once via repository */ },
+            // Recipients mark the message viewed server-side the first time they open it.
+            // Senders never consume their own view-once; the backend rejects self-view.
+            onViewOnce = { if (!isOwn) onViewOnce(message.id) },
             modifier = Modifier
         )
         return

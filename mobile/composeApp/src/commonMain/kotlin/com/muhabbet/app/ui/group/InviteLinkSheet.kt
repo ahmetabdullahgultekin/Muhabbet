@@ -42,6 +42,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.InviteLinkRepository
+import com.muhabbet.app.platform.rememberShareLauncher
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
@@ -63,6 +64,7 @@ fun InviteLinkSheet(
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val shareLauncher = rememberShareLauncher()
     var inviteLink by remember { mutableStateOf<InviteLinkResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var requireApproval by remember { mutableStateOf(false) }
@@ -146,7 +148,7 @@ fun InviteLinkSheet(
                     }
                     // Share
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = { /* TODO: platform share */ }) {
+                        IconButton(onClick = { shareLauncher(link.inviteUrl) }) {
                             Icon(Icons.Default.Share, contentDescription = stringResource(Res.string.invite_link_share))
                         }
                         Text(
