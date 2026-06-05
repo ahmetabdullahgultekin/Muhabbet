@@ -1,177 +1,236 @@
-# Muhabbet — Product Roadmap
+# Muhabbet — WhatsApp-Parity Roadmap
 
-> **Last updated**: 2026-06-04 (refreshed from deep code analysis at HEAD `97626f8`).
-> **Tactical companion**: see [`TODO.md`](TODO.md) for the executable P0–P3 checklist.
-
----
-
-## Current State
-
-**Backend: LIVE and healthy.** `https://muhabbet-api.rollingcatsoftware.com/actuator/health`
-returns `UP` for db (PostgreSQL), redis (7.4.8), ssl, liveness and readiness. Deployed on a
-Hetzner VPS via Docker + Traefik/nginx + Let's Encrypt. Flyway migrations V1–V17 applied.
-Root path returns `401` by design (Spring Security).
-
-**Development is PAUSED** — last commit `97626f8` on 2026-03-31. The codebase is broad and
-mature on paper (24 MVP features + 6 phases marked DONE in prior docs), but a code-level audit
-at HEAD surfaces gaps that the older roadmap framed as "complete":
-
-| Area | Prior doc said | Verified at HEAD |
-|------|----------------|------------------|
-| E2E encryption | "Signal Protocol client DONE" | Keys register on login and Signal sessions can be set up, but **no send/receive path calls `.encrypt()`/`.decrypt()`** — messages are sent in **plaintext**. The only `EncryptionPort` use outside DI is its registration in `AppModule.kt`. **This is the #1 launch blocker.** |
-| Android release | signing scaffold present | Env-var-gated signing config, **no keystore**, CI builds **debug APK only**. No signed AAB exists. |
-| iOS push (APNs) | "Remaining" | Correct — non-functional; token path depends on an AppDelegate hook, no server-side APNs. |
-| iOS Firebase auth | "fallback stub" | `isAvailable()` hard-`false`; `verifyCode` throws. iOS can only use backend OTP. |
-| iOS E2E | "NoOp until bridged" | Correct — `NoOpKeyManager`/`NoOpEncryption`; needs a libsignal Kotlin/Native bridge. |
-| iOS calls | "stub" | Correct — `CallEngine.ios.kt` connect/mute/speaker are no-ops. |
-| Message backup | "DONE" | `BackupService.createBackup` is a **placeholder** — marks `COMPLETED` with null URL / zero counts; no archive is produced. |
-| Pen test | "Remaining" | Correct — never run. |
-| Sentry (prod) | "code ready" | DSN unset in prod compose → no backend error capture in production. |
-| Tests | "332/333 pass" (Feb 2026) | 34 backend test files + ArchUnit present; **count unverified at HEAD** — re-run before trusting. |
-
-**Is it launch-ready? No.** The backend is production-grade and live, but the Android client
-ships plaintext messages under an E2E banner, has no signed release artifact, and has never
-been pen-tested. iOS is further behind (no push, no Firebase auth, NoOp E2E, stub calls).
-A defensible path is **Android-first public launch** after closing the E2E + signing + pen-test
-blockers, with iOS following once APNs and the libsignal bridge land.
-
-## Next Up (sequenced)
-
-1. **Wire E2E into the message path** (or remove the E2E claim) — TODO P0.
-2. **Generate keystore + signed AAB** — TODO P0.
-3. **Security pen-test pass** on staging — TODO P0.
-4. **Implement the backup job + set Sentry DSN** — TODO P1, low-effort credibility wins.
-5. **Merge/close Dependabot #30 & #21, unblock CI** — TODO P1.
-6. **Run k6 load tests** against prod-like env — TODO P1.
-7. **Android internal-testing → public** (Phase 1 manual steps below).
-8. **iOS catch-up**: APNs, Firebase-auth decision, libsignal bridge, then TestFlight — TODO P1/P3.
+> **Vision:** *"Muhabbet should become WhatsApp tier by tier, iter by iter."*
+> **Last updated:** 2026-06-05 (code-grounded at branch `exec/p0-2026-06-05` / PR #31).
+> **Tactical companion:** [`TODO.md`](TODO.md) — P0/P1 are aligned to **Tier 1** below.
+> **History:** prior launch-blocker framing is preserved in §"History & Current State" and in
+> `CHANGELOG.md` + `docs/engineering-roadmap.md`. The 2026-03-14 feature-by-feature comparison
+> lives in `docs/whatsapp-feature-gap-analysis.md` (still accurate; this file sequences it).
 
 ---
 
-## Deployment Status
+## How to read this
 
-**Deployed at:** https://muhabbet-api.rollingcatsoftware.com (Hetzner VPS, Docker + Traefik/nginx + Let's Encrypt)
-**Stack:** Kotlin 2.3.20 / Spring Boot 4.0.5 / Java 21 runtime / PostgreSQL 16 / Redis 7 / MinIO
-**Health:** UP (db, redis, ssl, liveness, readiness)
+This roadmap maps Muhabbet onto **WhatsApp's core surface** and sequences the gaps into three
+tiers. Each tier is a set of **small, iteration-sized tasks** with a **file path** and a
+**verifiable DONE**. Every status claim below is grounded in code (file/class cited).
 
-- [x] Firebase Cloud Messaging (FCM) — `FCM_ENABLED=true`, credentials mounted
-- [x] Netgsm SMS OTP — `NetgsmOtpSender` active via `@ConditionalOnProperty`
-- [x] Android app production API URLs configured
-- [x] Automated database backups (shared Hetzner pg_dump cron)
-- [ ] **Sentry DSN configured** — code ready, env var empty in `.env.prod` (TODO P1)
-- [ ] **iOS APNs delivery** — APNs key + server path + TestFlight (TODO P1)
-- [ ] **iOS LiveKit / Signal Protocol bridge** (Kotlin/Native) (TODO P1/P3)
-- [ ] **Security penetration testing** (OWASP ZAP / Burp) (TODO P0)
-- [ ] **App Store / Google Play submission** (TODO P0 keystore prerequisite)
-
-### Known behaviors
-- API root returns `401` due to Spring Security — use `/actuator/health` to verify.
-- `favicon.ico` requests return 401/403 — APIs don't serve favicons.
+- **Tier 1 — Core-messaging hardening & trust.** Make the everyday 1:1 + group experience
+  correct and trustworthy: land E2E as a canary, get delivery/read receipts provably right,
+  make media robust, finish groups. *This is the bar for a credible public launch.*
+- **Tier 2 — Real-time & reach.** Calls that actually carry audio/video, presence/typing polish,
+  status/stories completeness, multi-device.
+- **Tier 3 — Advanced parity.** Communities, disappearing/edit/reactions polish, key verification
+  UI, backups at scale, sender-key group E2E.
 
 ---
 
-## Phase 0 — Pre-Launch Hardening (CURRENT — blocks public launch)
+## Feature inventory vs WhatsApp (code-grounded)
 
-| # | Task | Status | Ref |
-|---|------|--------|-----|
-| 0.1 | Encrypt/decrypt messages in the send/receive path (Signal) | **OPEN — P0** | TODO P0 |
-| 0.2 | Release keystore + signed Android AAB | **OPEN — P0** | TODO P0 |
-| 0.3 | Security penetration test (staging) | **OPEN — P0** | TODO P0 |
-| 0.4 | Real message-backup job (MinIO archive) | **OPEN — P1** | TODO P1 |
-| 0.5 | Sentry DSN in production | **OPEN — P1** | TODO P1 |
-| 0.6 | Merge/close Dependabot #30 + #21, unblock CI | **OPEN — P1** | TODO P1 |
-| 0.7 | k6 load test against prod-like env | **OPEN — P1** | TODO P1 |
+Status: **Done** (works end-to-end), **Partial** (present but a real gap remains), **Missing**.
 
-## Phase 1 — Android Internal → Public Release (manual + Phase 0 gated)
-
-| # | Task | Status |
-|---|------|--------|
-| 1.1 | Build signed AAB (depends on 0.2) | Blocked on 0.2 |
-| 1.2 | Play Store screenshots (8 screens) | Manual |
-| 1.3 | Feature graphic (1024×500) | Design |
-| 1.4 | Store description (TR + EN) | Content |
-| 1.5 | IARC content rating questionnaire | Manual |
-| 1.6 | Fresh-install smoke test on 3+ devices | QA |
-| 1.7 | Upload AAB + listing to Play Console (internal → production) | Manual |
-
-## Phase 2 — iOS Catch-Up & Submission
-
-| # | Task | Status |
-|---|------|--------|
-| 2.1 | iOS APNs delivery (token registration + server push) | Remaining (TODO P1) |
-| 2.2 | iOS auth: bridge Firebase Phone Auth OR commit to backend OTP | Remaining (TODO P1) |
-| 2.3 | iOS E2E: libsignal-client Kotlin/Native bridge (after 0.1) | Remaining (TODO P1) |
-| 2.4 | iOS Crash reporting (Sentry CocoaPod, replace NSLog stub) | Remaining (TODO P3) |
-| 2.5 | iOS LiveKit voice bridge (replace CallEngine stub) | Remaining (TODO P3) |
-| 2.6 | TestFlight + App Store submission | Remaining |
-
-## Phase 3 — Growth (post-launch)
-
-| # | Task | Status |
-|---|------|--------|
-| 3.1 | Web / Desktop client (Kotlin/JS or React+TS, QR device-linking, sync) | Remaining |
-| 3.2 | Group voice/video calls (multi-party LiveKit) | Remaining |
-| 3.3 | CDN for media at scale | Remaining |
-| 3.4 | Channel monetization (analytics + bot platform already shipped) | Remaining |
-
----
-
-## Completed Features (verified present in code)
-
-24 MVP features + 6 engineering phases are implemented in the modular-monolith backend and the
-Compose Multiplatform Android client. Headline set (full historical breakdown retained in
-`CHANGELOG.md` and `docs/qa/engineering-roadmap.md`):
-
-| Group | Features |
-|-------|----------|
-| Core | OTP+JWT auth, device mgmt, 1:1 messaging (WebSocket), delivery status, presence (Redis), typing indicators |
-| Rich messaging | media/image sharing, voice messages + transcription, reply/quote, forward, starred, reactions, edit/delete, search, link previews, stickers/GIFs (GIPHY), file/document sharing |
-| Advanced | groups (roles), channels/broadcasts, communities, polls, disappearing messages, status/stories, location sharing, view-once, scheduled messages |
-| Platform | push (FCM), i18n (TR default + EN, runtime switch), SQLDelight offline cache + pending-message queue, WS resilience (backoff+jitter+dedup), KVKK privacy dashboard (export/delete) |
-| Backend infra | content moderation (BTK 5651), bot platform (API tokens), channel analytics, call signaling + LiveKit room adapter, Redis pub/sub WS broadcaster, security headers, InputSanitizer, rate limiting |
-
-**Caveats from audit** (see Current State table): E2E send-path is inert, message backup is a
-placeholder, and several iOS platform bindings are stubs. Treat the prior "DONE" labels as
-"present/compiles" rather than "end-to-end verified" until re-tested.
+| WhatsApp surface | Status | Evidence (file / class) |
+|---|---|---|
+| 1:1 messaging (real-time) | **Done** | `MessageService.sendMessage`, WS `WsMessage.SendMessage`/`NewMessage`, `WsClient` |
+| Group messaging | **Done (1:1-grade)** | `GroupService.kt`, `WsMessage.GroupMember*`, announcement mode in `MessageService` (`MSG_ANNOUNCEMENT_ONLY`) |
+| Delivery / read receipts | **Done** | `MessageService.resolveDeliveryStatuses` (sender-aggregate min, recipient own-row), `updateStatus`, `markConversationRead`; `MessageStatus{SENDING,SENT,DELIVERED,READ}` in `shared/.../Models.kt` |
+| Typing indicators | **Done** | `WsMessage.TypingIndicator` / `PresenceUpdate`, presence module (Redis) |
+| Presence (online / last seen) | **Done** | Redis TTL presence, `WsMessage.PresenceUpdate.lastSeenAt`, `V2__add_last_seen_at.sql` |
+| Media — image / video / docs | **Done** | `MediaService.kt`, MinIO adapter, `ContentType{IMAGE,VIDEO,DOCUMENT}`, `V3__add_media_duration.sql` |
+| Voice messages (+ transcription) | **Done** | `ContentType.VOICE`, `SpeechTranscriber` expect/actual, VoiceBubble |
+| Reactions | **Done** | `ReactionService.kt`, `WsMessage.MessageReaction`, `V9__add_reactions.sql` |
+| Reply / quote | **Done** | `SendMessage.replyToId`, `Message.replyToId` |
+| Forwarding | **Done** | `SendMessage.forwardedFrom`, `V13__add_forwarded_from.sql` |
+| Edit / delete | **Done** | `MessageService.editMessage` (15-min window), `deleteMessage` (soft), `WsMessage.MessageEdited/Deleted`, `V4__add_edited_at.sql` |
+| Search | **Done** | message search endpoint; UI search **Partial** (see Tier 1.5 — `HomeShellScreen.kt` L98 dead button) |
+| Starred messages | **Done** | `V5__add_starred_messages.sql` |
+| Disappearing messages | **Done** | `DisappearingMessageService.kt`, `MessageService` `expiresAt`, `V6__add_disappearing_messages.sql` |
+| View-once | **Done** | `MessageService.markViewOnceViewed`, `SendMessage.viewOnce` |
+| Status / stories | **Done** | `StatusService.kt`, `V8__add_statuses.sql` |
+| Polls | **Done** | `PollService.kt`, `ContentType.POLL`, `V7__add_polls.sql` |
+| Location / contact share | **Done** | `ContentType.LOCATION/CONTACT` |
+| Channels / broadcast lists | **Done** | `ChannelService.kt`, `BroadcastListService.kt`, `ChannelAnalyticsService.kt` |
+| Communities | **Done (backend)** | `CommunityService.kt`; UI **Partial** (`CommunityDetailScreen.kt` L167 "add group" dead button) |
+| Group invite links / join requests | **Done** | `InviteLinkService.kt`, `JoinRequestService.kt`, `GroupInviteLink` model |
+| Push notifications | **Done (Android)** / **Missing (iOS)** | FCM `FcmPushNotificationAdapter`; iOS APNs non-functional (`PushTokenProvider.ios.kt` waits on AppDelegate hook, no server APNs path) |
+| Offline cache / queue | **Done** | SQLDelight `MuhabbetDatabase.sq`, `WsClient` pending-queue drain + dedup |
+| Bots / channel analytics | **Done** | `BotService.kt`, `ChannelAnalyticsService.kt` |
+| Moderation (BTK 5651) | **Done** | `ModerationService.kt`, `V15` |
+| KVKK export / delete | **Done** | `UserDataService.kt`, `PrivacyDashboardScreen.kt` |
+| **E2E encryption (1:1 text)** | **Partial — wired, flag OFF** | `MessageEncryptor.kt` + `E2EConfig.ENABLED=false` + `E2EEnvelope.kt` (PR #31). Android Signal real; **groups/media not encrypted; iOS NoOp** |
+| E2E — group (sender keys) | **Missing** | no `SenderKey`/`GroupCipher` outside libsignal store; pairwise only |
+| E2E — media encryption | **Missing** | blobs uploaded to MinIO in clear; `MessageEncryptor` skips non-TEXT |
+| E2E — safety numbers / key verify UI | **Missing (backend ready)** | `WsMessage.SecurityKeyChanged` + `EncryptionService` keyVersion bump exist; no client UI |
+| Voice / video calls | **Partial** | Android **wired to LiveKit** (`CallEngine.android.kt` connect/mute/speaker real); signaling `CallSignalingService.kt`; **iOS stub** (`CallEngine.ios.kt`); no group calls |
+| Group voice/video calls | **Missing** | `WsMessage.GroupCallStarted` defined, no multi-party impl |
+| Multi-device | **Partial** | `Device` model + `LoginApprovalService` (login approval), per-device keys in `encryption_keys`; **no companion-device message-sync protocol** (envelope carries `senderDeviceId` but server doesn't fan-out per device) |
+| Two-step verification (PIN) | **Partial** | `TwoStepVerificationService.kt` exists; confirm wired into OTP login + UI (gap-analysis §1.3) |
+| Backups (server-side, at scale) | **Partial** | `BackupService.createBackup` now produces a **real MinIO JSON archive** + presigned URL + counts (PR #31); **no restore/download endpoint, no media blobs** |
+| Chat archive / mute UI | **Partial** | `Conversation.isArchived/isMuted` flags exist; mute-duration picker UI gap (gap-analysis §1.4) |
+| Web / desktop client | **Missing** | no web surface (browser validation N/A — see §"Browser note") |
 
 ---
 
-## Architecture Reference
+## Tier 1 — Core-messaging hardening & trust  *(= public-launch bar; P0/P1 in TODO.md)*
 
+Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
+
+### 1.1 Land E2E (1:1 text) as a canary — **IN FLIGHT (PR #31)**
+- **Files:** `mobile/.../crypto/E2EConfig.kt` (flag, default OFF), `MessageEncryptor.kt`,
+  `WsClient.kt` (send/receive chokepoints), `shared/.../port/E2EEnvelope.kt`,
+  `docs/e2e-rollout-runbook.md` (new).
+- **Tasks (iter):**
+  1. Keep flag OFF; merge PR #31 as the wired-but-dark canary. *(done in branch)*
+  2. Two-device Gate-1 test: confirm **ciphertext at rest in `messages.content`** + decrypt on peer
+     + plaintext fallback when no session. Runbook §3 Gate 1.
+  3. Wire the flag to a `BuildConfig`/remote toggle so broad rollout has a **no-redeploy kill-switch**
+     (runbook §4) before flipping default ON.
+- **DONE =** `grep -rn '\.encrypt(' mobile/composeApp/src/commonMain` shows the send path encrypting;
+  a manual two-device test confirms the DB stores an `mhbt-e2e-1` envelope, not readable text;
+  rollback path documented and exercised.
+
+### 1.2 Delivery/read-receipt correctness (provable)
+- **Files:** `MessageService.resolveDeliveryStatuses`/`updateStatus`/`markConversationRead`,
+  `DeliveryStatusTest.kt`.
+- **Why:** aggregation is subtle (sender sees min across recipients; group read = all-read). Lock it
+  with explicit group-scenario tests so receipts never regress under E2E re-wiring.
+- **DONE =** `DeliveryStatusTest` covers: 1:1 SENT→DELIVERED→READ; group partial-read stays
+  DELIVERED; group all-read → READ; recipient sees own row only. Tests green in CI.
+
+### 1.3 Media robustness
+- **Files:** `MediaService.kt`, `MediaUploadHelper.kt`, nginx MinIO proxy.
+- **Tasks:** verify compression on every upload path; presigned-URL endpoint rewrite (internal→public)
+  holds under load; thumbnail generation for video. (Media **encryption** is Tier 1.4.)
+- **DONE =** image/video/voice/doc upload+download round-trip on a real device; presigned URLs resolve
+  through nginx; k6 media path has no 5xx (ties to TODO P1 load test).
+
+### 1.4 Media encryption (close the E2E media gap)
+- **Files:** `MessageEncryptor.kt` (extend beyond TEXT), `MediaUploadHelper.kt`, new media-key in body.
+- **Why:** with 1.1 landed, blobs still upload in clear — partial privacy. Encrypt blob with a random
+  key, upload ciphertext, ship the key inside the (already-encrypted) message body.
+- **DONE =** an image sent with the flag ON is unreadable in MinIO without the per-message key;
+  recipient renders it; flag OFF path unchanged.
+
+### 1.5 Finish group & community surfaces (kill dead buttons)
+- **Files (6 dead `onClick = { /* TODO */ }`):** `HomeShellScreen.kt` L98, `MessageBubble.kt` L91,
+  `WallpaperPickerScreen.kt` L191, `InviteLinkSheet.kt` L149, `CommunityDetailScreen.kt` L167,
+  `BroadcastListScreen.kt` L191.
+- **DONE =** each implemented or hidden; no `/* TODO */` remains in those onClick blocks.
+
+### 1.6 Trust hardening (must precede broad E2E)
+- Release **keystore + signed AAB** (`mobile/.../build.gradle.kts` signingConfig L132-160).
+- **Security pen-test** pass (record in `docs/qa/02-security.md`).
+- **Sentry DSN** in prod (`infra/docker-compose.prod.yml` → `.env.prod`) — needed to *see* E2E
+  failures during canary.
+- **DONE =** signed `.aab` verified with `apksigner`; ZAP/Burp baseline triaged; test exception
+  visible in Sentry. (These are TODO P0/P1.)
+
+---
+
+## Tier 2 — Real-time & reach
+
+### 2.1 iOS calls — bridge LiveKit Swift SDK
+- `mobile/.../iosMain/.../platform/CallEngine.ios.kt` (stub today). **DONE =** iOS joins a LiveKit
+  room and carries audio on a TestFlight build.
+### 2.2 Presence / typing polish
+- Debounce typing, last-seen privacy honoring `VisibilityLevel`, "online" accuracy under reconnect.
+  **DONE =** typing stops within 5s of inactivity; last-seen respects `NOBODY/CONTACTS`.
+### 2.3 Status / stories completeness
+- Privacy (who-can-see), reply-to-status, view receipts. `StatusService.kt`.
+### 2.4 Multi-device sync protocol
+- Companion device receives history + new messages; per-device E2E session selection
+  (`E2EEnvelope.senderDeviceId` already on the wire; server must fan-out per device).
+  **DONE =** a second logged-in device sees new + recent messages.
+### 2.5 iOS catch-up: APNs, Firebase-auth decision, libsignal bridge
+- `PushTokenProvider.ios.kt`, `FirebasePhoneAuth.ios.kt`, `PlatformModule.ios.kt` (NoOp E2E).
+  **DONE =** iOS push delivers; iOS login works via chosen path (decision in `docs/decisions.md`);
+  iOS establishes a Signal session.
+
+---
+
+## Tier 3 — Advanced parity
+
+### 3.1 Group E2E (sender keys)
+- Sender-key fan-out so group messages are E2E without N pairwise encrypts.
+  **DONE =** a group message is ciphertext at rest; all members decrypt.
+### 3.2 Key verification UI (safety numbers)
+- Surface `WsMessage.SecurityKeyChanged`; show a safety-number / QR compare screen.
+### 3.3 Backups at scale + restore
+- `BackupService` archives metadata+text today; add **media blobs** + a **restore/download endpoint**;
+  chunk large accounts; schedule + encrypt the archive.
+  **DONE =** a restore reproduces conversations on a fresh install.
+### 3.4 Group voice/video calls
+- Multi-party LiveKit rooms + participant grid (`WsMessage.GroupCallStarted` defined).
+### 3.5 Web / desktop client
+- QR device-linking + message sync (depends on 2.4). Power-user demand; also the only surface that
+  would make browser validation meaningful (see below).
+
+---
+
+## Browser note
+
+**Muhabbet has no web/admin client today** (mobile = Compose Multiplatform; backend = headless REST +
+WebSocket returning `401` at root by design). **Browser validation is N/A** for this work. A web
+client is **Tier 3.5**; when it lands, browser validation becomes the verification path for it.
+
+---
+
+## Suggestions (toward WhatsApp-grade)
+
+**Encryption / privacy**
+- Wire the E2E flag to **remote config** before broad rollout (no-redeploy kill-switch).
+- **Sender-key group E2E** (Tier 3.1) — the biggest correctness gap vs WhatsApp groups.
+- **Media encryption** (Tier 1.4) — privacy-first brand can't ship plaintext blobs at scale.
+- **Safety-number verification UI** — backend already emits key-change events; just needs UI.
+
+**Multi-device & protocol**
+- A real **multi-device sync protocol** (Tier 2.4): per-device sessions, history sync, dedup across
+  devices. `E2EEnvelope.senderDeviceId` is the seam; the server fan-out is the missing half.
+
+**Observability / SLOs**
+- Define SLOs: message send→ack p95 < 300ms, WS reconnect < 5s, push delivery < 10s, crash-free
+  ≥ 99.5%. Prometheus/Grafana dashboards exist (`infra/monitoring/`); add alerts.
+- **Set the Sentry DSN** (currently empty in prod) — you are blind to incidents at launch.
+
+**Load / scale targets**
+- Run the existing k6 scripts (`infra/k6/`, `infra/load-tests/`) to a documented ceiling: target
+  10k concurrent WS on the single 8GB host; record p95 + WS-concurrency ceiling; the Redis pub/sub
+  broadcaster (`RedisMessageBroadcaster`) is the horizontal-scale seam if the ceiling is too low.
+
+**Store readiness / professionalization**
+- Release keystore + signed AAB + IARC rating + store listing (TR+EN) — Tier 1.6 / TODO P0.
+- Security pen-test before exposing a messaging app publicly.
+- Resolve the **Sentry-on-Spring-Boot-4 auto-config exclusion** debt (CLAUDE.md) once a compatible
+  Sentry ships.
+
+---
+
+## History & Current State
+
+**Backend: LIVE and healthy** at `https://muhabbet-api.rollingcatsoftware.com` (Hetzner VPS, Docker +
+Traefik/nginx + Let's Encrypt; PostgreSQL 16, Redis 7, MinIO). Flyway V1–V17 applied. Root returns
+`401` by design. **Do not deploy from this roadmap work** — E2E ships dark via PR #31.
+
+The codebase is broad (24 MVP features + 6 engineering phases shipped). A 2026-06-04 code audit
+reframed several prior "DONE" labels — the most important being that **E2E was infrastructure-only
+(plaintext on the wire)** until PR #31 wired the path (still OFF). The other launch blockers (signed
+AAB, pen-test, Sentry DSN, real backup) are tracked in `TODO.md`; the backup job is now real (PR #31).
+
+**Stack:** Kotlin 2.3.20 / Spring Boot 4.0.5 / Java 21 / PostgreSQL 16 / Redis 7 / MinIO. Mobile:
+Compose Multiplatform (Android full; iOS partial — calls/E2E/Firebase-auth stubbed, APNs pending).
+CI/CD on self-hosted `hetzner-cx43`.
+
+### Turkish market context
+WhatsApp ≈ 60M users in Turkey; the 2021 privacy backlash is the opening. **KVKK + real E2E is the
+differentiator** — which is exactly why Tier 1.1 (land E2E for real) is the hinge of this roadmap.
+Voice calls are culturally non-negotiable (Android live; iOS = Tier 2.1).
+
+### Architecture reference
 ```
 muhabbet/
-├── backend/   → Spring Boot 4.0.5 + Kotlin 2.3.20 (modular monolith, hexagonal)
+├── backend/   → Spring Boot 4.0.5 + Kotlin (modular monolith, hexagonal)
 │               modules: auth · messaging · media · moderation · shared(config/security/web)
-│               presence/notification live inside messaging/shared wiring
-├── shared/    → KMP module (model, dto, protocol/WsMessage, validation, port/EncryptionPort)
-├── mobile/    → Compose Multiplatform (androidMain full client · iosMain partial: stubs noted)
-│               Ktor · Koin · Decompose · SQLDelight · Coil · libsignal (Android)
-├── infra/     → docker-compose.prod.yml · nginx · monitoring (Prometheus+Grafana) · load-tests (k6) · scripts
-└── docs/      → api-contract.md · decisions.md · qa/ (9 ISO 25010 docs + UI audit) · adr/
+├── shared/    → KMP (model · dto · protocol/WsMessage · validation · port/EncryptionPort+E2EEnvelope)
+├── mobile/    → Compose Multiplatform (androidMain full · iosMain partial: stubs noted)
+└── infra/     → docker-compose.prod.yml · nginx · monitoring (Prometheus+Grafana) · k6 · scripts
 ```
-
-| Component | Technology |
-|-----------|-----------|
-| Language | Kotlin 2.3.20 (backend, shared, mobile) |
-| Backend | Spring Boot 4.0.5, Java 21 runtime, PostgreSQL 16, Redis 7, MinIO |
-| Mobile | CMP, Ktor 3.x, Koin, Decompose, SQLDelight, Coil; libsignal-android (E2E); LiveKit (Android calls) |
-| Auth | OTP (Netgsm prod / mock dev) + JWT HS256 (`iss: muhabbet`) |
-| Push | FCM (Android live; iOS APNs pending) |
-| Observability | SLF4J/Logback JSON + Spring Actuator + Sentry (DSN unset in prod) + Prometheus/Grafana |
-| CI/CD | GitHub Actions on self-hosted `hetzner-cx43`: backend CI, mobile CI (Android debug APK + iOS framework), security (Trivy/Gitleaks/CodeQL), deploy-on-push-to-main |
-
----
-
-## Key Decision Points (open)
-
-1. **E2E scope for launch** — full Signal both platforms vs Android-first (iOS NoOp gated). Drives launch timeline.
-2. **iOS auth** — integrate Firebase iOS SDK vs make backend OTP the official iOS path (remove dead Firebase branch).
-3. **Dependabot #30** — accept the 38-update group as one bump (watch Twilio 11→12 major, kotlinx-datetime 0.7→0.8) vs split.
-4. **Revenue model** — ad-free premium / freemium / channel monetization — decide before Phase 3 growth.
-
-## Turkish Market Context
-
-- WhatsApp ≈ 60M users in Turkey; 2021 privacy backlash drove (temporary) exodus to BiP/Signal/Telegram.
-- **Privacy + KVKK compliance is the core differentiator** — which makes shipping plaintext under
-  an E2E banner (Phase 0.1) an existential credibility issue, not just a feature gap.
-- Voice calls are culturally non-negotiable (Android live; iOS pending).

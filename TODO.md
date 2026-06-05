@@ -1,21 +1,27 @@
 # MUHABBET — TODO (TACTICAL)
 
-> **Last refreshed**: 2026-06-04 (from deep code analysis at HEAD `97626f8`, 2026-03-31).
-> **Dev status**: PAUSED since 2026-03-31. Backend LIVE + healthy at
-> `https://muhabbet-api.rollingcatsoftware.com` (db/redis/ssl all UP).
+> **Last refreshed**: 2026-06-05 (aligned to the tiered WhatsApp-parity plan in
+> [`ROADMAP.md`](ROADMAP.md); code-grounded at branch `exec/p0-2026-06-05` / PR #31).
+> **Dev status**: ACTIVE on `exec/p0-2026-06-05`. Backend LIVE + healthy at
+> `https://muhabbet-api.rollingcatsoftware.com` (db/redis/ssl all UP). **Do NOT deploy** —
+> E2E ships dark (flag OFF); E2E canary is in PR #31.
 > **Convention**: P0 = launch-blocker / correctness / security · P1 = needed before public
 > launch · P2 = quality/hardening · P3 = growth/optional.
-> Each item: imperative title · `files` · why · **DONE =** verifiable condition.
+> **Tier alignment**: P0/P1 below = **Tier 1** (core-messaging hardening & trust) in `ROADMAP.md`.
+> P2 ≈ Tier-1 polish, P3 ≈ Tier 2/3. Each item: imperative title · `files` · why ·
+> **DONE =** verifiable condition · **[Tier x.y]** = ROADMAP task.
 
 ---
 
-## P0 — Launch blockers & security-critical
+## P0 — Launch blockers & security-critical  *(Tier 1)*
 
-- [x] **Wire E2E encryption into the message send/receive path (or stop advertising E2E)**
+- [x] **Wire E2E encryption into the message send/receive path (or stop advertising E2E)** **[Tier 1.1]**
   — *Done in code, behind a default-OFF feature flag, with unit tests. Pushed on branch
-  `exec/p0-2026-06-05` for human review + canary; NOT enabled in prod. Remaining: live
-  two-device ciphertext-in-DB verification, group sender-key fan-out, media-body encryption,
-  iOS libsignal bridge (separate P1 item). See PR for the precise remaining checklist.*
+  `exec/p0-2026-06-05` (PR #31) for human review + canary; NOT enabled in prod. Rollout gates +
+  no-redeploy kill-switch documented in `docs/e2e-rollout-runbook.md`. **Next iter**: run Gate-1
+  two-device test (ciphertext-in-DB), then wire the flag to remote config before flipping default ON.
+  Remaining: group sender-key fan-out (Tier 3.1), media-body encryption (Tier 1.4, P0-adjacent),
+  iOS libsignal bridge (P1 / Tier 2.5).*
   - `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/data/remote/WsClient.kt`
     (`send()` encrypts, frame loop decrypts), `.../crypto/MessageEncryptor.kt` (new),
     `.../crypto/E2EConfig.kt` (flag, default OFF), `.../di/AppModule.kt` (wired),
@@ -29,7 +35,7 @@
     encrypting body before `WsClient.send()`, `.decrypt()` on `NewMessage` receipt, and a
     manual two-device test confirms server/DB stores ciphertext (not readable text).
 
-- [ ] **Generate release keystore + produce a signed Android AAB**
+- [ ] **Generate release keystore + produce a signed Android AAB** **[Tier 1.6]**
   - `mobile/composeApp/build.gradle.kts` (signingConfig scaffold at L132-160, currently
     env-var gated, no keystore present), new `infra/` keystore handling, `.gitignore`
   - **Why**: Signing config only activates when `MUHABBET_KEYSTORE_FILE` is set; no keystore
@@ -39,7 +45,7 @@
     signed `.aab`; `apksigner verify --print-certs` shows the release cert; keystore + creds
     stored outside git (documented in a runbook).
 
-- [ ] **Run the security penetration test pass before public launch**
+- [ ] **Run the security penetration test pass before public launch** **[Tier 1.6]**
   - target: live API + WebSocket; record findings in `docs/qa/02-security.md`
   - **Why**: Never run (ROADMAP 4.9 / 5.x "Remaining"). Required before exposing a messaging
     app to the public; auth, OTP brute-force, JWT (HS256), media presigned-URL scope, WS
@@ -52,7 +58,25 @@
   - **Why**: `0.1.0` / code `1` is dev default; fine for first upload but confirm before AAB.
   - **DONE =** values reflect the intended public release (e.g. `1.0.0` / appropriate code).
 
-## P1 — Needed before / during public launch
+- [ ] **Lock delivery/read-receipt correctness with explicit group-scenario tests** **[Tier 1.2]**
+  - `backend/.../messaging/domain/service/MessageService.kt` (`resolveDeliveryStatuses`,
+    `updateStatus`, `markConversationRead`), `backend/.../DeliveryStatusTest.kt`
+  - **Why**: receipt aggregation is subtle — sender sees the **min** across recipients (any
+    DELIVERED → DELIVERED, all READ → READ); recipient sees only their own row. This must not
+    regress when E2E re-wires the message path (Tier 1.1). The single-tick/double-tick UX depends
+    entirely on this resolver being correct.
+  - **DONE =** `DeliveryStatusTest` covers 1:1 SENT→DELIVERED→READ, a **group with partial reads
+    staying DELIVERED**, a group with all reads → READ, and recipient-own-row isolation; green in CI.
+
+- [ ] **Encrypt media blobs before MinIO upload (close the E2E media gap)** **[Tier 1.4]**
+  - `mobile/.../crypto/MessageEncryptor.kt` (extend past TEXT), `mobile/.../data/repository/MediaUploadHelper.kt`
+  - **Why**: once Tier 1.1 lands, text is E2E but image/video/voice blobs still upload in clear —
+    partial privacy under an E2E banner. Encrypt the blob with a per-message random key, upload the
+    ciphertext, ship the key inside the (already-encrypted) message body.
+  - **DONE =** with the flag ON, an uploaded image is unreadable in MinIO without the per-message
+    key; the recipient renders it; flag-OFF path is byte-identical to today.
+
+## P1 — Needed before / during public launch  *(Tier 1)*
 
 - [ ] **Implement iOS APNs delivery end-to-end**
   - `mobile/composeApp/src/iosMain/.../platform/PushTokenProvider.ios.kt` (token relies on an
@@ -94,7 +118,7 @@
   - **DONE =** backup serializes the user's messages, uploads to MinIO, and persists a real
     presigned URL + counts; a restore (or download) reproduces the data.
 
-- [ ] **Configure Sentry DSN in production**
+- [ ] **Configure Sentry DSN in production** **[Tier 1.6 — needed to SEE E2E canary failures]**
   - `infra/docker-compose.prod.yml` & `docker-compose.prod.yml` (`SENTRY_DSN: ${SENTRY_DSN:-}`
     → empty), `.env.prod`
   - **Why**: Crash/error reporting code is present but DSN is unset, so no backend errors are
@@ -111,7 +135,7 @@
   - **DONE =** CI green on each (or checks re-run), then merged; or closed with rationale.
     Verify `gh pr list -R ahmetabdullahgultekin/Muhabbet --state open` is empty/intentional.
 
-- [ ] **Run k6 load tests against a production-like environment and record results**
+- [ ] **Run k6 load tests against a production-like environment and record results** **[Tier 1.3]**
   - `infra/load-tests/http-endpoints.js`, `infra/load-tests/websocket-load.js` (scripts exist,
     never executed at scale)
   - **Why**: Single 8GB host; WS fan-out + Redis pub/sub broadcaster unproven under load.
@@ -120,7 +144,7 @@
 
 ## P2 — Quality / hardening / completeness
 
-- [ ] **Close the 6 client-side UI `TODO` stubs** (dead buttons that do nothing)
+- [ ] **Close the 6 client-side UI `TODO` stubs** (dead buttons that do nothing) **[Tier 1.5]**
   - `HomeShellScreen.kt` L98 (search), `MessageBubble.kt` L91 (view-once mark),
     `WallpaperPickerScreen.kt` L191 (gallery picker), `InviteLinkSheet.kt` L149 (platform share),
     `CommunityDetailScreen.kt` L167 (add group), `BroadcastListScreen.kt` L191 (open detail)
