@@ -106,12 +106,35 @@ Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
 - **DONE =** image/video/voice/doc upload+download round-trip on a real device; presigned URLs resolve
   through nginx; k6 media path has no 5xx (ties to TODO P1 load test).
 
-### 1.4 Media encryption (close the E2E media gap)
-- **Files:** `MessageEncryptor.kt` (extend beyond TEXT), `MediaUploadHelper.kt`, new media-key in body.
+### 1.4 Media encryption (close the E2E media gap) — **WIRED behind default-OFF flag (1:1 Android)**
+- **Files:** `mobile/.../crypto/MediaEncryptor.kt` (new), `mobile/.../crypto/SymmetricCipher.kt`
+  (+ `.android.kt` JCE AES-256-GCM / `.ios.kt` NoOp), `shared/.../port/MediaKeyMaterial.kt` (new),
+  `MediaUploadHelper.kt` + `MediaRepository.kt` (encrypt-before-upload / decrypt-after-download seam),
+  `E2EConfig.MEDIA_ENABLED`, `AppModule.kt` DI.
 - **Why:** with 1.1 landed, blobs still upload in clear — partial privacy. Encrypt blob with a random
   key, upload ciphertext, ship the key inside the (already-encrypted) message body.
+- **Shape (WhatsApp-style):** `MediaEncryptor` generates a **fresh AES-256 key + 12-byte nonce per
+  media**, AES-256-GCM-encrypts the already-compressed bytes (authenticated; 128-bit tag), uploads
+  only the **ciphertext** to MinIO, and returns a small `MediaKeyMaterial(key, nonce, sha256OfCiphertext)`.
+  That key material travels to the recipient **inside the message body**, which is itself E2E-encrypted
+  by the existing `MessageEncryptor` text path (Signal) — never in any server-readable field. Download
+  verifies the SHA-256 then AES-GCM-decrypts; a tampered blob or wrong key **fails closed**
+  (`MediaDecryptException`), never renders garbage.
+- **Flag:** `E2EConfig.MEDIA_ENABLED = false`, additionally gated by `ENABLED`
+  (`E2EConfig.mediaEncryptionActive = ENABLED && MEDIA_ENABLED`). **Default OFF** → upload/download is
+  byte-identical to today (plaintext blobs). Graceful fallback mirrors text path: any crypto failure
+  (incl. iOS) → plaintext upload, never a dropped/crashed send. Old plaintext media still renders.
+- **Coverage:** 1:1 Android (real `javax.crypto`). **Pending:** iOS (NoOp stub — same posture as text
+  E2E; throws → plaintext fallback) and groups (Tier 3, needs sender-key fan-out).
+- **Tests (real pass/fail on JVM):** `shared:jvmTest` `MediaAesGcmVerificationTest` (8 green — real
+  AES-256-GCM round-trip, tamper→`AEADBadTagException`, wrong-key, nonce-uniqueness, CSPRNG-uniqueness,
+  full integrity+packaging flow) + `MediaKeyMaterialTest` (4 green). Mobile-module
+  `MediaEncryptorTest` (commonTest) + `SymmetricCipherTest` (androidUnitTest) assert the same against
+  the real `SymmetricCipher`/`MediaEncryptor` — they compile (commonMain metadata green) but the
+  Android variant can't be **executed** on the CI host (uncached Firebase deps block
+  `processDebugNavigationResources` — pre-existing, fails identically on HEAD).
 - **DONE =** an image sent with the flag ON is unreadable in MinIO without the per-message key;
-  recipient renders it; flag OFF path unchanged.
+  recipient renders it; flag OFF path unchanged. **Flag stays OFF; flip needs sign-off + crypto review.**
 
 ### 1.5 Finish group & community surfaces (kill dead buttons) — **DONE (PR #35 + PR #36)**
 - **Files (6 dead `onClick = { /* TODO */ }`):** `HomeShellScreen.kt` L98, `MessageBubble.kt` L91,

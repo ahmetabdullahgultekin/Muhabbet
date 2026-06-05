@@ -57,8 +57,10 @@ fun appModule(): Module = module {
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
     single { ConversationRepository(apiClient = get(), localCache = get()) }
     single { MessageRepository(apiClient = get(), localCache = get()) }
-    single { MediaRepository(apiClient = get()) }
-    single { MediaUploadHelper(mediaRepository = get()) }
+    // Media-blob E2E (Tier 1.4) — flag-gated (E2EConfig.mediaEncryptionActive), default OFF.
+    single { com.muhabbet.app.crypto.MediaEncryptor() }
+    single { MediaRepository(apiClient = get(), mediaEncryptor = get()) }
+    single { MediaUploadHelper(mediaRepository = get(), mediaEncryptor = get()) }
     single { GroupRepository(apiClient = get()) }
     single { StatusRepository(apiClient = get()) }
     single { ChannelRepository(apiClient = get()) }

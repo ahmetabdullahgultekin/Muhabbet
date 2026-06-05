@@ -579,4 +579,6 @@
     <string name="format_quote">Alıntı</string>
     <string name="format_bullet_list">Madde listesi</string>
     <string name="format_number_list">Numaralı liste</string>
+    <string name="media_decrypt_failed">Medyanın şifresi çözülemedi</string>
+    <string name="media_decrypt_failed_detail">Bu medya güvenli bir şekilde çözülemedi ve değiştirilmiş olabilir.</string>
 </resources>
