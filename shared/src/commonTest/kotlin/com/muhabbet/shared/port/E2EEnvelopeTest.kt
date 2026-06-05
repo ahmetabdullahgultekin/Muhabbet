@@ -49,4 +49,36 @@ class E2EEnvelopeTest {
         assertNull(parsed.senderDeviceId)
         assertEquals("ZGF0YQ==", parsed.ciphertext)
     }
+
+    // ─── Regression guards for the cheap MAGIC pre-check ──────────────────────
+    // decodeOrNull() does a substring pre-check for MAGIC before attempting a full
+    // JSON parse. These cases prove that the pre-check NEVER short-circuits into a
+    // false-positive: any content that contains the marker but is not a valid envelope
+    // JSON must still return null, so a user who legitimately types the marker is never
+    // mistaken for ciphertext (and an E2E body is never confused with plaintext).
+
+    @Test
+    fun should_return_null_when_plaintext_merely_contains_the_marker() {
+        // A user pastes/types the version marker inside an ordinary message.
+        assertNull(E2EEnvelope.decodeOrNull("hey check out mhbt-e2e-1 it is the envelope tag"))
+    }
+
+    @Test
+    fun should_return_null_when_content_is_only_the_marker() {
+        assertNull(E2EEnvelope.decodeOrNull(E2EEnvelope.MAGIC))
+    }
+
+    @Test
+    fun should_return_null_for_json_carrying_the_marker_but_no_ciphertext() {
+        // Well-formed JSON, marker present, but missing the required `ciphertext` field.
+        assertNull(E2EEnvelope.decodeOrNull("""{"v":"mhbt-e2e-1"}"""))
+    }
+
+    @Test
+    fun should_return_null_for_envelope_with_mismatched_version() {
+        // Marker substring is present (so the pre-check passes) but v is a different value:
+        // a future/incompatible wire version must be rejected, not silently decrypted.
+        val wire = """{"v":"mhbt-e2e-1-NEXT","ciphertext":"YWJj"}"""
+        assertNull(E2EEnvelope.decodeOrNull(wire))
+    }
 }
