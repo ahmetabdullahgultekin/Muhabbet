@@ -8,7 +8,7 @@ Muhabbet is a domestic Turkish messaging platform (WhatsApp alternative). Privac
 
 ```
 muhabbet/
-├── backend/    → Spring Boot 3 + Kotlin (modular monolith)
+├── backend/    → Spring Boot 4 + Kotlin (modular monolith)
 ├── shared/     → KMP shared module (domain models, protocol, validation)
 ├── mobile/     → Compose Multiplatform app (Android + iOS)
 ├── infra/      → Docker Compose, nginx, scripts
@@ -17,7 +17,7 @@ muhabbet/
 
 **Kotlin Everywhere** — backend, shared module, and mobile all use Kotlin. The `shared/` module is a Kotlin Multiplatform library used by both backend and mobile.
 
-## Backend Architecture (Spring Boot 3 + Kotlin)
+## Backend Architecture (Spring Boot 4 + Kotlin)
 
 ### Module Structure
 Each module follows Hexagonal Architecture:
@@ -182,12 +182,12 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Component | Technology |
 |-----------|-----------|
 | Language | Kotlin 2.3.20 (everywhere) |
-| Backend framework | Spring Boot 4.0.5 |
+| Backend framework | Spring Boot 4.0.6 |
 | Mobile framework | CMP (Compose Multiplatform) |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
 | Media storage | MinIO (S3-compatible) |
-| Build system | Gradle (Kotlin DSL) |
+| Build system | Gradle 9.4.1 (Kotlin DSL) |
 | SMS gateway | Netgsm |
 | Push | FCM (Firebase Cloud Messaging) |
 | Monitoring | SLF4J + Logback (JSON) + Spring Actuator + Sentry |
@@ -285,7 +285,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Round 5 UI/UX Polish**: MediaViewer with action bars (forward/delete), SharedMediaScreen long-press context menu + Crossfade tab transitions, MessageInfoScreen with cards/avatars/timeline sections
 - **Round 6 Media UX & Storage**: Chat scroll fix (start at bottom), pinch-to-zoom (1x–5x + double-tap), SharedMedia video/voice/doc playback, forward fix, MessageInfo media preview + avatars, storage usage stats (`GET /api/v1/media/storage` with full hexagonal chain)
 - **System Optimization**: Database indexes (12 performance indexes), N+1 query fixes (batch fetching), Redis connection pooling, Ktor connection pooling, nginx gzip/caching, PostgreSQL tuning
-- **Dependency Upgrades (Mar 2026)**: Kotlin 2.3.20, Spring Boot 4.0.5, Java 21 (toolchain), Gradle 8.14.4, Ktor 3.1.3, Compose BOM 2025.04.01
+- **Dependency Upgrades (Mar 2026)**: Kotlin 2.3.20, Spring Boot 4.0.5, Java 21 (toolchain), Gradle 9.4.1, Ktor 3.1.3, Compose BOM 2025.04.01
 - **CI/CD Pipeline**: GitHub Actions — backend CI (test + build), mobile CI (Android + iOS), security scanning (Trivy, Gitleaks, CodeQL), deployment automation
 - **Call UI**: IncomingCallScreen, ActiveCallScreen, CallHistoryScreen with Decompose navigation
 - **E2E Encryption Infrastructure**: E2EKeyManager interface + NoOpKeyManager (MVP), EncryptionRepository (mobile client for key exchange API)
