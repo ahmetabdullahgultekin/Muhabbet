@@ -225,6 +225,20 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `mobile/.../ui/settings/PrivacyDashboardScreen.kt` — KVKK privacy controls UI
 
 ## Current Phase
+
+> **Direction (2026-06-05):** the active plan is the **tiered WhatsApp-parity roadmap** in
+> [`ROADMAP.md`](ROADMAP.md) — *"WhatsApp tier by tier, iter by iter."* Tier 1 = core-messaging
+> hardening & trust (land E2E as a canary, receipt correctness, media robustness, finish groups);
+> Tier 2 = calls/presence/status/multi-device; Tier 3 = communities/group-E2E/backups-at-scale.
+> [`TODO.md`](TODO.md) P0/P1 are aligned to Tier 1.
+>
+> **E2E status correction:** the "Signal Protocol E2E — DONE" entries below mean *infrastructure
+> exists* (keys, store, key-exchange). The **send/receive path was wired in PR #31** behind a
+> default-OFF flag (`mobile/.../crypto/E2EConfig.kt`, `MessageEncryptor.kt`, `shared/.../port/E2EEnvelope.kt`);
+> messages still travel as **plaintext under TLS until the flag is flipped** (1:1 text only; groups
+> and media not yet encrypted; iOS NoOp). Rollout gates + no-redeploy kill-switch:
+> `docs/e2e-rollout-runbook.md`. **Do not flip the flag or deploy without sign-off.**
+
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
 2. ~~1:1 messaging (WebSocket)~~ — **DONE**
@@ -336,7 +350,9 @@ All 9 production hardening features completed:
 
 ### Remaining Work (Post-Production Hardening)
 - ~~WebRTC client integration (LiveKit)~~ — **DONE** (LiveKit Android SDK + CallEngine + backend room management)
-- ~~E2E encryption client (Signal Protocol)~~ — **DONE** (libsignal-android + SignalKeyManager + E2ESetupService)
+- E2E encryption client (Signal Protocol) — **INFRA DONE, send/receive path WIRED but flag OFF**
+  (libsignal-android + SignalKeyManager + E2ESetupService + PR #31 `MessageEncryptor`/`E2EEnvelope`,
+  `E2EConfig.ENABLED=false`). 1:1 text only; groups/media/iOS pending. See `docs/e2e-rollout-runbook.md`.
 - iOS APNs delivery, TestFlight, App Store
 - iOS LiveKit integration (bridge LiveKit Swift SDK via Kotlin/Native)
 - iOS Signal Protocol integration (bridge libsignal-client via Kotlin/Native)
