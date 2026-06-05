@@ -11,10 +11,15 @@
 
 ## P0 — Launch blockers & security-critical
 
-- [ ] **Wire E2E encryption into the message send/receive path (or stop advertising E2E)**
+- [x] **Wire E2E encryption into the message send/receive path (or stop advertising E2E)**
+  — *Done in code, behind a default-OFF feature flag, with unit tests. Pushed on branch
+  `exec/p0-2026-06-05` for human review + canary; NOT enabled in prod. Remaining: live
+  two-device ciphertext-in-DB verification, group sender-key fan-out, media-body encryption,
+  iOS libsignal bridge (separate P1 item). See PR for the precise remaining checklist.*
   - `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/data/remote/WsClient.kt`
-    (`SendMessage` build at ~L231), `.../data/repository/E2ESetupService.kt`,
-    `.../di/AppModule.kt`, `shared/.../port/EncryptionPort.kt`
+    (`send()` encrypts, frame loop decrypts), `.../crypto/MessageEncryptor.kt` (new),
+    `.../crypto/E2EConfig.kt` (flag, default OFF), `.../di/AppModule.kt` (wired),
+    `shared/.../port/E2EEnvelope.kt` (new wire format), `shared/.../port/EncryptionPort.kt`
   - **Why**: `EncryptionPort` / `SignalEncryption` are registered in DI and keys are
     registered on login, but **no code path ever calls `.encrypt()`/`.decrypt()` on a
     message body** — only `EncryptionPort` import outside DI is in `AppModule.kt`. Messages
@@ -76,11 +81,16 @@
   - **DONE =** explicit decision recorded in `docs/decisions.md`; if bridged, iOS establishes a
     Signal session and encrypts; if deferred, iOS launch is gated/flagged accordingly.
 
-- [ ] **Implement the message backup job (currently a no-op placeholder)**
-  - `backend/src/main/kotlin/com/muhabbet/messaging/domain/service/BackupService.kt` (~L29:
-    marks backup `COMPLETED` with `backupUrl=null`, `messageCount=0`, `fileSizeBytes=0`)
-  - **Why**: `createBackup` immediately reports success but produces no archive. Any "backup
-    your chats" UX is misleading; restore is impossible.
+- [x] **Implement the message backup job (currently a no-op placeholder)**
+  — *Done. `BackupService.createBackup` now serializes the user's conversations + messages to a
+  JSON archive, uploads it to MinIO via a new `BackupArchivePort` out-port + `MinioBackupArchiveAdapter`,
+  and persists the real presigned URL + byte size + message/conversation counts; failures mark the
+  backup `FAILED` instead of a false `COMPLETED`. 4 unit tests green (`BackupServiceTest`), ArchUnit
+  green. Remaining for full "restore reproduces the data": a download/restore endpoint + media-blob
+  inclusion (archive currently captures message metadata + text/refs).*
+  - `backend/src/main/kotlin/com/muhabbet/messaging/domain/service/BackupService.kt` (real archive),
+    `.../domain/port/out/BackupArchivePort.kt` (new), `.../adapter/out/external/MinioBackupArchiveAdapter.kt`
+    (new), `shared/config/AppConfig.kt` (bean rewired)
   - **DONE =** backup serializes the user's messages, uploads to MinIO, and persists a real
     presigned URL + counts; a restore (or download) reproduces the data.
 

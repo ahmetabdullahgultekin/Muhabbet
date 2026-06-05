@@ -21,7 +21,39 @@ import org.koin.dsl.module
 
 fun appModule(): Module = module {
     single { ApiClient(tokenStorage = get()) }
-    single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }, localCache = get()) }
+    // E2E encrypt-on-send / decrypt-on-receive. Gated by E2EConfig.ENABLED (default OFF).
+    // Resolves the 1:1 peer from the local conversation cache and ensures a Signal session
+    // before encrypting; group / unresolved / non-text bodies fall back to plaintext.
+    single {
+        val tokenStorage = get<com.muhabbet.app.data.local.TokenStorage>()
+        val localCache = get<com.muhabbet.app.data.local.LocalCache>()
+        val e2eSetup = get<E2ESetupService>()
+        com.muhabbet.app.crypto.MessageEncryptor(
+            encryptionPort = get(),
+            recipientResolver = { conversationId ->
+                val selfId = tokenStorage.getUserId()
+                val conv = localCache.getConversations().firstOrNull { it.id == conversationId }
+                if (conv == null ||
+                    conv.type != com.muhabbet.shared.model.ConversationType.DIRECT ||
+                    selfId == null
+                ) {
+                    null
+                } else {
+                    conv.participants.firstOrNull { it.userId != selfId }?.let { peer ->
+                        com.muhabbet.app.crypto.MessageEncryptor.RecipientInfo(
+                            recipientId = peer.userId,
+                            // Signal sessions are keyed by recipientId; deviceId is informational
+                            // for the current SignalEncryption impl. Default to "1".
+                            deviceId = "1"
+                        )
+                    }
+                }
+            },
+            ensureSession = { recipientId -> e2eSetup.ensureSession(recipientId) },
+            selfDeviceId = { tokenStorage.getDeviceId() }
+        )
+    }
+    single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }, localCache = get(), messageEncryptor = get()) }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
     single { ConversationRepository(apiClient = get(), localCache = get()) }
     single { MessageRepository(apiClient = get(), localCache = get()) }

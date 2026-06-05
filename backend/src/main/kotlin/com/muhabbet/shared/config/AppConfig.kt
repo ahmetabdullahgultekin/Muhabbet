@@ -233,10 +233,16 @@ class AppConfig {
 
     @Bean
     fun backupService(
-        backupRepository: com.muhabbet.messaging.domain.port.out.BackupRepository
+        backupRepository: com.muhabbet.messaging.domain.port.out.BackupRepository,
+        conversationRepository: ConversationRepository,
+        messageRepository: com.muhabbet.messaging.domain.port.out.MessageRepository,
+        backupArchivePort: com.muhabbet.messaging.domain.port.out.BackupArchivePort
     ): com.muhabbet.messaging.domain.service.BackupService =
         com.muhabbet.messaging.domain.service.BackupService(
-            backupRepository = backupRepository
+            backupRepository = backupRepository,
+            conversationRepository = conversationRepository,
+            messageRepository = messageRepository,
+            backupArchivePort = backupArchivePort
         )
 
     // ─── Phase 6: Channel Analytics ───────────────────
