@@ -533,6 +533,23 @@
     <string name="broadcast_list_title">Broadcast Lists</string>
     <string name="broadcast_list_create">New List</string>
     <string name="broadcast_list_name_hint">List name</string>
+    <string name="broadcast_detail_title">Broadcast List</string>
+    <string name="broadcast_detail_recipients">Recipients</string>
+    <string name="broadcast_detail_no_recipients">No recipients added yet</string>
+
+    <!-- Community Add Group -->
+    <string name="community_add_group_title">Add Group to Community</string>
+    <string name="community_add_group_coming_soon">This feature is coming soon. For now, use the "New Conversation" screen to create a group.</string>
+    <string name="community_add_group_ok">OK</string>
+
+    <!-- Search -->
+    <string name="home_search_title">Search</string>
+    <string name="home_search_placeholder">Search conversations or contacts…</string>
+    <string name="home_search_no_results">No results found</string>
+
+    <!-- Wallpaper Gallery -->
+    <string name="wallpaper_choose_from_gallery">Choose from Gallery</string>
+    <string name="wallpaper_gallery_set">Wallpaper set</string>
 
     <!-- Media Management -->
     <string name="save_to_gallery">Save to Gallery</string>

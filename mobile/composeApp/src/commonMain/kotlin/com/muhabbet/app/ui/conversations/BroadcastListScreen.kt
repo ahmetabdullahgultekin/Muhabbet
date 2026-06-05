@@ -61,6 +61,7 @@ import org.koin.compose.koinInject
 @Composable
 fun BroadcastListScreen(
     onBack: () -> Unit,
+    onBroadcastListClick: (id: String, name: String) -> Unit = { _, _ -> },
     apiClient: ApiClient = koinInject()
 ) {
     var lists by remember { mutableStateOf<List<BroadcastListResponse>>(emptyList()) }
@@ -188,7 +189,7 @@ fun BroadcastListScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { /* TODO: open broadcast list detail */ },
+                            .clickable { onBroadcastListClick(broadcastList.id, broadcastList.name) },
                         tonalElevation = MuhabbetElevation.Level1
                     ) {
                         Row(

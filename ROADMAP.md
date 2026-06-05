@@ -1,7 +1,7 @@
 # Muhabbet — WhatsApp-Parity Roadmap
 
 > **Vision:** *"Muhabbet should become WhatsApp tier by tier, iter by iter."*
-> **Last updated:** 2026-06-05 (§1.2 DONE + §1.5 partial / PR #35).
+> **Last updated:** 2026-06-05 (§1.2 DONE + §1.5 DONE — all 6 dead buttons wired / PR #35 + PR #36).
 > **Tactical companion:** [`TODO.md`](TODO.md) — P0/P1 are aligned to **Tier 1** below.
 > **History:** prior launch-blocker framing is preserved in §"History & Current State" and in
 > `CHANGELOG.md` + `docs/engineering-roadmap.md`. The 2026-03-14 feature-by-feature comparison
@@ -42,7 +42,7 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 | Reply / quote | **Done** | `SendMessage.replyToId`, `Message.replyToId` |
 | Forwarding | **Done** | `SendMessage.forwardedFrom`, `V13__add_forwarded_from.sql` |
 | Edit / delete | **Done** | `MessageService.editMessage` (15-min window), `deleteMessage` (soft), `WsMessage.MessageEdited/Deleted`, `V4__add_edited_at.sql` |
-| Search | **Done** | message search endpoint; UI search **Partial** (see Tier 1.5 — `HomeShellScreen.kt` L98 dead button) |
+| Search | **Done** | message search endpoint + conversation/contact filter search in `HomeShellScreen` (inline search UI, PR #36) |
 | Starred messages | **Done** | `V5__add_starred_messages.sql` |
 | Disappearing messages | **Done** | `DisappearingMessageService.kt`, `MessageService` `expiresAt`, `V6__add_disappearing_messages.sql` |
 | View-once | **Done** | `MessageService.markViewOnceViewed`, `SendMessage.viewOnce` |
@@ -50,7 +50,7 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 | Polls | **Done** | `PollService.kt`, `ContentType.POLL`, `V7__add_polls.sql` |
 | Location / contact share | **Done** | `ContentType.LOCATION/CONTACT` |
 | Channels / broadcast lists | **Done** | `ChannelService.kt`, `BroadcastListService.kt`, `ChannelAnalyticsService.kt` |
-| Communities | **Done (backend)** | `CommunityService.kt`; UI **Partial** (`CommunityDetailScreen.kt` L167 "add group" dead button) |
+| Communities | **Done (backend + UI partial)** | `CommunityService.kt`; "add group" button wired to honest "coming soon" dialog (PR #36); full group-picker UI is follow-up |
 | Group invite links / join requests | **Done** | `InviteLinkService.kt`, `JoinRequestService.kt`, `GroupInviteLink` model |
 | Push notifications | **Done (Android)** / **Missing (iOS)** | FCM `FcmPushNotificationAdapter`; iOS APNs non-functional (`PushTokenProvider.ios.kt` waits on AppDelegate hook, no server APNs path) |
 | Offline cache / queue | **Done** | SQLDelight `MuhabbetDatabase.sq`, `WsClient` pending-queue drain + dedup |
@@ -113,18 +113,30 @@ Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
 - **DONE =** an image sent with the flag ON is unreadable in MinIO without the per-message key;
   recipient renders it; flag OFF path unchanged.
 
-### 1.5 Finish group & community surfaces (kill dead buttons) — **PARTIAL (PR #35)**
+### 1.5 Finish group & community surfaces (kill dead buttons) — **DONE (PR #35 + PR #36)**
 - **Files (6 dead `onClick = { /* TODO */ }`):** `HomeShellScreen.kt` L98, `MessageBubble.kt` L91,
   `WallpaperPickerScreen.kt` L191, `InviteLinkSheet.kt` L149, `CommunityDetailScreen.kt` L167,
   `BroadcastListScreen.kt` L191.
-- **Progress (2 of 6 wired in PR #35):**
-  - `InviteLinkSheet.kt` — share button now calls `shareLauncher(link.inviteUrl)` via new
-    `ShareLauncher` expect/actual (`ShareLauncher.kt` + `ShareLauncher.android.kt` +
-    `ShareLauncher.ios.kt`). Android: `Intent.ACTION_SEND`; iOS: `UIActivityViewController`.
-  - `MessageBubble.kt` — ViewOnceBubble `onViewOnce` wired through to `messageRepository.markViewOnce(id)` in `ChatScreen.kt`; sender-side guard (`!isOwn`) prevents self-view.
-- **Remaining (4 of 6, follow-up PR):** `HomeShellScreen.kt` search, `WallpaperPickerScreen.kt`
-  gallery picker, `CommunityDetailScreen.kt` add-group, `BroadcastListScreen.kt` detail.
-- **DONE =** each implemented or hidden; no `/* TODO */` remains in those onClick blocks.
+- **All 6 wired:**
+  - `InviteLinkSheet.kt` — share button calls `shareLauncher(link.inviteUrl)` via
+    `ShareLauncher` expect/actual. Android: `Intent.ACTION_SEND`; iOS: `UIActivityViewController`. (PR #35)
+  - `MessageBubble.kt` — ViewOnceBubble `onViewOnce` wired to `messageRepository.markViewOnce(id)`;
+    sender-side guard (`!isOwn`) prevents self-view. (PR #35)
+  - `HomeShellScreen.kt` — search icon activates inline search UI (replaces top bar with
+    `OutlinedTextField`; filters conversation list by name / participant display name / phone number;
+    tapping a result navigates to the conversation). Real functionality. (PR #36)
+  - `WallpaperPickerScreen.kt` — "Gallery" tab's button now calls `rememberImagePickerLauncher`
+    (reuses existing `ImagePicker` expect/actual: Android `PickVisualMedia`; iOS `PHPickerViewController`);
+    picked image fileName persisted via `WallpaperRepository.setCustomPath()`. (PR #36)
+  - `CommunityDetailScreen.kt` — "Add Group" TextButton shows an i18n `AlertDialog` ("coming soon"
+    message with OK dismiss) — honest UX; backend endpoint exists (`POST /api/v1/communities/{id}/groups`
+    + `addGroupToCommunity()` in `CommunityRepository`) but a group-picker UI doesn't; stub tracked
+    here, not silently ignored. (PR #36)
+  - `BroadcastListScreen.kt` — tapping a list item navigates to new `BroadcastDetailScreen` (shows
+    recipient list from `GET /api/v1/broadcasts/{id}/members`; nav wired via new `Config.BroadcastDetail`
+    in `MainComponent`). (PR #36)
+- **DONE =** zero `/* TODO */` remaining in those six onClick blocks; all 6 produce real
+  functionality or an honest i18n "coming soon" state.
 
 ### 1.6 Trust hardening (must precede broad E2E)
 - Release **keystore + signed AAB** (`mobile/.../build.gradle.kts` signingConfig L132-160).

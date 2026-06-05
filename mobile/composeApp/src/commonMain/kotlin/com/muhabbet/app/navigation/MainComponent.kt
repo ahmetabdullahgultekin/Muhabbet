@@ -31,6 +31,7 @@ import com.muhabbet.app.ui.starred.StarredMessagesScreen
 import com.muhabbet.app.ui.communities.CommunityDetailScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
 import com.muhabbet.app.ui.communities.CreateCommunityScreen
+import com.muhabbet.app.ui.conversations.BroadcastDetailScreen
 import com.muhabbet.app.ui.conversations.BroadcastListScreen
 import com.muhabbet.app.ui.group.GroupEventScreen
 import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
@@ -174,6 +175,11 @@ class MainComponent(
         navigation.push(Config.BroadcastLists)
     }
 
+    @OptIn(DelicateDecomposeApi::class)
+    fun openBroadcastDetail(broadcastListId: String, broadcastListName: String) {
+        navigation.push(Config.BroadcastDetail(broadcastListId, broadcastListName))
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -204,6 +210,7 @@ class MainComponent(
         @Serializable data object CreateCommunity : Config
         @Serializable data class GroupEvents(val conversationId: String) : Config
         @Serializable data object BroadcastLists : Config
+        @Serializable data class BroadcastDetail(val broadcastListId: String, val broadcastListName: String) : Config
     }
 }
 
@@ -378,6 +385,12 @@ fun MainContent(component: MainComponent) {
                 onBack = component::goBack
             )
             is MainComponent.Config.BroadcastLists -> BroadcastListScreen(
+                onBack = component::goBack,
+                onBroadcastListClick = { id, name -> component.openBroadcastDetail(id, name) }
+            )
+            is MainComponent.Config.BroadcastDetail -> BroadcastDetailScreen(
+                broadcastListId = config.broadcastListId,
+                broadcastListName = config.broadcastListName,
                 onBack = component::goBack
             )
         }

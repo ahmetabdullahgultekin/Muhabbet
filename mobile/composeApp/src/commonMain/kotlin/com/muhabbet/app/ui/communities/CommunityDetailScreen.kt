@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.AlertDialog
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
@@ -61,12 +62,26 @@ fun CommunityDetailScreen(
 ) {
     var detail by remember { mutableStateOf<CommunityDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var showAddGroupDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(communityId) {
         try {
             detail = communityRepository.getCommunityDetail(communityId)
         } catch (_: Exception) { }
         isLoading = false
+    }
+
+    if (showAddGroupDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddGroupDialog = false },
+            title = { Text(stringResource(Res.string.community_add_group_title)) },
+            text = { Text(stringResource(Res.string.community_add_group_coming_soon)) },
+            confirmButton = {
+                TextButton(onClick = { showAddGroupDialog = false }) {
+                    Text(stringResource(Res.string.community_add_group_ok))
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -164,7 +179,7 @@ fun CommunityDetailScreen(
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
-                        TextButton(onClick = { /* TODO: add group */ }) {
+                        TextButton(onClick = { showAddGroupDialog = true }) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                             Text(stringResource(Res.string.community_add_group))
