@@ -160,6 +160,42 @@ class MessageEncryptorTest {
         assertEquals(1, port.encryptCalls)
     }
 
+    @Test
+    fun should_keep_offline_queued_envelope_decryptable_after_resend() = runTest {
+        // Regression for the offline-drain / sendOrQueue gap: a body queued while offline is the
+        // already-encrypted envelope. When the drain path re-runs encryptOutgoing (the shared
+        // WsClient.encryptForWire seam), it must (a) leave the envelope byte-identical and
+        // (b) still decrypt back to the original plaintext on the receiver — i.e. never become
+        // a plaintext send and never get double-wrapped into an undecryptable body.
+        val port = FlipEncryption()
+        val enc = encryptor(port)
+        val original = "offline mesajı"
+
+        val queued = enc.encryptOutgoing(sendMessage(original)) // what gets stored in the queue
+        assertNotEquals(original, queued.content)
+        val resent = enc.encryptOutgoing(queued)                // what the drain path sends
+        assertEquals(queued.content, resent.content)            // unchanged on resend
+        assertEquals(1, port.encryptCalls)                      // crypto ran exactly once
+
+        // Receiver still recovers the original plaintext from the resent body.
+        val received = enc.decryptIncoming(newMessage(resent.content))
+        assertEquals(original, received.content)
+    }
+
+    @Test
+    fun should_pass_through_offline_queued_body_unchanged_when_disabled() = runTest {
+        // With the flag OFF the offline path must be byte-identical to legacy: no envelope, no
+        // crypto, plaintext stored and resent verbatim.
+        val port = FlipEncryption()
+        val enc = encryptor(port, enabled = false)
+        val msg = sendMessage("offline plain")
+        val queued = enc.encryptOutgoing(msg)
+        assertEquals("offline plain", queued.content)
+        val resent = enc.encryptOutgoing(queued)
+        assertEquals("offline plain", resent.content)
+        assertEquals(0, port.encryptCalls)
+    }
+
     // ─── Decrypt-side robustness ─────────────────────────────────────────
 
     @Test
