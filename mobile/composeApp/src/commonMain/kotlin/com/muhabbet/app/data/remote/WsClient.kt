@@ -29,7 +29,10 @@ import kotlin.random.Random
 class WsClient(
     private val apiClient: ApiClient,
     private val tokenProvider: () -> String?,
-    private val localCache: LocalCache? = null
+    private val localCache: LocalCache? = null,
+    // E2E encrypt-on-send / decrypt-on-receive. Null = no encryption layer (legacy pass-through).
+    // Even when non-null, behavior is gated internally by E2EConfig.ENABLED (default OFF).
+    private val messageEncryptor: com.muhabbet.app.crypto.MessageEncryptor? = null
 ) {
 
     companion object {
@@ -99,14 +102,21 @@ class WsClient(
                         if (frame is Frame.Text) {
                             val text = frame.readText()
                             try {
-                                val message = wsJson.decodeFromString<WsMessage>(text)
+                                val decoded = wsJson.decodeFromString<WsMessage>(text)
                                 // Dedup: skip already-processed messages
-                                val msgId = extractMessageId(message)
+                                val msgId = extractMessageId(decoded)
                                 if (msgId != null && !processedMessageIds.add(msgId)) {
                                     Log.d(TAG, "Skipping duplicate message: $msgId")
                                     continue
                                 }
                                 trimProcessedIds()
+                                // E2E decrypt-on-receive: NewMessage bodies may be encrypted
+                                // envelopes; everything else passes through untouched.
+                                val message = if (decoded is WsMessage.NewMessage && messageEncryptor != null) {
+                                    messageEncryptor.decryptIncoming(decoded)
+                                } else {
+                                    decoded
+                                }
                                 _incoming.emit(message)
                             } catch (e: Exception) {
                                 Log.e(TAG, "Parse error: ${e.message}")
@@ -147,13 +157,20 @@ class WsClient(
     }
 
     suspend fun send(message: WsMessage) {
+        // E2E encrypt-on-send: only SendMessage bodies are touched; gated by E2EConfig.ENABLED
+        // inside MessageEncryptor (no-op + original returned when disabled or not eligible).
+        val outgoing = if (message is WsMessage.SendMessage && messageEncryptor != null) {
+            messageEncryptor.encryptOutgoing(message)
+        } else {
+            message
+        }
         val currentSession = session
         if (currentSession == null) {
             // Queue message for later delivery if we have a cache
-            queuePendingMessage(message)
+            queuePendingMessage(outgoing)
             throw Exception("WebSocket not connected")
         }
-        val json = wsJson.encodeToString(message)
+        val json = wsJson.encodeToString(outgoing)
         currentSession.outgoing.send(Frame.Text(json))
     }
 
