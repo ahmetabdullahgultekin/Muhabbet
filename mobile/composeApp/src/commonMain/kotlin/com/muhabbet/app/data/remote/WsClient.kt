@@ -157,21 +157,18 @@ class WsClient(
     }
 
     suspend fun send(message: WsMessage) {
-        // E2E encrypt-on-send: only SendMessage bodies are touched; gated by E2EConfig.ENABLED
+        // E2E encrypt-on-send happens inside encryptForWire(); gated by E2EConfig.ENABLED
         // inside MessageEncryptor (no-op + original returned when disabled or not eligible).
-        val outgoing = if (message is WsMessage.SendMessage && messageEncryptor != null) {
-            messageEncryptor.encryptOutgoing(message)
-        } else {
-            message
-        }
+        val outgoing = encryptForWire(message)
         val currentSession = session
         if (currentSession == null) {
-            // Queue message for later delivery if we have a cache
+            // Queue message for later delivery if we have a cache.
+            // NOTE: the queued body is the already-encrypted `outgoing`; the drain path is
+            // idempotent and will not re-wrap it (encryptOutgoing skips existing envelopes).
             queuePendingMessage(outgoing)
             throw Exception("WebSocket not connected")
         }
-        val json = wsJson.encodeToString(outgoing)
-        currentSession.outgoing.send(Frame.Text(json))
+        currentSession.outgoing.send(Frame.Text(wsJson.encodeToString(outgoing)))
     }
 
     /**
@@ -179,19 +176,35 @@ class WsClient(
      * Returns true if sent immediately, false if queued.
      */
     suspend fun sendOrQueue(message: WsMessage): Boolean {
+        // Encrypt-on-send before either transmitting or queueing, so the offline path never
+        // stores/sends a plaintext body when E2E is enabled (mirrors send()/drainPendingMessages()).
+        val outgoing = encryptForWire(message)
         return try {
             val currentSession = session ?: run {
-                queuePendingMessage(message)
+                queuePendingMessage(outgoing)
                 return false
             }
-            val json = wsJson.encodeToString(message)
-            currentSession.outgoing.send(Frame.Text(json))
+            currentSession.outgoing.send(Frame.Text(wsJson.encodeToString(outgoing)))
             true
         } catch (e: Exception) {
-            queuePendingMessage(message)
+            queuePendingMessage(outgoing)
             false
         }
     }
+
+    /**
+     * Single E2E encrypt-on-send seam shared by every path that puts a [WsMessage] on the wire
+     * ([send], [sendOrQueue], [drainPendingMessages]). Only [WsMessage.SendMessage] bodies are
+     * touched; everything else is returned as-is. A no-op (returns the original) when no encryptor
+     * is wired or [com.muhabbet.app.crypto.E2EConfig.ENABLED] is false, and idempotent for bodies
+     * that are already an [com.muhabbet.shared.port.E2EEnvelope] (safe to re-run on queue resend).
+     */
+    private suspend fun encryptForWire(message: WsMessage): WsMessage =
+        if (message is WsMessage.SendMessage && messageEncryptor != null) {
+            messageEncryptor.encryptOutgoing(message)
+        } else {
+            message
+        }
 
     fun disconnect() {
         shouldReconnect = false
@@ -254,7 +267,12 @@ class WsClient(
                     requestId = msg.id,
                     messageId = msg.messageId
                 )
-                val json = wsJson.encodeToString<WsMessage>(wsMessage)
+                // Encrypt-on-send for the offline drain too. Idempotent: a body queued by send()
+                // is already an envelope and is passed through unchanged; a body queued by
+                // sendOrQueue() is also pre-encrypted. Plaintext bodies (E2E off / not eligible)
+                // pass through untouched, so this is byte-identical to legacy when the flag is OFF.
+                val outgoing = encryptForWire(wsMessage)
+                val json = wsJson.encodeToString(outgoing)
                 session?.outgoing?.send(Frame.Text(json))
                 cache.deletePendingMessage(msg.id)
                 Log.d(TAG, "Sent pending message: ${msg.id}")
