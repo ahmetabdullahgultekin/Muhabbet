@@ -60,7 +60,7 @@ dependencies {
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-4:8.37.1")
+    implementation("io.sentry:sentry-spring-boot-4:8.42.0")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
