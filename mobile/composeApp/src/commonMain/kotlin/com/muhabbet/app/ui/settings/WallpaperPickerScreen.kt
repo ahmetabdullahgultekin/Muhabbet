@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.WallpaperRepository
+import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -67,6 +68,18 @@ fun WallpaperPickerScreen(
     var selectedType by remember { mutableStateOf(wallpaperRepository.getWallpaperType()) }
     var selectedColor by remember { mutableStateOf(wallpaperRepository.getSolidColor()) }
     var darkModeEnabled by remember { mutableStateOf(wallpaperRepository.getDarkModeWallpaperEnabled()) }
+    var customWallpaperSet by remember { mutableStateOf(wallpaperRepository.getCustomPath() != null) }
+
+    // Gallery picker: on result, persist the image file name so the chat screen can load it.
+    // The path stored is the fileName (platform-neutral identifier persisted via WallpaperRepository).
+    val galleryPicker = rememberImagePickerLauncher { pickedImage ->
+        pickedImage?.let { img ->
+            wallpaperRepository.setCustomPath(img.fileName)
+            wallpaperRepository.setWallpaperType("CUSTOM")
+            selectedType = "CUSTOM"
+            customWallpaperSet = true
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -185,11 +198,20 @@ fun WallpaperPickerScreen(
                                 Icons.Default.Image,
                                 contentDescription = stringResource(Res.string.wallpaper_custom),
                                 modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (customWallpaperSet) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                            Button(onClick = { /* TODO: open gallery picker */ }) {
-                                Text(stringResource(Res.string.wallpaper_custom))
+                            if (customWallpaperSet) {
+                                Text(
+                                    text = stringResource(Res.string.wallpaper_gallery_set),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(MuhabbetSpacing.Small))
+                            }
+                            Button(onClick = { galleryPicker.launch() }) {
+                                Text(stringResource(Res.string.wallpaper_choose_from_gallery))
                             }
                         }
                     }
