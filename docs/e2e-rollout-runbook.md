@@ -107,8 +107,14 @@ Because the flag is **client-side** and the server stores `content` verbatim:
 ## 5. Known limitations to close before calling E2E "done" (tracked in ROADMAP/TODO)
 
 1. **Group E2E** — sender-key fan-out (Tier 3).
-2. **Media encryption** — encrypt blobs before MinIO upload + key in the message body (Tier 1.4).
-3. **iOS parity** — libsignal-client Kotlin/Native bridge (Tier 2 / P1).
+2. ~~**Media encryption** — encrypt blobs before MinIO upload + key in the message body (Tier 1.4).~~
+   **WIRED (default OFF).** `MediaEncryptor` + `SymmetricCipher` (AES-256-GCM) + `MediaKeyMaterial`
+   ship behind `E2EConfig.MEDIA_ENABLED` (additionally gated by `ENABLED`). 1:1 Android only; iOS is a
+   NoOp stub (fails closed to plaintext upload). Per-media fresh key+nonce, ciphertext-only in MinIO,
+   key rides inside the Signal-encrypted message body, authenticated decrypt fails closed. **Flip needs
+   the same canary gates below + a crypto review.** See ROADMAP §1.4.
+3. **iOS parity** — libsignal-client Kotlin/Native bridge (Tier 2 / P1) — also needed for iOS media
+   (CryptoKit `AES.GCM`) since `SymmetricCipher.ios.kt` is currently a NoOp stub.
 4. **Safety numbers / key-change UI** — `security.key_changed` WS event exists
    (`WsMessage.SecurityKeyChanged`) and the backend bumps `keyVersion` on identity change
    (`EncryptionService.registerKeyBundle`), but there is no client verification UI yet (Tier 1.1).

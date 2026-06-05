@@ -233,11 +233,18 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > [`TODO.md`](TODO.md) P0/P1 are aligned to Tier 1.
 >
 > **E2E status correction:** the "Signal Protocol E2E — DONE" entries below mean *infrastructure
-> exists* (keys, store, key-exchange). The **send/receive path was wired in PR #31** behind a
-> default-OFF flag (`mobile/.../crypto/E2EConfig.kt`, `MessageEncryptor.kt`, `shared/.../port/E2EEnvelope.kt`);
-> messages still travel as **plaintext under TLS until the flag is flipped** (1:1 text only; groups
-> and media not yet encrypted; iOS NoOp). Rollout gates + no-redeploy kill-switch:
-> `docs/e2e-rollout-runbook.md`. **Do not flip the flag or deploy without sign-off.**
+> exists* (keys, store, key-exchange). The **text send/receive path was wired in PR #31** and
+> **media-blob encryption in the Tier 1.4 PR**, both behind default-OFF flags
+> (`mobile/.../crypto/E2EConfig.kt` → `ENABLED` for text, `MEDIA_ENABLED` for media;
+> `MessageEncryptor.kt`, `MediaEncryptor.kt`, `SymmetricCipher.kt` expect/actual,
+> `shared/.../port/E2EEnvelope.kt`, `shared/.../port/MediaKeyMaterial.kt`). With the flags OFF
+> (production default) messages **and media blobs** travel as **plaintext under TLS** — byte-identical
+> to pre-wiring HEAD. When ON: 1:1 text is Signal-encrypted; media bytes are AES-256-GCM-encrypted
+> before MinIO upload with the per-media key shipped inside the (Signal-encrypted) message body.
+> **Covered:** 1:1 Android. **Pending:** groups (sender-key fan-out, Tier 3) and iOS (NoOp stubs for
+> both Signal and `SymmetricCipher` — they fail closed to plaintext fallback). Rollout gates +
+> no-redeploy kill-switch: `docs/e2e-rollout-runbook.md`. **Do not flip any flag or deploy without
+> sign-off + crypto review.**
 
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
 1. ~~Auth (OTP + JWT)~~ — **DONE**

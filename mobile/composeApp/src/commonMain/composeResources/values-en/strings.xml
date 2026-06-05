@@ -579,4 +579,6 @@
     <string name="format_quote">Quote</string>
     <string name="format_bullet_list">Bullet list</string>
     <string name="format_number_list">Numbered list</string>
+    <string name="media_decrypt_failed">Media couldn\'t be decrypted</string>
+    <string name="media_decrypt_failed_detail">This media couldn\'t be securely decrypted and may have been tampered with.</string>
 </resources>

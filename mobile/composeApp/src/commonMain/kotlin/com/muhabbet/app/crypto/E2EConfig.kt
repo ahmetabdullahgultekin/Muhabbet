@@ -25,4 +25,20 @@ package com.muhabbet.app.crypto
 object E2EConfig {
     /** Master switch for encrypt-on-send / decrypt-on-receive. Keep false until canary sign-off. */
     const val ENABLED: Boolean = false
+
+    /**
+     * Switch for media-blob encryption (encrypt the compressed bytes before MinIO upload, ship the
+     * per-media key inside the already-E2E-encrypted message body). See [MediaEncryptor].
+     *
+     * DEFAULT = false. Additionally gated by [ENABLED] via [mediaEncryptionActive] — media is only
+     * ever encrypted when the whole E2E path is on AND this flag is on. When false (the default),
+     * the media upload/download path is byte-identical to current production (plaintext blobs).
+     *
+     * Keep false until canary sign-off + crypto review. Same reversible-rollout posture as [ENABLED].
+     */
+    const val MEDIA_ENABLED: Boolean = false
+
+    /** True only when both the master E2E flag and the media flag are on. */
+    val mediaEncryptionActive: Boolean
+        get() = ENABLED && MEDIA_ENABLED
 }

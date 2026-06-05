@@ -1,20 +1,26 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.crypto.MediaEncryptor
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.MediaUploadResponse
 import com.muhabbet.shared.dto.StorageUsageResponse
+import com.muhabbet.shared.port.MediaKeyMaterial
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.get
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import kotlinx.serialization.serializer
 
-class MediaRepository(private val apiClient: ApiClient) {
+class MediaRepository(
+    private val apiClient: ApiClient,
+    private val mediaEncryptor: MediaEncryptor = MediaEncryptor()
+) {
 
     suspend fun uploadImage(bytes: ByteArray, mimeType: String, fileName: String): MediaUploadResponse {
         val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/upload") {
@@ -90,5 +96,21 @@ class MediaRepository(private val apiClient: ApiClient) {
             text
         )
         return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "STORAGE_USAGE_FAILED")
+    }
+
+    /**
+     * Download a media blob and, when [keyMaterial] is present (recovered from the decrypted message
+     * body), verify its integrity hash and AES-GCM-decrypt it. Returns the plaintext bytes ready to
+     * render.
+     *
+     * - [keyMaterial] null → legacy / plaintext media: the bytes are returned as fetched (the flag
+     *   was OFF when this media was sent, or it predates media E2E). Byte-identical to today.
+     * - [keyMaterial] non-null → ciphertext blob: a tampered blob or wrong key throws
+     *   [com.muhabbet.app.crypto.MediaDecryptException] (fail closed) so the UI can surface a visible
+     *   decrypt-failed state — it never renders corrupted bytes as if valid.
+     */
+    suspend fun downloadMedia(url: String, keyMaterial: MediaKeyMaterial? = null): ByteArray {
+        val blob = apiClient.httpClient.get(url).bodyAsBytes()
+        return mediaEncryptor.decryptDownloaded(blob, keyMaterial)
     }
 }
