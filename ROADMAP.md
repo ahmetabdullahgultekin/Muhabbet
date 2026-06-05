@@ -1,294 +1,177 @@
 # Muhabbet — Product Roadmap
 
-> **Last Updated**: 2026-03-15
-> **Status**: All 6 engineering phases + production hardening complete. Kotlin 2.3.10, Spring Boot 4.0.2, Java 25 upgrade verified (332/333 backend tests pass). Monitoring stack (Prometheus + Grafana) added. Remaining: iOS APNs, pen testing, app store submissions.
+> **Last updated**: 2026-06-04 (refreshed from deep code analysis at HEAD `97626f8`).
+> **Tactical companion**: see [`TODO.md`](TODO.md) for the executable P0–P3 checklist.
+
+---
+
+## Current State
+
+**Backend: LIVE and healthy.** `https://muhabbet-api.rollingcatsoftware.com/actuator/health`
+returns `UP` for db (PostgreSQL), redis (7.4.8), ssl, liveness and readiness. Deployed on a
+Hetzner VPS via Docker + Traefik/nginx + Let's Encrypt. Flyway migrations V1–V17 applied.
+Root path returns `401` by design (Spring Security).
+
+**Development is PAUSED** — last commit `97626f8` on 2026-03-31. The codebase is broad and
+mature on paper (24 MVP features + 6 phases marked DONE in prior docs), but a code-level audit
+at HEAD surfaces gaps that the older roadmap framed as "complete":
+
+| Area | Prior doc said | Verified at HEAD |
+|------|----------------|------------------|
+| E2E encryption | "Signal Protocol client DONE" | Keys register on login and Signal sessions can be set up, but **no send/receive path calls `.encrypt()`/`.decrypt()`** — messages are sent in **plaintext**. The only `EncryptionPort` use outside DI is its registration in `AppModule.kt`. **This is the #1 launch blocker.** |
+| Android release | signing scaffold present | Env-var-gated signing config, **no keystore**, CI builds **debug APK only**. No signed AAB exists. |
+| iOS push (APNs) | "Remaining" | Correct — non-functional; token path depends on an AppDelegate hook, no server-side APNs. |
+| iOS Firebase auth | "fallback stub" | `isAvailable()` hard-`false`; `verifyCode` throws. iOS can only use backend OTP. |
+| iOS E2E | "NoOp until bridged" | Correct — `NoOpKeyManager`/`NoOpEncryption`; needs a libsignal Kotlin/Native bridge. |
+| iOS calls | "stub" | Correct — `CallEngine.ios.kt` connect/mute/speaker are no-ops. |
+| Message backup | "DONE" | `BackupService.createBackup` is a **placeholder** — marks `COMPLETED` with null URL / zero counts; no archive is produced. |
+| Pen test | "Remaining" | Correct — never run. |
+| Sentry (prod) | "code ready" | DSN unset in prod compose → no backend error capture in production. |
+| Tests | "332/333 pass" (Feb 2026) | 34 backend test files + ArchUnit present; **count unverified at HEAD** — re-run before trusting. |
+
+**Is it launch-ready? No.** The backend is production-grade and live, but the Android client
+ships plaintext messages under an E2E banner, has no signed release artifact, and has never
+been pen-tested. iOS is further behind (no push, no Firebase auth, NoOp E2E, stub calls).
+A defensible path is **Android-first public launch** after closing the E2E + signing + pen-test
+blockers, with iOS following once APNs and the libsignal bridge land.
+
+## Next Up (sequenced)
+
+1. **Wire E2E into the message path** (or remove the E2E claim) — TODO P0.
+2. **Generate keystore + signed AAB** — TODO P0.
+3. **Security pen-test pass** on staging — TODO P0.
+4. **Implement the backup job + set Sentry DSN** — TODO P1, low-effort credibility wins.
+5. **Merge/close Dependabot #30 & #21, unblock CI** — TODO P1.
+6. **Run k6 load tests** against prod-like env — TODO P1.
+7. **Android internal-testing → public** (Phase 1 manual steps below).
+8. **iOS catch-up**: APNs, Firebase-auth decision, libsignal bridge, then TestFlight — TODO P1/P3.
+
+---
 
 ## Deployment Status
 
-**Deployed at:** https://muhabbet-api.rollingcatsoftware.com
-**Stack:** Kotlin / Spring Boot 4
-**Server:** Hetzner VPS (Docker + Traefik + Let's Encrypt)
-**Health:** UP (all 7 components healthy)
+**Deployed at:** https://muhabbet-api.rollingcatsoftware.com (Hetzner VPS, Docker + Traefik/nginx + Let's Encrypt)
+**Stack:** Kotlin 2.3.20 / Spring Boot 4.0.5 / Java 21 runtime / PostgreSQL 16 / Redis 7 / MinIO
+**Health:** UP (db, redis, ssl, liveness, readiness)
 
-### Deployment Status
-
-- [x] Firebase Cloud Messaging (FCM) — `FCM_ENABLED=true`, credentials mounted at `infra/firebase-adminsdk.json`
+- [x] Firebase Cloud Messaging (FCM) — `FCM_ENABLED=true`, credentials mounted
 - [x] Netgsm SMS OTP — `NetgsmOtpSender` active via `@ConditionalOnProperty`
 - [x] Android app production API URLs configured
 - [x] Automated database backups (shared Hetzner pg_dump cron)
-- [ ] Sentry DSN configured (code ready, needs env var in .env.prod)
-- [ ] iOS APNs delivery (APNs key + TestFlight setup pending)
-- [ ] iOS LiveKit / Signal Protocol bridge (Kotlin/Native)
-- [ ] Security penetration testing (OWASP ZAP / Burp Suite)
-- [ ] App Store / Google Play submission
+- [ ] **Sentry DSN configured** — code ready, env var empty in `.env.prod` (TODO P1)
+- [ ] **iOS APNs delivery** — APNs key + server path + TestFlight (TODO P1)
+- [ ] **iOS LiveKit / Signal Protocol bridge** (Kotlin/Native) (TODO P1/P3)
+- [ ] **Security penetration testing** (OWASP ZAP / Burp) (TODO P0)
+- [ ] **App Store / Google Play submission** (TODO P0 keystore prerequisite)
 
-### Known Behaviors
-
-- API root may return 403 due to Spring Security — use `/actuator/health` to verify.
+### Known behaviors
+- API root returns `401` due to Spring Security — use `/actuator/health` to verify.
 - `favicon.ico` requests return 401/403 — APIs don't serve favicons.
 
 ---
 
-## Completed Features (24/24 MVP)
+## Phase 0 — Pre-Launch Hardening (CURRENT — blocks public launch)
 
-| # | Feature | Status |
-|---|---------|--------|
-| 1 | Auth (OTP + JWT + device management) | DONE |
-| 2 | 1:1 messaging (WebSocket real-time) | DONE |
-| 3 | Mobile app (CMP Android — auth, chat, settings, dark mode) | DONE |
-| 4 | Contacts sync (Android phone hash matching) | DONE |
-| 5 | Typing indicators (send, receive, backend broadcast) | DONE |
-| 6 | Media sharing (images, thumbnails, full-size viewer) | DONE |
-| 7 | Push notifications (FCM, token registration, offline delivery) | DONE |
-| 8 | Presence (online/offline via Redis, green dot, last seen) | DONE |
-| 9 | Group messaging (create, roles, add/remove, leave) | DONE |
-| 10 | Voice messages (record, playback, audio bubbles) | DONE |
-| 11 | Production SMS (Netgsm) | DONE |
-| 12 | Message delete/edit (soft delete, editedAt, context menu) | DONE |
-| 13 | Localization i18n (Turkish + English, runtime switch) | DONE |
-| 14 | Reply/quote + forwarding | DONE |
-| 15 | Starred messages | DONE |
-| 16 | Link previews (Open Graph, cached) | DONE |
-| 17 | Message search (full-text, per-conversation) | DONE |
-| 18 | File/document sharing (PDF, DOC, etc.) | DONE |
-| 19 | Disappearing messages (24h, 7d, 90d) | DONE |
-| 20 | Polls (create, vote, real-time results) | DONE |
-| 21 | Location sharing (static pin, map preview) | DONE |
-| 22 | Status/Stories (24h ephemeral, contacts visibility) | DONE |
-| 23 | Channels/Broadcasts (one-to-many, subscriber model) | DONE |
-| 24 | UI/UX polish (reactions, swipe-to-reply, typing animation, FAB, filter chips, pinned chats, OLED theme, bubble tails, date pills, empty states, unread styling) | DONE |
+| # | Task | Status | Ref |
+|---|------|--------|-----|
+| 0.1 | Encrypt/decrypt messages in the send/receive path (Signal) | **OPEN — P0** | TODO P0 |
+| 0.2 | Release keystore + signed Android AAB | **OPEN — P0** | TODO P0 |
+| 0.3 | Security penetration test (staging) | **OPEN — P0** | TODO P0 |
+| 0.4 | Real message-backup job (MinIO archive) | **OPEN — P1** | TODO P1 |
+| 0.5 | Sentry DSN in production | **OPEN — P1** | TODO P1 |
+| 0.6 | Merge/close Dependabot #30 + #21, unblock CI | **OPEN — P1** | TODO P1 |
+| 0.7 | k6 load test against prod-like env | **OPEN — P1** | TODO P1 |
 
-### Production Readiness (Completed)
-
-- CORS restricted to specific origins
-- Rate limiting on auth endpoints (10 req/min/IP)
-- R8/ProGuard configuration for release builds
-- Signing config scaffold (env var-based)
-- Splash screen (light + dark)
-- Privacy policy (Turkish + English, KVKK compliant)
-- LICENSE (MIT), CONTRIBUTING.md, SECURITY.md
-- Structured logging (replaced 22 println calls)
-- allowBackup=false
-- Adaptive app icon (speech bubble on green)
-- Notification icon (monochrome)
-- Redacted sensitive deployment details from docs
-
----
-
-## Phase 1 — Internal Testing Release (Manual Steps)
-
-**Goal**: Get the app on Play Store internal testing track.
+## Phase 1 — Android Internal → Public Release (manual + Phase 0 gated)
 
 | # | Task | Status |
 |---|------|--------|
-| 1.1 | Generate keystore + build signed AAB | Manual step |
-| 1.2 | Capture Play Store screenshots (8 screens) | Manual step |
-| 1.3 | Create feature graphic (1024x500) | Design |
-| 1.4 | Write store description (Turkish + English) | Content |
-| 1.5 | Complete IARC content rating questionnaire | Manual step |
-| 1.6 | Smoke test: fresh install flow on 3+ devices | QA |
-| 1.7 | Upload AAB + listing to Play Console | Manual step |
+| 1.1 | Build signed AAB (depends on 0.2) | Blocked on 0.2 |
+| 1.2 | Play Store screenshots (8 screens) | Manual |
+| 1.3 | Feature graphic (1024×500) | Design |
+| 1.4 | Store description (TR + EN) | Content |
+| 1.5 | IARC content rating questionnaire | Manual |
+| 1.6 | Fresh-install smoke test on 3+ devices | QA |
+| 1.7 | Upload AAB + listing to Play Console (internal → production) | Manual |
 
----
-
-## Phase 2 — Beta Quality (Completed)
-
-**Goal**: Architecture cleanup + test coverage + social features.
+## Phase 2 — iOS Catch-Up & Submission
 
 | # | Task | Status |
 |---|------|--------|
-| 2.1 | Backend test coverage (MediaService, ConversationService, GroupService, WebSocket, RateLimit — ~125 tests) | DONE |
-| 2.2 | Refactor ChatScreen.kt (1,771→405 lines → MessageBubble, MessageInputPane, ChatDialogs) | DONE |
-| 2.3 | Refactor 5 controllers to use case pattern (Status, Channel, Poll, DisappearingMessage, Reaction) | DONE |
-| 2.4 | Split MessagingService → ConversationService + MessageService + GroupService | DONE |
-| 2.5 | Stickers & GIFs (GIPHY integration, GifStickerPicker, STICKER/GIF content types) | DONE |
-| 2.6 | Profile viewing (tap avatar → full profile, phone, about, shared media, mutual groups, action buttons) | DONE |
+| 2.1 | iOS APNs delivery (token registration + server push) | Remaining (TODO P1) |
+| 2.2 | iOS auth: bridge Firebase Phone Auth OR commit to backend OTP | Remaining (TODO P1) |
+| 2.3 | iOS E2E: libsignal-client Kotlin/Native bridge (after 0.1) | Remaining (TODO P1) |
+| 2.4 | iOS Crash reporting (Sentry CocoaPod, replace NSLog stub) | Remaining (TODO P3) |
+| 2.5 | iOS LiveKit voice bridge (replace CallEngine stub) | Remaining (TODO P3) |
+| 2.6 | TestFlight + App Store submission | Remaining |
 
----
-
-## Bug Fix Rounds (Post-Phase 2)
-
-**Goal**: Polish and fix issues found during hands-on testing.
-
-| Round | Focus | Status |
-|-------|-------|--------|
-| Round 1 | Pin, file upload, acks, reactions, forward, starred | DONE |
-| Round 2 | Compilation errors from Phase 2-5 merge | DONE |
-| Round 3 | Delivery status resolution, shared media, message info, starred redesign, contact name, status upload, forwarded visuals, video thumbnails | DONE |
-| Round 4 | Shared media JPQL fix, message info robustness, status text position, starred scroll-to-message, starred back navigation | DONE |
-
----
-
-## Phase 3 — Voice Calls & Monitoring (Backend Complete, Client SDK Pending)
-
-**Goal**: Voice/video calls and operational visibility.
+## Phase 3 — Growth (post-launch)
 
 | # | Task | Status |
 |---|------|--------|
-| 3.1 | Call signaling infrastructure (WebSocket: CallInitiate/Answer/IceCandidate/End, CallSignalingService, call history DB) | DONE |
-| 3.2 | Call UI screens (IncomingCallScreen, ActiveCallScreen, CallHistoryScreen, Decompose navigation) | DONE |
-| 3.3 | LiveKit room adapter (CallRoomProvider port, LiveKitRoomAdapter + NoOpCallRoomProvider, @ConditionalOnProperty) | DONE |
-| 3.4 | Voice calls (1:1) — LiveKit client SDK integration in mobile | Remaining (backend + UI ready, needs client SDK) |
-| 3.5 | Video calls (1:1) — Camera toggle, picture-in-picture | Remaining |
-| 3.6 | Notification improvements (grouping per conversation, inline reply, channels) | DONE |
-| 3.7 | Crash reporting — Sentry mobile SDK (CrashReporter expect/actual, auto-init) | DONE |
-| 3.8 | Performance optimization — Database indexes (12), N+1 fixes, connection pooling, nginx tuning, PG tuning | DONE |
+| 3.1 | Web / Desktop client (Kotlin/JS or React+TS, QR device-linking, sync) | Remaining |
+| 3.2 | Group voice/video calls (multi-party LiveKit) | Remaining |
+| 3.3 | CDN for media at scale | Remaining |
+| 3.4 | Channel monetization (analytics + bot platform already shipped) | Remaining |
 
 ---
 
-## Phase 4 — Trust & Security (Infrastructure Complete)
+## Completed Features (verified present in code)
 
-**Goal**: E2E encryption foundation, KVKK legal compliance, security hardening, message backup.
+24 MVP features + 6 engineering phases are implemented in the modular-monolith backend and the
+Compose Multiplatform Android client. Headline set (full historical breakdown retained in
+`CHANGELOG.md` and `docs/qa/engineering-roadmap.md`):
 
-| # | Task | Status |
-|---|------|--------|
-| 4.1 | E2E encryption backend (EncryptionKeyBundle, OneTimePreKeys, key exchange endpoints, EncryptionService, DB migrations) | DONE |
-| 4.2 | E2E encryption client infra (E2EKeyManager interface, NoOpKeyManager, EncryptionRepository) | DONE |
-| 4.3 | E2E encryption client integration (Signal Protocol: libsignal-client, X3DH, Double Ratchet, key verification UI) | Remaining |
-| 4.4 | KVKK compliance (data export endpoint, account soft-deletion, UserDataController) | DONE |
-| 4.5 | Security headers (HSTS, CSP, X-Frame-Options, XSS protection, Referrer-Policy, Permissions-Policy) | DONE |
-| 4.6 | Input sanitization (InputSanitizer: HTML escaping, control chars, URL validation, 15 tests) | DONE |
-| 4.7 | CI security scanning (Trivy, Gitleaks, CodeQL) | DONE |
-| 4.8 | Message backup system (BackupService, BackupController, BackupPersistenceAdapter, message_backups table) | DONE |
-| 4.9 | Security penetration testing (OWASP ZAP/Burp Suite, fix findings) | Remaining |
+| Group | Features |
+|-------|----------|
+| Core | OTP+JWT auth, device mgmt, 1:1 messaging (WebSocket), delivery status, presence (Redis), typing indicators |
+| Rich messaging | media/image sharing, voice messages + transcription, reply/quote, forward, starred, reactions, edit/delete, search, link previews, stickers/GIFs (GIPHY), file/document sharing |
+| Advanced | groups (roles), channels/broadcasts, communities, polls, disappearing messages, status/stories, location sharing, view-once, scheduled messages |
+| Platform | push (FCM), i18n (TR default + EN, runtime switch), SQLDelight offline cache + pending-message queue, WS resilience (backoff+jitter+dedup), KVKK privacy dashboard (export/delete) |
+| Backend infra | content moderation (BTK 5651), bot platform (API tokens), channel analytics, call signaling + LiveKit room adapter, Redis pub/sub WS broadcaster, security headers, InputSanitizer, rate limiting |
 
----
-
-## Phase 5 — Multi-Platform & Scale (iOS + Redis Pub/Sub Complete)
-
-**Goal**: iOS release, horizontal scaling, web client.
-
-| # | Task | Status |
-|---|------|--------|
-| 5.1 | iOS platform modules (AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider) | DONE |
-| 5.2 | iOS platform completion (ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth) | DONE |
-| 5.3 | Redis Pub/Sub message broadcaster (RedisMessageBroadcaster + RedisBroadcastListener for cross-instance WS routing) | DONE |
-| 5.4 | iOS APNs delivery (FCM→APNs bridge or direct APNs adapter) | Remaining |
-| 5.5 | iOS TestFlight + App Store submission | Remaining |
-| 5.6 | Web client / Desktop (React+TS or Kotlin/JS, QR device linking, message sync) | Remaining |
-| 5.7 | Group voice/video calls (multi-party LiveKit rooms, participant grid) | Remaining |
-| 5.8 | CDN for media (CloudFront/CDN for media delivery at scale) | Remaining |
-
----
-
-## Phase 6 — Growth Features (Complete)
-
-**Goal**: Channel monetization and bot ecosystem.
-
-| # | Task | Status |
-|---|------|--------|
-| 6.1 | Channel analytics (daily stats, subscriber tracking, ChannelAnalyticsService, REST API) | DONE |
-| 6.2 | Bot platform (Bot domain model, BotService, BotController, API token auth, webhook support, permissions) | DONE |
-| 6.3 | Content moderation (ReportUserUseCase, BlockUserUseCase, ModerationService, ModerationController, BTK Law 5651) | DONE |
-
----
-
-## Stabilization (Complete)
-
-**Goal**: Runtime stability, observability, mobile deep linking.
-
-| # | Task | Status |
-|---|------|--------|
-| S.1 | WebSocket rate limiting (50 msg/10s sliding window per connection, WebSocketRateLimiter) | DONE |
-| S.2 | Deep linking (muhabbet:// scheme + universal links for muhabbet.app) | DONE |
-| S.3 | Structured analytics event tracking (AnalyticsEvent with SLF4J) | DONE |
-| S.4 | LiveKit configuration in application.yml | DONE |
-| S.5 | Backend test expansion (~32 new tests: DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter) | DONE |
-| S.6 | V15 Flyway migration (moderation, analytics, backup, bot tables) | DONE |
-
----
-
-## Remaining Work Summary
-
-### High Priority (Beta Release Blockers)
-1. ~~**LiveKit client SDK integration**~~ — DONE: Android LiveKit SDK, CallEngine expect/actual, backend room management.
-2. ~~**Fix active bugs**~~ — DONE: Push notifications enabled (FCM_ENABLED=true), delivery ticks fixed (global DELIVERED ack in App.kt).
-
-### Medium Priority (Pre-Public Launch)
-3. ~~**E2E encryption client**~~ — DONE: libsignal-android 0.64.1, Signal Protocol (X3DH + Double Ratchet), PersistentSignalProtocolStore.
-4. **Security penetration testing** — Run OWASP ZAP/Burp Suite before public launch.
-5. **iOS APNs delivery** — Needed for iOS push notifications.
-6. ~~**Load testing scripts**~~ — DONE: k6 scripts created (`infra/load-tests/`), need to run against production-like environment.
-
-### Low Priority (Growth Phase)
-7. **Web/Desktop client** — Power user demand.
-8. **Group calls** — After 1:1 calls are stable.
-9. **CDN** — When media traffic justifies it.
-10. **iOS LiveKit/Signal bridges** — Need native Swift SDK bridges via Kotlin/Native.
-
----
-
-## Technical Debt Tracker
-
-| Debt | Severity | Status |
-|------|----------|--------|
-| ~~ChatScreen.kt ~1,700 lines~~ | ~~High~~ | Fixed (Phase 2) — split to 405 lines |
-| ~~5 controllers bypass use case layer~~ | ~~Medium~~ | Fixed (Phase 2) — all use use cases |
-| ~~MessagingService implements 7 use cases~~ | ~~Medium~~ | Fixed (Phase 2) — split into 3 services |
-| ~~Test coverage at 13%~~ | ~~High~~ | Improved — ~157 backend tests + 25+ mobile/shared tests |
-| ~~No mobile unit tests~~ | ~~Medium~~ | Fixed — FakeTokenStorage, AuthRepository, PhoneNormalization, WsMessage serialization tests |
-| ~~iOS ImagePicker stub~~ | ~~Medium~~ | Fixed — PHPickerViewController implementation |
-| ~~CrashReporter.ios.kt stub~~ | ~~Low~~ | Fixed — NSLog + Sentry CocoaPod hooks |
-| ~~No CI/CD pipeline~~ | ~~Medium~~ | Fixed — GitHub Actions (backend, mobile, security, deploy) |
-| ~~No performance optimization~~ | ~~Medium~~ | Fixed — 12 DB indexes, N+1 fixes, connection pooling, nginx/PG tuning |
-| ~~Single-server architecture~~ | ~~Low~~ | Fixed — Redis Pub/Sub broadcaster for horizontal WS scaling |
-| ~~2 active bugs (push notifications, delivery ticks)~~ | ~~Medium~~ | Fixed — FCM_ENABLED=true + global DELIVERED ack |
-| Backend enum duplication (intentional) | Low | Monitor |
-
----
-
-## Key Decision Points
-
-1. **WebRTC provider**: LiveKit Cloud (managed, free dev tier) vs self-hosted LiveKit on GCP — decide before building call UI
-2. **E2E library**: `libsignal-client` (battle-tested) vs custom — architecture supports either
-3. **iOS release strategy**: CMP iOS target (current) vs native SwiftUI for better platform feel
-4. **Revenue model**: Ad-free premium? Freemium? Channel monetization? Decide before Phase 5 growth
-
----
-
-## Critical Path
-
-```
-Phase 1 (manual)         → Internal testing on Play Store
-Phase 2 (DONE)           → Architecture cleanup, tests, GIFs
-Phase 3 (backend DONE)   → LiveKit client SDK integration ← make-or-break for Turkish market
-Phase 4 (infra DONE)     → Signal Protocol client, pen testing
-Phase 5 (scale DONE)     → iOS APNs, TestFlight, web client
-Phase 6 (DONE)           → Channel analytics, bot platform
-Stabilization (DONE)     → WS rate limiting, deep linking, moderation, tests
-```
-
----
-
-## Turkish Market Context
-
-- WhatsApp: 60M users in Turkey (88.6% of internet users)
-- 2021 privacy controversy drove exodus to BiP/Signal/Telegram — users returned due to missing features
-- **Privacy + KVKK compliance** is Muhabbet's key differentiator
-- **Voice calls are non-negotiable** — Turkish culture is voice-heavy
-- Telegram channels used by 85% of its users — channel ecosystem creates network effects
+**Caveats from audit** (see Current State table): E2E send-path is inert, message backup is a
+placeholder, and several iOS platform bindings are stubs. Treat the prior "DONE" labels as
+"present/compiles" rather than "end-to-end verified" until re-tested.
 
 ---
 
 ## Architecture Reference
 
-### Project Structure
 ```
 muhabbet/
-├── backend/    → Spring Boot 4.0.2 + Kotlin 2.3.10 (modular monolith, hexagonal)
-├── shared/     → KMP shared module (models, DTOs, protocol, validation)
-├── mobile/     → Compose Multiplatform (Android + iOS)
-├── infra/      → Docker Compose, nginx, deploy scripts
-└── docs/       → Architecture docs, API contract, privacy policy
+├── backend/   → Spring Boot 4.0.5 + Kotlin 2.3.20 (modular monolith, hexagonal)
+│               modules: auth · messaging · media · moderation · shared(config/security/web)
+│               presence/notification live inside messaging/shared wiring
+├── shared/    → KMP module (model, dto, protocol/WsMessage, validation, port/EncryptionPort)
+├── mobile/    → Compose Multiplatform (androidMain full client · iosMain partial: stubs noted)
+│               Ktor · Koin · Decompose · SQLDelight · Coil · libsignal (Android)
+├── infra/     → docker-compose.prod.yml · nginx · monitoring (Prometheus+Grafana) · load-tests (k6) · scripts
+└── docs/      → api-contract.md · decisions.md · qa/ (9 ISO 25010 docs + UI audit) · adr/
 ```
 
-### Tech Stack
 | Component | Technology |
 |-----------|-----------|
-| Language | Kotlin 2.3.10 (everywhere) |
-| Backend | Spring Boot 4.0.2 (Java 25), PostgreSQL 16, Redis 7, MinIO |
-| Mobile | CMP, Ktor 3.1.3, Koin 4.1.0, Decompose 3.3.0, Coil 3.1.0, Sentry |
-| Shared | KMP, kotlinx.serialization 1.8.1, kotlinx.datetime 0.7.1 |
-| Infra | Docker Compose, nginx, GCP (e2-medium), Firebase FCM |
-| CI/CD | GitHub Actions (backend, mobile, security, deploy) |
-| Security | HSTS, CSP, InputSanitizer, Trivy, Gitleaks, CodeQL |
+| Language | Kotlin 2.3.20 (backend, shared, mobile) |
+| Backend | Spring Boot 4.0.5, Java 21 runtime, PostgreSQL 16, Redis 7, MinIO |
+| Mobile | CMP, Ktor 3.x, Koin, Decompose, SQLDelight, Coil; libsignal-android (E2E); LiveKit (Android calls) |
+| Auth | OTP (Netgsm prod / mock dev) + JWT HS256 (`iss: muhabbet`) |
+| Push | FCM (Android live; iOS APNs pending) |
+| Observability | SLF4J/Logback JSON + Spring Actuator + Sentry (DSN unset in prod) + Prometheus/Grafana |
+| CI/CD | GitHub Actions on self-hosted `hetzner-cx43`: backend CI, mobile CI (Android debug APK + iOS framework), security (Trivy/Gitleaks/CodeQL), deploy-on-push-to-main |
+
+---
+
+## Key Decision Points (open)
+
+1. **E2E scope for launch** — full Signal both platforms vs Android-first (iOS NoOp gated). Drives launch timeline.
+2. **iOS auth** — integrate Firebase iOS SDK vs make backend OTP the official iOS path (remove dead Firebase branch).
+3. **Dependabot #30** — accept the 38-update group as one bump (watch Twilio 11→12 major, kotlinx-datetime 0.7→0.8) vs split.
+4. **Revenue model** — ad-free premium / freemium / channel monetization — decide before Phase 3 growth.
+
+## Turkish Market Context
+
+- WhatsApp ≈ 60M users in Turkey; 2021 privacy backlash drove (temporary) exodus to BiP/Signal/Telegram.
+- **Privacy + KVKK compliance is the core differentiator** — which makes shipping plaintext under
+  an E2E banner (Phase 0.1) an existential credibility issue, not just a feature gap.
+- Voice calls are culturally non-negotiable (Android live; iOS pending).
