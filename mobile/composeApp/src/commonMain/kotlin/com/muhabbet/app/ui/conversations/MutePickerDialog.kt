@@ -6,17 +6,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -55,6 +62,7 @@ fun MutePickerDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(min = MuhabbetSizes.MinTouchTarget)
                         .clickable {
                             onMuteDuration(key)
                             onDismiss()
@@ -62,17 +70,16 @@ fun MutePickerDialog(
                         .padding(vertical = MuhabbetSpacing.Medium),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    RadioButton(
-                        selected = false,
-                        onClick = {
-                            onMuteDuration(key)
-                            onDismiss()
-                        }
+                    Icon(
+                        imageVector = Icons.Outlined.NotificationsOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.width(MuhabbetSpacing.Large))
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = MuhabbetSpacing.Small)
+                        style = MaterialTheme.typography.bodyLarge
                     )
                 }
             }
