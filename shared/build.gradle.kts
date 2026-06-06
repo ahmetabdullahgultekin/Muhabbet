@@ -37,13 +37,13 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             // Serialization (JSON protocol shared between backend & mobile)
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
             // Coroutines
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
             // DateTime
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
         }
 
         commonTest.dependencies {
