@@ -567,3 +567,50 @@ data class LoginApprovalNotification(
     val ipAddress: String?,
     val createdAt: Long
 )
+
+// ─── Multi-Device Linking DTOs (Tier 2, NON-CRYPTO slice) ───────────────────
+// Additive & backwards-compatible. No private key material is ever carried here — only the QR
+// link token and the companion's OPAQUE PUBLIC bundle (consumed later by the crypto slice).
+
+/** Response to POST /devices/link/begin — what the primary renders inside the QR code. */
+@Serializable
+data class DeviceLinkBeginResponse(
+    val sessionId: String,
+    val linkToken: String,
+    val expiresAt: String
+)
+
+/** Body of POST /devices/link/complete — sent by the companion after scanning the QR. */
+@Serializable
+data class DeviceLinkCompleteRequest(
+    val linkToken: String,
+    val platform: String,                 // web | desktop | android | ios
+    val deviceName: String? = null,
+    /** Opaque PUBLIC prekey bundle; null until the libsignal-backed crypto slice ships. */
+    val publicBundle: String? = null
+)
+
+/** A linked device as shown on the management screen / returned by complete & revoke. */
+@Serializable
+data class LinkedDeviceResponse(
+    val id: String,
+    val platform: String,
+    val displayName: String?,
+    val isPrimary: Boolean,
+    val isCompanion: Boolean,
+    val linkedByDeviceId: String? = null,
+    val lastActiveAt: String? = null,
+    val createdAt: String,
+    val revoked: Boolean = false
+)
+
+/**
+ * The payload the primary encodes into the QR image. Kept tiny and JSON-serializable so the
+ * companion's scanner can decode it directly. `v` lets us evolve the QR format additively.
+ */
+@Serializable
+data class DeviceLinkQrPayload(
+    val v: Int = 1,
+    val linkToken: String,
+    val apiBaseUrl: String
+)

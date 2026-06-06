@@ -33,7 +33,17 @@ class DeviceJpaEntity(
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "is_primary", nullable = false)
-    var isPrimary: Boolean = false
+    var isPrimary: Boolean = false,
+
+    // ─── Multi-device (Tier 2, additive nullable columns from V18) ───
+    @Column(name = "linked_by_device_id")
+    var linkedByDeviceId: UUID? = null,
+
+    @Column(name = "display_name")
+    var displayName: String? = null,
+
+    @Column(name = "revoked_at")
+    var revokedAt: Instant? = null
 ) {
     fun toDomain(): Device = Device(
         id = id,
@@ -43,7 +53,10 @@ class DeviceJpaEntity(
         pushToken = pushToken,
         lastActiveAt = lastActiveAt,
         createdAt = createdAt,
-        isPrimary = isPrimary
+        isPrimary = isPrimary,
+        linkedByDeviceId = linkedByDeviceId,
+        displayName = displayName,
+        revokedAt = revokedAt
     )
 
     companion object {
@@ -55,7 +68,10 @@ class DeviceJpaEntity(
             pushToken = device.pushToken,
             lastActiveAt = device.lastActiveAt,
             createdAt = device.createdAt,
-            isPrimary = device.isPrimary
+            isPrimary = device.isPrimary,
+            linkedByDeviceId = device.linkedByDeviceId,
+            displayName = device.displayName,
+            revokedAt = device.revokedAt
         )
     }
 }
