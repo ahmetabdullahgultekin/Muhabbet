@@ -17,8 +17,10 @@ logging:
 management:
   endpoint:
     health:
-      show-details: always
-      show-components: always
+      # when-authorized: unauthenticated callers see only {status: UP/DOWN}; full DB/Redis/disk/SSL
+      # component detail is no longer leaked to the public internet (P0-6).
+      show-details: when-authorized
+      show-components: when-authorized
 
 sentry:
   dsn: ${SENTRY_DSN:}
