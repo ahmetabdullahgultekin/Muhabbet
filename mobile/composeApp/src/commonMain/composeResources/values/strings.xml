@@ -581,4 +581,24 @@
     <string name="format_number_list">Numaralı liste</string>
     <string name="media_decrypt_failed">Medyanın şifresi çözülemedi</string>
     <string name="media_decrypt_failed_detail">Bu medya güvenli bir şekilde çözülemedi ve değiştirilmiş olabilir.</string>
+
+    <!-- Multi-device / Linked devices (Tier 2) -->
+    <string name="linked_devices_title">Bağlı cihazlar</string>
+    <string name="linked_devices_empty">Henüz bağlı cihaz yok</string>
+    <string name="linked_devices_link_new">Cihaz bağla</string>
+    <string name="linked_devices_this_device">Bu cihaz</string>
+    <string name="linked_devices_primary">Birincil cihaz</string>
+    <string name="linked_devices_companion">Bağlı cihaz</string>
+    <string name="linked_devices_last_active">Son etkinlik: %1$s</string>
+    <string name="linked_devices_revoke">Cihazı kaldır</string>
+    <string name="linked_devices_revoke_confirm">Bu cihazın bağlantısını kaldırmak istediğinize emin misiniz?</string>
+    <string name="linked_devices_revoked">Cihaz kaldırıldı</string>
+    <string name="link_device_scan_title">Cihazı bağla</string>
+    <string name="link_device_scan_instructions">Diğer cihazda gösterilen QR kodunu tarayın</string>
+    <string name="link_device_show_qr_title">Bu QR kodunu tarayın</string>
+    <string name="link_device_show_qr_instructions">Yeni cihazda Muhabbet\'i açın ve bu kodu tarayın. Kod kısa sürede geçersiz olur.</string>
+    <string name="link_device_expires_in">Kod %1$s saniye içinde geçersiz olacak</string>
+    <string name="link_device_success">Cihaz başarıyla bağlandı</string>
+    <string name="link_device_failed">Cihaz bağlanamadı</string>
+    <string name="link_device_crypto_pending">Uçtan uca şifreli mesaj senkronizasyonu bu sürümde henüz etkin değil</string>
 </resources>

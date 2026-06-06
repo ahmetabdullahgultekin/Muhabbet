@@ -130,6 +130,15 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     LOGIN_APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Giriş onayı bulunamadı"),
     LOGIN_APPROVAL_EXPIRED(HttpStatus.GONE, "Giriş onayının süresi dolmuş"),
 
+    // Multi-device linking (Tier 2)
+    DEVICE_LINK_TOKEN_INVALID(HttpStatus.NOT_FOUND, "Geçersiz veya bulunamayan bağlantı kodu"),
+    DEVICE_LINK_EXPIRED(HttpStatus.GONE, "Cihaz bağlama kodunun süresi dolmuş"),
+    DEVICE_LINK_ALREADY_USED(HttpStatus.CONFLICT, "Bu bağlantı kodu zaten kullanıldı"),
+    DEVICE_LINK_LIMIT_REACHED(HttpStatus.CONFLICT, "Bağlı cihaz sınırına ulaşıldı"),
+    DEVICE_NOT_FOUND(HttpStatus.NOT_FOUND, "Cihaz bulunamadı"),
+    DEVICE_CANNOT_REVOKE_PRIMARY(HttpStatus.BAD_REQUEST, "Birincil cihaz buradan kaldırılamaz"),
+    DEVICE_LINKING_DISABLED(HttpStatus.FORBIDDEN, "Çoklu cihaz özelliği etkin değil"),
+
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),
