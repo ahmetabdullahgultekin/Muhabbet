@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-    <item
-        android:gravity="center"
-        android:width="120dp"
-        android:height="120dp">
-        <shape android:shape="oval">
-            <solid android:color="#1B5E20" />
-        </shape>
-    </item>
-</layer-list>
+<!-- Plain solid window background. A previous version drew a centered green oval
+     here, which (because the Compose content is transparent and never paints an
+     opaque background) bled THROUGH the first composable and rendered as a stray
+     green circle overlapping the login screen. Keep this a flat color only. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/white" />
+</shape>
