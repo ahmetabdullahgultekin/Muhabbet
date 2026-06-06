@@ -117,7 +117,9 @@ data class Conversation(
 @Serializable
 data class UserProfile(
     val id: String,
-    val phoneNumber: String,
+    // Nullable: only the caller's own profile (GET /users/me) exposes the phone number.
+    // Public lookups (GET /users/{id}) return null to prevent phone-number harvesting (KVKK).
+    val phoneNumber: String? = null,
     val displayName: String?,
     val avatarUrl: String?,
     val about: String? = null,

@@ -35,25 +35,55 @@ class UserController(
 
     @GetMapping("/{userId}")
     fun getUserById(@PathVariable userId: UUID): ResponseEntity<ApiResponse<UserProfile>> {
+        val requesterId = AuthenticatedUser.currentUserId()
         val user = userRepository.findById(userId)
-            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Kullanıcı bulunamadı")
+            ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 
-        val isOnline = presencePort.isOnline(userId)
-        val lastSeen = user.lastSeenAt?.let {
-            kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong())
-        }
+        val presence = resolvePresenceVisibility(user, requesterId)
 
         return ApiResponseBuilder.ok(
             UserProfile(
                 id = user.id.toString(),
-                phoneNumber = user.phoneNumber,
+                // Phone number is NOT exposed on foreign-user lookups (KVKK P0-9); only GET /me returns it.
+                phoneNumber = null,
                 displayName = user.displayName,
                 avatarUrl = user.avatarUrl,
                 about = user.about,
-                isOnline = isOnline,
-                lastSeenAt = lastSeen
+                isOnline = presence.isOnline,
+                lastSeenAt = presence.lastSeen
             )
         )
+    }
+
+    private data class PresenceView(
+        val isOnline: Boolean,
+        val lastSeen: kotlinx.datetime.Instant?
+    )
+
+    /**
+     * Applies the target user's onlineStatusVisibility to their presence/last-seen.
+     * - "everyone": visible to any authenticated caller
+     * - "contacts": visible only to users who share a conversation with the target
+     * - "nobody": hidden from everyone except the user themselves
+     * The user always sees their own presence.
+     */
+    private fun resolvePresenceVisibility(
+        user: com.muhabbet.auth.domain.model.User,
+        requesterId: UUID
+    ): PresenceView {
+        val visible = when (user.onlineStatusVisibility.lowercase()) {
+            "everyone" -> true
+            "nobody" -> requesterId == user.id
+            "contacts" -> requesterId == user.id ||
+                requesterId in conversationRepository.findAllContactUserIds(user.id)
+            else -> false
+        }
+        if (!visible) return PresenceView(isOnline = false, lastSeen = null)
+
+        val lastSeen = user.lastSeenAt?.let {
+            kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong())
+        }
+        return PresenceView(isOnline = presencePort.isOnline(user.id), lastSeen = lastSeen)
     }
 
     @GetMapping("/{userId}/detail")
@@ -62,10 +92,7 @@ class UserController(
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 
-        val isOnline = presencePort.isOnline(userId)
-        val lastSeen = user.lastSeenAt?.let {
-            kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong())
-        }
+        val presence = resolvePresenceVisibility(user, currentUserId)
 
         // Find mutual groups: conversations where both users are members and type is GROUP
         val myConversations = conversationRepository.findConversationsByUserId(currentUserId)
@@ -95,12 +122,13 @@ class UserController(
         return ApiResponseBuilder.ok(
             UserProfileDetailResponse(
                 id = user.id.toString(),
-                phoneNumber = user.phoneNumber,
+                // Phone number is NOT exposed on foreign-user lookups (KVKK P0-9).
+                phoneNumber = null,
                 displayName = user.displayName,
                 avatarUrl = user.avatarUrl,
                 about = user.about,
-                isOnline = isOnline,
-                lastSeenAt = lastSeen?.toString(),
+                isOnline = presence.isOnline,
+                lastSeenAt = presence.lastSeen?.toString(),
                 mutualGroups = mutualGroups,
                 sharedMediaCount = sharedMediaCount
             )

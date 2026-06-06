@@ -327,7 +327,8 @@ data class CallHistoryResponse(
 @Serializable
 data class UserProfileDetailResponse(
     val id: String,
-    val phoneNumber: String,
+    // Nullable: never populated for foreign-user lookups — phone numbers stay private (KVKK P0-9).
+    val phoneNumber: String? = null,
     val displayName: String?,
     val avatarUrl: String?,
     val about: String? = null,
