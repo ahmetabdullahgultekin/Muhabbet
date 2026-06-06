@@ -1,5 +1,6 @@
 package com.muhabbet.shared.config
 
+import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
@@ -10,6 +11,7 @@ import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
 import com.muhabbet.auth.domain.service.ContactSyncService
+import com.muhabbet.auth.domain.service.DeviceLinkingService
 import com.muhabbet.auth.domain.service.LoginApprovalService
 import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
@@ -57,7 +59,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties::class, OtpProperties::class, SmsProperties::class, MediaProperties::class)
+@EnableConfigurationProperties(
+    JwtProperties::class,
+    OtpProperties::class,
+    SmsProperties::class,
+    MediaProperties::class,
+    MultiDeviceProperties::class
+)
 class AppConfig {
 
     @Bean
@@ -285,6 +293,15 @@ class AppConfig {
         loginApprovalRepository: LoginApprovalRepository
     ): LoginApprovalService = LoginApprovalService(
         loginApprovalRepository = loginApprovalRepository
+    )
+
+    @Bean
+    fun deviceLinkingService(
+        deviceLinkSessionRepository: DeviceLinkSessionRepository,
+        deviceRepository: DeviceRepository
+    ): DeviceLinkingService = DeviceLinkingService(
+        deviceLinkSessionRepository = deviceLinkSessionRepository,
+        deviceRepository = deviceRepository
     )
 
     @Bean

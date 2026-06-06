@@ -20,4 +20,10 @@ class DevicePersistenceAdapter(
 
     override fun findByUserId(userId: UUID): List<Device> =
         springDataDeviceRepository.findByUserId(userId).map { it.toDomain() }
+
+    override fun findById(id: UUID): Device? =
+        springDataDeviceRepository.findById(id).orElse(null)?.toDomain()
+
+    override fun findActiveByUserId(userId: UUID): List<Device> =
+        springDataDeviceRepository.findByUserIdAndRevokedAtIsNull(userId).map { it.toDomain() }
 }

@@ -1,11 +1,28 @@
 # Muhabbet — WhatsApp-Parity Roadmap
 
 > **Vision:** *"Muhabbet should become WhatsApp tier by tier, iter by iter."*
-> **Last updated:** 2026-06-05 (§1.2 DONE + §1.5 DONE — all 6 dead buttons wired / PR #35 + PR #36).
+> **Last updated:** 2026-06-06 (Tier 1 = DONE; **Tier 2 in flight** — multi-device linked-sessions
+> NON-CRYPTO scaffolding shipped behind `multi-device.enabled` (default OFF), per-device crypto
+> transfer BLOCKED on the libsignal upgrade — see §"Tier 2.4" + §"The libsignal block").
 > **Tactical companion:** [`TODO.md`](TODO.md) — P0/P1 are aligned to **Tier 1** below.
 > **History:** prior launch-blocker framing is preserved in §"History & Current State" and in
 > `CHANGELOG.md` + `docs/engineering-roadmap.md`. The 2026-03-14 feature-by-feature comparison
 > lives in `docs/whatsapp-feature-gap-analysis.md` (still accurate; this file sequences it).
+> The Tier-2 multi-device design lives in [`docs/design/T2-multi-device-linked-sessions.md`].
+
+---
+
+## ⛔ The libsignal block (gating dependency for all Tier-2 crypto)
+
+`org.signal:libsignal-android` is **frozen at `0.86.5`** on Maven Central (Signal now publishes
+newer versions, latest `0.94.4`, **only** to their own Maven repo, which PR #42 added). Worse, the
+`androidMain` Signal code targets a **≤0.70-era API** and does **not compile against any current
+pin** (Curve removed, `IdentityKeyStore.saveIdentity` contract changed, `PreKeyBundle` now needs
+the Kyber form, `SessionCipher` needs a `localAddress` arg since 0.91). No JVM/common test exercises
+real libsignal, and `androidMain` can't be built on the CI host (uncached Firebase). Therefore **any
+work that needs real per-device Signal session export/import / multi-device key transfer is
+BLOCKED** until an owner-driven, emulator-verified libsignal rewrite. Full detail: `CLAUDE.md` →
+"libsignal upgrade (BLOCKED)". E2E is flag-OFF in prod, so this is latent, not a live regression.
 
 ---
 
@@ -63,7 +80,7 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 | E2E — safety numbers / key verify UI | **Missing (backend ready)** | `WsMessage.SecurityKeyChanged` + `EncryptionService` keyVersion bump exist; no client UI |
 | Voice / video calls | **Partial** | Android **wired to LiveKit** (`CallEngine.android.kt` connect/mute/speaker real); signaling `CallSignalingService.kt`; **iOS stub** (`CallEngine.ios.kt`); no group calls |
 | Group voice/video calls | **Missing** | `WsMessage.GroupCallStarted` defined, no multi-party impl |
-| Multi-device | **Partial** | `Device` model + `LoginApprovalService` (login approval), per-device keys in `encryption_keys`; **no companion-device message-sync protocol** (envelope carries `senderDeviceId` but server doesn't fan-out per device) |
+| Multi-device | **Partial — scaffolding shipped, crypto blocked** | NON-CRYPTO slice live behind `multi-device.enabled` (default OFF): `device_link_sessions` + companion columns (`V18`), `DeviceLinkController` (begin/complete/list/revoke), `DeviceLinkingService`, mobile `LinkedDevicesScreen`/`LinkDeviceScreen`. **Per-device Signal session transfer + fan-out BLOCKED on libsignal** — stubbed at `DeviceLinkCrypto` (NotYetImplemented). See Tier 2.4 |
 | Two-step verification (PIN) | **Partial** | `TwoStepVerificationService.kt` exists; confirm wired into OTP login + UI (gap-analysis §1.3) |
 | Backups (server-side, at scale) | **Partial** | `BackupService.createBackup` now produces a **real MinIO JSON archive** + presigned URL + counts (PR #31); **no restore/download endpoint, no media blobs** |
 | Chat archive / mute UI | **Partial** | `Conversation.isArchived/isMuted` flags exist; mute-duration picker UI gap (gap-analysis §1.4) |
@@ -71,7 +88,12 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 
 ---
 
-## Tier 1 — Core-messaging hardening & trust  *(= public-launch bar; P0/P1 in TODO.md)*
+## Tier 1 — Core-messaging hardening & trust  — **DONE (2026-06-06)**  *(= public-launch bar)*
+
+All Tier-1 engineering slices are landed: §1.1 E2E text wired (flag OFF, PR #31), §1.2 receipt
+correctness locked (PR #35), §1.3 media robustness, §1.4 media-blob E2E wired (flag OFF), §1.5 all
+six dead buttons wired (PR #35 + #36). The remaining §1.6 items (signed AAB, pen-test, Sentry DSN)
+are **operator/ops tasks**, not code — tracked in `TODO.md` P0/P1. Detail below is kept for record.
 
 Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
 
@@ -181,10 +203,38 @@ Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
   **DONE =** typing stops within 5s of inactivity; last-seen respects `NOBODY/CONTACTS`.
 ### 2.3 Status / stories completeness
 - Privacy (who-can-see), reply-to-status, view receipts. `StatusService.kt`.
-### 2.4 Multi-device sync protocol
-- Companion device receives history + new messages; per-device E2E session selection
-  (`E2EEnvelope.senderDeviceId` already on the wire; server must fan-out per device).
-  **DONE =** a second logged-in device sees new + recent messages.
+### 2.4 Multi-device linked sessions — **IN FLIGHT** (design: `docs/design/T2-multi-device-linked-sessions.md`)
+The headline Tier-2 feature: a primary phone links companion devices (Web/Desktop/2nd phone), each
+with its own Signal identity, and messages fan out to all of a user's devices. **The crypto half is
+BLOCKED on libsignal (see top of file); the non-crypto half is buildable now and partly shipped.**
+
+Shipped behind `multi-device.enabled` (backend) / `MultiDeviceConfig.ENABLED` (mobile), **default
+OFF** → single-device path byte-identical. Feature flag = kill-switch (no redeploy).
+
+**Buildable NOW (no libsignal) — partly DONE:**
+- ✅ **Data model** — `V18__multi_device_linking.sql` (additive): companion columns on `devices`
+  (`linked_by_device_id`, `display_name`, `revoked_at`) + `device_link_sessions` (QR handshake).
+- ✅ **Backend endpoints** — `DeviceLinkController` `POST /api/v1/devices/link/{begin,complete}`,
+  `GET /api/v1/devices/link`, `POST /api/v1/devices/link/{id}/revoke`; `DeviceLinkingService`
+  (token issue/verify, companion registry write, 4-companion cap, soft-revoke). Flag-gated → 403
+  when OFF. 23 backend unit tests + 5 shared tests green.
+- ✅ **Transport/UX scaffolding (mobile)** — `DeviceLinkRepository`, `LinkedDevicesScreen`
+  (list + revoke + link FAB), `LinkDeviceScreen` (QR payload via `DeviceLinkQrPayload`), i18n TR+EN.
+- ☐ **Self-sync addressing / per-device delivery rows** (`message_device_delivery`) — schema in the
+  design doc; deferrable but *non-crypto* (can land before the block clears).
+
+**BLOCKED on libsignal (the crypto seam):**
+- ☐ **Per-device Signal session transfer (X3DH-on-link)** — the companion establishing its own
+  identity + session against the primary. Stubbed at the `DeviceLinkCrypto` /
+  `NotYetImplementedDeviceLinkCrypto` boundary (shared module) — it **throws**, never fakes crypto.
+- ☐ **Fan-out encrypt-per-device** + **forward-secrecy on revoke** (`dropSession`).
+- ☐ Platform QR **render/scan** (Android CameraX/ML-Kit, iOS AVFoundation) — `expect`/adapter seam
+  noted in `LinkDeviceScreen`; not crypto-blocked but not yet wired.
+
+**DONE (this slice) =** with the flag ON, a companion can be registered, listed, and revoked end to
+end via the API + management screen; with the flag OFF everything is byte-identical to single-device.
+**DONE (full 2.4) =** a second logged-in device decrypts + sees new and recent messages — gated on
+the libsignal block clearing.
 ### 2.5 iOS catch-up: APNs, Firebase-auth decision, libsignal bridge
 - `PushTokenProvider.ios.kt`, `FirebasePhoneAuth.ios.kt`, `PlatformModule.ios.kt` (NoOp E2E).
   **DONE =** iOS push delivers; iOS login works via chosen path (decision in `docs/decisions.md`);

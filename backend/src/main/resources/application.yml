@@ -123,6 +123,13 @@ muhabbet:
     thumbnail-width: 320
     thumbnail-height: 320
 
+  multi-device:
+    # Tier-2 linked-device endpoints. DEFAULT false = single-device path unchanged; the QR
+    # link / list / revoke endpoints return 403 until flipped. Kill-switch is this flag (no
+    # redeploy needed if it is surfaced via env). Per-device Signal session transfer is a
+    # separate, still-blocked crypto slice (see DeviceLinkCrypto / CLAUDE.md libsignal block).
+    enabled: ${MULTI_DEVICE_ENABLED:false}
+
   firebase:
     enabled: ${FIREBASE_ENABLED:false}
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}   # Service account JSON, or empty for GCP ADC

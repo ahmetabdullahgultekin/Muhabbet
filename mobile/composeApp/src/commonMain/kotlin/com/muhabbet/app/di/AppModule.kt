@@ -7,6 +7,7 @@ import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.app.data.repository.ChannelRepository
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.data.repository.EncryptionRepository
 import com.muhabbet.app.data.repository.GroupRepository
@@ -70,6 +71,8 @@ fun appModule(): Module = module {
     single { CommunityRepository(apiClient = get()) }
     single { InviteLinkRepository(apiClient = get()) }
     single { WallpaperRepository(tokenStorage = get()) }
+    // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
+    single { DeviceLinkRepository(apiClient = get()) }
     // E2EKeyManager and EncryptionPort are provided by platform modules:
     // Android: SignalKeyManager + SignalEncryption (libsignal-android)
     // iOS: NoOpKeyManager + NoOpEncryption (stub)

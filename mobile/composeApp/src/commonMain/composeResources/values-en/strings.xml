@@ -581,4 +581,24 @@
     <string name="format_number_list">Numbered list</string>
     <string name="media_decrypt_failed">Media couldn\'t be decrypted</string>
     <string name="media_decrypt_failed_detail">This media couldn\'t be securely decrypted and may have been tampered with.</string>
+
+    <!-- Multi-device / Linked devices (Tier 2) -->
+    <string name="linked_devices_title">Linked devices</string>
+    <string name="linked_devices_empty">No linked devices yet</string>
+    <string name="linked_devices_link_new">Link a device</string>
+    <string name="linked_devices_this_device">This device</string>
+    <string name="linked_devices_primary">Primary device</string>
+    <string name="linked_devices_companion">Linked device</string>
+    <string name="linked_devices_last_active">Last active: %1$s</string>
+    <string name="linked_devices_revoke">Remove device</string>
+    <string name="linked_devices_revoke_confirm">Are you sure you want to unlink this device?</string>
+    <string name="linked_devices_revoked">Device removed</string>
+    <string name="link_device_scan_title">Link a device</string>
+    <string name="link_device_scan_instructions">Scan the QR code shown on the other device</string>
+    <string name="link_device_show_qr_title">Scan this QR code</string>
+    <string name="link_device_show_qr_instructions">Open Muhabbet on the new device and scan this code. It expires shortly.</string>
+    <string name="link_device_expires_in">Code expires in %1$s seconds</string>
+    <string name="link_device_success">Device linked successfully</string>
+    <string name="link_device_failed">Couldn\'t link the device</string>
+    <string name="link_device_crypto_pending">End-to-end encrypted message sync isn\'t enabled yet in this build</string>
 </resources>
