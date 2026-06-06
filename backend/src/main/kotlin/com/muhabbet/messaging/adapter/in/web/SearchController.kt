@@ -1,7 +1,7 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
-import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.`in`.SearchMessagesUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.model.Message as SharedMessage
@@ -17,7 +17,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/search")
 class SearchController(
-    private val messageRepository: MessageRepository,
+    private val searchMessagesUseCase: SearchMessagesUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase
 ) {
 
@@ -29,11 +29,12 @@ class SearchController(
         @RequestParam(defaultValue = "0") offset: Int
     ): ResponseEntity<ApiResponse<PaginatedResponse<SharedMessage>>> {
         val userId = AuthenticatedUser.currentUserId()
+        val likeQuery = "%${q.lowercase()}%"
 
         val results = if (conversationId != null) {
-            messageRepository.searchInConversation(conversationId, "%${q.lowercase()}%", limit, offset)
+            searchMessagesUseCase.searchInConversation(conversationId, userId, likeQuery, limit, offset)
         } else {
-            messageRepository.searchGlobal("%${q.lowercase()}%", limit, offset)
+            searchMessagesUseCase.searchGlobal(userId, likeQuery, limit, offset)
         }
 
         val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(results, userId)

@@ -105,14 +105,14 @@ class MessagePersistenceAdapter(
         return messageRepo.findMediaByConversationId(conversationId, contentTypes, pageable).map { it.toDomain() }
     }
 
-    override fun searchInConversation(conversationId: UUID, query: String, limit: Int, offset: Int): List<Message> {
+    override fun searchInConversation(conversationId: UUID, userId: UUID, query: String, limit: Int, offset: Int): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
-        return messageRepo.searchInConversation(conversationId, query, pageable).map { it.toDomain() }
+        return messageRepo.searchInConversation(conversationId, userId, query, pageable).map { it.toDomain() }
     }
 
-    override fun searchGlobal(query: String, limit: Int, offset: Int): List<Message> {
+    override fun searchGlobal(userId: UUID, query: String, limit: Int, offset: Int): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
-        return messageRepo.searchGlobal(query, pageable).map { it.toDomain() }
+        return messageRepo.searchGlobal(userId, query, pageable).map { it.toDomain() }
     }
 
     override fun markViewOnceViewed(messageId: UUID, viewedBy: UUID) {

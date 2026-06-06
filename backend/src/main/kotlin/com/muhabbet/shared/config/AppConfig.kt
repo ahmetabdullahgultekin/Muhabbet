@@ -49,6 +49,7 @@ import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.messaging.domain.service.PollService
 import com.muhabbet.messaging.domain.service.ReactionService
+import com.muhabbet.messaging.domain.service.SearchService
 import com.muhabbet.messaging.domain.service.StatusService
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
@@ -140,6 +141,15 @@ class AppConfig {
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         messageBroadcaster = messageBroadcaster
+    )
+
+    @Bean
+    fun searchService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository
+    ): SearchService = SearchService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository
     )
 
     @Bean
