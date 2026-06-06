@@ -38,6 +38,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     MEDIA_UNSUPPORTED_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Desteklenmeyen dosya türü"),
     MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "Dosya bulunamadı veya süresi dolmuş"),
     MEDIA_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Dosya yükleme başarısız"),
+    MEDIA_FORBIDDEN(HttpStatus.FORBIDDEN, "Bu dosyaya erişim yetkiniz yok"),
 
     // Contacts
     CONTACT_SYNC_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Tek seferde en fazla 1000 kişi senkronize edilebilir"),

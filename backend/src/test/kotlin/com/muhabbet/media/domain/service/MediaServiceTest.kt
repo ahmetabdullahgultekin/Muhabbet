@@ -28,6 +28,7 @@ class MediaServiceTest {
     private lateinit var mediaStoragePort: MediaStoragePort
     private lateinit var mediaFileRepository: MediaFileRepository
     private lateinit var thumbnailPort: ThumbnailPort
+    private lateinit var mediaAccessPolicy: com.muhabbet.media.domain.port.out.MediaAccessPolicy
     private lateinit var mediaService: MediaService
 
     private val uploaderId = UUID.randomUUID()
@@ -39,11 +40,13 @@ class MediaServiceTest {
         mediaStoragePort = mockk(relaxed = true)
         mediaFileRepository = mockk()
         thumbnailPort = mockk()
+        mediaAccessPolicy = mockk(relaxed = true)
 
         mediaService = MediaService(
             mediaStoragePort = mediaStoragePort,
             mediaFileRepository = mediaFileRepository,
             thumbnailPort = thumbnailPort,
+            mediaAccessPolicy = mediaAccessPolicy,
             thumbnailWidth = thumbnailWidth,
             thumbnailHeight = thumbnailHeight
         )
@@ -460,7 +463,7 @@ class MediaServiceTest {
             every { mediaStoragePort.getPresignedUrl("images/$uploaderId/$mediaId.jpg") } returns "https://cdn.example.com/images/presigned-url"
             every { mediaStoragePort.getPresignedUrl("thumbnails/$uploaderId/$mediaId.jpg") } returns "https://cdn.example.com/thumbnails/presigned-url"
 
-            val result = mediaService.getPresignedUrl(mediaId)
+            val result = mediaService.getPresignedUrl(mediaId, uploaderId)
 
             assertEquals("https://cdn.example.com/images/presigned-url", result.url)
             assertEquals("https://cdn.example.com/thumbnails/presigned-url", result.thumbnailUrl)
@@ -481,7 +484,7 @@ class MediaServiceTest {
             every { mediaFileRepository.findById(mediaId) } returns mediaFile
             every { mediaStoragePort.getPresignedUrl("audio/$uploaderId/$mediaId.ogg") } returns "https://cdn.example.com/audio/presigned-url"
 
-            val result = mediaService.getPresignedUrl(mediaId)
+            val result = mediaService.getPresignedUrl(mediaId, uploaderId)
 
             assertEquals("https://cdn.example.com/audio/presigned-url", result.url)
             assertNull(result.thumbnailUrl)
@@ -494,7 +497,7 @@ class MediaServiceTest {
             every { mediaFileRepository.findById(mediaId) } returns null
 
             val ex = assertThrows<BusinessException> {
-                mediaService.getPresignedUrl(mediaId)
+                mediaService.getPresignedUrl(mediaId, uploaderId)
             }
             assertEquals(ErrorCode.MEDIA_NOT_FOUND, ex.errorCode)
         }

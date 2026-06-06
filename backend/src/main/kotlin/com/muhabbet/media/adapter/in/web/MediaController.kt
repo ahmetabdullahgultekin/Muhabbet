@@ -46,7 +46,7 @@ class MediaController(
             )
         )
 
-        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id)
+        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id, userId)
 
         val response = MediaUploadResponse(
             mediaId = mediaFile.id.toString(),
@@ -77,7 +77,7 @@ class MediaController(
             )
         )
 
-        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id)
+        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id, userId)
 
         val response = MediaUploadResponse(
             mediaId = mediaFile.id.toString(),
@@ -107,7 +107,7 @@ class MediaController(
             )
         )
 
-        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id)
+        val urls = getMediaUrlUseCase.getPresignedUrl(mediaFile.id, userId)
 
         val response = MediaUploadResponse(
             mediaId = mediaFile.id.toString(),
@@ -131,7 +131,8 @@ class MediaController(
     fun getPresignedUrl(
         @PathVariable mediaId: UUID
     ): ResponseEntity<ApiResponse<MediaUploadResponse>> {
-        val mediaFile = getMediaUrlUseCase.getPresignedUrl(mediaId)
+        val userId = AuthenticatedUser.currentUserId()
+        val mediaFile = getMediaUrlUseCase.getPresignedUrl(mediaId, userId)
 
         val response = MediaUploadResponse(
             mediaId = mediaId.toString(),
