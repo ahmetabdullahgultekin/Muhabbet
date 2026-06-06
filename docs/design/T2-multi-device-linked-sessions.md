@@ -2,12 +2,25 @@
 
 | | |
 |---|---|
-| **Status** | Draft — for review |
+| **Status** | **In progress** — S1 NON-CRYPTO scaffolding shipped 2026-06-06 (data model + endpoints + UX); crypto BLOCKED on libsignal |
 | **Author** | Engineering (2026-06-05) |
 | **Reviewers** | (owner) |
-| **Feature flag** | `multiDevice.enabled` (default **OFF**) |
-| **ADRs** | [ADR-0007 Companion-device trust model](../adr/0007-companion-device-trust.md), [ADR-0008 Per-device Signal identity & fan-out](../adr/0008-per-device-fanout.md) |
-| **Tracking** | ROADMAP T2.1 → ships as 4 vertical slices (S1–S4) |
+| **Feature flag** | `multi-device.enabled` (backend) / `MultiDeviceConfig.ENABLED` (mobile) — default **OFF** |
+| **ADRs** | [ADR-0007 Companion-device trust model](../adr/0007-companion-device-trust.md) (non-crypto slice) |
+| **Tracking** | ROADMAP T2.4 → ships as 4 vertical slices (S1–S4) |
+
+> **2026-06-06 implementation note.** The *non-crypto* part of **S1** is shipped behind the flag
+> (default OFF): the device registry (`V18__multi_device_linking.sql`), the QR link-session
+> handshake state machine (`DeviceLinkingService` + `DeviceLinkController`
+> `POST /devices/link/{begin,complete}`, `GET /devices/link`, `POST /devices/link/{id}/revoke`),
+> and the mobile transport/UX (`DeviceLinkRepository`, `LinkedDevicesScreen`, `LinkDeviceScreen`).
+> The **crypto** part of S1 (per-device X3DH-on-link) and all of S2–S4 fan-out/forward-secrecy are
+> **BLOCKED on the libsignal upgrade** and stubbed at the `DeviceLinkCrypto` /
+> `NotYetImplementedDeviceLinkCrypto` boundary (shared module) — which **throws**, never fakes
+> crypto. The migration that actually shipped is **`V18__multi_device_linking.sql`** (the §5
+> `message_device_delivery` table is deferred to the S2 fan-out slice, which is non-crypto but not
+> yet built). The companion's PUBLIC bundle is accepted + stored opaquely so the future crypto slice
+> has what it needs without any encryption running today.
 
 ## 1. Context & problem
 Muhabbet today binds one account to **one** device: a single libsignal identity, one WS session per user, messages addressed to a user resolve to that one device. WhatsApp's #1 retention feature is **companion devices** (Web/Desktop/secondary phone) that share the account, each with its own E2E identity, where every message fans out to *all* of a user's devices and history syncs. This is the largest single parity gap and is a prerequisite for the Web/Desktop client (ROADMAP T2.4).

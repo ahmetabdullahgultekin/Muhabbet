@@ -246,6 +246,66 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > no-redeploy kill-switch: `docs/e2e-rollout-runbook.md`. **Do not flip any flag or deploy without
 > sign-off + crypto review.**
 
+### libsignal upgrade (BLOCKED — the gating dependency for all Tier-2 crypto)
+
+The Android E2E primitive is pinned at `org.signal:libsignal-android:0.86.5`
+(`mobile/composeApp/build.gradle.kts`):
+1. **Distribution moved.** Signal stopped publishing libsignal to Maven Central (frozen at
+   `0.86.5`); every version `> 0.86.5` (latest `0.94.4`) is on Signal's own repo
+   `https://build-artifacts.signal.org/libraries/maven/`, added to `settings.gradle.kts` by PR #42
+   (additive, non-crypto — PR #42 did **not** bump the version).
+2. **`androidMain` Signal code does NOT compile against any current pin.** `SignalKeyManager.kt` +
+   the two stores target a **≤0.70-era** API and were never compile-verified (host can't build
+   `androidMain` — Firebase; no JVM/common test exercises real libsignal). Breakages: `Curve`
+   removed (~0.76); `IdentityKeyStore.saveIdentity` now returns `IdentityChange` (~0.73);
+   `PreKeyBundle` needs the 11-arg Kyber form; `SessionCipher` needs a `localAddress` arg (since
+   0.91). Fixing these is a crypto-correctness rewrite that **cannot be compiled or two-device
+   round-trip-tested on this host**, so the version stays at `0.86.5` pending an owner-driven,
+   emulator-verified rewrite. E2E is flag-OFF in prod, so this is **latent, not a live regression**.
+
+**Boundary for any agent:** do NOT bump libsignal or implement per-device session crypto here — it
+is unverifiable on this host. Anything needing real Signal session export/import / multi-device key
+transfer is BLOCKED. "Do not guess crypto."
+
+### Multi-device linked sessions (Tier 2 — NON-CRYPTO slice shipped 2026-06-06, default OFF)
+
+The non-crypto half of companion-device linking is wired behind `muhabbet.multi-device.enabled`
+(backend, `application.yml` / `MultiDeviceProperties`) and `MultiDeviceConfig.ENABLED` (mobile),
+**default OFF** → single-device path byte-identical; the endpoints return 403 when OFF.
+- **Data model:** `backend/.../db/migration/V18__multi_device_linking.sql` (ADDITIVE — companion
+  columns on `devices` + `device_link_sessions` QR-handshake table). No key material stored.
+- **Backend:** `DeviceLinkingService` (token issue/verify, companion registry write, 4-device cap,
+  soft-revoke) + `DeviceLinkController` (`POST /api/v1/devices/link/{begin,complete}`,
+  `GET /api/v1/devices/link`, `POST /api/v1/devices/link/{id}/revoke`), full hexagonal chain in the
+  `auth` module. Wired in `AppConfig`.
+- **Mobile:** `DeviceLinkRepository`, `ui/settings/LinkedDevicesScreen` (list/revoke/link),
+  `ui/settings/LinkDeviceScreen` (QR payload via `DeviceLinkQrPayload`); i18n TR+EN.
+- **Crypto seam (BLOCKED):** `shared/.../port/DeviceLinkCrypto.kt` —
+  `NotYetImplementedDeviceLinkCrypto` **throws** on every method (per-device X3DH-on-link / fan-out /
+  forward-secrecy on revoke all gated on the libsignal block). **Never fake this with home-grown
+  crypto.** Design: `docs/design/T2-multi-device-linked-sessions.md`; ADR
+  `docs/adr/0007-companion-device-trust.md`.
+
+## Build & test (what actually runs on the CI host)
+
+- **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.4.1**, Kotlin 2.3.20, Spring Boot
+  4.0.6. Run `./gradlew` from repo root.
+- **Backend tests (reliable here):** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers +
+  ArchUnit. **369 tests, 0 failures** at HEAD (2026-06-06). Aggregate counts from
+  `backend/build/test-results/test/*.xml`.
+- **Shared KMP tests:** `./gradlew :shared:jvmTest` — **53 tests, 0 failures** at HEAD.
+- **Mobile compile canary (no emulator/Firebase needed):**
+  `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` — compiles commonMain (incl. the
+  Compose compiler + generated `Res.string.*`) and resolves KMP/iOS variants. Use this as the cheap
+  gate for mobile commonMain changes. **The full Android app / `assembleDebug` does NOT build on
+  this host** (`processDebugNavigationResources` needs uncached Firebase) and there is **no Android
+  emulator (no KVM)** — do backend + shared + commonMain-metadata only; don't assemble all KMP
+  targets.
+- **Module layout:** `backend/` (Spring Boot, hexagonal modules: auth · messaging · media ·
+  moderation · presence · notification + `shared/` config/security/web), `shared/` (KMP: model ·
+  dto · protocol/WsMessage · validation · port), `mobile/composeApp/` (CMP; androidMain full, iosMain
+  partial — calls/Signal/Firebase-auth/APNs stubbed). Migrations: `backend/.../db/migration/V##__*.sql`.
+
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
 2. ~~1:1 messaging (WebSocket)~~ — **DONE**
