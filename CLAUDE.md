@@ -246,6 +246,39 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > no-redeploy kill-switch: `docs/e2e-rollout-runbook.md`. **Do not flip any flag or deploy without
 > sign-off + crypto review.**
 
+### libsignal upgrade (BLOCKED — owner decision needed)
+
+The Android E2E primitive is pinned at `org.signal:libsignal-android:0.86.5`
+(`mobile/composeApp/build.gradle.kts`). Two facts surfaced during the 2026-06-05 currency-upgrade attempt:
+
+1. **Distribution moved.** Signal stopped publishing libsignal to Maven Central; it is **frozen at
+   `0.86.5`** there. Every version `> 0.86.5` (latest is **`0.94.4`**, 2026-06-02) is published **only**
+   to Signal's own repo `https://build-artifacts.signal.org/libraries/maven/`. That repo is now added
+   to `settings.gradle.kts` (additive, non-crypto) so a future bump can resolve — this is the only
+   change shipped by the upgrade PR.
+
+2. **`androidMain` Signal code does NOT compile against its own current pin.** `SignalKeyManager.kt`
+   and the two stores are written for a **≤0.70-era** API and were never compile-verified (the host
+   cannot build `androidMain` — `processDebugNavigationResources` fails on uncached Firebase, and **no
+   JVM/common test exercises real libsignal**; the only crypto tests on the JVM use `javax.crypto`,
+   not libsignal). Concretely, verified by `javap` on the published jars:
+   - `org.signal.libsignal.protocol.ecc.Curve` was **removed ~0.76**; code calls
+     `Curve.generateKeyPair/calculateSignature/decodePoint`. Replacements: `ECKeyPair.generate()`
+     (Companion), `ECPrivateKey.calculateSignature(...)`, `ECPublicKey(bytes, offset)`.
+   - `IdentityKeyStore.saveIdentity` returns **`IdentityChange`** (since ~0.73); both stores override
+     it returning `Boolean`.
+   - `PreKeyBundle` now requires the **11-arg Kyber form**; code calls a removed 8-arg form.
+   - `SessionCipher(store, remoteAddress)` requires a new **`localAddress`** arg **since 0.91.0**
+     (self-message binding) — and no local `SignalProtocolAddress` is currently threaded into
+     `SignalKeyManager`.
+
+**Why no version bump was shipped:** resolving the above is a crypto-correctness rewrite (key gen,
+store contract, prekey-bundle assembly, cipher session boundary) that **cannot be compiled or
+two-device round-trip-tested on this host**. Bumping the number alone would be unverifiable and the
+code would still not compile. Per "do not guess crypto," the version stays at `0.86.5` pending an
+owner-driven rewrite that is verified on a real Android build + emulator. E2E is flag-OFF in prod,
+so this is latent, not a live regression.
+
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
 2. ~~1:1 messaging (WebSocket)~~ — **DONE**
