@@ -49,7 +49,10 @@ class SecurityConfig(
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/ws/**").permitAll()
-                    .requestMatchers("/actuator/info", "/actuator/metrics", "/actuator/prometheus").permitAll()
+                    .requestMatchers("/actuator/info").permitAll()
+                    // metrics + prometheus expose JVM/DB/Redis internals — admin only (P0-6).
+                    // The nginx/Traefik admin-IP gate is an additional operator layer (see runbook).
+                    .requestMatchers("/actuator/metrics", "/actuator/prometheus").hasRole("ADMIN")
                     .anyRequest().authenticated()
             }
             .exceptionHandling { exceptions ->

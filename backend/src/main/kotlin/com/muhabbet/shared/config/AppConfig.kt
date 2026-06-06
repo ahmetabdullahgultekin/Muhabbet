@@ -49,6 +49,7 @@ import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.messaging.domain.service.PollService
 import com.muhabbet.messaging.domain.service.ReactionService
+import com.muhabbet.messaging.domain.service.SearchService
 import com.muhabbet.messaging.domain.service.StatusService
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
@@ -143,6 +144,15 @@ class AppConfig {
     )
 
     @Bean
+    fun searchService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository
+    ): SearchService = SearchService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository
+    )
+
+    @Bean
     fun groupService(
         conversationRepository: ConversationRepository,
         userRepository: UserRepository,
@@ -158,11 +168,13 @@ class AppConfig {
         mediaStoragePort: MediaStoragePort,
         mediaFileRepository: MediaFileRepository,
         thumbnailPort: ThumbnailPort,
+        mediaAccessPolicy: com.muhabbet.media.domain.port.out.MediaAccessPolicy,
         mediaProperties: MediaProperties
     ): MediaService = MediaService(
         mediaStoragePort = mediaStoragePort,
         mediaFileRepository = mediaFileRepository,
         thumbnailPort = thumbnailPort,
+        mediaAccessPolicy = mediaAccessPolicy,
         thumbnailWidth = mediaProperties.thumbnailWidth,
         thumbnailHeight = mediaProperties.thumbnailHeight
     )

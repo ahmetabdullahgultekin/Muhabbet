@@ -65,26 +65,35 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun findLastMessagesByConversationIds(conversationIds: List<UUID>): List<MessageJpaEntity>
 
+    // Membership-scoped search: only returns messages from a conversation the requesting user
+    // is a member of. The JOIN to conversation_members filtered by :userId closes the IDOR.
     @Query(
         """
         SELECT m FROM MessageJpaEntity m
+        JOIN ConversationMemberJpaEntity cm
+          ON cm.conversationId = m.conversationId
         WHERE m.conversationId = :conversationId
+          AND cm.userId = :userId
           AND m.isDeleted = false
           AND LOWER(m.content) LIKE :query
         ORDER BY m.serverTimestamp DESC
         """
     )
-    fun searchInConversation(conversationId: UUID, query: String, pageable: Pageable): List<MessageJpaEntity>
+    fun searchInConversation(conversationId: UUID, userId: UUID, query: String, pageable: Pageable): List<MessageJpaEntity>
 
+    // Membership-scoped global search: only the requesting user's own conversations are searched.
     @Query(
         """
-        SELECT m FROM MessageJpaEntity m
-        WHERE m.isDeleted = false
+        SELECT DISTINCT m FROM MessageJpaEntity m
+        JOIN ConversationMemberJpaEntity cm
+          ON cm.conversationId = m.conversationId
+        WHERE cm.userId = :userId
+          AND m.isDeleted = false
           AND LOWER(m.content) LIKE :query
         ORDER BY m.serverTimestamp DESC
         """
     )
-    fun searchGlobal(query: String, pageable: Pageable): List<MessageJpaEntity>
+    fun searchGlobal(userId: UUID, query: String, pageable: Pageable): List<MessageJpaEntity>
 
     @Query(
         """

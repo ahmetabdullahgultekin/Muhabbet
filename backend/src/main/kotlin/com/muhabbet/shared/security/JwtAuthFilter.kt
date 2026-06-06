@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
@@ -23,10 +24,17 @@ class JwtAuthFilter(
         if (token != null) {
             val claims = jwtProvider.validateToken(token)
             if (claims != null) {
+                // Grant ROLE_ADMIN to admin tokens so SecurityConfig can gate admin-only endpoints
+                // (e.g. /actuator/metrics, /actuator/prometheus) with hasRole("ADMIN").
+                val authorities = if (claims.isAdmin) {
+                    listOf(SimpleGrantedAuthority("ROLE_ADMIN"))
+                } else {
+                    emptyList()
+                }
                 val authentication = UsernamePasswordAuthenticationToken(
                     claims,
                     null,
-                    emptyList()
+                    authorities
                 )
                 SecurityContextHolder.getContext().authentication = authentication
             }

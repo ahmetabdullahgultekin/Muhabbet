@@ -9,6 +9,7 @@ import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.shared.dto.StorageUsageResponse
+import com.muhabbet.media.domain.port.out.MediaAccessPolicy
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
@@ -23,6 +24,7 @@ open class MediaService(
     private val mediaStoragePort: MediaStoragePort,
     private val mediaFileRepository: MediaFileRepository,
     private val thumbnailPort: ThumbnailPort,
+    private val mediaAccessPolicy: MediaAccessPolicy,
     private val thumbnailWidth: Int,
     private val thumbnailHeight: Int
 ) : UploadMediaUseCase, GetMediaUrlUseCase, GetStorageUsageUseCase {
@@ -174,9 +176,18 @@ open class MediaService(
         }
     }
 
-    override fun getPresignedUrl(mediaId: UUID): MediaUrlResult {
+    override fun getPresignedUrl(mediaId: UUID, requestingUserId: UUID): MediaUrlResult {
         val mediaFile = mediaFileRepository.findById(mediaId)
             ?: throw BusinessException(ErrorCode.MEDIA_NOT_FOUND)
+
+        // Authorization (IDOR fix): the requester must own the file OR be a member of a conversation
+        // that references it. Otherwise no presigned URL is issued.
+        val isUploader = mediaFile.uploaderId == requestingUserId
+        if (!isUploader &&
+            !mediaAccessPolicy.isMemberOfConversationContainingMedia(requestingUserId, mediaFile.fileKey)
+        ) {
+            throw BusinessException(ErrorCode.MEDIA_FORBIDDEN)
+        }
 
         val url = mediaStoragePort.getPresignedUrl(mediaFile.fileKey)
         val thumbnailUrl = mediaFile.thumbnailKey?.let { mediaStoragePort.getPresignedUrl(it) }

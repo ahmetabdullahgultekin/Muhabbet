@@ -1,13 +1,15 @@
 name: Deploy to Hetzner VPS
 
+# Deploy is GATED on a successful "Backend CI" run for the same commit on main.
+# Using workflow_run (instead of a bare push trigger) is the cross-workflow equivalent of
+# `needs: [build-and-test]`: a failing test suite produces a non-"success" conclusion and the
+# deploy job is skipped, so broken code can no longer reach production (P0-18).
 on:
-  push:
+  workflow_run:
+    workflows: ["Backend CI"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'backend/**'
-      - 'shared/**'
-      - 'Dockerfile*'
-      - 'docker-compose.prod.yml'
   workflow_dispatch:
 
 concurrency:
@@ -19,6 +21,10 @@ jobs:
     name: Deploy Muhabbet
     runs-on: [self-hosted, linux, x64]
     environment: production
+    # Only deploy when the upstream CI run succeeded (or on a manual dispatch).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -32,17 +38,48 @@ jobs:
             set -e
             cd /opt/projects/Muhabbet
             git pull origin main
+
+            # Capture the currently-running backend image's immutable ID + the compose repo:tag it
+            # is referenced by, so we can roll back even after `build` reassigns :latest.
+            PREV_IMAGE_ID="$(docker inspect --format '{{.Image}}' muhabbet-backend 2>/dev/null || true)"
+            PREV_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' muhabbet-backend 2>/dev/null || true)"
+            echo "Previous backend image: ref=${PREV_IMAGE_REF:-<none>} id=${PREV_IMAGE_ID:-<none>}"
+
             cd /opt/projects
             ./infra/deploy.sh build muhabbet
             ./infra/deploy.sh restart muhabbet
-            # Health check with retries (Spring Boot startup ~30s)
+
+            # Health check with retries (Spring Boot startup ~30s).
+            HEALTHY=0
             for i in 1 2 3 4 5; do
               sleep 15
               if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
                 echo "API healthy after attempt $i"
+                HEALTHY=1
                 break
               fi
               echo "Attempt $i: API not ready yet..."
-              if [ "$i" = "5" ]; then echo "Health check failed after 75s" && exit 1; fi
             done
+
+            if [ "$HEALTHY" != "1" ]; then
+              echo "Health check FAILED — attempting rollback to previous backend image."
+              if [ -n "$PREV_IMAGE_ID" ] && [ -n "$PREV_IMAGE_REF" ]; then
+                # Re-point the compose repo:tag at the known-good image ID, then restart without rebuilding.
+                docker tag "$PREV_IMAGE_ID" "$PREV_IMAGE_REF"
+                cd /opt/projects/Muhabbet/infra
+                docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build backend || true
+                for i in 1 2 3; do
+                  sleep 15
+                  if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
+                    echo "Rollback to previous image is healthy."
+                    break
+                  fi
+                done
+              else
+                echo "No previous image captured — cannot auto-roll back. Manual intervention required."
+              fi
+              echo "Deploy failed health check; rolled back to previous image."
+              exit 1
+            fi
+
             echo "Muhabbet deployed successfully"

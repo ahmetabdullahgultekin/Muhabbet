@@ -256,13 +256,16 @@ fun UserProfileScreen(
                     HorizontalDivider()
                 }
 
-                // Phone number
-                item {
-                    ProfileInfoRow(
-                        label = stringResource(Res.string.profile_phone),
-                        value = p.phoneNumber
-                    )
-                    HorizontalDivider()
+                // Phone number — only rendered when the backend exposes it (own profile).
+                // Foreign-user lookups return null for privacy (KVKK), so the row is hidden.
+                p.phoneNumber?.let { phone ->
+                    item {
+                        ProfileInfoRow(
+                            label = stringResource(Res.string.profile_phone),
+                            value = phone
+                        )
+                        HorizontalDivider()
+                    }
                 }
 
                 // About
