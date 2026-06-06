@@ -445,6 +445,8 @@ These project-doc claims did **not** match the code. Fix them at the source so t
 
 ## 8. FIVUCSAS auth integration — decided direction
 
+> **Refinement (2026-06-06):** the full provider-client product model is in [`PRODUCT_ROADMAP_2026-06-06.md`](PRODUCT_ROADMAP_2026-06-06.md). Key decision: **phone is OPTIONAL, not an enforced anchor** — identity = FIVUCSAS `sub`, login is config-driven via FIVUCSAS, discovery = username/QR/invite (primary) + opt-in phone-contact sync. Native phone-OTP (Twilio) is the FIVUCSAS-unreachable **fallback only**.
+
 **Decision (locked 2026-06-06): harden FIVUCSAS first, then stage — Muhabbet is the LAST integration.** Muhabbet keeps its own phone+OTP auth and ships to prod on it; FIVUCSAS-as-IdP comes only after the platform clears its gates.
 
 - **Now:** wire **Twilio** as the SMS provider (you hold credits; `TwilioOtpSender.kt` already exists — it's a config + secrets change). This fixes the mock-SMS P0 that breaks login today. This native phone-OTP path is **also the permanent FIVUCSAS-down fallback**, so it is never throwaway work.
