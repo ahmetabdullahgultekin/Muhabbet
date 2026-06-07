@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.remote
 
+import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.shared.dto.ApiResponse
 import io.ktor.client.HttpClient
@@ -45,7 +46,9 @@ class ApiClient(private val tokenStorage: TokenStorage) {
         }
 
         install(Logging) {
-            level = LogLevel.HEADERS
+            // SECURITY: LogLevel.HEADERS leaks the Authorization bearer token to logs. Never log
+            // headers. Debug builds log method+URL+status only (LogLevel.INFO); release logs nothing.
+            level = if (BuildInfo.DEBUG) LogLevel.INFO else LogLevel.NONE
         }
 
         install(WebSockets)

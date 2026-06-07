@@ -395,6 +395,7 @@
 
     <!-- Encryption -->
     <string name="profile_encrypted">Mesajlar uçtan uca şifrelidir</string>
+    <string name="profile_transport_encrypted">Aktarım sırasında şifreli (TLS) — uçtan uca şifreleme yakında</string>
 
     <!-- Message formatting hint -->
     <string name="chat_format_hint">*kalın* _italik_ ~üstü çizili~ `kod`</string>
@@ -432,6 +433,7 @@
     <string name="privacy_visibility_nobody">Hiç kimse</string>
     <string name="privacy_security_section">Güvenlik</string>
     <string name="privacy_e2e_info">Tüm mesajlar uçtan uca şifrelenir. Mesajlarınızı yalnızca siz ve karşı taraf okuyabilir.</string>
+    <string name="privacy_transport_info">Mesajlarınız aktarım sırasında TLS ile şifrelenir. Uçtan uca şifreleme üzerinde çalışıyoruz ve yakında etkinleştirilecek.</string>
     <string name="privacy_blocked_contacts">Engellenen Kişiler</string>
     <string name="privacy_blocked_contacts_desc">Engellediğiniz kişileri yönetin</string>
     <string name="privacy_kvkk_section">KVKK Hakları</string>

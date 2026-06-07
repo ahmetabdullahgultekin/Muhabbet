@@ -1,9 +1,8 @@
 # Security & Correctness Fixes — 2026-06-07
 
-Two-phase hardening pass. Phase 1 (backend security) lands on `claude/fix-backend-idors`
-(PR base `main`). Phase 2 (mobile correctness) lands on `claude/fix-mobile-polish`
-(PR base `claude/fix-firebase-bom-ktx`). Each phase has its own `CHANGELOG.md` entry on its
-own branch.
+Two-phase hardening pass. Phase 1 (backend security) landed on `claude/fix-backend-idors`
+(PR base `main`, PR #55). Phase 2 (mobile correctness) landed on `claude/fix-mobile-polish`
+(PR base `claude/fix-firebase-bom-ktx`, PR #61). Each phase has its own `CHANGELOG.md` entry.
 
 ## Phase 1 — Backend security (`claude/fix-backend-idors`)
 
@@ -67,33 +66,76 @@ own branch.
   JwtProviderSecretGuardTest 3/0/0, AuthServiceTest 9/0/0, all 0 failures).
 - `:backend:test --tests *MessageIdorIntegrationTest` (Testcontainers) → **BUILD SUCCESSFUL**, 2/0/0.
 
-## Phase 2 — Mobile correctness (`claude/fix-mobile-polish`)
+## Phase 2 — Mobile correctness & trust (`claude/fix-mobile-polish`)
 
-See the `CHANGELOG.md` entry on that branch for the landed detail. Summary of fixes:
+### [CRITICAL-trust] Honest E2E UI
+- **Was:** `UserProfileScreen` (padlock + `profile_encrypted`) and `PrivacyDashboardScreen`
+  (`privacy_e2e_info`) **unconditionally** claimed end-to-end encryption while E2E is OFF in
+  production (`E2EConfig.ENABLED == false` → messages travel as plaintext under TLS). This is a
+  false security promise to users.
+- **Fix:** Both surfaces gated on `E2EConfig.ENABLED`. When false: the padlock (`Icons.Default.Lock`)
+  is replaced with `Icons.Default.Info` and the copy switches to an honest transport state —
+  `profile_transport_encrypted` ("Transport-encrypted (TLS) — end-to-end encryption coming soon")
+  and `privacy_transport_info`. When the flag is later flipped on (after crypto review), the
+  padlock + E2E copy return automatically. No crypto semantics touched; libsignal untouched.
+- **Files:** `ui/profile/UserProfileScreen.kt`, `ui/privacy/PrivacyDashboardScreen.kt`,
+  `composeResources/values/strings.xml` (TR), `composeResources/values-en/strings.xml` (EN).
 
-1. **[MED] OTP fallback locale bug** — structured `errorCode` carried through
-   `PhoneVerificationResult.Error`, populated from `FirebaseAuthException.errorCode` on Android;
-   `shouldFallbackToBackendOtp` branches on the code, not localized substrings. Substring match
-   kept only as last-resort for the generic catch path, using `lowercase(Locale.ROOT)`-equivalent
-   invariant folding.
-2. **[MED] Scheduled-send near-future race** — dialog validation now requires a ~2-minute minimum
-   lead time so the UI "scheduled + cancel" state can't lie about a message the backend sends
-   immediately.
-3. **[MED] Communities error rendered as empty** — `AddGroupToCommunitySheet` distinguishes a
-   load error (with retry) from a genuinely empty group list instead of `catch { emptyList() }`.
-4. **[MED] Ktor logs Authorization header** — header logging gated off for release / sanitized so
-   the bearer token never lands in logs.
-5. **[CRITICAL-trust] Honest E2E UI** — profile padlock and privacy-dashboard E2E copy gated on
-   `E2EConfig.ENABLED`; when OFF (production default = plaintext under TLS) the padlock is hidden
-   and an honest "transport-encrypted (TLS)" state is shown. TR+EN strings updated. No crypto
-   semantics changed.
+### [MED] OTP fallback used localized strings + locale-sensitive lowercasing
+- **Was:** `PhoneInputScreen.shouldFallbackToBackendOtp(rawMessage)` decided whether to fall back to
+  the backend OTP flow by substring-matching the **localized** Firebase message text, after
+  `rawMessage.lowercase()`. On Turkish-locale devices (the entire user base) this false-negatives.
+- **Fix:** Carry a **structured** `PhoneAuthErrorCode`
+  (`RATE_LIMITED` / `CONFIGURATION` / `INVALID_PHONE` / `UNKNOWN`) on
+  `PhoneVerificationResult.Error`. On Android it is mapped from
+  `(e as? FirebaseAuthException)?.errorCode` — a stable, locale-invariant `ERROR_*` constant — via
+  `classifyFirebaseError`. `shouldFallbackToBackendOtp(code)` now branches on the enum
+  (fall back on `RATE_LIMITED`/`CONFIGURATION`; surface `INVALID_PHONE` so the user can fix the
+  number; do not fall back on `UNKNOWN`). Substring matching survives **only** as a last resort on
+  the generic `catch (e: Exception)` path (`shouldFallbackForRawMessage`), where there is no
+  structured code; that path uses Kotlin's **locale-invariant** `String.lowercase()` (Unicode
+  default case mapping, not the platform locale — safe under Turkish `i`/`I` folding). The
+  error-code approach sidesteps the commonMain lack of `java.util.Locale`.
+- **Files:** `platform/FirebasePhoneAuth.kt` (enum + field, commonMain),
+  `platform/FirebasePhoneAuth.android.kt` (`classifyFirebaseError`/`classifyFirebaseMessage`),
+  `ui/auth/PhoneInputScreen.kt`.
+
+### [MED] Ktor logged the Authorization header
+- **Was:** `ApiClient` installed `Logging { level = LogLevel.HEADERS }` — the bearer token in the
+  `Authorization` header was written to logs.
+- **Fix:** `level = if (BuildInfo.DEBUG) LogLevel.INFO else LogLevel.NONE`. `INFO` logs method +
+  URL + status only (no headers/body); release logs nothing. Headers are **never** logged in any
+  build, so the token cannot leak. Added the `BuildInfo.DEBUG` flag (default `true`; flip to
+  `false` / wire to platform `BuildConfig.DEBUG` for production builds).
+- **Files:** `data/remote/ApiClient.kt`, `BuildInfo.kt`.
+
+### Build/verify (Phase 2)
+- `cmd //c ".\gradlew.bat :mobile:composeApp:compileCommonMainKotlinMetadata"` → **BUILD SUCCESSFUL**
+  (only pre-existing kotlinx-datetime deprecation warnings; no errors).
+- Per the project's host constraints, the full Android app / `assembleDebug` does NOT build here
+  (uncached Firebase + no KVM emulator) and `commonizeNativeDistribution` times out, so only the
+  commonMain-metadata gate was run. The androidMain `classifyFirebaseError` change is therefore
+  **not** compile-verified on this host; `FirebaseAuthException.errorCode` is a documented stable
+  Firebase API and the change is mechanical.
+
+### Related findings now landed on feature branches (merged to `main`)
+The mobile pass was built on `claude/fix-firebase-bom-ktx`; two findings referenced code that lived
+on sibling feature branches (since merged to `main` via PRs #57/#58):
+- **[MED] Scheduled-send near-future race** — `ScheduledSend.kt` + the `ChatScreen` scheduling
+  dialog (PR #57). **Follow-up:** enforce a ~2-minute minimum lead time in the dialog validation.
+- **[MED] Communities error rendered as empty** — `ui/communities/AddGroupToCommunitySheet.kt`
+  `catch (_) { emptyList() }` (PR #58). **Follow-up:** add a `loadError` state with retry distinct
+  from the empty state (the 100-conversation pagination remains a separate follow-up).
 
 ## Deferred (explicit non-goals — follow-ups, NOT done here)
 - Certificate pinning (mobile).
 - SQLCipher / at-rest DB encryption (mobile).
-- Full libsignal / E2E re-integration — **BLOCKED** on the libsignal-android API rewrite
-  (see project `CLAUDE.md`); do not bump or guess crypto. E2E stays flag-OFF.
+- Full libsignal / E2E re-integration — **BLOCKED** on the libsignal-android API rewrite (see
+  `CLAUDE.md`); do not bump or guess crypto. E2E stays flag-OFF. (This pass made the UI honest
+  about that, nothing more.)
 - Scheduled-pending hydration on app restart (the scheduled-send queue isn't rehydrated yet).
 - XFF / Redis rate-limiter rework.
-- Communities `AddGroupToCommunitySheet` 100-conversation pagination (only the error/empty
-  distinction was addressed).
+- Scheduled-send 2-minute lead-time + Communities error-vs-empty (code is on feature branches that
+  merged to `main`; the dialog/state changes themselves are the follow-up).
+- Communities `AddGroupToCommunitySheet` 100-conversation pagination.
+- Wire `BuildInfo.DEBUG` to a real platform `BuildConfig.DEBUG` (currently a hand-flipped constant).

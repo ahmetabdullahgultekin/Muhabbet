@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.platform.PhoneAuthErrorCode
 import com.muhabbet.app.platform.PhoneVerificationResult
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
@@ -140,8 +141,9 @@ fun PhoneInputScreen(
                                     onFirebaseAutoVerified(authResult.isNewUser)
                                 }
                                 is PhoneVerificationResult.Error -> {
-                                    // Firebase rate-limited OR misconfigured — fallback to backend OTP
-                                    if (shouldFallbackToBackendOtp(result.message)) {
+                                    // Firebase rate-limited OR misconfigured — fallback to backend OTP.
+                                    // Branch on the STRUCTURED code (locale-independent), not message text.
+                                    if (shouldFallbackToBackendOtp(result.code)) {
                                         try {
                                             val response = authRepository.requestOtp(phoneNumber)
                                             onPhoneSubmitted(phoneNumber, response.mockCode, null)
@@ -159,8 +161,9 @@ fun PhoneInputScreen(
                             onPhoneSubmitted(phoneNumber, response.mockCode, null)
                         }
                     } catch (e: Exception) {
-                        // Firebase may throw directly (rate limiting or misconfiguration)
-                        if (useFirebase && shouldFallbackToBackendOtp(e.message)) {
+                        // Firebase may throw directly (rate limiting or misconfiguration). No
+                        // structured code here — last-resort, locale-invariant message scan.
+                        if (useFirebase && shouldFallbackForRawMessage(e.message)) {
                             try {
                                 val response = authRepository.requestOtp(phoneNumber)
                                 onPhoneSubmitted(phoneNumber, response.mockCode, null)
@@ -194,15 +197,33 @@ fun PhoneInputScreen(
 /**
  * Whether a Firebase phone-auth failure should degrade gracefully to the backend OTP flow.
  *
- * Covers both transient throttling (rate limiting) AND Firebase configuration/internal errors
- * (e.g. "API key not valid"), so a misconfigured Firebase build still lets the user log in via
- * the backend instead of dead-ending on a raw error. Firebase remains the primary path.
+ * Branches on the STRUCTURED [PhoneAuthErrorCode] (mapped from Firebase's locale-invariant
+ * `errorCode` on the platform side) — NOT on localized message text, which false-negatives on
+ * Turkish-locale devices. Covers transient throttling (rate limiting) AND Firebase
+ * configuration/internal errors, so a misconfigured build still lets the user log in via the
+ * backend. INVALID_PHONE is surfaced (not hidden by a fallback) so the user can fix the number.
+ * Firebase remains the primary path.
  */
-private fun shouldFallbackToBackendOtp(rawMessage: String?): Boolean {
+private fun shouldFallbackToBackendOtp(code: PhoneAuthErrorCode): Boolean = when (code) {
+    PhoneAuthErrorCode.RATE_LIMITED,
+    PhoneAuthErrorCode.CONFIGURATION -> true
+    PhoneAuthErrorCode.INVALID_PHONE,
+    PhoneAuthErrorCode.UNKNOWN -> false
+}
+
+/**
+ * Last-resort fallback decision when Firebase throws directly (no structured code available).
+ *
+ * Uses Kotlin's locale-invariant [String.lowercase] (Unicode default case mapping — NOT the
+ * platform locale, so safe under Turkish `i`/`I` folding) for the substring scan. This path is
+ * only hit on a thrown exception; the normal [PhoneVerificationResult.Error] path uses the
+ * structured code above.
+ */
+private fun shouldFallbackForRawMessage(rawMessage: String?): Boolean {
     val msg = (rawMessage ?: "").lowercase()
     val triggers = listOf(
         // Rate limiting / abuse protection
-        "block", "too many", "unusual",
+        "block", "too many", "unusual", "quota",
         // Configuration / internal errors
         "api key", "not valid", "internal error", "configuration",
         "developer error", "app not authorized", "invalid-api-key"
