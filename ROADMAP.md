@@ -1,9 +1,15 @@
 # Muhabbet — WhatsApp-Parity Roadmap
 
 > **Vision:** *"Muhabbet should become WhatsApp tier by tier, iter by iter."*
-> **Last updated:** 2026-06-06 (Tier 1 = DONE; **Tier 2 in flight** — multi-device linked-sessions
+> **Last updated:** 2026-06-07 (Tier 1 = DONE; **Tier 2 in flight** — multi-device linked-sessions
 > NON-CRYPTO scaffolding shipped behind `multi-device.enabled` (default OFF), per-device crypto
 > transfer BLOCKED on the libsignal upgrade — see §"Tier 2.4" + §"The libsignal block").
+> **2026-06-07 build-unblock note:** to restore the Android debug build, the 4 libsignal Signal files
+> were disabled (`*.kt.disabled`) and Android DI now wires `NoOpKeyManager()` + `NoOpEncryption()` —
+> the same NoOp path iOS uses. **E2E is therefore TEMPORARILY DISABLED (NoOp placeholder, NOT secure):
+> NoOp returns plaintext, so E2E MUST stay OFF until libsignal is re-integrated.** Re-integrating
+> libsignal to restore real E2E is the standing blocker for the whole crypto track (Tier 1.1 / 3.1 /
+> 2.4). See §"Near-term (next iterations)" + §"The libsignal block".
 > **Tactical companion:** [`TODO.md`](TODO.md) — P0/P1 are aligned to **Tier 1** below.
 > **History:** prior launch-blocker framing is preserved in §"History & Current State" and in
 > `CHANGELOG.md` + `docs/engineering-roadmap.md`. The 2026-03-14 feature-by-feature comparison
@@ -22,7 +28,35 @@ the Kyber form, `SessionCipher` needs a `localAddress` arg since 0.91). No JVM/c
 real libsignal, and `androidMain` can't be built on the CI host (uncached Firebase). Therefore **any
 work that needs real per-device Signal session export/import / multi-device key transfer is
 BLOCKED** until an owner-driven, emulator-verified libsignal rewrite. Full detail: `CLAUDE.md` →
-"libsignal upgrade (BLOCKED)". E2E is flag-OFF in prod, so this is latent, not a live regression.
+"libsignal upgrade (BLOCKED)". As of 2026-06-07 the Signal files are **disabled** and Android runs the
+**NoOp** crypto path (E2E temporarily disabled — NoOp returns plaintext, NOT secure). E2E is flag-OFF
+*and* the only implementation is NoOp, so this is latent, not a live regression — but it does mean
+real E2E now requires the libsignal re-integration before it can be turned on at all.
+
+---
+
+## Near-term (next iterations)
+
+Sequenced after the 2026-06-07 build-unblock + the four feature/fix branches (PRs #49–#53). Themes
+are folded from the WhatsApp gap analysis (`docs/whatsapp-feature-gap-analysis.md`) and product
+roadmap (`docs/PRODUCT_ROADMAP_2026-06-06.md`); no separate "Top-30" artifact exists in the repo.
+
+- **⛔ Standing blocker — re-integrate libsignal to restore real E2E.** The single most important
+  near-term item. Until the libsignal API rewrite lands (verified on a real Android build + emulator),
+  the 4 disabled Signal files stay disabled and Android uses NoOp (plaintext). **Do not enable E2E
+  and do not re-enable the disabled files until this is done + crypto-reviewed.** Gates Tier 1.1, 2.4,
+  3.1. Detail: §"The libsignal block" + `CLAUDE.md`.
+- **Make login + notifications work in prod.** Firebase phone-auth is API-key-restricted on the
+  current build (login now degrades to backend OTP via `shouldFallbackToBackendOtp()`), and the prod
+  backend SMS sender is still `MockOtpSender`. Wire a real SMS path (Twilio / Netgsm) + verify FCM
+  push delivery end-to-end so OTP and notifications work for real users. (TODO P0/P1.)
+- **Translation / message translation** — on-device or API-backed translate-message action.
+- **RTL / Arabic support** — full right-to-left layout pass + Arabic locale (large TR-adjacent market).
+- **@mentions** in group chats — autocomplete + highlight + notify-on-mention.
+- **Data-saver mode** — gate auto-download of media on Wi-Fi vs cellular; lower compression ceilings.
+- **Chat folders / custom lists** — user-defined conversation groupings beyond the existing filter chips.
+
+These slot under the existing tiers (E2E re-enable → Tier 1.1; the rest are Tier 2/3 reach features).
 
 ---
 
@@ -67,14 +101,14 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 | Polls | **Done** | `PollService.kt`, `ContentType.POLL`, `V7__add_polls.sql` |
 | Location / contact share | **Done** | `ContentType.LOCATION/CONTACT` |
 | Channels / broadcast lists | **Done** | `ChannelService.kt`, `BroadcastListService.kt`, `ChannelAnalyticsService.kt` |
-| Communities | **Done (backend + UI partial)** | `CommunityService.kt`; "add group" button wired to honest "coming soon" dialog (PR #36); full group-picker UI is follow-up |
+| Communities | **Done (backend + UI)** | `CommunityService.kt`; "add group" now opens a real group-picker `ModalBottomSheet` (`AddGroupToCommunitySheet`, branch `claude/feat-communities-add-group`) → `CommunityRepository.addGroupToCommunity()` (replaces the PR #36 "coming soon" stub) |
 | Group invite links / join requests | **Done** | `InviteLinkService.kt`, `JoinRequestService.kt`, `GroupInviteLink` model |
 | Push notifications | **Done (Android)** / **Missing (iOS)** | FCM `FcmPushNotificationAdapter`; iOS APNs non-functional (`PushTokenProvider.ios.kt` waits on AppDelegate hook, no server APNs path) |
 | Offline cache / queue | **Done** | SQLDelight `MuhabbetDatabase.sq`, `WsClient` pending-queue drain + dedup |
 | Bots / channel analytics | **Done** | `BotService.kt`, `ChannelAnalyticsService.kt` |
 | Moderation (BTK 5651) | **Done** | `ModerationService.kt`, `V15` |
 | KVKK export / delete | **Done** | `UserDataService.kt`, `PrivacyDashboardScreen.kt` |
-| **E2E encryption (1:1 text)** | **Partial — wired, flag OFF** | `MessageEncryptor.kt` + `E2EConfig.ENABLED=false` + `E2EEnvelope.kt` (PR #31). Android Signal real; **groups/media not encrypted; iOS NoOp** |
+| **E2E encryption (1:1 text)** | **Partial — wired but TEMPORARILY DISABLED (NoOp)** | `MessageEncryptor.kt` + `E2EConfig.ENABLED=false` + `E2EEnvelope.kt` (PR #31). As of 2026-06-07 the Android Signal impl is **disabled** (`*.kt.disabled`) and DI wires `NoOpEncryption`/`NoOpKeyManager` — NoOp returns **plaintext, NOT secure**. Real E2E requires the libsignal re-integration first. **groups/media not encrypted; iOS NoOp** |
 | E2E — group (sender keys) | **Missing** | no `SenderKey`/`GroupCipher` outside libsignal store; pairwise only |
 | E2E — media encryption | **Missing** | blobs uploaded to MinIO in clear; `MessageEncryptor` skips non-TEXT |
 | E2E — safety numbers / key verify UI | **Missing (backend ready)** | `WsMessage.SecurityKeyChanged` + `EncryptionService` keyVersion bump exist; no client UI |
@@ -83,7 +117,7 @@ Status: **Done** (works end-to-end), **Partial** (present but a real gap remains
 | Multi-device | **Partial — scaffolding shipped, crypto blocked** | NON-CRYPTO slice live behind `multi-device.enabled` (default OFF): `device_link_sessions` + companion columns (`V18`), `DeviceLinkController` (begin/complete/list/revoke), `DeviceLinkingService`, mobile `LinkedDevicesScreen`/`LinkDeviceScreen`. **Per-device Signal session transfer + fan-out BLOCKED on libsignal** — stubbed at `DeviceLinkCrypto` (NotYetImplemented). See Tier 2.4 |
 | Two-step verification (PIN) | **Partial** | `TwoStepVerificationService.kt` exists; confirm wired into OTP login + UI (gap-analysis §1.3) |
 | Backups (server-side, at scale) | **Partial** | `BackupService.createBackup` now produces a **real MinIO JSON archive** + presigned URL + counts (PR #31); **no restore/download endpoint, no media blobs** |
-| Chat archive / mute UI | **Partial** | `Conversation.isArchived/isMuted` flags exist; mute-duration picker UI gap (gap-analysis §1.4) |
+| Chat archive / mute UI | **Partial** | `Conversation.isArchived/isMuted` flags exist; mute-duration picker (`MutePickerDialog`, 8h/1w/Always) cleaned up to honest clickable rows (branch `claude/feat-mute-duration-ui`); archive UI still a gap (gap-analysis §1.4) |
 | Web / desktop client | **Missing** | no web surface (browser validation N/A — see §"Browser note") |
 
 ---
@@ -173,10 +207,10 @@ Small, sequenced, iteration-sized. Each closes a Tier-1 gap above.
   - `WallpaperPickerScreen.kt` — "Gallery" tab's button now calls `rememberImagePickerLauncher`
     (reuses existing `ImagePicker` expect/actual: Android `PickVisualMedia`; iOS `PHPickerViewController`);
     picked image fileName persisted via `WallpaperRepository.setCustomPath()`. (PR #36)
-  - `CommunityDetailScreen.kt` — "Add Group" TextButton shows an i18n `AlertDialog` ("coming soon"
-    message with OK dismiss) — honest UX; backend endpoint exists (`POST /api/v1/communities/{id}/groups`
-    + `addGroupToCommunity()` in `CommunityRepository`) but a group-picker UI doesn't; stub tracked
-    here, not silently ignored. (PR #36)
+  - `CommunityDetailScreen.kt` — "Add Group" TextButton originally showed an i18n "coming soon"
+    `AlertDialog` (PR #36). **Now superseded:** branch `claude/feat-communities-add-group` replaces it
+    with a real `AddGroupToCommunitySheet` `ModalBottomSheet` (lists the user's `GROUP` conversations
+    not already in the community → `CommunityRepository.addGroupToCommunity()` → refresh).
   - `BroadcastListScreen.kt` — tapping a list item navigates to new `BroadcastDetailScreen` (shows
     recipient list from `GET /api/v1/broadcasts/{id}/members`; nav wired via new `Config.BroadcastDetail`
     in `MainComponent`). (PR #36)

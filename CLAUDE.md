@@ -226,6 +226,21 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ## Current Phase
 
+> **Current state (2026-06-07):** the Android **debug build is green** again. To get there, two build
+> blockers were fixed (see `docs/findings/2026-06-07-session.md` + `CHANGELOG.md` 2026-06-07 / PR #49):
+> Firebase BoM `34.11.0` dropped the `-ktx` artifacts (switched to `firebase-auth`/`firebase-messaging`
+> + imports) and `compileSdk` went `35`→`36`. Crucially, **E2E encryption is TEMPORARILY DISABLED
+> (NoOp placeholder, NOT secure)**: the 4 libsignal Signal files don't compile against the pinned
+> `0.86.5` API, so they were renamed `*.kt.disabled` and `PlatformModule.android.kt` now wires
+> `NoOpKeyManager()` + `NoOpEncryption()` (same NoOp path iOS uses). **NoOp returns plaintext** — do
+> NOT re-enable the disabled files or flip `E2EConfig.ENABLED` until libsignal is re-integrated and
+> crypto-reviewed (the standing blocker). Also on PR #49: the splash "green circle" fix (flattened the
+> green oval in `splash_background.xml`/`_dark.xml` to a flat color) and a login backend-OTP fallback
+> (`PhoneInputScreen.shouldFallbackToBackendOtp()` — degrades to backend OTP when Firebase phone-auth
+> fails due to API-key restriction). The APK was built, installed, and visually verified on a physical
+> phone. **Cheap mobile compile gate:** `:mobile:composeApp:compileCommonMainKotlinMetadata` (the full
+> Android app does not assemble on this host — see "Build & test" below).
+>
 > **Direction (2026-06-05):** the active plan is the **tiered WhatsApp-parity roadmap** in
 > [`ROADMAP.md`](ROADMAP.md) — *"WhatsApp tier by tier, iter by iter."* Tier 1 = core-messaging
 > hardening & trust (land E2E as a canary, receipt correctness, media robustness, finish groups);

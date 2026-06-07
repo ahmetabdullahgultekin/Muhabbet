@@ -25,6 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,13 +37,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.AlertDialog
 import com.muhabbet.app.data.repository.CommunityRepository
+import kotlinx.coroutines.launch
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
@@ -62,29 +65,35 @@ fun CommunityDetailScreen(
 ) {
     var detail by remember { mutableStateOf<CommunityDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    var showAddGroupDialog by remember { mutableStateOf(false) }
+    var showAddGroupSheet by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(communityId) {
+    suspend fun loadDetail() {
         try {
             detail = communityRepository.getCommunityDetail(communityId)
         } catch (_: Exception) { }
+    }
+
+    LaunchedEffect(communityId) {
+        loadDetail()
         isLoading = false
     }
 
-    if (showAddGroupDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddGroupDialog = false },
-            title = { Text(stringResource(Res.string.community_add_group_title)) },
-            text = { Text(stringResource(Res.string.community_add_group_coming_soon)) },
-            confirmButton = {
-                TextButton(onClick = { showAddGroupDialog = false }) {
-                    Text(stringResource(Res.string.community_add_group_ok))
-                }
-            }
+    val current = detail
+    if (showAddGroupSheet && current != null) {
+        AddGroupToCommunitySheet(
+            communityId = communityId,
+            excludeConversationIds = current.groups.map { it.conversationId }.toSet(),
+            onDismiss = { showAddGroupSheet = false },
+            onGroupAdded = { scope.launch { loadDetail() } },
+            snackbarHostState = snackbarHostState,
+            communityRepository = communityRepository
         )
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(detail?.name ?: stringResource(Res.string.communities_title)) },
@@ -179,7 +188,7 @@ fun CommunityDetailScreen(
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
-                        TextButton(onClick = { showAddGroupDialog = true }) {
+                        TextButton(onClick = { showAddGroupSheet = true }) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                             Text(stringResource(Res.string.community_add_group))

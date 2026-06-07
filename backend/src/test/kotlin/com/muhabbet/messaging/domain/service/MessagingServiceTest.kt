@@ -9,6 +9,7 @@ import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
@@ -410,5 +411,109 @@ class MessagingServiceTest {
         assertEquals(1, page.items.size)
         assertEquals("Last message", page.items[0].lastMessagePreview)
         assertEquals(3, page.items[0].unreadCount)
+    }
+
+    // ─── getMessageInfo IDOR guard ───────────────────────
+
+    @Test
+    fun `getMessageInfo should return info when requester is conversation member`() {
+        val convId = UUID.randomUUID()
+        val message = Message(
+            id = UUID.randomUUID(),
+            conversationId = convId,
+            senderId = userA,
+            content = "secret",
+            clientTimestamp = Instant.now()
+        )
+        every { messageRepository.findById(message.id) } returns message
+        every { conversationRepository.findMember(convId, userB) } returns
+            ConversationMember(conversationId = convId, userId = userB)
+        val statuses = listOf(
+            MessageDeliveryStatus(messageId = message.id, userId = userB, status = DeliveryStatus.READ)
+        )
+        every { messageRepository.getDeliveryStatuses(listOf(message.id)) } returns statuses
+
+        val info = messageService.getMessageInfo(message.id, userB)
+
+        assertEquals(message.id, info.message.id)
+        assertEquals(1, info.deliveryStatuses.size)
+    }
+
+    @Test
+    fun `getMessageInfo should throw MSG_NOT_MEMBER when requester is not a member`() {
+        val convId = UUID.randomUUID()
+        val message = Message(
+            id = UUID.randomUUID(),
+            conversationId = convId,
+            senderId = userA,
+            content = "secret",
+            clientTimestamp = Instant.now()
+        )
+        every { messageRepository.findById(message.id) } returns message
+        // userC is NOT a member of the conversation
+        every { conversationRepository.findMember(convId, userC) } returns null
+
+        val ex = assertThrows<BusinessException> {
+            messageService.getMessageInfo(message.id, userC)
+        }
+        assertEquals(ErrorCode.MSG_NOT_MEMBER, ex.errorCode)
+        // Must not leak content/recipients to a non-member.
+        verify(exactly = 0) { messageRepository.getDeliveryStatuses(any()) }
+    }
+
+    @Test
+    fun `getMessageInfo should throw MSG_NOT_FOUND when message does not exist`() {
+        val missingId = UUID.randomUUID()
+        every { messageRepository.findById(missingId) } returns null
+
+        val ex = assertThrows<BusinessException> {
+            messageService.getMessageInfo(missingId, userA)
+        }
+        assertEquals(ErrorCode.MSG_NOT_FOUND, ex.errorCode)
+    }
+
+    // ─── markViewOnceViewed IDOR guard ───────────────────
+
+    @Test
+    fun `markViewOnceViewed should mark when requester is a member and not the sender`() {
+        val convId = UUID.randomUUID()
+        val message = Message(
+            id = UUID.randomUUID(),
+            conversationId = convId,
+            senderId = userA,
+            content = "peek",
+            viewOnce = true,
+            clientTimestamp = Instant.now()
+        )
+        every { messageRepository.findById(message.id) } returns message
+        every { conversationRepository.findMember(convId, userB) } returns
+            ConversationMember(conversationId = convId, userId = userB)
+
+        messageService.markViewOnceViewed(message.id, userB)
+
+        verify(exactly = 1) { messageRepository.markViewOnceViewed(message.id, userB) }
+    }
+
+    @Test
+    fun `markViewOnceViewed should throw MSG_NOT_MEMBER and not burn the message for a non-member`() {
+        val convId = UUID.randomUUID()
+        val message = Message(
+            id = UUID.randomUUID(),
+            conversationId = convId,
+            senderId = userA,
+            content = "peek",
+            viewOnce = true,
+            clientTimestamp = Instant.now()
+        )
+        every { messageRepository.findById(message.id) } returns message
+        // userC knows the messageId but is NOT a member
+        every { conversationRepository.findMember(convId, userC) } returns null
+
+        val ex = assertThrows<BusinessException> {
+            messageService.markViewOnceViewed(message.id, userC)
+        }
+        assertEquals(ErrorCode.MSG_NOT_MEMBER, ex.errorCode)
+        // The whole point of the IDOR: a non-member must NOT be able to burn the view-once.
+        verify(exactly = 0) { messageRepository.markViewOnceViewed(any(), any()) }
     }
 }

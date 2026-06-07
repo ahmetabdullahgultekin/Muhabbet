@@ -542,8 +542,10 @@
 
     <!-- Community Add Group -->
     <string name="community_add_group_title">Add Group to Community</string>
-    <string name="community_add_group_coming_soon">This feature is coming soon. For now, use the "New Conversation" screen to create a group.</string>
-    <string name="community_add_group_ok">OK</string>
+    <string name="community_add_group_subtitle">Select a group to add to this community</string>
+    <string name="community_add_group_empty">You have no groups to add</string>
+    <string name="community_add_group_added">Group added to community</string>
+    <string name="community_add_group_failed">Could not add group</string>
 
     <!-- Search -->
     <string name="home_search_title">Search</string>
@@ -604,4 +606,18 @@
     <string name="link_device_success">Device linked successfully</string>
     <string name="link_device_failed">Couldn\'t link the device</string>
     <string name="link_device_crypto_pending">End-to-end encrypted message sync isn\'t enabled yet in this build</string>
+
+    <!-- Scheduled send -->
+    <string name="schedule_send_action">Send later</string>
+    <string name="schedule_pick_date">Pick a date</string>
+    <string name="schedule_pick_time">Pick a time</string>
+    <string name="schedule_next">Next</string>
+    <string name="schedule_confirm">Schedule</string>
+    <string name="schedule_cancel">Cancel</string>
+    <string name="schedule_error_past">Please choose a time in the future</string>
+    <string name="schedule_queued">Message scheduled</string>
+    <string name="schedule_cancelled">Scheduled message cancelled</string>
+    <string name="schedule_pending_count">%1$d scheduled message(s)</string>
+    <string name="schedule_list_title">Scheduled messages</string>
+    <string name="schedule_list_empty">No scheduled messages</string>
 </resources>

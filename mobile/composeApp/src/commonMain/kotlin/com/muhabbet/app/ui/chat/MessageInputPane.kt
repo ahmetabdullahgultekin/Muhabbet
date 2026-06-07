@@ -1,5 +1,7 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -129,6 +131,7 @@ fun EditModeBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageInputBar(
     messageText: String,
@@ -145,7 +148,8 @@ fun MessageInputBar(
     onCameraPick: () -> Unit = {},
     viewOnceEnabled: Boolean = false,
     onViewOnceToggle: () -> Unit = {},
-    onVideoRecord: () -> Unit = {}
+    onVideoRecord: () -> Unit = {},
+    onScheduleSend: () -> Unit = {}
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
 
@@ -265,23 +269,33 @@ fun MessageInputBar(
                     Icon(Icons.Default.Mic, contentDescription = stringResource(Res.string.chat_voice_message), modifier = Modifier.size(20.dp))
                 }
             } else {
-                FilledIconButton(
-                    onClick = onSend,
-                    enabled = messageText.isNotBlank(),
-                    modifier = Modifier.size(48.dp).testTag("send_button"),
+                // Tap = send now; long-press (text messages only) = schedule for later.
+                val sendDescription = stringResource(if (isEditing) Res.string.action_save else Res.string.action_send)
+                val scheduleDescription = stringResource(Res.string.schedule_send_action)
+                Surface(
                     shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (isEditing) MaterialTheme.colorScheme.tertiary
-                        else MaterialTheme.colorScheme.primary,
-                        contentColor = if (isEditing) MaterialTheme.colorScheme.onTertiary
-                        else MaterialTheme.colorScheme.onPrimary
-                    )
+                    color = if (isEditing) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("send_button")
+                        .combinedClickable(
+                            enabled = messageText.isNotBlank(),
+                            onClickLabel = sendDescription,
+                            onLongClickLabel = scheduleDescription,
+                            onLongClick = if (!isEditing) onScheduleSend else null,
+                            onClick = onSend
+                        )
                 ) {
-                    Icon(
-                        imageVector = if (isEditing) Icons.Default.Check else Icons.AutoMirrored.Filled.Send,
-                        contentDescription = stringResource(if (isEditing) Res.string.action_save else Res.string.action_send),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (isEditing) Icons.Default.Check else Icons.AutoMirrored.Filled.Send,
+                            contentDescription = sendDescription,
+                            tint = if (isEditing) MaterialTheme.colorScheme.onTertiary
+                            else MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }

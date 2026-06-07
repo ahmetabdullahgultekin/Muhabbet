@@ -27,7 +27,7 @@ class AuthRepositoryTest {
         isLenient = true
     }
 
-    private fun createApiClientWithMock(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.engine.mock.HttpResponseData)): Pair<ApiClient, FakeTokenStorage> {
+    private fun createApiClientWithMock(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData)): Pair<ApiClient, FakeTokenStorage> {
         val tokenStorage = FakeTokenStorage()
         val mockEngine = MockEngine(handler)
         val apiClient = ApiClient(tokenStorage)

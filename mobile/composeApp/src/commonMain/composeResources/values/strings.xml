@@ -542,8 +542,10 @@
 
     <!-- Community Add Group -->
     <string name="community_add_group_title">Topluluğa Grup Ekle</string>
-    <string name="community_add_group_coming_soon">Bu özellik yakında kullanıma sunulacak. Şu an için grup oluşturmak üzere "Yeni Konuşma" ekranını kullanın.</string>
-    <string name="community_add_group_ok">Tamam</string>
+    <string name="community_add_group_subtitle">Bu topluluğa eklemek için bir grup seçin</string>
+    <string name="community_add_group_empty">Eklenebilecek bir grubunuz yok</string>
+    <string name="community_add_group_added">Grup topluluğa eklendi</string>
+    <string name="community_add_group_failed">Grup eklenemedi</string>
 
     <!-- Search -->
     <string name="home_search_title">Ara</string>
@@ -604,4 +606,18 @@
     <string name="link_device_success">Cihaz başarıyla bağlandı</string>
     <string name="link_device_failed">Cihaz bağlanamadı</string>
     <string name="link_device_crypto_pending">Uçtan uca şifreli mesaj senkronizasyonu bu sürümde henüz etkin değil</string>
+
+    <!-- Scheduled send -->
+    <string name="schedule_send_action">Daha sonra gönder</string>
+    <string name="schedule_pick_date">Tarih seçin</string>
+    <string name="schedule_pick_time">Saat seçin</string>
+    <string name="schedule_next">İleri</string>
+    <string name="schedule_confirm">Planla</string>
+    <string name="schedule_cancel">İptal et</string>
+    <string name="schedule_error_past">Lütfen gelecekte bir zaman seçin</string>
+    <string name="schedule_queued">Mesaj planlandı</string>
+    <string name="schedule_cancelled">Planlanmış mesaj iptal edildi</string>
+    <string name="schedule_pending_count">%1$d planlanmış mesaj</string>
+    <string name="schedule_list_title">Planlanmış mesajlar</string>
+    <string name="schedule_list_empty">Planlanmış mesaj yok</string>
 </resources>

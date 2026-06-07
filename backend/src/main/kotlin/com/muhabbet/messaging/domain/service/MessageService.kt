@@ -199,6 +199,20 @@ open class MessageService(
         return messageRepository.findUndeliveredForUser(userId, since)
     }
 
+    @Transactional(readOnly = true)
+    override fun getMessageInfo(messageId: UUID, requesterId: UUID): com.muhabbet.messaging.domain.port.`in`.MessageInfo {
+        val message = messageRepository.findById(messageId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
+
+        // Authorize FIRST: only members of the conversation may read message info
+        // (content, senderId, recipient list). Closes the getMessageInfo IDOR.
+        conversationRepository.findMember(message.conversationId, requesterId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+
+        val statuses = messageRepository.getDeliveryStatuses(listOf(messageId))
+        return com.muhabbet.messaging.domain.port.`in`.MessageInfo(message = message, deliveryStatuses = statuses)
+    }
+
     // ─── Message Management ──────────────────────────────────
 
     @Transactional
@@ -276,6 +290,11 @@ open class MessageService(
     open fun markViewOnceViewed(messageId: UUID, userId: UUID) {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
+
+        // Authorize FIRST: a non-member who knows the messageId must not be able to burn it.
+        // Closes the markViewOnceViewed IDOR.
+        conversationRepository.findMember(message.conversationId, userId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
         if (!message.viewOnce) {
             throw BusinessException(ErrorCode.VALIDATION_ERROR)
