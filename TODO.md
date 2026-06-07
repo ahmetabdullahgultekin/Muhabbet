@@ -23,6 +23,19 @@
 
 ## P0 — Launch blockers & security-critical  *(Tier 1)*
 
+- [ ] **[VERIFY ON DEVICE] PR #61 not yet runtime-tested on a phone**
+  - `mobile/.../ui/profile/UserProfileScreen.kt` (padlock → info icon when `E2EConfig.ENABLED=false`),
+    `mobile/.../ui/settings/PrivacyDashboardScreen.kt` (E2E card → transport-encrypted state),
+    `mobile/.../platform/FirebasePhoneAuth.kt` + `FirebasePhoneAuth.android.kt` (`PhoneAuthErrorCode`),
+    `mobile/.../ui/auth/PhoneInputScreen.kt` (`shouldFallbackToBackendOtp`), `mobile/.../BuildInfo.kt` (`DEBUG`)
+  - **Why**: PR #61 (honest-E2E UI — no padlock, transport-encrypted state gated on `E2EConfig.ENABLED`;
+    locale-safe OTP error-code fallback; stopped logging the auth header) **compiles** (commonMain +
+    androidMain green) but was **NOT confirmed on a physical device**. UI-state and locale-fallback bugs
+    don't always surface at compile time.
+  - **DONE =** reinstall the APK and verify on a real phone that the profile + privacy screens show the
+    **transport-encrypted (TLS)** state — *not* "end-to-end encrypted" / no false padlock — while E2E is
+    OFF, and that the OTP backend fallback still works (incl. on a Turkish-locale device).
+
 - [ ] **Re-integrate the libsignal API (E2E currently NoOp = plaintext, NOT secure)** **[Tier 1.1]**
   - `mobile/composeApp/src/androidMain/.../crypto/SignalKeyManager.kt.disabled`,
     `SignalEncryption.kt.disabled`, `InMemorySignalProtocolStore.kt.disabled`,

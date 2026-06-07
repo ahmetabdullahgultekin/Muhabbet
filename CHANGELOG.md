@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+> **2026-06-07:** all session PRs below are **merged to `main`** — #49 (Android build unblock), #57
+> (scheduled-send), #58 (communities add-group), #59 (mute), #60 (Ktor test fix), #55 (backend IDOR
+> guards + JWT boot guard), #61 (honest E2E UI + OTP fallback + no auth-header logging), #54 (docs).
+> Build green via #49; **E2E stays DISABLED (NoOp/plaintext)** — UI now honest (no false padlock).
+
 ### Security & Correctness — Mobile Polish (Jun 7, 2026)
 - **[CRITICAL-trust] Honest E2E UI**: the profile padlock (`UserProfileScreen`) and the privacy-dashboard E2E card (`PrivacyDashboardScreen`) unconditionally claimed "end-to-end encrypted" while E2E is OFF in production (plaintext under TLS). Both are now gated on `E2EConfig.ENABLED`: when false, the padlock is replaced with an info icon and an honest message — TR "Aktarım sırasında şifreli (TLS) — uçtan uca şifreleme yakında" / EN "Transport-encrypted (TLS) — end-to-end encryption coming soon" (and the dashboard's `privacy_transport_info`). New TR+EN strings `profile_transport_encrypted` and `privacy_transport_info`. No crypto semantics changed; libsignal stays untouched.
 - **[MED] OTP fallback locale bug**: `PhoneInputScreen.shouldFallbackToBackendOtp` substring-matched localized Firebase message text, false-negating on Turkish-locale devices. Now a structured `PhoneAuthErrorCode` (`RATE_LIMITED` / `CONFIGURATION` / `INVALID_PHONE` / `UNKNOWN`) is carried on `PhoneVerificationResult.Error`, mapped on Android from `FirebaseAuthException.errorCode` (locale-invariant), and the fallback branches on the code. Substring matching survives only as a last resort on the generic catch path, using Kotlin's locale-invariant `String.lowercase()`. (`platform/FirebasePhoneAuth.kt`, `FirebasePhoneAuth.android.kt`, `ui/auth/PhoneInputScreen.kt`)

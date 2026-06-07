@@ -45,7 +45,12 @@ roadmap (`docs/PRODUCT_ROADMAP_2026-06-06.md`); no separate "Top-30" artifact ex
   near-term item. Until the libsignal API rewrite lands (verified on a real Android build + emulator),
   the 4 disabled Signal files stay disabled and Android uses NoOp (plaintext). **Do not enable E2E
   and do not re-enable the disabled files until this is done + crypto-reviewed.** Gates Tier 1.1, 2.4,
-  3.1. Detail: §"The libsignal block" + `CLAUDE.md`.
+  3.1. Detail: §"The libsignal block" + `CLAUDE.md`. (TODO P0.)
+- **Device re-verify of PR #61 (honest-E2E UI).** PR #61 (no false padlock — profile/privacy screens
+  show transport-encrypted (TLS) state gated on `E2EConfig.ENABLED`; locale-safe OTP error-code
+  fallback; stopped logging the auth header) is merged and **compiles** (commonMain + androidMain
+  green) but is **not yet runtime-tested on a phone**. Reinstall the APK and confirm the honest-E2E
+  state + OTP fallback on a real (incl. Turkish-locale) device before relying on it. (TODO P0.)
 - **Make login + notifications work in prod.** Firebase phone-auth is API-key-restricted on the
   current build (login now degrades to backend OTP via `shouldFallbackToBackendOtp()`), and the prod
   backend SMS sender is still `MockOtpSender`. Wire a real SMS path (Twilio / Netgsm) + verify FCM
