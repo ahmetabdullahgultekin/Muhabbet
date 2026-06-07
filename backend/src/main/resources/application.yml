@@ -151,7 +151,7 @@ muhabbet:
 # Logging
 logging:
   level:
-    com.muhabbet: DEBUG
+    com.muhabbet: INFO   # Safe default; dev profile (application-dev.yml) raises this to DEBUG
     org.springframework.web: INFO
     org.hibernate.SQL: WARN
   pattern:

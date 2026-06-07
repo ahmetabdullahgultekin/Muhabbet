@@ -15,6 +15,7 @@ import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtClaims
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
+import org.springframework.mock.env.MockEnvironment
 import com.muhabbet.shared.security.WebSocketRateLimiter
 import io.mockk.Runs
 import io.mockk.every
@@ -59,7 +60,7 @@ class ChatWebSocketHandlerTest {
             refreshTokenExpiry = 2592000,
             issuer = "muhabbet-test"
         )
-        jwtProvider = JwtProvider(jwtProperties)
+        jwtProvider = JwtProvider(jwtProperties, MockEnvironment())
 
         sessionManager = mockk(relaxed = true)
         sendMessageUseCase = mockk(relaxed = true)
@@ -164,7 +165,7 @@ class ChatWebSocketHandlerTest {
                 refreshTokenExpiry = 2592000,
                 issuer = "muhabbet-test"
             )
-            val expiredProvider = JwtProvider(expiredProps)
+            val expiredProvider = JwtProvider(expiredProps, MockEnvironment())
             val expiredToken = expiredProvider.generateAccessToken(userId, deviceId)
 
             // Small delay to ensure token is expired

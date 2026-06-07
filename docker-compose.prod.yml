@@ -17,7 +17,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       MINIO_ENDPOINT: http://shared-minio:9000
-      MINIO_ACCESS_KEY: minioadmin
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: muhabbet-media
       NETGSM_USERCODE: ${NETGSM_USERCODE:-}
@@ -59,7 +59,7 @@ services:
     entrypoint: >
       /bin/sh -c "
       sleep 5;
-      mc alias set local http://shared-minio:9000 minioadmin ${MINIO_ROOT_PASSWORD};
+      mc alias set local http://shared-minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_ROOT_PASSWORD};
       mc mb local/muhabbet-media --ignore-existing;
       mc anonymous set download local/muhabbet-media/thumbnails;
       echo 'MinIO bucket initialized.';

@@ -5,8 +5,8 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.MessageInfo
 import com.muhabbet.messaging.domain.port.`in`.MessagePage
-import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
@@ -26,7 +26,6 @@ class MessageControllerTest {
 
     private lateinit var getMessageHistoryUseCase: GetMessageHistoryUseCase
     private lateinit var manageMessageUseCase: ManageMessageUseCase
-    private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageService: MessageService
     private lateinit var controller: MessageController
@@ -40,13 +39,11 @@ class MessageControllerTest {
     fun setUp() {
         getMessageHistoryUseCase = mockk()
         manageMessageUseCase = mockk()
-        messageRepository = mockk()
         userRepository = mockk()
         messageService = mockk()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             manageMessageUseCase = manageMessageUseCase,
-            messageRepository = messageRepository,
             userRepository = userRepository,
             messageService = messageService
         )
@@ -126,8 +123,9 @@ class MessageControllerTest {
                 TestData.deliveryStatus(messageId = message.id, userId = TestData.USER_ID_2, status = DeliveryStatus.READ)
             )
 
-            every { messageRepository.findById(message.id) } returns message
-            every { messageRepository.getDeliveryStatuses(listOf(message.id)) } returns deliveryStatuses
+            every {
+                getMessageHistoryUseCase.getMessageInfo(message.id, userId)
+            } returns MessageInfo(message = message, deliveryStatuses = deliveryStatuses)
             every { userRepository.findById(TestData.USER_ID_2) } returns TestData.user(id = TestData.USER_ID_2, displayName = "User 2")
 
             val response = controller.getMessageInfo(message.id)
@@ -139,8 +137,10 @@ class MessageControllerTest {
         }
 
         @Test
-        fun `should throw MSG_NOT_FOUND when message does not exist`() {
-            every { messageRepository.findById(messageId) } returns null
+        fun `should propagate MSG_NOT_FOUND when message does not exist`() {
+            every {
+                getMessageHistoryUseCase.getMessageInfo(messageId, userId)
+            } throws BusinessException(ErrorCode.MSG_NOT_FOUND)
 
             try {
                 controller.getMessageInfo(messageId)
@@ -151,11 +151,26 @@ class MessageControllerTest {
         }
 
         @Test
+        fun `should propagate MSG_NOT_MEMBER when caller is not a conversation member`() {
+            every {
+                getMessageHistoryUseCase.getMessageInfo(messageId, userId)
+            } throws BusinessException(ErrorCode.MSG_NOT_MEMBER)
+
+            try {
+                controller.getMessageInfo(messageId)
+                assert(false) { "Expected BusinessException" }
+            } catch (ex: BusinessException) {
+                assert(ex.errorCode == ErrorCode.MSG_NOT_MEMBER)
+            }
+        }
+
+        @Test
         fun `should return empty content for deleted messages`() {
             val deleted = TestData.deletedMessage(id = messageId)
 
-            every { messageRepository.findById(messageId) } returns deleted
-            every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns emptyList()
+            every {
+                getMessageHistoryUseCase.getMessageInfo(messageId, userId)
+            } returns MessageInfo(message = deleted, deliveryStatuses = emptyList())
 
             val response = controller.getMessageInfo(messageId)
 
