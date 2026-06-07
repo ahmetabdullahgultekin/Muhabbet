@@ -31,6 +31,7 @@
     <string name="phone_placeholder">+905XXXXXXXXX</string>
     <string name="phone_continue">Continue</string>
     <string name="phone_invalid">Invalid phone number</string>
+    <string name="phone_auth_failed">Couldn\'t start verification. Please try again later.</string>
 
     <!-- OtpVerifyScreen -->
     <string name="otp_title">Verification Code</string>
