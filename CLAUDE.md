@@ -226,7 +226,20 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ## Current Phase
 
-> **Current state (2026-06-07):** the Android **debug build is green** again. To get there, two build
+> **Current state (2026-06-07) — session PRs all merged to `main`:** #49 (Android build unblock:
+> Firebase non-`ktx` artifacts, `compileSdk` 35→36, libsignal→NoOp), #57 (scheduled-send UI),
+> #58 (communities add-group sheet), #59 (mute-duration picker), #60 (Ktor 3.x mobile-test compile
+> fix), #55 (backend: `getMessageInfo` + `markViewOnceViewed` IDOR guards, JWT dev-secret fail-closed
+> boot guard, config hygiene), #61 (mobile: honest E2E UI — **no false padlock**, transport-encrypted
+> (TLS) state gated on `E2EConfig.ENABLED`; locale-safe OTP error-code fallback; stopped logging the
+> auth header), #54 (docs). **Build green via #49.** **E2E remains DISABLED (NoOp/plaintext)** — the
+> UI is now **honest** (no padlock claim while OFF). **Cheap compile gate:**
+> `:mobile:composeApp:compileCommonMainKotlinMetadata`. **Do NOT** flip `E2EConfig.ENABLED=true` while
+> NoOp is wired, and **do NOT** re-enable the `*.kt.disabled` files — both are gated on the standing
+> libsignal re-integration (see below). PR #61 compiles (commonMain + androidMain) but is **not yet
+> runtime-verified on a phone** (TODO P0 / ROADMAP near-term).
+>
+> The Android **debug build is green** again. To get there, two build
 > blockers were fixed (see `docs/findings/2026-06-07-session.md` + `CHANGELOG.md` 2026-06-07 / PR #49):
 > Firebase BoM `34.11.0` dropped the `-ktx` artifacts (switched to `firebase-auth`/`firebase-messaging`
 > + imports) and `compileSdk` went `35`→`36`. Crucially, **E2E encryption is TEMPORARILY DISABLED
