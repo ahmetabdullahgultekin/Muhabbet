@@ -540,8 +540,10 @@
 
     <!-- Community Add Group -->
     <string name="community_add_group_title">Add Group to Community</string>
-    <string name="community_add_group_coming_soon">This feature is coming soon. For now, use the "New Conversation" screen to create a group.</string>
-    <string name="community_add_group_ok">OK</string>
+    <string name="community_add_group_subtitle">Select a group to add to this community</string>
+    <string name="community_add_group_empty">You have no groups to add</string>
+    <string name="community_add_group_added">Group added to community</string>
+    <string name="community_add_group_failed">Could not add group</string>
 
     <!-- Search -->
     <string name="home_search_title">Search</string>
