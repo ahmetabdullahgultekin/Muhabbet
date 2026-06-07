@@ -3,7 +3,6 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
-import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -34,7 +33,6 @@ import java.util.UUID
 class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val manageMessageUseCase: ManageMessageUseCase,
-    private val messageRepository: MessageRepository,
     private val userRepository: UserRepository,
     private val messageService: MessageService
 ) {
@@ -108,9 +106,8 @@ class MessageController(
     @GetMapping("/messages/{messageId}/info")
     fun getMessageInfo(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<MessageInfoResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        val message = messageRepository.findById(messageId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
-        val statuses = messageRepository.getDeliveryStatuses(listOf(messageId))
+        // Lookup + membership authorization happen behind the use case (closes IDOR).
+        val (message, statuses) = getMessageHistoryUseCase.getMessageInfo(messageId, userId)
         val recipientInfos = statuses
             .filter { it.userId != message.senderId }
             .map { ds ->

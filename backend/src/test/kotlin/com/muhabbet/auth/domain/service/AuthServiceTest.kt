@@ -14,6 +14,7 @@ import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
+import org.springframework.mock.env.MockEnvironment
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -62,7 +63,7 @@ class AuthServiceTest {
             refreshTokenExpiry = 2592000,
             issuer = "muhabbet-test"
         )
-        jwtProvider = JwtProvider(jwtProperties)
+        jwtProvider = JwtProvider(jwtProperties, MockEnvironment())
 
         authService = AuthService(
             userRepository = userRepository,

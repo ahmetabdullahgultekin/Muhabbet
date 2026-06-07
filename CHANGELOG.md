@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security — Backend IDOR + JWT Guard + Config Hygiene (Jun 7, 2026)
+- **[HIGH] `getMessageInfo` IDOR closed**: the endpoint looked up a message by id with no membership check, leaking content, senderId and the full recipient list to anyone who knew (or guessed) a messageId. The lookup now lives behind `GetMessageHistoryUseCase.getMessageInfo(messageId, requesterId)` which authorizes *first* (`conversationRepository.findMember` → `MSG_NOT_MEMBER`/403) before returning anything. The controller no longer touches `MessageRepository`. (`MessageController.kt`, `GetMessageHistoryUseCase.kt`, `MessageService.kt`)
+- **[HIGH] `markViewOnceViewed` IDOR closed**: a non-member who knew a messageId could burn a view-once message. Added a conversation-membership guard before any mutation. (`MessageService.kt`)
+- **[HIGH] JWT dev-secret fail-closed startup guard**: `JwtProvider.validateSecret()` (`@PostConstruct`, all profiles) aborts boot when `JWT_SECRET` is still the world-known `application.yml` dev default or is shorter than 32 bytes (HS256 minimum). Prevents shipping a forgeable token signer. (`JwtProvider.kt`)
+- **[LOW] Config hygiene**: `docker-compose.prod.yml` now reads `MINIO_ACCESS_KEY` from the env (`${MINIO_ACCESS_KEY:-minioadmin}`) instead of hardcoding `minioadmin`, matching `infra/docker-compose.prod.yml`; base `application.yml` log level for `com.muhabbet` defaulted to `INFO` (dev profile keeps `DEBUG`).
+- **Tests**: IDOR guards covered at the service layer (`MessagingServiceTest` — member allowed / non-member `MSG_NOT_MEMBER` / not-found, plus burn-blocked for view-once) and end-to-end through the real Spring Security chain (`MessageIdorIntegrationTest`, Testcontainers); startup guard covered by `JwtProviderSecretGuardTest`.
+
 ## 2026-06-07
 
 ### Fixed — Android Debug Build Unblock (PR #49, branch `claude/fix-firebase-bom-ktx`)

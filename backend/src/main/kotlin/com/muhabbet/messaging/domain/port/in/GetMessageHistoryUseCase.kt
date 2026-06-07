@@ -2,6 +2,7 @@ package com.muhabbet.messaging.domain.port.`in`
 
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import java.time.Instant
 import java.util.UUID
 
@@ -28,10 +29,22 @@ interface GetMessageHistoryUseCase {
      * Used by background sync to catch up on missed messages.
      */
     fun getMessagesSince(userId: UUID, since: Instant): List<Message>
+
+    /**
+     * Returns a message plus its per-recipient delivery statuses, AFTER authorizing that the
+     * requesting user is a member of the message's conversation. Throws MSG_NOT_MEMBER otherwise.
+     * Closes the getMessageInfo IDOR — the membership check lives here, not in the controller.
+     */
+    fun getMessageInfo(messageId: UUID, requesterId: UUID): MessageInfo
 }
 
 data class MessagePage(
     val items: List<Message>,
     val nextCursor: String?,
     val hasMore: Boolean
+)
+
+data class MessageInfo(
+    val message: Message,
+    val deliveryStatuses: List<MessageDeliveryStatus>
 )
