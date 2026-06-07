@@ -102,6 +102,14 @@ object DateTimeFormatter {
         }
     }
 
+    /** Format epoch millis to full timestamp: "dd.MM.yyyy HH:mm" */
+    fun formatFullTimestampMillis(epochMillis: Long): String {
+        val tz = TimeZone.currentSystemDefault()
+        val dt = Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(tz)
+        return "${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')}.${dt.year} " +
+            "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
+    }
+
     /** Format seconds to "M:ss" for voice/call duration display */
     fun formatDuration(seconds: Int): String {
         val mins = seconds / 60

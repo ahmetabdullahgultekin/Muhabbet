@@ -124,6 +124,8 @@ fun ChatScreen(
     val chatEditMode = stringResource(Res.string.chat_edit_mode)
     val gifContentLabel = stringResource(Res.string.attach_gif)
     val stickerContentLabel = stringResource(Res.string.attach_sticker)
+    val scheduleQueuedMsg = stringResource(Res.string.schedule_queued)
+    val scheduleCancelledMsg = stringResource(Res.string.schedule_cancelled)
 
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
@@ -139,6 +141,11 @@ fun ChatScreen(
     var showPollDialog by remember { mutableStateOf(false) }
     var showLocationDialog by remember { mutableStateOf(false) }
     var showGifPicker by remember { mutableStateOf(false) }
+
+    // Scheduled send — session-local pending list + dialog visibility
+    var showScheduleDialog by remember { mutableStateOf(false) }
+    var showScheduledListDialog by remember { mutableStateOf(false) }
+    var pendingScheduled by remember { mutableStateOf<List<PendingScheduledMessage>>(emptyList()) }
 
     // Message interaction
     var editingMessageId by remember { mutableStateOf<String?>(null) }
@@ -345,6 +352,41 @@ fun ChatScreen(
     if (showLocationDialog) LocationShareDialog(onSend = { loc -> showLocationDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), loc); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.LOCATION, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
     if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.POLL, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
 
+    // Scheduled send: pick date+time, then reuse the existing send path with scheduledAt set.
+    if (showScheduleDialog) ScheduleSendDialog(
+        onConfirm = { epochMillis ->
+            showScheduleDialog = false
+            val text = messageText.trim()
+            if (text.isEmpty()) return@ScheduleSendDialog
+            val replyId = replyingTo?.id
+            messageText = ""; replyingTo = null; typingJob?.cancel()
+            if (isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { } }; isTypingSent = false }
+            val mid = generateMessageId(); val rid = generateMessageId()
+            pendingScheduled = pendingScheduled + PendingScheduledMessage(messageId = mid, content = text, scheduledAtMillis = epochMillis)
+            scope.launch {
+                try {
+                    wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId, scheduledAt = epochMillis))
+                    snackbarHostState.showSnackbar(scheduleQueuedMsg)
+                } catch (_: Exception) {
+                    pendingScheduled = pendingScheduled.filter { it.messageId != mid }
+                    snackbarHostState.showSnackbar(errorSendMsg)
+                }
+            }
+        },
+        onDismiss = { showScheduleDialog = false }
+    )
+
+    // View / cancel pending scheduled messages. Cancel reuses the existing delete-message endpoint.
+    if (showScheduledListDialog) ScheduledMessagesDialog(
+        pending = pendingScheduled,
+        onCancelScheduled = { item ->
+            pendingScheduled = pendingScheduled.filter { it.messageId != item.messageId }
+            if (pendingScheduled.isEmpty()) showScheduledListDialog = false
+            scope.launch { try { groupRepository.deleteMessage(item.messageId); snackbarHostState.showSnackbar(scheduleCancelledMsg) } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
+        },
+        onDismiss = { showScheduledListDialog = false }
+    )
+
     // ── Scaffold UI ──────────────────────────
     Scaffold(
         topBar = {
@@ -430,6 +472,11 @@ fun ChatScreen(
                 }
             }
 
+            // Pending scheduled messages chip (session-local)
+            if (pendingScheduled.isNotEmpty()) {
+                ScheduledMessagesChip(count = pendingScheduled.size, onClick = { showScheduledListDialog = true })
+            }
+
             // Reply / Edit bars
             replyingTo?.let { ReplyPreviewBar(it) { replyingTo = null } }
             if (editingMessageId != null) EditModeBar(chatEditMode) { editingMessageId = null; messageText = "" }
@@ -500,7 +547,8 @@ fun ChatScreen(
                     onGifPick = { showGifPicker = true },
                     onCameraPick = { cameraPickerLauncher.launch() },
                     viewOnceEnabled = viewOnceEnabled,
-                    onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled }
+                    onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled },
+                    onScheduleSend = { if (messageText.isNotBlank()) showScheduleDialog = true }
                 )
             }
         }
