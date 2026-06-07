@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,6 +52,7 @@ import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.components.ConfirmDialog
 import com.muhabbet.app.ui.components.UserAvatar
@@ -232,7 +234,9 @@ fun UserProfileScreen(
                     HorizontalDivider()
                 }
 
-                // E2E Encryption badge
+                // Encryption badge — HONEST about the actual transport.
+                // E2E is OFF in production (plaintext under TLS), so do NOT show a padlock or claim
+                // end-to-end encryption when E2EConfig.ENABLED is false. Show a truthful TLS state.
                 item {
                     Row(
                         modifier = Modifier
@@ -241,14 +245,22 @@ fun UserProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.Lock,
+                            if (E2EConfig.ENABLED) Icons.Default.Lock else Icons.Default.Info,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = if (E2EConfig.ENABLED) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                         Spacer(Modifier.width(MuhabbetSpacing.Medium))
                         Text(
-                            text = stringResource(Res.string.profile_encrypted),
+                            text = if (E2EConfig.ENABLED) {
+                                stringResource(Res.string.profile_encrypted)
+                            } else {
+                                stringResource(Res.string.profile_transport_encrypted)
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

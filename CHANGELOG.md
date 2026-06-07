@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security & Correctness — Mobile Polish (Jun 7, 2026)
+- **[CRITICAL-trust] Honest E2E UI**: the profile padlock (`UserProfileScreen`) and the privacy-dashboard E2E card (`PrivacyDashboardScreen`) unconditionally claimed "end-to-end encrypted" while E2E is OFF in production (plaintext under TLS). Both are now gated on `E2EConfig.ENABLED`: when false, the padlock is replaced with an info icon and an honest message — TR "Aktarım sırasında şifreli (TLS) — uçtan uca şifreleme yakında" / EN "Transport-encrypted (TLS) — end-to-end encryption coming soon" (and the dashboard's `privacy_transport_info`). New TR+EN strings `profile_transport_encrypted` and `privacy_transport_info`. No crypto semantics changed; libsignal stays untouched.
+- **[MED] OTP fallback locale bug**: `PhoneInputScreen.shouldFallbackToBackendOtp` substring-matched localized Firebase message text, false-negating on Turkish-locale devices. Now a structured `PhoneAuthErrorCode` (`RATE_LIMITED` / `CONFIGURATION` / `INVALID_PHONE` / `UNKNOWN`) is carried on `PhoneVerificationResult.Error`, mapped on Android from `FirebaseAuthException.errorCode` (locale-invariant), and the fallback branches on the code. Substring matching survives only as a last resort on the generic catch path, using Kotlin's locale-invariant `String.lowercase()`. (`platform/FirebasePhoneAuth.kt`, `FirebasePhoneAuth.android.kt`, `ui/auth/PhoneInputScreen.kt`)
+- **[MED] Ktor logged the Authorization header**: `ApiClient` used `Logging { level = LogLevel.HEADERS }`, leaking the bearer token to logs. Now `LogLevel.INFO` (method + URL + status, no headers) in debug and `LogLevel.NONE` in release, gated on the new `BuildInfo.DEBUG` flag — headers are never logged in any build.
+
 ### Fixed — Production Deployment (Feb 17, 2026)
 - **Sentry auto-configuration crash**: Excluded `SentryAutoConfiguration` from Spring Boot 4.x — Sentry 8.26.0 references removed `RestClientAutoConfiguration`
 - **MessageBroadcaster bean ambiguity**: Added `@Primary` to `RedisMessageBroadcaster` — Spring Boot 4.x stricter bean resolution rejected two `MessageBroadcaster` implementations

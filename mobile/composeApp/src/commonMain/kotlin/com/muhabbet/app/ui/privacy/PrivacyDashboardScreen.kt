@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.ui.components.ConfirmDialog
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
@@ -204,15 +206,22 @@ fun PrivacyDashboardScreen(
                         modifier = Modifier.padding(MuhabbetSpacing.Medium),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // HONEST about transport: E2E is OFF in production (plaintext under TLS).
+                        // Don't show a padlock or claim end-to-end encryption when E2EConfig.ENABLED
+                        // is false — state the truthful TLS-in-transit posture instead.
                         Icon(
-                            Icons.Default.Lock,
+                            if (E2EConfig.ENABLED) Icons.Default.Lock else Icons.Default.Info,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.width(MuhabbetSpacing.Medium))
                         Text(
-                            text = stringResource(Res.string.privacy_e2e_info),
+                            text = if (E2EConfig.ENABLED) {
+                                stringResource(Res.string.privacy_e2e_info)
+                            } else {
+                                stringResource(Res.string.privacy_transport_info)
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )

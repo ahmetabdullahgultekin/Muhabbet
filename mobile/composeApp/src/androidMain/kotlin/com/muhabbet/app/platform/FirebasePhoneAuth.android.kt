@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.google.firebase.FirebaseException
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
@@ -60,7 +61,12 @@ class AndroidFirebasePhoneAuth(
 
                 override fun onVerificationFailed(e: FirebaseException) {
                     if (cont.isActive) {
-                        cont.resume(PhoneVerificationResult.Error(e.message ?: "Verification failed"))
+                        cont.resume(
+                            PhoneVerificationResult.Error(
+                                message = e.message ?: "Verification failed",
+                                code = classifyFirebaseError(e)
+                            )
+                        )
                     }
                 }
             }
@@ -100,6 +106,57 @@ class AndroidFirebasePhoneAuth(
                     }
                 }
         }
+}
+
+/**
+ * Maps a Firebase exception to a locale-independent [PhoneAuthErrorCode].
+ *
+ * Prefers `FirebaseAuthException.errorCode` (a stable, locale-invariant `ERROR_*` constant) over
+ * the human-readable `message` — the message is localized and so unreliable for branching on
+ * Turkish-locale devices. Falls back to a Locale.ROOT substring scan of the message only when no
+ * structured code is present (e.g. a non-auth FirebaseException).
+ */
+internal fun classifyFirebaseError(e: FirebaseException): PhoneAuthErrorCode {
+    val errorCode = (e as? FirebaseAuthException)?.errorCode?.uppercase(java.util.Locale.ROOT)
+    if (errorCode != null) {
+        return when (errorCode) {
+            "ERROR_TOO_MANY_REQUESTS",
+            "ERROR_QUOTA_EXCEEDED" -> PhoneAuthErrorCode.RATE_LIMITED
+
+            "ERROR_API_NOT_AVAILABLE",
+            "ERROR_INVALID_API_KEY",
+            "ERROR_APP_NOT_AUTHORIZED",
+            "ERROR_INTERNAL_ERROR",
+            "ERROR_WEB_CONTEXT_CANCELLED",
+            "ERROR_MISSING_CLIENT_IDENTIFIER",
+            "ERROR_APP_NOT_VERIFIED" -> PhoneAuthErrorCode.CONFIGURATION
+
+            "ERROR_INVALID_PHONE_NUMBER",
+            "ERROR_MISSING_PHONE_NUMBER" -> PhoneAuthErrorCode.INVALID_PHONE
+
+            else -> PhoneAuthErrorCode.UNKNOWN
+        }
+    }
+    // No structured code (rare): fall back to a locale-invariant scan of the message.
+    return classifyFirebaseMessage(e.message)
+}
+
+/**
+ * Last-resort, locale-invariant classification from raw message text. Used only when no structured
+ * Firebase error code is available. Uses [java.util.Locale.ROOT] so Turkish `i`/`I` folding can't
+ * break the match.
+ */
+internal fun classifyFirebaseMessage(rawMessage: String?): PhoneAuthErrorCode {
+    val msg = (rawMessage ?: "").lowercase(java.util.Locale.ROOT)
+    return when {
+        listOf("block", "too many", "unusual", "quota").any { msg.contains(it) } ->
+            PhoneAuthErrorCode.RATE_LIMITED
+        listOf(
+            "api key", "not valid", "internal error", "configuration",
+            "developer error", "app not authorized", "invalid-api-key"
+        ).any { msg.contains(it) } -> PhoneAuthErrorCode.CONFIGURATION
+        else -> PhoneAuthErrorCode.UNKNOWN
+    }
 }
 
 @Composable

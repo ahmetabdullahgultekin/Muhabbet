@@ -395,6 +395,7 @@
 
     <!-- Encryption -->
     <string name="profile_encrypted">Messages are end-to-end encrypted</string>
+    <string name="profile_transport_encrypted">Transport-encrypted (TLS) — end-to-end encryption coming soon</string>
 
     <!-- Message formatting hint -->
     <string name="chat_format_hint">*bold* _italic_ ~strikethrough~ `code`</string>
@@ -432,6 +433,7 @@
     <string name="privacy_visibility_nobody">Nobody</string>
     <string name="privacy_security_section">Security</string>
     <string name="privacy_e2e_info">All messages are end-to-end encrypted. Only you and the recipient can read your messages.</string>
+    <string name="privacy_transport_info">Your messages are encrypted in transit with TLS. We're working on end-to-end encryption and will enable it soon.</string>
     <string name="privacy_blocked_contacts">Blocked Contacts</string>
     <string name="privacy_blocked_contacts_desc">Manage your blocked contacts</string>
     <string name="privacy_kvkk_section">KVKK Rights</string>
