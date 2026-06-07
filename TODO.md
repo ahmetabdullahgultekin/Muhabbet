@@ -1,10 +1,12 @@
 # MUHABBET — TODO (TACTICAL)
 
-> **Last refreshed**: 2026-06-06 (Tier 1 = DONE; Tier 2 multi-device NON-CRYPTO scaffolding shipped
-> behind `multi-device.enabled` default OFF; Dependabot #40 triaged + closed — breaks the mobile KMP
-> build). Aligned to [`ROADMAP.md`](ROADMAP.md).
+> **Last refreshed**: 2026-06-07 (Tier 1 = DONE; Tier 2 multi-device NON-CRYPTO scaffolding shipped
+> behind `multi-device.enabled` default OFF; Android debug build unblocked via PRs #49–#53; **E2E now
+> TEMPORARILY DISABLED — NoOp placeholder, NOT secure**, libsignal disabled pending re-integration).
+> Aligned to [`ROADMAP.md`](ROADMAP.md).
 > **Dev status**: Backend LIVE + healthy at `https://muhabbet-api.rollingcatsoftware.com`
-> (db/redis/ssl all UP). **Do NOT deploy** — E2E + multi-device both ship dark (flags OFF).
+> (db/redis/ssl all UP). **Do NOT deploy** — E2E is DISABLED (NoOp = plaintext) and multi-device ships
+> dark (flag OFF).
 > **Convention**: P0 = launch-blocker / correctness / security · P1 = needed before public
 > launch · P2 = quality/hardening · P3 = growth/optional.
 > **Tier alignment**: P0/P1 below = **Tier 1** (core-messaging hardening & trust) in `ROADMAP.md`.
@@ -13,11 +15,50 @@
 >
 > **Tier-1 engineering = DONE** (E2E text wired/#31, receipts/#35, media-blob E2E, 6 dead buttons/
 > #35+#36). The open P0/P1 below are now mostly **operator/ops** tasks (signed AAB, pen-test, Sentry
-> DSN, k6) + the iOS catch-up, not new feature code.
+> DSN, k6) + the iOS catch-up, not new feature code. **Caveat (2026-06-07):** the E2E code path is
+> wired but the Android Signal impl is **disabled** (NoOp = plaintext) — re-integrating libsignal is
+> now a hard prerequisite before E2E can be turned on at all (new P0 below).
 
 ---
 
 ## P0 — Launch blockers & security-critical  *(Tier 1)*
+
+- [ ] **Re-integrate the libsignal API (E2E currently NoOp = plaintext, NOT secure)** **[Tier 1.1]**
+  - `mobile/composeApp/src/androidMain/.../crypto/SignalKeyManager.kt.disabled`,
+    `SignalEncryption.kt.disabled`, `InMemorySignalProtocolStore.kt.disabled`,
+    `PersistentSignalProtocolStore.kt.disabled` (the 4 disabled files);
+    `mobile/.../di/PlatformModule.android.kt` (currently wires `NoOpKeyManager()` + `NoOpEncryption()`);
+    `mobile/composeApp/build.gradle.kts` (pinned `libsignal-android:0.86.5`); `settings.gradle.kts`
+    (Signal Maven repo added by PR #42)
+  - **Why**: To unblock the 2026-06-07 Android debug build, the Signal files (which don't compile
+    against the pinned 0.86.5 API — Curve removed, `saveIdentity` contract, Kyber `PreKeyBundle`,
+    `SessionCipher` `localAddress`; see `CLAUDE.md` → "libsignal upgrade (BLOCKED)") were disabled and
+    Android fell back to NoOp. **NoOp returns plaintext** — so E2E is now not just flag-OFF, it has no
+    real implementation. This is the standing blocker for the whole crypto track (Tier 1.1, 2.4, 3.1).
+    **Do not re-enable the disabled files or flip the E2E flag until this rewrite lands + is crypto-reviewed.**
+  - **DONE =** the 4 files are rewritten against the current libsignal API, compile + two-device
+    round-trip verified on a real Android build + emulator, DI re-wires `SignalKeyManager`/`SignalEncryption`,
+    and a crypto review signs off — only then is flipping `E2EConfig.ENABLED` even on the table.
+
+- [ ] **Make login + notifications actually work in prod (Twilio/Netgsm SMS + FCM)** **[Tier 1.6]**
+  - `mobile/.../ui/auth/PhoneInputScreen.kt` (`shouldFallbackToBackendOtp()` fallback),
+    `mobile/.../platform/FirebasePhoneAuth.android.kt`, backend OTP sender (`MockOtpSender` →
+    `NetgsmOtpSender`/Twilio via `@ConditionalOnProperty`), `infra/docker-compose.prod.yml`
+    (`OTP_MOCK_ENABLED`, `FCM_ENABLED`, `FIREBASE_CREDENTIALS_PATH`)
+  - **Why**: Firebase phone-auth is API-key-restricted on the current build (login now degrades to
+    backend OTP), and the prod backend still uses the mock OTP sender — so real users can't receive a
+    code. FCM push must also be verified end-to-end so notifications actually arrive. Until both work,
+    a real user cannot log in or be notified.
+  - **DONE =** a real Turkish number receives an OTP SMS (via Twilio or Netgsm) and logs in; a push
+    notification is delivered to a backgrounded device — both verified on a physical device against prod.
+
+- [ ] **Merge PR #49 (build unblock), then retarget the stacked feature/fix PRs**
+  - PRs: #49 (`claude/fix-firebase-bom-ktx` → main), #50 (scheduled-send), #51 (communities add-group),
+    #52 (mute-duration), #53 (Ktor test fix) — all currently based on `claude/fix-firebase-bom-ktx`
+  - **Why**: #50–#53 are stacked on #49 so their diffs show only the feature. Once #49 merges to main,
+    GitHub auto-retargets the stacked PRs to main; review/merge them after.
+  - **DONE =** #49 merged to main; #50–#53 retargeted to main, reviewed, and merged (or closed) as
+    appropriate.
 
 - [x] **Wire E2E encryption into the message send/receive path (or stop advertising E2E)** **[Tier 1.1]**
   — *Done in code, behind a default-OFF feature flag, with unit tests. Pushed on branch

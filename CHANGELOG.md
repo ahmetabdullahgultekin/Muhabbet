@@ -11,6 +11,31 @@ All notable changes to this project will be documented in this file.
 - **[LOW] Config hygiene**: `docker-compose.prod.yml` now reads `MINIO_ACCESS_KEY` from the env (`${MINIO_ACCESS_KEY:-minioadmin}`) instead of hardcoding `minioadmin`, matching `infra/docker-compose.prod.yml`; base `application.yml` log level for `com.muhabbet` defaulted to `INFO` (dev profile keeps `DEBUG`).
 - **Tests**: IDOR guards covered at the service layer (`MessagingServiceTest` — member allowed / non-member `MSG_NOT_MEMBER` / not-found, plus burn-blocked for view-once) and end-to-end through the real Spring Security chain (`MessageIdorIntegrationTest`, Testcontainers); startup guard covered by `JwtProviderSecretGuardTest`.
 
+## 2026-06-07
+
+### Fixed — Android Debug Build Unblock (PR #49, branch `claude/fix-firebase-bom-ktx`)
+- **Firebase BoM dropped the `-ktx` artifacts**: switched `com.google.firebase:firebase-auth-ktx` → `firebase-auth` and `firebase-messaging-ktx` → `firebase-messaging` (Firebase BoM `34.11.0`). Updated the corresponding imports in `FirebasePhoneAuth.android.kt` (`com.google.firebase.auth.ktx.auth` → `com.google.firebase.auth.auth`, `com.google.firebase.ktx.Firebase` → `com.google.firebase.Firebase`).
+- **`compileSdk` bump**: `35` → `36` in `mobile/composeApp/build.gradle.kts`.
+- **libsignal E2E temporarily DISABLED** (NoOp placeholder, **NOT secure**): the Android Signal Protocol code does not compile against the pinned `libsignal-android:0.86.5` (see `CLAUDE.md` → "libsignal upgrade (BLOCKED)"). The 4 Signal files (`SignalKeyManager.kt`, `SignalEncryption.kt`, `InMemorySignalProtocolStore.kt`, `PersistentSignalProtocolStore.kt`) were renamed to `*.kt.disabled`, and `PlatformModule.android.kt` now wires `NoOpKeyManager()` + `NoOpEncryption()` — the same NoOp path iOS already uses. This is byte-identical to current prod behavior because E2E is flag-OFF by default (`E2EConfig.ENABLED = false`); **messages are NOT encrypted** and E2E must stay OFF until the libsignal rewrite lands. Pending real libsignal API re-integration.
+
+### Fixed — Splash "green circle" (PR #49)
+- **Stray green circle bleeding into the login screen**: `splash_background.xml` / `splash_background_dark.xml` previously drew a centered green oval (`#1B5E20`) in a `layer-list`. Because the Compose content is transparent and never paints an opaque background, the oval bled through the first composable and rendered as a stray green circle over the login screen. Flattened to a plain solid window background (flat color only).
+
+### Fixed — Login backend-OTP fallback (PR #49)
+- **Firebase phone-auth degrades gracefully to backend OTP**: `PhoneInputScreen.kt` now routes Firebase phone-auth failures through a new `shouldFallbackToBackendOtp()` helper that covers both transient throttling (rate limiting) **and** Firebase configuration/internal errors (e.g. "API key not valid", "internal error", "configuration"). A misconfigured Firebase build (API-key restriction) now falls back to the backend OTP flow instead of dead-ending on a raw error. Firebase remains the primary path; user-facing errors now resolve to the localized `phone_auth_failed` string (TR+EN added).
+
+### Added — Scheduled-message send UI (branch `claude/feat-scheduled-send-ui`)
+- **Schedule outgoing text messages from chat**: long-press the send button opens a two-step Material3 date + time picker; the chosen epoch-millis is attached as `scheduledAt` on the existing `WsMessage.SendMessage` frame (the field and the backend `ScheduledMessageJob` already existed). A normal tap still sends immediately. A "Scheduled" chip above the input bar surfaces session-pending scheduled messages with per-item cancel (reuses `GroupRepository.deleteMessage`). New `ScheduledSend.kt`; updates to `ChatScreen.kt`, `MessageInputPane.kt`, `DateTimeFormatter.kt`; 12 `schedule_*` strings (TR+EN). Android-verified.
+
+### Added — Communities: real group-picker sheet (branch `claude/feat-communities-add-group`)
+- **Add groups to a community via a real picker**: replaced the "coming soon" stub in `CommunityDetailScreen` with an `AddGroupToCommunitySheet` `ModalBottomSheet` that lists the user's `GROUP` conversations (excluding ones already in the community) and calls the existing `CommunityRepository.addGroupToCommunity()` endpoint, then refreshes. Dropped unused `coming_soon`/`ok` strings; added subtitle/empty/added/failed strings (TR+EN).
+
+### Changed — Mute-duration picker cleanup (branch `claude/feat-mute-duration-ui`)
+- **Honest mute-duration rows (8h / 1w / Always)**: `MutePickerDialog` previously rendered a permanently-unselected `RadioButton` with a duplicated tap handler. Replaced with plain clickable rows carrying a leading `NotificationsOff` icon, `MuhabbetSpacing` tokens, `onSurfaceVariant` tint, and a 48dp (`MuhabbetSizes.MinTouchTarget`) minimum height. No behaviour change — still calls `onMuteDuration(key)`.
+
+### Fixed — Ktor 3.x mobile test compile (branch `claude/fix-tests`)
+- **`HttpResponseData` package move**: `AuthRepositoryTest.createApiClientWithMock` referenced `io.ktor.client.engine.mock.HttpResponseData`, but in Ktor 3.x that type lives in `io.ktor.client.request.HttpResponseData` (the `mock` package only holds `MockRequestHandleScope`). The stale FQN broke `:mobile:composeApp:testDebugUnitTest` with "Unresolved reference HttpResponseData". One-line, test-only fix.
+
 ### Fixed — Production Deployment (Feb 17, 2026)
 - **Sentry auto-configuration crash**: Excluded `SentryAutoConfiguration` from Spring Boot 4.x — Sentry 8.26.0 references removed `RestClientAutoConfiguration`
 - **MessageBroadcaster bean ambiguity**: Added `@Primary` to `RedisMessageBroadcaster` — Spring Boot 4.x stricter bean resolution rejected two `MessageBroadcaster` implementations

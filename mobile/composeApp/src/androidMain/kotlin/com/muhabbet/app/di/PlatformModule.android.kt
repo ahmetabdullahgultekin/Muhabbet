@@ -4,9 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
-import com.muhabbet.app.crypto.PersistentSignalProtocolStore
-import com.muhabbet.app.crypto.SignalEncryption
-import com.muhabbet.app.crypto.SignalKeyManager
 import com.muhabbet.app.data.local.DatabaseDriverFactory
 import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.local.TokenStorage
@@ -18,6 +15,8 @@ import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.shared.port.E2EKeyManager
 import com.muhabbet.shared.port.EncryptionPort
+import com.muhabbet.shared.port.NoOpEncryption
+import com.muhabbet.shared.port.NoOpKeyManager
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -30,9 +29,16 @@ fun androidPlatformModule(context: Context): Module = module {
     single<PushTokenProvider> { AndroidPushTokenProvider() }
     single { BackgroundSyncManager(context) }
     single { SpeechTranscriber(context) }
-    single { PersistentSignalProtocolStore(context) }
-    single<E2EKeyManager> { SignalKeyManager(store = get()) }
-    single<EncryptionPort> { SignalEncryption(keyManager = get()) }
+    // NOTE: The libsignal Signal Protocol implementation (SignalKeyManager / SignalEncryption /
+    // *SignalProtocolStore) is BLOCKED — it does not compile against the pinned
+    // libsignal-android:0.86.5 and requires an owner-driven, on-device-verified rewrite
+    // (see CLAUDE.md → "libsignal upgrade (BLOCKED)"). Those 4 files are disabled (*.kt.disabled).
+    // Android therefore falls back to the same NoOp path iOS already uses. This is byte-identical
+    // to current prod behavior because E2E is flag-OFF by default (E2EConfig.ENABLED = false).
+    // E2E MUST remain OFF on this build: NoOp returns plaintext, so flipping the flag here would
+    // send plaintext labelled as encrypted. Do not enable E2E until the libsignal rewrite lands.
+    single<E2EKeyManager> { NoOpKeyManager() }
+    single<EncryptionPort> { NoOpEncryption() }
 }
 
 class AndroidTokenStorage(private val context: Context) : TokenStorage {

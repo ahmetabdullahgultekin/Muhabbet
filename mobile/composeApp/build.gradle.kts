@@ -87,8 +87,8 @@ kotlin {
 
             // Firebase Auth (Phone verification) + Cloud Messaging
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.11.0"))
-            implementation("com.google.firebase:firebase-auth-ktx")
-            implementation("com.google.firebase:firebase-messaging-ktx")
+            implementation("com.google.firebase:firebase-auth")
+            implementation("com.google.firebase:firebase-messaging")
 
             // Sentry — crash reporting
             implementation("io.sentry:sentry-android:8.37.1")
@@ -116,7 +116,7 @@ kotlin {
 
 android {
     namespace = "com.muhabbet.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.muhabbet.app"

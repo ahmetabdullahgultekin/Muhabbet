@@ -57,7 +57,8 @@ fun PhoneInputScreen(
     val useFirebase = firebasePhoneAuth?.isAvailable() == true
 
     val invalidPhoneMsg = stringResource(Res.string.phone_invalid)
-    val genericErrorMsg = stringResource(Res.string.error_generic)
+    // Resolved here (not inside scope.launch) because stringResource is @Composable.
+    val authFailedMsg = stringResource(Res.string.phone_auth_failed)
 
     Column(
         modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
@@ -139,17 +140,16 @@ fun PhoneInputScreen(
                                     onFirebaseAutoVerified(authResult.isNewUser)
                                 }
                                 is PhoneVerificationResult.Error -> {
-                                    // Firebase rate-limited — fallback to backend OTP
-                                    val msg = result.message.lowercase()
-                                    if (msg.contains("block") || msg.contains("too many") || msg.contains("unusual")) {
+                                    // Firebase rate-limited OR misconfigured — fallback to backend OTP
+                                    if (shouldFallbackToBackendOtp(result.message)) {
                                         try {
                                             val response = authRepository.requestOtp(phoneNumber)
                                             onPhoneSubmitted(phoneNumber, response.mockCode, null)
-                                        } catch (fallbackErr: Exception) {
-                                            error = result.message
+                                        } catch (_: Exception) {
+                                            error = authFailedMsg
                                         }
                                     } else {
-                                        error = result.message
+                                        error = authFailedMsg
                                     }
                                 }
                             }
@@ -159,17 +159,16 @@ fun PhoneInputScreen(
                             onPhoneSubmitted(phoneNumber, response.mockCode, null)
                         }
                     } catch (e: Exception) {
-                        // Firebase may throw directly (e.g. rate limiting)
-                        val msg = (e.message ?: "").lowercase()
-                        if (useFirebase && (msg.contains("block") || msg.contains("too many") || msg.contains("unusual"))) {
+                        // Firebase may throw directly (rate limiting or misconfiguration)
+                        if (useFirebase && shouldFallbackToBackendOtp(e.message)) {
                             try {
                                 val response = authRepository.requestOtp(phoneNumber)
                                 onPhoneSubmitted(phoneNumber, response.mockCode, null)
                             } catch (_: Exception) {
-                                error = e.message ?: genericErrorMsg
+                                error = authFailedMsg
                             }
                         } else {
-                            error = e.message ?: genericErrorMsg
+                            error = authFailedMsg
                         }
                     } finally {
                         isLoading = false
@@ -190,4 +189,23 @@ fun PhoneInputScreen(
             }
         }
     }
+}
+
+/**
+ * Whether a Firebase phone-auth failure should degrade gracefully to the backend OTP flow.
+ *
+ * Covers both transient throttling (rate limiting) AND Firebase configuration/internal errors
+ * (e.g. "API key not valid"), so a misconfigured Firebase build still lets the user log in via
+ * the backend instead of dead-ending on a raw error. Firebase remains the primary path.
+ */
+private fun shouldFallbackToBackendOtp(rawMessage: String?): Boolean {
+    val msg = (rawMessage ?: "").lowercase()
+    val triggers = listOf(
+        // Rate limiting / abuse protection
+        "block", "too many", "unusual",
+        // Configuration / internal errors
+        "api key", "not valid", "internal error", "configuration",
+        "developer error", "app not authorized", "invalid-api-key"
+    )
+    return triggers.any { msg.contains(it) }
 }
