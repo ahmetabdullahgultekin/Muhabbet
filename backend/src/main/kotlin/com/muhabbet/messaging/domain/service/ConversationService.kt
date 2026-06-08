@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.security.InputSanitizer
 import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
@@ -64,11 +65,23 @@ open class ConversationService(
             }
         }
 
+        // Normalize the group name at the service boundary (strip control/zero-width/
+        // RTL-override chars, trim, clamp) BEFORE validating, so a name that is only
+        // invisible chars normalizes to blank and is correctly rejected. Input
+        // normalization only — NOT HTML-escaping (plain-text clients render this raw).
+        val normalizedName = if (type == ConversationType.GROUP && name != null) {
+            // Clamp at the hard input ceiling, not GROUP_NAME_MAX, so isValidGroupName
+            // stays authoritative and rejects over-length names (no silent truncation).
+            InputSanitizer.normalizeText(name, ValidationRules.INPUT_HARD_CAP)
+        } else {
+            name
+        }
+
         if (type == ConversationType.GROUP) {
-            if (name.isNullOrBlank()) {
+            if (normalizedName.isNullOrBlank()) {
                 throw BusinessException(ErrorCode.VALIDATION_ERROR, "Grup adı gerekli")
             }
-            if (!ValidationRules.isValidGroupName(name)) {
+            if (!ValidationRules.isValidGroupName(normalizedName)) {
                 throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz grup adı")
             }
             if (allParticipantIds.size > ValidationRules.MAX_GROUP_MEMBERS) {
@@ -79,7 +92,7 @@ open class ConversationService(
         val conversation = conversationRepository.save(
             Conversation(
                 type = type,
-                name = name,
+                name = normalizedName,
                 createdBy = creatorId
             )
         )

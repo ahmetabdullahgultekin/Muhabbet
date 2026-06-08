@@ -422,6 +422,49 @@ class GroupServiceTest {
         }
 
         @Test
+        fun `should normalize name and description stripping control and zero-width chars`() {
+            val group = groupConversation()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns
+                    member(groupId, ownerId, MemberRole.OWNER)
+            every { conversationRepository.updateConversation(any()) } answers { firstArg() }
+            every { conversationRepository.findMembersByConversationId(groupId) } returns listOf(
+                member(groupId, ownerId, MemberRole.OWNER)
+            )
+
+            // leading/trailing whitespace + zero-width space (name); surrounding
+            // whitespace (description). Internal single spaces are preserved.
+            val result = groupService.updateGroupInfo(
+                groupId, ownerId, "  Yeni Ad​  ", "  Bir açıklama  "
+            )
+
+            assertEquals("Yeni Ad", result.name)
+            assertEquals("Bir açıklama", result.description)
+        }
+
+        @Test
+        fun `should preserve ampersand emoji and Turkish in name and description without HTML-escaping`() {
+            val group = groupConversation()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns
+                    member(groupId, ownerId, MemberRole.OWNER)
+            every { conversationRepository.updateConversation(any()) } answers { firstArg() }
+            every { conversationRepository.findMembersByConversationId(groupId) } returns listOf(
+                member(groupId, ownerId, MemberRole.OWNER)
+            )
+
+            // Anti-double-escape guard.
+            val result = groupService.updateGroupInfo(
+                groupId, ownerId, "R&D <Ekip> 🚀", "a > b & c < d — Şükrü"
+            )
+
+            assertEquals("R&D <Ekip> 🚀", result.name)
+            assertEquals("a > b & c < d — Şükrü", result.description)
+        }
+
+        @Test
         fun `should throw VALIDATION_ERROR when group name is invalid`() {
             val group = groupConversation()
 

@@ -4,6 +4,8 @@ import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.shared.security.InputSanitizer
+import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -18,7 +20,7 @@ open class StatusService(
     override fun createStatus(userId: UUID, content: String?, mediaUrl: String?): Status {
         val status = Status(
             userId = userId,
-            content = content,
+            content = normalizeCaption(content),
             mediaUrl = mediaUrl
         )
         val saved = statusRepository.save(status)
@@ -37,7 +39,7 @@ open class StatusService(
     ): Status {
         val status = Status(
             userId = userId,
-            content = content,
+            content = normalizeCaption(content),
             mediaUrl = mediaUrl,
             visibility = visibility,
             excludedUserIds = excludedUserIds,
@@ -92,5 +94,17 @@ open class StatusService(
             statusRepository.delete(statusId)
             log.info("Status deleted: id={}, user={}", statusId, userId)
         }
+    }
+
+    /**
+     * Normalize a status caption at the service boundary: strip control/zero-width/
+     * RTL-override chars, trim, clamp. Input normalization only — NOT HTML-escaping
+     * (the caption is rendered as plain text). A caption that normalizes to blank
+     * becomes null (no meaningful text).
+     */
+    private fun normalizeCaption(content: String?): String? {
+        if (content == null) return null
+        val normalized = InputSanitizer.normalizeText(content, ValidationRules.STATUS_CAPTION_MAX)
+        return normalized.ifBlank { null }
     }
 }

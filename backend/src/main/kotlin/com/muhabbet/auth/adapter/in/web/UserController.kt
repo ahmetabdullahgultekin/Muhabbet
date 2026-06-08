@@ -10,6 +10,7 @@ import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.UserProfile
 import com.muhabbet.shared.security.AuthenticatedUser
+import com.muhabbet.shared.security.InputSanitizer
 import com.muhabbet.shared.validation.ValidationRules
 import com.muhabbet.shared.web.ApiResponseBuilder
 import com.muhabbet.messaging.domain.model.ConversationType
@@ -189,13 +190,25 @@ class UserController(
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED)
 
+        // Input normalization at the boundary (strip control/zero-width/RTL-override
+        // chars, trim, clamp) BEFORE validation, so an all-invisible value normalizes
+        // to blank and is rejected. Normalization only — NOT HTML-escaping; the mobile
+        // client renders these as plain text, so escaping would corrupt "Tom & Jerry".
+        // Clamp at the hard ceiling, not the field limit, so isValidDisplayName /
+        // isValidAbout stay authoritative and reject over-length input (no silent
+        // truncation).
+        val normalizedDisplayName = request.displayName
+            ?.let { InputSanitizer.normalizeText(it, ValidationRules.INPUT_HARD_CAP) }
+        val normalizedAbout = request.about
+            ?.let { InputSanitizer.normalizeText(it, ValidationRules.INPUT_HARD_CAP) }
+
         // Validate inputs
-        request.displayName?.let {
+        normalizedDisplayName?.let {
             if (!ValidationRules.isValidDisplayName(it)) {
                 throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz görünen ad")
             }
         }
-        request.about?.let {
+        normalizedAbout?.let {
             if (!ValidationRules.isValidAbout(it)) {
                 throw BusinessException(ErrorCode.VALIDATION_ERROR, "Hakkımda metni çok uzun")
             }
@@ -203,8 +216,8 @@ class UserController(
 
         val updated = userRepository.save(
             user.copy(
-                displayName = request.displayName ?: user.displayName,
-                about = request.about ?: user.about,
+                displayName = normalizedDisplayName ?: user.displayName,
+                about = normalizedAbout ?: user.about,
                 avatarUrl = request.avatarUrl ?: user.avatarUrl
             )
         )

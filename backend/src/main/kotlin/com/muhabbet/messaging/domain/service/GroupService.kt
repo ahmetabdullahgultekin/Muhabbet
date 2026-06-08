@@ -12,6 +12,7 @@ import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.GroupMemberInfo
 import com.muhabbet.shared.protocol.WsMessage
+import com.muhabbet.shared.security.InputSanitizer
 import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
@@ -132,13 +133,23 @@ open class GroupService(
 
         requireAdminOrOwner(conversationId, requesterId)
 
-        if (name != null && !ValidationRules.isValidGroupName(name)) {
+        // Input normalization at the service boundary (control/zero-width/RTL-override
+        // strip, trim, clamp) — NOT HTML-escaping (plain-text clients render raw).
+        // Name clamps at the hard ceiling so isValidGroupName stays authoritative
+        // (rejects over-length). Description has no length validator, so its clamp
+        // (GROUP_DESCRIPTION_MAX) is the enforced bound.
+        val normalizedName = name?.let { InputSanitizer.normalizeText(it, ValidationRules.INPUT_HARD_CAP) }
+        val normalizedDescription = description?.let {
+            InputSanitizer.normalizeText(it, ValidationRules.GROUP_DESCRIPTION_MAX)
+        }
+
+        if (normalizedName != null && !ValidationRules.isValidGroupName(normalizedName)) {
             throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz grup adı")
         }
 
         val updated = conversation.copy(
-            name = name ?: conversation.name,
-            description = description ?: conversation.description,
+            name = normalizedName ?: conversation.name,
+            description = normalizedDescription ?: conversation.description,
             updatedAt = Instant.now()
         )
         val saved = conversationRepository.updateConversation(updated)
@@ -150,8 +161,8 @@ open class GroupService(
             WsMessage.GroupInfoUpdated(
                 conversationId = conversationId.toString(),
                 updatedBy = requesterId.toString(),
-                name = name,
-                description = description
+                name = normalizedName,
+                description = normalizedDescription
             )
         )
 

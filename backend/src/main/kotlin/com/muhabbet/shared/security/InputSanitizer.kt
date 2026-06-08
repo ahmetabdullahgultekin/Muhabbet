@@ -29,11 +29,58 @@ object InputSanitizer {
     }
 
     /**
+     * Invisible / direction-control code points that are NOT ISO control chars
+     * but enable homoglyph / RTL-override / zero-width injection. Stripped by
+     * [stripInvisible] / [normalizeText]. Covers: soft hyphen, zero-width
+     * space/non-joiner/joiner, LRM/RLM, the LRE/RLE/PDF/LRO/RLO bidi overrides,
+     * the LRI/RLI/FSI/PDI isolates, word joiner, and the BOM / zero-width
+     * no-break space.
+     */
+    private val INVISIBLE_CODE_POINTS = setOf(
+        '­',  // soft hyphen
+        '​', '‌', '‍',  // zero-width space / non-joiner / joiner
+        '‎', '‏',  // LRM / RLM
+        '‪', '‫', '‬', '‭', '‮',  // LRE/RLE/PDF/LRO/RLO
+        '⁠',  // word joiner
+        '⁦', '⁧', '⁨', '⁩',  // LRI/RLI/FSI/PDI isolates
+        '﻿'   // BOM / zero-width no-break space
+    )
+
+    /**
      * Strip all control characters except newlines and tabs.
      * Prevents invisible character injection.
      */
     fun stripControlChars(input: String): String {
         return input.filter { it == '\n' || it == '\t' || it == '\r' || !it.isISOControl() }
+    }
+
+    /**
+     * Strip zero-width / bidirectional-override / homoglyph-enabling invisible
+     * code points (see [INVISIBLE_CODE_POINTS]).
+     */
+    fun stripInvisible(input: String): String {
+        return input.filter { it !in INVISIBLE_CODE_POINTS }
+    }
+
+    /**
+     * Normalize stored free-text (display names, group/community/channel/bot
+     * names, descriptions/about, status captions) at the service boundary.
+     *
+     * This is **input normalization, NOT output encoding**:
+     * - strip control characters (preserve newlines/tabs)
+     * - strip zero-width / RTL-override / invisible injection code points
+     * - trim surrounding whitespace
+     * - clamp to [maxLength]
+     *
+     * It deliberately does **NOT** HTML-escape. The only client today renders
+     * plain text (Compose `Text`), so escaping `&`/`<`/`>` on input would corrupt
+     * legitimate user text (e.g. "Tom & Jerry" -> "Tom &amp; Jerry"). HTML
+     * escaping is an OUTPUT concern, applied by an HTML surface (a future web
+     * client) at render time — see [sanitizeHtml]. Emoji and Turkish characters
+     * are preserved unchanged.
+     */
+    fun normalizeText(input: String, maxLength: Int): String {
+        return stripInvisible(stripControlChars(input)).trim().take(maxLength)
     }
 
     /**

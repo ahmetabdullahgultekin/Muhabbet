@@ -9,6 +9,8 @@ import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.security.InputSanitizer
+import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -21,9 +23,18 @@ open class CommunityService(
 
     @Transactional
     override fun create(name: String, description: String?, creatorId: UUID): Community {
+        // Input normalization (control/zero-width/RTL-override strip, trim, clamp) —
+        // NOT HTML-escaping; community name/description render as plain text.
+        val normalizedName = InputSanitizer.normalizeText(name, ValidationRules.GROUP_NAME_MAX)
+        if (normalizedName.isBlank()) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Topluluk adı gerekli")
+        }
+        val normalizedDescription = description
+            ?.let { InputSanitizer.normalizeText(it, ValidationRules.GROUP_DESCRIPTION_MAX) }
+
         val community = Community(
-            name = name,
-            description = description,
+            name = normalizedName,
+            description = normalizedDescription,
             createdBy = creatorId
         )
         val saved = communityRepository.save(community)
@@ -33,7 +44,7 @@ open class CommunityService(
             CommunityMember(communityId = saved.id, userId = creatorId, role = MemberRole.OWNER)
         )
 
-        log.info("Community created: id={}, name={}, creator={}", saved.id, name, creatorId)
+        log.info("Community created: id={}, name={}, creator={}", saved.id, normalizedName, creatorId)
         return saved
     }
 

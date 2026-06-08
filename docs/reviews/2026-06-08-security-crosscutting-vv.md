@@ -29,7 +29,7 @@
 | B | **Medium** (security / spoof) | WS typing-indicator spoof: `handleTypingIndicator` broadcast "typing…" to all members of a **client-supplied** `conversationId` with **no membership check** | **FIXED 2026-06-08** + 1 unit test |
 | C | Low (info leak) | WS `ServerAck` on send failure echoed the **raw exception message** (`e.message`) back to the client — can leak DB/driver/internal text | **FIXED 2026-06-08** — stable error code only; 2 unit tests |
 | D | Info (test gap) | JWT **validation** had no dedicated unit test (only the boot secret-guard + a WS-level expiry test) — issuer mismatch, tampered signature, `alg:none`/alg-confusion, foreign-key admin forgery were unverified | **FIXED** — `JwtProviderTest` (9 tests) |
-| E | Medium (control not deployed) | `InputSanitizer` has **zero production call sites** — `docs/qa/02-security.md` lists it as a *Deployed* XSS/injection control, but it is never invoked | **Documented** (TODO.md P2) — wiring is a deliberate, behaviour-changing task, not a drive-by fix |
+| E | Medium (control not deployed) | `InputSanitizer` has **zero production call sites** — `docs/qa/02-security.md` lists it as a *Deployed* XSS/injection control, but it is never invoked | **FIXED 2026-06-08** (loop4) — `normalizeText` wired at the service boundary for stored free-text (control/zero-width/RTL-override strip + trim + clamp); HTML-escape deliberately **deferred to output**; +13 tests |
 | F | Low (hardening) | WS `handleAckMessage` trusts a client `conversationId` not cross-checked against the acked `messageId` (self-scoped write → low risk) | **Documented** (TODO.md P2) |
 
 **No issue found** (verified clean) in: JWT signature/alg-confusion robustness (JJWT 0.13.0
@@ -151,29 +151,63 @@ hardening item — out of scope for this pass; do not touch signing primitives.)
 
 ---
 
-## Finding E — `InputSanitizer` is dead code (zero call sites)  *(Medium — Documented)*
+## Finding E — `InputSanitizer` had zero call sites  *(Medium — FIXED 2026-06-08, loop4)*
 
-`docs/qa/02-security.md` §1.1 lists **"Input validation — InputSanitizer (HTML escape, control chars,
-URL validation) — Deployed"** and §1.5 documents five functions. Verified:
-```
-$ grep -rln InputSanitizer backend/src/main/kotlin
-backend/src/main/kotlin/com/muhabbet/shared/security/InputSanitizer.kt   # ← only the class itself
-```
-It is fully **unit-tested (15 tests)** but **never invoked** from any controller or service. Message
-content, display names, and group names reach the DB and clients un-sanitised; control-char stripping
-(RTL-override / zero-width / homoglyph injection) is a no-op in production.
+**Original gap.** `docs/qa/02-security.md` §1.1 listed **"Input validation — InputSanitizer (HTML
+escape, control chars, URL validation) — Deployed"**, but `grep -rln InputSanitizer
+backend/src/main/kotlin` returned only the class itself: the control was fully unit-tested yet
+**never invoked**. Stored free-text reached the DB un-normalised; control-char / RTL-override /
+zero-width / homoglyph stripping was a no-op in production. Latent (the only client renders **plain
+text**, so stored `<script>` is inert), but a future **web/HTML client** would inherit a stored-XSS /
+spoofing gap.
 
-**Live-risk assessment:** **latent, not currently exploitable.** The only client today is the
-CMP/mobile app, which renders message text as **plain text** (Compose `Text`), not HTML — so stored
-`<script>` is inert. The gap becomes real the moment a **web client** (on the roadmap) renders the
-same stored content in an HTML context, or anywhere the content is reflected into HTML/an email.
+### The contract decision (the load-bearing part)
 
-**Why not a drive-by fix:** wiring `sanitizeHtml` at write time is **lossy and double-encoding-prone**
-(if a future renderer also escapes, users see `&amp;lt;`); the correct contract (escape-once-on-write
-**xor** escape-on-render, plus control-char strip + length caps at the service layer) must be **decided
-before** changing what bytes get stored. That is a behavioural change requiring round-trip tests, not a
-mechanical edit. Documented as **TODO.md P2** with the contract caution. The QA doc's "Deployed" status
-should be corrected to "Implemented, not yet wired."
+The naïve fix — `sanitizeHtml` on write — is **wrong** for this app and was explicitly rejected. The
+mobile/CMP client renders message and profile text as **plain text** (Compose `Text`), not HTML.
+HTML-escaping on input would store `&amp;` / `&lt;` and the user would literally see `Tom &amp; Jerry`
+— a regression — and would double-encode the moment any future renderer escapes again.
+
+**Adopted contract — input normalization on write, HTML-escaping deferred to output:**
+- Added **`InputSanitizer.normalizeText(input, maxLength)`** (+ `stripInvisible`): strip control chars
+  (keep `\n`/`\t`/`\r`), strip zero-width / bidi-override / homoglyph invisible code points
+  (U+200B–U+200F, U+202A–U+202E bidi overrides, U+2066–U+2069 isolates, U+2060, U+00AD, U+FEFF), trim,
+  clamp. **No HTML-escaping.**
+- **HTML-escaping stays DEFERRED** as an OUTPUT concern (`sanitizeHtml` is kept, unused by the write
+  path) — it belongs at the render boundary of a future web/HTML surface, applied once, never on write.
+- **Anti-double-escape guard** is pinned by tests: legitimate text containing `&`, `<`, `>`, quotes,
+  emoji, and Turkish characters is stored **byte-for-byte unchanged**.
+
+### Where it is wired (domain-service boundary, hexagonal — not scattered in controllers)
+
+| Stored field | Site | Clamp |
+|---|---|---|
+| user `displayName`, `about` | `UserController.updateMe` (input-mapping step; this is the documented "user-in-auth" path with no dedicated service) | `INPUT_HARD_CAP`, validator authoritative |
+| group name (create) | `ConversationService.createConversation` | `INPUT_HARD_CAP`, `isValidGroupName` authoritative |
+| group name + description (update) | `GroupService.updateGroupInfo` | name `INPUT_HARD_CAP`; description `GROUP_DESCRIPTION_MAX` |
+| bot name + description | `BotService.createBot` | name `DISPLAY_NAME_MAX`; description `BOT_DESCRIPTION_MAX` |
+| community name + description | `CommunityService.create` | name `GROUP_NAME_MAX`; description `GROUP_DESCRIPTION_MAX` |
+| status caption | `StatusService.createStatus` / `createStatusWithAudience` | `STATUS_CAPTION_MAX` (blank → null) |
+
+Normalization runs **before** validation, so an all-invisible value normalizes to blank and is rejected
+with `VALIDATION_ERROR`. For fields that have an explicit length validator (display name, group name)
+the clamp uses a high DoS-safety ceiling `ValidationRules.INPUT_HARD_CAP` (4096) so the **validator
+stays authoritative** and over-length input is **rejected, not silently truncated**; fields without a
+validator clamp at their own field MAX.
+
+**Out of scope (deliberately not sanitized): message bodies.** They travel the E2E/plaintext path and
+are rendered as-is; normalizing them would corrupt content (and would defeat E2E once enabled).
+
+**Tests (+13):** 8 `InputSanitizerTest` (normalize strips control/zero-width/RTL; clamps; all-invisible
+→ blank; **anti-double-escape**: `&`/`<`/`>`, quotes, emoji, Turkish preserved verbatim) +
+3 `ConversationServiceTest` (group name normalized; legit text preserved; invisible-only rejected) +
+2 `GroupServiceTest` (name+description normalized; legit text preserved).
+
+**Files:** `InputSanitizer.kt` (+`normalizeText`/`stripInvisible`), `ValidationRules.kt`
+(`GROUP_DESCRIPTION_MAX`, `BOT_DESCRIPTION_MAX`, `STATUS_CAPTION_MAX`, `INPUT_HARD_CAP`),
+`ConversationService.kt`, `GroupService.kt`, `BotService.kt`, `CommunityService.kt`, `StatusService.kt`,
+`UserController.kt`, + the 3 test files. **Follow-up:** correct the QA doc's "Deployed" wording for the
+*HTML-escape* sub-control to "input-normalization wired; HTML-escape deferred to a web client".
 
 ---
 
@@ -233,17 +267,26 @@ this residual cross-field-consistency hardening is **TODO.md P2**.
   signing/crypto primitives beyond validation hardening").
 
 ## Follow-ups for `TODO.md` (added this pass)
-- [ ] **P2:** Wire `InputSanitizer` into the write paths (Finding E) — with the escape-once contract caution.
+- [x] **P2:** Wire `InputSanitizer` into the write paths (Finding E) — **DONE 2026-06-08** (loop4):
+  input-normalization wired at the service boundary; HTML-escape deferred to output; +13 tests.
 - [ ] **P2:** WS `handleAckMessage` cross-check `conversationId` against the acked message (Finding F).
+- [ ] **Doc nit:** correct `docs/qa/02-security.md` §1.1 wording — the *HTML-escape* sub-control of
+  InputSanitizer is **not** wired (deliberately deferred to a future web client); the
+  control-char/normalization sub-control now **is** wired.
 
 ## Verification
-- `./gradlew :backend:test` — **412 tests pass**, **6 Testcontainers `*IntegrationTest` errors**
-  (`AuthControllerIntegrationTest`, `UserProfilePrivacyIntegrationTest`, `MediaIdorIntegrationTest`,
-  `MessageIdorIntegrationTest`, `SearchIdorIntegrationTest`, `ActuatorLockdownIntegrationTest`) — all
-  `IllegalStateException … Could not find a valid Docker environment`, the documented no-Docker host
-  failures, unrelated to this change (418 total). Baseline before this pass: 397 pass / 6 Docker-fail;
-  this pass adds **15 tests** (2 read-receipt-spoof, 1 typing-spoof, 2 ServerAck-no-leak, 10 JWT-validation)
-  and modifies 2 existing tests to stub the new `findMember` authorization, all green.
+- **Findings A–D pass (initial loop2):** `./gradlew :backend:test` — 412 tests pass, 6 Testcontainers
+  `*IntegrationTest` errors (Docker-gated). That pass added 15 tests over the 397/6 baseline.
+- **Finding E pass (loop4, 2026-06-08):** `./gradlew :backend:test` — **458 tests pass**, the **same 6
+  Testcontainers `*IntegrationTest` errors** (`AuthControllerIntegrationTest`,
+  `UserProfilePrivacyIntegrationTest`, `MediaIdorIntegrationTest`, `MessageIdorIntegrationTest`,
+  `SearchIdorIntegrationTest`, `ActuatorLockdownIntegrationTest`) — all `IllegalStateException … Could
+  not find a valid Docker environment`, the documented no-Docker host failures, unrelated to this
+  change (464 total). This pass adds **13 tests** (8 `InputSanitizerTest` incl. anti-double-escape
+  guards, 3 `ConversationServiceTest`, 2 `GroupServiceTest`), all green. Files changed for Finding E:
+  `InputSanitizer.kt`, `ValidationRules.kt` (shared), `ConversationService.kt`, `GroupService.kt`,
+  `BotService.kt`, `CommunityService.kt`, `StatusService.kt`, `UserController.kt`,
+  `InputSanitizerTest.kt`, `ConversationServiceTest.kt`, `GroupServiceTest.kt`, `TODO.md`, this doc.
 - Files changed:
   - `ChatWebSocketHandler.kt` (typing membership guard, ServerAck no-leak)
   - `MessageService.kt` (`updateStatus` membership guard)

@@ -45,6 +45,24 @@ object ValidationRules {
     fun isValidGroupName(name: String): Boolean =
         name.length in GROUP_NAME_MIN..GROUP_NAME_MAX && name.isNotBlank()
 
+    // Group / community / channel description
+    const val GROUP_DESCRIPTION_MAX = 512
+
+    // Bot description (bot name reuses the display-name validator/limit)
+    const val BOT_DESCRIPTION_MAX = 512
+
+    // Status caption
+    const val STATUS_CAPTION_MAX = 700
+
+    /**
+     * Hard input ceiling for service-boundary normalization of free-text fields
+     * that ALSO have an explicit length validator (display name, group name).
+     * Normalization clamps to this DoS-safety bound; the field's own validator
+     * stays authoritative for the user-facing limit (so over-length input is
+     * rejected with VALIDATION_ERROR, not silently truncated).
+     */
+    const val INPUT_HARD_CAP = 4096
+
     // Group size
     const val MAX_GROUP_MEMBERS = 256
 

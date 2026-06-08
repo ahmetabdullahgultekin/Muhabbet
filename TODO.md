@@ -262,23 +262,29 @@
     allowlists. Left documented (not deleted) because a video path is plausibly near-term roadmap.
   - **DONE =** the constants are either consumed by a video-upload validation path or removed.
 
-- [ ] **Wire `InputSanitizer` into the write paths (it has zero production call sites)** (2026-06-08 security V&V, Finding B)
-  - `backend/.../shared/security/InputSanitizer.kt` (defined + 15 tests, but `grep -rln InputSanitizer
-    backend/src/main` returns only the class itself), `MessageService.sendMessage`/`editMessage`
-    (message content), profile/group display-name update paths (`sanitizeDisplayName`).
-  - **Why**: `docs/qa/02-security.md` lists InputSanitizer (HTML-escape / control-char strip) as a
-    **Deployed** XSS/injection control, but it is never invoked — stored content reaches the DB and
-    clients un-sanitised. Today the mobile/CMP client renders text (not HTML) so this is latent, but a
-    future web client or any HTML-context render would inherit a stored-XSS gap. Stripping control
-    chars (homoglyph/RTL-override/invisible-char injection) is also currently a no-op.
-  - **Caution**: HTML-escaping at write time is **lossy/double-encoding-prone** if a client also
-    escapes on render — prefer control-char stripping + length caps at the service layer now and push
-    HTML-escaping to the (future) HTML render boundary, OR escape once on write and never on render.
-    Decide the contract before wiring. This is a behavioural change to stored content → not a drive-by
-    fix; do it deliberately with round-trip tests.
-  - **DONE =** message content + display/group names pass through `InputSanitizer` (control-char strip
-    + length cap at minimum) on the write path, with tests; `docs/qa/02-security.md` updated to match
-    reality (status corrected if still not wired).
+- [x] **Wire `InputSanitizer` into the write paths (it has zero production call sites)** — **DONE 2026-06-08**
+  (loop4/inputsanitizer-wiring; 2026-06-08 security V&V, Finding E)
+  - **Contract decided (anti-double-escape):** added `InputSanitizer.normalizeText(input, maxLength)` —
+    **input normalization only**: strip control chars (keep `\n`/`\t`/`\r`) + strip zero-width /
+    bidi-override / homoglyph invisible code points (`stripInvisible`) + trim + clamp. It does **NOT**
+    HTML-escape on input. The only client renders **plain text** (Compose `Text`), so escaping
+    `&`/`<`/`>` would corrupt legitimate text ("Tom & Jerry") and double-encode. **HTML-escaping stays
+    DEFERRED** as an OUTPUT concern (`sanitizeHtml`) for a future web/HTML surface — do it at render,
+    not at write.
+  - **Wired at the domain-service boundary** (not scattered in controllers): user `displayName`/`about`
+    (`UserController.updateMe`), group name (`ConversationService.createConversation`), group
+    name+description (`GroupService.updateGroupInfo`), bot name+description (`BotService.createBot`),
+    community name+description (`CommunityService.create`), status caption
+    (`StatusService.createStatus`/`createStatusWithAudience`). **Message bodies intentionally NOT
+    sanitized** (E2E/plaintext, rendered as-is). Normalization runs **before** validation; for fields
+    with a length validator (display name, group name) the clamp uses `INPUT_HARD_CAP` (4096) so the
+    validator stays authoritative and over-length is **rejected** (no silent truncation), while
+    description/caption fields (no validator) clamp at their own MAX.
+  - **Tests:** 8 new `InputSanitizerTest` (normalize strips control/zero-width/RTL, clamps, all-invisible
+    → blank; **anti-double-escape guards**: `&`/`<`/`>`, quotes, emoji, Turkish preserved verbatim) +
+    3 `ConversationServiceTest` + 2 `GroupServiceTest` (normalization applied; legit text preserved;
+    invisible-only rejected).
+  - `docs/qa/02-security.md` status note left to a follow-up doc pass (the QA "Deployed" wording).
 
 - [ ] **WS `handleAckMessage`: validate `conversationId` belongs to the acked message** (2026-06-08 security V&V, Finding A note)
   - `backend/.../messaging/adapter/in/websocket/ChatWebSocketHandler.handleAckMessage`

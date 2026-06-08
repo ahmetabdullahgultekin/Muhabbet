@@ -7,6 +7,8 @@ import com.muhabbet.messaging.domain.port.out.BotRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.security.InputSanitizer
+import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.security.SecureRandom
@@ -28,12 +30,22 @@ open class BotService(
         val botUserId = UUID.randomUUID()
         val apiToken = generateApiToken()
 
+        // Input normalization (control/zero-width/RTL-override strip, trim, clamp) —
+        // NOT HTML-escaping; bot name/description are rendered as plain text.
+        // No length validator for bot name → the clamp is the enforced bound.
+        val normalizedName = InputSanitizer.normalizeText(command.name, ValidationRules.DISPLAY_NAME_MAX)
+        if (normalizedName.isBlank()) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Bot adı gerekli")
+        }
+        val normalizedDescription = command.description
+            ?.let { InputSanitizer.normalizeText(it, ValidationRules.BOT_DESCRIPTION_MAX) }
+
         val bot = botRepository.save(
             Bot(
                 ownerId = command.ownerId,
                 userId = botUserId,
-                name = command.name,
-                description = command.description,
+                name = normalizedName,
+                description = normalizedDescription,
                 apiToken = apiToken,
                 webhookUrl = command.webhookUrl,
                 permissions = command.permissions
