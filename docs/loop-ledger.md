@@ -32,6 +32,22 @@
 
 ## Entries
 
+### 2026-06-08 (run 7) — PARALLEL batch (4 agents, worktree-isolated)
+- **Trigger:** owner "paralel hareket edemiyor musun?" → launched 4 concurrent subagents in isolated
+  git worktrees, each on a disjoint slice; integrated all into the single work branch via cherry-pick.
+- **Slices:**
+  1. **@mentions S2** (backend persist+validate; `MentionRepository` + JPA adapter + entity, member-
+     drop + `@everyone` admin-gate, 2 new ErrorCodes, +5 MockK tests) — `MessagingServiceTest` 26/26.
+  2. **Media Finding B** (force `response-content-disposition=attachment` on MinIO presigned GETs;
+     +3 tests) — closes the inline-render / stored-XSS surface; review doc + TODO updated.
+  3. **D2 motion** (`reactionPop` + `bubbleEntrance(enabled)` wired baseline-gated, scroll-safe).
+  4. **Platform expansion plan** (`docs/design/PLATFORM_EXPANSION_PLAN.md`, 414 lines, code-grounded:
+     iOS shell → Desktop JVM → WasmJS web sequence).
+- **Integration:** agents committed on local `loop/*` branches (diverged bases), cherry-picked onto
+  `claude/relaxed-goldberg-P1IKj`; resolved one add/add conflict on the media V&V doc + de-duplicated
+  a TODO entry. Combined gate re-run by me (not just per-agent isolation).
+- **Boundaries:** no crypto flags, no disabled Signal files, no deploy.
+
 ### 2026-06-08 (run 6) — Design impl D2: motion language foundation + press feedback
 - **Trigger:** owner "durmak yok, profesyonel ve önerilen şekilde ilerle" → continued with the
   recommended D2 (motion).
