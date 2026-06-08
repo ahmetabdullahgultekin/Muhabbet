@@ -4,6 +4,9 @@
 > **Purpose:** make "do one of the best of these" and "start from the **least executed / never
 > reviewed**" *deterministic* — the loop reads this file first to choose, instead of re-deriving
 > state from scratch every run. Newest entries on top.
+>
+> **Job definition / runbook:** [`docs/loop-job.md`](loop-job.md) (selection rule, definition of
+> done, safety boundaries, scheduling status).
 
 ## Task rotation (the 4 loop tasks)
 1. **Research + roadmap** — survey Telegram/Signal/WhatsApp features, update `ROADMAP.md`.
@@ -39,5 +42,9 @@
 - **Deferred (added to `TODO.md`):** Finding B (force `attachment` disposition on presigned URLs —
   owner decision), Finding C (storage-usage doc bucketing).
 - **Verification:** `:backend:test --tests MediaServiceTest` green.
+- **Also (Task 4 — optimize the loop):** formalized & documented the job itself —
+  `docs/loop-job.md` (definition, selection rule, definition-of-done, safety boundaries,
+  scheduling gap) + this ledger. Surfaced the scheduling gap: this remote env has no
+  `ScheduleWakeup`/cron primitive, so the loop can't self-re-arm — needs an external daily trigger.
 - **Commit:** see branch `claude/relaxed-goldberg-P1IKj`.
 </content>
