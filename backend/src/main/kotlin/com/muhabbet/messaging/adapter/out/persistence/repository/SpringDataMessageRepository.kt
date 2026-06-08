@@ -82,9 +82,13 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     fun searchInConversation(conversationId: UUID, userId: UUID, query: String, pageable: Pageable): List<MessageJpaEntity>
 
     // Membership-scoped global search: only the requesting user's own conversations are searched.
+    // No DISTINCT needed: conversation_members PK is (conversation_id, user_id), so for a fixed
+    // :userId the join matches AT MOST ONE member row per conversation, and each message has exactly
+    // one conversation_id → the join is 1:1 and cannot fan out. Dropping DISTINCT removes a needless
+    // dedup sort/hash on this read path. (Safety locked by SearchIdorIntegrationTest.)
     @Query(
         """
-        SELECT DISTINCT m FROM MessageJpaEntity m
+        SELECT m FROM MessageJpaEntity m
         JOIN ConversationMemberJpaEntity cm
           ON cm.conversationId = m.conversationId
         WHERE cm.userId = :userId
@@ -126,9 +130,13 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun findMediaByConversationId(conversationId: UUID, contentTypes: List<ContentType>, pageable: Pageable): List<MessageJpaEntity>
 
+    // Background-sync feed (GET /api/v1/messages/since — runs every ~15 min per device + on silent
+    // push, so a hot/high-frequency path). No DISTINCT needed for the same reason as searchGlobal:
+    // conversation_members PK (conversation_id, user_id) makes the join 1:1 for a fixed :userId, so
+    // no duplicate messages can be produced. Dropping DISTINCT removes a redundant dedup sort/hash.
     @Query(
         """
-        SELECT DISTINCT m FROM MessageJpaEntity m
+        SELECT m FROM MessageJpaEntity m
         JOIN ConversationMemberJpaEntity cm
           ON m.conversationId = cm.conversationId
         WHERE cm.userId = :userId

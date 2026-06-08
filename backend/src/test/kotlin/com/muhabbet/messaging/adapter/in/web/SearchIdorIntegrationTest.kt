@@ -156,4 +156,39 @@ class SearchIdorIntegrationTest {
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.error.code").value("MSG_NOT_MEMBER"))
     }
+
+    /**
+     * Locks the safety of dropping DISTINCT from searchGlobal (perf: removes a redundant dedup
+     * sort/hash). The membership join is 1:1 — conversation_members PK is (conversation_id, user_id),
+     * and each message has exactly one conversation_id. So even in a GROUP with many members, a
+     * single matching message MUST surface EXACTLY ONCE for the searching member: the join cannot
+     * fan out across co-members. If DISTINCT removal ever exposed a fan-out, this count would inflate.
+     */
+    @Test
+    fun `member global search returns a group message exactly once despite many co-members`() {
+        val searcher = seedUser()
+        val conversationId = UUID.randomUUID()
+        conversationRepository.save(
+            Conversation(id = conversationId, type = ConversationType.GROUP, name = "g", createdBy = searcher)
+        )
+        conversationRepository.saveMember(
+            ConversationMember(conversationId = conversationId, userId = searcher, role = MemberRole.OWNER)
+        )
+        // Several co-members in the same conversation — the bait for a join fan-out.
+        repeat(3) {
+            conversationRepository.saveMember(
+                ConversationMember(conversationId = conversationId, userId = seedUser(), role = MemberRole.MEMBER)
+            )
+        }
+
+        val marker = "marker" + UUID.randomUUID().toString().replace("-", "")
+        seedMessage(conversationId, searcher, marker)
+
+        mockMvc.perform(
+            get("/api/v1/search/messages").param("q", marker).header("Authorization", bearer(searcher))
+        )
+            .andExpect(status().isOk)
+            // Exactly one — proves the conversation_members join is 1:1 and DISTINCT was redundant.
+            .andExpect(jsonPath("$.data.items.length()").value(1))
+    }
 }
