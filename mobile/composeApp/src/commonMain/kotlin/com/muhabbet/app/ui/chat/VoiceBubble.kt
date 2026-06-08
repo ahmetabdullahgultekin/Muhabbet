@@ -31,6 +31,8 @@ import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.util.TurkishExtractiveSummarizer
+import com.muhabbet.app.util.VoiceSummaryConfig
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import io.ktor.client.HttpClient
@@ -55,12 +57,14 @@ fun VoiceBubble(
     val scope = rememberCoroutineScope()
 
     var transcript by remember { mutableStateOf<String?>(null) }
+    var summary by remember { mutableStateOf<String?>(null) }
     var isTranscribing by remember { mutableStateOf(false) }
     var showTranscript by remember { mutableStateOf(false) }
 
     val transcribeText = stringResource(Res.string.voice_transcribe)
     val transcribingText = stringResource(Res.string.voice_transcribing)
     val transcriptFailedText = stringResource(Res.string.voice_transcript_failed)
+    val summaryLabel = stringResource(Res.string.voice_summary_label)
 
     val totalDuration = durationSeconds?.let { it * 1000L } ?: duration
     val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
@@ -127,6 +131,11 @@ fun VoiceBubble(
                             client.close()
                             val result = speechTranscriber.transcribe(bytes)
                             transcript = result ?: transcriptFailedText
+                            // D5: derive a short on-device extractive summary (flag-gated).
+                            if (VoiceSummaryConfig.ENABLED && result != null) {
+                                val derived = TurkishExtractiveSummarizer.summarize(result)
+                                summary = derived.ifBlank { null }
+                            }
                         } catch (_: Exception) {
                             transcript = transcriptFailedText
                         }
@@ -160,6 +169,17 @@ fun VoiceBubble(
                 text = transcript ?: "",
                 style = MaterialTheme.typography.bodySmall,
                 color = textColor.copy(alpha = 0.85f)
+            )
+        }
+
+        // D5: one-line extractive summary ("Özet"), flag-gated.
+        AnimatedVisibility(
+            visible = VoiceSummaryConfig.ENABLED && showTranscript && summary != null
+        ) {
+            Text(
+                text = "$summaryLabel: ${summary ?: ""}",
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor.copy(alpha = 0.7f)
             )
         }
     }

@@ -23,6 +23,7 @@
     <string name="voice_transcribe">Transcribe</string>
     <string name="voice_transcribing">Transcribing…</string>
     <string name="voice_transcript_failed">Transcription failed</string>
+    <string name="voice_summary_label">Summary</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
