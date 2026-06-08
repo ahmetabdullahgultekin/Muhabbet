@@ -71,12 +71,20 @@ fun Modifier.pressBounce(interactionSource: MutableInteractionSource): Modifier 
 
 /**
  * Signature "lift + settle" entrance for a **newly added** message bubble: it springs up from the
- * sending side and fades in. Apply ONLY to genuinely new items (e.g. the just-sent message), NOT to
- * every list item — LazyColumn recycles items on scroll and this would re-trigger the animation.
+ * sending side and fades in. Apply ONLY to genuinely new items (e.g. a message that arrived after
+ * first load), NOT to every list item — LazyColumn recycles items on scroll and this would re-trigger
+ * the animation.
+ *
+ * **Call this UNCONDITIONALLY** (never wrap a `@Composable` call in an `if` — that breaks compose's
+ * stable call tree). Gate the animation via [enabled] instead: when `enabled == false` the element
+ * starts already-settled (`appeared = true`), so the scale/alpha are pinned at `1f` with zero
+ * animation — byte-identical to having no modifier — while the composable shape stays constant across
+ * recompositions. Pass `enabled = (message.id !in firstLoadBaseline)` so only genuinely new arrivals
+ * lift; the opening message set never cascades.
  */
 @Composable
-fun Modifier.bubbleEntrance(isOwn: Boolean): Modifier {
-    var appeared by remember { mutableStateOf(false) }
+fun Modifier.bubbleEntrance(isOwn: Boolean, enabled: Boolean = true): Modifier {
+    var appeared by remember { mutableStateOf(!enabled) }
     val scale by animateFloatAsState(
         targetValue = if (appeared) 1f else MuhabbetMotion.EntranceFromScale,
         animationSpec = MuhabbetMotion.BubbleSpring,
@@ -87,11 +95,33 @@ fun Modifier.bubbleEntrance(isOwn: Boolean): Modifier {
         animationSpec = tween(MuhabbetMotion.DurationStandard, easing = MuhabbetMotion.EasingStandard),
         label = "bubbleEntranceAlpha"
     )
-    LaunchedEffect(Unit) { appeared = true }
+    LaunchedEffect(Unit) { if (enabled) appeared = true }
     return this.graphicsLayer {
         scaleX = scale
         scaleY = scale
         this.alpha = alpha
         transformOrigin = TransformOrigin(if (isOwn) 1f else 0f, 1f)
+    }
+}
+
+/**
+ * Signature reaction "pop": a reaction chip/badge scales in from 0 with
+ * [MuhabbetMotion.ReactionSpring] (high-bounce) the first time it composes, then sits settled. Pure
+ * `graphicsLayer` scale — no relayout — so it is safe to apply per-chip inside a list item. The pop
+ * fires once per composition lifetime; it is a single spring (0→1), not a loop, and it lands the chip
+ * as the bubble enters view.
+ */
+@Composable
+fun Modifier.reactionPop(): Modifier {
+    var shown by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = MuhabbetMotion.ReactionSpring,
+        label = "reactionPop"
+    )
+    LaunchedEffect(Unit) { shown = true }
+    return this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
     }
 }

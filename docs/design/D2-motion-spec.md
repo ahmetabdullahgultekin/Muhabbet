@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Foundation implemented 2026-06-08 (`MuhabbetMotion` tokens + `pressBounce` wired) |
+| **Status** | 2026-06-08 — `MuhabbetMotion` tokens + `pressBounce` + `bubbleEntrance` (baseline-gated) + `reactionPop` wired |
 | **Pillar** | A — Visual identity & motion (`docs/design/PRODUCT_DESIGN_INNOVATION_VISION.md`) |
 | **Source of truth** | `mobile/.../ui/theme/MuhabbetMotion.kt` |
 
@@ -38,20 +38,28 @@ the shared press `InteractionSource`, not by appearance, so it never re-fires wh
 recycles items. Share the `interactionSource` with the element's `combinedClickable` so press state
 stays in sync (as done on the chat bubble Surface).
 
-### `Modifier.bubbleEntrance(isOwn)` — **library, opt-in**
+### `Modifier.bubbleEntrance(isOwn, enabled)` — **wired in `MessageBubble`**
 Signature "lift + settle": a newly-added bubble springs up from the sending side (transform origin =
-bottom-right for own, bottom-left for other) and fades in. **Apply only to genuinely new items** (the
-just-sent message), never to every list item — otherwise scroll recycling re-triggers it. Wiring this
-to "only the last just-sent message" is the next motion slice (needs a `isNew` flag threaded from the
-chat list).
+bottom-right for own, bottom-left for other) and fades in. **Call it UNCONDITIONALLY** (never wrap a
+`@Composable` in `if`) and gate via `enabled`: when `enabled == false` it starts already-settled
+(`appeared = mutableStateOf(!enabled)`) → zero animation, byte-identical to no modifier. `ChatScreen`
+snapshots the message ids present at first load into an `entranceBaseline` set (also fed by older
+pages) and passes `animateEntrance = message.id !in baseline`, so **only messages arriving after the
+opening render** lift — no open-time cascade, and `item(key = message.id)` keeps each bubble's
+`appeared` state stable so LazyColumn scroll-recycle never re-fires the entrance.
+
+### `Modifier.reactionPop()` — **wired in `ReactionBar.ReactionBadges`**
+A reaction chip scales in from 0 with `ReactionSpring` (high-bounce) the first time it composes, then
+sits settled. Pure `graphicsLayer` scale (no relayout). Each chip is wrapped in `key(emoji)` so its
+pop state is keyed to the emoji and not reused when reaction chips reorder.
 
 ## Signature interactions — roadmap
 
 | Moment | Spec | Status |
 |---|---|---|
 | Bubble press | `pressBounce` (PressSpring, 0.97) | **Done** (wired) |
-| New message arrival | `bubbleEntrance` (BubbleSpring) | Lib ready; wire to last-sent next |
-| Reaction add | scale pop via `ReactionSpring` | Spec'd; wire in `ReactionBar`/bubble reaction |
+| New message arrival | `bubbleEntrance` (BubbleSpring) | **Done** (wired; baseline-gated, scroll-safe) |
+| Reaction add | scale pop via `ReactionSpring` | **Done** (`reactionPop` wired in `ReactionBadges`) |
 | Tick state change (sent→delivered→read) | crossfade `DurationQuick` + color to çini cobalt | Next |
 | Send button | press + send "whoosh" + haptic | Next |
 | Pull-to-refresh | branded firuze spinner | Next |
@@ -62,6 +70,7 @@ chat list).
 - Motion never the sole carrier of meaning — tick *shape* + color both change, not motion alone.
 
 ## Verification
-`:mobile:composeApp:compileCommonMainKotlinMetadata` green with `MuhabbetMotion` + `pressBounce`
-wired into `MessageBubble`. Device-visual verification pending a real APK build (full Android app does
-not assemble on the CI host).
+`:mobile:composeApp:compileCommonMainKotlinMetadata` green with `MuhabbetMotion` + `pressBounce` +
+`bubbleEntrance` (baseline-gated) + `reactionPop` wired into `MessageBubble` / `ReactionBadges`.
+Device-visual verification pending a real APK build (full Android app does not assemble on the CI
+host).

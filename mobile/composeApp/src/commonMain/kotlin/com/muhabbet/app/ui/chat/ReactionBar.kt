@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.reactionPop
 
 val QUICK_REACTIONS = listOf("\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
 
@@ -77,12 +79,15 @@ fun ReactionBadges(
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
     ) {
         reactions.forEach { (emoji, count) ->
+            key(emoji) {
             val isOwn = emoji in currentUserReactions
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = if (isOwn) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.clickable { onReactionClick(emoji) }
+                modifier = Modifier
+                    .reactionPop()
+                    .clickable { onReactionClick(emoji) }
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -99,6 +104,7 @@ fun ReactionBadges(
                         )
                     }
                 }
+            }
             }
         }
     }

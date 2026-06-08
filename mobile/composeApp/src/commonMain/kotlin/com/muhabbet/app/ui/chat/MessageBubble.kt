@@ -58,6 +58,7 @@ import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.bubbleEntrance
 import com.muhabbet.app.ui.theme.pressBounce
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
@@ -74,6 +75,7 @@ fun MessageBubble(
     isStarred: Boolean = false,
     showContextMenu: Boolean = false,
     senderName: String? = null,
+    animateEntrance: Boolean = false,
     onLongPress: () -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onDismissMenu: () -> Unit = {},
@@ -120,6 +122,7 @@ fun MessageBubble(
                 shadowElevation = MuhabbetElevation.Level1,
                 modifier = Modifier
                     .widthIn(min = MuhabbetSizes.BubbleMinWidth, max = 320.dp)
+                    .bubbleEntrance(isOwn, animateEntrance)
                     .pressBounce(bubbleInteraction)
                     .combinedClickable(
                         interactionSource = bubbleInteraction,

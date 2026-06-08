@@ -100,6 +100,9 @@ fun ChatScreen(
 ) {
     // ── Core state ───────────────────────────
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
+    // Message ids present at first load: these render settled (no entrance cascade). Only ids NOT in
+    // this set — i.e. genuinely new arrivals/sends after first load — get the lift+settle entrance.
+    val entranceBaseline = remember { mutableStateOf<Set<String>>(emptySet()) }
     var messageText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var isLoadingMore by remember { mutableStateOf(false) }
@@ -238,7 +241,10 @@ fun ChatScreen(
     LaunchedEffect(conversationId) {
         try {
             val result = messageRepository.getMessages(conversationId)
-            messages = result.items.reversed(); nextCursor = result.nextCursor
+            val loaded = result.items.reversed()
+            // Snapshot the opening set so these render settled — no open-time entrance cascade.
+            entranceBaseline.value = loaded.mapTo(mutableSetOf()) { it.id }
+            messages = loaded; nextCursor = result.nextCursor
         } catch (_: Exception) { snackbarHostState.showSnackbar(errorLoadMsg) }
         isLoading = false
         try {
@@ -329,7 +335,7 @@ fun ChatScreen(
         snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
             if (first <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
                 isLoadingMore = true
-                try { val r = messageRepository.getMessages(conversationId, cursor = nextCursor); messages = r.items.reversed() + messages; nextCursor = r.nextCursor } catch (_: Exception) { }
+                try { val r = messageRepository.getMessages(conversationId, cursor = nextCursor); val older = r.items.reversed(); entranceBaseline.value = entranceBaseline.value + older.map { it.id }; messages = older + messages; nextCursor = r.nextCursor } catch (_: Exception) { }
                 isLoadingMore = false
             }
         }
@@ -438,6 +444,7 @@ fun ChatScreen(
                                         if (reactionTargetId == message.id) QuickReactionBar(visible = true, onReaction = { emoji -> reactionTargetId = null; scope.launch { try { messageRepository.addReaction(message.id, emoji) } catch (_: Exception) { } } })
                                         MessageBubble(message, isOwn, audioPlayer, repliedMessage, isStarred,
                                             showContextMenu = contextMenuMessageId == message.id,
+                                            animateEntrance = message.id !in entranceBaseline.value,
                                             onLongPress = { if (!message.isDeleted) contextMenuMessageId = message.id },
                                             onDoubleTap = { if (!message.isDeleted) reactionTargetId = if (reactionTargetId == message.id) null else message.id },
                                             onDismissMenu = { contextMenuMessageId = null },
