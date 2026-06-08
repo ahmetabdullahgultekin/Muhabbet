@@ -144,7 +144,7 @@ open class MediaService(
 
         val fileBytes = command.inputStream.readBytes()
         val fileId = UUID.randomUUID()
-        val extension = command.originalFilename?.substringAfterLast('.', "bin") ?: "bin"
+        val extension = safeExtension(command.originalFilename)
         val fileKey = "documents/${command.uploaderId}/$fileId.$extension"
 
         try {
@@ -226,5 +226,23 @@ open class MediaService(
         "audio/opus" -> "opus"
         "audio/mp4" -> "m4a"
         else -> "bin"
+    }
+
+    /**
+     * Derives a safe object-key extension from a client-supplied filename. The filename comes from
+     * the multipart upload and is fully attacker-controlled, so it must never be interpolated into a
+     * storage key verbatim: `substringAfterLast('.')` on e.g. `x.evil/../../images/y` yields a value
+     * containing `/` and `..`, which would inject path segments into the MinIO object key (and can
+     * confuse the nginx/MinIO path-vs-signature handling). We keep only alphanumerics, lowercase, and
+     * cap the length — falling back to "bin" when nothing usable remains.
+     */
+    private fun safeExtension(filename: String?): String {
+        val raw = filename?.substringAfterLast('.', "") ?: ""
+        val cleaned = raw.lowercase().filter { it.isLetterOrDigit() }.take(MAX_EXTENSION_LENGTH)
+        return cleaned.ifEmpty { "bin" }
+    }
+
+    companion object {
+        private const val MAX_EXTENSION_LENGTH = 12
     }
 }

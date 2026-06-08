@@ -194,6 +194,22 @@
 
 ## P2 — Quality / hardening / completeness
 
+- [ ] **Force `Content-Disposition: attachment` on media presigned URLs** **(P1-security; from 2026-06-08 media V&V, Finding B)**
+  - `backend/.../media/adapter/out/external/MinioMediaStorageAdapter.kt` (add
+    `response-content-disposition` to `GetPresignedObjectUrlArgs`), `MediaService` (document path)
+  - **Why**: `uploadDocument` accepts any content type (by design, WhatsApp-style) but presigned GET
+    URLs serve the stored content type **inline** with no disposition — an uploaded `text/html` /
+    `image/svg+xml` document renders from the media origin (stored-XSS / phishing surface).
+  - **DONE =** document (and ideally all) presigned GETs carry `attachment` disposition; confirmed
+    the mobile image/media loader still renders images correctly. See
+    `docs/reviews/2026-06-08-media-module-vv.md`.
+
+- [ ] **Make storage-usage document bucketing exhaustive** (2026-06-08 media V&V, Finding C)
+  - `backend/.../media/domain/service/MediaService.getStorageUsage`
+  - **Why**: documents are bucketed by `application/` prefix only; non-`application/*` documents are
+    stored but uncounted in `documentBytes`/`totalBytes`.
+  - **DONE =** documents counted as "not image/* and not audio/*" (or aligned with a doc allowlist).
+
 - [ ] **Close the 6 client-side UI `TODO` stubs** (dead buttons that do nothing) **[Tier 1.5]**
   - `HomeShellScreen.kt` L98 (search), `MessageBubble.kt` L91 (view-once mark),
     `WallpaperPickerScreen.kt` L191 (gallery picker), `InviteLinkSheet.kt` L149 (platform share),

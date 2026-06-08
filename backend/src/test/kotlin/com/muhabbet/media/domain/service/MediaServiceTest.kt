@@ -2,6 +2,7 @@ package com.muhabbet.media.domain.service
 
 import com.muhabbet.media.domain.model.MediaFile
 import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
+import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
@@ -439,6 +440,128 @@ class MediaServiceTest {
             val result = mediaService.uploadAudio(command)
 
             assertNull(result.durationSeconds)
+        }
+    }
+
+    // ─── uploadDocument ───────────────────────────────────
+
+    @Nested
+    inner class UploadDocument {
+
+        @Test
+        fun `should upload document successfully and derive extension from filename`() {
+            every { mediaFileRepository.save(any()) } answers { firstArg() }
+
+            val command = UploadDocumentCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(2048)),
+                contentType = "application/pdf",
+                sizeBytes = 2048L,
+                originalFilename = "report.pdf"
+            )
+
+            val result = mediaService.uploadDocument(command)
+
+            assertEquals(uploaderId, result.uploaderId)
+            assertEquals("application/pdf", result.contentType)
+            assertNull(result.thumbnailKey)
+            assert(result.fileKey.startsWith("documents/$uploaderId/"))
+            assert(result.fileKey.endsWith(".pdf"))
+            verify(exactly = 1) { mediaStoragePort.putObject(any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `should fall back to bin extension when filename has no extension`() {
+            every { mediaFileRepository.save(any()) } answers { firstArg() }
+
+            val command = UploadDocumentCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(64)),
+                contentType = "application/octet-stream",
+                sizeBytes = 64L,
+                originalFilename = "no_extension_here"
+            )
+
+            val result = mediaService.uploadDocument(command)
+
+            assert(result.fileKey.endsWith(".bin"))
+        }
+
+        @Test
+        fun `should fall back to bin extension when filename is null`() {
+            every { mediaFileRepository.save(any()) } answers { firstArg() }
+
+            val command = UploadDocumentCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(64)),
+                contentType = "application/octet-stream",
+                sizeBytes = 64L,
+                originalFilename = null
+            )
+
+            val result = mediaService.uploadDocument(command)
+
+            assert(result.fileKey.endsWith(".bin"))
+        }
+
+        @Test
+        fun `should sanitize malicious filename so object key cannot be path-injected`() {
+            val savedSlot = slot<MediaFile>()
+            every { mediaFileRepository.save(capture(savedSlot)) } answers { savedSlot.captured }
+
+            // Attacker-controlled filename attempts to inject path segments into the object key.
+            val command = UploadDocumentCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(16)),
+                contentType = "application/octet-stream",
+                sizeBytes = 16L,
+                originalFilename = "invoice.evil/../../images/victim/owned"
+            )
+
+            mediaService.uploadDocument(command)
+
+            val key = savedSlot.captured.fileKey
+            // Key must remain a single flat segment under documents/<uploaderId>/<uuid>.<ext>
+            assert(key.matches(Regex("documents/$uploaderId/[a-f0-9-]+\\.[a-z0-9]+"))) {
+                "Object key was path-injectable: $key"
+            }
+            assert(!key.contains("..")) { "Object key contains traversal: $key" }
+            // Only the extension portion remains, sanitized to alphanumerics.
+            assert(key.substringAfterLast('.').all { it.isLetterOrDigit() })
+        }
+
+        @Test
+        fun `should throw MEDIA_TOO_LARGE when document exceeds 100MB`() {
+            val command = UploadDocumentCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(10)),
+                contentType = "application/pdf",
+                sizeBytes = 100L * 1024 * 1024 + 1,
+                originalFilename = "huge.pdf"
+            )
+
+            val ex = assertThrows<BusinessException> {
+                mediaService.uploadDocument(command)
+            }
+            assertEquals(ErrorCode.MEDIA_TOO_LARGE, ex.errorCode)
+        }
+
+        @Test
+        fun `should throw MEDIA_UPLOAD_FAILED when storage throws during document upload`() {
+            every { mediaStoragePort.putObject(any(), any(), any(), any()) } throws RuntimeException("Disk full")
+
+            val command = UploadDocumentCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(16)),
+                contentType = "application/pdf",
+                sizeBytes = 16L,
+                originalFilename = "test.pdf"
+            )
+
+            val ex = assertThrows<BusinessException> {
+                mediaService.uploadDocument(command)
+            }
+            assertEquals(ErrorCode.MEDIA_UPLOAD_FAILED, ex.errorCode)
         }
     }
 
