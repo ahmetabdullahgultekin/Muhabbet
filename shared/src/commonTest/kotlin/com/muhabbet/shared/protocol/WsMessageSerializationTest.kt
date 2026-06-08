@@ -48,6 +48,39 @@ class WsMessageSerializationTest {
     }
 
     @Test
+    fun should_deserialize_SendMessage_without_mentions_field_for_old_client_compat() {
+        // Pre-@mentions clients send no `mentions`/`mentionsEveryone` — must still deserialize
+        // (defaults: empty / false). Proves the Tier-2 fields are backwards-compatible.
+        val json = """
+            {"type":"message.send","requestId":"r1","messageId":"m1",
+             "conversationId":"c1","content":"test","contentType":"TEXT"}
+        """.trimIndent()
+        val msg = wsJson.decodeFromString<WsMessage>(json)
+        assertIs<WsMessage.SendMessage>(msg)
+        assertTrue(msg.mentions.isEmpty())
+        assertEquals(false, msg.mentionsEveryone)
+    }
+
+    @Test
+    fun should_round_trip_SendMessage_with_mentions() {
+        val msg = WsMessage.SendMessage(
+            requestId = "req-1",
+            messageId = "msg-1",
+            conversationId = "conv-1",
+            content = "merhaba @Ayse",
+            mentions = listOf(com.muhabbet.shared.model.MentionRef(userId = "u2", start = 8, length = 5)),
+            mentionsEveryone = false
+        )
+        val json = wsJson.encodeToString(WsMessage.serializer(), msg)
+        val back = wsJson.decodeFromString<WsMessage>(json)
+        assertIs<WsMessage.SendMessage>(back)
+        assertEquals(1, back.mentions.size)
+        assertEquals("u2", back.mentions[0].userId)
+        assertEquals(8, back.mentions[0].start)
+        assertEquals(5, back.mentions[0].length)
+    }
+
+    @Test
     fun should_serialize_AckMessage_with_correct_type() {
         val msg = WsMessage.AckMessage(
             messageId = "msg-1",

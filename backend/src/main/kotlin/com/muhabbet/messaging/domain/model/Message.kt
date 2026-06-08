@@ -33,7 +33,22 @@ data class Message(
     val viewedBy: UUID? = null,
     // Message Scheduling
     val scheduledAt: Instant? = null,
-    val isScheduled: Boolean = false
+    val isScheduled: Boolean = false,
+    // @mentions (Tier 2 — see docs/design/T2-group-mentions.md; default empty, gated on
+    // muhabbet.mentions.enabled. Populated/persisted in slice S2.)
+    val mentions: List<Mention> = emptyList(),
+    val mentionsEveryone: Boolean = false
+)
+
+/**
+ * Domain value object for a single @mention: the mentioned user plus the token's position in
+ * [Message.content]. Framework-agnostic (no Spring/JPA). Mapped to/from the shared `MentionRef`
+ * and the `message_mentions` table by adapters. See ADR-0008.
+ */
+data class Mention(
+    val mentionedUserId: UUID,
+    val startOffset: Int,
+    val length: Int
 )
 
 data class MessageDeliveryStatus(

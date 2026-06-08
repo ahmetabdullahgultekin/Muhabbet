@@ -130,6 +130,13 @@ muhabbet:
     # separate, still-blocked crypto slice (see DeviceLinkCrypto / CLAUDE.md libsignal block).
     enabled: ${MULTI_DEVICE_ENABLED:false}
 
+  mentions:
+    # Tier-2 group @mentions (docs/design/T2-group-mentions.md, ADR-0008). DEFAULT false = the
+    # server ignores inbound mention metadata and the send/fan-out path is byte-identical to today.
+    # Kill-switch is this flag (no redeploy). everyone-max-members caps @everyone fan-out.
+    enabled: ${MENTIONS_ENABLED:false}
+    everyone-max-members: ${MENTIONS_EVERYONE_MAX:256}
+
   firebase:
     enabled: ${FIREBASE_ENABLED:false}
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}   # Service account JSON, or empty for GCP ADC

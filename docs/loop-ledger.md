@@ -32,6 +32,20 @@
 
 ## Entries
 
+### 2026-06-08 (run 3) — Implementation: @mentions slice S1 (contract + migration + flag)
+- **Context:** user said "skip loop, start working" → implemented the first vertical slice of the
+  @mentions design from run 2 (the obvious, low-regret next step: additive + default-OFF).
+- **Did (S1, behavior-neutral):** `V19__add_message_mentions.sql` (additive table + `mentions_everyone`
+  column); `MentionRef` + optional `mentions`/`mentionsEveryone` on shared `Message`,
+  `WsMessage.SendMessage`, `WsMessage.NewMessage`; backend `Mention` value object + `Message` fields;
+  `MentionProperties` flag (`muhabbet.mentions.enabled`, default OFF) wired in `AppConfig` +
+  `application.yml`. `MessageJpaEntity` left unmapped for the new column on purpose (persistence is S2).
+- **Tests:** added old-client-compat + round-trip cases to `WsMessageSerializationTest`.
+- **Verification:** `:shared:jvmTest` green, `:backend:compileKotlin` green, mobile commonMain
+  metadata compile green. CHANGELOG + design-doc status + this ledger updated.
+- **Boundaries:** no crypto flags flipped, no disabled Signal files touched, no deploy.
+- **Commit:** branch `claude/relaxed-goldberg-P1IKj`.
+
 ### 2026-06-08 (run 2) — Task 2 (Plan + design docs): @mentions in group chats
 - **Picked because:** rotation — Tasks 3 & 4 already done today; Task 2 never run by the loop.
   Chose @mentions as the next feature (non-blocked, no crypto/deploy, high group-usability value).

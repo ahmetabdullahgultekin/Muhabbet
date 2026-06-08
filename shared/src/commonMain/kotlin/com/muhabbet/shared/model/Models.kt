@@ -95,7 +95,23 @@ data class Message(
     val forwardedFrom: String? = null,
     val reactions: Map<String, Int> = emptyMap(),
     val myReactions: Set<String> = emptySet(),
-    val viewOnce: Boolean = false
+    val viewOnce: Boolean = false,
+    // @mentions (Tier 2, behind muhabbet.mentions.enabled / MentionsConfig.ENABLED — default empty)
+    val mentions: List<MentionRef> = emptyList(),
+    val mentionsEveryone: Boolean = false
+)
+
+/**
+ * A single @mention inside a message: which user is mentioned and where the mention token sits in
+ * [Message.content] (so clients can highlight without re-resolving names). See
+ * `docs/design/T2-group-mentions.md` + ADR-0008. Structured & client-resolved by design — the
+ * server never regex-parses `@name` from free text.
+ */
+@Serializable
+data class MentionRef(
+    val userId: String,
+    val start: Int,
+    val length: Int
 )
 
 @Serializable

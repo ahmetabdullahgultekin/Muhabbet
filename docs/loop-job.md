@@ -27,6 +27,24 @@ itself) without human prompting each time.
 >    from the least-executed / never-reviewed first** (`docs/reviews/`).
 > 4. **Optimize** — always open to develop and optimize, **including this loop/prompt itself**.
 
+## 2a. Owner direction — design & innovation (2026-06-08)
+
+> Owner (TR): *"Tasarıma ve inovasyona çok önem veriyorum — gözlerine hoş gelmeli, hızlı ve rahat
+> kullanmalılar, ayrıca onları diğer uygulamalardan koparacak inovasyonlara ihtiyacımız var."*
+
+Standing priority: **don't just reach WhatsApp-parity — differentiate.** Weight task selection
+toward three pillars (owner picked all three + "research first"):
+1. **Visual identity & motion** — signature color/shape language, micro-animations (bubble spring
+   physics, tick flow), empty-state illustrations, haptics. Beyond "tokens are tidy" → delightful.
+2. **Speed & flow (perceived performance)** — zero-latency typing, instant cache-backed screens,
+   one-handed reach layout, gesture-first navigation; with measurable targets.
+3. **Turkey-specific, KVKK-compliant innovation** — differentiators WhatsApp won't ship (Turkish
+   voice-note transcription+summary, privacy-first modes, contextual smart replies).
+
+**Sequenced:** start with a **Product Design & Innovation Vision** doc (competitive scan + idea pool
++ north-star recommendation), then execute pillar by pillar. This biases Task-1/Task-2 picks toward
+design/innovation until the vision is set.
+
 ## 3. Selection rule (how "one of the best" is decided)
 
 Deterministic, in order:

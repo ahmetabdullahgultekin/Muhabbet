@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft (2026-06-08) |
+| **Status** | S1 implemented (2026-06-08) — contract + migration + flag, default OFF; S2–S5 pending |
 | **Author / Reviewers** | autonomous SE loop (Task 2) / owner @ahmetabdullahgultekin |
 | **Feature flag** | `muhabbet.mentions.enabled` (backend) · `MentionsConfig.ENABLED` (mobile) — default **OFF** |
 | **ADRs** | `docs/adr/0008-mentions-storage-and-notification.md` (this PR) |
@@ -191,7 +191,7 @@ mobile/composeApp/.../
 
 | Slice | Scope | Done = |
 |---|---|---|
-| **S1** | Contract + migration + flag plumbing (no behaviour) | `V19` applies; `MentionRef`/fields compile on backend+shared+mobile; flags default OFF; `:backend:test` + `:shared:jvmTest` + mobile metadata-compile green |
+| **S1** ✅ | Contract + migration + flag plumbing (no behaviour) — **DONE 2026-06-08** | `V19` added; `MentionRef`/fields compile on backend+shared+mobile; flags default OFF; `:shared:jvmTest` + `:backend:compileKotlin` + mobile metadata-compile green |
 | **S2** | Server persist + validate (membership drop, `@everyone` admin-gate) | unit tests: non-members dropped, non-admin `@everyone` → `MSG_MENTION_EVERYONE_FORBIDDEN`, rows written; history renders `mentions` |
 | **S3** | Mention-piercing notifications | `MentionNotifier` notifies muted/offline mentioned members; respects global-mute/block; covered by unit tests with a fake `PushNotificationPort` |
 | **S4** | Mobile compose: `@` autocomplete + token insert | demoed in running app — typing `@` lists group members, selection inserts highlighted token, send carries `mentions` |

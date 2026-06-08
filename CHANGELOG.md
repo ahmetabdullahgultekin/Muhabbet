@@ -9,6 +9,21 @@ All notable changes to this project will be documented in this file.
 > guards + JWT boot guard), #61 (honest E2E UI + OTP fallback + no auth-header logging), #54 (docs).
 > Build green via #49; **E2E stays DISABLED (NoOp/plaintext)** — UI now honest (no false padlock).
 
+### Feature (scaffolding) — @mentions S1: contract + migration + flag (Jun 8, 2026)
+- **Tier-2 group @mentions, slice S1** (design `docs/design/T2-group-mentions.md`, ADR-0008). Additive,
+  behavior-neutral, behind `muhabbet.mentions.enabled` / `MentionsConfig.ENABLED` (**default OFF** →
+  send/fan-out byte-identical to today). No persistence/notification yet (S2+).
+  - **Contract**: `MentionRef(userId,start,length)` in `shared/.../model/Models.kt`; optional
+    `mentions`/`mentionsEveryone` fields on `WsMessage.SendMessage` + `WsMessage.NewMessage` and on the
+    shared `Message` model — all default empty, so pre-update clients send/receive unaffected.
+  - **Domain**: `Mention` value object + `mentions`/`mentionsEveryone` on backend `Message`.
+  - **Migration** `V19__add_message_mentions.sql` (additive `message_mentions` table +
+    `messages.mentions_everyone` column; soft user reference, no cross-module FK).
+  - **Flag**: `MentionProperties` (`muhabbet.mentions.enabled`, `everyone-max-members`) wired in
+    `AppConfig` + `application.yml`.
+  - **Tests**: shared `WsMessageSerializationTest` — old-client compat (no `mentions` field still
+    deserializes) + round-trip with mentions. `:shared:jvmTest` + `:backend:compileKotlin` green.
+
 ### Security & Correctness — Mobile Polish (Jun 7, 2026)
 - **[CRITICAL-trust] Honest E2E UI**: the profile padlock (`UserProfileScreen`) and the privacy-dashboard E2E card (`PrivacyDashboardScreen`) unconditionally claimed "end-to-end encrypted" while E2E is OFF in production (plaintext under TLS). Both are now gated on `E2EConfig.ENABLED`: when false, the padlock is replaced with an info icon and an honest message — TR "Aktarım sırasında şifreli (TLS) — uçtan uca şifreleme yakında" / EN "Transport-encrypted (TLS) — end-to-end encryption coming soon" (and the dashboard's `privacy_transport_info`). New TR+EN strings `profile_transport_encrypted` and `privacy_transport_info`. No crypto semantics changed; libsignal stays untouched.
 - **[MED] OTP fallback locale bug**: `PhoneInputScreen.shouldFallbackToBackendOtp` substring-matched localized Firebase message text, false-negating on Turkish-locale devices. Now a structured `PhoneAuthErrorCode` (`RATE_LIMITED` / `CONFIGURATION` / `INVALID_PHONE` / `UNKNOWN`) is carried on `PhoneVerificationResult.Error`, mapped on Android from `FirebaseAuthException.errorCode` (locale-invariant), and the fallback branches on the code. Substring matching survives only as a last resort on the generic catch path, using Kotlin's locale-invariant `String.lowercase()`. (`platform/FirebasePhoneAuth.kt`, `FirebasePhoneAuth.android.kt`, `ui/auth/PhoneInputScreen.kt`)

@@ -3,6 +3,7 @@ package com.muhabbet.shared.protocol
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.model.ContentType
+import com.muhabbet.shared.model.MentionRef
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import kotlinx.serialization.SerialName
@@ -33,7 +34,10 @@ sealed class WsMessage {
         val thumbnailUrl: String? = null,
         val forwardedFrom: String? = null,  // original messageId if forwarded
         val viewOnce: Boolean = false,
-        val scheduledAt: Long? = null        // epoch millis, null = send immediately
+        val scheduledAt: Long? = null,       // epoch millis, null = send immediately
+        // @mentions (Tier 2, default empty → old clients unaffected; ignored unless flag ON)
+        val mentions: List<MentionRef> = emptyList(),
+        val mentionsEveryone: Boolean = false
     ) : WsMessage()
 
     /** Client acknowledges received message (delivered/read) */
@@ -138,7 +142,10 @@ sealed class WsMessage {
         val mediaUrl: String? = null,
         val thumbnailUrl: String? = null,
         val serverTimestamp: Long,           // epoch millis
-        val forwardedFrom: String? = null
+        val forwardedFrom: String? = null,
+        // @mentions (Tier 2, default empty → old clients unaffected)
+        val mentions: List<MentionRef> = emptyList(),
+        val mentionsEveryone: Boolean = false
     ) : WsMessage()
 
     /** Server notifies sender about delivery status change */
