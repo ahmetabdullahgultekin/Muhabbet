@@ -99,7 +99,7 @@ muhabbet:
     mock-enabled: ${OTP_MOCK_ENABLED:false}  # true = log OTP to console instead of SMS
 
   sms:
-    provider: ${SMS_PROVIDER:mock}     # mock, twilio, netgsm
+    provider: ${MUHABBET_SMS_PROVIDER:mock}   # mock (dev default) | netgsm | twilio
     twilio:
       account-sid: ${TWILIO_ACCOUNT_SID:}
       auth-token: ${TWILIO_AUTH_TOKEN:}
@@ -108,7 +108,6 @@ muhabbet:
       usercode: ${NETGSM_USERCODE:}
       password: ${NETGSM_PASSWORD:}
       msgheader: ${NETGSM_HEADER:MUHABBET}
-      api-url: https://api.netgsm.com.tr
 
   media:
     minio:

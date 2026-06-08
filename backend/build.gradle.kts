@@ -55,8 +55,7 @@ dependencies {
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-admin:9.8.0")
 
-    // Twilio SMS
-    implementation("com.twilio.sdk:twilio:11.3.6")
+    // SMS gateways (Netgsm, Twilio) are called via Spring's RestClient — no provider SDK needed.
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")

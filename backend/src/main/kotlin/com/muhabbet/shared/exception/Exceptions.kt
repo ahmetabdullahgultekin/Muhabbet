@@ -13,6 +13,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     AUTH_OTP_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "Lütfen yeni kod talep etmeden önce bekleyin"),
     AUTH_OTP_RATE_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla OTP talebi"),
     AUTH_OTP_INVALID(HttpStatus.UNAUTHORIZED, "Geçersiz doğrulama kodu"),
+    OTP_SEND_FAILED(HttpStatus.BAD_GATEWAY, "Doğrulama kodu gönderilemedi"),
     AUTH_OTP_EXPIRED(HttpStatus.UNAUTHORIZED, "Doğrulama kodu süresi doldu"),
     AUTH_OTP_MAX_ATTEMPTS(HttpStatus.UNAUTHORIZED, "Maksimum deneme sayısı aşıldı"),
     AUTH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Geçersiz token"),

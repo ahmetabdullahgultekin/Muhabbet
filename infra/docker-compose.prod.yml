@@ -22,10 +22,16 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       JWT_SECRET: ${JWT_SECRET}
+      # SMS / OTP delivery. Set MUHABBET_SMS_PROVIDER=netgsm (or twilio) in prod and supply the
+      # matching provider secrets via the host .env — never commit real secrets here.
       OTP_MOCK_ENABLED: ${OTP_MOCK_ENABLED:-false}
-      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+      MUHABBET_SMS_PROVIDER: ${MUHABBET_SMS_PROVIDER:-netgsm}
       NETGSM_USERCODE: ${NETGSM_USERCODE:-}
       NETGSM_PASSWORD: ${NETGSM_PASSWORD:-}
+      NETGSM_HEADER: ${NETGSM_HEADER:-MUHABBET}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
       FIREBASE_ENABLED: "true"
       FIREBASE_CREDENTIALS_PATH: /app/firebase-adminsdk.json
       FCM_ENABLED: "true"
