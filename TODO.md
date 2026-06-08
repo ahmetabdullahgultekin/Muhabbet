@@ -203,6 +203,31 @@
 
 ## P2 — Quality / hardening / completeness
 
+- [ ] **Honor `onlineStatusVisibility` on the realtime WS presence path** (2026-06-08 presence/notif V&V, Finding A — KVKK)
+  - `backend/.../messaging/adapter/in/websocket/ChatWebSocketHandler.broadcastPresence` (+ `handleTypingIndicator`)
+  - **Why**: The REST presence path (`UserController.resolvePresenceVisibility`) carefully gates
+    online/last-seen on the target's `everyone`/`contacts`/`nobody` setting, but the WebSocket
+    `broadcastPresence` (online/offline + `lastSeenAt`) and typing indicators are pushed to **all**
+    contacts unconditionally — a privacy regression vs. the user's chosen visibility (KVKK data
+    minimization). A user who set last-seen to "nobody" still leaks online/offline transitions in
+    real time.
+  - **DONE =** WS presence/typing broadcasts consult the sender's visibility (load `User` once,
+    filter recipients the same way the REST path does, or suppress `lastSeenAt`/online for `nobody`);
+    add MockK tests asserting suppression. (Larger change — needs `UserRepository` threaded into the
+    handler + a recipient filter; left documented rather than fixed in the V&V pass.)
+
+- [ ] **Clean up stale FCM push tokens on `UNREGISTERED`/`INVALID_ARGUMENT`** (2026-06-08 presence/notif V&V, Finding B)
+  - `backend/.../messaging/adapter/out/external/FcmPushNotificationAdapter.sendPush` (+ a new cleanup
+    seam on `PushNotificationPort` and a `clearPushToken` on `DeviceRepository`)
+  - **Why**: `FirebaseMessaging.send` throwing `FirebaseMessagingException` with messaging-error-code
+    `UNREGISTERED` (app uninstalled) or `INVALID_ARGUMENT` is only logged at WARN — the dead token is
+    never removed, so every future offline message re-attempts (and re-fails) a send to a token that
+    can never deliver. Industry practice is to delete the token on these terminal codes.
+  - **DONE =** terminal FCM error codes trigger removal of the offending device's push token (so it is
+    no longer selected by `findByUserId(...).filter { pushToken != null }`); MockK test covers the
+    cleanup path. (Crosses the messaging→auth module boundary for the token store — needs an event or
+    a new port; left documented.)
+
 - [ ] **Make storage-usage document bucketing exhaustive** (2026-06-08 media V&V, Finding C)
   - `backend/.../media/domain/service/MediaService.getStorageUsage`
   - **Why**: documents are bucketed by `application/` prefix only; non-`application/*` documents are

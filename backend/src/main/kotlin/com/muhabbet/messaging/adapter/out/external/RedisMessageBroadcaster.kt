@@ -84,11 +84,12 @@ class RedisMessageBroadcaster(
                 // Also send push notification for offline users
                 try {
                     val devices = deviceRepository.findByUserId(recipientId)
+                    val body = PushNotificationContent.bodyFor(message)
                     devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
                         pushNotificationPort.sendPush(
                             pushToken = device.pushToken!!,
                             title = "Yeni mesaj",
-                            body = message.content.take(100),
+                            body = body,
                             data = mapOf(
                                 "conversationId" to message.conversationId.toString(),
                                 "messageId" to message.id.toString()

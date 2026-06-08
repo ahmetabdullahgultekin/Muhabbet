@@ -3,7 +3,6 @@ package com.muhabbet.messaging.adapter.out
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
-import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -63,13 +62,7 @@ class WebSocketMessageBroadcaster(
         val sender = userRepository.findById(message.senderId)
         val senderName = sender?.displayName ?: sender?.phoneNumber ?: "Yeni mesaj"
 
-        val body = when (message.contentType) {
-            ContentType.IMAGE -> "\uD83D\uDCF7 Fotoğraf"
-            ContentType.VIDEO -> "\uD83C\uDFA5 Video"
-            ContentType.VOICE -> "\uD83C\uDF99\uFE0F Sesli mesaj"
-            ContentType.DOCUMENT -> "\uD83D\uDCC4 Belge"
-            else -> message.content.take(100)
-        }
+        val body = com.muhabbet.messaging.adapter.out.external.PushNotificationContent.bodyFor(message)
 
         val conversation = conversationRepository.findById(message.conversationId)
         val conversationType = conversation?.type?.name ?: "DIRECT"

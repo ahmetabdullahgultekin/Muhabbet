@@ -237,4 +237,44 @@ class AuthServiceTest {
         }
         assertEquals(ErrorCode.AUTH_TOKEN_INVALID, ex.errorCode)
     }
+
+    // ─── registerPushToken ──────────────────────────────
+
+    @Test
+    fun `should persist push token on the matching device when device belongs to user`() {
+        val userId = UUID.randomUUID()
+        val deviceId = UUID.randomUUID()
+        val device = com.muhabbet.auth.domain.model.Device(
+            id = deviceId,
+            userId = userId,
+            platform = "android"
+        )
+        every { deviceRepository.findByUserId(userId) } returns listOf(device)
+        val saved = slot<com.muhabbet.auth.domain.model.Device>()
+        every { deviceRepository.save(capture(saved)) } answers { firstArg() }
+
+        authService.registerPushToken(userId, deviceId, "fcm-token-abc")
+
+        assertEquals("fcm-token-abc", saved.captured.pushToken)
+        assertEquals(deviceId, saved.captured.id)
+    }
+
+    @Test
+    fun `should throw DEVICE_NOT_FOUND when device does not belong to user`() {
+        val userId = UUID.randomUUID()
+        // user owns a different device than the one being registered
+        every { deviceRepository.findByUserId(userId) } returns listOf(
+            com.muhabbet.auth.domain.model.Device(
+                id = UUID.randomUUID(),
+                userId = userId,
+                platform = "android"
+            )
+        )
+
+        val ex = assertThrows<BusinessException> {
+            authService.registerPushToken(userId, UUID.randomUUID(), "fcm-token")
+        }
+        assertEquals(ErrorCode.DEVICE_NOT_FOUND, ex.errorCode)
+        verify(exactly = 0) { deviceRepository.save(any()) }
+    }
 }

@@ -21,12 +21,13 @@
 | backend `moderation` | partial | 2026-06-07 | IDOR Q in `docs/qa/02-security.md`; no full module review |
 | backend `messaging` | partial | 2026-06-07 | IDOR fixes PR #55; 24 test files; no holistic review |
 | backend `auth` | partial | 2026-06-07 | JWT boot-guard PR #55; no full module review |
-| backend `presence` (adapter) | ❌ | — | `RedisPresenceAdapter` inside messaging; never reviewed |
-| backend `notification` (adapter) | ❌ | — | `FcmPushNotificationAdapter`; never reviewed |
+| backend `presence` (adapter) | ✅ | 2026-06-08 | `docs/reviews/2026-06-08-presence-notification-vv.md` (fixed C/D/E; A KVKK-visibility + B FCM-cleanup → TODO P2) |
+| backend `notification` (adapter) | ✅ | 2026-06-08 | same doc — push-body DRY (D) + `registerPushToken` status/string (C) fixed; FCM stale-token cleanup (B) → TODO P2 |
 | mobile (CMP) | UI-audit only | 2026-06-07 | `docs/qa/mobile-ui-audit.md` (87 issues); no logic V&V |
 | shared (KMP) | ❌ | — | model/dto/protocol/validation; never reviewed |
 
-**Next V&V pick (least reviewed):** `presence` or `notification` adapter, or `shared` module.
+**Next V&V pick (least reviewed):** `shared` module (KMP), or a holistic `auth` / `moderation` /
+`messaging` module review (currently only "partial").
 
 ---
 

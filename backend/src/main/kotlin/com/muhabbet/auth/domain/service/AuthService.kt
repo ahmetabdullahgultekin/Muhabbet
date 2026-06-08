@@ -253,7 +253,7 @@ open class AuthService(
     override fun registerPushToken(userId: UUID, deviceId: UUID, pushToken: String) {
         val devices = deviceRepository.findByUserId(userId)
         val device = devices.find { it.id == deviceId }
-            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Cihaz bulunamadı")
+            ?: throw BusinessException(ErrorCode.DEVICE_NOT_FOUND)
         deviceRepository.save(device.copy(pushToken = pushToken))
         log.info("Push token registered: userId={}, deviceId={}", userId, deviceId)
     }

@@ -1,0 +1,200 @@
+# V&V Review — `presence` & `notification` Adapters (Backend)
+
+> **Date:** 2026-06-08 · **Reviewer:** automated SE loop (Task 3 — V&V of least-reviewed feature)
+> **Scope:** the presence + push-notification adapters that live inside the `messaging` module plus
+> their cross-module touch points:
+> - Presence: `messaging/adapter/out/external/RedisPresenceAdapter.kt`,
+>   `messaging/domain/port/out/PresencePort.kt`, the online/offline/typing/last-seen flow in
+>   `messaging/adapter/in/websocket/ChatWebSocketHandler.kt`, and the REST presence-visibility gate in
+>   `auth/adapter/in/web/UserController.kt`.
+> - Notification: `messaging/adapter/out/external/FcmPushNotificationAdapter.kt`,
+>   `NoOpPushNotificationAdapter.kt`, `messaging/domain/port/out/PushNotificationPort.kt`, the push
+>   send paths in `RedisMessageBroadcaster.kt` / `NoOpMessageBroadcaster.kt`
+>   (`WebSocketMessageBroadcaster`), and push-token registration
+>   (`auth/.../RegisterPushTokenUseCase.kt` → `AuthService.registerPushToken`).
+> **Why these:** `docs/loop-ledger.md` lists both as **never reviewed** — `RedisPresenceAdapter` and
+> `FcmPushNotificationAdapter` had **zero** dedicated tests, while presence is privacy-sensitive
+> (last-seen is PII under KVKK) and push touches every offline delivery.
+
+## Method
+- Static read of all 6 in-scope source files + their two call sites (`UserController`,
+  `ChatWebSocketHandler`) and both broadcasters.
+- Assessed against `CLAUDE.md` SE principles (SOLID / hexagonal / DRY / KISS / no-hardcoded-strings /
+  no-`!!`) and the KVKK / data-protection checklist in `docs/qa/02-security.md` §4.
+- Traced the presence flow (WS connect/close → Redis TTL key → REST read with visibility gate) and the
+  push flow (offline recipient → device push tokens → `PushNotificationPort` → FCM / NoOp).
+
+## Summary
+
+| # | Severity | Title | Status |
+|---|----------|-------|--------|
+| A | **Medium** (KVKK / privacy) | Realtime WS presence + typing broadcasts ignore `onlineStatusVisibility` — online/offline + `lastSeenAt` pushed to all contacts regardless of the user's "everyone/contacts/nobody" choice, while the REST path honors it | Documented + TODO (P2) — larger change |
+| B | **Medium** (correctness / resource) | FCM `UNREGISTERED` / `INVALID_ARGUMENT` (dead token) is only logged — the stale push token is never removed, so every future offline message re-attempts a doomed send | Documented + TODO (P2) — crosses module boundary |
+| C | **Medium** (no-hardcoded-strings + wrong HTTP status) | `registerPushToken` threw `BusinessException(AUTH_UNAUTHORIZED, "Cihaz bulunamadı")` — inline Turkish message string (CLAUDE.md violation) **and** a 401 for what is a 404 (a device the user doesn't own) | **FIXED 2026-06-08** + 2 tests |
+| D | Low (correctness / DRY) | The `@Primary` prod push path (`RedisMessageBroadcaster`) sent raw `message.content.take(100)` as the body for **media** messages (image/voice/doc → empty or a storage key in the notification), while the NoOp broadcaster formatted a placeholder — duplicated, divergent body logic | **FIXED 2026-06-08** (shared `PushNotificationContent` helper) + 5 tests |
+| E | Low (dead code / privacy hygiene) | `RedisPresenceAdapter` wrote a `lastseen:{id}` Redis key on every online/offline with **no TTL** and **no reader anywhere** — an unbounded PII timestamp that never expires and is never used (DB `last_seen_at` is the real source of truth) | **FIXED 2026-06-08** (removed) + 8 tests |
+| F | Info (test gap) | `RedisPresenceAdapter`, the push-body formatting, and `registerPushToken` had **zero** unit tests | **FIXED** — 15 tests added |
+
+---
+
+## Finding A — WS presence/typing bypasses visibility setting  *(Medium, KVKK — documented)*
+
+**Location:** `ChatWebSocketHandler.broadcastPresence` (online on connect, offline on
+close/transport-error) and `handleTypingIndicator`.
+
+The REST path is careful: `UserController.resolvePresenceVisibility` reads the target user's
+`onlineStatusVisibility` (`everyone` / `contacts` / `nobody`) and returns `isOnline=false,
+lastSeen=null` when the caller isn't entitled. But the **realtime** path does not:
+
+```kotlin
+private fun broadcastPresence(userId: UUID, status: PresenceStatus) {
+    val lastSeenAt = if (status == PresenceStatus.OFFLINE) System.currentTimeMillis() else null
+    val presenceUpdate = WsMessage.PresenceUpdate(userId = userId.toString(), status = status, lastSeenAt = lastSeenAt)
+    val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
+    val contactUserIds = conversationRepository.findAllContactUserIds(userId)   // ← all contacts
+    contactUserIds.forEach { contactId -> if (sessionManager.isOnline(contactId)) sessionManager.sendToUser(contactId, json) }
+}
+```
+
+So a user who set last-seen / online to **"nobody"** still streams their online/offline transitions
+(and an offline `lastSeenAt` epoch) to every conversation partner in real time. `handleTypingIndicator`
+is likewise unconditional. This is a **KVKK data-minimization** gap (`docs/qa/02-security.md` §4.1):
+the privacy control is only half-enforced — correct on pull, leaky on push.
+
+**Why documented, not fixed here:** the safe fix threads `UserRepository` into the handler, loads the
+broadcaster's `User` once per presence event, and filters/suppresses per the same rule the REST path
+uses (and decides product-wise whether "nobody" suppresses online entirely vs. just `lastSeenAt`).
+That is a behavior change with a product call attached, so it is logged as **TODO P2** with a test
+requirement rather than changed blind in a V&V pass.
+
+## Finding B — Stale FCM tokens are never cleaned up  *(Medium — documented)*
+
+**Location:** `FcmPushNotificationAdapter.sendPush`.
+
+```kotlin
+try {
+    val messageId = FirebaseMessaging.getInstance().send(message)
+} catch (e: Exception) {
+    log.warn("FCM send failed: token={}..., error={}", pushToken.take(10), e.message)   // ← only logs
+}
+```
+
+When FCM rejects a token with the terminal messaging-error-codes `UNREGISTERED` (the app was
+uninstalled / token rotated) or `INVALID_ARGUMENT` (malformed token), the right action is to **delete
+that token**. Here it is swallowed with a WARN, so the dead token survives in `devices.push_token` and
+is re-selected on **every** subsequent offline message
+(`deviceRepository.findByUserId(...).filter { !it.pushToken.isNullOrBlank() }`) — a permanent stream of
+guaranteed-to-fail sends per dead device. Correctness + wasted work; not a data leak.
+
+**Why documented, not fixed here:** cleanup crosses the **messaging → auth** module boundary (the push
+adapter lives in `messaging`; the token store is `auth`'s `DeviceRepository`). Doing it right needs
+either a new `PushNotificationPort` result/callback distinguishing terminal failures or a Spring
+`ApplicationEvent` (the CLAUDE.md cross-module rule), plus a `clearPushToken` on `DeviceRepository`.
+Catching `FirebaseMessagingException` and reading `getMessagingErrorCode()` also can't be unit-tested
+on this host without a live FCM. Logged as **TODO P2**.
+
+> Note: the catch is currently `catch (e: Exception)` — it also swallows transient/network errors,
+> which is correct (those tokens are still valid and the message is already persisted server-side for
+> sync). Only the two *terminal* codes warrant deletion; the cleanup must be code-specific, not a
+> blanket delete-on-any-exception.
+
+## Finding C — Hardcoded message + wrong status on `registerPushToken`  *(FIXED)*
+
+**Location:** `AuthService.registerPushToken`.
+
+**Before:**
+```kotlin
+val device = devices.find { it.id == deviceId }
+    ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Cihaz bulunamadı")
+```
+
+Two issues: (1) an **inline Turkish message string**, which CLAUDE.md forbids ("Use `ErrorCode` enum
+for all business errors. Never throw with inline Turkish/English message strings"); (2) the wrong
+semantic code — a device the authenticated user doesn't own is a **404 Not Found**, not a 401
+`AUTH_UNAUTHORIZED`. There is already a `DEVICE_NOT_FOUND(HttpStatus.NOT_FOUND, "Cihaz bulunamadı")`
+ErrorCode carrying the exact same Turkish copy.
+
+**Fix:**
+```kotlin
+val device = devices.find { it.id == deviceId }
+    ?: throw BusinessException(ErrorCode.DEVICE_NOT_FOUND)
+```
+
+The user-scoping (look up the device only among *this user's* devices) is good and was preserved — it
+prevents registering a push token onto another user's device id (an IDOR the existing code already
+closed). **Tests:** `AuthServiceTest` — push token is persisted on the matching device; `DEVICE_NOT_FOUND`
+thrown and **no save** when the device isn't the user's.
+
+## Finding D — Media push body + DRY divergence between broadcasters  *(FIXED)*
+
+`RedisMessageBroadcaster` is `@Primary` (the production path). Its offline-push body was:
+
+```kotlin
+body = message.content.take(100)
+```
+
+For an IMAGE/VOICE/VIDEO/DOCUMENT message, `content` is empty or a storage reference, so the push
+showed a blank or garbled body. The NoOp broadcaster (`WebSocketMessageBroadcaster`) already mapped
+content types to placeholders ("📷 Fotoğraf", "🎙️ Sesli mesaj", …) — so the two implementations of the
+same port had **divergent, duplicated** body logic (DRY violation; the better behavior was on the
+non-prod path).
+
+**Fix:** extracted one source of truth —
+`messaging/adapter/out/external/PushNotificationContent.bodyFor(message)` — and routed **both**
+broadcasters through it. The prod path now shows the media placeholder; the duplication is gone (the
+unused domain `ContentType` import was dropped from `NoOpMessageBroadcaster`). **Tests:**
+`PushNotificationContentTest` — text passthrough, media never leaks `content` (regression on the
+storage-key leak), per-type placeholders, 100-char truncation.
+
+> The Redis path still hardcodes `title = "Yeni mesaj"` instead of the sender's display name (the NoOp
+> path resolves the sender). Aligning the title would require threading `UserRepository` into
+> `RedisMessageBroadcaster`; out of scope for this contained fix — noted, not changed (and the larger
+> title/sender-name + `conversationType` consolidation belongs with the Finding-A handler refactor).
+
+## Finding E — Write-only, TTL-less `lastseen:` Redis key  *(FIXED)*
+
+`RedisPresenceAdapter.setOnline`/`setOffline` each wrote `lastseen:{userId}` =
+`System.currentTimeMillis()` **with no expiry**. A repo-wide search confirmed **no reader** anywhere in
+`src/main` or `src/test` — the durable last-seen is `users.last_seen_at` in PostgreSQL, persisted by
+`ChatWebSocketHandler` on disconnect and read by `UserController`. So these were pure dead writes that
+also accumulated an **un-expiring PII timestamp per user** in Redis (a small KVKK-hygiene wart: PII
+stored with no retention bound and no purpose).
+
+**Fix:** removed both `lastseen:` writes and the `lastSeenKey` helper. `setOnline` now writes only the
+single TTL `presence:{id}` key (the whole online signal — it auto-expires, so liveness stays correct
+even if a disconnect is never observed); `setOffline` just deletes it. A comment points to the DB as
+the source of truth. **Tests:** `RedisPresenceAdapterTest` (8) — TTL set on online, **no** `lastseen:`
+write on online, **nothing** written on offline (delete only), `isOnline` true/false, empty-input
+short-circuit (no Redis call), `multiGet` filtering, and the `multiGet == null` guard.
+
+---
+
+## What was good (no action)
+- **Hexagonal boundaries are clean.** `PresencePort` and `PushNotificationPort` are minimal out-ports;
+  adapters depend only on infra (`StringRedisTemplate`, FCM). The domain never imports them. Good DIP.
+- **OCP via `@ConditionalOnProperty`.** FCM vs NoOp push (and Redis vs WS broadcaster via `@Primary`)
+  swap by config without touching callers — the documented Spring Boot 4 bean-ambiguity gotcha is
+  handled with `@Primary`.
+- **`getOnlineUserIds` is correct and N+1-free** — single `multiGet`, order-preserving `zip`, with an
+  empty-input short-circuit and a `multiGet == null` guard. No `!!` anywhere in the presence adapter.
+- **The `!!` on `device.pushToken!!`** in both broadcasters is guarded by the preceding
+  `.filter { !it.pushToken.isNullOrBlank() }`, so it cannot NPE (acceptable, though a `mapNotNull`
+  would read better).
+- **Push failures don't break delivery.** Both broadcasters wrap the push block in try/catch, so an
+  FCM/Redis outage degrades to "WS + DB only" rather than throwing into the send path — correct
+  failure mode (the message is already persisted server-side for later sync).
+- **Presence REST path honors KVKK visibility** (the gap is only the realtime path — Finding A).
+
+## Follow-ups for `TODO.md`
+- [ ] **P2 (KVKK):** honor `onlineStatusVisibility` on the WS presence/typing path (Finding A).
+- [ ] **P2:** clean up stale FCM tokens on terminal error codes (Finding B).
+- [x] **Finding C** (hardcoded string + wrong status on `registerPushToken`) — **DONE 2026-06-08.**
+- [x] **Finding D** (media push body + DRY) — **DONE 2026-06-08.**
+- [x] **Finding E** (dead `lastseen:` Redis writes) — **DONE 2026-06-08.**
+
+## Verification
+- `./gradlew :backend:test` — see the run record appended below. The only failures are the known
+  Testcontainers `*IntegrationTest` errors ("Could not find a valid Docker environment") on this
+  no-Docker host — environmental, not regressions.
+- New tests: `RedisPresenceAdapterTest` (8), `PushNotificationContentTest` (5), `AuthServiceTest`
+  registerPushToken (2) = **15** added.

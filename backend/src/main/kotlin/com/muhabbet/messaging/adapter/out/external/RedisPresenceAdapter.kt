@@ -15,14 +15,14 @@ class RedisPresenceAdapter(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun setOnline(userId: UUID, ttlSeconds: Long) {
-        val key = presenceKey(userId)
-        redisTemplate.opsForValue().set(key, "1", Duration.ofSeconds(ttlSeconds))
-        redisTemplate.opsForValue().set(lastSeenKey(userId), System.currentTimeMillis().toString())
+        // Single TTL key is the whole online signal; it auto-expires so liveness is correct even if
+        // a disconnect is never observed. Last-seen is persisted to PostgreSQL by the WS handler
+        // (the durable source of truth) — see ChatWebSocketHandler.afterConnectionClosed.
+        redisTemplate.opsForValue().set(presenceKey(userId), "1", Duration.ofSeconds(ttlSeconds))
     }
 
     override fun setOffline(userId: UUID) {
         redisTemplate.delete(presenceKey(userId))
-        redisTemplate.opsForValue().set(lastSeenKey(userId), System.currentTimeMillis().toString())
     }
 
     override fun isOnline(userId: UUID): Boolean {
@@ -40,5 +40,4 @@ class RedisPresenceAdapter(
     }
 
     private fun presenceKey(userId: UUID) = "presence:$userId"
-    private fun lastSeenKey(userId: UUID) = "lastseen:$userId"
 }
