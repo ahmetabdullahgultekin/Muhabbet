@@ -163,6 +163,12 @@ fun ChatScreen(
     var isAnnouncementOnly by remember { mutableStateOf(false) }
     var isAdminOrOwner by remember { mutableStateOf(false) }
 
+    // @mentions (Tier 2, behind MentionsConfig.ENABLED). Member roster is sourced from the
+    // conversation's participants (loaded below) — no new API. `pendingMentions` accumulates the
+    // structured MentionRefs for tokens inserted into the current draft; they ride on SendMessage.
+    var groupMembers by remember { mutableStateOf<List<com.muhabbet.shared.dto.ParticipantResponse>>(emptyList()) }
+    var pendingMentions by remember { mutableStateOf<List<com.muhabbet.shared.model.MentionRef>>(emptyList()) }
+
     // Voice recording
     val audioRecorder = rememberAudioRecorder()
     val audioPlayer = rememberAudioPlayer()
@@ -232,6 +238,9 @@ fun ChatScreen(
             val conv = conversationRepository.getConversations().items.firstOrNull { it.id == conversationId }
             disappearAfterSeconds = conv?.disappearAfterSeconds
             isAnnouncementOnly = conv?.announcementOnly ?: false
+            // Member roster for @mention autocomplete — reuse the conversation participants already
+            // loaded here; no dedicated members API needed.
+            groupMembers = conv?.participants ?: emptyList()
             val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
             isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
                 myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
@@ -526,9 +535,37 @@ fun ChatScreen(
                             )
                         }
                     }
-                } else MessageInputBar(messageText,
+                } else {
+                // @mentions: compute the active `@query` (if any) and the matching roster candidates.
+                // Gated on the flag AND a non-empty roster — DMs (no extra members) never trigger it.
+                val mentionQuery = if (com.muhabbet.app.config.MentionsConfig.ENABLED && editingMessageId == null)
+                    detectMentionQuery(messageText) else null
+                val mentionCandidates = if (mentionQuery != null)
+                    filterMentionCandidates(groupMembers, mentionQuery, currentUserId) else emptyList()
+
+                if (mentionCandidates.isNotEmpty()) {
+                    MentionAutocompletePopup(
+                        candidates = mentionCandidates,
+                        onSelect = { member ->
+                            insertMention(messageText, member)?.let { ins ->
+                                messageText = ins.text
+                                pendingMentions = pendingMentions + ins.mention
+                            }
+                        }
+                    )
+                }
+
+                MessageInputBar(messageText,
                     onTextChange = { new ->
                         messageText = new
+                        // Drop any recorded mention whose token no longer matches the draft (user edited
+                        // or deleted it) so we never ship a stale offset.
+                        if (pendingMentions.isNotEmpty()) {
+                            pendingMentions = pendingMentions.filter { m ->
+                                m.start >= 0 && m.start + m.length <= new.length &&
+                                    new.substring(m.start, m.start + m.length).startsWith("@")
+                            }
+                        }
                         if (new.isNotEmpty() && editingMessageId == null) {
                             if (!isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, true)) } catch (_: Exception) { } }; isTypingSent = true }
                             typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.app.ui.theme.MuhabbetDurations.TypingTimeoutMs); try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }; isTypingSent = false }
@@ -541,11 +578,15 @@ fun ChatScreen(
                             val id = editingMessageId ?: return@MessageInputBar; val content = messageText.trim(); editingMessageId = null; messageText = ""
                             scope.launch { try { groupRepository.editMessage(id, content); messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
                         } else {
-                            val text = messageText; val replyId = replyingTo?.id; messageText = ""; replyingTo = null; typingJob?.cancel()
+                            val text = messageText; val replyId = replyingTo?.id
+                            // Mentions ride along only when the flag is ON; else always empty → wire byte-identical.
+                            val outgoingMentions = if (com.muhabbet.app.config.MentionsConfig.ENABLED)
+                                pendingMentions.filter { it.start + it.length <= text.length } else emptyList()
+                            messageText = ""; replyingTo = null; pendingMentions = emptyList(); typingJob?.cancel()
                             if (isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { } }; isTypingSent = false }
                             val mid = generateMessageId(); val rid = generateMessageId()
-                            messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.TEXT, content = text, replyToId = replyId, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
-                            scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
+                            messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.TEXT, content = text, replyToId = replyId, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now(), mentions = outgoingMentions)
+                            scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId, mentions = outgoingMentions)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
                         }
                     },
                     onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
@@ -557,6 +598,7 @@ fun ChatScreen(
                     onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled },
                     onScheduleSend = { if (messageText.isNotBlank()) showScheduleDialog = true }
                 )
+                }
             }
         }
     }

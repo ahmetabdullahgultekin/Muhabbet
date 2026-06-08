@@ -305,8 +305,15 @@ fun MessageBubble(
                         if (message.contentType == ContentType.TEXT ||
                             (message.contentType == ContentType.IMAGE && message.content != stringResource(Res.string.chat_photo) && message.content.isNotBlank())
                         ) {
+                            // @mentions (Tier 2): highlight mention spans in the çini cobalt accent.
+                            // With no mentions (default everywhere the flag is OFF) this renders plain
+                            // text — byte-identical to before.
+                            val textContent =
+                                if (com.muhabbet.app.config.MentionsConfig.ENABLED && message.mentions.isNotEmpty())
+                                    rememberMentionAnnotatedText(message.content, message.mentions, onBubbleColor)
+                                else AnnotatedString(message.content)
                             Text(
-                                text = message.content,
+                                text = textContent,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                 color = onBubbleColor,
                                 modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)

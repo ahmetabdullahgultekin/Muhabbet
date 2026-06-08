@@ -58,6 +58,7 @@
     <string name="conversations_empty_subtitle">Yeni bir konuşma başlatmak için + butonuna basın</string>
 
     <!-- ChatScreen -->
+    <string name="mention_member_avatar">Üye profil fotoğrafı</string>
     <string name="chat_message_placeholder">Mesaj yazın...</string>
     <string name="chat_typing">yazıyor...</string>
     <string name="chat_online">çevrimiçi</string>

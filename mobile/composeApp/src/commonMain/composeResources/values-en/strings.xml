@@ -58,6 +58,7 @@
     <string name="conversations_empty_subtitle">Tap the + button to start a new conversation</string>
 
     <!-- ChatScreen -->
+    <string name="mention_member_avatar">Member profile photo</string>
     <string name="chat_message_placeholder">Type a message...</string>
     <string name="chat_typing">typing...</string>
     <string name="chat_online">online</string>
