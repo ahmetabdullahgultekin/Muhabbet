@@ -203,18 +203,19 @@
 
 ## P2 — Quality / hardening / completeness
 
-- [ ] **Honor `onlineStatusVisibility` on the realtime WS presence path** (2026-06-08 presence/notif V&V, Finding A — KVKK)
-  - `backend/.../messaging/adapter/in/websocket/ChatWebSocketHandler.broadcastPresence` (+ `handleTypingIndicator`)
-  - **Why**: The REST presence path (`UserController.resolvePresenceVisibility`) carefully gates
-    online/last-seen on the target's `everyone`/`contacts`/`nobody` setting, but the WebSocket
-    `broadcastPresence` (online/offline + `lastSeenAt`) and typing indicators are pushed to **all**
-    contacts unconditionally — a privacy regression vs. the user's chosen visibility (KVKK data
-    minimization). A user who set last-seen to "nobody" still leaks online/offline transitions in
-    real time.
-  - **DONE =** WS presence/typing broadcasts consult the sender's visibility (load `User` once,
-    filter recipients the same way the REST path does, or suppress `lastSeenAt`/online for `nobody`);
-    add MockK tests asserting suppression. (Larger change — needs `UserRepository` threaded into the
-    handler + a recipient filter; left documented rather than fixed in the V&V pass.)
+- [x] **Honor `onlineStatusVisibility` on the realtime WS presence path** (2026-06-08 presence/notif V&V, Finding A — KVKK) — **DONE 2026-06-08**
+  - `ChatWebSocketHandler.broadcastPresence` + `handleTypingIndicator` now resolve the sender's
+    visibility (single `userRepository.findById`) and filter recipients via the new shared
+    `auth/domain/model/PresenceVisibilityPolicy` — the SAME policy the REST path
+    (`UserController.resolvePresenceVisibility`, refactored to it) uses, so presence can't leak on push
+    while being hidden on pull.
+  - **Semantics:** `everyone`/`contacts` → all contacts (presence) / all co-members (typing);
+    `nobody` → suppressed entirely on **both** presence (no online/offline/`lastSeenAt`) and typing;
+    unknown value or missing user → fail closed (suppressed). Typing gets the identical gate.
+  - **N+1-free:** presence reuses the one `findAllContactUserIds` it already issued as both the
+    candidate set and the "contacts" rule input (+1 `findById`); typing reuses the already-fetched
+    member list as both (+1 `findById`, zero extra queries).
+  - **Tests:** `ChatWebSocketHandlerTest$PresenceVisibility` (7) + `$TypingVisibility` (5) = 12.
 
 - [x] **Clean up stale FCM push tokens on `UNREGISTERED`/`INVALID_ARGUMENT`** (2026-06-08 presence/notif V&V, Finding B) — **DONE 2026-06-08**
   - `FcmPushNotificationAdapter.sendPush` now catches `FirebaseMessagingException`, reads

@@ -28,7 +28,7 @@
 
 | # | Severity | Title | Status |
 |---|----------|-------|--------|
-| A | **Medium** (KVKK / privacy) | Realtime WS presence + typing broadcasts ignore `onlineStatusVisibility` — online/offline + `lastSeenAt` pushed to all contacts regardless of the user's "everyone/contacts/nobody" choice, while the REST path honors it | Documented + TODO (P2) — larger change |
+| A | **Medium** (KVKK / privacy) | Realtime WS presence + typing broadcasts ignore `onlineStatusVisibility` — online/offline + `lastSeenAt` pushed to all contacts regardless of the user's "everyone/contacts/nobody" choice, while the REST path honors it | **FIXED 2026-06-08** (shared `PresenceVisibilityPolicy` now gates BOTH presence + typing on the WS path) + 12 tests |
 | B | **Medium** (correctness / resource) | FCM `UNREGISTERED` / `INVALID_ARGUMENT` (dead token) is only logged — the stale push token is never removed, so every future offline message re-attempts a doomed send | **FIXED 2026-06-08** (dead-token cleanup via `PushTokenInvalidationPort` out-port) + 11 tests |
 | C | **Medium** (no-hardcoded-strings + wrong HTTP status) | `registerPushToken` threw `BusinessException(AUTH_UNAUTHORIZED, "Cihaz bulunamadı")` — inline Turkish message string (CLAUDE.md violation) **and** a 401 for what is a 404 (a device the user doesn't own) | **FIXED 2026-06-08** + 2 tests |
 | D | Low (correctness / DRY) | The `@Primary` prod push path (`RedisMessageBroadcaster`) sent raw `message.content.take(100)` as the body for **media** messages (image/voice/doc → empty or a storage key in the notification), while the NoOp broadcaster formatted a placeholder — duplicated, divergent body logic | **FIXED 2026-06-08** (shared `PushNotificationContent` helper) + 5 tests |
@@ -37,7 +37,7 @@
 
 ---
 
-## Finding A — WS presence/typing bypasses visibility setting  *(Medium, KVKK — documented)*
+## Finding A — WS presence/typing bypasses visibility setting  *(FIXED 2026-06-08)*
 
 **Location:** `ChatWebSocketHandler.broadcastPresence` (online on connect, offline on
 close/transport-error) and `handleTypingIndicator`.
@@ -61,11 +61,51 @@ So a user who set last-seen / online to **"nobody"** still streams their online/
 is likewise unconditional. This is a **KVKK data-minimization** gap (`docs/qa/02-security.md` §4.1):
 the privacy control is only half-enforced — correct on pull, leaky on push.
 
-**Why documented, not fixed here:** the safe fix threads `UserRepository` into the handler, loads the
-broadcaster's `User` once per presence event, and filters/suppresses per the same rule the REST path
-uses (and decides product-wise whether "nobody" suppresses online entirely vs. just `lastSeenAt`).
-That is a behavior change with a product call attached, so it is logged as **TODO P2** with a test
-requirement rather than changed blind in a V&V pass.
+**Fix (2026-06-08).** The policy was extracted into one shared object —
+`auth/domain/model/PresenceVisibilityPolicy.kt` (a framework-agnostic domain `object`, no Spring) — and
+now gates **both** access paths so presence can never leak on one while being hidden on the other:
+
+- **REST (`UserController.resolvePresenceVisibility`)** was refactored from its inline `when` to
+  `PresenceVisibilityPolicy.isVisibleTo(...)`. Behavior is byte-identical (the existing
+  `UserProfilePrivacyIntegrationTest` still asserts `nobody → isOnline=false, lastSeen=null`); contacts
+  are still fetched lazily — only the `contacts` branch needs them, so `everyone`/`nobody` skip the query.
+- **WS presence (`broadcastPresence`)** now resolves the eligible recipient set via
+  `PresenceVisibilityPolicy.eligibleRecipients(visibility, candidates=contacts, contactIds=contacts)`
+  before building/sending the `PresenceUpdate`. When the set is empty it returns early — so for
+  **`nobody`** *nothing* is emitted (no online, no offline, **no `lastSeenAt`** epoch).
+- **WS typing (`handleTypingIndicator`)** applies the **same** gate (see semantics below).
+
+**Chosen semantics (presence vs typing):**
+
+| visibility | presence (online/offline + lastSeen) | typing |
+|---|---|---|
+| `everyone` | all contacts | all co-members |
+| `contacts` | all contacts (candidate set *is* the contact set) | all co-members (co-members are contacts) |
+| `nobody`   | **suppressed entirely** — no online, no offline, no lastSeen | **suppressed entirely** |
+| unknown / missing user | **fail closed** (suppressed) | **fail closed** (suppressed) |
+
+Typing is treated as presence-ish and gets the identical gate: a user who hides their online status to
+`nobody` does not leak a real-time "typing…" either. The product call on `nobody` is **suppress online
+entirely** (not just blank the `lastSeenAt`) — consistent with the REST path, which already returns
+`isOnline=false` for `nobody`, so a recipient never infers liveness from either channel.
+
+**N+1 avoidance.** Presence: exactly **one** `userRepository.findById` (the visibility setting) **+** the
+one `conversationRepository.findAllContactUserIds` the path already issued — the contact set doubles as
+*both* the candidate recipient list **and** the "contacts" rule input, so no extra query. Typing: the
+already-fetched conversation member list is reused as the candidate set, and because co-members of a
+shared conversation *are* by definition the sender's contacts, that same list also serves as the
+`contactIds` rule input — so typing adds **only** the single `findById` (visibility) and **zero**
+extra membership/contact queries.
+
+**Hexagonal note.** `PresenceVisibilityPolicy` lives in `auth.domain.model`; the messaging handler
+importing it is allowed (the ArchUnit boundary rule only forbids `messaging → auth.domain.service`, and
+the handler already depends on `auth`'s `UserRepository` out-port). No new cross-module JPA imports.
+
+**Tests (12, all green):** `ChatWebSocketHandlerTest$PresenceVisibility` (7) — `everyone`/`contacts` →
+all contacts on **both** online (connect) and offline (close); `nobody` → none on online **and** offline
+(so `lastSeenAt` never ships); unknown-value and missing-user both fail closed.
+`ChatWebSocketHandlerTest$TypingVisibility` (5) — `everyone`/`contacts` → co-members; `nobody`, unknown,
+and missing-user all suppressed.
 
 ## Finding B — Stale FCM tokens are never cleaned up  *(FIXED 2026-06-08)*
 
@@ -218,10 +258,11 @@ short-circuit (no Redis call), `multiGet` filtering, and the `multiGet == null` 
 - **Push failures don't break delivery.** Both broadcasters wrap the push block in try/catch, so an
   FCM/Redis outage degrades to "WS + DB only" rather than throwing into the send path — correct
   failure mode (the message is already persisted server-side for later sync).
-- **Presence REST path honors KVKK visibility** (the gap is only the realtime path — Finding A).
+- **Presence REST path honors KVKK visibility** — and as of 2026-06-08 (Finding A FIXED) so does the
+  realtime WS path, via the shared `PresenceVisibilityPolicy`.
 
 ## Follow-ups for `TODO.md`
-- [ ] **P2 (KVKK):** honor `onlineStatusVisibility` on the WS presence/typing path (Finding A).
+- [x] **P2 (KVKK):** honor `onlineStatusVisibility` on the WS presence/typing path (Finding A) — **DONE 2026-06-08.**
 - [x] **Finding B** (clean up stale FCM tokens on terminal error codes) — **DONE 2026-06-08.**
 - [x] **Finding C** (hardcoded string + wrong status on `registerPushToken`) — **DONE 2026-06-08.**
 - [x] **Finding D** (media push body + DRY) — **DONE 2026-06-08.**
@@ -237,3 +278,10 @@ short-circuit (no Redis call), `multiGet` filtering, and the `multiGet == null` 
   no-Docker `*IntegrationTest` failures ("Could not find a valid Docker environment"), not regressions.
   New for Finding B: `FcmPushNotificationAdapterTest` (8), `DeviceRepositoryPushTokenInvalidationAdapterTest`
   (1), `DevicePersistenceAdapterTest` (2) = **11** added.
+- **Finding A (2026-06-08):** `./gradlew :backend:test` → **463 tests, 6 failed** — the same 6 known
+  no-Docker `*IntegrationTest` failures (`AuthControllerIntegrationTest`, `UserProfilePrivacyIntegrationTest`,
+  `MediaIdorIntegrationTest`, `MessageIdorIntegrationTest`, `SearchIdorIntegrationTest`,
+  `ActuatorLockdownIntegrationTest`), not regressions. New for Finding A:
+  `ChatWebSocketHandlerTest$PresenceVisibility` (7) + `ChatWebSocketHandlerTest$TypingVisibility` (5)
+  = **12** added; shared `PresenceVisibilityPolicy` extracted and routed through both the REST
+  (`UserController`) and WS (`ChatWebSocketHandler`) paths.

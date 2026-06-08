@@ -1,5 +1,6 @@
 package com.muhabbet.auth.adapter.`in`.web
 
+import com.muhabbet.auth.domain.model.PresenceVisibilityPolicy
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.MutualGroupResponse
@@ -71,13 +72,19 @@ class UserController(
         user: com.muhabbet.auth.domain.model.User,
         requesterId: UUID
     ): PresenceView {
-        val visible = when (user.onlineStatusVisibility.lowercase()) {
-            "everyone" -> true
-            "nobody" -> requesterId == user.id
-            "contacts" -> requesterId == user.id ||
-                requesterId in conversationRepository.findAllContactUserIds(user.id)
-            else -> false
+        // Shared single source of truth with the realtime WS path (PresenceVisibilityPolicy). Contacts
+        // are fetched lazily — only the "contacts" rule needs them, so "everyone"/"nobody" skip the query.
+        val contactIds = if (user.onlineStatusVisibility.lowercase() == "contacts" && requesterId != user.id) {
+            conversationRepository.findAllContactUserIds(user.id)
+        } else {
+            emptySet()
         }
+        val visible = PresenceVisibilityPolicy.isVisibleTo(
+            visibility = user.onlineStatusVisibility,
+            subjectId = user.id,
+            requesterId = requesterId,
+            contactIds = contactIds
+        )
         if (!visible) return PresenceView(isOnline = false, lastSeen = null)
 
         val lastSeen = user.lastSeenAt?.let {

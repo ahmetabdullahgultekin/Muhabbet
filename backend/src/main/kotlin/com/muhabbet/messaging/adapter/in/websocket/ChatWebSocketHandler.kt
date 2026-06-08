@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.model.PresenceVisibilityPolicy
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.CallStatus
 import com.muhabbet.messaging.domain.model.ContentType
@@ -234,7 +235,21 @@ class ChatWebSocketHandler(
             return
         }
 
-        val recipientIds = members.map { it.userId }.filter { it != userId }
+        val coMemberIds = members.map { it.userId }.filter { it != userId }
+
+        // KVKK data-minimization (Finding A): typing is presence-ish, so gate it with the SAME
+        // onlineStatusVisibility rule as online/offline. Co-members of a shared conversation are by
+        // definition contacts of the sender (sharing a conversation IS the "contacts" relation), so the
+        // candidate set doubles as the contact set — no extra findAllContactUserIds query (N+1-free).
+        // Net effect: "everyone"/"contacts" → all co-members; "nobody"/unknown → suppress entirely.
+        val visibility = userRepository.findById(userId)?.onlineStatusVisibility
+        if (visibility == null) {
+            log.debug("Suppressing typing for unknown user {} (fail-closed)", userId)
+            return
+        }
+        val recipientIds = PresenceVisibilityPolicy.eligibleRecipients(
+            visibility, coMemberIds, coMemberIds.toSet()
+        )
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
         val presenceUpdate = WsMessage.PresenceUpdate(
@@ -416,6 +431,13 @@ class ChatWebSocketHandler(
     }
 
     private fun broadcastPresence(userId: UUID, status: PresenceStatus) {
+        // KVKK data-minimization (Finding A): online/offline + lastSeenAt are presence PII. Only stream
+        // them to recipients entitled by the broadcasting user's onlineStatusVisibility setting — the
+        // SAME rule the REST path (UserController) enforces, via the shared PresenceVisibilityPolicy.
+        // "nobody" suppresses the whole broadcast (no online, no offline, no lastSeen).
+        val recipients = eligiblePresenceRecipients(userId)
+        if (recipients.isEmpty()) return
+
         val lastSeenAt = if (status == PresenceStatus.OFFLINE) System.currentTimeMillis() else null
         val presenceUpdate = WsMessage.PresenceUpdate(
             userId = userId.toString(),
@@ -424,13 +446,23 @@ class ChatWebSocketHandler(
         )
         val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
 
-        // Single query to get all unique user IDs across all conversations (replaces N+1 pattern)
-        val contactUserIds = conversationRepository.findAllContactUserIds(userId)
-        contactUserIds.forEach { contactId ->
+        recipients.forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {
                 sessionManager.sendToUser(contactId, json)
             }
         }
+    }
+
+    /**
+     * Resolves the contacts entitled to receive [userId]'s presence/typing, honoring
+     * onlineStatusVisibility. N+1-free: one `findById` (visibility setting) + one `findAllContactUserIds`
+     * (the candidate set is the contact set, so a single query both lists candidates AND defines the
+     * "contacts" rule). A missing user fails closed (suppress) — KVKK-safe default.
+     */
+    private fun eligiblePresenceRecipients(userId: UUID): List<UUID> {
+        val visibility = userRepository.findById(userId)?.onlineStatusVisibility ?: return emptyList()
+        val contactUserIds = conversationRepository.findAllContactUserIds(userId)
+        return PresenceVisibilityPolicy.eligibleRecipients(visibility, contactUserIds, contactUserIds)
     }
 
     private fun extractToken(session: WebSocketSession): String? {

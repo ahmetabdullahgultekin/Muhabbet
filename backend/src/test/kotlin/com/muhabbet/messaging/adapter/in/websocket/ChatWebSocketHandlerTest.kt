@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.Message
@@ -105,6 +106,22 @@ class ChatWebSocketHandlerTest {
 
     private fun generateValidToken(): String {
         return jwtProvider.generateAccessToken(userId, deviceId)
+    }
+
+    private fun userWithVisibility(visibility: String, id: UUID = userId): User =
+        User(id = id, phoneNumber = "+905000000000", onlineStatusVisibility = visibility)
+
+    /** Sends a typing indicator from [userId] into [convId] containing [recipient] as a co-member. */
+    private fun sendTypingFrom(convId: UUID, recipient: UUID) {
+        val session = createSession()
+        every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = userId),
+            ConversationMember(conversationId = convId, userId = recipient)
+        )
+        every { sessionManager.isOnline(recipient) } returns true
+        val typing = WsMessage.TypingIndicator(conversationId = convId.toString(), isTyping = true)
+        handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(typing)))
     }
 
     // ─── Connection / JWT Validation ──────────────────────
@@ -333,6 +350,7 @@ class ChatWebSocketHandlerTest {
             val convId = UUID.randomUUID()
             val otherUserId = UUID.randomUUID()
 
+            every { userRepository.findById(userId) } returns userWithVisibility("everyone")
             every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
                 ConversationMember(conversationId = convId, userId = userId),
                 ConversationMember(conversationId = convId, userId = otherUserId)
@@ -446,6 +464,7 @@ class ChatWebSocketHandlerTest {
             val convId = UUID.randomUUID()
             val offlineUserId = UUID.randomUUID()
 
+            every { userRepository.findById(userId) } returns userWithVisibility("everyone")
             every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
                 ConversationMember(conversationId = convId, userId = userId),
                 ConversationMember(conversationId = convId, userId = offlineUserId)
@@ -537,6 +556,150 @@ class ChatWebSocketHandlerTest {
 
             verify { sessionManager.unregister(session) }
             verify(exactly = 0) { presencePort.setOffline(any()) }
+        }
+    }
+
+    // ─── Presence/Typing Visibility (KVKK — Finding A) ──────
+
+    @Nested
+    inner class PresenceVisibility {
+
+        private val contactA = UUID.randomUUID()
+        private val contactB = UUID.randomUUID()
+
+        /** Drives the ONLINE presence broadcast (afterConnectionEstablished) for [visibility]. */
+        private fun connectWith(visibility: String) {
+            every { userRepository.findById(userId) } returns userWithVisibility(visibility)
+            every { conversationRepository.findAllContactUserIds(userId) } returns setOf(contactA, contactB)
+            every { sessionManager.isOnline(contactA) } returns true
+            every { sessionManager.isOnline(contactB) } returns true
+
+            val session = createSession(generateValidToken())
+            handler.afterConnectionEstablished(session)
+        }
+
+        /** Drives the OFFLINE presence broadcast (afterConnectionClosed) for [visibility]. */
+        private fun disconnectWith(visibility: String) {
+            every { userRepository.findById(userId) } returns userWithVisibility(visibility)
+            every { conversationRepository.findAllContactUserIds(userId) } returns setOf(contactA, contactB)
+            every { sessionManager.isOnline(contactA) } returns true
+            every { sessionManager.isOnline(contactB) } returns true
+
+            val session = createSession()
+            every { sessionManager.getUserId(session) } returns userId
+            // After unregister there are no remaining sessions for the user → mark offline + broadcast.
+            every { sessionManager.isOnline(userId) } returns false
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+        }
+
+        @Test
+        fun `everyone visibility broadcasts online presence to all contacts`() {
+            connectWith("everyone")
+
+            verify { sessionManager.sendToUser(contactA, any()) }
+            verify { sessionManager.sendToUser(contactB, any()) }
+        }
+
+        @Test
+        fun `nobody visibility suppresses online presence to everyone`() {
+            connectWith("nobody")
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `nobody visibility suppresses offline presence and lastSeen`() {
+            disconnectWith("nobody")
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `everyone visibility broadcasts offline presence to all contacts`() {
+            disconnectWith("everyone")
+
+            verify { sessionManager.sendToUser(contactA, any()) }
+            verify { sessionManager.sendToUser(contactB, any()) }
+        }
+
+        @Test
+        fun `contacts visibility broadcasts presence only to contacts`() {
+            // The candidate set IS the contact set, so "contacts" still reaches all of them.
+            connectWith("contacts")
+
+            verify { sessionManager.sendToUser(contactA, any()) }
+            verify { sessionManager.sendToUser(contactB, any()) }
+        }
+
+        @Test
+        fun `unknown visibility fails closed and suppresses presence`() {
+            connectWith("totally-unknown-value")
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `missing user fails closed and suppresses presence`() {
+            every { userRepository.findById(userId) } returns null
+            every { conversationRepository.findAllContactUserIds(userId) } returns setOf(contactA)
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+    }
+
+    @Nested
+    inner class TypingVisibility {
+
+        @Test
+        fun `everyone visibility sends typing to co-members`() {
+            val convId = UUID.randomUUID()
+            val recipient = UUID.randomUUID()
+            every { userRepository.findById(userId) } returns userWithVisibility("everyone")
+            sendTypingFrom(convId, recipient)
+
+            verify { sessionManager.sendToUser(recipient, any()) }
+        }
+
+        @Test
+        fun `contacts visibility sends typing to co-members`() {
+            val convId = UUID.randomUUID()
+            val recipient = UUID.randomUUID()
+            every { userRepository.findById(userId) } returns userWithVisibility("contacts")
+            sendTypingFrom(convId, recipient)
+
+            verify { sessionManager.sendToUser(recipient, any()) }
+        }
+
+        @Test
+        fun `nobody visibility suppresses typing entirely`() {
+            val convId = UUID.randomUUID()
+            val recipient = UUID.randomUUID()
+            every { userRepository.findById(userId) } returns userWithVisibility("nobody")
+            sendTypingFrom(convId, recipient)
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `unknown visibility fails closed and suppresses typing`() {
+            val convId = UUID.randomUUID()
+            val recipient = UUID.randomUUID()
+            every { userRepository.findById(userId) } returns userWithVisibility("garbage")
+            sendTypingFrom(convId, recipient)
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `missing user fails closed and suppresses typing`() {
+            val convId = UUID.randomUUID()
+            val recipient = UUID.randomUUID()
+            every { userRepository.findById(userId) } returns null
+            sendTypingFrom(convId, recipient)
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
         }
     }
 }
