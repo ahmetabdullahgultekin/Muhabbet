@@ -491,6 +491,30 @@
     <string name="chat_unlock">Sohbet kilidini aç</string>
     <string name="locked_chats">Kilitli Sohbetler</string>
 
+    <!-- Mahrem Mod (Privacy Mode) -->
+    <string name="mahrem_title">Mahrem Mod</string>
+    <string name="mahrem_subtitle">Gizliliğin için tek dokunuş</string>
+    <string name="mahrem_description">Mahrem Mod, gizliliğini korumak için tasarlanmış ayarları tek bir yerde toplar.</string>
+    <string name="mahrem_hide_preview">Bildirim önizlemelerini gizle</string>
+    <string name="mahrem_hide_preview_subtitle">Kilit ekranında mesaj içeriği gösterilmez</string>
+    <string name="mahrem_screenshot_guard">Ekran görüntüsü koruması</string>
+    <string name="mahrem_screenshot_guard_subtitle">Uygulama içinde ekran görüntüsü ve kaydı engellenir</string>
+    <string name="mahrem_screenshot_guard_ios_note">Bu özellik şu an yalnızca Android\'de etkindir.</string>
+    <string name="mahrem_app_lock">Uygulama kilidi (PIN)</string>
+    <string name="mahrem_app_lock_subtitle">Uygulamayı açarken PIN iste</string>
+    <string name="mahrem_last_seen">Son görülme ve çevrim içi</string>
+    <string name="mahrem_last_seen_subtitle">Gizlilik panelinden yönet</string>
+    <string name="mahrem_pin_set_title">PIN belirle</string>
+    <string name="mahrem_pin_set_message">4–8 haneli bir PIN gir</string>
+    <string name="mahrem_pin_confirm_message">PIN\'i tekrar gir</string>
+    <string name="mahrem_pin_mismatch">PIN\'ler eşleşmiyor</string>
+    <string name="mahrem_pin_invalid">PIN 4–8 hane olmalı</string>
+    <string name="mahrem_pin_enter_title">PIN gir</string>
+    <string name="mahrem_pin_wrong">Yanlış PIN</string>
+    <string name="mahrem_pin_label">PIN</string>
+    <string name="mahrem_unlock">Kilidi aç</string>
+    <string name="mahrem_save">Kaydet</string>
+
     <!-- HD Toggle -->
     <string name="media_quality_title">Medya Kalitesi</string>
     <string name="media_quality_standard">Standart</string>

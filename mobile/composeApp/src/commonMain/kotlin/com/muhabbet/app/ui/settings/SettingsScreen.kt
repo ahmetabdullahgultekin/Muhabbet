@@ -83,6 +83,7 @@ fun SettingsScreen(
     onTwoStepVerification: () -> Unit = {},
     onAppLock: () -> Unit = {},
     onWallpaper: () -> Unit = {},
+    onMahremMod: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
@@ -393,6 +394,35 @@ fun SettingsScreen(
                 }
 
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
+
+                // Mahrem Mod (Privacy Mode) row — flagship privacy differentiator.
+                // Hidden unless PrivacyModeConfig.ENABLED so default behaviour is unchanged.
+                if (com.muhabbet.app.config.PrivacyModeConfig.ENABLED) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onMahremMod() },
+                        tonalElevation = MuhabbetElevation.Level1,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SdStorage,
+                                contentDescription = stringResource(Res.string.mahrem_title),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Text(
+                                text = stringResource(Res.string.mahrem_title),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(MuhabbetSpacing.Small))
+                }
 
                 // Chat Wallpaper row
                 Surface(

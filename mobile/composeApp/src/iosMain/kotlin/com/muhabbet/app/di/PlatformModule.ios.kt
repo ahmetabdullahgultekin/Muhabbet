@@ -70,4 +70,43 @@ class IosTokenStorage : TokenStorage {
     override fun setLastSyncTimestamp(timestamp: String) {
         defaults.setObject(timestamp, forKey = "last_sync_timestamp")
     }
+
+    // --- App-lock + Mahrem Mod (Privacy Mode) ---
+    override fun getAppLockEnabled(): Boolean = defaults.boolForKey("app_lock_enabled")
+
+    override fun setAppLockEnabled(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "app_lock_enabled")
+    }
+
+    override fun getAppLockTimeout(): String? = defaults.stringForKey("app_lock_timeout")
+
+    override fun setAppLockTimeout(timeout: String) {
+        defaults.setObject(timeout, forKey = "app_lock_timeout")
+    }
+
+    // PIN hash + salt are sensitive → hardware-backed Keychain (not NSUserDefaults).
+    override fun getPrivacyPinHash(): String? = keychain.load("privacy_pin_hash")
+
+    override fun setPrivacyPinHash(hash: String?) {
+        if (hash == null) keychain.delete("privacy_pin_hash") else keychain.save("privacy_pin_hash", hash)
+    }
+
+    override fun getPrivacyPinSalt(): String? = keychain.load("privacy_pin_salt")
+
+    override fun setPrivacyPinSalt(salt: String?) {
+        if (salt == null) keychain.delete("privacy_pin_salt") else keychain.save("privacy_pin_salt", salt)
+    }
+
+    override fun getHideNotificationPreview(): Boolean =
+        defaults.boolForKey("privacy_hide_notification_preview")
+
+    override fun setHideNotificationPreview(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "privacy_hide_notification_preview")
+    }
+
+    override fun getScreenshotGuardEnabled(): Boolean = defaults.boolForKey("privacy_screenshot_guard")
+
+    override fun setScreenshotGuardEnabled(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "privacy_screenshot_guard")
+    }
 }

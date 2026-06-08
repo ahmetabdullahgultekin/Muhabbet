@@ -491,6 +491,30 @@
     <string name="chat_unlock">Unlock chat</string>
     <string name="locked_chats">Locked Chats</string>
 
+    <!-- Mahrem Mod (Privacy Mode) -->
+    <string name="mahrem_title">Privacy Mode</string>
+    <string name="mahrem_subtitle">Your privacy, one tap away</string>
+    <string name="mahrem_description">Privacy Mode collects the settings that protect your privacy into one place.</string>
+    <string name="mahrem_hide_preview">Hide notification previews</string>
+    <string name="mahrem_hide_preview_subtitle">Message content is hidden on the lock screen</string>
+    <string name="mahrem_screenshot_guard">Screenshot protection</string>
+    <string name="mahrem_screenshot_guard_subtitle">Block screenshots and screen recording in the app</string>
+    <string name="mahrem_screenshot_guard_ios_note">This feature is currently active on Android only.</string>
+    <string name="mahrem_app_lock">App lock (PIN)</string>
+    <string name="mahrem_app_lock_subtitle">Ask for a PIN when opening the app</string>
+    <string name="mahrem_last_seen">Last seen &amp; online</string>
+    <string name="mahrem_last_seen_subtitle">Manage from the Privacy dashboard</string>
+    <string name="mahrem_pin_set_title">Set a PIN</string>
+    <string name="mahrem_pin_set_message">Enter a 4–8 digit PIN</string>
+    <string name="mahrem_pin_confirm_message">Re-enter your PIN</string>
+    <string name="mahrem_pin_mismatch">PINs don\'t match</string>
+    <string name="mahrem_pin_invalid">PIN must be 4–8 digits</string>
+    <string name="mahrem_pin_enter_title">Enter PIN</string>
+    <string name="mahrem_pin_wrong">Wrong PIN</string>
+    <string name="mahrem_pin_label">PIN</string>
+    <string name="mahrem_unlock">Unlock</string>
+    <string name="mahrem_save">Save</string>
+
     <!-- HD Toggle -->
     <string name="media_quality_title">Media Quality</string>
     <string name="media_quality_standard">Standard</string>

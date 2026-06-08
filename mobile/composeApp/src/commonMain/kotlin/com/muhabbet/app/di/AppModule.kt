@@ -16,6 +16,7 @@ import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.StatusRepository
+import com.muhabbet.app.data.repository.PrivacyModeRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -71,6 +72,7 @@ fun appModule(): Module = module {
     single { CommunityRepository(apiClient = get()) }
     single { InviteLinkRepository(apiClient = get()) }
     single { WallpaperRepository(tokenStorage = get()) }
+    single { PrivacyModeRepository(tokenStorage = get()) }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
     single { DeviceLinkRepository(apiClient = get()) }
     // E2EKeyManager and EncryptionPort are provided by platform modules:

@@ -90,4 +90,51 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
     override fun setLastSyncTimestamp(timestamp: String) {
         plainPrefs.edit().putString("last_sync_timestamp", timestamp).apply()
     }
+
+    // --- App-lock + Mahrem Mod (Privacy Mode) ---
+    // App-lock enable/timeout live in plainPrefs so the gate decision is readable at cold start.
+    override fun getAppLockEnabled(): Boolean = plainPrefs.getBoolean("app_lock_enabled", false)
+
+    override fun setAppLockEnabled(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("app_lock_enabled", enabled).apply()
+    }
+
+    override fun getAppLockTimeout(): String? = plainPrefs.getString("app_lock_timeout", null)
+
+    override fun setAppLockTimeout(timeout: String) {
+        plainPrefs.edit().putString("app_lock_timeout", timeout).apply()
+    }
+
+    // PIN hash + salt are sensitive → encrypted prefs only.
+    override fun getPrivacyPinHash(): String? = prefs.getString("privacy_pin_hash", null)
+
+    override fun setPrivacyPinHash(hash: String?) {
+        prefs.edit().apply {
+            if (hash == null) remove("privacy_pin_hash") else putString("privacy_pin_hash", hash)
+        }.apply()
+    }
+
+    override fun getPrivacyPinSalt(): String? = prefs.getString("privacy_pin_salt", null)
+
+    override fun setPrivacyPinSalt(salt: String?) {
+        prefs.edit().apply {
+            if (salt == null) remove("privacy_pin_salt") else putString("privacy_pin_salt", salt)
+        }.apply()
+    }
+
+    // Notification-preview + screenshot-guard flags live in plainPrefs because the FCM service reads
+    // them before the encrypted store is initialised (mirrors the language/theme pattern).
+    override fun getHideNotificationPreview(): Boolean =
+        plainPrefs.getBoolean("privacy_hide_notification_preview", false)
+
+    override fun setHideNotificationPreview(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("privacy_hide_notification_preview", enabled).apply()
+    }
+
+    override fun getScreenshotGuardEnabled(): Boolean =
+        plainPrefs.getBoolean("privacy_screenshot_guard", false)
+
+    override fun setScreenshotGuardEnabled(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("privacy_screenshot_guard", enabled).apply()
+    }
 }

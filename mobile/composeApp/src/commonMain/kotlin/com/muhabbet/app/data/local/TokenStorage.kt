@@ -18,6 +18,18 @@ interface TokenStorage {
     fun setAppLockEnabled(enabled: Boolean) {}
     fun getAppLockTimeout(): String? = null
     fun setAppLockTimeout(timeout: String) {}
+
+    // --- Mahrem Mod (Privacy Mode) — see com.muhabbet.app.config.PrivacyModeConfig ---
+    // Secure (encrypted) storage: the salted PIN hash + its random salt must NEVER be plaintext.
+    fun getPrivacyPinHash(): String? = null
+    fun setPrivacyPinHash(hash: String?) {}
+    fun getPrivacyPinSalt(): String? = null
+    fun setPrivacyPinSalt(salt: String?) {}
+    // Plain (unencrypted) prefs — read by the FCM service before crypto init, mirrors language/theme.
+    fun getHideNotificationPreview(): Boolean = false
+    fun setHideNotificationPreview(enabled: Boolean) {}
+    fun getScreenshotGuardEnabled(): Boolean = false
+    fun setScreenshotGuardEnabled(enabled: Boolean) {}
     fun getMediaQuality(): String? = null
     fun setMediaQuality(quality: String) {}
     fun getWallpaperType(): String? = null

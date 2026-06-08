@@ -4,9 +4,15 @@ import com.muhabbet.app.ui.theme.MuhabbetTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.arkivanov.decompose.ComponentContext
+import com.muhabbet.app.config.PrivacyModeConfig
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.repository.PrivacyModeRepository
+import com.muhabbet.app.ui.settings.AppLockGate
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.E2ESetupService
@@ -44,7 +50,19 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
             }
 
             WebSocketLifecycle()
-            RootContent(root)
+
+            // Mahrem Mod app-lock gate (PrivacyModeConfig.ENABLED + a PIN is set). When armed, the
+            // PIN screen covers the app content until the correct PIN is entered. When the flag is
+            // OFF or no PIN is set, this is a no-op and RootContent renders directly (unchanged).
+            val privacyMode: PrivacyModeRepository = koinInject()
+            val lockArmed = remember { PrivacyModeConfig.ENABLED && privacyMode.isPinSet() }
+            var unlocked by remember { mutableStateOf(!lockArmed) }
+
+            if (unlocked) {
+                RootContent(root)
+            } else {
+                AppLockGate(onUnlocked = { unlocked = true }, privacyMode = privacyMode)
+            }
         }
     }
 }

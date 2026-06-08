@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notification text used by MuhabbetFirebaseMessagingService.
+         These are Android resource strings (NOT composeResources) because a Service cannot resolve
+         @Composable stringResource. The hidden-preview strings back Mahrem Mod's preview-hiding. -->
+    <string name="notif_default_title">Muhabbet</string>
+    <string name="notif_new_message">Yeni mesaj</string>
+    <string name="notif_new_messages">Yeni mesajlar</string>
+    <string name="notif_hidden_preview">Yeni mesaj</string>
+    <string name="notif_reply_hint">Yanıt yaz…</string>
+    <string name="notif_reply_action">Yanıtla</string>
+    <string name="notif_reply_sent">Yanıt gönderildi</string>
+</resources>

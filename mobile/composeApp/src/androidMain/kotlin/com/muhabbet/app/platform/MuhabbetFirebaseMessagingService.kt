@@ -26,8 +26,20 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        val title = message.notification?.title ?: message.data["senderName"] ?: "Muhabbet"
-        val body = message.notification?.body ?: message.data["body"] ?: "Yeni mesaj"
+        val title = message.notification?.title ?: message.data["senderName"]
+            ?: getString(com.muhabbet.app.R.string.notif_default_title)
+        // Mahrem Mod: when the user enabled "hide notification previews", replace the message body
+        // with a generic string so content never appears on the lock screen. Read from the plain
+        // (unencrypted) prefs the same way TokenStorage stores it, since a Service runs before the
+        // app's crypto store is initialised. Default false → preview shown exactly as before.
+        val hidePreview = getSharedPreferences("muhabbet_prefs", Context.MODE_PRIVATE)
+            .getBoolean("privacy_hide_notification_preview", false)
+        val body = if (hidePreview) {
+            getString(com.muhabbet.app.R.string.notif_hidden_preview)
+        } else {
+            message.notification?.body ?: message.data["body"]
+                ?: getString(com.muhabbet.app.R.string.notif_new_message)
+        }
         val conversationId = message.data["conversationId"]
         val senderName = message.data["senderName"] ?: title
         val conversationType = message.data["conversationType"] ?: "DIRECT"

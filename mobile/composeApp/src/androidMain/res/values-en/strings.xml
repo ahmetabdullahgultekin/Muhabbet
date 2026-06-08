@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_default_title">Muhabbet</string>
+    <string name="notif_new_message">New message</string>
+    <string name="notif_new_messages">New messages</string>
+    <string name="notif_hidden_preview">New message</string>
+    <string name="notif_reply_hint">Type a reply…</string>
+    <string name="notif_reply_action">Reply</string>
+    <string name="notif_reply_sent">Reply sent</string>
+</resources>

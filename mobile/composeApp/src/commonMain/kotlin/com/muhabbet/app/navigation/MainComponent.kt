@@ -36,6 +36,7 @@ import com.muhabbet.app.ui.conversations.BroadcastListScreen
 import com.muhabbet.app.ui.group.GroupEventScreen
 import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
 import com.muhabbet.app.ui.settings.AppLockScreen
+import com.muhabbet.app.ui.settings.MahremModScreen
 import com.muhabbet.app.ui.settings.TwoStepSetupScreen
 import com.muhabbet.app.ui.settings.WallpaperPickerScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
@@ -151,6 +152,11 @@ class MainComponent(
     }
 
     @OptIn(DelicateDecomposeApi::class)
+    fun openMahremMod() {
+        navigation.push(Config.MahremMod)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
     fun openWallpaper() {
         navigation.push(Config.Wallpaper)
     }
@@ -205,6 +211,7 @@ class MainComponent(
         @Serializable data object PrivacyDashboard : Config
         @Serializable data object TwoStepVerification : Config
         @Serializable data object AppLock : Config
+        @Serializable data object MahremMod : Config
         @Serializable data object Wallpaper : Config
         @Serializable data class CommunityDetail(val communityId: String) : Config
         @Serializable data object CreateCommunity : Config
@@ -306,7 +313,8 @@ fun MainContent(component: MainComponent) {
                 onPrivacyDashboard = component::openPrivacyDashboard,
                 onTwoStepVerification = component::openTwoStepVerification,
                 onAppLock = component::openAppLock,
-                onWallpaper = component::openWallpaper
+                onWallpaper = component::openWallpaper,
+                onMahremMod = component::openMahremMod
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
                 onBack = component::goBack,
@@ -362,6 +370,10 @@ fun MainContent(component: MainComponent) {
             )
             is MainComponent.Config.AppLock -> AppLockScreen(
                 onBack = component::goBack
+            )
+            is MainComponent.Config.MahremMod -> MahremModScreen(
+                onBack = component::goBack,
+                onLastSeenSettings = component::openPrivacyDashboard
             )
             is MainComponent.Config.Wallpaper -> WallpaperPickerScreen(
                 onBack = component::goBack
