@@ -34,6 +34,26 @@ now reviewed at least once.
 
 ## Entries
 
+### 2026-06-08 (run 11) — PARALLEL batch 4 (4 agents): innovation flagships + KVKK/security
+- **Trigger:** owner "devam" → next roadmap wave: deliver the two differentiation flagships as REAL
+  code + close the remaining KVKK/security findings. 4 agents based on `6402f51`.
+- **Slices (integrated via cherry-pick; combined gate re-run by me):**
+  1. **D4 Mahrem Mod (Privacy Mode) S1** (mobile, flagship) — `PrivacyModeConfig.ENABLED` default OFF;
+     real persisted toggles, PIN app-lock (salt + 10k-round SHA-256 in EncryptedSharedPrefs/Keychain),
+     Android `FLAG_SECURE` screenshot guard, FCM preview hiding. iOS screenshot guard = honest stub
+     (no Xcode), not a silent fake. common+iOS metadata compile green.
+  2. **D5 Turkish voice→summary** (mobile, flagship) — real frequency-based extractive summarizer
+     (Turkish sentence-split + stop-words + sentence scoring, 160-char budget, dotted/dotless-I), no
+     LLM/mock; VoiceBubble "Özet" line, flag OFF; 9 tests (+JVM-harness found/fixed 2 real bugs).
+  3. **InputSanitizer wiring** (security Finding E) — added `normalizeText` (strip control/zero-width/
+     bidi, clamp; NO HTML-escape on input → no double-escape) at the service boundary for displayName/
+     about/group/community/bot/status fields; message bodies untouched; +13 tests incl. anti-double-
+     escape guards.
+  4. **WS presence KVKK visibility** (presence Finding A) — realtime presence/typing now honor
+     `onlineStatusVisibility` via shared `PresenceVisibilityPolicy` (everyone/contacts/nobody,
+     fail-closed); N+1-free; +12 tests.
+- **Boundaries:** crypto untouched (flags OFF), no deploy. Both flagship innovations ship dark.
+
 ### 2026-06-08 (run 10) — PARALLEL batch 3 (4 agents): "make prod real, zero hidden mocks"
 - **Trigger:** owner — "tüm mockları kaldır, gerçek entegrasyonlar yap; sıfır mock/fake; 'feature
   aktif değil' kabul ama mock değil." Set the boundary first (crypto NoOps stay — can't fake crypto),
