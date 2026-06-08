@@ -34,6 +34,26 @@ now reviewed at least once.
 
 ## Entries
 
+### 2026-06-08 (run 10) — PARALLEL batch 3 (4 agents): "make prod real, zero hidden mocks"
+- **Trigger:** owner — "tüm mockları kaldır, gerçek entegrasyonlar yap; sıfır mock/fake; 'feature
+  aktif değil' kabul ama mock değil." Set the boundary first (crypto NoOps stay — can't fake crypto),
+  then launched 4 agents based on `b5385ba`.
+- **Slices (integrated via cherry-pick; combined gate re-run by me):**
+  1. **Real OTP SMS** — `MockOtpSender` → dev-only; real `NetgsmOtpSender` + `TwilioOtpSender`
+     (Spring `RestClient`, `@ConditionalOnProperty muhabbet.sms.provider`), removed heavy Twilio SDK,
+     `OTP_SEND_FAILED` ErrorCode, prod config `OTP_MOCK_ENABLED=false` + provider env. +8 tests
+     (request-building + response-mapping; live SMS delivery NOT verifiable here — needs real account).
+  2. **Real FCM + dead-token cleanup** (closes presence/notif Finding B) — FCM `UNREGISTERED`/
+     `INVALID_ARGUMENT`/`SENDER_ID_MISMATCH` → auto-invalidate token via new `PushTokenInvalidationPort`
+     (clean cross-module out-port, not JPA import); loud NoOp fallback. +11 tests.
+  3. **`shared` KMP V&V** (run 9 entry) — last never-reviewed area; fixed lone `!!` + 23 tests (53→76);
+     wire contract clean.
+  4. **Mock-elimination ledger** — `docs/MOCK_ELIMINATION.md`: 3 DEV-FALLBACK (env-gated) / 10
+     CRYPTO-BLOCKED (libsignal, not faked) / 2 PLATFORM-STUB (iOS) / 22 FALSE-POSITIVE; prod-config
+     checklist (SMS provider + LiveKit decision flagged).
+- **Boundaries honored:** crypto NoOps/throws untouched (flag-OFF + honest UI = "feature not active",
+  not a hidden mock); no deploy.
+
 ### 2026-06-08 (run 9) — Task 3 (V&V): `shared` KMP module review (LAST never-reviewed area)
 - **Picked because:** per the coverage table, `shared` (KMP) was the single remaining
   never-reviewed area — and the highest-leverage one, being the wire contract both backend and
