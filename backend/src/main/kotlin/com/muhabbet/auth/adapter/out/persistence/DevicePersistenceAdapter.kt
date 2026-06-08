@@ -21,6 +21,13 @@ class DevicePersistenceAdapter(
     override fun findByUserId(userId: UUID): List<Device> =
         springDataDeviceRepository.findByUserId(userId).map { it.toDomain() }
 
+    override fun clearPushToken(pushToken: String) {
+        val devices = springDataDeviceRepository.findByPushToken(pushToken)
+        if (devices.isEmpty()) return
+        devices.forEach { it.pushToken = null }
+        springDataDeviceRepository.saveAll(devices)
+    }
+
     override fun findById(id: UUID): Device? =
         springDataDeviceRepository.findById(id).orElse(null)?.toDomain()
 

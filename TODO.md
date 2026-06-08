@@ -216,17 +216,22 @@
     add MockK tests asserting suppression. (Larger change — needs `UserRepository` threaded into the
     handler + a recipient filter; left documented rather than fixed in the V&V pass.)
 
-- [ ] **Clean up stale FCM push tokens on `UNREGISTERED`/`INVALID_ARGUMENT`** (2026-06-08 presence/notif V&V, Finding B)
-  - `backend/.../messaging/adapter/out/external/FcmPushNotificationAdapter.sendPush` (+ a new cleanup
-    seam on `PushNotificationPort` and a `clearPushToken` on `DeviceRepository`)
-  - **Why**: `FirebaseMessaging.send` throwing `FirebaseMessagingException` with messaging-error-code
-    `UNREGISTERED` (app uninstalled) or `INVALID_ARGUMENT` is only logged at WARN — the dead token is
-    never removed, so every future offline message re-attempts (and re-fails) a send to a token that
-    can never deliver. Industry practice is to delete the token on these terminal codes.
-  - **DONE =** terminal FCM error codes trigger removal of the offending device's push token (so it is
-    no longer selected by `findByUserId(...).filter { pushToken != null }`); MockK test covers the
-    cleanup path. (Crosses the messaging→auth module boundary for the token store — needs an event or
-    a new port; left documented.)
+- [x] **Clean up stale FCM push tokens on `UNREGISTERED`/`INVALID_ARGUMENT`** (2026-06-08 presence/notif V&V, Finding B) — **DONE 2026-06-08**
+  - `FcmPushNotificationAdapter.sendPush` now catches `FirebaseMessagingException`, reads
+    `getMessagingErrorCode()`, and on a terminal code (`UNREGISTERED` / `INVALID_ARGUMENT` /
+    `SENDER_ID_MISMATCH`) calls the new messaging out-port
+    `PushTokenInvalidationPort.invalidate(token)` → `DeviceRepositoryPushTokenInvalidationAdapter` →
+    `DeviceRepository.clearPushToken(token)` (JPA `findByPushToken` → null → `saveAll`). Transient
+    errors keep the token; invalidation is `runCatching`-guarded so it never breaks the send path.
+  - **Cross-module mechanism: a domain out-port** (not an event) — synchronous, return-typed, directly
+    testable; matches the existing pattern where broadcasters depend on `auth`'s `DeviceRepository`
+    public out-port (no JPA import; ArchUnit `messaging → auth.domain.service` ban not tripped).
+  - **NoOp hardening:** FCM/NoOp are mutually exclusive on `muhabbet.fcm.enabled`; a non-boolean value
+    loads neither (fail-fast) and `NoOpPushNotificationAdapter` logs a startup WARN.
+  - Tests (11): `FcmPushNotificationAdapterTest` (8), `DeviceRepositoryPushTokenInvalidationAdapterTest`
+    (1), `DevicePersistenceAdapterTest` (2). Not live-verifiable: the real Firebase round-trip (no
+    credentials on this host) — only the error-code classification + invalidation wiring are unit-tested.
+    See `docs/reviews/2026-06-08-presence-notification-vv.md` Finding B.
 
 - [ ] **Make storage-usage document bucketing exhaustive** (2026-06-08 media V&V, Finding C)
   - `backend/.../media/domain/service/MediaService.getStorageUsage`

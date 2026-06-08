@@ -29,7 +29,7 @@
 | # | Severity | Title | Status |
 |---|----------|-------|--------|
 | A | **Medium** (KVKK / privacy) | Realtime WS presence + typing broadcasts ignore `onlineStatusVisibility` — online/offline + `lastSeenAt` pushed to all contacts regardless of the user's "everyone/contacts/nobody" choice, while the REST path honors it | Documented + TODO (P2) — larger change |
-| B | **Medium** (correctness / resource) | FCM `UNREGISTERED` / `INVALID_ARGUMENT` (dead token) is only logged — the stale push token is never removed, so every future offline message re-attempts a doomed send | Documented + TODO (P2) — crosses module boundary |
+| B | **Medium** (correctness / resource) | FCM `UNREGISTERED` / `INVALID_ARGUMENT` (dead token) is only logged — the stale push token is never removed, so every future offline message re-attempts a doomed send | **FIXED 2026-06-08** (dead-token cleanup via `PushTokenInvalidationPort` out-port) + 11 tests |
 | C | **Medium** (no-hardcoded-strings + wrong HTTP status) | `registerPushToken` threw `BusinessException(AUTH_UNAUTHORIZED, "Cihaz bulunamadı")` — inline Turkish message string (CLAUDE.md violation) **and** a 401 for what is a 404 (a device the user doesn't own) | **FIXED 2026-06-08** + 2 tests |
 | D | Low (correctness / DRY) | The `@Primary` prod push path (`RedisMessageBroadcaster`) sent raw `message.content.take(100)` as the body for **media** messages (image/voice/doc → empty or a storage key in the notification), while the NoOp broadcaster formatted a placeholder — duplicated, divergent body logic | **FIXED 2026-06-08** (shared `PushNotificationContent` helper) + 5 tests |
 | E | Low (dead code / privacy hygiene) | `RedisPresenceAdapter` wrote a `lastseen:{id}` Redis key on every online/offline with **no TTL** and **no reader anywhere** — an unbounded PII timestamp that never expires and is never used (DB `last_seen_at` is the real source of truth) | **FIXED 2026-06-08** (removed) + 8 tests |
@@ -67,7 +67,7 @@ uses (and decides product-wise whether "nobody" suppresses online entirely vs. j
 That is a behavior change with a product call attached, so it is logged as **TODO P2** with a test
 requirement rather than changed blind in a V&V pass.
 
-## Finding B — Stale FCM tokens are never cleaned up  *(Medium — documented)*
+## Finding B — Stale FCM tokens are never cleaned up  *(FIXED 2026-06-08)*
 
 **Location:** `FcmPushNotificationAdapter.sendPush`.
 
@@ -86,17 +86,49 @@ is re-selected on **every** subsequent offline message
 (`deviceRepository.findByUserId(...).filter { !it.pushToken.isNullOrBlank() }`) — a permanent stream of
 guaranteed-to-fail sends per dead device. Correctness + wasted work; not a data leak.
 
-**Why documented, not fixed here:** cleanup crosses the **messaging → auth** module boundary (the push
-adapter lives in `messaging`; the token store is `auth`'s `DeviceRepository`). Doing it right needs
-either a new `PushNotificationPort` result/callback distinguishing terminal failures or a Spring
-`ApplicationEvent` (the CLAUDE.md cross-module rule), plus a `clearPushToken` on `DeviceRepository`.
-Catching `FirebaseMessagingException` and reading `getMessagingErrorCode()` also can't be unit-tested
-on this host without a live FCM. Logged as **TODO P2**.
+**Fix (2026-06-08).** The adapter now catches `FirebaseMessagingException`, reads
+`getMessagingErrorCode()`, and on a **terminal** code (`UNREGISTERED`, `INVALID_ARGUMENT`,
+`SENDER_ID_MISMATCH`) removes the dead token so it is never re-selected:
 
-> Note: the catch is currently `catch (e: Exception)` — it also swallows transient/network errors,
-> which is correct (those tokens are still valid and the message is already persisted server-side for
-> sync). Only the two *terminal* codes warrant deletion; the cleanup must be code-specific, not a
-> blanket delete-on-any-exception.
+```kotlin
+val deadTokenCode = (e as? FirebaseMessagingException)?.messagingErrorCode
+    ?.takeIf { it in DEAD_TOKEN_CODES }
+if (deadTokenCode != null) {
+    pushTokenInvalidationPort.invalidate(pushToken)   // remove the dead token
+} else {
+    log.warn("FCM send failed ...")                   // transient — keep the token
+}
+```
+
+**Cross-module mechanism: a domain out-port** (chosen over an `ApplicationEvent`). The push adapter
+lives in `messaging`; the token store is `auth`'s `DeviceRepository`. A new messaging out-port
+`messaging/domain/port/out/PushTokenInvalidationPort.invalidate(token)` is implemented by
+`DeviceRepositoryPushTokenInvalidationAdapter`, which delegates to a new
+`DeviceRepository.clearPushToken(token)` (JPA: `findByPushToken` → null the column → `saveAll`). This
+follows the existing cross-module pattern — the broadcasters already depend on `auth`'s
+`DeviceRepository` **public out-port** (never a JPA import), and the V&V `ArchUnit` rule only forbids
+`messaging → auth.domain.service` (the port is in `auth.domain.port.out`, allowed). A port (synchronous,
+return-typed, directly verifiable) was preferred over an event because the decision is a simple,
+immediate "this exact token is dead → delete it" with no other listeners — KISS/YAGNI; an event would
+add async indirection for no benefit.
+
+> Note: the catch still treats **only** the three terminal codes as dead-token. Transient/network
+> errors (`UNAVAILABLE`, `INTERNAL`, `QUOTA_EXCEEDED`) and generic non-Firebase exceptions are logged
+> and the token is **kept** — those tokens are still valid and the message is already persisted
+> server-side for sync. The invalidation call is itself wrapped in `runCatching` so a token-store
+> failure can never break the (already-persisted) send path.
+
+**Tests (11):** `FcmPushNotificationAdapterTest` (8) — the live `FirebaseMessaging.send` is replaced
+by an overridable `sendToFirebase` seam and `FirebaseMessagingException` (package-private ctor) is
+MockK-mocked to report a given `MessagingErrorCode`; asserts invalidate-on-(UNREGISTERED /
+INVALID_ARGUMENT / SENDER_ID_MISMATCH), no-invalidate-on-(success / UNAVAILABLE / INTERNAL /
+generic-exception), and that an invalidation failure is swallowed (no propagation).
+`DeviceRepositoryPushTokenInvalidationAdapterTest` (1) — delegates to `clearPushToken`.
+`DevicePersistenceAdapterTest` (2) — `clearPushToken` nulls + saves every device holding the token,
+and is a no-op when none do.
+**Not live-verifiable here:** the actual Firebase round-trip (no credentials on this host) — only the
+adapter's error-code classification + invalidation wiring are unit-tested; the real FCM rejection that
+produces a `FirebaseMessagingException` is not exercised.
 
 ## Finding C — Hardcoded message + wrong status on `registerPushToken`  *(FIXED)*
 
@@ -174,7 +206,10 @@ short-circuit (no Redis call), `multiGet` filtering, and the `multiGet == null` 
   adapters depend only on infra (`StringRedisTemplate`, FCM). The domain never imports them. Good DIP.
 - **OCP via `@ConditionalOnProperty`.** FCM vs NoOp push (and Redis vs WS broadcaster via `@Primary`)
   swap by config without touching callers — the documented Spring Boot 4 bean-ambiguity gotcha is
-  handled with `@Primary`.
+  handled with `@Primary`. *(2026-06-08: the FCM/NoOp split was tightened — the two are mutually
+  exclusive on `muhabbet.fcm.enabled`; a non-boolean value loads neither and the context fails fast
+  rather than silently using NoOp; and `NoOpPushNotificationAdapter` now logs a startup WARN so
+  "push is inert" can never be mistaken for working push.)*
 - **`getOnlineUserIds` is correct and N+1-free** — single `multiGet`, order-preserving `zip`, with an
   empty-input short-circuit and a `multiGet == null` guard. No `!!` anywhere in the presence adapter.
 - **The `!!` on `device.pushToken!!`** in both broadcasters is guarded by the preceding
@@ -187,7 +222,7 @@ short-circuit (no Redis call), `multiGet` filtering, and the `multiGet == null` 
 
 ## Follow-ups for `TODO.md`
 - [ ] **P2 (KVKK):** honor `onlineStatusVisibility` on the WS presence/typing path (Finding A).
-- [ ] **P2:** clean up stale FCM tokens on terminal error codes (Finding B).
+- [x] **Finding B** (clean up stale FCM tokens on terminal error codes) — **DONE 2026-06-08.**
 - [x] **Finding C** (hardcoded string + wrong status on `registerPushToken`) — **DONE 2026-06-08.**
 - [x] **Finding D** (media push body + DRY) — **DONE 2026-06-08.**
 - [x] **Finding E** (dead `lastseen:` Redis writes) — **DONE 2026-06-08.**
@@ -198,3 +233,7 @@ short-circuit (no Redis call), `multiGet` filtering, and the `multiGet == null` 
   no-Docker host — environmental, not regressions.
 - New tests: `RedisPresenceAdapterTest` (8), `PushNotificationContentTest` (5), `AuthServiceTest`
   registerPushToken (2) = **15** added.
+- **Finding B (2026-06-08):** `./gradlew :backend:test` → **443 tests, 6 failed** — all 6 are the known
+  no-Docker `*IntegrationTest` failures ("Could not find a valid Docker environment"), not regressions.
+  New for Finding B: `FcmPushNotificationAdapterTest` (8), `DeviceRepositoryPushTokenInvalidationAdapterTest`
+  (1), `DevicePersistenceAdapterTest` (2) = **11** added.

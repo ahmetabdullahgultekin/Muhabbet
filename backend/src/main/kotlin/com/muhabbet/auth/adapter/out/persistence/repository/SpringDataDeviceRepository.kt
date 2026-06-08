@@ -8,4 +8,5 @@ interface SpringDataDeviceRepository : JpaRepository<DeviceJpaEntity, UUID> {
     fun findByUserIdAndPlatform(userId: UUID, platform: String): DeviceJpaEntity?
     fun findByUserId(userId: UUID): List<DeviceJpaEntity>
     fun findByUserIdAndRevokedAtIsNull(userId: UUID): List<DeviceJpaEntity>
+    fun findByPushToken(pushToken: String): List<DeviceJpaEntity>
 }
