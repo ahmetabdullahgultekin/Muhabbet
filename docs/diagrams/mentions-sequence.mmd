@@ -1,0 +1,42 @@
+%% @mentions in group chats — send + notify flow
+%% Design: docs/design/T2-group-mentions.md · ADR-0008
+%% Flag: muhabbet.mentions.enabled / MentionsConfig.ENABLED (default OFF)
+sequenceDiagram
+    autonumber
+    actor Sender
+    participant Composer as Mobile Composer
+    participant WS as ChatWebSocketHandler
+    participant Svc as MessageService
+    participant MRepo as MentionRepository
+    participant Notifier as MentionNotifier
+    participant Push as PushNotificationPort (FCM)
+    participant Members as Group members (WS)
+
+    Sender->>Composer: type "@"
+    Composer->>Composer: show roster autocomplete (local group members)
+    Sender->>Composer: pick "Ayşe" → insert highlighted token
+    Composer->>WS: SendMessage{content, mentions:[{U2,8,5}], mentionsEveryone:false}
+
+    alt flag OFF
+        WS->>Svc: sendMessage (mentions ignored → empty)
+        Note over Svc: byte-identical to today
+    else flag ON
+        WS->>Svc: sendMessage(command + mentions)
+        Svc->>Svc: validate each mention.userId ∈ conversation_members (drop non-members)
+        opt mentionsEveryone
+            Svc->>Svc: require sender ADMIN/OWNER else MSG_MENTION_EVERYONE_FORBIDDEN
+            Svc->>Svc: expand to all memberIds (cap everyoneMaxMembers)
+        end
+        Svc->>MRepo: persist message + message_mentions rows
+        Svc-->>WS: ServerAck(OK)
+        Svc->>Members: broadcast NewMessage{...mentions...}
+        Svc->>Notifier: notifyMentioned(message, mentionedIds)
+        loop each mentioned member
+            alt online & convo not muted
+                Note over Notifier: already saw NewMessage → no push
+            else offline OR convo muted
+                Notifier->>Notifier: skip if globally-muted or blocked sender
+                Notifier->>Push: send("Ayşe mentioned you in <group>")
+            end
+        end
+    end

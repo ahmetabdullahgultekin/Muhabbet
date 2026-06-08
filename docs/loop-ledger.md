@@ -32,6 +32,22 @@
 
 ## Entries
 
+### 2026-06-08 (run 2) — Task 2 (Plan + design docs): @mentions in group chats
+- **Picked because:** rotation — Tasks 3 & 4 already done today; Task 2 never run by the loop.
+  Chose @mentions as the next feature (non-blocked, no crypto/deploy, high group-usability value).
+- **Did:** full SE-lifecycle design — `docs/design/T2-group-mentions.md` (context→goals→data model
+  `V19__add_message_mentions.sql`→additive WS/DTO contract→hexagonal file tree→default-OFF flag
+  `muhabbet.mentions.enabled`→S1…S5 vertical slices→test plan→risks→rollback), ADR-0008
+  (`docs/adr/0008-mentions-storage-and-notification.md`), sequence diagram
+  (`docs/diagrams/mentions-sequence.mmd`), and wired it into `ROADMAP.md`.
+- **Key decisions:** structured client-resolved/server-validated mentions (no server-side `@name`
+  regex); mentions pierce conversation-mute but respect global-mute/block; `@everyone` admin-gated +
+  size-capped; explicit E2E boundary (must not weaken E2E; notify-set moves client-side post-libsignal).
+- **Verification:** design-only run (no code) — verified the doc against real code: migration head is
+  V18 (→V19), real `SendMessage`/`NewMessage` shapes, `MediaAccessQueryRepository` soft-FK pattern
+  reused for membership decoupling.
+- **Commit:** branch `claude/relaxed-goldberg-P1IKj`.
+
 ### 2026-06-08 — Task 3 (V&V): `media` module review
 - **Picked because:** thinnest-tested backend module (2 test files), never had a dedicated review.
 - **Did:** full static review of all 17 media source files; wrote

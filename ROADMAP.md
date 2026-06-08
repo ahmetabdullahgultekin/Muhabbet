@@ -58,6 +58,10 @@ roadmap (`docs/PRODUCT_ROADMAP_2026-06-06.md`); no separate "Top-30" artifact ex
 - **Translation / message translation** — on-device or API-backed translate-message action.
 - **RTL / Arabic support** — full right-to-left layout pass + Arabic locale (large TR-adjacent market).
 - **@mentions** in group chats — autocomplete + highlight + notify-on-mention.
+  **Designed 2026-06-08:** `docs/design/T2-group-mentions.md` + ADR-0008 + sequence diagram
+  (`docs/diagrams/mentions-sequence.mmd`); structured client-resolved/server-validated mentions,
+  mute-piercing notifications, `@everyone` admin-gated, flag `muhabbet.mentions.enabled` default OFF,
+  slices S1…S5. Ready for implementation.
 - **Data-saver mode** — gate auto-download of media on Wi-Fi vs cellular; lower compression ceilings.
 - **Chat folders / custom lists** — user-defined conversation groupings beyond the existing filter chips.
 
