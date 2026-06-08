@@ -33,6 +33,24 @@
 
 ## Entries
 
+### 2026-06-08 (run 8) — PARALLEL batch 2 (4 agents, worktree-isolated, based on 40c403a)
+- **Trigger:** owner "yol haritasını sen belirliyorsun, sonraki batch'i de ayarla" → I set the
+  roadmap and launched 4 concurrent agents (all correctly based on latest `origin` this time).
+- **Slices (all integrated via cherry-pick onto the work branch; combined gate re-run by me):**
+  1. **V&V presence + notification** (never-reviewed) — 6 findings; fixed C (inline-TR-string + wrong
+     401→`DEVICE_NOT_FOUND`), D (push-body DRY `PushNotificationContent`), E (dead TTL-less `lastseen:`
+     Redis write removed) + 15 tests; A (WS presence ignores `onlineStatusVisibility` — KVKK) + B (FCM
+     stale-token not cleaned) → TODO P2.
+  2. **V&V cross-cutting security** — found + fixed 2 real WS authz holes: read-receipt spoof
+     (`updateStatus` broadcast w/o membership) + typing spoof; WS `ServerAck` no longer echoes raw
+     `e.message`; +`JwtProviderTest` (alg-confusion/tamper/expiry/forgery, 10 tests). E (InputSanitizer
+     has zero call sites) + F (ack conv-id cross-check) → TODO P2. Headers/CORS/SSRF/rate-limit verified clean.
+  3. **@mentions S3/UI** (mobile) — `MentionsConfig.ENABLED` (default OFF), composer `@` autocomplete
+     + çini-cobalt bubble highlight, roster from existing `participants`. Compile green.
+  4. **D3 perf** — `docs/qa/perf-budget.md` (5-flow budgets + measurement) + dropped redundant
+     `DISTINCT` on 2 membership-scoped read queries (provably 1:1 join) + Testcontainers test lock.
+- **Boundaries:** no crypto flags, no disabled Signal files, no deploy.
+
 ### 2026-06-08 (run 7) — PARALLEL batch (4 agents, worktree-isolated)
 - **Trigger:** owner "paralel hareket edemiyor musun?" → launched 4 concurrent subagents in isolated
   git worktrees, each on a disjoint slice; integrated all into the single work branch via cherry-pick.
