@@ -126,6 +126,15 @@
   (Signal-encrypted) message body; tamper/wrong-key → `MediaDecryptException`. iOS NoOp → plaintext
   fallback. 12 shared `jvmTest` green. **Flag stays OFF; flip needs sign-off + crypto review.***
 
+- [x] **Force `Content-Disposition: attachment` on media presigned URLs (media V&V Finding B)**
+  — *Done. `MinioMediaStorageAdapter.getPresignedUrl` now signs
+  `extraQueryParams(mapOf("response-content-disposition" to "attachment"))` into every presigned GET
+  (MinIO Java SDK 9.0.0 — `BaseArgs.Builder.extraQueryParams(Map)`), so a document uploaded with an
+  inline-rendering type (`text/html` / `image/svg+xml`) downloads instead of rendering from the media
+  origin (stored-XSS / phishing surface). Applied uniformly (the in-app image/audio loader uses raw
+  bytes, not the header). Endpoint-rewrite seam preserves the signed query param. 3 unit tests in
+  `MinioMediaStorageAdapterTest`. See `docs/reviews/2026-06-08-media-module-vv.md` Finding B.*
+
 ## P1 — Needed before / during public launch  *(Tier 1)*
 
 - [ ] **Implement iOS APNs delivery end-to-end**
@@ -193,16 +202,6 @@
     under `docs/qa/` with any tuning follow-ups filed.
 
 ## P2 — Quality / hardening / completeness
-
-- [ ] **Force `Content-Disposition: attachment` on media presigned URLs** **(P1-security; from 2026-06-08 media V&V, Finding B)**
-  - `backend/.../media/adapter/out/external/MinioMediaStorageAdapter.kt` (add
-    `response-content-disposition` to `GetPresignedObjectUrlArgs`), `MediaService` (document path)
-  - **Why**: `uploadDocument` accepts any content type (by design, WhatsApp-style) but presigned GET
-    URLs serve the stored content type **inline** with no disposition — an uploaded `text/html` /
-    `image/svg+xml` document renders from the media origin (stored-XSS / phishing surface).
-  - **DONE =** document (and ideally all) presigned GETs carry `attachment` disposition; confirmed
-    the mobile image/media loader still renders images correctly. See
-    `docs/reviews/2026-06-08-media-module-vv.md`.
 
 - [ ] **Make storage-usage document bucketing exhaustive** (2026-06-08 media V&V, Finding C)
   - `backend/.../media/domain/service/MediaService.getStorageUsage`

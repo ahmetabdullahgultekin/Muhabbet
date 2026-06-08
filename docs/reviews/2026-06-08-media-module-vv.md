@@ -19,7 +19,7 @@
 | # | Severity | Title | Status |
 |---|----------|-------|--------|
 | A | **Medium** (security / correctness) | Document object-key extension derived from unsanitized client filename → path-segment injection into MinIO key | **FIXED 2026-06-08** + regression test |
-| B | Medium (security) | `uploadDocument` has no content-type allowlist **and** presigned URLs carry no `Content-Disposition: attachment` → an uploaded `text/html` / `image/svg+xml` document renders inline from the media origin (stored-XSS surface) | Documented — owner decision (see below) |
+| B | Medium (security) | `uploadDocument` has no content-type allowlist **and** presigned URLs carry no `Content-Disposition: attachment` → an uploaded `text/html` / `image/svg+xml` document renders inline from the media origin (stored-XSS surface) | **FIXED 2026-06-08** — presigned URLs now force `attachment`; 3 unit tests |
 | C | Low (correctness) | Storage-usage accounting buckets documents by `application/` prefix only; documents may have any content type, so `text/*`/other docs are uncounted | Documented |
 | D | Low (API quality) | `MediaController.getPresignedUrl` returns `contentType=""`, `sizeBytes=0` — the GET-by-id endpoint drops metadata the upload path returns | Documented |
 | E | Info (test gap) | `uploadDocument` had **zero** unit tests before this review | **FIXED** — 6 tests added |
@@ -72,27 +72,54 @@ asserts the key matches `documents/<uploaderId>/<uuid>.[a-z0-9]+` and contains n
 
 ---
 
-## Finding B — Document content-type allowlist + inline rendering  *(needs owner decision)*
+## Finding B — Inline rendering of uploaded documents  *(FIXED 2026-06-08)*
 
 `uploadImage`/`uploadAudio` validate the content type against `ValidationRules.ALLOWED_*_TYPES`.
 `uploadDocument` validates **only size** — any content type is accepted. That is partly intentional
 (WhatsApp-style document sharing allows arbitrary types: PDF, docx, zip, …). The real risk is the
-**combination** with delivery: `MinioMediaStorageAdapter.getPresignedUrl` issues a GET URL with the
+**combination** with delivery: `MinioMediaStorageAdapter.getPresignedUrl` issued a GET URL with the
 *stored* content type and **no `response-content-disposition`**. So a document uploaded as
-`text/html` or `image/svg+xml` is served **inline** from the media origin — a stored-XSS surface if
+`text/html` or `image/svg+xml` was served **inline** from the media origin — a stored-XSS surface if
 that origin shares a cookie/trust boundary with the app, and a phishing surface regardless.
 
-**Recommended fix (not applied — has product implications):** when issuing presigned GET URLs for
-documents, set `response-content-disposition=attachment` (MinIO supports it via
-`GetPresignedObjectUrlArgs` extra query params) so browsers download rather than render. Optionally
-force a neutral `response-content-type` (e.g. `application/octet-stream`) for non-allowlisted types.
-Images/audio are fetched by the app's media loader (not a browser) so an `attachment` disposition
-would not change in-app behaviour, but this should be confirmed against the mobile image pipeline
-before flipping. **Left for owner sign-off** because it touches the storage adapter and the
-public-endpoint URL-rewrite path, and the inline-vs-attachment choice is a product decision.
+**Fix (applied):** `MinioMediaStorageAdapter.getPresignedUrl` now signs a
+`response-content-disposition=attachment` override into every presigned GET URL via the MinIO Java
+SDK so browsers download rather than render:
 
-Tracking: add as a **P1 security** item in `TODO.md` ("force attachment disposition on media
-presigned URLs").
+```kotlin
+GetPresignedObjectUrlArgs.builder()
+    .method(Http.Method.GET)
+    .bucket(...)
+    .`object`(key)
+    .expiry(expirySeconds, TimeUnit.SECONDS)
+    .extraQueryParams(mapOf("response-content-disposition" to "attachment"))
+    .build()
+```
+
+- **MinIO SDK API:** `io.minio:minio:9.0.0`. The override is set via
+  `BaseArgs.Builder.extraQueryParams(java.util.Map<String, String>)` (inherited by
+  `GetPresignedObjectUrlArgs.Builder`) with the S3 query key `response-content-disposition`. Verified
+  against the published 9.0.0 jar (`javap`): `extraQueryParams(Map)` exists and the param is signed
+  into the URL (SigV4 covers query params), so the disposition cannot be stripped or altered without
+  invalidating the signature.
+- **Applied uniformly** (not just documents): the storage port only knows the object key, not the
+  media category, and the in-app image/audio loader fetches the raw **bytes** — it never relies on
+  inline browser rendering, so forcing download does not change in-app media behaviour. This keeps
+  the `MediaStoragePort` interface minimal (no per-call category flag threaded from `MediaService`).
+- **Endpoint rewrite preserved:** the internal→public endpoint string-replace only swaps the
+  scheme+host prefix, so the signed `response-content-disposition` query param survives the rewrite
+  (covered by a dedicated test).
+
+**Tests:** `MinioMediaStorageAdapterTest` (3 tests) — the presigned args carry
+`response-content-disposition=attachment`; the disposition is requested uniformly regardless of key
+type (image vs document); and the public-endpoint rewrite preserves the signed query param. The
+args-building and rewrite were extracted into `internal` seams so they are unit-testable without a
+live MinIO (the SDK presign does a network round-trip).
+
+> Forcing a neutral `response-content-type` for non-allowlisted types (e.g. `application/octet-stream`)
+> was considered and **left out** as redundant: `attachment` already prevents inline rendering, and a
+> document content-type allowlist would change the WhatsApp-style arbitrary-document product behaviour
+> (out of scope — would also need Finding C re-bucketing). YAGNI.
 
 ---
 
@@ -102,8 +129,7 @@ presigned URLs").
 "application/")`. Because documents accept any content type (Finding B), a `text/plain` or other
 non-`application/*` document is stored but **excluded** from the `documentBytes`/`documentCount`
 totals (and from `totalBytes`). Low impact (display-only KVKK/storage stat), but the accounting is
-not exhaustive. If Finding B introduces a document content-type allowlist, align the bucketing with
-it; otherwise compute documents as "everything not image/* or audio/*".
+not exhaustive. Compute documents as "everything not image/* or audio/*".
 
 ## Finding D — GET-by-id presigned endpoint drops metadata  *(low)*
 
@@ -127,11 +153,12 @@ otherwise — documented, not changed.
   Spring context when MinIO is down) — matches the documented test-context gotcha.
 
 ## Follow-ups for `TODO.md`
-- [ ] **P1 (security):** force `Content-Disposition: attachment` on media presigned URLs (Finding B).
+- [x] **P0 (security):** force `Content-Disposition: attachment` on media presigned URLs (Finding B). **DONE 2026-06-08.**
 - [ ] **P2:** make storage-usage document bucketing exhaustive (Finding C).
 - [ ] **P3:** carry content-type/size on the GET-by-id presigned response (Finding D).
 
 ## Verification
-- `./gradlew :backend:test --tests "com.muhabbet.media.domain.service.MediaServiceTest"` — green
-  (existing 22 + 6 new document tests).
-</content>
+- `./gradlew :backend:test` — **386 tests pass**, 6 Testcontainers integration tests error on the
+  CI sandbox host only (no Docker daemon: `IllegalStateException: ... find a Docker environment`),
+  which is environmental and unrelated to this change (392 total).
+- `./gradlew :backend:compileKotlin` — green.
