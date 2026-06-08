@@ -11,26 +11,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-// ─── WhatsApp-aligned palette ──────────────────────────────
+// ─── Muhabbet identity palette — İznik çini (see docs/design/D1-brand-color-identity.md) ──
+// Own identity, NOT a WhatsApp clone: firuze (turquoise) primary, kobalt (cobalt) ticks/links,
+// mercan (coral) warm accent. Drawn from classical Turkish İznik tile art.
 
-private val WhatsAppAccent = Color(0xFF00A884)
-private val WhatsAppDarkBg = Color(0xFF111B21)
-private val WhatsAppDarkSurface = Color(0xFF1F2C34)
-private val WhatsAppDarkElevated = Color(0xFF2A3942)
-private val WhatsAppWallpaperDark = Color(0xFF0D1418)
-private val WhatsAppOwnBubbleDark = Color(0xFF005C4B)
-private val WhatsAppTextPrimary = Color(0xFFE9EDEF)
-private val WhatsAppTextSecondary = Color(0xFF8696A0)
-private val WhatsAppReadTickDark = Color(0xFF53BDEB)
-private val WhatsAppOwnBubbleLight = Color(0xFFD9FDD3)
-private val WhatsAppWallpaperLight = Color(0xFFECE5DD)
-private val WhatsAppUnreadLight = Color(0xFF25D366)
-private val WhatsAppTextPrimaryLight = Color(0xFF111B21)
-private val WhatsAppTextSecondaryLight = Color(0xFF667781)
-private val WhatsAppReadTickLight = Color(0xFF4FB6EC)
-private val WhatsAppInputFieldLight = Color(0xFFF0F2F5)
-private val WhatsAppDividerLight = Color(0xFFE9EDEF)
-private val WhatsAppDividerDark = Color(0xFF2A3942)
+// Firuze (turquoise) — primary brand accent
+private val CiniFiruze = Color(0xFF0E94A8)         // primary (light)
+private val CiniFiruzeBright = Color(0xFF26B3C7)   // brighter accent (dark / online dot)
+// Kobalt (cobalt blue) — read-ticks + links
+private val CiniKobalt = Color(0xFF1E5AA8)         // deep cobalt (links, containers)
+private val CiniReadTickLight = Color(0xFF3E8FD0)  // read-tick (light)
+private val CiniReadTickDark = Color(0xFF5BB7D8)   // read-tick (dark)
+// Mercan (coral red) — warm signature accent
+private val CiniMercan = Color(0xFFE2553D)
+
+// Dark surfaces — subtle teal family so they pair with firuze
+private val CiniDarkBg = Color(0xFF101C20)
+private val CiniDarkSurface = Color(0xFF18272C)
+private val CiniDarkElevated = Color(0xFF223539)
+private val CiniWallpaperDark = Color(0xFF0B1518)
+private val CiniOwnBubbleDark = Color(0xFF0A5560)  // deep firuze own-bubble
+private val CiniTextPrimaryDark = Color(0xFFE8EFF0)
+private val CiniTextSecondaryDark = Color(0xFF8AA0A6)
+private val CiniDividerDark = Color(0xFF223539)
+
+// Light surfaces — warm ivory wallpaper + pale firuze own-bubble
+private val CiniOwnBubbleLight = Color(0xFFCDEFF3)
+private val CiniWallpaperLight = Color(0xFFEDE7DA)  // warm ivory (was WhatsApp beige)
+private val CiniFiruzeLightAccent = Color(0xFF13A0B5) // online/unread (light)
+private val CiniTextPrimaryLight = Color(0xFF0E2A2F)  // deep teal-ink
+private val CiniTextSecondaryLight = Color(0xFF5C7178)
+private val CiniInputFieldLight = Color(0xFFEFF2F1)
+private val CiniDividerLight = Color(0xFFE4EAE8)
 
 // Retained for error states
 private val Red700 = Color(0xFFD32F2F)
@@ -60,66 +72,66 @@ data class MuhabbetSemanticColors(
 )
 
 val LightSemanticColors = MuhabbetSemanticColors(
-    statusOnline = WhatsAppUnreadLight,
-    statusRead = WhatsAppReadTickLight,
+    statusOnline = CiniFiruzeLightAccent,
+    statusRead = CiniReadTickLight,
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFFBDBDBD),
     callDecline = Color(0xFFE53935),
     callAccept = Color(0xFF43A047),
     callMissed = Color(0xFFE53935),
-    bubbleOwn = WhatsAppOwnBubbleLight,
+    bubbleOwn = CiniOwnBubbleLight,
     bubbleOther = Color.White,
-    onBubbleOwn = WhatsAppTextPrimaryLight,
-    onBubbleOther = WhatsAppTextPrimaryLight,
-    linkColor = WhatsAppAccent,
-    chatWallpaper = WhatsAppWallpaperLight,
+    onBubbleOwn = CiniTextPrimaryLight,
+    onBubbleOther = CiniTextPrimaryLight,
+    linkColor = CiniKobalt,
+    chatWallpaper = CiniWallpaperLight,
     inputBarBackground = Color.White,
-    inputFieldBackground = WhatsAppInputFieldLight,
-    dividerColor = WhatsAppDividerLight,
-    secondaryText = WhatsAppTextSecondaryLight,
-    unreadBadge = WhatsAppUnreadLight
+    inputFieldBackground = CiniInputFieldLight,
+    dividerColor = CiniDividerLight,
+    secondaryText = CiniTextSecondaryLight,
+    unreadBadge = CiniFiruzeLightAccent
 )
 
 val DarkSemanticColors = MuhabbetSemanticColors(
-    statusOnline = WhatsAppAccent,
-    statusRead = WhatsAppReadTickDark,
+    statusOnline = CiniFiruzeBright,
+    statusRead = CiniReadTickDark,
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
-    callAccept = WhatsAppAccent,
+    callAccept = Color(0xFF43A047),
     callMissed = Color(0xFFEF5350),
-    bubbleOwn = WhatsAppOwnBubbleDark,
-    bubbleOther = WhatsAppDarkSurface,
-    onBubbleOwn = WhatsAppTextPrimary,
-    onBubbleOther = WhatsAppTextPrimary,
-    linkColor = WhatsAppAccent,
-    chatWallpaper = WhatsAppWallpaperDark,
-    inputBarBackground = WhatsAppDarkSurface,
-    inputFieldBackground = WhatsAppDarkElevated,
-    dividerColor = WhatsAppDividerDark,
-    secondaryText = WhatsAppTextSecondary,
-    unreadBadge = WhatsAppAccent
+    bubbleOwn = CiniOwnBubbleDark,
+    bubbleOther = CiniDarkSurface,
+    onBubbleOwn = CiniTextPrimaryDark,
+    onBubbleOther = CiniTextPrimaryDark,
+    linkColor = CiniFiruzeBright,
+    chatWallpaper = CiniWallpaperDark,
+    inputBarBackground = CiniDarkSurface,
+    inputFieldBackground = CiniDarkElevated,
+    dividerColor = CiniDividerDark,
+    secondaryText = CiniTextSecondaryDark,
+    unreadBadge = CiniFiruzeBright
 )
 
 val OledSemanticColors = MuhabbetSemanticColors(
-    statusOnline = WhatsAppAccent,
-    statusRead = WhatsAppReadTickDark,
+    statusOnline = CiniFiruzeBright,
+    statusRead = CiniReadTickDark,
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
-    callAccept = WhatsAppAccent,
+    callAccept = Color(0xFF43A047),
     callMissed = Color(0xFFEF5350),
-    bubbleOwn = WhatsAppOwnBubbleDark,
-    bubbleOther = Color(0xFF0A1014),
-    onBubbleOwn = WhatsAppTextPrimary,
-    onBubbleOther = WhatsAppTextPrimary,
-    linkColor = WhatsAppAccent,
+    bubbleOwn = CiniOwnBubbleDark,
+    bubbleOther = Color(0xFF08191C),
+    onBubbleOwn = CiniTextPrimaryDark,
+    onBubbleOther = CiniTextPrimaryDark,
+    linkColor = CiniFiruzeBright,
     chatWallpaper = Color.Black,
-    inputBarBackground = Color(0xFF0A1014),
-    inputFieldBackground = Color(0xFF1A2228),
-    dividerColor = Color(0xFF1A2228),
-    secondaryText = WhatsAppTextSecondary,
-    unreadBadge = WhatsAppAccent
+    inputBarBackground = Color(0xFF08191C),
+    inputFieldBackground = Color(0xFF15252A),
+    dividerColor = Color(0xFF15252A),
+    secondaryText = CiniTextSecondaryDark,
+    unreadBadge = CiniFiruzeBright
 )
 
 val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
@@ -203,77 +215,77 @@ object MuhabbetElevation {
 // ─── M3 Color schemes ──────────────────────────────────────
 
 val MuhabbetLightColorScheme = lightColorScheme(
-    primary = WhatsAppAccent,
+    primary = CiniFiruze,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFB2F1E5),
-    onPrimaryContainer = Color(0xFF002117),
-    secondary = WhatsAppUnreadLight,
+    primaryContainer = Color(0xFFB3E8EF),
+    onPrimaryContainer = Color(0xFF00363E),
+    secondary = CiniKobalt,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFC8E6C9),
-    onSecondaryContainer = Color(0xFF1B5E20),
-    tertiary = Color(0xFFFFB300),
+    secondaryContainer = Color(0xFFD6E3F7),
+    onSecondaryContainer = Color(0xFF0A2A52),
+    tertiary = CiniMercan,
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFECB3),
-    onTertiaryContainer = Color(0xFF7F6003),
+    tertiaryContainer = Color(0xFFFFDAD2),
+    onTertiaryContainer = Color(0xFF410001),
     error = Red700,
     onError = Color.White,
     surface = Color.White,
-    onSurface = WhatsAppTextPrimaryLight,
-    surfaceVariant = WhatsAppInputFieldLight,
-    onSurfaceVariant = WhatsAppTextSecondaryLight,
-    outline = WhatsAppDividerLight,
+    onSurface = CiniTextPrimaryLight,
+    surfaceVariant = CiniInputFieldLight,
+    onSurfaceVariant = CiniTextSecondaryLight,
+    outline = CiniDividerLight,
     outlineVariant = Color(0xFFCAC4D0)
 )
 
 val MuhabbetDarkColorScheme = darkColorScheme(
-    primary = WhatsAppAccent,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF005048),
-    onPrimaryContainer = Color(0xFFB2DFDB),
-    secondary = WhatsAppAccent,
-    onSecondary = Color(0xFF003A08),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Color(0xFFC8E6C9),
-    tertiary = Color(0xFFFFB300),
-    onTertiary = Color(0xFF3F2E00),
-    tertiaryContainer = Color(0xFF5B4300),
-    onTertiaryContainer = Color(0xFFFFECB3),
+    primary = CiniFiruzeBright,
+    onPrimary = Color(0xFF00363E),
+    primaryContainer = Color(0xFF0A5560),
+    onPrimaryContainer = Color(0xFFB3E8EF),
+    secondary = Color(0xFF8FB8E8),
+    onSecondary = Color(0xFF0A2A52),
+    secondaryContainer = Color(0xFF1E5AA8),
+    onSecondaryContainer = Color(0xFFD6E3F7),
+    tertiary = Color(0xFFFFB4A2),
+    onTertiary = Color(0xFF5F1500),
+    tertiaryContainer = Color(0xFF8C3A28),
+    onTertiaryContainer = Color(0xFFFFDAD2),
     error = Red400,
     onError = Color(0xFF601410),
-    surface = WhatsAppDarkSurface,
-    onSurface = WhatsAppTextPrimary,
-    surfaceVariant = WhatsAppDarkElevated,
-    onSurfaceVariant = WhatsAppTextSecondary,
-    outline = WhatsAppDividerDark,
+    surface = CiniDarkSurface,
+    onSurface = CiniTextPrimaryDark,
+    surfaceVariant = CiniDarkElevated,
+    onSurfaceVariant = CiniTextSecondaryDark,
+    outline = CiniDividerDark,
     outlineVariant = Color(0xFF49454F),
-    background = WhatsAppDarkBg,
-    onBackground = WhatsAppTextPrimary
+    background = CiniDarkBg,
+    onBackground = CiniTextPrimaryDark
 )
 
 // OLED Black theme — true black backgrounds for AMOLED displays
 val MuhabbetOledBlackColorScheme = darkColorScheme(
-    primary = WhatsAppAccent,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF003D36),
-    onPrimaryContainer = Color(0xFFB2DFDB),
-    secondary = WhatsAppAccent,
-    onSecondary = Color(0xFF003A08),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Color(0xFFC8E6C9),
-    tertiary = Color(0xFFFFB300),
-    onTertiary = Color(0xFF3F2E00),
-    tertiaryContainer = Color(0xFF5B4300),
-    onTertiaryContainer = Color(0xFFFFECB3),
+    primary = CiniFiruzeBright,
+    onPrimary = Color(0xFF00363E),
+    primaryContainer = Color(0xFF06424B),
+    onPrimaryContainer = Color(0xFFB3E8EF),
+    secondary = Color(0xFF8FB8E8),
+    onSecondary = Color(0xFF0A2A52),
+    secondaryContainer = Color(0xFF1E5AA8),
+    onSecondaryContainer = Color(0xFFD6E3F7),
+    tertiary = Color(0xFFFFB4A2),
+    onTertiary = Color(0xFF5F1500),
+    tertiaryContainer = Color(0xFF8C3A28),
+    onTertiaryContainer = Color(0xFFFFDAD2),
     error = Red400,
     onError = Color(0xFF601410),
-    surface = Color(0xFF0A1014),
-    onSurface = WhatsAppTextPrimary,
-    surfaceVariant = Color(0xFF1A2228),
-    onSurfaceVariant = WhatsAppTextSecondary,
-    outline = Color(0xFF1A2228),
+    surface = Color(0xFF08191C),
+    onSurface = CiniTextPrimaryDark,
+    surfaceVariant = Color(0xFF15252A),
+    onSurfaceVariant = CiniTextSecondaryDark,
+    outline = Color(0xFF15252A),
     outlineVariant = Color(0xFF49454F),
     background = Color.Black,
-    onBackground = WhatsAppTextPrimary
+    onBackground = CiniTextPrimaryDark
 )
 
 @Composable

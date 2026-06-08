@@ -32,6 +32,19 @@
 
 ## Entries
 
+### 2026-06-08 (run 5) — Design impl D1: own brand identity (İznik çini palette)
+- **Trigger:** owner chose "Türk turkuazı / çini" for D1 (highest-leverage gap from run-4 vision:
+  we shipped WhatsApp's exact palette).
+- **Did:** replaced the WhatsApp-cloned palette in `MuhabbetTheme.kt` with an İznik-çini identity —
+  firuze (turquoise) primary `#0E94A8`/`#26B3C7`, kobalt (cobalt) read-ticks/links, mercan (coral)
+  warm accent; warm-ivory light wallpaper, pale-firuze own-bubble, teal-shifted dark surfaces. All
+  `WhatsApp*` constants renamed `Cini*`; updated 3 semantic-color sets + 3 M3 schemes (light/dark/
+  OLED). No call sites touched (pure token swap). Spec: `docs/design/D1-brand-color-identity.md`.
+- **Verification:** `:mobile:composeApp:compileCommonMainKotlinMetadata` green; grep confirms no
+  leftover WhatsApp color refs / hardcoded old greens in mobile.
+- **Boundaries:** UI tokens only; no crypto, no deploy.
+- **Commit:** branch `claude/relaxed-goldberg-P1IKj`.
+
 ### 2026-06-08 (run 4) — Task 1/2 (Research + vision): Product Design & Innovation Vision
 - **Trigger:** owner directive — design & innovation must *differentiate*, not just reach parity;
   picked all 3 pillars + "research first" (`docs/loop-job.md` §2a).
