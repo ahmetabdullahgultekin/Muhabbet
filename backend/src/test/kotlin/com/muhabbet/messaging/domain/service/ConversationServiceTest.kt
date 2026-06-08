@@ -8,6 +8,7 @@ import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MentionRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
@@ -33,6 +34,7 @@ class ConversationServiceTest {
     private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
+    private lateinit var mentionRepository: MentionRepository
     private lateinit var conversationService: ConversationService
     private lateinit var messageService: MessageService
 
@@ -46,6 +48,7 @@ class ConversationServiceTest {
         messageRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
+        mentionRepository = mockk(relaxed = true)
 
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
@@ -56,7 +59,8 @@ class ConversationServiceTest {
         messageService = MessageService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            messageBroadcaster = messageBroadcaster
+            messageBroadcaster = messageBroadcaster,
+            mentionRepository = mentionRepository
         )
     }
 

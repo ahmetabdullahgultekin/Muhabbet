@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.shared.model.ContentType as SharedContentType
+import com.muhabbet.shared.model.MentionRef
 import com.muhabbet.shared.model.Message as SharedMessage
 import com.muhabbet.shared.model.MessageStatus
 import kotlinx.datetime.Instant as KInstant
@@ -25,5 +26,8 @@ fun Message.toSharedMessage(resolvedStatus: MessageStatus = MessageStatus.SENT):
     clientTimestamp = KInstant.fromEpochMilliseconds(clientTimestamp.toEpochMilli()),
     editedAt = editedAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },
     isDeleted = isDeleted,
-    forwardedFrom = forwardedFrom?.toString()
+    forwardedFrom = forwardedFrom?.toString(),
+    // @mentions (Tier 2) — empty/false unless muhabbet.mentions.enabled and the message has mentions.
+    mentions = mentions.map { MentionRef(userId = it.mentionedUserId.toString(), start = it.startOffset, length = it.length) },
+    mentionsEveryone = mentionsEveryone
 )

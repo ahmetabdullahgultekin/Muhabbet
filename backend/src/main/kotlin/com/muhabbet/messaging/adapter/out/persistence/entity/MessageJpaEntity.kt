@@ -75,7 +75,11 @@ class MessageJpaEntity(
     var scheduledAt: Instant? = null,
 
     @Column(name = "is_scheduled", nullable = false)
-    var isScheduled: Boolean = false
+    var isScheduled: Boolean = false,
+
+    // @mentions (Tier 2 — V19, default false). Individual mention rows live in message_mentions.
+    @Column(name = "mentions_everyone", nullable = false)
+    var mentionsEveryone: Boolean = false
 ) {
     fun toDomain(): Message = Message(
         id = id, conversationId = conversationId, senderId = senderId,
@@ -85,7 +89,8 @@ class MessageJpaEntity(
         isDeleted = isDeleted, deletedAt = deletedAt, editedAt = editedAt,
         expiresAt = expiresAt, forwardedFrom = forwardedFrom,
         viewOnce = viewOnce, viewedAt = viewedAt, viewedBy = viewedBy,
-        scheduledAt = scheduledAt, isScheduled = isScheduled
+        scheduledAt = scheduledAt, isScheduled = isScheduled,
+        mentionsEveryone = mentionsEveryone
     )
 
     companion object {
@@ -97,7 +102,8 @@ class MessageJpaEntity(
             isDeleted = m.isDeleted, deletedAt = m.deletedAt, editedAt = m.editedAt,
             expiresAt = m.expiresAt, forwardedFrom = m.forwardedFrom,
             viewOnce = m.viewOnce, viewedAt = m.viewedAt, viewedBy = m.viewedBy,
-            scheduledAt = m.scheduledAt, isScheduled = m.isScheduled
+            scheduledAt = m.scheduledAt, isScheduled = m.isScheduled,
+            mentionsEveryone = m.mentionsEveryone
         )
     }
 }

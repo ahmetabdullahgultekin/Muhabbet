@@ -137,11 +137,15 @@ class AppConfig {
     fun messageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        messageBroadcaster: MessageBroadcaster
+        messageBroadcaster: MessageBroadcaster,
+        mentionRepository: com.muhabbet.messaging.domain.port.out.MentionRepository,
+        mentionProperties: MentionProperties
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        messageBroadcaster = messageBroadcaster
+        messageBroadcaster = messageBroadcaster,
+        mentionRepository = mentionRepository,
+        mentionsEnabled = mentionProperties.enabled
     )
 
     @Bean

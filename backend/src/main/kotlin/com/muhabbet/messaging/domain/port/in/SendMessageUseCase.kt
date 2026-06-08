@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.port.`in`
 
 import com.muhabbet.messaging.domain.model.ContentType
+import com.muhabbet.messaging.domain.model.Mention
 import com.muhabbet.messaging.domain.model.Message
 import java.time.Instant
 import java.util.UUID
@@ -21,5 +22,8 @@ data class SendMessageCommand(
     val clientTimestamp: Instant,
     val forwardedFrom: UUID? = null,
     val viewOnce: Boolean = false,
-    val scheduledAt: Instant? = null
+    val scheduledAt: Instant? = null,
+    // @mentions (Tier 2 — gated on muhabbet.mentions.enabled; ignored when the flag is OFF)
+    val mentions: List<Mention> = emptyList(),
+    val mentionsEveryone: Boolean = false
 )

@@ -163,7 +163,19 @@ class ChatWebSocketHandler(
                     clientTimestamp = Instant.now(),
                     forwardedFrom = msg.forwardedFrom?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
                     viewOnce = msg.viewOnce,
-                    scheduledAt = msg.scheduledAt?.let { Instant.ofEpochMilli(it) }
+                    scheduledAt = msg.scheduledAt?.let { Instant.ofEpochMilli(it) },
+                    mentions = msg.mentions.mapNotNull { ref ->
+                        try {
+                            com.muhabbet.messaging.domain.model.Mention(
+                                mentionedUserId = UUID.fromString(ref.userId),
+                                startOffset = ref.start,
+                                length = ref.length
+                            )
+                        } catch (_: Exception) {
+                            null
+                        }
+                    },
+                    mentionsEveryone = msg.mentionsEveryone
                 )
             )
 

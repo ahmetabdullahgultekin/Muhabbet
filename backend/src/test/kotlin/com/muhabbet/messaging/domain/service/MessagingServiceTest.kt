@@ -8,10 +8,12 @@ import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.model.Mention
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MentionRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
@@ -36,6 +38,7 @@ class MessagingServiceTest {
     private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
+    private lateinit var mentionRepository: MentionRepository
     private lateinit var conversationService: ConversationService
     private lateinit var messageService: MessageService
 
@@ -49,6 +52,7 @@ class MessagingServiceTest {
         messageRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
+        mentionRepository = mockk(relaxed = true)
 
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
@@ -56,12 +60,24 @@ class MessagingServiceTest {
             userRepository = userRepository
         )
 
+        // Default service has the @mentions flag OFF — exercises behaviour-neutral path.
         messageService = MessageService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            messageBroadcaster = messageBroadcaster
+            messageBroadcaster = messageBroadcaster,
+            mentionRepository = mentionRepository,
+            mentionsEnabled = false
         )
     }
+
+    /** Builds a MessageService with the @mentions flag ON (S2 persist + validate path). */
+    private fun mentionsEnabledService(): MessageService = MessageService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        messageBroadcaster = messageBroadcaster,
+        mentionRepository = mentionRepository,
+        mentionsEnabled = true
+    )
 
     private fun stubUserExists(vararg ids: UUID) {
         val users = ids.map { id -> User(id = id, phoneNumber = "+905321234567", status = UserStatus.ACTIVE) }
@@ -302,6 +318,171 @@ class MessagingServiceTest {
 
         verify(exactly = 2) { messageRepository.saveDeliveryStatus(any()) }
         verify { messageBroadcaster.broadcastMessage(any(), listOf(userB, userC)) }
+    }
+
+    // ─── @mentions (Tier 2, S2) ──────────────────────────
+
+    @Test
+    fun `should persist mention rows when flag is ON and mentioned user is a member`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val sender = ConversationMember(conversationId = convId, userId = userA)
+        val members = listOf(
+            sender,
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+
+        every { conversationRepository.findMember(convId, userA) } returns sender
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns members
+        val savedMentions = slot<List<Mention>>()
+        every { mentionRepository.saveAll(eq(messageId), capture(savedMentions)) } returns Unit
+
+        val result = mentionsEnabledService().sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "hey @b look",
+                clientTimestamp = Instant.now(),
+                mentions = listOf(Mention(mentionedUserId = userB, startOffset = 4, length = 2))
+            )
+        )
+
+        verify(exactly = 1) { mentionRepository.saveAll(eq(messageId), any()) }
+        assertEquals(1, savedMentions.captured.size)
+        assertEquals(userB, savedMentions.captured.first().mentionedUserId)
+        // Persisted mention is also reflected on the returned domain message.
+        assertEquals(1, result.mentions.size)
+        assertFalse(result.mentionsEveryone)
+    }
+
+    @Test
+    fun `should drop mentions of non-members when flag is ON`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val sender = ConversationMember(conversationId = convId, userId = userA)
+        val members = listOf(
+            sender,
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+
+        every { conversationRepository.findMember(convId, userA) } returns sender
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns members
+        val savedMentions = slot<List<Mention>>()
+        every { mentionRepository.saveAll(eq(messageId), capture(savedMentions)) } returns Unit
+
+        mentionsEnabledService().sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "hey @b and @c",
+                clientTimestamp = Instant.now(),
+                // userB is a member, userC is NOT → userC must be dropped.
+                mentions = listOf(
+                    Mention(mentionedUserId = userB, startOffset = 4, length = 2),
+                    Mention(mentionedUserId = userC, startOffset = 11, length = 2)
+                )
+            )
+        )
+
+        assertEquals(1, savedMentions.captured.size)
+        assertEquals(userB, savedMentions.captured.first().mentionedUserId)
+    }
+
+    @Test
+    fun `should throw MSG_MENTION_EVERYONE_FORBIDDEN when non-admin uses everyone`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        // Sender is a plain MEMBER → not allowed to @everyone.
+        val sender = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.MEMBER)
+        val members = listOf(sender, ConversationMember(conversationId = convId, userId = userB))
+
+        every { conversationRepository.findMember(convId, userA) } returns sender
+        every { messageRepository.existsById(messageId) } returns false
+        every { conversationRepository.findMembersByConversationId(convId) } returns members
+
+        val ex = assertThrows<BusinessException> {
+            mentionsEnabledService().sendMessage(
+                SendMessageCommand(
+                    messageId = messageId,
+                    conversationId = convId,
+                    senderId = userA,
+                    content = "@everyone meeting now",
+                    clientTimestamp = Instant.now(),
+                    mentionsEveryone = true
+                )
+            )
+        }
+
+        assertEquals(ErrorCode.MSG_MENTION_EVERYONE_FORBIDDEN, ex.errorCode)
+        // No message should be saved when the @everyone gate rejects the send.
+        verify(exactly = 0) { messageRepository.save(any()) }
+        verify(exactly = 0) { mentionRepository.saveAll(any(), any()) }
+    }
+
+    @Test
+    fun `should allow everyone when sender is admin`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val sender = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.ADMIN)
+        val members = listOf(sender, ConversationMember(conversationId = convId, userId = userB))
+
+        every { conversationRepository.findMember(convId, userA) } returns sender
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns members
+
+        val result = mentionsEnabledService().sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "@everyone meeting now",
+                clientTimestamp = Instant.now(),
+                mentionsEveryone = true
+            )
+        )
+
+        assertTrue(result.mentionsEveryone)
+        verify { messageRepository.save(any()) }
+    }
+
+    @Test
+    fun `should ignore mentions entirely when flag is OFF`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        // Sender is a plain MEMBER and uses @everyone — would be forbidden if the flag were ON,
+        // but with the flag OFF mentions must be ignored (no throw, nothing persisted).
+        val sender = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.MEMBER)
+        val members = listOf(sender, ConversationMember(conversationId = convId, userId = userB))
+
+        every { conversationRepository.findMember(convId, userA) } returns sender
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns members
+
+        // Uses the default (flag-OFF) service.
+        val result = messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "@everyone @c hello",
+                clientTimestamp = Instant.now(),
+                mentions = listOf(Mention(mentionedUserId = userC, startOffset = 10, length = 2)),
+                mentionsEveryone = true
+            )
+        )
+
+        assertTrue(result.mentions.isEmpty())
+        assertFalse(result.mentionsEveryone)
+        // saveAll is still called, but always with an empty list when the flag is OFF.
+        verify { mentionRepository.saveAll(messageId, emptyList()) }
     }
 
     // ─── getMessages ─────────────────────────────────────

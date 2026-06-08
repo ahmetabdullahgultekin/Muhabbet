@@ -2,6 +2,8 @@ package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.model.Mention
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
@@ -11,6 +13,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MentionRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
@@ -25,7 +28,11 @@ import java.util.UUID
 open class MessageService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val messageBroadcaster: MessageBroadcaster
+    private val messageBroadcaster: MessageBroadcaster,
+    private val mentionRepository: MentionRepository,
+    // @mentions feature flag (muhabbet.mentions.enabled) — when false, mentions are ignored entirely
+    // and the send/history path is byte-identical to pre-mentions behaviour.
+    private val mentionsEnabled: Boolean = false
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -50,7 +57,7 @@ open class MessageService(
 
         // Check announcement mode — only admins/owners can send
         val conv = conversationRepository.findById(command.conversationId)
-        if (conv != null && conv.announcementOnly && member.role == com.muhabbet.messaging.domain.model.MemberRole.MEMBER) {
+        if (conv != null && conv.announcementOnly && member.role == MemberRole.MEMBER) {
             throw BusinessException(ErrorCode.MSG_ANNOUNCEMENT_ONLY)
         }
 
@@ -58,6 +65,12 @@ open class MessageService(
         if (messageRepository.existsById(command.messageId)) {
             throw BusinessException(ErrorCode.MSG_DUPLICATE)
         }
+
+        // Resolve @mentions (Tier 2 — only when the flag is ON; otherwise stays empty/false).
+        // @everyone requires the sender to be ADMIN/OWNER; individual mentions of non-members
+        // are dropped (validated against current membership). See docs/design/T2-group-mentions.md.
+        val members = conversationRepository.findMembersByConversationId(command.conversationId)
+        val (validMentions, everyone) = resolveMentions(command, member, members)
 
         // Calculate expiresAt for disappearing messages
         val conversation = conversationRepository.findById(command.conversationId)
@@ -84,9 +97,15 @@ open class MessageService(
                 forwardedFrom = command.forwardedFrom,
                 viewOnce = command.viewOnce,
                 scheduledAt = command.scheduledAt,
-                isScheduled = isScheduled
+                isScheduled = isScheduled,
+                mentions = validMentions,
+                mentionsEveryone = everyone
             )
         )
+
+        // Persist mention rows (only ever non-empty when the flag is ON and the sender mentioned
+        // current members). @everyone is carried on the message row itself, not as N mention rows.
+        mentionRepository.saveAll(message.id, validMentions)
 
         // Scheduled messages are not delivered immediately
         if (isScheduled) {
@@ -95,7 +114,6 @@ open class MessageService(
         }
 
         // Create delivery status for all recipients
-        val members = conversationRepository.findMembersByConversationId(command.conversationId)
         val recipientIds = members.map { it.userId }.filter { it != command.senderId }
 
         recipientIds.forEach { recipientId ->
@@ -113,6 +131,34 @@ open class MessageService(
 
         log.info("Message sent: id={}, conv={}, sender={}", message.id, command.conversationId, command.senderId)
         return message
+    }
+
+    /**
+     * Validates inbound @mentions against current membership (Tier 2). Returns the mention rows to
+     * persist plus the resolved `@everyone` flag.
+     *
+     * - Flag OFF → always `(emptyList, false)` so the path is behaviour-neutral.
+     * - `@everyone` requires the sender to be ADMIN/OWNER, else `MSG_MENTION_EVERYONE_FORBIDDEN`.
+     * - Individual mentions of users who are NOT members are silently dropped (not fatal) — avoids
+     *   notification-spam / membership leakage. Duplicates per user are de-duplicated.
+     */
+    private fun resolveMentions(
+        command: SendMessageCommand,
+        sender: com.muhabbet.messaging.domain.model.ConversationMember,
+        members: List<com.muhabbet.messaging.domain.model.ConversationMember>
+    ): Pair<List<Mention>, Boolean> {
+        if (!mentionsEnabled) return emptyList<Mention>() to false
+
+        if (command.mentionsEveryone && sender.role == MemberRole.MEMBER) {
+            throw BusinessException(ErrorCode.MSG_MENTION_EVERYONE_FORBIDDEN)
+        }
+
+        val memberIds = members.mapTo(HashSet()) { it.userId }
+        val valid = command.mentions
+            .filter { it.mentionedUserId in memberIds }
+            .distinctBy { it.mentionedUserId }
+
+        return valid to command.mentionsEveryone
     }
 
     @Transactional(readOnly = true)
@@ -142,7 +188,20 @@ open class MessageService(
         val page = if (hasMore) messages.take(effectiveLimit) else messages
         val nextCursor = if (hasMore) page.lastOrNull()?.serverTimestamp?.toString() else null
 
-        return MessagePage(items = page, nextCursor = nextCursor, hasMore = hasMore)
+        return MessagePage(items = hydrateMentions(page), nextCursor = nextCursor, hasMore = hasMore)
+    }
+
+    /**
+     * Attaches persisted @mention rows to the given messages (batch read). No-op when the flag is
+     * OFF so the read path is behaviour-neutral. `mentionsEveryone` already rides on the message row.
+     */
+    private fun hydrateMentions(messages: List<Message>): List<Message> {
+        if (!mentionsEnabled || messages.isEmpty()) return messages
+        val byMessageId = mentionRepository.findByMessageIds(messages.map { it.id })
+        if (byMessageId.isEmpty()) return messages
+        return messages.map { msg ->
+            byMessageId[msg.id]?.let { msg.copy(mentions = it) } ?: msg
+        }
     }
 
     @Transactional
