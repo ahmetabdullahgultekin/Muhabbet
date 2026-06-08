@@ -32,6 +32,18 @@
 
 ## Entries
 
+### 2026-06-08 (run 6) — Design impl D2: motion language foundation + press feedback
+- **Trigger:** owner "durmak yok, profesyonel ve önerilen şekilde ilerle" → continued with the
+  recommended D2 (motion).
+- **Did:** new `MuhabbetMotion.kt` — canonical motion tokens (3 durations, 3 easing curves, 3 spring
+  specs) + reusable `Modifier.pressBounce` (scroll-safe tactile press) and `Modifier.bubbleEntrance`
+  (signature lift+settle, opt-in for new messages). Wired `pressBounce` into the chat `MessageBubble`
+  (shared `MutableInteractionSource` with `combinedClickable`). Spec: `docs/design/D2-motion-spec.md`.
+- **Verification:** `:mobile:composeApp:compileCommonMainKotlinMetadata` green. Device-visual
+  verification pending a real APK (full Android app doesn't assemble on this host).
+- **Boundaries:** UI motion only; no crypto, no deploy.
+- **Commit:** branch `claude/relaxed-goldberg-P1IKj`.
+
 ### 2026-06-08 (run 5) — Design impl D1: own brand identity (İznik çini palette)
 - **Trigger:** owner chose "Türk turkuazı / çini" for D1 (highest-leverage gap from run-4 vision:
   we shipped WhatsApp's exact palette).

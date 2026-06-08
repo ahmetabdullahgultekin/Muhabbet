@@ -1,8 +1,10 @@
 package com.muhabbet.app.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +58,7 @@ import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.pressBounce
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -108,6 +112,7 @@ fun MessageBubble(
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
         Box {
+            val bubbleInteraction = remember { MutableInteractionSource() }
             Surface(
                 shape = RoundedCornerShape(MuhabbetSizes.BubbleCornerRadius),
                 color = bubbleColor,
@@ -115,7 +120,10 @@ fun MessageBubble(
                 shadowElevation = MuhabbetElevation.Level1,
                 modifier = Modifier
                     .widthIn(min = MuhabbetSizes.BubbleMinWidth, max = 320.dp)
+                    .pressBounce(bubbleInteraction)
                     .combinedClickable(
+                        interactionSource = bubbleInteraction,
+                        indication = LocalIndication.current,
                         onClick = {},
                         onLongClick = onLongPress,
                         onDoubleClick = onDoubleTap
