@@ -234,6 +234,28 @@
     stored but uncounted in `documentBytes`/`totalBytes`.
   - **DONE =** documents counted as "not image/* and not audio/*" (or aligned with a doc allowlist).
 
+- [ ] **Migrate `kotlinx.datetime.Instant` → `kotlin.time.Instant`** (2026-06-08 shared KMP V&V, Finding C)
+  - `shared/.../model/Models.kt` (typealias usages on `Message`/`Conversation`/`UserProfile`),
+    plus every backend + mobile consumer of the shared `Instant` type and the `kotlinx-datetime` dep
+    in `shared/build.gradle.kts` / `mobile/composeApp/.../util/DateTimeFormatter.kt`.
+  - **Why**: Kotlin 2.3.20 deprecates `kotlinx.datetime.Instant` in favour of stdlib
+    `kotlin.time.Instant` (compile emits `'typealias Instant = Instant' is deprecated`). Latent —
+    compiles & serializes fine today — but it is a cross-module wire-type touching both backend and
+    mobile serialization, so it must be migrated atomically with round-trip tests, not drive-by.
+  - **DONE =** shared models use `kotlin.time.Instant`, backend + mobile compile, the
+    `WsMessage`/DTO JSON wire format is byte-identical (Instant still ISO-8601), deprecation warning
+    gone.
+
+- [ ] **Remove or wire the unused `ALLOWED_VIDEO_TYPES` / `MAX_VIDEO_SIZE_BYTES` rules** (2026-06-08 shared KMP V&V, Finding D)
+  - `shared/.../validation/ValidationRules.kt`
+  - **Why**: both constants are defined but have **zero** consumers (grep finds only the definition).
+    There is no `uploadVideo` path — videos go through the document upload path, which validates
+    against `MAX_DOCUMENT_SIZE_BYTES` and no type allowlist. So `ALLOWED_VIDEO_TYPES` is dead and the
+    100 MB `MAX_VIDEO_SIZE_BYTES` ≡ `MAX_DOCUMENT_SIZE_BYTES` is redundant (YAGNI). Either delete them
+    or, if a dedicated video-upload path is wanted, wire them in `MediaService` like the image/voice
+    allowlists. Left documented (not deleted) because a video path is plausibly near-term roadmap.
+  - **DONE =** the constants are either consumed by a video-upload validation path or removed.
+
 - [ ] **Wire `InputSanitizer` into the write paths (it has zero production call sites)** (2026-06-08 security V&V, Finding B)
   - `backend/.../shared/security/InputSanitizer.kt` (defined + 15 tests, but `grep -rln InputSanitizer
     backend/src/main` returns only the class itself), `MessageService.sendMessage`/`editMessage`

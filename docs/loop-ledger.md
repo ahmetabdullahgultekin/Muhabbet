@@ -24,14 +24,38 @@
 | backend `presence` (adapter) | ✅ | 2026-06-08 | `docs/reviews/2026-06-08-presence-notification-vv.md` (fixed C/D/E; A KVKK-visibility + B FCM-cleanup → TODO P2) |
 | backend `notification` (adapter) | ✅ | 2026-06-08 | same doc — push-body DRY (D) + `registerPushToken` status/string (C) fixed; FCM stale-token cleanup (B) → TODO P2 |
 | mobile (CMP) | UI-audit only | 2026-06-07 | `docs/qa/mobile-ui-audit.md` (87 issues); no logic V&V |
-| shared (KMP) | ❌ | — | model/dto/protocol/validation; never reviewed |
+| shared (KMP) | ✅ | 2026-06-08 | `docs/reviews/2026-06-08-shared-kmp-vv.md` (fixed `!!` A + test gaps B; Instant-deprecation C + dead video rules D → TODO P2). Clean wire contract. |
 
-**Next V&V pick (least reviewed):** `shared` module (KMP), or a holistic `auth` / `moderation` /
-`messaging` module review (currently only "partial").
+**Next V&V pick (least reviewed):** a holistic `auth` / `moderation` / `messaging` module review
+(currently only "partial" — IDOR/JWT fixes landed but no full module review). All dedicated areas
+now reviewed at least once.
 
 ---
 
 ## Entries
+
+### 2026-06-08 (run 9) — Task 3 (V&V): `shared` KMP module review (LAST never-reviewed area)
+- **Picked because:** per the coverage table, `shared` (KMP) was the single remaining
+  never-reviewed area — and the highest-leverage one, being the wire contract both backend and
+  mobile deserialize.
+- **Did:** full static review of all 9 `commonMain` files (model/dto/protocol/validation/port);
+  wrote `docs/reviews/2026-06-08-shared-kmp-vv.md` (4 findings). Cross-checked every `@SerialName`
+  discriminator against `CLAUDE.md`, traced `ValidationRules` consumers across backend+mobile,
+  verified old-client serialization compat, enum sync, and the crypto-blocked seams' fail-modes.
+- **Fixed:** Finding A — the lone `!!` in `shared/commonMain` (`NoOpKeyManager.generateIdentityKeyPair`
+  `return identityKey!!` → local-val) violating the `CLAUDE.md` no-`!!` rule. Finding B — added 3
+  test files (~23 tests): `WsDiscriminatorContractTest` (pins **every** WS type string),
+  `EncryptionPortTest` + jvmTest `EncryptionPortSuspendTest` (NoOp passthrough), `ValidationRulesTest`
+  (limit boundaries). Shared `jvmTest` 53 → **76**, 0 failures.
+- **Documented → TODO P2:** Finding C (`kotlinx.datetime.Instant` deprecated in Kotlin 2.3.20 →
+  `kotlin.time.Instant`; cross-module wire type, migrate atomically), Finding D (`ALLOWED_VIDEO_TYPES`
+  + `MAX_VIDEO_SIZE_BYTES` have zero consumers — no video-upload path; YAGNI dead code).
+- **Result:** wire contract is **clean** — no serialization regressions, no old-client-breaking
+  fields, nullability/enum-sync correct, blocked crypto seams throw/passthrough as desired.
+- **Verification:** `:shared:jvmTest` 76/0; `:mobile:composeApp:compileCommonMainKotlinMetadata` green.
+- **Boundaries:** no crypto implemented, no WS contract break (no edits to discriminators/types),
+  no deploy, no push.
+- **Commit:** branch `loop3/vv-shared`.
 
 ### 2026-06-08 (run 8) — PARALLEL batch 2 (4 agents, worktree-isolated, based on 40c403a)
 - **Trigger:** owner "yol haritasını sen belirliyorsun, sonraki batch'i de ayarla" → I set the

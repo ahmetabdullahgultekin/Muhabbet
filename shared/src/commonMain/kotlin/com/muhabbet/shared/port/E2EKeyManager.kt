@@ -70,8 +70,9 @@ class NoOpKeyManager : E2EKeyManager {
     private val sessions = mutableSetOf<String>()
 
     override fun generateIdentityKeyPair(): String {
-        identityKey = "noop-identity-key-${kotlin.random.Random.nextLong()}"
-        return identityKey!!
+        val key = "noop-identity-key-${kotlin.random.Random.nextLong()}"
+        identityKey = key
+        return key
     }
 
     override fun getIdentityPublicKey(): String? = identityKey
