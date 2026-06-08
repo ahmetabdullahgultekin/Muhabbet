@@ -554,6 +554,8 @@ class MessagingServiceTest {
         )
 
         every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(convId, userB) } returns
+            ConversationMember(conversationId = convId, userId = userB)
 
         messageService.updateStatus(messageId, userB, DeliveryStatus.DELIVERED)
 
@@ -563,6 +565,26 @@ class MessagingServiceTest {
                 messageId, convId, userB, userA, DeliveryStatus.DELIVERED
             )
         }
+    }
+
+    @Test
+    fun `updateStatus should not write or broadcast when user is not a conversation member`() {
+        // Read-receipt spoof guard: a non-member who knows a messageId must not be able to forge a
+        // DELIVERED/READ StatusUpdate to the real sender.
+        val messageId = UUID.randomUUID()
+        val convId = UUID.randomUUID()
+        val message = Message(
+            id = messageId, conversationId = convId, senderId = userA,
+            content = "test", clientTimestamp = Instant.now()
+        )
+
+        every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(convId, userC) } returns null
+
+        messageService.updateStatus(messageId, userC, DeliveryStatus.READ)
+
+        verify(exactly = 0) { messageRepository.updateDeliveryStatus(any(), any(), any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) }
     }
 
     // ─── getConversations ────────────────────────────────

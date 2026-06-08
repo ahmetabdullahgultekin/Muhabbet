@@ -234,6 +234,34 @@
     stored but uncounted in `documentBytes`/`totalBytes`.
   - **DONE =** documents counted as "not image/* and not audio/*" (or aligned with a doc allowlist).
 
+- [ ] **Wire `InputSanitizer` into the write paths (it has zero production call sites)** (2026-06-08 security V&V, Finding B)
+  - `backend/.../shared/security/InputSanitizer.kt` (defined + 15 tests, but `grep -rln InputSanitizer
+    backend/src/main` returns only the class itself), `MessageService.sendMessage`/`editMessage`
+    (message content), profile/group display-name update paths (`sanitizeDisplayName`).
+  - **Why**: `docs/qa/02-security.md` lists InputSanitizer (HTML-escape / control-char strip) as a
+    **Deployed** XSS/injection control, but it is never invoked — stored content reaches the DB and
+    clients un-sanitised. Today the mobile/CMP client renders text (not HTML) so this is latent, but a
+    future web client or any HTML-context render would inherit a stored-XSS gap. Stripping control
+    chars (homoglyph/RTL-override/invisible-char injection) is also currently a no-op.
+  - **Caution**: HTML-escaping at write time is **lossy/double-encoding-prone** if a client also
+    escapes on render — prefer control-char stripping + length caps at the service layer now and push
+    HTML-escaping to the (future) HTML render boundary, OR escape once on write and never on render.
+    Decide the contract before wiring. This is a behavioural change to stored content → not a drive-by
+    fix; do it deliberately with round-trip tests.
+  - **DONE =** message content + display/group names pass through `InputSanitizer` (control-char strip
+    + length cap at minimum) on the write path, with tests; `docs/qa/02-security.md` updated to match
+    reality (status corrected if still not wired).
+
+- [ ] **WS `handleAckMessage`: validate `conversationId` belongs to the acked message** (2026-06-08 security V&V, Finding A note)
+  - `backend/.../messaging/adapter/in/websocket/ChatWebSocketHandler.handleAckMessage`
+  - **Why**: `markConversationRead(msg.conversationId, userId)` trusts a client-supplied
+    `conversationId` independently of `msg.messageId`. The DB write is self-scoped (keyed by `userId`),
+    so the blast radius is only the caller's own unread rows in a conversation they belong to — low
+    risk — but the two client fields are not cross-checked. `updateStatus` is now membership-guarded
+    (fixed this pass); this is the residual hardening.
+  - **DONE =** the ack path verifies the message's `conversationId` matches the client-supplied one (or
+    derives the conversationId from the message server-side and ignores the client field).
+
 - [ ] **Close the 6 client-side UI `TODO` stubs** (dead buttons that do nothing) **[Tier 1.5]**
   - `HomeShellScreen.kt` L98 (search), `MessageBubble.kt` L91 (view-once mark),
     `WallpaperPickerScreen.kt` L191 (gallery picker), `InviteLinkSheet.kt` L149 (platform share),

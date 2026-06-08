@@ -264,6 +264,8 @@ class DeliveryStatusTest {
 
         every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } just Runs
         every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(conversationId, recipientId) } returns
+            ConversationMember(conversationId = conversationId, userId = recipientId)
 
         service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
 
@@ -271,6 +273,23 @@ class DeliveryStatusTest {
         verify(exactly = 1) {
             messageBroadcaster.broadcastStatusUpdate(messageId, conversationId, recipientId, senderId, DeliveryStatus.READ)
         }
+    }
+
+    @Test
+    fun `updateStatus ignores a non-member (read-receipt spoof guard)`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val outsiderId = UUID.randomUUID()
+        val conversationId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
+
+        every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(conversationId, outsiderId) } returns null
+
+        service.updateStatus(messageId, outsiderId, DeliveryStatus.READ)
+
+        verify(exactly = 0) { messageRepository.updateDeliveryStatus(any(), any(), any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) }
     }
 
     @Test

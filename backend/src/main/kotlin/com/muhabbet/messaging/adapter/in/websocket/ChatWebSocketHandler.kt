@@ -189,12 +189,17 @@ class ChatWebSocketHandler(
             session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(ack)))
 
         } catch (e: Exception) {
+            // Surface the stable BusinessException error code (e.g. MSG_NOT_MEMBER) to the client, but
+            // never echo a raw exception message back over the wire — it can leak internal detail
+            // (DB/driver text, stack hints). The full cause is logged server-side only.
+            val errorCode = (e as? com.muhabbet.shared.exception.BusinessException)?.errorCode?.name
+                ?: "MSG_SEND_FAILED"
             val ack = WsMessage.ServerAck(
                 requestId = msg.requestId,
                 messageId = msg.messageId,
                 status = AckStatus.ERROR,
-                errorCode = "MSG_SEND_FAILED",
-                errorMessage = e.message
+                errorCode = errorCode,
+                errorMessage = null
             )
             session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(ack)))
             log.warn("Failed to send message: {}", e.message)
@@ -220,6 +225,15 @@ class ChatWebSocketHandler(
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
         val conversationId = UUID.fromString(msg.conversationId)
         val members = conversationRepository.findMembersByConversationId(conversationId)
+
+        // Authorize: only a member may broadcast a typing indicator into a conversation. Without this
+        // guard a user who guessed/knew a conversationId could spoof "typing…" to all its members
+        // (privacy/spoof). Derived from the already-fetched member list — no extra query.
+        if (members.none { it.userId == userId }) {
+            log.debug("Ignoring typing indicator from non-member {} for conv {}", userId, conversationId)
+            return
+        }
+
         val recipientIds = members.map { it.userId }.filter { it != userId }
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE

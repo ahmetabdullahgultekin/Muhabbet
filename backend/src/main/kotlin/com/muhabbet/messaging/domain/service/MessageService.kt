@@ -206,9 +206,16 @@ open class MessageService(
 
     @Transactional
     override fun updateStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
-        messageRepository.updateDeliveryStatus(messageId, userId, status)
-
         val message = messageRepository.findById(messageId) ?: return
+
+        // Authorize: only a member of the conversation may move a delivery status (and trigger the
+        // resulting StatusUpdate broadcast to the sender). Without this a non-member who knew/guessed
+        // a messageId could spoof a DELIVERED/READ receipt to the real sender. The underlying write is
+        // already keyed by (messageId, userId) so it no-ops for non-recipients, but the broadcast was
+        // unguarded — closing the read-receipt spoof.
+        conversationRepository.findMember(message.conversationId, userId) ?: return
+
+        messageRepository.updateDeliveryStatus(messageId, userId, status)
         messageBroadcaster.broadcastStatusUpdate(messageId, message.conversationId, userId, message.senderId, status)
 
         log.debug("Delivery status updated: msg={}, user={}, status={}", messageId, userId, status)

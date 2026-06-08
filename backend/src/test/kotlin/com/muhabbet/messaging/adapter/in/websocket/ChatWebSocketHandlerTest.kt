@@ -352,6 +352,92 @@ class ChatWebSocketHandlerTest {
         }
 
         @Test
+        fun `should not broadcast typing indicator when sender is not a conversation member`() {
+            // Spoof guard: a user who is NOT a member of the conversation must not be able to push a
+            // "typing…" indicator to its members. The member list does not contain the sender.
+            val session = createSession()
+            val attrs = mutableMapOf<String, Any>("userId" to userId)
+            every { session.attributes } returns attrs
+
+            val convId = UUID.randomUUID()
+            val memberA = UUID.randomUUID()
+            val memberB = UUID.randomUUID()
+
+            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+                ConversationMember(conversationId = convId, userId = memberA),
+                ConversationMember(conversationId = convId, userId = memberB)
+            )
+
+            val typing = WsMessage.TypingIndicator(
+                conversationId = convId.toString(),
+                isTyping = true
+            )
+            val json = wsJson.encodeToString<WsMessage>(typing)
+            handler.handleMessage(session, TextMessage(json))
+
+            // No member should receive the spoofed typing indicator.
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `should not leak raw exception message in ServerAck error`() {
+            // ServerAck must carry a stable error code only — never echo the raw exception text back
+            // over the wire (it can leak internal/DB detail).
+            val session = createSession()
+            val attrs = mutableMapOf<String, Any>("userId" to userId, "deviceId" to deviceId)
+            every { session.attributes } returns attrs
+
+            val sendMessage = WsMessage.SendMessage(
+                requestId = "req-leak",
+                messageId = UUID.randomUUID().toString(),
+                conversationId = UUID.randomUUID().toString(),
+                content = "Hello!"
+            )
+
+            val secretInternalDetail = "org.postgresql.util.PSQLException: relation does not exist"
+            every { sendMessageUseCase.sendMessage(any()) } throws RuntimeException(secretInternalDetail)
+
+            val json = wsJson.encodeToString<WsMessage>(sendMessage)
+            handler.handleMessage(session, TextMessage(json))
+
+            val messageSlot = slot<TextMessage>()
+            verify { session.sendMessage(capture(messageSlot)) }
+
+            val ackJson = messageSlot.captured.payload
+            assertTrue(ackJson.contains("\"status\":\"ERROR\""))
+            assertTrue(ackJson.contains("MSG_SEND_FAILED"))
+            assertTrue(!ackJson.contains("PSQLException"), "raw exception text must not leak to client")
+        }
+
+        @Test
+        fun `should surface BusinessException error code in ServerAck`() {
+            // A domain BusinessException (e.g. MSG_NOT_MEMBER) should surface its stable code so the
+            // client can react, while still not leaking a free-form message.
+            val session = createSession()
+            val attrs = mutableMapOf<String, Any>("userId" to userId, "deviceId" to deviceId)
+            every { session.attributes } returns attrs
+
+            val sendMessage = WsMessage.SendMessage(
+                requestId = "req-biz",
+                messageId = UUID.randomUUID().toString(),
+                conversationId = UUID.randomUUID().toString(),
+                content = "Hello!"
+            )
+
+            every { sendMessageUseCase.sendMessage(any()) } throws
+                com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.MSG_NOT_MEMBER)
+
+            val json = wsJson.encodeToString<WsMessage>(sendMessage)
+            handler.handleMessage(session, TextMessage(json))
+
+            val messageSlot = slot<TextMessage>()
+            verify { session.sendMessage(capture(messageSlot)) }
+
+            val ackJson = messageSlot.captured.payload
+            assertTrue(ackJson.contains("MSG_NOT_MEMBER"))
+        }
+
+        @Test
         fun `should not send typing indicator to offline users`() {
             val session = createSession()
             val attrs = mutableMapOf<String, Any>("userId" to userId)
