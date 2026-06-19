@@ -31,12 +31,14 @@ import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
+import com.muhabbet.messaging.domain.service.PinnedMessageService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
 import com.muhabbet.messaging.domain.service.ChatWallpaperService
@@ -375,5 +377,16 @@ class AppConfig {
         chatFolderRepository: ChatFolderRepository
     ): ChatFolderService = ChatFolderService(
         chatFolderRepository = chatFolderRepository
+    )
+
+    @Bean
+    fun pinnedMessageService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        pinnedMessageRepository: PinnedMessageRepository
+    ): PinnedMessageService = PinnedMessageService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        pinnedMessageRepository = pinnedMessageRepository
     )
 }

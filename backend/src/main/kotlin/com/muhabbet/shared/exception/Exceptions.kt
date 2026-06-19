@@ -119,6 +119,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
 
     // View-Once & Announcement
     MSG_VIEW_ONCE_ALREADY_VIEWED(HttpStatus.CONFLICT, "Bu mesaj zaten görüntülendi"),
+    MSG_PIN_LIMIT_REACHED(HttpStatus.CONFLICT, "Sabitlenmiş mesaj sınırına ulaşıldı"),
     MSG_ANNOUNCEMENT_ONLY(HttpStatus.FORBIDDEN, "Bu grupta sadece yöneticiler mesaj gönderebilir"),
 
     // Broadcast Lists
