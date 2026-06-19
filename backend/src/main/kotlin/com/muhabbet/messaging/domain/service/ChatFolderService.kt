@@ -24,12 +24,13 @@ open class ChatFolderService(
     @Transactional
     override fun create(ownerId: UUID, name: String): ChatFolder {
         val validName = validatedName(name)
-        if (chatFolderRepository.countByOwnerId(ownerId) >= MAX_FOLDERS_PER_USER) {
+        val currentCount = chatFolderRepository.countByOwnerId(ownerId)
+        if (currentCount >= MAX_FOLDERS_PER_USER) {
             throw BusinessException(ErrorCode.CHAT_FOLDER_LIMIT_REACHED)
         }
-        val position = chatFolderRepository.countByOwnerId(ownerId).toInt()
+        // Position is an initial ordering hint; ties are broken by created_at in the repository query.
         val saved = chatFolderRepository.save(
-            ChatFolder(ownerId = ownerId, name = validName, position = position)
+            ChatFolder(ownerId = ownerId, name = validName, position = currentCount.toInt())
         )
         log.info("Chat folder created: id={}, owner={}", saved.id, ownerId)
         return saved

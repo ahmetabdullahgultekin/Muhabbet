@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import java.time.Instant
 
 @RestControllerAdvice
@@ -42,6 +43,27 @@ class GlobalExceptionHandler {
                     error = ApiError(
                         code = ErrorCode.VALIDATION_ERROR.name,
                         message = message
+                    ),
+                    timestamp = Instant.now().toString()
+                )
+            )
+    }
+
+    /**
+     * Malformed inputs that Spring/JVM raise before they reach the service layer:
+     * a bad UUID in a path variable (`MethodArgumentTypeMismatchException`) or in a request body
+     * (`UUID.fromString` → `IllegalArgumentException`). These are client errors → 400, not 500.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class, IllegalArgumentException::class)
+    fun handleBadRequest(ex: Exception): ResponseEntity<ApiResponse<Nothing>> {
+        log.warn("Bad request: {}", ex.message)
+        return ResponseEntity
+            .badRequest()
+            .body(
+                ApiResponse(
+                    error = ApiError(
+                        code = ErrorCode.VALIDATION_ERROR.name,
+                        message = ErrorCode.VALIDATION_ERROR.defaultMessage
                     ),
                     timestamp = Instant.now().toString()
                 )

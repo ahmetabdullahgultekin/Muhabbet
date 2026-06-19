@@ -23,7 +23,7 @@ class ChatFolderPersistenceAdapter(
         folderRepo.findById(id).orElse(null)?.toDomain()
 
     override fun findByOwnerId(ownerId: UUID): List<ChatFolder> =
-        folderRepo.findByOwnerIdOrderByPositionAsc(ownerId).map { it.toDomain() }
+        folderRepo.findByOwnerIdOrderByPositionAscCreatedAtAsc(ownerId).map { it.toDomain() }
 
     override fun countByOwnerId(ownerId: UUID): Long =
         folderRepo.countByOwnerId(ownerId)

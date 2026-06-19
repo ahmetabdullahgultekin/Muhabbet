@@ -9,7 +9,8 @@ import org.springframework.data.jpa.repository.Query
 import java.util.UUID
 
 interface SpringDataChatFolderJpaRepository : JpaRepository<ChatFolderJpaEntity, UUID> {
-    fun findByOwnerIdOrderByPositionAsc(ownerId: UUID): List<ChatFolderJpaEntity>
+    // created_at breaks position ties stably (positions can collide/gap after deletes).
+    fun findByOwnerIdOrderByPositionAscCreatedAtAsc(ownerId: UUID): List<ChatFolderJpaEntity>
     fun countByOwnerId(ownerId: UUID): Long
 }
 
