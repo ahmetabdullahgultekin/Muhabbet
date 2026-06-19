@@ -125,9 +125,9 @@ fun PhoneInputScreen(
                 error = null
                 scope.launch {
                     try {
-                        if (useFirebase) {
+                        if (useFirebase && firebasePhoneAuth != null) {
                             // Firebase Phone Auth flow
-                            when (val result = firebasePhoneAuth!!.startVerification(phoneNumber)) {
+                            when (val result = firebasePhoneAuth.startVerification(phoneNumber)) {
                                 is PhoneVerificationResult.CodeSent -> {
                                     onPhoneSubmitted(phoneNumber, null, result.verificationId)
                                 }

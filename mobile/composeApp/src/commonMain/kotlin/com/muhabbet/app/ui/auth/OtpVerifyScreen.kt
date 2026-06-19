@@ -184,10 +184,10 @@ fun OtpVerifyScreen(
                 error = null
                 scope.launch {
                     try {
-                        if (useFirebase) {
+                        if (useFirebase && firebasePhoneAuth != null && firebaseVerificationId != null) {
                             // Firebase: verify code → get ID token → exchange with backend
-                            val idToken = firebasePhoneAuth!!.verifyCode(
-                                firebaseVerificationId!!,
+                            val idToken = firebasePhoneAuth.verifyCode(
+                                firebaseVerificationId,
                                 otp
                             )
                             val result = authRepository.verifyFirebaseToken(

@@ -99,19 +99,20 @@ fun MessageInfoScreen(
             )
         }
     ) { padding ->
+        val currentError = error
+        val data = info
         when {
             isLoading -> {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
-            error != null -> {
+            currentError != null -> {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(error!!, color = MaterialTheme.colorScheme.error)
+                    Text(currentError, color = MaterialTheme.colorScheme.error)
                 }
             }
-            info != null -> {
-                val data = info!!
+            data != null -> {
                 val readRecipients = data.recipients.filter { it.status == "READ" }
                 val deliveredRecipients = data.recipients.filter { it.status == "DELIVERED" }
                 val sentRecipients = data.recipients.filter { it.status != "READ" && it.status != "DELIVERED" }
@@ -311,9 +312,9 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
-            if (recipient.updatedAt != null) {
+            recipient.updatedAt?.let { updatedAt ->
                 Text(
-                    text = formatTimestamp(recipient.updatedAt!!),
+                    text = formatTimestamp(updatedAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

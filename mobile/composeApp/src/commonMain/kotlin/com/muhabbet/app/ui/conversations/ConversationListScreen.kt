@@ -1,33 +1,21 @@
 package com.muhabbet.app.ui.conversations
 
 import com.muhabbet.app.ui.components.ConfirmDialog
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -38,9 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -54,13 +40,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.lazy.LazyRow
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -75,11 +56,9 @@ import com.muhabbet.shared.model.Message
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
-import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
@@ -87,12 +66,8 @@ import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import com.muhabbet.app.ui.components.EmptyChatsIllustration
-import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -101,6 +76,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+
+private const val TAG = "ConversationList"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -186,6 +163,7 @@ fun ConversationListScreen(
                 }
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to load conversations", e)
             snackbarHostState.showSnackbar(errorMsg)
         }
     }
@@ -196,7 +174,8 @@ fun ConversationListScreen(
         if (showStatusRow) {
             try {
                 statusGroups = statusRepository.getContactStatuses()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load contact statuses", e)
                 statusGroups = emptyList()
             }
         } else {
@@ -251,289 +230,128 @@ fun ConversationListScreen(
                         contactNameMap[normalized] = contact.name
                     }
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read device contacts", e)
+            }
         }
     }
 
-    // Status creation dialog
-    if (showStatusInput) {
-        AlertDialog(
-            onDismissRequest = { showStatusInput = false; statusText = ""; statusPickedImage = null },
-            title = { Text(stringResource(Res.string.status_create_title)) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = statusText,
-                        onValueChange = { statusText = it },
-                        placeholder = { Text(stringResource(Res.string.status_placeholder)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3
-                    )
-                    Spacer(Modifier.height(MuhabbetSpacing.Small))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { statusImagePicker.launch() }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(MuhabbetSpacing.XSmall))
-                            Text(stringResource(Res.string.status_add_photo))
-                        }
-                        if (statusPickedImage != null) {
-                            Text(
-                                text = statusPickedImage?.fileName ?: "",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                    if (isUploadingStatus) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val text = statusText.trim()
-                        if (text.isNotEmpty() || statusPickedImage != null) {
-                            isUploadingStatus = true
-                            scope.launch {
-                                try {
-                                    var mediaUrl: String? = null
-                                    statusPickedImage?.let { img ->
-                                        val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
-                                        mediaUrl = upload.url
-                                    }
-                                    statusRepository.createStatus(
-                                        content = text.ifEmpty { null },
-                                        mediaUrl = mediaUrl
-                                    )
-                                    statusGroups = statusRepository.getContactStatuses()
-                                } catch (_: Exception) { }
-                                isUploadingStatus = false
-                                showStatusInput = false
-                                statusText = ""
-                                statusPickedImage = null
-                            }
-                        }
-                    },
-                    enabled = (statusText.isNotBlank() || statusPickedImage != null) && !isUploadingStatus
-                ) { Text(stringResource(Res.string.status_post)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showStatusInput = false; statusText = ""; statusPickedImage = null }) {
-                    Text(cancelText)
-                }
-            }
-        )
-    }
+    val actionLabels = ConversationActionLabels(
+        pin = pinText, unpin = unpinText, archive = archiveText, unarchive = unarchiveText,
+        mute = muteText, unmute = unmuteText, lock = lockText, unlock = unlockText,
+        delete = deleteText, cancel = cancelText
+    )
 
-    // Long press context menu
-    if (showLongPressMenu && longPressTargetConv != null) {
-        val targetConv = longPressTargetConv ?: return
-        AlertDialog(
-            onDismissRequest = { showLongPressMenu = false; longPressTargetConv = null },
-            title = { Text(targetConv.name ?: "") },
-            text = {
-                Column {
-                    // Pin / Unpin option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showLongPressMenu = false
-                                val conv = longPressTargetConv ?: return@clickable
-                                longPressTargetConv = null
-                                scope.launch {
-                                    try {
-                                        if (conv.isPinned) {
-                                            conversationRepository.unpinConversation(conv.id)
-                                        } else {
-                                            conversationRepository.pinConversation(conv.id)
-                                        }
-                                        loadConversations()
-                                    } catch (_: Exception) { }
-                                }
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.PushPin,
-                            contentDescription = null,
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(Modifier.width(MuhabbetSpacing.Large))
-                        Text(
-                            text = if (targetConv.isPinned) unpinText else pinText,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    // Archive option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showLongPressMenu = false
-                                val conv = longPressTargetConv ?: return@clickable
-                                longPressTargetConv = null
-                                scope.launch {
-                                    try {
-                                        if (conv.isArchived) {
-                                            conversationRepository.unarchiveConversation(conv.id)
-                                        } else {
-                                            conversationRepository.archiveConversation(conv.id)
-                                        }
-                                        loadConversations()
-                                    } catch (_: Exception) { }
-                                }
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
-                        Text(
-                            text = if (targetConv.isArchived) unarchiveText else archiveText,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    // Mute option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showLongPressMenu = false
-                                val conv = longPressTargetConv ?: return@clickable
-                                longPressTargetConv = null
-                                if (conv.isMuted) {
-                                    scope.launch {
-                                        try {
-                                            conversationRepository.unmuteConversation(conv.id)
-                                            loadConversations()
-                                        } catch (_: Exception) { }
-                                    }
-                                } else {
-                                    muteTargetConvId = conv.id
-                                    showMuteDialog = true
-                                }
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
-                        Text(
-                            text = if (targetConv.isMuted) unmuteText else muteText,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    // Lock option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showLongPressMenu = false
-                                val conv = longPressTargetConv ?: return@clickable
-                                longPressTargetConv = null
-                                scope.launch {
-                                    try {
-                                        if (conv.isLocked) {
-                                            conversationRepository.unlockConversation(conv.id)
-                                        } else {
-                                            conversationRepository.lockConversation(conv.id)
-                                        }
-                                        loadConversations()
-                                    } catch (_: Exception) { }
-                                }
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Spacer(Modifier.width(MuhabbetSpacing.XSmall))
-                        Text(
-                            text = if (targetConv.isLocked) unlockText else lockText,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    // Delete option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showLongPressMenu = false
-                                deleteTargetConv = longPressTargetConv
-                                longPressTargetConv = null
-                                showDeleteDialog = true
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(Modifier.width(MuhabbetSpacing.Large))
-                        Text(
-                            text = deleteText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLongPressMenu = false; longPressTargetConv = null }) {
-                    Text(cancelText)
-                }
-            }
-        )
-    }
-
-    // Delete conversation dialog
-    if (showDeleteDialog && deleteTargetConv != null) {
-        ConfirmDialog(
-            title = convDeleteTitle,
-            message = convDeleteConfirm,
-            confirmLabel = deleteText,
-            onConfirm = {
-                val conv = deleteTargetConv ?: return@ConfirmDialog
-                showDeleteDialog = false
-                deleteTargetConv = null
+    ConversationListDialogs(
+        showStatusInput = showStatusInput,
+        statusText = statusText,
+        statusPickedImage = statusPickedImage,
+        isUploadingStatus = isUploadingStatus,
+        onStatusTextChange = { statusText = it },
+        onPickStatusImage = { statusImagePicker.launch() },
+        onPostStatus = {
+            val text = statusText.trim()
+            if (text.isNotEmpty() || statusPickedImage != null) {
+                isUploadingStatus = true
                 scope.launch {
                     try {
-                        conversationRepository.deleteConversation(conv.id)
-                        conversations = conversations.filter { it.id != conv.id }
-                    } catch (_: Exception) {
-                        snackbarHostState.showSnackbar(convDeleteFailed)
+                        var mediaUrl: String? = null
+                        statusPickedImage?.let { img ->
+                            val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
+                            mediaUrl = upload.url
+                        }
+                        statusRepository.createStatus(content = text.ifEmpty { null }, mediaUrl = mediaUrl)
+                        statusGroups = statusRepository.getContactStatuses()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to create status", e)
                     }
+                    isUploadingStatus = false
+                    showStatusInput = false
+                    statusText = ""
+                    statusPickedImage = null
                 }
-            },
-            onDismiss = { showDeleteDialog = false; deleteTargetConv = null },
-            isDestructive = true,
-            dismissLabel = cancelText
-        )
-    }
-
-    // Mute duration picker
-    if (showMuteDialog && muteTargetConvId != null) {
-        MutePickerDialog(
-            onDismiss = { showMuteDialog = false; muteTargetConvId = null },
-            onMuteDuration = { duration ->
-                val convId = muteTargetConvId ?: return@MutePickerDialog
+            }
+        },
+        onDismissStatus = { showStatusInput = false; statusText = ""; statusPickedImage = null },
+        longPressTargetConv = if (showLongPressMenu) longPressTargetConv else null,
+        actionLabels = actionLabels,
+        onPinToggle = { conv ->
+            showLongPressMenu = false; longPressTargetConv = null
+            scope.launch {
+                try {
+                    if (conv.isPinned) conversationRepository.unpinConversation(conv.id)
+                    else conversationRepository.pinConversation(conv.id)
+                    loadConversations()
+                } catch (e: Exception) { Log.e(TAG, "Pin toggle failed", e) }
+            }
+        },
+        onArchiveToggle = { conv ->
+            showLongPressMenu = false; longPressTargetConv = null
+            scope.launch {
+                try {
+                    if (conv.isArchived) conversationRepository.unarchiveConversation(conv.id)
+                    else conversationRepository.archiveConversation(conv.id)
+                    loadConversations()
+                } catch (e: Exception) { Log.e(TAG, "Archive toggle failed", e) }
+            }
+        },
+        onMuteToggle = { conv ->
+            showLongPressMenu = false; longPressTargetConv = null
+            if (conv.isMuted) {
                 scope.launch {
                     try {
-                        conversationRepository.muteConversation(convId, duration)
+                        conversationRepository.unmuteConversation(conv.id)
                         loadConversations()
-                    } catch (_: Exception) { }
+                    } catch (e: Exception) { Log.e(TAG, "Unmute failed", e) }
                 }
-                muteTargetConvId = null
+            } else {
+                muteTargetConvId = conv.id
+                showMuteDialog = true
             }
-        )
-    }
+        },
+        onLockToggle = { conv ->
+            showLongPressMenu = false; longPressTargetConv = null
+            scope.launch {
+                try {
+                    if (conv.isLocked) conversationRepository.unlockConversation(conv.id)
+                    else conversationRepository.lockConversation(conv.id)
+                    loadConversations()
+                } catch (e: Exception) { Log.e(TAG, "Lock toggle failed", e) }
+            }
+        },
+        onDeleteFromMenu = { conv ->
+            showLongPressMenu = false; deleteTargetConv = conv; longPressTargetConv = null; showDeleteDialog = true
+        },
+        onDismissMenu = { showLongPressMenu = false; longPressTargetConv = null },
+        deleteTargetConv = if (showDeleteDialog) deleteTargetConv else null,
+        deleteTitle = convDeleteTitle,
+        deleteMessage = convDeleteConfirm,
+        onConfirmDelete = { conv ->
+            showDeleteDialog = false; deleteTargetConv = null
+            scope.launch {
+                try {
+                    conversationRepository.deleteConversation(conv.id)
+                    conversations = conversations.filter { it.id != conv.id }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to delete conversation", e)
+                    snackbarHostState.showSnackbar(convDeleteFailed)
+                }
+            }
+        },
+        onDismissDelete = { showDeleteDialog = false; deleteTargetConv = null },
+        showMuteDialog = showMuteDialog && muteTargetConvId != null,
+        onMuteDuration = { duration ->
+            val convId = muteTargetConvId ?: return@ConversationListDialogs
+            scope.launch {
+                try {
+                    conversationRepository.muteConversation(convId, duration)
+                    loadConversations()
+                } catch (e: Exception) { Log.e(TAG, "Mute failed", e) }
+            }
+            muteTargetConvId = null
+        },
+        onDismissMute = { showMuteDialog = false; muteTargetConvId = null }
+    )
 
     Scaffold(
         topBar = {
@@ -589,7 +407,10 @@ fun ConversationListScreen(
                             scope.launch {
                                 try {
                                     searchResults = messageRepository.searchMessages(newQuery).items
-                                } catch (_: Exception) { searchResults = emptyList() }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Message search failed", e)
+                                    searchResults = emptyList()
+                                }
                             }
                         } else {
                             searchResults = emptyList()
@@ -604,493 +425,333 @@ fun ConversationListScreen(
 
             // Search results
             if (isSearching && searchResults.isNotEmpty()) {
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(searchResults, key = { it.id }) { msg ->
+                MessageSearchResults(
+                    results = searchResults,
+                    conversations = conversations,
+                    currentUserId = currentUserId,
+                    modifier = Modifier.weight(1f),
+                    onResultClick = onConversationClick
+                )
+            } else {
+                ConversationListBody(
+                    isLoading = isLoading,
+                    isRefreshing = isRefreshing,
+                    conversations = conversations,
+                    activeFilter = activeFilter,
+                    onFilterChange = { activeFilter = it },
+                    showStatusRow = showStatusRow,
+                    statusGroups = statusGroups,
+                    currentUserId = currentUserId,
+                    contactNameMap = contactNameMap,
+                    onlineUsers = onlineUsers,
+                    defaultChatName = defaultChatName,
+                    onRefresh = {
+                        scope.launch {
+                            isRefreshing = true
+                            loadConversations()
+                            isRefreshing = false
+                        }
+                    },
+                    onAddStatus = { showStatusInput = true },
+                    onStatusClick = onStatusClick,
+                    onConversationClick = onConversationClick,
+                    onConversationLongClick = { conv ->
+                        longPressTargetConv = conv
+                        showLongPressMenu = true
+                    },
+                    onPin = { conv ->
+                        scope.launch {
+                            try {
+                                if (conv.isPinned) conversationRepository.unpinConversation(conv.id)
+                                else conversationRepository.pinConversation(conv.id)
+                                loadConversations()
+                            } catch (e: Exception) { Log.e(TAG, "Pin toggle failed", e) }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Loading / empty / list body for [ConversationListScreen]. Splits active vs archived,
+ * sorts pinned-first, and renders the status row + filter chips above the list.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+private fun ConversationListBody(
+    isLoading: Boolean,
+    isRefreshing: Boolean,
+    conversations: List<ConversationResponse>,
+    activeFilter: ConversationFilter,
+    onFilterChange: (ConversationFilter) -> Unit,
+    showStatusRow: Boolean,
+    statusGroups: List<UserStatusGroup>,
+    currentUserId: String,
+    contactNameMap: Map<String, String>,
+    onlineUsers: Map<String, Boolean>,
+    defaultChatName: String,
+    onRefresh: () -> Unit,
+    onAddStatus: () -> Unit,
+    onStatusClick: (userId: String, displayName: String) -> Unit,
+    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationLongClick: (ConversationResponse) -> Unit,
+    onPin: (ConversationResponse) -> Unit
+) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        if (isLoading) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(8) {
+                    ConversationSkeletonItem()
+                    HorizontalDivider()
+                }
+            }
+        } else if (conversations.isEmpty()) {
+            EmptyChatsIllustration(
+                title = stringResource(Res.string.empty_chats_title),
+                subtitle = stringResource(Res.string.empty_chats_subtitle),
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Filter conversations
+            val filteredConversations = when (activeFilter) {
+                ConversationFilter.UNREAD -> conversations.filter { it.unreadCount > 0 }
+                ConversationFilter.FAVORITES -> conversations.filter { it.isPinned }
+                ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
+                else -> conversations
+            }
+            // Split active vs archived
+            val activeConversations = filteredConversations.filter { !it.isArchived }
+            val archivedConversations = filteredConversations.filter { it.isArchived }
+
+            // Sort: pinned first, then by lastMessageAt
+            val sortedConversations = activeConversations.sortedWith(
+                compareByDescending<ConversationResponse> { it.isPinned }
+                    .thenByDescending { it.lastMessageAt ?: "" }
+            )
+
+            LazyColumn {
+                if (showStatusRow) {
+                    item(key = "status_row") {
+                        ConversationStatusRow(
+                            statusGroups = statusGroups,
+                            conversations = conversations,
+                            onAddStatus = onAddStatus,
+                            onStatusClick = onStatusClick
+                        )
+                    }
+                }
+                item(key = "filter_chips") {
+                    ConversationFilterChips(activeFilter = activeFilter, onFilterChange = onFilterChange)
+                }
+                items(sortedConversations, key = { it.id }) { conv ->
+                    ConversationListItemRow(
+                        conv = conv,
+                        currentUserId = currentUserId,
+                        contactNameMap = contactNameMap,
+                        onlineUsers = onlineUsers,
+                        defaultChatName = defaultChatName,
+                        isPinned = conv.isPinned,
+                        onConversationClick = onConversationClick,
+                        onConversationLongClick = onConversationLongClick,
+                        onPin = { onPin(conv) }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
+                    )
+                }
+
+                // Archived section
+                if (archivedConversations.isNotEmpty()) {
+                    item(key = "archived_header") {
+                        Spacer(Modifier.height(MuhabbetSpacing.Medium))
+                        HorizontalDivider()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    val conv = conversations.firstOrNull { it.id == msg.conversationId }
-                                    val otherP = conv?.participants?.firstOrNull { it.userId != currentUserId }
-                                    val name = conv?.name ?: otherP?.displayName ?: otherP?.phoneNumber ?: ""
-                                    onConversationClick(msg.conversationId, name, otherP?.userId, conv?.type == ConversationType.GROUP)
-                                }
-                                .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
+                                .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = msg.content.take(80),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 2
-                                )
-                                Text(
-                                    text = formatTimestamp(msg.serverTimestamp?.toString() ?: ""),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        HorizontalDivider()
-                    }
-                }
-            } else {
-
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                scope.launch {
-                    isRefreshing = true
-                    loadConversations()
-                    isRefreshing = false
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (isLoading) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(8) {
-                        ConversationSkeletonItem()
-                        HorizontalDivider()
-                    }
-                }
-            } else if (conversations.isEmpty()) {
-                EmptyChatsIllustration(
-                    title = stringResource(Res.string.empty_chats_title),
-                    subtitle = stringResource(Res.string.empty_chats_subtitle),
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                // Filter conversations
-                val filteredConversations = when (activeFilter) {
-                    ConversationFilter.UNREAD -> conversations.filter { it.unreadCount > 0 }
-                    ConversationFilter.FAVORITES -> conversations.filter { it.isPinned }
-                    ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
-                    else -> conversations
-                }
-                // Split active vs archived
-                val activeConversations = filteredConversations.filter { !it.isArchived }
-                val archivedConversations = filteredConversations.filter { it.isArchived }
-
-                // Sort: pinned first, then by lastMessageAt
-                val sortedConversations = activeConversations.sortedWith(
-                    compareByDescending<ConversationResponse> { it.isPinned }
-                        .thenByDescending { it.lastMessageAt ?: "" }
-                )
-
-                LazyColumn {
-                    // Status row
-                    if (showStatusRow) {
-                        item(key = "status_row") {
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
-                                horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = MuhabbetSpacing.Medium)
-                            ) {
-                                // "Add status" button
-                                item(key = "add_status") {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.clickable { showStatusInput = true }.width(64.dp)
-                                    ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            modifier = Modifier.size(56.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    Icons.Default.Add,
-                                                    contentDescription = stringResource(Res.string.status_create_title),
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                            }
-                                        }
-                                        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                                        Text(
-                                            text = stringResource(Res.string.status_my),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                                // Contact statuses
-                                items(
-                                    count = statusGroups.size,
-                                    key = { statusGroups[it].userId }
-                                ) { index ->
-                                    val group = statusGroups[index]
-                                    val conv = conversations.flatMap { it.participants }
-                                        .firstOrNull { it.userId == group.userId }
-                                    val displayName = conv?.displayName ?: conv?.phoneNumber ?: group.userId.take(8)
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.width(64.dp).clickable { onStatusClick(group.userId, displayName) }
-                                    ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            modifier = Modifier
-                                                .size(56.dp)
-                                                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                        ) {
-                                            com.muhabbet.app.ui.components.UserAvatar(
-                                                avatarUrl = conv?.avatarUrl,
-                                                displayName = displayName,
-                                                size = 56.dp
-                                            )
-                                        }
-                                        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                                        Text(
-                                            text = displayName,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                            if (statusGroups.isNotEmpty()) {
-                                HorizontalDivider()
-                            }
+                            Text(
+                                text = stringResource(Res.string.conv_archived_section),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(MuhabbetSpacing.Small))
+                            Text(
+                                text = "(${archivedConversations.size})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
-                    // Filter chips
-                    item(key = "filter_chips") {
-                        val chipColors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.White,
-                            containerColor = Color.Transparent,
-                            labelColor = LocalSemanticColors.current.secondaryText
-                        )
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.XSmall),
-                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = MuhabbetSpacing.Medium)
-                        ) {
-                            item {
-                                FilterChip(
-                                    selected = activeFilter == ConversationFilter.ALL,
-                                    onClick = { activeFilter = ConversationFilter.ALL },
-                                    label = { Text(stringResource(Res.string.filter_all)) },
-                                    colors = chipColors
-                                )
-                            }
-                            item {
-                                FilterChip(
-                                    selected = activeFilter == ConversationFilter.UNREAD,
-                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD },
-                                    label = { Text(stringResource(Res.string.filter_unread)) },
-                                    colors = chipColors
-                                )
-                            }
-                            item {
-                                FilterChip(
-                                    selected = activeFilter == ConversationFilter.FAVORITES,
-                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.FAVORITES) ConversationFilter.ALL else ConversationFilter.FAVORITES },
-                                    label = { Text(stringResource(Res.string.filter_favorites)) },
-                                    colors = chipColors
-                                )
-                            }
-                            item {
-                                FilterChip(
-                                    selected = activeFilter == ConversationFilter.GROUPS,
-                                    onClick = { activeFilter = if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS },
-                                    label = { Text(stringResource(Res.string.filter_groups)) },
-                                    colors = chipColors
-                                )
-                            }
-                        }
-                    }
-                    items(sortedConversations, key = { it.id }) { conv ->
-                        val otherParticipant = conv.participants
-                            .firstOrNull { it.userId != currentUserId }
-                        val isGroup = conv.type == ConversationType.GROUP
-                        // Name priority: 1-Contact saved name, 2-Nickname, 3-Phone
-                        val contactName = if (!isGroup) {
-                            otherParticipant?.phoneNumber?.let { contactNameMap[it] }
-                        } else null
-                        val resolvedName = conv.name
-                            ?: contactName
-                            ?: otherParticipant?.displayName
-                            ?: otherParticipant?.phoneNumber
-                            ?: defaultChatName
-                        val isOtherOnline = otherParticipant?.let {
-                            onlineUsers[it.userId] ?: it.isOnline
-                        } ?: false
-                        val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
-                        ConversationItem(
-                            conversation = conv,
-                            displayName = resolvedName,
-                            avatarUrl = avatarUrl,
-                            isOnline = isOtherOnline,
-                            isGroup = isGroup,
-                            isPinned = conv.isPinned,
-                            onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
-                            onLongClick = {
-                                longPressTargetConv = conv
-                                showLongPressMenu = true
-                            },
-                            onPin = {
-                                scope.launch {
-                                    try {
-                                        if (conv.isPinned) {
-                                            conversationRepository.unpinConversation(conv.id)
-                                        } else {
-                                            conversationRepository.pinConversation(conv.id)
-                                        }
-                                        loadConversations()
-                                    } catch (_: Exception) { }
-                                }
-                            }
+                    items(archivedConversations, key = { "archived_${it.id}" }) { conv ->
+                        ConversationListItemRow(
+                            conv = conv,
+                            currentUserId = currentUserId,
+                            contactNameMap = contactNameMap,
+                            onlineUsers = onlineUsers,
+                            defaultChatName = defaultChatName,
+                            isPinned = false,
+                            onConversationClick = onConversationClick,
+                            onConversationLongClick = onConversationLongClick,
+                            onPin = {}
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
                         )
                     }
-
-                    // Archived section
-                    if (archivedConversations.isNotEmpty()) {
-                        item(key = "archived_header") {
-                            Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                            HorizontalDivider()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(Res.string.conv_archived_section),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(MuhabbetSpacing.Small))
-                                Text(
-                                    text = "(${archivedConversations.size})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        items(archivedConversations, key = { "archived_${it.id}" }) { conv ->
-                            val otherParticipant = conv.participants
-                                .firstOrNull { it.userId != currentUserId }
-                            val isGroup = conv.type == ConversationType.GROUP
-                            val contactName = if (!isGroup) {
-                                otherParticipant?.phoneNumber?.let { contactNameMap[it] }
-                            } else null
-                            val resolvedName = conv.name
-                                ?: contactName
-                                ?: otherParticipant?.displayName
-                                ?: otherParticipant?.phoneNumber
-                                ?: defaultChatName
-                            val isOtherOnline = otherParticipant?.let {
-                                onlineUsers[it.userId] ?: it.isOnline
-                            } ?: false
-                            val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
-                            ConversationItem(
-                                conversation = conv,
-                                displayName = resolvedName,
-                                avatarUrl = avatarUrl,
-                                isOnline = isOtherOnline,
-                                isGroup = isGroup,
-                                isPinned = false,
-                                onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
-                                onLongClick = {
-                                    longPressTargetConv = conv
-                                    showLongPressMenu = true
-                                }
-                            )
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
-                            )
-                        }
-                    }
                 }
             }
         }
-            } // end else (non-search)
-        } // end Column
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Resolves the display name/avatar/online state for a single conversation, then renders a
+ * [ConversationItem]. Name priority: contact-saved name > nickname > phone.
+ */
 @Composable
-private fun ConversationItem(
-    conversation: ConversationResponse,
-    displayName: String,
-    avatarUrl: String? = null,
-    isOnline: Boolean,
-    isGroup: Boolean = false,
-    isPinned: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    onPin: () -> Unit = {}
+private fun ConversationListItemRow(
+    conv: ConversationResponse,
+    currentUserId: String,
+    contactNameMap: Map<String, String>,
+    onlineUsers: Map<String, Boolean>,
+    defaultChatName: String,
+    isPinned: Boolean,
+    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationLongClick: (ConversationResponse) -> Unit,
+    onPin: () -> Unit
 ) {
-    val hasUnread = conversation.unreadCount > 0
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = MuhabbetSizes.ChatListItemMinHeight)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Avatar with online indicator
-        Box {
-            com.muhabbet.app.ui.components.UserAvatar(
-                avatarUrl = avatarUrl,
-                displayName = displayName,
-                size = MuhabbetSizes.AvatarChatList,
-                isGroup = isGroup
-            )
-            // Green online dot
-            if (isOnline) {
-                Box(
-                    modifier = Modifier
-                        .size(14.dp)
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 1.dp, y = 1.dp)
-                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                        .background(LocalSemanticColors.current.statusOnline, CircleShape)
-                )
-            }
-        }
-
-        Spacer(Modifier.width(MuhabbetSpacing.Large))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (isPinned) {
-                    Spacer(Modifier.width(MuhabbetSpacing.XSmall))
-                    Icon(
-                        Icons.Default.PushPin,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            val preview = conversation.lastMessagePreview
-            if (preview != null) {
-                Text(
-                    text = preview,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
-                    fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (hasUnread) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        Column(horizontalAlignment = Alignment.End) {
-            val lastAt = conversation.lastMessageAt
-            if (lastAt != null) {
-                Text(
-                    text = formatTimestamp(lastAt),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                    color = if (hasUnread) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (hasUnread) {
-                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                Badge(
-                    containerColor = LocalSemanticColors.current.unreadBadge,
-                    contentColor = Color.White
-                ) {
-                    Text(conversation.unreadCount.toString())
-                }
-            }
-        }
-    }
-}
-
-private enum class ConversationFilter {
-    ALL, UNREAD, FAVORITES, GROUPS
-}
-
-@Composable
-private fun ConversationSkeletonItem() {
-    val shimmerAlpha = shimmerAlpha()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Avatar placeholder
-        Box(
-            modifier = Modifier
-                .size(MuhabbetSizes.AvatarMedium)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-        )
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-        Column(modifier = Modifier.weight(1f)) {
-            // Name placeholder
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.5f)
-                    .height(14.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-            )
-            Spacer(Modifier.height(MuhabbetSpacing.Small))
-            // Message preview placeholder
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(12.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-            )
-        }
-        Spacer(Modifier.width(MuhabbetSpacing.Small))
-        // Timestamp placeholder
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(10.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-        )
-    }
-}
-
-@Composable
-private fun shimmerAlpha(): Float {
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmerTransition")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(
-                durationMillis = com.muhabbet.app.ui.theme.MuhabbetDurations.ShimmerDurationMs,
-                easing = androidx.compose.animation.core.LinearEasing
-            ),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "shimmer"
+    val otherParticipant = conv.participants.firstOrNull { it.userId != currentUserId }
+    val isGroup = conv.type == ConversationType.GROUP
+    val contactName = if (!isGroup) {
+        otherParticipant?.phoneNumber?.let { contactNameMap[it] }
+    } else null
+    val resolvedName = conv.name
+        ?: contactName
+        ?: otherParticipant?.displayName
+        ?: otherParticipant?.phoneNumber
+        ?: defaultChatName
+    val isOtherOnline = otherParticipant?.let {
+        onlineUsers[it.userId] ?: it.isOnline
+    } ?: false
+    val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
+    ConversationItem(
+        conversation = conv,
+        displayName = resolvedName,
+        avatarUrl = avatarUrl,
+        isOnline = isOtherOnline,
+        isGroup = isGroup,
+        isPinned = isPinned,
+        onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
+        onLongClick = { onConversationLongClick(conv) },
+        onPin = onPin
     )
-    return alpha
 }
 
-private fun formatTimestamp(timestamp: String): String =
-    DateTimeFormatter.formatConversationTimestamp(timestamp)
+/** Localized labels for the conversation long-press action menu. */
+internal data class ConversationActionLabels(
+    val pin: String,
+    val unpin: String,
+    val archive: String,
+    val unarchive: String,
+    val mute: String,
+    val unmute: String,
+    val lock: String,
+    val unlock: String,
+    val delete: String,
+    val cancel: String
+)
+
+/**
+ * Hosts all four dialogs of [ConversationListScreen] (status create, long-press actions,
+ * delete confirm, mute picker). Pure wiring — visibility and side effects are driven by the caller.
+ */
+@Composable
+private fun ConversationListDialogs(
+    showStatusInput: Boolean,
+    statusText: String,
+    statusPickedImage: PickedImage?,
+    isUploadingStatus: Boolean,
+    onStatusTextChange: (String) -> Unit,
+    onPickStatusImage: () -> Unit,
+    onPostStatus: () -> Unit,
+    onDismissStatus: () -> Unit,
+    longPressTargetConv: ConversationResponse?,
+    actionLabels: ConversationActionLabels,
+    onPinToggle: (ConversationResponse) -> Unit,
+    onArchiveToggle: (ConversationResponse) -> Unit,
+    onMuteToggle: (ConversationResponse) -> Unit,
+    onLockToggle: (ConversationResponse) -> Unit,
+    onDeleteFromMenu: (ConversationResponse) -> Unit,
+    onDismissMenu: () -> Unit,
+    deleteTargetConv: ConversationResponse?,
+    deleteTitle: String,
+    deleteMessage: String,
+    onConfirmDelete: (ConversationResponse) -> Unit,
+    onDismissDelete: () -> Unit,
+    showMuteDialog: Boolean,
+    onMuteDuration: (String) -> Unit,
+    onDismissMute: () -> Unit
+) {
+    if (showStatusInput) {
+        StatusCreateDialog(
+            statusText = statusText,
+            pickedImage = statusPickedImage,
+            isUploading = isUploadingStatus,
+            cancelLabel = actionLabels.cancel,
+            onTextChange = onStatusTextChange,
+            onPickImage = onPickStatusImage,
+            onPost = onPostStatus,
+            onDismiss = onDismissStatus
+        )
+    }
+
+    longPressTargetConv?.let { conv ->
+        ConversationActionsDialog(
+            conversation = conv,
+            pinLabel = actionLabels.pin,
+            unpinLabel = actionLabels.unpin,
+            archiveLabel = actionLabels.archive,
+            unarchiveLabel = actionLabels.unarchive,
+            muteLabel = actionLabels.mute,
+            unmuteLabel = actionLabels.unmute,
+            lockLabel = actionLabels.lock,
+            unlockLabel = actionLabels.unlock,
+            deleteLabel = actionLabels.delete,
+            cancelLabel = actionLabels.cancel,
+            onPinToggle = { onPinToggle(conv) },
+            onArchiveToggle = { onArchiveToggle(conv) },
+            onMuteToggle = { onMuteToggle(conv) },
+            onLockToggle = { onLockToggle(conv) },
+            onDelete = { onDeleteFromMenu(conv) },
+            onDismiss = onDismissMenu
+        )
+    }
+
+    deleteTargetConv?.let { conv ->
+        ConfirmDialog(
+            title = deleteTitle,
+            message = deleteMessage,
+            confirmLabel = actionLabels.delete,
+            onConfirm = { onConfirmDelete(conv) },
+            onDismiss = onDismissDelete,
+            isDestructive = true,
+            dismissLabel = actionLabels.cancel
+        )
+    }
+
+    if (showMuteDialog) {
+        MutePickerDialog(
+            onDismiss = onDismissMute,
+            onMuteDuration = onMuteDuration
+        )
+    }
+}

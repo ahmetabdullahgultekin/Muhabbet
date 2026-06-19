@@ -95,9 +95,10 @@ fun LinkDeviceScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            val currentError = error
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                error != null -> Text(error!!, modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.error)
+                currentError != null -> Text(currentError, modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.error)
                 else -> Column(
                     modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.Large),
                     horizontalAlignment = Alignment.CenterHorizontally,

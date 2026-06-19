@@ -144,7 +144,7 @@ fun NewConversationScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ContactPhone,
-                            contentDescription = "Contacts",
+                            contentDescription = stringResource(Res.string.cd_contacts),
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -190,7 +190,7 @@ fun NewConversationScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ContactPhone,
-                            contentDescription = "Contacts",
+                            contentDescription = stringResource(Res.string.cd_contacts),
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
