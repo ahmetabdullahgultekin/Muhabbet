@@ -222,14 +222,16 @@
   + `@Async` on `FcmPushNotificationAdapter.sendPush` removes the blocking FCM call from the broadcast
   hot path. Compile-verified. Detail: `docs/findings/2026-06-19-infra-tech-assessment.md`.*
 
-- [ ] **Mobile UI code-quality refactor pass** *(from 2026-06-19 audit)*
-  - Decompose 3 oversized composables — `ConversationListScreen` (815 L), `SettingsScreen` (707 L),
-    `ChatScreen` (491 L) — into sub-composables (limit 300); replace **56 silent empty `catch`** blocks
-    in commonMain with log + user-facing error state; remove **15 `!!`** (start `LinkPreviewCard`);
-    split `AuthService` (6 use-case interfaces → ≤3).
-  - **Why**: Concentrated mobile-UI debt; backend hexagonal discipline is otherwise strong.
-  - **DONE =** the 3 screens are ≤300-line composables, no empty `catch` on data-load paths, `!!` count
-    down. Full list: `docs/findings/2026-06-19-code-quality-audit.md`.
+- [~] **Mobile UI code-quality refactor pass** *(from 2026-06-19 audit — mostly DONE 2026-06-19)*
+  - *Done:* `SettingsScreen` 707→**278** (under 300, extracted `SettingsSections.kt`);
+    `ConversationListScreen` 815→**392** and `ChatScreen` 491→**464** (extracted `ConversationRow`,
+    `ConversationListContent`, `ConversationActionsDialog`, `StatusCreateDialog`, `ChatMessageList`);
+    silent empty `catch` on data-load/network paths replaced with `Log.e`; **all 15 `!!` removed**;
+    3 hardcoded `contentDescription` → `stringResource`. commonMain compile green.
+  - *Remaining:* `ConversationListScreen` (392) and `ChatScreen` (464) still >300 — residual bodies are
+    tightly-coupled MVI/WS state; further extraction needs runtime tests (no device on host). Also still
+    open: **split `AuthService`** (6 use-case interfaces → ≤3, backend). Full list:
+    `docs/findings/2026-06-19-code-quality-audit.md`.
 
 - [ ] **Multi-instance correctness follow-ups** *(latent — prod is single-instance, YAGNI until scale)*
   - Publish-side should consult **Redis presence** (not local `sessionManager.isOnline`) before
