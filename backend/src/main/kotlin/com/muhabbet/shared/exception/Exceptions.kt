@@ -119,10 +119,16 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
 
     // View-Once & Announcement
     MSG_VIEW_ONCE_ALREADY_VIEWED(HttpStatus.CONFLICT, "Bu mesaj zaten görüntülendi"),
+    MSG_PIN_LIMIT_REACHED(HttpStatus.CONFLICT, "Sabitlenmiş mesaj sınırına ulaşıldı"),
     MSG_ANNOUNCEMENT_ONLY(HttpStatus.FORBIDDEN, "Bu grupta sadece yöneticiler mesaj gönderebilir"),
 
     // Broadcast Lists
     BROADCAST_LIST_NOT_FOUND(HttpStatus.NOT_FOUND, "Yayın listesi bulunamadı"),
+
+    // Chat Folders (custom lists)
+    CHAT_FOLDER_NOT_FOUND(HttpStatus.NOT_FOUND, "Klasör bulunamadı"),
+    CHAT_FOLDER_LIMIT_REACHED(HttpStatus.CONFLICT, "Klasör sınırına ulaşıldı"),
+    CHAT_FOLDER_NAME_INVALID(HttpStatus.BAD_REQUEST, "Geçersiz klasör adı"),
 
     // Wallpaper
     WALLPAPER_NOT_FOUND(HttpStatus.NOT_FOUND, "Duvar kağıdı bulunamadı"),

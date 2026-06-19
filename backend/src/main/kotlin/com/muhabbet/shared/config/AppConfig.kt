@@ -21,6 +21,7 @@ import com.muhabbet.media.domain.port.out.ThumbnailPort
 import com.muhabbet.media.domain.service.MediaService
 import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
+import com.muhabbet.messaging.domain.port.out.ChatFolderRepository
 import com.muhabbet.messaging.domain.port.out.ChatWallpaperRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -30,11 +31,14 @@ import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
+import com.muhabbet.messaging.domain.service.ChatFolderService
+import com.muhabbet.messaging.domain.service.PinnedMessageService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
 import com.muhabbet.messaging.domain.service.ChatWallpaperService
@@ -366,5 +370,23 @@ class AppConfig {
         broadcastListRepository: BroadcastListRepository
     ): BroadcastListService = BroadcastListService(
         broadcastListRepository = broadcastListRepository
+    )
+
+    @Bean
+    fun chatFolderService(
+        chatFolderRepository: ChatFolderRepository
+    ): ChatFolderService = ChatFolderService(
+        chatFolderRepository = chatFolderRepository
+    )
+
+    @Bean
+    fun pinnedMessageService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        pinnedMessageRepository: PinnedMessageRepository
+    ): PinnedMessageService = PinnedMessageService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        pinnedMessageRepository = pinnedMessageRepository
     )
 }

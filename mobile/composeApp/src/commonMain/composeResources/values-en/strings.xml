@@ -329,6 +329,8 @@
     <!-- Accessibility -->
     <string name="action_back">Back</string>
     <string name="chat_disappearing">Disappearing messages</string>
+    <string name="cd_group_avatar">Group</string>
+    <string name="cd_contacts">Contacts</string>
 
     <!-- Context Menu — Copy -->
     <string name="chat_context_copy">Copy</string>

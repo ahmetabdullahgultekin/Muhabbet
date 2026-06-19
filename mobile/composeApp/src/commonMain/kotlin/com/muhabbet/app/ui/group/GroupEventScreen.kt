@@ -55,6 +55,7 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CreateGroupEventRequest
@@ -83,7 +84,9 @@ fun GroupEventScreen(
         try {
             val response = apiClient.get<List<GroupEventResponse>>("/api/v1/conversations/$conversationId/events")
             events = response.data ?: emptyList()
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.e("GroupEventScreen", "Failed to load group events", e)
+        }
         isLoading = false
     }
 

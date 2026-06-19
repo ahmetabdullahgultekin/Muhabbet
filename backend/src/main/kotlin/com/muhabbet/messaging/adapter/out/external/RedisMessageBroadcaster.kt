@@ -12,9 +12,6 @@ import com.muhabbet.shared.protocol.wsJson
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
-import org.springframework.data.redis.listener.ChannelTopic
-import org.springframework.data.redis.listener.RedisMessageListenerContainer
-import org.springframework.data.redis.listener.adapter.MessageListenerAdapter
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Component
 import java.util.UUID

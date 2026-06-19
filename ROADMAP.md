@@ -1,9 +1,14 @@
 # Muhabbet — WhatsApp-Parity Roadmap
 
 > **Vision:** *"Muhabbet should become WhatsApp tier by tier, iter by iter."*
-> **Last updated:** 2026-06-07 (Tier 1 = DONE; **Tier 2 in flight** — multi-device linked-sessions
+> **Last updated:** 2026-06-19 (Tier 1 = DONE; **Tier 2 in flight** — multi-device linked-sessions
 > NON-CRYPTO scaffolding shipped behind `multi-device.enabled` (default OFF), per-device crypto
 > transfer BLOCKED on the libsignal upgrade — see §"Tier 2.4" + §"The libsignal block").
+> **2026-06-19 note:** fixed two real backend bugs — Redis Pub/Sub subscriber was never registered
+> (cross-instance WS fan-out was dead code → `RedisConfig.kt`) and FCM push was synchronous on the
+> broadcast hot path (→ `@Async`). Infra verdict: do NOT adopt RabbitMQ/Kafka/Hazelcast/K8s (YAGNI,
+> single host). **Multi-device: PAUSE** the non-crypto remainder (value gated on libsignal). Detail:
+> `docs/findings/2026-06-19-{session,infra-tech-assessment,code-quality-audit}.md`.
 > **2026-06-07 build-unblock note:** to restore the Android debug build, the 4 libsignal Signal files
 > were disabled (`*.kt.disabled`) and Android DI now wires `NoOpKeyManager()` + `NoOpEncryption()` —
 > the same NoOp path iOS uses. **E2E is therefore TEMPORARILY DISABLED (NoOp placeholder, NOT secure):

@@ -20,6 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.muhabbet.app.ui.profile.firstGrapheme
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.cd_group_avatar
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun UserAvatar(
@@ -46,7 +49,7 @@ fun UserAvatar(
                 if (isGroup) {
                     Icon(
                         imageVector = Icons.Default.Group,
-                        contentDescription = "Group",
+                        contentDescription = stringResource(Res.string.cd_group_avatar),
                         modifier = Modifier.size(size * 0.5f),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )

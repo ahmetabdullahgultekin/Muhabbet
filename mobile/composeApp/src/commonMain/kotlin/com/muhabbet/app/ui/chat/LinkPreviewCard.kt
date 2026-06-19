@@ -74,18 +74,18 @@ fun LinkPreviewCard(
                 )
                 Spacer(Modifier.height(6.dp))
             }
-            if (p.siteName != null) {
+            p.siteName?.let { siteName ->
                 Text(
-                    text = p.siteName!!,
+                    text = siteName,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     maxLines = 1
                 )
             }
-            if (p.title != null) {
+            p.title?.let { title ->
                 Text(
-                    text = p.title!!,
+                    text = title,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isOwn) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -93,10 +93,10 @@ fun LinkPreviewCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (p.description != null) {
+            p.description?.let { description ->
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = p.description!!,
+                    text = description,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),

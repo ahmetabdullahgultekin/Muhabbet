@@ -194,19 +194,14 @@
 
 ## P2 — Quality / hardening / completeness
 
-- [ ] **Close the 6 client-side UI `TODO` stubs** (dead buttons that do nothing) **[Tier 1.5]**
-  - `HomeShellScreen.kt` L98 (search), `MessageBubble.kt` L91 (view-once mark),
-    `WallpaperPickerScreen.kt` L191 (gallery picker), `InviteLinkSheet.kt` L149 (platform share),
-    `CommunityDetailScreen.kt` L167 (add group), `BroadcastListScreen.kt` L191 (open detail)
-  - **Why**: Visible controls with `onClick = { /* TODO */ }` look broken to users.
-  - **DONE =** each either implemented or hidden; no `/* TODO */` remains in those onClick blocks.
+- [x] **Close the 6 client-side UI `TODO` stubs** (dead buttons that do nothing) **[Tier 1.5]**
+  — *Verified DONE 2026-06-19: `grep` for `/* TODO */` `onClick` stubs across mobile is clean; all 6
+  files implemented. This entry was stale.*
 
-- [ ] **Run backend test suite on current HEAD and confirm the headline count**
-  - `backend/src/test/...` (34 test files; ArchUnit `HexagonalArchitectureTest`,
-    controller + service tests), CHANGELOG claims "332/333 pass"
-  - **Why**: Claim is from Feb 2026 docs; verify against current code (memory rule: verify by
-    run, not by stale docs) before trusting the gate.
-  - **DONE =** `./gradlew :backend:test` output recorded (pass/fail count, any skips).
+- [x] **Run backend test suite on current HEAD and confirm the headline count**
+  — *Verified 2026-06-19: `:backend:test` = **383/389**. The 6 "failures" are all `*IntegrationTest`
+  that need Testcontainers (Docker) — they fail with "find a Docker environment failed" on this
+  Docker-less host and pass on the CI runner. `:shared:jvmTest` = 53/53. Not logic regressions.*
 
 - [ ] **Verify mobile/iOS actually compiles at HEAD**
   - `mobile-ci.yml` builds Android debug APK + iOS shared framework only (not full iOS app)
@@ -221,6 +216,28 @@
     re-enable once available (also relevant to the P1 Sentry DSN item).
   - **DONE =** exclusion removed after upgrading to a compatible Sentry, or a tracking note added.
 
+- [x] **Wire the Redis Pub/Sub subscriber + make FCM push async** *(2 real bugs, fixed 2026-06-19)*
+  — *`RedisConfig.kt` registers a `RedisMessageListenerContainer` (`ws:broadcast:*` →
+  `RedisBroadcastListener`) so cross-instance WS fan-out is no longer dead code; `AsyncConfig.kt`
+  + `@Async` on `FcmPushNotificationAdapter.sendPush` removes the blocking FCM call from the broadcast
+  hot path. Compile-verified. Detail: `docs/findings/2026-06-19-infra-tech-assessment.md`.*
+
+- [~] **Mobile UI code-quality refactor pass** *(from 2026-06-19 audit — mostly DONE 2026-06-19)*
+  - *Done:* `SettingsScreen` 707→**278** (under 300, extracted `SettingsSections.kt`);
+    `ConversationListScreen` 815→**392** and `ChatScreen` 491→**464** (extracted `ConversationRow`,
+    `ConversationListContent`, `ConversationActionsDialog`, `StatusCreateDialog`, `ChatMessageList`);
+    silent empty `catch` on data-load/network paths replaced with `Log.e`; **all 15 `!!` removed**;
+    3 hardcoded `contentDescription` → `stringResource`. commonMain compile green.
+  - *Remaining:* `ConversationListScreen` (392) and `ChatScreen` (464) still >300 — residual bodies are
+    tightly-coupled MVI/WS state; further extraction needs runtime tests (no device on host). Also still
+    open: **split `AuthService`** (6 use-case interfaces → ≤3, backend). Full list:
+    `docs/findings/2026-06-19-code-quality-audit.md`.
+
+- [ ] **Multi-instance correctness follow-ups** *(latent — prod is single-instance, YAGNI until scale)*
+  - Publish-side should consult **Redis presence** (not local `sessionManager.isOnline`) before
+    suppressing/sending push, else a 2nd-instance-online user gets both a WS message and a push; move
+    WS rate-limiting to Redis when scaling out. **DONE =** verified on a 2-instance load test.
+
 ## P2/P3 — Tier 2 multi-device (continuation)
 
 - [~] **Multi-device linked sessions — NON-CRYPTO scaffolding** **[Tier 2.4]** — *Shipped 2026-06-06
@@ -231,6 +248,11 @@
   - **Remaining (NON-crypto, buildable now):** `message_device_delivery` fan-out rows + per-device
     delivery aggregation (S2 schema in design §5); platform QR **render/scan** (`expect`/adapter —
     Android CameraX/ML-Kit, iOS AVFoundation).
+  - **RECOMMENDATION (2026-06-19): PAUSE — do NOT build the non-crypto remainder now.** Its entire
+    user-visible payoff (a 2nd device decrypting messages) is gated on the libsignal block, so building
+    fan-out + QR scan now adds schema/plumbing with zero user value (YAGNI). Resume *after* libsignal is
+    re-integrated, building fan-out + QR together so the feature ships end-to-end. See
+    `docs/findings/2026-06-19-session.md`.
   - **Remaining (BLOCKED on libsignal):** implement `DeviceLinkCrypto` (per-device X3DH-on-link),
     fan-out encrypt-per-device, forward-secrecy on revoke. **DONE (full) =** a second logged-in
     device decrypts + sees new and recent messages.

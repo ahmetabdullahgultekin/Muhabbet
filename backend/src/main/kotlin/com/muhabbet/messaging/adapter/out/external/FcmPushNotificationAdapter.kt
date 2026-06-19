@@ -7,9 +7,11 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.Notification
 import com.muhabbet.messaging.domain.port.out.PushNotificationPort
+import com.muhabbet.shared.config.AsyncConfig
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
 import jakarta.annotation.PostConstruct
 import java.io.FileInputStream
@@ -33,6 +35,7 @@ class FcmPushNotificationAdapter(
         }
     }
 
+    @Async(AsyncConfig.PUSH_EXECUTOR)
     override fun sendPush(pushToken: String, title: String, body: String, data: Map<String, String>) {
         val message = Message.builder()
             .setToken(pushToken)
