@@ -166,9 +166,9 @@ fun SharedMediaScreen(
     }
 
     // Forward picker dialog
-    if (forwardMessage != null) {
+    forwardMessage?.let { msgToForward ->
         ForwardPickerDialog(
-            forwardMessage = forwardMessage!!,
+            forwardMessage = msgToForward,
             forwardConversations = forwardConversations,
             conversationId = conversationId,
             currentUserId = currentUserId,

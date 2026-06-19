@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.util.Log
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import androidx.compose.material.icons.filled.Image
@@ -104,7 +105,9 @@ fun GroupInfoScreen(
             val convs = conversationRepository.getConversations()
             conversation = convs.items.firstOrNull { it.id == conversationId }
             announcementOnly = conversation?.announcementOnly ?: false
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.e("GroupInfoScreen", "Failed to load group info", e)
+        }
         isLoading = false
     }
 

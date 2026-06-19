@@ -329,6 +329,8 @@
     <!-- Accessibility -->
     <string name="action_back">Geri</string>
     <string name="chat_disappearing">Kaybolan mesajlar</string>
+    <string name="cd_group_avatar">Grup</string>
+    <string name="cd_contacts">Kişiler</string>
 
     <!-- Context Menu — Copy -->
     <string name="chat_context_copy">Kopyala</string>

@@ -45,6 +45,7 @@ import com.muhabbet.app.data.repository.InviteLinkRepository
 import com.muhabbet.app.platform.rememberShareLauncher
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CreateInviteLinkRequest
@@ -76,7 +77,9 @@ fun InviteLinkSheet(
         try {
             inviteLink = inviteLinkRepository.getInviteLink(conversationId)
             requireApproval = inviteLink?.requiresApproval ?: false
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.e("InviteLinkSheet", "Failed to load invite link", e)
+        }
         isLoading = false
     }
 

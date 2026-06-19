@@ -1,25 +1,16 @@
 package com.muhabbet.app.ui.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TimerOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,7 +27,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
@@ -335,17 +324,18 @@ fun ChatScreen(
         }
     }
 
+    val lastSeenMillis = peerLastSeen
     val subtitle = when {
         peerTyping -> typingText; peerOnline -> chatOnlineText
-        peerLastSeen != null -> "$chatLastSeenText ${formatMessageTime(Instant.fromEpochMilliseconds(peerLastSeen!!))}"
+        lastSeenMillis != null -> "$chatLastSeenText ${formatMessageTime(Instant.fromEpochMilliseconds(lastSeenMillis))}"
         else -> null
     }
 
     // ── Dialogs ──────────────────────────────
-    if (fullImageUrl != null) FullImageViewer(fullImageUrl!!) { fullImageUrl = null }
-    if (forwardMessage != null) ForwardPickerDialog(forwardMessage!!, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation)
+    fullImageUrl?.let { url -> FullImageViewer(url) { fullImageUrl = null } }
+    forwardMessage?.let { msg -> ForwardPickerDialog(msg, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation) }
     if (showDeleteDialog && deleteTargetId != null) DeleteConfirmDialog(
-        onConfirm = { val id = deleteTargetId!!; showDeleteDialog = false; deleteTargetId = null; scope.launch { try { groupRepository.deleteMessage(id); messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
+        onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog; showDeleteDialog = false; deleteTargetId = null; scope.launch { try { groupRepository.deleteMessage(id); messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
         onDismiss = { showDeleteDialog = false; deleteTargetId = null }
     )
     if (showDisappearDialog) DisappearTimerDialog(disappearAfterSeconds, onSelect = { s -> showDisappearDialog = false; disappearAfterSeconds = s; scope.launch { try { conversationRepository.setDisappearTimer(conversationId, s) } catch (_: Exception) { } } }, onDismiss = { showDisappearDialog = false })
@@ -408,68 +398,40 @@ fun ChatScreen(
             if (isLoading) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else {
-                var reactionTargetId by remember { mutableStateOf<String?>(null) }
-                val showScrollToBottom = remember { derivedStateOf { val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0; messages.isNotEmpty() && last < messages.lastIndex - 2 } }
-
-                Box(modifier = Modifier.weight(1f).fillMaxWidth().background(LocalSemanticColors.current.chatWallpaper)) {
-                    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small), verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)) {
-                        if (isLoadingMore) item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) } }
-                        var lastDateStr = ""
-                        messages.forEachIndexed { index, message ->
-                            val dateStr = formatDateForSeparator(message.serverTimestamp ?: message.clientTimestamp)
-                            if (dateStr != lastDateStr) { lastDateStr = dateStr; val d = dateStr; item(key = "date_$index") { DateSeparatorPill(d) } }
-                            item(key = message.id) {
-                                val isOwn = message.senderId == currentUserId
-                                val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
-                                val isStarred = message.id in starredIds.value
-                                var swipeOffset by remember { mutableStateOf(0f) }
-
-                                Box(modifier = Modifier.pointerInput(Unit) {
-                                    detectHorizontalDragGestures(
-                                        onDragEnd = { if (swipeOffset > 80f && !message.isDeleted) replyingTo = message; swipeOffset = 0f },
-                                        onDragCancel = { swipeOffset = 0f },
-                                        onHorizontalDrag = { _, d -> swipeOffset = (swipeOffset + d).coerceIn(0f, 120f) }
-                                    )
-                                }) {
-                                    if (swipeOffset > 20f) Box(Modifier.align(Alignment.CenterStart).padding(start = MuhabbetSpacing.XSmall), contentAlignment = Alignment.Center) {
-                                        Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f)))
-                                    }
-                                    Column(modifier = Modifier.padding(start = (swipeOffset / 3f).coerceAtMost(30f).dp)) {
-                                        if (reactionTargetId == message.id) QuickReactionBar(visible = true, onReaction = { emoji -> reactionTargetId = null; scope.launch { try { messageRepository.addReaction(message.id, emoji) } catch (_: Exception) { } } })
-                                        MessageBubble(message, isOwn, audioPlayer, repliedMessage, isStarred,
-                                            showContextMenu = contextMenuMessageId == message.id,
-                                            onLongPress = { if (!message.isDeleted) contextMenuMessageId = message.id },
-                                            onDoubleTap = { if (!message.isDeleted) reactionTargetId = if (reactionTargetId == message.id) null else message.id },
-                                            onDismissMenu = { contextMenuMessageId = null },
-                                            onReply = { contextMenuMessageId = null; replyingTo = message },
-                                            onForward = { contextMenuMessageId = null; forwardMessage = message; scope.launch { try { forwardConversations = conversationRepository.getConversations().items } catch (_: Exception) { } } },
-                                            onStar = { contextMenuMessageId = null; scope.launch { try { if (isStarred) { messageRepository.unstarMessage(message.id); starredIds.value -= message.id } else { messageRepository.starMessage(message.id); starredIds.value += message.id } } catch (_: Exception) { } } },
-                                            onEdit = { contextMenuMessageId = null; editingMessageId = message.id; messageText = message.content },
-                                            onDelete = { contextMenuMessageId = null; deleteTargetId = message.id; showDeleteDialog = true },
-                                            onImageClick = { fullImageUrl = it },
-                                            onReactionToggle = { emoji ->
-                                                scope.launch {
-                                                    try {
-                                                        if (emoji in message.myReactions) messageRepository.removeReaction(message.id, emoji)
-                                                        else messageRepository.addReaction(message.id, emoji)
-                                                    } catch (_: Exception) { }
-                                                }
-                                            },
-                                            onInfo = { contextMenuMessageId = null; onMessageInfo?.invoke(message.id) },
-                                            onViewOnce = { id -> scope.launch { try { messageRepository.markViewOnce(id) } catch (_: Exception) { } } }
-                                        )
-                                    }
-                                }
+                ChatMessageList(
+                    messages = messages,
+                    currentUserId = currentUserId,
+                    starredIds = starredIds.value,
+                    audioPlayer = audioPlayer,
+                    isLoadingMore = isLoadingMore,
+                    peerTyping = peerTyping,
+                    contextMenuMessageId = contextMenuMessageId,
+                    listState = listState,
+                    scope = scope,
+                    modifier = Modifier.weight(1f),
+                    actions = ChatMessageActions(
+                        onSwipeReply = { replyingTo = it },
+                        onLongPress = { contextMenuMessageId = it.id },
+                        onDismissMenu = { contextMenuMessageId = null },
+                        onReply = { contextMenuMessageId = null; replyingTo = it },
+                        onForward = { msg -> contextMenuMessageId = null; forwardMessage = msg; scope.launch { try { forwardConversations = conversationRepository.getConversations().items } catch (_: Exception) { } } },
+                        onStar = { msg, isStarred -> contextMenuMessageId = null; scope.launch { try { if (isStarred) { messageRepository.unstarMessage(msg.id); starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id); starredIds.value += msg.id } } catch (_: Exception) { } } },
+                        onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
+                        onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
+                        onImageClick = { fullImageUrl = it },
+                        onReactionToggle = { msg, emoji ->
+                            scope.launch {
+                                try {
+                                    if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
+                                    else messageRepository.addReaction(msg.id, emoji)
+                                } catch (_: Exception) { }
                             }
-                        }
-                        if (peerTyping) item(key = "typing") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) { TypingIndicatorBubble() } }
-                    }
-                    if (showScrollToBottom.value) {
-                        Surface(onClick = { scope.launch { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) } }, shape = CircleShape, shadowElevation = MuhabbetElevation.Level5, color = MaterialTheme.colorScheme.surface, modifier = Modifier.align(Alignment.BottomEnd).padding(MuhabbetSpacing.Large).size(44.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.scroll_to_bottom), Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary) }
-                        }
-                    }
-                }
+                        },
+                        onQuickReaction = { msg, emoji -> scope.launch { try { messageRepository.addReaction(msg.id, emoji) } catch (_: Exception) { } } },
+                        onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
+                        onViewOnce = { id -> scope.launch { try { messageRepository.markViewOnce(id) } catch (_: Exception) { } } }
+                    )
+                )
             }
 
             // Pending scheduled messages chip (session-local)
