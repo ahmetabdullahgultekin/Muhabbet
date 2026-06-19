@@ -237,9 +237,12 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > rate-limiting is in-process, not Redis. **Infra verdict** (RabbitMQ/Kafka/Hazelcast/K8s): adopt none
 > now (YAGNI, single host). **Multi-device:** PAUSE the non-crypto remainder — its user value is gated on
 > the libsignal block. Full detail: `docs/findings/2026-06-19-{session,infra-tech-assessment,code-quality-audit}.md`.
-> Also landed this session: **Chat Folders / custom lists** (new feature — full hexagonal backend vertical
-> in messaging, `V19` migration, `/api/v1/chat-folders`, 11 unit tests; mobile UI is the device-gated
-> follow-up) and a **mobile UI code-quality refactor pass** (SettingsScreen 707→278; ConversationListScreen
+> Also landed this session: **Chat Folders / custom lists** (`V19`, `/api/v1/chat-folders`, 11 tests) and
+> **Pin messages in a conversation** (WhatsApp pin-in-chat — `V20` `pinned_messages`,
+> `/api/v1/conversations/{id}/pinned-messages`, member-gated, idempotent, max 3/conv, 10 tests; distinct
+> from pinning a conversation in the list). Both are full hexagonal backend verticals with mobile UI +
+> real-time WS broadcast as the device-gated follow-up. Plus a **mobile UI code-quality refactor pass**
+> (SettingsScreen 707→278; ConversationListScreen
 > & ChatScreen decomposed; all 15 `!!` removed; silent catches now log). A diff-review agent confirmed the
 > Redis/`@Async` wiring correct + chat-folders IDOR-safe (verdict SHIP); its 2 LOW findings
 > (bad-UUID→400, stable folder order) were applied.
