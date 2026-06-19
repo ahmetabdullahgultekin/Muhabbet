@@ -21,6 +21,7 @@ import com.muhabbet.media.domain.port.out.ThumbnailPort
 import com.muhabbet.media.domain.service.MediaService
 import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
+import com.muhabbet.messaging.domain.port.out.ChatFolderRepository
 import com.muhabbet.messaging.domain.port.out.ChatWallpaperRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -35,6 +36,7 @@ import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
+import com.muhabbet.messaging.domain.service.ChatFolderService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
 import com.muhabbet.messaging.domain.service.ChatWallpaperService
@@ -366,5 +368,12 @@ class AppConfig {
         broadcastListRepository: BroadcastListRepository
     ): BroadcastListService = BroadcastListService(
         broadcastListRepository = broadcastListRepository
+    )
+
+    @Bean
+    fun chatFolderService(
+        chatFolderRepository: ChatFolderRepository
+    ): ChatFolderService = ChatFolderService(
+        chatFolderRepository = chatFolderRepository
     )
 }

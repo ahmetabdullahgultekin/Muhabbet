@@ -124,6 +124,11 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // Broadcast Lists
     BROADCAST_LIST_NOT_FOUND(HttpStatus.NOT_FOUND, "Yayın listesi bulunamadı"),
 
+    // Chat Folders (custom lists)
+    CHAT_FOLDER_NOT_FOUND(HttpStatus.NOT_FOUND, "Klasör bulunamadı"),
+    CHAT_FOLDER_LIMIT_REACHED(HttpStatus.CONFLICT, "Klasör sınırına ulaşıldı"),
+    CHAT_FOLDER_NAME_INVALID(HttpStatus.BAD_REQUEST, "Geçersiz klasör adı"),
+
     // Wallpaper
     WALLPAPER_NOT_FOUND(HttpStatus.NOT_FOUND, "Duvar kağıdı bulunamadı"),
 
