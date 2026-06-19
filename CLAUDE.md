@@ -226,6 +226,18 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ## Current Phase
 
+> **Update (2026-06-19) — status check + 2 real backend bug fixes (branch `claude/project-status-check-iae145`):**
+> Verified gates on this host (no Docker): commonMain compile GREEN, `:shared:jvmTest` 53/53,
+> `:backend:test` 383/389 (the 6 "failures" are Testcontainers-need-Docker, NOT logic — pass on CI).
+> Confirmed several "half-done" doc claims were actually **stale** (the 6 "dead buttons" are done).
+> An infra-architecture review surfaced **two real bugs, both now fixed**: (1) the Redis Pub/Sub
+> subscriber was never registered (`RedisBroadcastListener` had no `RedisMessageListenerContainer`) so
+> cross-instance WS fan-out was dead — wired in new `RedisConfig.kt`; (2) FCM push ran **synchronously**
+> on the broadcast hot path — now `@Async` via new `AsyncConfig.kt` `pushExecutor`. Also corrected: WS
+> rate-limiting is in-process, not Redis. **Infra verdict** (RabbitMQ/Kafka/Hazelcast/K8s): adopt none
+> now (YAGNI, single host). **Multi-device:** PAUSE the non-crypto remainder — its user value is gated on
+> the libsignal block. Full detail: `docs/findings/2026-06-19-{session,infra-tech-assessment,code-quality-audit}.md`.
+>
 > **Current state (2026-06-07) — session PRs all merged to `main`:** #49 (Android build unblock:
 > Firebase non-`ktx` artifacts, `compileSdk` 35→36, libsignal→NoOp), #57 (scheduled-send UI),
 > #58 (communities add-group sheet), #59 (mute-duration picker), #60 (Ktor 3.x mobile-test compile
@@ -397,7 +409,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Signal Protocol E2E Encryption**: SignalKeyManager (libsignal-android: X3DH + Double Ratchet), InMemorySignalProtocolStore, SignalEncryption implementing EncryptionPort, E2ESetupService for key registration on login, platform DI (Android: Signal, iOS: NoOp)
 - **Security Hardening**: HSTS, X-Frame-Options DENY, CSP, XSS protection, Referrer-Policy, Permissions-Policy headers; InputSanitizer (HTML escaping, control char stripping, URL validation)
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
-- **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
+- **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window — **in-process** `ConcurrentHashMap` in `WebSocketRateLimiter`, NOT Redis; per-instance, so move to Redis if scaling out), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
 - **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
 - **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
 - **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
@@ -473,7 +485,7 @@ All 9 production hardening features completed:
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
-- **~~Single-server architecture~~**: Resolved — Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) enables horizontal WS scaling across multiple backend instances.
+- **~~Single-server architecture~~**: Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) provides cross-instance WS fan-out. **NOTE (2026-06-19):** the subscriber half was never wired — `RedisBroadcastListener` existed but no `RedisMessageListenerContainer` registered it, so cross-instance delivery silently dropped. Now fixed (`RedisConfig.kt` subscribes `ws:broadcast:*`). True multi-instance correctness (presence-aware push suppression; Redis-backed rate-limit) remains a documented follow-up — see `docs/findings/2026-06-19-infra-tech-assessment.md`. **Prod runs a single instance**, so multi-instance is latent (YAGNI) until horizontal scale is actually needed.
 - **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
 - **~~In-memory E2E key store~~**: Resolved — `PersistentSignalProtocolStore` with EncryptedSharedPreferences (Android), `KeychainHelper` for iOS tokens.
 - **~~No offline support~~**: Resolved — SQLDelight cache layer with cache-first repository pattern + PendingMessage offline queue.
