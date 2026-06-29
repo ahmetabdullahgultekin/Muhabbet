@@ -30,10 +30,10 @@ dependencies {
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     // JWT
@@ -47,20 +47,20 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // MinIO (S3-compatible media storage)
-    implementation("io.minio:minio:9.0.0")
+    implementation("io.minio:minio:9.0.3")
 
     // HTML parsing for link previews
-    implementation("org.jsoup:jsoup:1.22.1")
+    implementation("org.jsoup:jsoup:1.22.2")
 
     // Firebase Cloud Messaging
-    implementation("com.google.firebase:firebase-admin:9.8.0")
+    implementation("com.google.firebase:firebase-admin:9.9.0")
 
     // Twilio SMS
-    implementation("com.twilio.sdk:twilio:11.3.6")
+    implementation("com.twilio.sdk:twilio:12.1.1")
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-4:8.42.0")
+    implementation("io.sentry:sentry-spring-boot-4:8.46.0")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
@@ -69,13 +69,13 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("org.testcontainers:junit-jupiter:1.21.4")
     testImplementation("org.testcontainers:postgresql:1.21.4")
     testImplementation("com.redis:testcontainers-redis:2.2.4")
 
     // Architecture testing
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.1")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
 }
 
 kotlin {

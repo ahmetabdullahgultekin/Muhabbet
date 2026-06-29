@@ -31,9 +31,9 @@ kotlin {
 
     sourceSets {
         val decompose = "3.5.0"
-        val koin = "4.2.0"
-        val ktor = "3.4.2"
-        val coil = "3.4.0"
+        val koin = "4.2.2"
+        val ktor = "3.5.1"
+        val coil = "3.5.0"
 
         commonMain.dependencies {
             // Shared KMP module
@@ -64,9 +64,9 @@ kotlin {
             implementation("io.ktor:ktor-client-websockets:$ktor")
 
             // Serialization
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
 
             // Image loading — Coil
             implementation("io.coil-kt.coil3:coil-compose:$coil")
@@ -86,23 +86,23 @@ kotlin {
             implementation("androidx.work:work-runtime-ktx:2.11.2")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.11.0"))
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.15.0"))
             implementation("com.google.firebase:firebase-auth")
             implementation("com.google.firebase:firebase-messaging")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:8.37.1")
+            implementation("io.sentry:sentry-android:8.46.0")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.24.0")
+            implementation("io.livekit:livekit-android:2.26.1")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
-            implementation("org.signal:libsignal-android:0.86.5")
+            implementation("org.signal:libsignal-android:0.96.4")
         }
 
         commonTest.dependencies {
             implementation(kotlin("test"))
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
             implementation("io.ktor:ktor-client-mock:$ktor")
             implementation("io.insert-koin:koin-test:$koin")
         }
