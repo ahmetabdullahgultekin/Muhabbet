@@ -84,7 +84,7 @@ class AppConfig {
         deviceRepository: DeviceRepository,
         refreshTokenRepository: RefreshTokenRepository,
         phoneHashRepository: PhoneHashRepository,
-        otpSender: OtpSender,
+        otpSender: OtpSender?,
         jwtProvider: JwtProvider,
         passwordEncoder: PasswordEncoder,
         otpProperties: OtpProperties,

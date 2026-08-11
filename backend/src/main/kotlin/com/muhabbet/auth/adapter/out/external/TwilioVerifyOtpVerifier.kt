@@ -3,6 +3,7 @@ package com.muhabbet.auth.adapter.out.external
 import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.shared.config.SmsProperties
 import com.twilio.Twilio
+import com.twilio.exception.ApiException
 import com.twilio.rest.verify.v2.service.Verification
 import com.twilio.rest.verify.v2.service.VerificationCheck
 import org.slf4j.LoggerFactory
@@ -37,18 +38,31 @@ class TwilioVerifyOtpVerifier(
     }
 
     override suspend fun check(phoneNumber: String, code: String): Boolean {
-        // Twilio raises rather than returning a failed check for an unknown/expired verification,
-        // which is an ordinary wrong-code outcome here, not an outage.
-        val status = runCatching {
+        val status = try {
             VerificationCheck
                 .creator(smsProperties.twilio.verifyServiceSid)
                 .setTo(phoneNumber)
                 .setCode(code)
                 .create()
                 .status
-        }.getOrElse { e ->
-            log.info("Verification check rejected: phone={}, reason={}", phoneNumber.takeLast(4), e.message)
-            return false
+        } catch (e: ApiException) {
+            // 20404 means there is no pending verification for this number: it expired, or it was
+            // already consumed. That is an ordinary failed attempt.
+            //
+            // Everything else — a rotated auth token, a typo in the service SID, a 429, a 5xx — is
+            // an outage. Returning false for those would tell a user holding the correct code that
+            // it is wrong, burn one of their five attempts, and leave nothing above INFO in the
+            // logs, so a permanently broken config would be indistinguishable from ordinary typos.
+            // Let it propagate: the caller turns it into a 500 that can be alerted on.
+            if (e.statusCode == HTTP_NOT_FOUND && e.code == NO_PENDING_VERIFICATION) {
+                log.info("No pending verification: phone={}", phoneNumber.takeLast(4))
+                return false
+            }
+            log.error(
+                "Verify check failed: phone={}, status={}, code={}",
+                phoneNumber.takeLast(4), e.statusCode, e.code, e,
+            )
+            throw e
         }
         return status == STATUS_APPROVED
     }
@@ -56,5 +70,8 @@ class TwilioVerifyOtpVerifier(
     private companion object {
         const val CHANNEL_SMS = "sms"
         const val STATUS_APPROVED = "approved"
+        const val HTTP_NOT_FOUND = 404
+        /** Twilio: "Verification resource not found" — expired or already consumed. */
+        const val NO_PENDING_VERIFICATION = 20404
     }
 }

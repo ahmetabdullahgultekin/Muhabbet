@@ -40,7 +40,8 @@ open class AuthService(
     private val deviceRepository: DeviceRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val phoneHashRepository: PhoneHashRepository,
-    private val otpSender: OtpSender,
+    /** Absent when an [otpVerifier] owns delivery; see the init block. */
+    private val otpSender: OtpSender? = null,
     private val jwtProvider: JwtProvider,
     private val passwordEncoder: PasswordEncoder,
     private val otpLength: Int = 6,
@@ -58,6 +59,21 @@ open class AuthService(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
+
+    init {
+        // Exactly one delivery path must exist. Neither means every login silently fails at the
+        // first OTP; both means the configuration is ambiguous about who owns the code. Failing
+        // here stops the context with a message naming the property, instead of a bare
+        // NoSuchBeanDefinitionException on OtpSender.
+        require(otpSender != null || otpVerifier != null) {
+            "No OTP delivery configured: muhabbet.sms.provider matched neither an OtpSender " +
+                "(mock/netgsm/twilio) nor an OtpVerifier (twilio-verify)"
+        }
+        require(otpSender == null || otpVerifier == null) {
+            "Both an OtpSender and an OtpVerifier are configured; muhabbet.sms.provider must " +
+                "select exactly one"
+        }
+    }
 
     @Transactional
     override suspend fun requestOtp(phoneNumber: String): OtpResult {
@@ -91,7 +107,7 @@ open class AuthService(
         if (otpVerifier != null) {
             otpVerifier.start(phoneNumber)
         } else {
-            otpSender.send(phoneNumber, otp!!)
+            otpSender!!.send(phoneNumber, otp!!)
         }
         log.info("OTP requested for phone={}", phoneNumber.takeLast(4))
 

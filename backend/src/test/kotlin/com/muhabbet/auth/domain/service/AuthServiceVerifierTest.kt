@@ -19,6 +19,7 @@ import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -35,14 +36,12 @@ class AuthServiceVerifierTest {
     private val phone = "+905000000001"
 
     private lateinit var otpRepository: OtpRepository
-    private lateinit var otpSender: OtpSender
     private lateinit var otpVerifier: OtpVerifier
     private lateinit var authService: AuthService
 
     @BeforeEach
     fun setUp() {
         otpRepository = mockk(relaxed = true)
-        otpSender = mockk(relaxed = true)
         otpVerifier = mockk(relaxed = true)
 
         val env = MockEnvironment().withProperty("spring.profiles.active", "test")
@@ -57,7 +56,7 @@ class AuthServiceVerifierTest {
             deviceRepository = mockk<DeviceRepository>(relaxed = true),
             refreshTokenRepository = mockk<RefreshTokenRepository>(relaxed = true),
             phoneHashRepository = mockk<PhoneHashRepository>(relaxed = true),
-            otpSender = otpSender,
+            // No sender: the constructor now rejects having both, which is the point.
             jwtProvider = jwtProvider,
             passwordEncoder = BCryptPasswordEncoder(),
             otpVerifier = otpVerifier,
@@ -73,7 +72,6 @@ class AuthServiceVerifierTest {
         val result = authService.requestOtp(phone)
 
         coVerify(exactly = 1) { otpVerifier.start(phone) }
-        coVerify(exactly = 0) { otpSender.send(any(), any()) }
         // No code exists on this side, so none can be echoed back even in mock mode.
         assertNull(result.mockCode)
         assertEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
@@ -105,6 +103,37 @@ class AuthServiceVerifierTest {
         // Attempt limiting stays ours even though the code check is delegated.
         coVerify(exactly = 1) { otpRepository.incrementAttempts(active) }
     }
+
+    @Test
+    fun `should refuse to start with no delivery path at all`() {
+        // muhabbet.sms.provider=twilio-verify matches no OtpSender, so without this guard the
+        // context died on an unresolved OtpSender bean and took the whole API down with it.
+        val error = assertThrows<IllegalArgumentException> { buildService(sender = null, verifier = null) }
+        assertTrue(error.message!!.contains("muhabbet.sms.provider"))
+    }
+
+    @Test
+    fun `should refuse to start with two competing delivery paths`() {
+        val error = assertThrows<IllegalArgumentException> {
+            buildService(sender = mockk(relaxed = true), verifier = mockk(relaxed = true))
+        }
+        assertTrue(error.message!!.contains("exactly one"))
+    }
+
+    private fun buildService(sender: OtpSender?, verifier: OtpVerifier?) = AuthService(
+        userRepository = mockk(relaxed = true),
+        otpRepository = mockk(relaxed = true),
+        deviceRepository = mockk(relaxed = true),
+        refreshTokenRepository = mockk(relaxed = true),
+        phoneHashRepository = mockk(relaxed = true),
+        otpSender = sender,
+        jwtProvider = JwtProvider(
+            JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
+            MockEnvironment().withProperty("spring.profiles.active", "test"),
+        ),
+        passwordEncoder = BCryptPasswordEncoder(),
+        otpVerifier = verifier,
+    )
 
     private fun activeRequest() = OtpRequest(
         phoneNumber = phone,
