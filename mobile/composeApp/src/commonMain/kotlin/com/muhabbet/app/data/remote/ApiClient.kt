@@ -4,6 +4,8 @@ import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.shared.dto.ApiResponse
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -27,10 +29,21 @@ import com.muhabbet.app.util.Log
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
-class ApiClient(private val tokenStorage: TokenStorage) {
+/**
+ * @param engine supplied only by tests, so they can drive the repositories through a mock engine
+ * instead of reaching the network. Production callers pass nothing and get the platform engine.
+ */
+class ApiClient(
+    private val tokenStorage: TokenStorage,
+    engine: HttpClientEngine? = null,
+) {
 
     companion object {
-        const val BASE_URL = "https://muhabbet.rollingcatsoftware.com"
+        // Must match the Traefik Host() rule in the repo-root docker-compose.prod.yml (NOT
+        // infra/docker-compose.prod.yml — that is the legacy nginx stack and carries no Traefik
+        // labels). No certificate is issued for any other name, so a mismatch fails the TLS
+        // handshake instead of 404-ing.
+        const val BASE_URL = "https://muhabbet-api.rollingcatsoftware.com"
         @PublishedApi internal const val TAG = "ApiClient"
     }
 
@@ -40,7 +53,7 @@ class ApiClient(private val tokenStorage: TokenStorage) {
         isLenient = true
     }
 
-    val httpClient = HttpClient {
+    private val clientConfig: HttpClientConfig<*>.() -> Unit = {
         install(ContentNegotiation) {
             json(json)
         }
@@ -116,6 +129,9 @@ class ApiClient(private val tokenStorage: TokenStorage) {
             contentType(ContentType.Application.Json)
         }
     }
+
+    val httpClient =
+        if (engine == null) HttpClient(clientConfig) else HttpClient(engine, clientConfig)
 
     suspend inline fun <reified T> get(path: String): ApiResponse<T> {
         Log.d(TAG, "GET $path")

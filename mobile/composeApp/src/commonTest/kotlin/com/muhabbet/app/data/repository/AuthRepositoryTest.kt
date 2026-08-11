@@ -5,7 +5,6 @@ import com.muhabbet.app.data.remote.ApiClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -30,13 +29,10 @@ class AuthRepositoryTest {
     private fun createApiClientWithMock(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData)): Pair<ApiClient, FakeTokenStorage> {
         val tokenStorage = FakeTokenStorage()
         val mockEngine = MockEngine(handler)
-        val apiClient = ApiClient(tokenStorage)
-        // Replace the httpClient with mock engine
-        val mockHttpClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(json) }
-        }
-        // We need to use ApiClient's public json and call methods directly
-        // For simplicity, we test through the repository with a real ApiClient
+        // The engine goes into ApiClient itself. Building a second HttpClient around the mock and
+        // handing back a default-engine ApiClient (what this helper used to do) left every caller
+        // talking to the real server.
+        val apiClient = ApiClient(tokenStorage, mockEngine)
         return apiClient to tokenStorage
     }
 
@@ -73,69 +69,80 @@ class AuthRepositoryTest {
 
     @Test
     fun should_save_tokens_on_successful_verify_otp() = runTest {
-        val tokenStorage = FakeTokenStorage()
-        val mockEngine = MockEngine { request ->
-            val url = request.url.toString()
-            when {
-                url.contains("/api/v1/auth/otp/verify") -> {
-                    respond(
-                        content = """
-                            {
-                                "data": {
-                                    "accessToken": "new-access-token",
-                                    "refreshToken": "new-refresh-token",
-                                    "expiresIn": 3600,
-                                    "userId": "user-123",
-                                    "deviceId": "device-456",
-                                    "isNewUser": false
-                                },
-                                "timestamp": "2026-02-13T12:00:00Z"
-                            }
-                        """.trimIndent(),
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, "application/json")
-                    )
-                }
-                else -> respond("Not found", HttpStatusCode.NotFound)
+        val (apiClient, tokenStorage) = createApiClientWithMock { request ->
+            if (request.url.encodedPath == "/api/v1/auth/otp/verify") {
+                respond(
+                    content = """
+                        {
+                            "data": {
+                                "accessToken": "new-access-token",
+                                "refreshToken": "new-refresh-token",
+                                "expiresIn": 3600,
+                                "userId": "user-123",
+                                "deviceId": "device-456",
+                                "isNewUser": false
+                            },
+                            "timestamp": "2026-02-13T12:00:00Z"
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                )
+            } else {
+                respond("Not found", HttpStatusCode.NotFound)
             }
         }
-
-        val httpClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(json) }
-        }
-
-        // Create ApiClient and replace httpClient via reflection-free approach:
-        // Use the mock engine approach - construct ApiClient, but call the test via raw HTTP
-        val apiClient = ApiClient(tokenStorage)
-
-        // For this test, we validate the logic by calling the repository
-        // with a specially crafted ApiClient that uses mock engine
-        // Since ApiClient.httpClient is a val, we'll test the token storage behavior directly
+        val repo = AuthRepository(apiClient, tokenStorage)
         assertFalse(tokenStorage.isLoggedIn())
 
-        // Simulate what verifyOtp does
-        tokenStorage.saveTokens(
-            accessToken = "new-access-token",
-            refreshToken = "new-refresh-token",
-            userId = "user-123",
-            deviceId = "device-456"
-        )
+        // Previously this test wrote the tokens itself and asserted its own writes back out, so it
+        // exercised FakeTokenStorage rather than the repository. Drive verifyOtp for real.
+        repo.verifyOtp("+905000000001", "123456", "Pixel", "ANDROID")
 
         assertTrue(tokenStorage.isLoggedIn())
         assertEquals("new-access-token", tokenStorage.getAccessToken())
+        assertEquals("new-refresh-token", tokenStorage.getRefreshToken())
         assertEquals("user-123", tokenStorage.getUserId())
         assertEquals("device-456", tokenStorage.getDeviceId())
     }
 
     @Test
-    fun should_throw_on_failed_otp_request() = runTest {
-        val tokenStorage = FakeTokenStorage()
-        val apiClient = ApiClient(tokenStorage)
+    fun should_not_save_tokens_when_verify_otp_is_rejected() = runTest {
+        val (apiClient, tokenStorage) = createApiClientWithMock {
+            respond(
+                content = """{"error":{"code":"AUTH_OTP_INVALID","message":"gecersiz"},"timestamp":"2026-01-01T00:00:00Z"}""",
+                status = HttpStatusCode.BadRequest,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        }
         val repo = AuthRepository(apiClient, tokenStorage)
 
-        // Calling without a server will throw a network exception
-        assertFailsWith<Exception> {
+        assertFailsWith<Exception> { repo.verifyOtp("+905000000001", "000000", "Pixel", "ANDROID") }
+
+        assertFalse(tokenStorage.isLoggedIn())
+    }
+
+    @Test
+    fun should_throw_on_failed_otp_request() = runTest {
+        // Previously this built a default-engine ApiClient and relied on the request failing to
+        // connect, so it passed for as long as BASE_URL pointed at an unroutable host — and sent a
+        // real OTP request to production the moment the host was correct. Drive the failure from a
+        // mocked server response instead.
+        val (apiClient, tokenStorage) = createApiClientWithMock {
+            respond(
+                content = """{"error":{"code":"AUTH_OTP_COOLDOWN","message":"cooldown"},"timestamp":"2026-01-01T00:00:00Z"}""",
+                status = HttpStatusCode.TooManyRequests,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        }
+        val repo = AuthRepository(apiClient, tokenStorage)
+
+        // assertFailsWith<Exception> alone would also pass on a SerializationException from a
+        // changed envelope, which is a crash the user sees as untranslatable text rather than the
+        // cooldown notice. Assert on what was actually propagated.
+        val error = assertFailsWith<Exception> {
             repo.requestOtp("+905000000001")
         }
+        assertEquals("cooldown", error.message)
     }
 }
