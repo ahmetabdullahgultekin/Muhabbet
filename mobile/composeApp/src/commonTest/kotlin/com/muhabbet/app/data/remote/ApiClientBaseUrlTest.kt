@@ -9,13 +9,15 @@ import kotlin.test.assertTrue
  * Pins the API host the app talks to.
  *
  * The app shipped pointing at `muhabbet.rollingcatsoftware.com` while Traefik only ever routed
- * `muhabbet-api.rollingcatsoftware.com` (see the router rule in `infra/docker-compose.prod.yml`).
+ * `muhabbet-api.rollingcatsoftware.com` (see the router rule in the repo-root `docker-compose.prod.yml`).
  * DNS resolved and port 80 redirected to HTTPS, so the mismatch looked like a working host, but no
  * certificate was ever issued for it and the TLS handshake was rejected. Login could not work from
  * any build carrying that value, and nothing in the suite noticed.
  *
- * If the deployed host changes, change it in `infra/docker-compose.prod.yml` first, then here — the
- * router rule is the source of truth, this test is the tripwire.
+ * The rule lives in the **repo-root** `docker-compose.prod.yml`. `infra/docker-compose.prod.yml` is
+ * the legacy nginx stack and carries no Traefik labels, so editing that one changes nothing about
+ * routing. If the deployed host changes, change the root compose first, then here — the router rule
+ * is the source of truth, this test is the tripwire.
  */
 class ApiClientBaseUrlTest {
 
@@ -24,7 +26,7 @@ class ApiClientBaseUrlTest {
         assertEquals(
             "https://muhabbet-api.rollingcatsoftware.com",
             ApiClient.BASE_URL,
-            "BASE_URL must match the Host() rule in infra/docker-compose.prod.yml",
+            "BASE_URL must match the Host() rule in the repo-root docker-compose.prod.yml",
         )
     }
 

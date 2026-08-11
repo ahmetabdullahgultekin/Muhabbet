@@ -39,8 +39,10 @@ class ApiClient(
 ) {
 
     companion object {
-        // Must match the Traefik Host() rule in infra/docker-compose.prod.yml. No certificate is
-        // issued for any other name, so a mismatch fails the TLS handshake instead of 404-ing.
+        // Must match the Traefik Host() rule in the repo-root docker-compose.prod.yml (NOT
+        // infra/docker-compose.prod.yml — that is the legacy nginx stack and carries no Traefik
+        // labels). No certificate is issued for any other name, so a mismatch fails the TLS
+        // handshake instead of 404-ing.
         const val BASE_URL = "https://muhabbet-api.rollingcatsoftware.com"
         @PublishedApi internal const val TAG = "ApiClient"
     }
