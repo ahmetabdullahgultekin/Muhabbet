@@ -3,7 +3,6 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
-import com.muhabbet.messaging.domain.service.StatusService
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.StatusCreateRequest
 import com.muhabbet.shared.dto.StatusResponse
@@ -31,15 +30,14 @@ data class StatusCreateWithAudienceRequest(
 @RestController
 @RequestMapping("/api/v1/statuses")
 class StatusController(
-    private val manageStatusUseCase: ManageStatusUseCase,
-    private val statusService: StatusService
+    private val manageStatusUseCase: ManageStatusUseCase
 ) {
 
     @PostMapping
     fun createStatus(@RequestBody request: StatusCreateWithAudienceRequest): ResponseEntity<ApiResponse<StatusResponse>> {
         val userId = AuthenticatedUser.currentUserId()
         val status = if (request.visibility != "everyone" || request.excludedUserIds.isNotEmpty() || request.includedUserIds.isNotEmpty()) {
-            statusService.createStatusWithAudience(
+            manageStatusUseCase.createStatusWithAudience(
                 userId = userId,
                 content = request.content,
                 mediaUrl = request.mediaUrl,
@@ -63,7 +61,7 @@ class StatusController(
     @GetMapping("/contacts")
     fun getContactStatuses(): ResponseEntity<ApiResponse<List<UserStatusGroup>>> {
         val userId = AuthenticatedUser.currentUserId()
-        val groups = statusService.getContactStatusesForUser(userId)
+        val groups = manageStatusUseCase.getContactStatusesForUser(userId)
         return ApiResponseBuilder.ok(groups.map { it.toDto() })
     }
 
