@@ -4,6 +4,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.ArchRule
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.Architectures.layeredArchitecture
 import org.junit.jupiter.api.BeforeAll
@@ -179,6 +180,40 @@ class HexagonalArchitectureTest {
                 .that().resideInAPackage("..domain.model..")
                 .should().beAnnotatedWith(org.springframework.stereotype.Component::class.java)
                 .orShould().beAnnotatedWith(org.springframework.stereotype.Service::class.java)
+
+            rule.check(importedClasses)
+        }
+    }
+
+    // ─── Spring Proxy Safety ─────────────────────────────
+
+    @Nested
+    inner class SpringProxySafety {
+
+        /**
+         * A @Transactional method forces Spring to wrap the bean in a CGLIB subclass. CGLIB builds
+         * that subclass without running a constructor, so its own fields are null, and it can only
+         * route a call to the real target by overriding the method. A final method cannot be
+         * overridden, so the call runs on the proxy instead — and every dependency it touches is
+         * null at runtime.
+         *
+         * This is silent: the class compiles, the context starts, and the bean's non-final methods
+         * work. Only the final ones blow up, and only when first called. StatusService shipped two
+         * of them; GET /api/v1/statuses/contacts returned 500 in production for months.
+         *
+         * In Kotlin a method is final unless it is `open` or `override`, so putting the method on
+         * the use-case interface is the usual fix — which the hexagonal rules want anyway.
+         */
+        @Test
+        fun `transactional methods must not be final`() {
+            val rule: ArchRule = methods()
+                .that().areAnnotatedWith(org.springframework.transaction.annotation.Transactional::class.java)
+                .and().arePublic()
+                .should().notHaveModifier(com.tngtech.archunit.core.domain.JavaModifier.FINAL)
+                .because(
+                    "Spring cannot route a final method through its CGLIB proxy, so it runs on the " +
+                        "proxy instance whose injected fields are all null"
+                )
 
             rule.check(importedClasses)
         }

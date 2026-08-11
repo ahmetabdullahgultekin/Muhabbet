@@ -27,7 +27,7 @@ open class StatusService(
     }
 
     @Transactional
-    fun createStatusWithAudience(
+    override fun createStatusWithAudience(
         userId: UUID,
         content: String?,
         mediaUrl: String?,
@@ -66,7 +66,7 @@ open class StatusService(
     }
 
     @Transactional(readOnly = true)
-    fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
+    override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
         return statusRepository.findAllActive()
             .filter { status ->
                 when (status.visibility) {

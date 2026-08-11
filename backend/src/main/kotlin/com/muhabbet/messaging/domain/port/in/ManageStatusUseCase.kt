@@ -5,8 +5,18 @@ import java.util.UUID
 
 interface ManageStatusUseCase {
     fun createStatus(userId: UUID, content: String?, mediaUrl: String?): Status
+    fun createStatusWithAudience(
+        userId: UUID,
+        content: String?,
+        mediaUrl: String?,
+        visibility: String,
+        excludedUserIds: List<UUID>,
+        includedUserIds: List<UUID>
+    ): Status
     fun getMyStatuses(userId: UUID): List<Status>
     fun getContactStatuses(): List<StatusGroup>
+    /** Same as [getContactStatuses] but drops statuses whose audience excludes [viewerUserId]. */
+    fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup>
     fun deleteStatus(statusId: UUID, userId: UUID)
 }
 
