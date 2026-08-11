@@ -104,6 +104,7 @@ muhabbet:
       account-sid: ${TWILIO_ACCOUNT_SID:}
       auth-token: ${TWILIO_AUTH_TOKEN:}
       from-number: ${TWILIO_FROM_NUMBER:}
+      verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
     netgsm:
       usercode: ${NETGSM_USERCODE:}
       password: ${NETGSM_PASSWORD:}
