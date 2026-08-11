@@ -30,13 +30,10 @@ class AuthRepositoryTest {
     private fun createApiClientWithMock(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData)): Pair<ApiClient, FakeTokenStorage> {
         val tokenStorage = FakeTokenStorage()
         val mockEngine = MockEngine(handler)
-        val apiClient = ApiClient(tokenStorage)
-        // Replace the httpClient with mock engine
-        val mockHttpClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(json) }
-        }
-        // We need to use ApiClient's public json and call methods directly
-        // For simplicity, we test through the repository with a real ApiClient
+        // The engine goes into ApiClient itself. Building a second HttpClient around the mock and
+        // handing back a default-engine ApiClient (what this helper used to do) left every caller
+        // talking to the real server.
+        val apiClient = ApiClient(tokenStorage, mockEngine)
         return apiClient to tokenStorage
     }
 
@@ -129,11 +126,19 @@ class AuthRepositoryTest {
 
     @Test
     fun should_throw_on_failed_otp_request() = runTest {
-        val tokenStorage = FakeTokenStorage()
-        val apiClient = ApiClient(tokenStorage)
+        // Previously this built a default-engine ApiClient and relied on the request failing to
+        // connect, so it passed for as long as BASE_URL pointed at an unroutable host — and sent a
+        // real OTP request to production the moment the host was correct. Drive the failure from a
+        // mocked server response instead.
+        val (apiClient, tokenStorage) = createApiClientWithMock {
+            respond(
+                content = """{"error":{"code":"AUTH_OTP_COOLDOWN","message":"cooldown"},"timestamp":"2026-01-01T00:00:00Z"}""",
+                status = HttpStatusCode.TooManyRequests,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        }
         val repo = AuthRepository(apiClient, tokenStorage)
 
-        // Calling without a server will throw a network exception
         assertFailsWith<Exception> {
             repo.requestOtp("+905000000001")
         }
