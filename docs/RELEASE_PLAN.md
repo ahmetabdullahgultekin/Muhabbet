@@ -45,14 +45,38 @@ else".
 - Contact sync verified against a device that actually has contacts.
 - Crash reporting confirmed to be receiving events.
 
-### 0.5.0 — polish
+### 0.5.0 — per-conversation settings and named chats
+The container for everything in ADR-0008, plus the cheapest genuinely novel thing in it.
+
+- **Per-conversation settings.** The prerequisite for storage modes and for named chats.
+- **Several named conversations with the same contact** — "grocery", "home", "private" — each with
+  its own settings. No crypto dependency, so it can ship long before the storage modes do.
+- Lottie motion pass (#101) — empty states, delivery ticks, typing, voice waveform.
+
+### 0.6.0 — bring your own server
+- Client-side base URL, so a user can point the app at a backend they run.
+- Optional own S3-compatible bucket for media.
+- Encrypted export to a destination the user picks, including Drive/OneDrive. This is a backup
+  target, not a message store — see the design doc for why Drive cannot be the live store.
+- Mode negotiation and the strictest-wins rule from ADR-0008, exercised with Cloud and BYO only.
+
+### 0.7.0 — polish
 - Lottie motion pass (#101) — empty states, delivery ticks, typing, voice waveform.
 - Play Store internal testing track, once a keystore exists and the store listing is written.
 
-### 1.0.0 — E2E on
+### 1.0.0 — E2E on, and local-only becomes possible
 Gated on the standing libsignal blocker: the Android Signal code does not compile against its own
 pinned `0.86.5` API, and iOS is stubbed. Requires a crypto review and a two-device round-trip test
 on real hardware. Until then the UI keeps telling users the truth: transport-encrypted only.
+
+**Local-only conversations (ADR-0008 Mode 3) are gated on this and cannot ship earlier.** The mode
+promises that no server can read the conversation; while `E2EConfig.ENABLED` is false and
+`NoOpEncryption` returns plaintext, our relay can read everything. Shipping it sooner would repeat
+the false-padlock defect the UI already had to be corrected for.
+
+When it does ship, it ships as *encrypted store-and-forward* — we hold ciphertext we cannot read and
+delete it on delivery — not as "we never touch it". A pure relay cannot deliver to a phone that is
+switched off, and the difference is something users would discover the first night.
 
 ## Release checklist
 
