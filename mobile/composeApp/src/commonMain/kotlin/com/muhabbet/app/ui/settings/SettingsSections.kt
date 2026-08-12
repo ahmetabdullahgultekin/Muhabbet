@@ -60,12 +60,18 @@ internal fun ProfileEditorSection(
     onAboutChange: (String) -> Unit,
     onSave: () -> Unit
 ) {
-    Box(contentAlignment = Alignment.Center) {
+    // The click sits on the whole Box, not just the avatar. The camera badge is drawn over the
+    // avatar's bottom-right corner, so a tap that landed on the badge — the part that looks like
+    // the button, and the node that carries the "Change photo" description a screen reader is told
+    // to activate — hit the Surface and did nothing at all.
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.clickable(enabled = !isUploadingPhoto) { onPickPhoto() }
+    ) {
         UserAvatar(
             avatarUrl = avatarUrl,
             displayName = displayName,
-            size = 80.dp,
-            modifier = Modifier.clickable(enabled = !isUploadingPhoto) { onPickPhoto() }
+            size = 80.dp
         )
         Surface(
             modifier = Modifier.size(28.dp).align(Alignment.BottomEnd),

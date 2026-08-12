@@ -623,4 +623,5 @@
     <string name="schedule_list_title">Scheduled messages</string>
     <string name="schedule_list_empty">No scheduled messages</string>
     <string name="contacts_refresh">Refresh contacts</string>
+    <string name="calls_new_call">New call</string>
 </resources>

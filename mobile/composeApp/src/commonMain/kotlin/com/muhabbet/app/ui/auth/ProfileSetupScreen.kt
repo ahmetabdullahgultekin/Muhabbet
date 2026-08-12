@@ -2,6 +2,13 @@ package com.muhabbet.app.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,8 +57,18 @@ fun ProfileSetupScreen(
     val nameErrorMsg = stringResource(Res.string.profile_name_error)
     val updateFailedMsg = stringResource(Res.string.profile_update_failed)
 
+    // imePadding lifts the content above the keyboard and verticalScroll makes the button
+    // reachable when it still does not fit. Without either, opening the keyboard pushed
+    // "Get Started" off-screen with no way back to it — immediately after a user had successfully
+    // verified their number, which is the worst possible place to strand someone.
+    val focusManager = LocalFocusManager.current
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -97,6 +114,10 @@ fun ProfileSetupScreen(
             singleLine = true,
             isError = error != null,
             supportingText = error?.let { { Text(it) } },
+            // The IME action key now dismisses the keyboard. It previously did nothing, so the
+            // only way out was the system back gesture.
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             modifier = Modifier.fillMaxWidth()
         )
 

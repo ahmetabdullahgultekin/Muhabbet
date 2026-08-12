@@ -27,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -47,6 +48,7 @@ import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.call_history_empty
+import com.muhabbet.composeapp.generated.resources.calls_new_call
 import com.muhabbet.composeapp.generated.resources.call_incoming
 import com.muhabbet.composeapp.generated.resources.call_missed
 import com.muhabbet.composeapp.generated.resources.call_outgoing
@@ -61,6 +63,12 @@ import org.koin.compose.koinInject
 fun CallHistoryScreen(
     onBack: () -> Unit,
     onCallUser: (userId: String, name: String?, callType: String) -> Unit,
+    /**
+     * Opens a contact picker so a call can be started from this tab. Without it the tab was a dead
+     * end for anyone with an empty history — which is every new user — and calling was reachable
+     * only from inside an existing conversation.
+     */
+    onNewCall: (() -> Unit)? = null,
     showBackButton: Boolean = true,
     showTopBar: Boolean = true
 ) {
@@ -103,6 +111,20 @@ fun CallHistoryScreen(
                         }
                     }
                 )
+            }
+        },
+        floatingActionButton = {
+            if (onNewCall != null) {
+                FloatingActionButton(
+                    onClick = onNewCall,
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = stringResource(Res.string.calls_new_call),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
         }
     ) { padding ->

@@ -67,6 +67,12 @@ fun NewConversationScreen(
     onConversationCreated: (id: String, name: String) -> Unit,
     onCreateGroup: () -> Unit = {},
     onBack: () -> Unit,
+    /**
+     * When set, picking a contact hands the caller the contact instead of opening a conversation.
+     * The Calls tab uses this: it had no way to reach a person at all, so calling was only possible
+     * from inside an existing chat.
+     */
+    onContactPicked: ((userId: String, name: String?) -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
     contactsProvider: ContactsProvider = koinInject()
 ) {
@@ -269,6 +275,10 @@ fun NewConversationScreen(
                                     defaultName = defaultChatName,
                                     onClick = {
                                         if (isCreating) return@ContactItem
+                                        if (onContactPicked != null) {
+                                            onContactPicked(contact.userId, contact.displayName)
+                                            return@ContactItem
+                                        }
                                         isCreating = true
                                         scope.launch {
                                             try {

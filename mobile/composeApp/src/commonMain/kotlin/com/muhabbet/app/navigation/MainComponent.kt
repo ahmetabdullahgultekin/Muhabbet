@@ -162,6 +162,11 @@ class MainComponent(
     }
 
     @OptIn(DelicateDecomposeApi::class)
+    fun openPickContactForCall() {
+        navigation.push(Config.PickContactForCall)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
     fun openCreateCommunity() {
         navigation.push(Config.CreateCommunity)
     }
@@ -237,6 +242,7 @@ class MainComponent(
         @Serializable data object Wallpaper : Config
         @Serializable data class CommunityDetail(val communityId: String) : Config
         @Serializable data object CreateCommunity : Config
+        @Serializable data object PickContactForCall : Config
         @Serializable data class GroupEvents(val conversationId: String) : Config
         @Serializable data object BroadcastLists : Config
         @Serializable data class BroadcastDetail(val broadcastListId: String, val broadcastListName: String) : Config
@@ -259,6 +265,7 @@ fun MainContent(component: MainComponent) {
                     val callId = Clock.System.now().toEpochMilliseconds().toString()
                     component.openActiveCall(callId, userId, name, callType)
                 },
+                onNewCall = component::openPickContactForCall,
                 onCommunityClick = { communityId -> component.openCommunityDetail(communityId) },
                 onCreateCommunity = component::openCreateCommunity,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
@@ -395,6 +402,14 @@ fun MainContent(component: MainComponent) {
                 onBack = component::goBack,
                 onGroupClick = { conversationId ->
                     component.openChat(conversationId, "", isGroup = true)
+                }
+            )
+            is MainComponent.Config.PickContactForCall -> NewConversationScreen(
+                onConversationCreated = { id, name -> component.replaceWithChat(id, name) },
+                onBack = component::goBack,
+                onContactPicked = { userId, name ->
+                    val callId = Clock.System.now().toEpochMilliseconds().toString()
+                    component.replaceWithActiveCall(callId, userId, name, "VOICE")
                 }
             )
             is MainComponent.Config.CreateCommunity -> CreateCommunityScreen(
