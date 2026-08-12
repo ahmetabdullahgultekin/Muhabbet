@@ -12,7 +12,10 @@ data class SmsProperties(
 data class TwilioProperties(
     val accountSid: String = "",
     val authToken: String = "",
-    val fromNumber: String = ""
+    /** Only the Messages API (`provider=twilio`) needs a purchased sender number. */
+    val fromNumber: String = "",
+    /** Only Verify (`provider=twilio-verify`) needs a service SID; it needs no sender number. */
+    val verifyServiceSid: String = ""
 )
 
 data class NetgsmProperties(

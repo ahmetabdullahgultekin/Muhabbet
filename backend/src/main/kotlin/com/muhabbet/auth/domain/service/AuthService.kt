@@ -16,6 +16,7 @@ import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
+import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRecord
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
@@ -39,7 +40,8 @@ open class AuthService(
     private val deviceRepository: DeviceRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val phoneHashRepository: PhoneHashRepository,
-    private val otpSender: OtpSender,
+    /** Absent when an [otpVerifier] owns delivery; see the init block. */
+    private val otpSender: OtpSender? = null,
     private val jwtProvider: JwtProvider,
     private val passwordEncoder: PasswordEncoder,
     private val otpLength: Int = 6,
@@ -47,11 +49,31 @@ open class AuthService(
     private val otpCooldownSeconds: Int = 60,
     private val otpMaxAttempts: Int = 5,
     private val refreshTokenExpirySeconds: Long = 2592000,
-    private val mockEnabled: Boolean = false
+    private val mockEnabled: Boolean = false,
+    /**
+     * Present only when an external verification provider is configured. When set, it owns code
+     * generation and checking; [otpSender] and the local hash comparison are bypassed.
+     */
+    private val otpVerifier: OtpVerifier? = null
 ) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
+
+    init {
+        // Exactly one delivery path must exist. Neither means every login silently fails at the
+        // first OTP; both means the configuration is ambiguous about who owns the code. Failing
+        // here stops the context with a message naming the property, instead of a bare
+        // NoSuchBeanDefinitionException on OtpSender.
+        require(otpSender != null || otpVerifier != null) {
+            "No OTP delivery configured: muhabbet.sms.provider matched neither an OtpSender " +
+                "(mock/netgsm/twilio) nor an OtpVerifier (twilio-verify)"
+        }
+        require(otpSender == null || otpVerifier == null) {
+            "Both an OtpSender and an OtpVerifier are configured; muhabbet.sms.provider must " +
+                "select exactly one"
+        }
+    }
 
     @Transactional
     override suspend fun requestOtp(phoneNumber: String): OtpResult {
@@ -68,9 +90,12 @@ open class AuthService(
             }
         }
 
-        // Generate OTP
-        val otp = generateOtp()
-        val otpHash = passwordEncoder.encode(otp) ?: ""
+        // With an external verifier the code never exists on this side, so there is nothing to
+        // generate or hash. The record is still written — cooldown, expiry and attempt limits are
+        // ours either way. The stored hash is a sentinel that no input can match, so a mis-wired
+        // branch fails closed rather than accepting an unchecked code.
+        val otp = if (otpVerifier == null) generateOtp() else null
+        val otpHash = otp?.let { passwordEncoder.encode(it) ?: "" } ?: EXTERNALLY_VERIFIED
 
         val otpRequest = OtpRequest(
             phoneNumber = phoneNumber,
@@ -79,8 +104,11 @@ open class AuthService(
         )
         otpRepository.save(otpRequest)
 
-        // Send OTP
-        otpSender.send(phoneNumber, otp)
+        if (otpVerifier != null) {
+            otpVerifier.start(phoneNumber)
+        } else {
+            otpSender!!.send(phoneNumber, otp!!)
+        }
         log.info("OTP requested for phone={}", phoneNumber.takeLast(4))
 
         return OtpResult(
@@ -106,7 +134,12 @@ open class AuthService(
 
         otpRepository.incrementAttempts(activeOtp)
 
-        if (!passwordEncoder.matches(otp, activeOtp.otpHash)) {
+        val accepted = if (otpVerifier != null) {
+            otpVerifier.check(phoneNumber, otp)
+        } else {
+            passwordEncoder.matches(otp, activeOtp.otpHash)
+        }
+        if (!accepted) {
             throw BusinessException(ErrorCode.AUTH_OTP_INVALID)
         }
 
@@ -271,6 +304,12 @@ open class AuthService(
     }
 
     companion object {
+        /**
+         * Stored in place of a hash when an external verifier owns the code. BCrypt never produces
+         * this, so [PasswordEncoder.matches] can only ever return false against it.
+         */
+        internal const val EXTERNALLY_VERIFIED = "externally-verified"
+
         fun sha256(input: String): String {
             val digest = MessageDigest.getInstance("SHA-256")
             val hash = digest.digest(input.toByteArray(Charsets.UTF_8))

@@ -5,6 +5,7 @@ import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
+import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
@@ -83,11 +84,12 @@ class AppConfig {
         deviceRepository: DeviceRepository,
         refreshTokenRepository: RefreshTokenRepository,
         phoneHashRepository: PhoneHashRepository,
-        otpSender: OtpSender,
+        otpSender: OtpSender?,
         jwtProvider: JwtProvider,
         passwordEncoder: PasswordEncoder,
         otpProperties: OtpProperties,
-        jwtProperties: JwtProperties
+        jwtProperties: JwtProperties,
+        otpVerifier: OtpVerifier?
     ): AuthService = AuthService(
         userRepository = userRepository,
         otpRepository = otpRepository,
@@ -100,6 +102,7 @@ class AppConfig {
         otpLength = otpProperties.length,
         otpExpirySeconds = otpProperties.expirySeconds,
         otpCooldownSeconds = otpProperties.cooldownSeconds,
+        otpVerifier = otpVerifier,
         otpMaxAttempts = otpProperties.maxAttempts,
         refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
         mockEnabled = otpProperties.mockEnabled
