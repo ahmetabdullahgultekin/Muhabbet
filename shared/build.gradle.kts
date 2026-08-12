@@ -23,8 +23,10 @@ kotlin {
     }
 
     // iOS
+    // iosX64 (Intel simulator) dropped: Compose Multiplatform 1.11.1 no longer publishes for it,
+    // so commonMain/iosMain/appleMain cannot resolve compose.runtime for that platform. Apple
+    // Silicon simulators use iosSimulatorArm64.
     listOf(
-        iosX64(),
         iosArm64(),
         iosSimulatorArm64()
     ).forEach {
