@@ -6,6 +6,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 [Semantic Versioning](https://semver.org/). While the app is pre-1.0 the minor number carries
 breaking changes; 1.0.0 is reserved for the first release that ships end-to-end encryption on.
 
+## [0.2.2] — 2026-08-12
+
+0.2.1 could not open a conversation at all: the chat screen showed "Failed to load conversation"
+and no message ever appeared, even though the messages were on the server the whole time.
+
+### Fixed
+- **"Failed to load conversation".** The backend runs with
+  `spring.jackson.default-property-inclusion: non_null`, so a field it leaves null is absent from
+  the JSON entirely — and a direct conversation has no `name`. `ConversationResponse` declared
+  `name`, `avatarUrl`, `lastMessagePreview` and `lastMessageAt` as required, so decoding threw and
+  the screen reported a failure it could not explain. Thirty nullable fields across fourteen DTOs
+  had the same shape; all now carry defaults. (#122)
+- **Posting a status returned 500.** Spring Boot 4 serialises with Jackson 3, and only the Jackson 2
+  Kotlin module was on the classpath — so Kotlin default parameter values in *every* request DTO
+  were ignored, and any field the client omitted arrived as null. (#124)
+- **Two-Step Verification failed on open**, calling an endpoint that was never implemented. (#125)
+- **Three controls that could not be pressed**: the Calls tab had no way to start a call, the camera
+  badge on the avatar swallowed taps, and the keyboard covered *Get Started* on the profile screen
+  with no way back. (#126)
+
+### Verified by driving the app
+Text with Turkish characters, long messages, links, a photo, a poll, a location and a document all
+sent and landed on the server. Community creation, status posting and contact sync all work from the
+UI rather than from a response code.
+
+### Known issues
+- Push notifications are not arriving; the FCM registration fails with `FIS_AUTH_ERROR` against a
+  restricted API key.
+- Sharing a location asks for latitude and longitude to be typed by hand — there is no map picker.
+- Settings can claim Turkish is selected while the app runs in the device language. (#114)
+- The overflow menu has no accessibility label. (#127)
+- End-to-end encryption is still off; the UI says so.
+
 ## [0.2.1] — 2026-08-12
 
 0.2.0 shipped with a bug that gated everything social: contact sync ran at most once per screen and
