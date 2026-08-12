@@ -90,9 +90,11 @@ fun CreateGroupScreen(
         if (!granted) permissionDenied = true
     }
 
-    // Sync contacts when permission is granted
+    // Same shape as NewConversationScreen: keyed on hasPermission, so dropping the
+    // contacts.isEmpty() guard is what lets a re-entry actually re-sync. A contact who joined
+    // after the last sync was otherwise invisible here too.
     LaunchedEffect(hasPermission) {
-        if (hasPermission && contacts.isEmpty()) {
+        if (hasPermission) {
             isSyncing = true
             try {
                 val deviceContacts = withContext(Dispatchers.Default) {
