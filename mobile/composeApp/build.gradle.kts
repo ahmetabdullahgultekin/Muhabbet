@@ -99,7 +99,15 @@ kotlin {
             implementation("io.livekit:livekit-android:2.27.0")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
-            implementation("org.signal:libsignal-android:0.100.0")
+            // libsignal is NOT a dependency while E2E is off. Every Signal source file is
+            // *.kt.disabled and PlatformModule.android.kt wires NoOpKeyManager/NoOpEncryption, so
+            // nothing in the build references it — yet it contributed ~400 MB of native libraries
+            // per release, four ABIs of a library the app never calls.
+            //
+            // RESTORE THIS LINE in the same change that re-enables the *.kt.disabled files. See
+            // CLAUDE.md -> "libsignal upgrade (BLOCKED)"; the pinned API also needs a rewrite before
+            // those files compile.
+            // implementation("org.signal:libsignal-android:0.100.0")
         }
 
         commonTest.dependencies {
@@ -165,6 +173,26 @@ android {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    packaging {
+        // libsignal-android ships a *testing* variant of its native library alongside the real one,
+        // for every ABI. That is ~477 MB of binaries whose only purpose is libsignal's own test
+        // suite, and it was going out to users. It also ships macOS .dylib and Windows .dll files
+        // that cannot run on Android at all.
+        //
+        // Together these were the bulk of a 991 MB release APK — for a messenger that does not
+        // currently call libsignal, since E2E is off.
+        jniLibs {
+            excludes += setOf("**/libsignal_jni_testing.so")
+        }
+        resources {
+            excludes += setOf(
+                "**/*.dylib",
+                "**/*.dll",
+                "**/*.so.debug",
+            )
+        }
     }
 
     buildFeatures {
