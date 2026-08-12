@@ -42,6 +42,15 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
+    // Spring Boot 4 serialises HTTP with Jackson 3 (tools.jackson), so the Jackson 2 Kotlin module
+    // below is on the classpath but never consulted. Without the Jackson 3 generation, Kotlin
+    // default parameter values in request DTOs are ignored: any field the client omits arrives as
+    // null, and a non-null Kotlin parameter then fails the whole request with a 500.
+    //
+    // Posting a status did exactly that — the client never sends `visibility`, which has a default
+    // of "everyone", and the request died with
+    //   Parameter specified as non-null is null: parameter visibility
+    implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     // JWT
