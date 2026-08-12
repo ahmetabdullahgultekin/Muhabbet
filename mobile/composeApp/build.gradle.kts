@@ -122,8 +122,8 @@ android {
         applicationId = "com.muhabbet.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         // Sentry DSN — set via environment variable or local.properties
         manifestPlaceholders["SENTRY_DSN"] = System.getenv("SENTRY_DSN") ?: ""
@@ -167,6 +167,9 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG is the only honest source for the debug flag; without it the
+        // release build would keep logging like a debug build.
+        buildConfig = true
     }
 }
 
@@ -181,3 +184,31 @@ sqldelight {
         }
     }
 }
+
+/**
+ * BuildInfo.kt duplicates the version so commonMain can show it without depending on the Android
+ * BuildConfig. Duplication drifts: Gradle once said 0.1.0 while the settings screen told users
+ * 1.0.0. This fails the build instead.
+ */
+val verifyBuildInfoVersion by tasks.registering {
+    val buildInfo = layout.projectDirectory.file("src/commonMain/kotlin/com/muhabbet/app/BuildInfo.kt")
+    val expectedName = android.defaultConfig.versionName
+    val expectedCode = android.defaultConfig.versionCode
+    inputs.file(buildInfo)
+    inputs.property("versionName", expectedName ?: "")
+    inputs.property("versionCode", expectedCode ?: 0)
+    outputs.upToDateWhen { true }
+    doLast {
+        val text = buildInfo.asFile.readText()
+        val name = Regex("""VERSION\s*=\s*"([^"]+)"""").find(text)?.groupValues?.get(1)
+        val code = Regex("""VERSION_CODE\s*=\s*(\d+)""").find(text)?.groupValues?.get(1)?.toInt()
+        check(name == expectedName) {
+            "BuildInfo.VERSION is $name but build.gradle.kts versionName is $expectedName"
+        }
+        check(code == expectedCode) {
+            "BuildInfo.VERSION_CODE is $code but build.gradle.kts versionCode is $expectedCode"
+        }
+    }
+}
+
+tasks.named("check") { dependsOn(verifyBuildInfoVersion) }

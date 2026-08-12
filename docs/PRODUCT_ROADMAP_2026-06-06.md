@@ -1,5 +1,19 @@
 # Muhabbet — Product & Growth Roadmap
 
+> **Status note added 2026-08-12.** This file is a dated snapshot; it is kept as the record of what
+> was true on 2026-06-06 and is deliberately not rewritten. Since then:
+>
+> - "real users cannot even log in" — **fixed.** The blocker was not SMS: the app was pinned to a
+>   host Traefik never routed, so the TLS handshake was rejected (#99). The active sender is still
+>   `MockOtpSender`, so codes are read from the server log; Twilio Verify is wired but off (#100).
+> - The image is no longer 10 weeks old — the stack was rebuilt and redeployed on 2026-08-12, and
+>   it runs from the **repo-root** compose, not `infra/`.
+> - Media now works end to end (#106); it never had a public route before.
+> - The two IDORs, the SSRF, the public actuator endpoints and the KVKK erasure gap listed below
+>   are **still open** and have not been re-verified since this snapshot.
+
+
+
 > **Date:** 2026-06-06
 > **Produced by:** a 12-agent market/competitive/domain/platform/premium/legal research sweep (verified WHOIS, KVKK/legal sources, competitor analysis), synthesized into one plan.
 > **Reads with:** `docs/PROD_READINESS_AND_PLAN_2026-06-06.md` (the P0/P1 security & correctness register and the FIVUCSAS-as-IdP decision). This roadmap *sequences* that work alongside presence, platforms, features, premium and legal — it does not repeat it.
