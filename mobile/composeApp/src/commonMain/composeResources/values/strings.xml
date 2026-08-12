@@ -623,4 +623,5 @@
     <string name="schedule_list_title">Planlanmış mesajlar</string>
     <string name="schedule_list_empty">Planlanmış mesaj yok</string>
     <string name="contacts_refresh">Kişileri yenile</string>
+    <string name="calls_new_call">Yeni arama</string>
 </resources>
