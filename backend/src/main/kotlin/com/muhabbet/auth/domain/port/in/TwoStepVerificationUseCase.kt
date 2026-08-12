@@ -3,6 +3,8 @@ package com.muhabbet.auth.domain.port.`in`
 import java.util.UUID
 
 interface TwoStepVerificationUseCase {
+    /** Whether two-step verification is currently switched on for this user. */
+    fun isEnabled(userId: UUID): Boolean
     fun setupPin(userId: UUID, pin: String, email: String?)
     fun verifyPin(userId: UUID, pin: String): Boolean
     fun disablePin(userId: UUID, currentPin: String)

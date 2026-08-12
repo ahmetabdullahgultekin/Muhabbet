@@ -17,6 +17,13 @@ open class TwoStepVerificationService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    @Transactional(readOnly = true)
+    override fun isEnabled(userId: UUID): Boolean {
+        val user = userRepository.findById(userId)
+            ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
+        return user.twoStepEnabledAt != null && user.twoStepPinHash != null
+    }
+
     @Transactional
     override fun setupPin(userId: UUID, pin: String, email: String?) {
         val user = userRepository.findById(userId)

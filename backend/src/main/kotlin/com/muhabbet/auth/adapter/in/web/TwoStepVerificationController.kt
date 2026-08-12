@@ -6,6 +6,7 @@ import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -22,6 +23,17 @@ data class TwoStepStatusResponse(val enabled: Boolean)
 class TwoStepVerificationController(
     private val twoStepVerificationUseCase: TwoStepVerificationUseCase
 ) {
+
+    /**
+     * The settings screen calls this the moment it opens, to show whether two-step is on. It had no
+     * mapping, so the request fell through to static-resource handling and came back as a 500 —
+     * making the whole feature look broken from the first tap.
+     */
+    @GetMapping("/status")
+    fun status(): ResponseEntity<ApiResponse<TwoStepStatusResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        return ApiResponseBuilder.ok(TwoStepStatusResponse(enabled = twoStepVerificationUseCase.isEnabled(userId)))
+    }
 
     @PostMapping("/setup")
     fun setupPin(@RequestBody request: SetupPinRequest): ResponseEntity<ApiResponse<Unit>> {
