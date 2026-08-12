@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/). While the app is pre-1.0 the minor number carries
+breaking changes; 1.0.0 is reserved for the first release that ships end-to-end encryption on.
+
+## [0.2.0] — 2026-08-12
+
+First build where a user can log in, and the first with working media. Everything below was
+verified against the live server and on an emulator, not just in tests.
+
+### Fixed
+- **Login was impossible in every shipped build.** The app pointed at
+  `muhabbet.rollingcatsoftware.com`; Traefik only ever routed `muhabbet-api.rollingcatsoftware.com`.
+  DNS resolved and `:80` redirected, so the name looked alive, but no certificate existed for it and
+  the TLS handshake was rejected. (#99)
+- **The Updates tab returned 500.** `StatusService.getContactStatusesForUser` and
+  `createStatusWithAudience` were plain `fun`s — final in Kotlin — so Spring's CGLIB proxy could not
+  override them and the call ran on the proxy, where every injected field is null. Both now sit on
+  `ManageStatusUseCase`. (#103)
+- **Photos, voice notes and documents never loaded.** `MINIO_PUBLIC_ENDPOINT` was unset on the
+  compose file that actually deploys, so clients were handed `http://shared-minio:9000/...`. There
+  was also no public route to MinIO at all; Traefik now serves one. (#106)
+
+### Added
+- **Twilio Verify as an OTP provider** (`muhabbet.sms.provider=twilio-verify`). Unlike the Messages
+  API adapter it needs no purchased sender number. Verify owns the code, so it gets its own
+  `OtpVerifier` port rather than being forced into `OtpSender`; cooldown, expiry and attempt limits
+  stay on our side. Default stays `mock`. (#100)
+- **ArchUnit rule**: a public `@Transactional` method may not be final. It found exactly the two
+  methods behind the Updates 500 and nothing else. (#103)
+- **`verifyBuildInfoVersion`** Gradle check, wired into `check`. `BuildInfo` duplicates the version
+  for commonMain and had drifted — Gradle said 0.1.0 while the settings screen told users 1.0.0.
+
+### Changed
+- **`BuildInfo.DEBUG` is no longer a hardcoded `true`.** It now resolves from the platform build
+  type (`BuildConfig.DEBUG` on Android, `Platform.isDebugBinary` on iOS). Release builds were
+  logging every request method, URL and status.
+- Version is `0.2.0` / code `2`, consistent across Gradle and `BuildInfo` for the first time.
+
+### Tests
+- `ApiClientBaseUrlTest` pins the API host against the Traefik router rule.
+- `AuthRepositoryTest` no longer passes for the wrong reasons: its mock engine was built and then
+  discarded, so every case ran against the real production server, and the failure case asserted a
+  connection error that only held while the host was unroutable.
+- `AuthServiceVerifierTest` covers the verifier branch, including refusing to start with no delivery
+  path configured or with two.
+
+### Known issues
+- End-to-end encryption remains **off** (NoOp/plaintext under TLS). The UI states this honestly.
+- CI cannot run: the GitHub account is billing-locked and this repo has no self-hosted runner (#108).
+- Media and API hosts are temporary nip.io/subdomain names pending a real domain.
+- The camera badge on the profile avatar swallows the tap that opens the picker (#109).
+
 ## [Unreleased]
 
 > **2026-06-07:** all session PRs below are **merged to `main`** — #49 (Android build unblock), #57

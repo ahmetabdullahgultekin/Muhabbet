@@ -515,13 +515,44 @@ All 9 production hardening features completed:
 - Phone hash: SHA-256 of phone number stored in `phone_hashes` table on user creation
 
 ## Deployment & Infrastructure
-- **Server**: Hetzner VPS (IP: 116.203.222.213, deploy user, `/opt/projects/Muhabbet/`)
-- **Domain**: Configured via environment — see `infra/docker-compose.prod.yml`
-- **Docker containers**: `muhabbet-backend`, `muhabbet-postgres`, `muhabbet-redis`, `muhabbet-minio`, `muhabbet-nginx` (via `infra/docker-compose.prod.yml`)
+
+> **There are two prod compose files and only one of them deploys.** The **repo-root**
+> `docker-compose.prod.yml` is what runs: it carries the Traefik labels and uses the shared
+> `shared-postgres` / `shared-redis` / `shared-minio` containers. `infra/docker-compose.prod.yml`
+> is the **legacy nginx stack** with its own postgres/redis/minio — nothing deploys it. Editing it
+> changes nothing, and believing it caused the 2026-08-11 login outage (the app was pinned to a
+> host only that file mentioned).
+>
+> Confirm which file a running container came from before trusting either:
+> ```bash
+> docker inspect muhabbet-backend --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+> ```
+
+- **Server**: Hetzner CX43 (8 vCPU / 16 GB), IP 116.203.222.213, `deploy` user, `/opt/projects/Muhabbet/`
+- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.116.203.222.213.nip.io`
+  (Traefik file-provider route → `shared-minio:9000`, `passHostHeader: false` so presigned SigV4
+  validates). Both are temporary nip.io/subdomain names pending a real domain.
+- **Containers**: `muhabbet-backend` only. Postgres, Redis and MinIO are the **shared** instances
+  (`shared-postgres`, `shared-redis`, `shared-minio`); there is no nginx in this stack.
 - **Docker runtime**: Java 21 (eclipse-temurin:21-jdk-jammy for build, 21-jre-jammy for runtime)
 - **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials path via `FIREBASE_CREDENTIALS_PATH` env var
-- **Deploy**: `cd infra && docker compose -f docker-compose.prod.yml up -d --build backend` (add `&& ... restart nginx` when nginx config changes)
+- **Deploy** — `--env-file .env.prod` is **mandatory**:
+  ```bash
+  cd /opt/projects/Muhabbet
+  sudo docker compose --env-file .env.prod -f docker-compose.prod.yml build muhabbet-backend
+  sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d muhabbet-backend
+  ```
+  There is **no `.env`** in that directory, only `.env.prod`, and Compose reads `.env` by default.
+  Omit the flag and `JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `MINIO_ROOT_PASSWORD`
+  all resolve to empty; the JWT boot guard then refuses to start and the container crash-loops.
+  The error says the secret is too short, which is misleading — the secret in `.env.prod` is fine,
+  it simply was never loaded.
+- **Before deploying**, tag the current image so `latest` being overwritten does not strand you:
+  `docker tag <image-id> muhabbet-muhabbet-backend:rollback-$(date +%F)`
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
+- **Getting an OTP in prod**: the active sender is `MockOtpSender` (`SMS_PROVIDER` is unset →
+  `mock`), so the code is written to the log rather than sent:
+  `docker logs muhabbet-backend | grep "OTP for"`
 
 ## Lessons Learned / Known Gotchas
 - **Windows Gradle**: Use `cmd //c ".\\gradlew.bat <task>"` from bash shell (not `gradlew.bat` directly)
