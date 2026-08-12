@@ -25,8 +25,16 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: muhabbet-media
+      # SMS_PROVIDER selects the OtpSender/OtpVerifier implementation: mock (default, writes the
+      # code to the log), netgsm, twilio (Messages API, needs a purchased number) or twilio-verify
+      # (no number needed). These live here because THIS is the compose that deploys —
+      # infra/docker-compose.prod.yml is the legacy nginx stack and setting them there does nothing.
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
       NETGSM_USERCODE: ${NETGSM_USERCODE:-}
       NETGSM_PASSWORD: ${NETGSM_PASSWORD:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       FCM_ENABLED: "false"
       FCM_CREDENTIALS_PATH: /app/firebase-adminsdk.json
