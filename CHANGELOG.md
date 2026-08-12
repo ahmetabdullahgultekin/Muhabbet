@@ -6,6 +6,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 [Semantic Versioning](https://semver.org/). While the app is pre-1.0 the minor number carries
 breaking changes; 1.0.0 is reserved for the first release that ships end-to-end encryption on.
 
+## [0.2.1] — 2026-08-12
+
+0.2.0 shipped with a bug that gated everything social: contact sync ran at most once per screen and
+had no refresh, so a new user never got a contact — and with no contact there is no way to start a
+conversation. The app read as though nothing worked.
+
+### Fixed
+- **Contacts sync more than once, and there is now a refresh button.** The sync sat in a
+  `LaunchedEffect` keyed only on the permission, guarded by `contacts.isEmpty()`; once it matched
+  anyone the guard was false forever, and a sync that matched nobody could not retry because the key
+  never changed. `CreateGroupScreen` had the same defect. (#113)
+- **SMS actually arrives.** Twilio Verify is live. The provider variables had been added to
+  `infra/docker-compose.prod.yml`, which deploys nothing, so selecting the provider had no effect
+  and codes kept going to the server log. (#115)
+- **Every OTP request crashed the coroutine machinery.** The dependency bump left the classpath
+  split — `kotlinx-coroutines-core` at 1.11.0 against `core-jvm` at 1.10.2 — so code compiled
+  against one API called into the other and threw `NoSuchMethodError`. Found by sending a real SMS,
+  not by a test. (#116)
+
+### Verified by driving the app, not by assuming
+Chat sends and delivers (confirmed from the recipient's side), communities create (`201`), media
+uploads and fetches back as a real JPEG, Starred/App Lock/Wallpaper/Media Quality screens open,
+Updates and Calls history load.
+
+### Known issues
+- **Two-Step Verification is broken** — the screen calls `GET /api/v1/auth/two-step/status`, which
+  the backend never implemented. (#117)
+- **The Calls tab has no way to start a call.** Calling only works from inside a conversation. (#119)
+- The camera badge on the profile avatar swallows the tap that opens the picker. (#109)
+- Settings can claim Turkish is selected while the app runs in the device language. (#114)
+- End-to-end encryption is still off; the UI says so.
+
 ## [0.2.0] — 2026-08-12
 
 First build where a user can log in, and the first with working media. Everything below was
