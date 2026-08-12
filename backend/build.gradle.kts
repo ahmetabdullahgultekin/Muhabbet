@@ -30,8 +30,16 @@ dependencies {
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.11.0")
+    // Pin the whole coroutines family through its BOM. Declaring 1.11.0 on individual artifacts
+    // while io.spring.dependency-management pinned kotlinx-coroutines-core-jvm and -reactive back to
+    // 1.10.2 split the classpath: code compiled against 1.11.0 called into a 1.10.2 binary and blew
+    // up at runtime with
+    //   NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)
+    // on the OTP request path. Unit tests passed throughout — the mismatch only appears where
+    // Spring drives a suspend function.
+    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.11.0"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
