@@ -86,8 +86,8 @@ data class ContactSyncResponse(
 data class MatchedContact(
     val userId: String,
     val phoneHash: String,
-    val displayName: String?,
-    val avatarUrl: String?
+    val displayName: String? = null,
+    val avatarUrl: String? = null
 )
 
 // ─── Device DTOs ─────────────────────────────────────────
@@ -110,11 +110,11 @@ data class CreateConversationRequest(
 data class ConversationResponse(
     val id: String,
     val type: ConversationType,
-    val name: String?,
-    val avatarUrl: String?,
+    val name: String? = null,
+    val avatarUrl: String? = null,
     val participants: List<ParticipantResponse>,
-    val lastMessagePreview: String?,
-    val lastMessageAt: String?,
+    val lastMessagePreview: String? = null,
+    val lastMessageAt: String? = null,
     val unreadCount: Int,
     val createdAt: String,
     val disappearAfterSeconds: Int? = null,
@@ -129,9 +129,9 @@ data class ConversationResponse(
 @Serializable
 data class ParticipantResponse(
     val userId: String,
-    val displayName: String?,
+    val displayName: String? = null,
     val phoneNumber: String? = null,
-    val avatarUrl: String?,
+    val avatarUrl: String? = null,
     val role: MemberRole,
     val isOnline: Boolean
 )
@@ -167,7 +167,7 @@ data class EditMessageRequest(
 data class MediaUploadResponse(
     val mediaId: String,
     val url: String,
-    val thumbnailUrl: String?,
+    val thumbnailUrl: String? = null,
     val contentType: String,
     val sizeBytes: Long,
     val durationSeconds: Int? = null
@@ -329,8 +329,8 @@ data class UserProfileDetailResponse(
     val id: String,
     // Nullable: never populated for foreign-user lookups — phone numbers stay private (KVKK P0-9).
     val phoneNumber: String? = null,
-    val displayName: String?,
-    val avatarUrl: String?,
+    val displayName: String? = null,
+    val avatarUrl: String? = null,
     val about: String? = null,
     val isOnline: Boolean = false,
     val lastSeenAt: String? = null,
@@ -364,10 +364,10 @@ data class MessageInfoResponse(
 @Serializable
 data class RecipientDeliveryInfo(
     val userId: String,
-    val displayName: String?,
+    val displayName: String? = null,
     val avatarUrl: String? = null,
     val status: String,
-    val updatedAt: String?
+    val updatedAt: String? = null
 )
 
 // ─── Storage Usage ───────────────────────────────────────
@@ -422,9 +422,9 @@ data class InviteLinkResponse(
     val inviteUrl: String,
     val requiresApproval: Boolean,
     val isActive: Boolean,
-    val maxUses: Int?,
+    val maxUses: Int? = null,
     val useCount: Int,
-    val expiresAt: String?,
+    val expiresAt: String? = null,
     val createdAt: String
 )
 
@@ -436,8 +436,8 @@ data class JoinViaLinkRequest(val token: String)
 data class JoinRequestResponse(
     val id: String,
     val userId: String,
-    val displayName: String?,
-    val avatarUrl: String?,
+    val displayName: String? = null,
+    val avatarUrl: String? = null,
     val status: String,
     val createdAt: String
 )
@@ -453,10 +453,10 @@ data class CreateCommunityRequest(
 data class CommunityResponse(
     val id: String,
     val name: String,
-    val description: String?,
-    val avatarUrl: String?,
-    val groupCount: Int,
-    val memberCount: Int,
+    val description: String? = null,
+    val avatarUrl: String? = null,
+    val groupCount: Int = 0,
+    val memberCount: Int = 0,
     val createdAt: String
 )
 
@@ -464,19 +464,19 @@ data class CommunityResponse(
 data class CommunityDetailResponse(
     val id: String,
     val name: String,
-    val description: String?,
-    val avatarUrl: String?,
+    val description: String? = null,
+    val avatarUrl: String? = null,
     val groups: List<CommunityGroupInfo>,
-    val memberCount: Int,
-    val myRole: String?,
+    val memberCount: Int = 0,
+    val myRole: String? = null,
     val createdAt: String
 )
 
 @Serializable
 data class CommunityGroupInfo(
     val conversationId: String,
-    val name: String?,
-    val avatarUrl: String?,
+    val name: String? = null,
+    val avatarUrl: String? = null,
     val memberCount: Int
 )
 
@@ -493,9 +493,9 @@ data class CreateGroupEventRequest(
 data class GroupEventResponse(
     val id: String,
     val title: String,
-    val description: String?,
+    val description: String? = null,
     val eventTime: Long,
-    val location: String?,
+    val location: String? = null,
     val createdBy: String,
     val goingCount: Int,
     val createdAt: String
@@ -523,8 +523,8 @@ data class SetWallpaperRequest(
 @Serializable
 data class WallpaperResponse(
     val wallpaperType: String,
-    val wallpaperValue: String?,
-    val darkModeValue: String?
+    val wallpaperValue: String? = null,
+    val darkModeValue: String? = null
 )
 
 // ─── Privacy Settings DTOs ──────────────────────────────
@@ -555,7 +555,7 @@ data class CreateBroadcastListRequest(
 data class BroadcastListResponse(
     val id: String,
     val name: String,
-    val memberCount: Int,
+    val memberCount: Int = 0,
     val createdAt: String
 )
 
@@ -563,9 +563,9 @@ data class BroadcastListResponse(
 @Serializable
 data class LoginApprovalNotification(
     val approvalId: String,
-    val deviceName: String?,
-    val platform: String?,
-    val ipAddress: String?,
+    val deviceName: String? = null,
+    val platform: String? = null,
+    val ipAddress: String? = null,
     val createdAt: Long
 )
 
@@ -596,7 +596,7 @@ data class DeviceLinkCompleteRequest(
 data class LinkedDeviceResponse(
     val id: String,
     val platform: String,
-    val displayName: String?,
+    val displayName: String? = null,
     val isPrimary: Boolean,
     val isCompanion: Boolean,
     val linkedByDeviceId: String? = null,

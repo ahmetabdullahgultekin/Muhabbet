@@ -10,6 +10,7 @@ import com.arkivanov.decompose.DelicateDecomposeApi
 import com.arkivanov.decompose.router.stack.navigate
 import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.push
+import com.arkivanov.decompose.router.stack.replaceCurrent
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.extensions.compose.stack.animation.slide
 import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
@@ -180,6 +181,34 @@ class MainComponent(
         navigation.push(Config.BroadcastDetail(broadcastListId, broadcastListName))
     }
 
+    /**
+     * Swap the current screen for another in one operation.
+     *
+     * These exist because `goBack()` immediately followed by `openX()` does not reliably work:
+     * they are two separate navigation operations dispatched in the same frame, and the second can
+     * be lost, leaving the user staring at the screen they just acted on. Creating a community
+     * looked completely broken for exactly this reason — the POST returned 201, the community was
+     * in the database, and the create form just sat there.
+     *
+     * CLAUDE.md already warns against pop-then-push; `replaceCurrent` is the fix.
+     */
+    fun replaceWithChat(conversationId: String, conversationName: String, isGroup: Boolean = false) {
+        navigation.replaceCurrent(Config.Chat(conversationId, conversationName, isGroup = isGroup))
+        _refreshTrigger.value++
+    }
+
+    fun replaceWithCreateGroup() {
+        navigation.replaceCurrent(Config.CreateGroup)
+    }
+
+    fun replaceWithCommunityDetail(communityId: String) {
+        navigation.replaceCurrent(Config.CommunityDetail(communityId))
+    }
+
+    fun replaceWithActiveCall(callId: String, callerId: String, callerName: String?, callType: String) {
+        navigation.replaceCurrent(Config.ActiveCall(callId, callerId, callerName, callType))
+    }
+
     fun goBack() {
         navigation.pop()
         _refreshTrigger.value++
@@ -254,26 +283,22 @@ fun MainContent(component: MainComponent) {
                     }
                 },
                 onNavigateToConversation = { convId, convName ->
-                    component.goBack()
-                    component.openChat(convId, convName)
+                    component.replaceWithChat(convId, convName)
                 },
                 onMessageInfo = { messageId -> component.openMessageInfo(messageId) }
             )
             is MainComponent.Config.NewConversation -> NewConversationScreen(
                 onConversationCreated = { id, name ->
-                    component.goBack()
-                    component.openChat(id, name)
+                    component.replaceWithChat(id, name)
                 },
                 onCreateGroup = {
-                    component.goBack()
-                    component.openCreateGroup()
+                    component.replaceWithCreateGroup()
                 },
                 onBack = component::goBack
             )
             is MainComponent.Config.CreateGroup -> CreateGroupScreen(
                 onGroupCreated = { id, name ->
-                    component.goBack()
-                    component.openChat(id, name)
+                    component.replaceWithChat(id, name, isGroup = true)
                 },
                 onBack = component::goBack
             )
@@ -330,8 +355,7 @@ fun MainContent(component: MainComponent) {
                     callerName = config.callerName,
                     callType = callType,
                     onAccept = {
-                        component.goBack()
-                        component.openActiveCall(config.callId, config.callerId, config.callerName, config.callType)
+                        component.replaceWithActiveCall(config.callId, config.callerId, config.callerName, config.callType)
                     },
                     onDecline = component::goBack
                 )
@@ -376,8 +400,7 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.CreateCommunity -> CreateCommunityScreen(
                 onBack = component::goBack,
                 onCommunityCreated = { communityId ->
-                    component.goBack()
-                    component.openCommunityDetail(communityId)
+                    component.replaceWithCommunityDetail(communityId)
                 }
             )
             is MainComponent.Config.GroupEvents -> GroupEventScreen(
