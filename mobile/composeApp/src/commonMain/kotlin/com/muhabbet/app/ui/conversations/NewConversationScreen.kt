@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -87,28 +88,36 @@ fun NewConversationScreen(
         if (!granted) permissionDenied = true
     }
 
-    // Sync contacts when permission is granted
-    LaunchedEffect(hasPermission) {
-        if (hasPermission && contacts.isEmpty()) {
-            isSyncing = true
-            try {
-                val deviceContacts = withContext(Dispatchers.Default) {
-                    contactsProvider.readContacts()
-                }
-                val hashes = deviceContacts.mapNotNull { contact ->
-                    val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
-                    normalizeToE164(digits)?.let { sha256Hex(it) }
-                }
-                if (hashes.isNotEmpty()) {
-                    val result = conversationRepository.syncContacts(hashes)
-                    contacts = result.matchedContacts
-                }
-            } catch (_: Exception) {
-                snackbarHostState.showSnackbar(errorMsg)
+    // Re-runnable on purpose. This used to be guarded by `contacts.isEmpty()` inside a
+    // LaunchedEffect keyed only on `hasPermission`, which meant it ran at most once: after a sync
+    // returned anyone, the guard was false forever, and a sync that matched nobody could not retry
+    // because the key never changed. Someone who joined Muhabbet after your last sync stayed
+    // invisible until the screen was destroyed and recreated, with no way to force it.
+    suspend fun syncContacts() {
+        if (!hasPermission || isSyncing) return
+        isSyncing = true
+        try {
+            val deviceContacts = withContext(Dispatchers.Default) {
+                contactsProvider.readContacts()
             }
-            isSyncing = false
+            val hashes = deviceContacts.mapNotNull { contact ->
+                val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
+                normalizeToE164(digits)?.let { sha256Hex(it) }
+            }
+            // An empty device address book is a real answer, not a reason to skip the call: it
+            // clears any stale matches instead of leaving the previous list on screen.
+            contacts = if (hashes.isEmpty()) {
+                emptyList()
+            } else {
+                conversationRepository.syncContacts(hashes).matchedContacts
+            }
+        } catch (_: Exception) {
+            snackbarHostState.showSnackbar(errorMsg)
         }
+        isSyncing = false
     }
+
+    LaunchedEffect(hasPermission) { syncContacts() }
 
     val filteredContacts = if (searchQuery.isBlank()) contacts
     else contacts.filter { (it.displayName ?: "").contains(searchQuery, ignoreCase = true) }
@@ -122,6 +131,17 @@ fun NewConversationScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(Res.string.action_back)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { scope.launch { syncContacts() } },
+                        enabled = hasPermission && !isSyncing
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(Res.string.contacts_refresh)
                         )
                     }
                 },
