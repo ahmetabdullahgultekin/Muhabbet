@@ -34,7 +34,7 @@ jobs:
   # --- Android Build ---
   android-build:
     name: Android Build
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4

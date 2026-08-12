@@ -43,7 +43,7 @@ jobs:
   # --- Dependency Vulnerability Scan ---
   dependency-check:
     name: Dependency Scan
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +87,7 @@ jobs:
   # --- Docker Image Scan ---
   docker-scan:
     name: Docker Image Scan
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     if: github.event_name != 'schedule'
 
     steps:
@@ -123,7 +123,7 @@ jobs:
   # --- Secret Scanning ---
   secrets-scan:
     name: Secret Detection
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -138,7 +138,7 @@ jobs:
   # --- CodeQL Analysis ---
   codeql:
     name: CodeQL Analysis
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     if: github.event_name != 'schedule'
 
     steps:

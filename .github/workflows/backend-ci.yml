@@ -33,7 +33,7 @@ jobs:
   # --- Build & Test ---
   build-and-test:
     name: Build & Test
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -152,7 +152,7 @@ jobs:
   # --- Docker Build ---
   docker:
     name: Docker Build
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     needs: build-and-test
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
 
