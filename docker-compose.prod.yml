@@ -17,6 +17,11 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       MINIO_ENDPOINT: http://shared-minio:9000
+      # Presigned URLs are signed against MINIO_ENDPOINT and then rewritten to this
+      # host, so the Traefik route behind it must forward the signed host upstream
+      # (cdn-muhabbet sets passHostHeader=false). Without this the app hands clients
+      # a shared-minio:9000 URL that only resolves inside Docker.
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-https://cdn-muhabbet.116.203.222.213.nip.io}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: muhabbet-media
