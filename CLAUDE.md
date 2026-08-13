@@ -181,7 +181,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 ## Tech Stack Quick Reference
 | Component | Technology |
 |-----------|-----------|
-| Language | Kotlin 2.3.20 (everywhere) |
+| Language | Kotlin 2.4.10 (everywhere) |
 | Backend framework | Spring Boot 4.0.6 |
 | Mobile framework | CMP (Compose Multiplatform) |
 | Database | PostgreSQL 16 |
@@ -353,7 +353,7 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
 
 ## Build & test (what actually runs on the CI host)
 
-- **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.4.1**, Kotlin 2.3.20, Spring Boot
+- **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.7.0**, Kotlin 2.4.10, Spring Boot
   4.0.6. Run `./gradlew` from repo root.
 - **Backend tests:** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers + ArchUnit.
   **426 tests, 1 failure** at HEAD (2026-08-13) when Docker is running. The one failure is
@@ -368,6 +368,11 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
   it as a service container, which is why this only bites locally.
 - **Shared KMP tests:** `./gradlew :shared:jvmTest` — **56 tests, 0 failures** at HEAD.
+- **detekt does not run at all** (#279). `:backend:detekt` dies at plugin startup with "detekt was
+  compiled with Kotlin 2.0.21 but is currently running with 2.4.10", before analysing a file. CI marks
+  the step `continue-on-error: true`, so a total failure of the tool has been indistinguishable from a
+  clean run. Treat every threshold in `backend/detekt.yml` as currently unenforced, and hand-check the
+  diff against it instead.
 - **Mobile compile canary:** `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` —
   compiles commonMain (incl. the Compose compiler + generated `Res.string.*`) and resolves KMP/iOS
   variants. Cheap gate for commonMain changes, but it does **not** catch androidMain breakage.
