@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.delay
@@ -82,7 +83,7 @@ fun VoiceRecordButton(
             Icon(
                 imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
                 contentDescription = stringResource(if (isRecording) Res.string.voice_stop else Res.string.voice_record),
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(MuhabbetSizes.IconMedium)
             )
         }
     }

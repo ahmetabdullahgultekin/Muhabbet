@@ -27,10 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -109,7 +110,7 @@ fun VideoBubble(
                         Icons.Default.PlayArrow,
                         contentDescription = stringResource(Res.string.video_play),
                         tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(MuhabbetSizes.IconMedium)
                     )
                 }
             }
@@ -125,7 +126,7 @@ fun VideoBubble(
                 ) {
                     Text(
                         text = formatDuration(durationSeconds),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MuhabbetTextStyles.ChatMeta,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }

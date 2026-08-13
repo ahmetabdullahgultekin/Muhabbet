@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
@@ -119,7 +120,7 @@ internal fun ConversationStatusRow(
                         Icon(
                             Icons.Default.Add,
                             contentDescription = stringResource(Res.string.status_create_title),
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
@@ -182,7 +183,7 @@ internal fun ConversationFilterChips(
 ) {
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = MaterialTheme.colorScheme.primary,
-        selectedLabelColor = Color.White,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
         containerColor = Color.Transparent,
         labelColor = LocalSemanticColors.current.secondaryText
     )

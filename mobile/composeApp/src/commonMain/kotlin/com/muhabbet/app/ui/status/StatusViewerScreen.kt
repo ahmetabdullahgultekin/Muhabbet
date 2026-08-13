@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.MuhabbetDurations
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
@@ -176,14 +177,14 @@ fun StatusViewerScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(3.dp)
-                                .clip(RoundedCornerShape(2.dp))
+                                .clip(RoundedCornerShape(MuhabbetCorners.Hairline))
                                 .background(barBg)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(segmentProgress)
                                     .height(3.dp)
-                                    .clip(RoundedCornerShape(2.dp))
+                                    .clip(RoundedCornerShape(MuhabbetCorners.Hairline))
                                     .background(barFg)
                             )
                         }

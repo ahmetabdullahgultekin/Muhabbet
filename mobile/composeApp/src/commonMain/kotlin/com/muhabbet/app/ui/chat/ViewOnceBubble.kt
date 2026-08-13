@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res
@@ -60,7 +60,7 @@ fun ViewOnceBubble(
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             color = bubbleColor,
             modifier = Modifier.clickable {
                 if (!hasBeenViewed) {
@@ -83,7 +83,7 @@ fun ViewOnceBubble(
                         Icons.Default.VisibilityOff,
                         contentDescription = stringResource(Res.string.view_once_opened),
                         tint = onBubbleColor.copy(alpha = 0.5f),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(MuhabbetSizes.IconMedium)
                     )
                     Text(
                         text = stringResource(Res.string.view_once_opened),
@@ -120,7 +120,7 @@ fun ViewOnceBubble(
                                 .size(120.dp)
                                 .background(
                                     onBubbleColor.copy(alpha = 0.1f),
-                                    RoundedCornerShape(12.dp)
+                                    MaterialTheme.shapes.medium
                                 ),
                             contentAlignment = Alignment.Center
                         ) {

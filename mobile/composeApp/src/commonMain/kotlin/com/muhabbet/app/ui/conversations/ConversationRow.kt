@@ -27,16 +27,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.shared.dto.ConversationResponse
 
@@ -90,10 +89,8 @@ internal fun ConversationItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = displayName,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold
-                    ),
+                    style = MuhabbetTextStyles.ConversationTitle,
+                    fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -112,7 +109,7 @@ internal fun ConversationItem(
             if (preview != null) {
                 Text(
                     text = preview,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+                    style = MuhabbetTextStyles.ConversationPreview,
                     fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (hasUnread) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -127,7 +124,7 @@ internal fun ConversationItem(
             if (lastAt != null) {
                 Text(
                     text = formatTimestamp(lastAt),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                    style = MuhabbetTextStyles.ConversationTimestamp,
                     color = if (hasUnread) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -136,7 +133,7 @@ internal fun ConversationItem(
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 Badge(
                     containerColor = LocalSemanticColors.current.unreadBadge,
-                    contentColor = Color.White
+                    contentColor = LocalSemanticColors.current.onUnreadBadge
                 ) {
                     Text(conversation.unreadCount.toString())
                 }

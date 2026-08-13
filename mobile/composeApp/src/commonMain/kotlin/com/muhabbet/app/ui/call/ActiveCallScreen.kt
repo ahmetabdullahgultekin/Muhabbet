@@ -31,12 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
@@ -196,7 +196,7 @@ fun ActiveCallScreen(
                         Icon(
                             imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
                             contentDescription = if (isMuted) unmuteLabel else muteLabel,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                     }
                     Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
@@ -226,7 +226,7 @@ fun ActiveCallScreen(
                         Icon(
                             imageVector = Icons.Default.CallEnd,
                             contentDescription = endLabel,
-                            tint = Color.White,
+                            tint = LocalSemanticColors.current.onCallDecline,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -252,7 +252,7 @@ fun ActiveCallScreen(
                         Icon(
                             imageVector = Icons.Default.VolumeUp,
                             contentDescription = speakerLabel,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                     }
                     Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))

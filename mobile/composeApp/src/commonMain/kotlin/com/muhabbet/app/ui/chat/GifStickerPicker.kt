@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.GiphyClient
 import com.muhabbet.app.data.remote.GiphyGif
@@ -122,7 +123,7 @@ fun GifStickerPicker(
                 placeholder = { Text(stringResource(Res.string.gif_search_placeholder)) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small),
                 singleLine = true,
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(MuhabbetCorners.Pill),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
@@ -159,7 +160,7 @@ fun GifStickerPicker(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(100.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(MaterialTheme.shapes.small)
                                 .clickable {
                                     scope.launch {
                                         if (selectedTab == 0) {
