@@ -19,9 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.MuhabbetElevation
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 
 val QUICK_REACTIONS = listOf("\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
 
@@ -38,7 +40,7 @@ fun QuickReactionBar(
         modifier = modifier
     ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(MuhabbetCorners.Pill),
             shadowElevation = MuhabbetElevation.Level6,
             tonalElevation = MuhabbetElevation.Level3,
             color = MaterialTheme.colorScheme.surface
@@ -51,10 +53,10 @@ fun QuickReactionBar(
                 QUICK_REACTIONS.forEach { emoji ->
                     Text(
                         text = emoji,
-                        fontSize = 22.sp,
+                        style = MuhabbetTextStyles.EmojiPicker,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(MuhabbetSizes.MinTouchTarget)
                             .clickable { onReaction(emoji) }
                             .padding(MuhabbetSpacing.XSmall)
                     )
@@ -79,7 +81,7 @@ fun ReactionBadges(
         reactions.forEach { (emoji, count) ->
             val isOwn = emoji in currentUserReactions
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = if (isOwn) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.clickable { onReactionClick(emoji) }
@@ -89,7 +91,7 @@ fun ReactionBadges(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(text = emoji, fontSize = 14.sp)
+                    Text(text = emoji, style = MuhabbetTextStyles.EmojiBadge)
                     if (count > 1) {
                         Text(
                             text = count.toString(),

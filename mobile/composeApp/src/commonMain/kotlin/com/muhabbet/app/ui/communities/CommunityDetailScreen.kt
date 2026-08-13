@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CommunityDetailResponse
@@ -189,7 +190,7 @@ fun CommunityDetailScreen(
                             fontWeight = FontWeight.Bold
                         )
                         TextButton(onClick = { showAddGroupSheet = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall))
                             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                             Text(stringResource(Res.string.community_add_group))
                         }

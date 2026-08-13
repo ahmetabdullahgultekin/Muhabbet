@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -50,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.components.UserAvatar
@@ -127,7 +127,7 @@ fun MessageInfoScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(MuhabbetSpacing.Large),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.medium,
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -141,7 +141,7 @@ fun MessageInfoScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .height(180.dp)
-                                                .clip(RoundedCornerShape(8.dp)),
+                                                .clip(MaterialTheme.shapes.small),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             AsyncImage(
@@ -168,7 +168,7 @@ fun MessageInfoScreen(
                                             Icon(
                                                 Icons.Default.Image,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(16.dp),
+                                                modifier = Modifier.size(MuhabbetSizes.IconSmall),
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
                                             Spacer(Modifier.width(6.dp))

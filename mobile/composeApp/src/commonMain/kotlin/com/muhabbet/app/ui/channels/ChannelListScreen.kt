@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ChannelRepository
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ChannelInfoResponse
@@ -155,7 +156,7 @@ private fun ChannelItem(
                 Icon(
                     Icons.Default.Campaign,
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(MuhabbetSizes.IconLarge),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }

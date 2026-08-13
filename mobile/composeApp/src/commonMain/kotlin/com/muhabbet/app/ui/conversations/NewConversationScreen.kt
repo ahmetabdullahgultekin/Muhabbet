@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
 import com.muhabbet.app.util.sha256Hex
@@ -256,7 +257,7 @@ fun NewConversationScreen(
                                                 imageVector = Icons.Outlined.Group,
                                                 contentDescription = stringResource(Res.string.new_conversation_new_group),
                                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(24.dp)
+                                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                                             )
                                         }
                                     }

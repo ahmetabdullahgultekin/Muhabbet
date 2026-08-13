@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
 import com.muhabbet.shared.model.ContentType
@@ -163,7 +164,7 @@ private fun StarredMessageItem(
             Icon(
                 icon,
                 contentDescription = message.contentType.name,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(MuhabbetSizes.IconMedium),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(MuhabbetSpacing.Medium))

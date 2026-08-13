@@ -57,9 +57,11 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 
 @Composable
 fun ReplyPreviewBar(
@@ -74,7 +76,7 @@ fun ReplyPreviewBar(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Reply,
                 contentDescription = stringResource(Res.string.chat_context_reply),
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(MuhabbetSizes.IconSmall),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(MuhabbetSpacing.Small))
@@ -92,7 +94,7 @@ fun ReplyPreviewBar(
                 )
             }
             IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.app.ui.theme.MuhabbetSizes.MinTouchTarget)) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(MuhabbetSizes.IconSmall))
             }
         }
     }
@@ -180,7 +182,7 @@ fun MessageInputBar(
                     enabled = !isUploading && !isEditing
                 ) {
                     if (isUploading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
                     } else {
                         Icon(
                             imageVector = Icons.Default.AttachFile,
@@ -196,37 +198,37 @@ fun MessageInputBar(
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_image)) },
                         onClick = { showAttachMenu = false; onImagePick() },
-                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = stringResource(Res.string.attach_image), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = stringResource(Res.string.attach_image), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_document)) },
                         onClick = { showAttachMenu = false; onFilePick() },
-                        leadingIcon = { Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_poll)) },
                         onClick = { showAttachMenu = false; onPollCreate() },
-                        leadingIcon = { Icon(Icons.Default.Poll, contentDescription = stringResource(Res.string.attach_poll), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.Poll, contentDescription = stringResource(Res.string.attach_poll), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_location)) },
                         onClick = { showAttachMenu = false; onLocationShare() },
-                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = stringResource(Res.string.attach_location), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = stringResource(Res.string.attach_location), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_gif)) },
                         onClick = { showAttachMenu = false; onGifPick() },
-                        leadingIcon = { Icon(Icons.Default.Gif, contentDescription = stringResource(Res.string.attach_gif), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.Gif, contentDescription = stringResource(Res.string.attach_gif), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.attach_camera)) },
                         onClick = { showAttachMenu = false; onCameraPick() },
-                        leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = stringResource(Res.string.attach_camera), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = stringResource(Res.string.attach_camera), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.video_message)) },
                         onClick = { showAttachMenu = false; onVideoRecord() },
-                        leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = stringResource(Res.string.video_message), modifier = Modifier.size(20.dp)) }
+                        leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = stringResource(Res.string.video_message), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                 }
             }
@@ -250,7 +252,7 @@ fun MessageInputBar(
                 placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
                 modifier = Modifier.weight(1f).testTag("message_input"),
                 maxLines = 4,
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(MuhabbetCorners.Pill),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
             )
 
@@ -266,7 +268,7 @@ fun MessageInputBar(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = stringResource(Res.string.chat_voice_message), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Mic, contentDescription = stringResource(Res.string.chat_voice_message), modifier = Modifier.size(MuhabbetSizes.IconMedium))
                 }
             } else {
                 // Tap = send now; long-press (text messages only) = schedule for later.
@@ -293,7 +295,7 @@ fun MessageInputBar(
                             contentDescription = sendDescription,
                             tint = if (isEditing) MaterialTheme.colorScheme.onTertiary
                             else MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconMedium)
                         )
                     }
                 }

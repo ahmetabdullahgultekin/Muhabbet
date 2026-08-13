@@ -39,6 +39,7 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
@@ -81,7 +82,7 @@ internal fun ProfileEditorSection(
             Box(contentAlignment = Alignment.Center) {
                 if (isUploadingPhoto) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
@@ -89,7 +90,7 @@ internal fun ProfileEditorSection(
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
                         contentDescription = stringResource(Res.string.profile_change_photo),
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
@@ -130,7 +131,7 @@ internal fun ProfileEditorSection(
     ) {
         if (isSaving) {
             CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(MuhabbetSizes.IconMedium),
                 color = MaterialTheme.colorScheme.onPrimary,
                 strokeWidth = 2.dp
             )
@@ -193,7 +194,7 @@ internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageR
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
         ) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconSmall), strokeWidth = 2.dp)
             Text(
                 text = stringResource(Res.string.storage_loading),
                 style = MaterialTheme.typography.bodyMedium,

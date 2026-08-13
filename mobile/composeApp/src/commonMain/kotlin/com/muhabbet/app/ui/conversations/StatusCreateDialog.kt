@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -72,7 +73,7 @@ internal fun StatusCreateDialog(
                     }
                 }
                 if (isUploading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
+                    CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge).align(Alignment.CenterHorizontally))
                 }
             }
         },

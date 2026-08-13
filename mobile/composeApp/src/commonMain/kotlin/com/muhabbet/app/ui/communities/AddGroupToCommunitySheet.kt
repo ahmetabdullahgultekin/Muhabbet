@@ -35,6 +35,7 @@ import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
@@ -113,7 +114,7 @@ fun AddGroupToCommunitySheet(
                         modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XLarge),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge))
                     }
                 }
 

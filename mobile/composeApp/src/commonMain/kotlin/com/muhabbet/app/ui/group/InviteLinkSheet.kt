@@ -40,11 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.InviteLinkRepository
 import com.muhabbet.app.platform.rememberShareLauncher
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -99,7 +99,7 @@ fun InviteLinkSheet(
             Spacer(Modifier.height(MuhabbetSpacing.Large))
 
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
+                CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge).align(Alignment.CenterHorizontally))
             } else if (inviteLink != null) {
                 val link = inviteLink ?: return@Column
 
@@ -117,7 +117,7 @@ fun InviteLinkSheet(
                             Icons.Default.Link,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconMedium)
                         )
                         Spacer(Modifier.width(MuhabbetSpacing.Small))
                         Text(

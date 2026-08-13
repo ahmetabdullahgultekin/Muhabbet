@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.LinkPreviewResponse
@@ -53,7 +54,7 @@ fun LinkPreviewCard(
     if (p.title == null && p.description == null && p.imageUrl == null) return
 
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.small,
         color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier
@@ -70,7 +71,7 @@ fun LinkPreviewCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 120.dp)
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(MuhabbetCorners.Thumbnail))
                 )
                 Spacer(Modifier.height(6.dp))
             }

@@ -38,13 +38,18 @@ private val Red400 = Color(0xFFEF5350)
 
 // ─── Semantic colors (beyond M3 colorScheme) ────────────────
 
+/** Opacity of the control bars drawn over the full-screen media viewer's backdrop. */
+private const val ScrimOverlayAlpha = 0.5f
+
 data class MuhabbetSemanticColors(
     val statusOnline: Color,
     val statusRead: Color,
     val statusDelivered: Color,
     val statusSending: Color,
     val callDecline: Color,
+    val onCallDecline: Color,
     val callAccept: Color,
+    val onCallAccept: Color,
     val callMissed: Color,
     val bubbleOwn: Color,
     val bubbleOther: Color,
@@ -56,7 +61,17 @@ data class MuhabbetSemanticColors(
     val inputFieldBackground: Color,
     val dividerColor: Color,
     val secondaryText: Color,
-    val unreadBadge: Color
+    val unreadBadge: Color,
+    val onUnreadBadge: Color,
+    /**
+     * Backdrop of the immersive full-screen media viewer. Deliberately identical in every
+     * variant — the viewer is theme-independent so that photos are judged against black.
+     */
+    val scrim: Color,
+    /** Translucent bar drawn over the [scrim] to carry the viewer's controls. */
+    val scrimOverlay: Color,
+    /** Icons and labels drawn on [scrim] / [scrimOverlay]. */
+    val onScrim: Color
 )
 
 val LightSemanticColors = MuhabbetSemanticColors(
@@ -65,7 +80,9 @@ val LightSemanticColors = MuhabbetSemanticColors(
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFFBDBDBD),
     callDecline = Color(0xFFE53935),
+    onCallDecline = Color.White,
     callAccept = Color(0xFF43A047),
+    onCallAccept = Color.White,
     callMissed = Color(0xFFE53935),
     bubbleOwn = WhatsAppOwnBubbleLight,
     bubbleOther = Color.White,
@@ -77,7 +94,11 @@ val LightSemanticColors = MuhabbetSemanticColors(
     inputFieldBackground = WhatsAppInputFieldLight,
     dividerColor = WhatsAppDividerLight,
     secondaryText = WhatsAppTextSecondaryLight,
-    unreadBadge = WhatsAppUnreadLight
+    unreadBadge = WhatsAppUnreadLight,
+    onUnreadBadge = Color.White,
+    scrim = Color.Black,
+    scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
+    onScrim = Color.White
 )
 
 val DarkSemanticColors = MuhabbetSemanticColors(
@@ -86,7 +107,9 @@ val DarkSemanticColors = MuhabbetSemanticColors(
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
+    onCallDecline = Color.White,
     callAccept = WhatsAppAccent,
+    onCallAccept = Color.White,
     callMissed = Color(0xFFEF5350),
     bubbleOwn = WhatsAppOwnBubbleDark,
     bubbleOther = WhatsAppDarkSurface,
@@ -98,7 +121,11 @@ val DarkSemanticColors = MuhabbetSemanticColors(
     inputFieldBackground = WhatsAppDarkElevated,
     dividerColor = WhatsAppDividerDark,
     secondaryText = WhatsAppTextSecondary,
-    unreadBadge = WhatsAppAccent
+    unreadBadge = WhatsAppAccent,
+    onUnreadBadge = Color.White,
+    scrim = Color.Black,
+    scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
+    onScrim = Color.White
 )
 
 val OledSemanticColors = MuhabbetSemanticColors(
@@ -107,7 +134,9 @@ val OledSemanticColors = MuhabbetSemanticColors(
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
+    onCallDecline = Color.White,
     callAccept = WhatsAppAccent,
+    onCallAccept = Color.White,
     callMissed = Color(0xFFEF5350),
     bubbleOwn = WhatsAppOwnBubbleDark,
     bubbleOther = Color(0xFF0A1014),
@@ -119,7 +148,11 @@ val OledSemanticColors = MuhabbetSemanticColors(
     inputFieldBackground = Color(0xFF1A2228),
     dividerColor = Color(0xFF1A2228),
     secondaryText = WhatsAppTextSecondary,
-    unreadBadge = WhatsAppAccent
+    unreadBadge = WhatsAppAccent,
+    onUnreadBadge = Color.White,
+    scrim = Color.Black,
+    scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
+    onScrim = Color.White
 )
 
 val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
@@ -157,12 +190,18 @@ object MuhabbetSizes {
 
     // Bubble dimensions
     val BubbleMinWidth: Dp = 80.dp
-    val BubbleCornerRadius: Dp = 18.dp
+
+    /**
+     * Widest a chat bubble may grow. A fixed cap rather than a fraction of the window:
+     * `Modifier.fillMaxWidth(fraction)` pins a bubble to that width instead of capping it,
+     * so short messages would render as wide as long ones.
+     */
+    val BubbleMaxWidth: Dp = 320.dp
+
     @Deprecated("Beta design uses uniform corners, no tail")
     val BubbleTailRadius: Dp = 4.dp
     val BubblePaddingHorizontal: Dp = 8.dp
     val BubblePaddingVertical: Dp = 6.dp
-    val BubbleMaxWidthFraction: Float = 0.65f
     val ImagePreviewMaxHeight: Dp = 200.dp
     val StickerSize: Dp = 150.dp
 
@@ -296,6 +335,8 @@ fun MuhabbetTheme(
     CompositionLocalProvider(LocalSemanticColors provides semanticColors) {
         MaterialTheme(
             colorScheme = colorScheme,
+            typography = MuhabbetTypography,
+            shapes = MuhabbetShapes,
             content = content
         )
     }

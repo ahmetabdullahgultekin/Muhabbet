@@ -35,6 +35,7 @@ import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.model.Message
@@ -97,7 +98,7 @@ internal fun ChatMessageList(
         ) {
             if (isLoadingMore) item(key = "loading_more") {
                 Box(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge))
                 }
             }
             var lastDateStr = ""
@@ -118,7 +119,7 @@ internal fun ChatMessageList(
                         )
                     }) {
                         if (swipeOffset > 20f) Box(Modifier.align(Alignment.CenterStart).padding(start = MuhabbetSpacing.XSmall), contentAlignment = Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f)))
+                            Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f)))
                         }
                         Column(modifier = Modifier.padding(start = (swipeOffset / 3f).coerceAtMost(30f).dp)) {
                             if (reactionTargetId == message.id) QuickReactionBar(visible = true, onReaction = { emoji -> reactionTargetId = null; actions.onQuickReaction(message, emoji) })

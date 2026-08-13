@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
@@ -260,7 +261,7 @@ fun GroupInfoScreen(
                                 Icons.Default.Image,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
@@ -286,7 +287,7 @@ fun GroupInfoScreen(
                                 Icons.Default.Link,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
@@ -312,7 +313,7 @@ fun GroupInfoScreen(
                                 Icons.Default.CalendarToday,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
@@ -337,7 +338,7 @@ fun GroupInfoScreen(
                                 Icons.Default.Campaign,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(

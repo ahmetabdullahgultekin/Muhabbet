@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
 import com.muhabbet.composeapp.generated.resources.Res
@@ -169,7 +170,7 @@ fun CallHistoryScreen(
                                 else -> incomingLabel
                             },
                             tint = if (isMissed || isDeclined) LocalSemanticColors.current.callMissed else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconMedium)
                         )
 
                         Spacer(modifier = Modifier.width(MuhabbetSpacing.Medium))

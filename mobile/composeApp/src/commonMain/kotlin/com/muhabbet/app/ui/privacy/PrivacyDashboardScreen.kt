@@ -52,6 +52,7 @@ import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.ui.components.ConfirmDialog
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
@@ -213,7 +214,7 @@ fun PrivacyDashboardScreen(
                             if (E2EConfig.ENABLED) Icons.Default.Lock else Icons.Default.Info,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                         Spacer(Modifier.width(MuhabbetSpacing.Medium))
                         Text(
@@ -241,7 +242,7 @@ fun PrivacyDashboardScreen(
                         Icons.Default.Block,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
                     )
                     Spacer(Modifier.width(MuhabbetSpacing.Medium))
                     Column {
@@ -287,13 +288,13 @@ fun PrivacyDashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isExporting) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
                     } else {
                         Icon(
                             Icons.Default.Download,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                     }
                     Spacer(Modifier.width(MuhabbetSpacing.Medium))
@@ -323,7 +324,7 @@ fun PrivacyDashboardScreen(
                         Icons.Default.Delete,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
                     )
                     Spacer(Modifier.width(MuhabbetSpacing.Medium))
                     Column {
@@ -442,7 +443,7 @@ private fun PrivacyVisibilityRow(
                     onClick = { onValueChange(key) },
                     label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     leadingIcon = if (isSelected) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall)) }
                     } else null
                 )
             }
@@ -460,7 +461,7 @@ private fun KvkkRight(text: String) {
             Icons.Default.Check,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(MuhabbetSizes.IconSmall)
         )
         Spacer(Modifier.width(MuhabbetSpacing.Small))
         Text(

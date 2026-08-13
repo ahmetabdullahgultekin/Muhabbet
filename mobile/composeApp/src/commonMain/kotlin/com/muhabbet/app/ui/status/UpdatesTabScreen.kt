@@ -52,6 +52,7 @@ import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.ui.components.SectionHeader
 import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
@@ -193,7 +194,7 @@ fun UpdatesTabScreen(
                     if (isUploadingStatus) {
                         CircularProgressIndicator(
                             modifier = Modifier
-                                .size(24.dp)
+                                .size(MuhabbetSizes.IconLarge)
                                 .align(Alignment.CenterHorizontally)
                         )
                     }
@@ -298,7 +299,7 @@ fun UpdatesTabScreen(
                 ) {
                     item(key = "my_status") {
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
+                            shape = RoundedCornerShape(MuhabbetCorners.Bubble),
                             tonalElevation = MuhabbetElevation.Level1,
                             modifier = Modifier
                                 .fillMaxWidth()

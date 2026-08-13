@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -79,7 +78,7 @@ fun PollBubble(
             val isMyVote = pollResult?.myVote == index
 
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.small,
                 color = if (isMyVote) {
                     if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
                     else MaterialTheme.colorScheme.primaryContainer

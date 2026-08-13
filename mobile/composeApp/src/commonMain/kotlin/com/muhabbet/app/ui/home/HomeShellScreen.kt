@@ -45,8 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.call.CallHistoryScreen
@@ -56,6 +54,7 @@ import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.status.UpdatesTabScreen
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.composeapp.generated.resources.Res
@@ -173,8 +172,7 @@ fun HomeShellScreen(
                     title = {
                         Text(
                             text = appName,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 20.sp
+                            style = MuhabbetTextStyles.TopBarTitle
                         )
                     },
                     actions = {

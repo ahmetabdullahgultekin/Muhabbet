@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
@@ -64,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -248,7 +248,7 @@ fun SharedMediaScreen(
                                     Box(
                                         modifier = Modifier
                                             .aspectRatio(1f)
-                                            .clip(RoundedCornerShape(4.dp))
+                                            .clip(MaterialTheme.shapes.extraSmall)
                                             .combinedClickable(
                                                 onClick = {
                                                     if (message.contentType == ContentType.VIDEO) {
@@ -354,7 +354,7 @@ fun SharedMediaScreen(
                                             Icon(
                                                 if (isThisPlaying) Icons.Default.Pause else Icons.Default.Mic,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(24.dp),
+                                                modifier = Modifier.size(MuhabbetSizes.IconLarge),
                                                 tint = if (isThisPlaying) MaterialTheme.colorScheme.primary
                                                 else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -362,7 +362,7 @@ fun SharedMediaScreen(
                                             Icon(
                                                 Icons.Default.Description,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(24.dp),
+                                                modifier = Modifier.size(MuhabbetSizes.IconLarge),
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
                                         }

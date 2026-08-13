@@ -43,13 +43,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
@@ -81,6 +82,7 @@ fun MediaViewer(
     onDelete: (() -> Unit)? = null
 ) {
     var showOverlay by remember { mutableStateOf(true) }
+    val semanticColors = LocalSemanticColors.current
     val forwardText = stringResource(Res.string.media_viewer_forward)
     val deleteText = stringResource(Res.string.media_viewer_delete)
 
@@ -101,7 +103,7 @@ fun MediaViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(semanticColors.scrim)
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { showOverlay = !showOverlay },
@@ -142,14 +144,14 @@ fun MediaViewer(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.5f))
+                        .background(semanticColors.scrimOverlay)
                         .padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.Small)
                 ) {
                     IconButton(onClick = onDismiss) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = null,
-                            tint = Color.White
+                            tint = semanticColors.onScrim
                         )
                     }
                 }
@@ -165,7 +167,7 @@ fun MediaViewer(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.5f))
+                        .background(semanticColors.scrimOverlay)
                         .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
@@ -178,8 +180,8 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onForward() }
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = forwardText, tint = Color.White)
-                            Text(forwardText, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                            Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = forwardText, tint = semanticColors.onScrim)
+                            Text(forwardText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     if (onDelete != null) {
@@ -190,8 +192,8 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onDelete() }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = deleteText, tint = Color.White)
-                            Text(deleteText, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                            Icon(Icons.Default.Delete, contentDescription = deleteText, tint = semanticColors.onScrim)
+                            Text(deleteText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -229,7 +231,7 @@ fun ForwardPickerDialog(
         text = {
             if (forwardConversations.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge))
                 }
             } else {
                 LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {

@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
 import com.muhabbet.app.platform.rememberFirebasePhoneAuth
@@ -166,7 +167,7 @@ fun OtpVerifyScreen(
                 ) {
                     if (isResending) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(MuhabbetSizes.IconSmall),
                             strokeWidth = 2.dp
                         )
                     } else {
@@ -218,7 +219,7 @@ fun OtpVerifyScreen(
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(MuhabbetSizes.IconMedium),
                     color = MaterialTheme.colorScheme.onPrimary,
                     strokeWidth = 2.dp
                 )

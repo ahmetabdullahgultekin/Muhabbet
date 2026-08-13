@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.SetupTwoStepRequest
@@ -151,7 +152,7 @@ fun TwoStepSetupScreen(
                             ) {
                                 if (isSaving) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(MuhabbetSizes.IconMedium),
                                         color = MaterialTheme.colorScheme.onError,
                                         strokeWidth = 2.dp
                                     )
@@ -245,7 +246,7 @@ fun TwoStepSetupScreen(
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(MuhabbetSizes.IconMedium),
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 strokeWidth = 2.dp
                             )

@@ -25,7 +25,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
@@ -132,7 +131,7 @@ fun IncomingCallScreen(
                         Icon(
                             imageVector = Icons.Default.CallEnd,
                             contentDescription = declineLabel,
-                            tint = Color.White,
+                            tint = LocalSemanticColors.current.onCallDecline,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -159,7 +158,7 @@ fun IncomingCallScreen(
                         Icon(
                             imageVector = if (callType == CallType.VIDEO) Icons.Default.Videocam else Icons.Default.Call,
                             contentDescription = acceptLabel,
-                            tint = Color.White,
+                            tint = LocalSemanticColors.current.onCallAccept,
                             modifier = Modifier.size(32.dp)
                         )
                     }

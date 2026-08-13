@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
@@ -232,7 +233,7 @@ private fun EventCard(
                 Icon(
                     Icons.Default.CalendarToday,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(MuhabbetSizes.IconSmall),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.Small))
@@ -248,7 +249,7 @@ private fun EventCard(
                     Icon(
                         Icons.Default.LocationOn,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(MuhabbetSpacing.Small))
@@ -264,7 +265,7 @@ private fun EventCard(
                 Icon(
                     Icons.Default.People,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(MuhabbetSizes.IconSmall),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.Small))

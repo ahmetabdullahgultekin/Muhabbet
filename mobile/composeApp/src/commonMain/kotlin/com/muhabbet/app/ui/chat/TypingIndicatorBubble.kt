@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.ui.theme.MuhabbetCorners
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 
@@ -79,10 +80,10 @@ fun TypingIndicatorBubble(modifier: Modifier = Modifier) {
 
     Surface(
         shape = RoundedCornerShape(
-            topStart = 16.dp,
-            topEnd = 16.dp,
-            bottomStart = 4.dp,
-            bottomEnd = 16.dp
+            topStart = MuhabbetCorners.Large,
+            topEnd = MuhabbetCorners.Large,
+            bottomStart = MuhabbetCorners.ExtraSmall,
+            bottomEnd = MuhabbetCorners.Large
         ),
         color = MaterialTheme.colorScheme.surfaceVariant,
         tonalElevation = MuhabbetElevation.Level1,
