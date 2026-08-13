@@ -4,6 +4,7 @@ import com.muhabbet.messaging.domain.model.*
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -16,12 +17,13 @@ class DeliveryStatusTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val messageRepository = mockk<MessageRepository>()
     private val messageBroadcaster = mockk<MessageBroadcaster>(relaxed = true)
+    private val userDirectory = mockk<UserDirectoryPort>(relaxed = true)
 
     private lateinit var service: MessageService
 
     @BeforeEach
     fun setUp() {
-        service = MessageService(conversationRepository, messageRepository, messageBroadcaster)
+        service = MessageService(conversationRepository, messageRepository, messageBroadcaster, userDirectory)
     }
 
     @Test

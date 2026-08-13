@@ -6,13 +6,16 @@ import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.MessageInfo
 import com.muhabbet.messaging.domain.port.`in`.MessagePage
+import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
@@ -25,7 +28,8 @@ import java.util.UUID
 open class MessageService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val messageBroadcaster: MessageBroadcaster
+    private val messageBroadcaster: MessageBroadcaster,
+    private val userDirectory: UserDirectoryPort
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -200,7 +204,7 @@ open class MessageService(
     }
 
     @Transactional(readOnly = true)
-    override fun getMessageInfo(messageId: UUID, requesterId: UUID): com.muhabbet.messaging.domain.port.`in`.MessageInfo {
+    override fun getMessageInfo(messageId: UUID, requesterId: UUID): MessageInfo {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 
@@ -209,8 +213,26 @@ open class MessageService(
         conversationRepository.findMember(message.conversationId, requesterId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
+        // The sender is not a recipient of their own message.
         val statuses = messageRepository.getDeliveryStatuses(listOf(messageId))
-        return com.muhabbet.messaging.domain.port.`in`.MessageInfo(message = message, deliveryStatuses = statuses)
+            .filter { it.userId != message.senderId }
+
+        // One batched lookup for the whole recipient list — resolving names one at a time was an N+1.
+        val displayInfo = userDirectory.findDisplayInfo(statuses.map { it.userId })
+
+        return MessageInfo(
+            message = message,
+            recipients = statuses.map { status ->
+                val user = displayInfo[status.userId]
+                MessageRecipient(
+                    userId = status.userId,
+                    displayName = user?.displayName,
+                    avatarUrl = user?.avatarUrl,
+                    status = status.status,
+                    updatedAt = status.updatedAt
+                )
+            }
+        )
     }
 
     // ─── Message Management ──────────────────────────────────
@@ -287,7 +309,7 @@ open class MessageService(
     // ─── View-Once ────────────────────────────────────────────
 
     @Transactional
-    open fun markViewOnceViewed(messageId: UUID, userId: UUID) {
+    override fun markViewOnceViewed(messageId: UUID, userId: UUID) {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 

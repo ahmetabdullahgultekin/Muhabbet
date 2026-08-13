@@ -16,7 +16,7 @@ class NetgsmOtpSender(
     private val log = LoggerFactory.getLogger(javaClass)
     private val restClient = RestClient.create()
 
-    override suspend fun send(phoneNumber: String, otp: String) {
+    override fun send(phoneNumber: String, otp: String) {
         val netgsm = smsProperties.netgsm
 
         // Strip leading '+' — Netgsm expects numbers like 905XXXXXXXXX

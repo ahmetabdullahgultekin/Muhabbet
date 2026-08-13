@@ -11,7 +11,7 @@ class MockOtpSender : OtpSender {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override suspend fun send(phoneNumber: String, otp: String) {
+    override fun send(phoneNumber: String, otp: String) {
         log.info("OTP for {}: {}", phoneNumber, otp)
     }
 }

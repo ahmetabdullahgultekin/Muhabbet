@@ -1,7 +1,7 @@
 package com.muhabbet.auth.domain.port.`in`
 
 interface VerifyOtpUseCase {
-    suspend fun verifyOtp(phoneNumber: String, otp: String, deviceName: String, platform: String): AuthResult
+    fun verifyOtp(phoneNumber: String, otp: String, deviceName: String, platform: String): AuthResult
 }
 
 data class AuthResult(

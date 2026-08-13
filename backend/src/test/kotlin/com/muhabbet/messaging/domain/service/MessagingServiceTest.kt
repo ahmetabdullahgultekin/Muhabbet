@@ -14,6 +14,8 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -36,6 +38,7 @@ class MessagingServiceTest {
     private lateinit var messageRepository: MessageRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
+    private lateinit var userDirectory: UserDirectoryPort
     private lateinit var conversationService: ConversationService
     private lateinit var messageService: MessageService
 
@@ -49,6 +52,7 @@ class MessagingServiceTest {
         messageRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
+        userDirectory = mockk(relaxed = true)
 
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
@@ -59,7 +63,8 @@ class MessagingServiceTest {
         messageService = MessageService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            messageBroadcaster = messageBroadcaster
+            messageBroadcaster = messageBroadcaster,
+            userDirectory = userDirectory
         )
     }
 
@@ -429,14 +434,22 @@ class MessagingServiceTest {
         every { conversationRepository.findMember(convId, userB) } returns
             ConversationMember(conversationId = convId, userId = userB)
         val statuses = listOf(
+            // The sender's own row must not come back as a recipient.
+            MessageDeliveryStatus(messageId = message.id, userId = userA, status = DeliveryStatus.READ),
             MessageDeliveryStatus(messageId = message.id, userId = userB, status = DeliveryStatus.READ)
         )
         every { messageRepository.getDeliveryStatuses(listOf(message.id)) } returns statuses
+        every { userDirectory.findDisplayInfo(listOf(userB)) } returns
+            mapOf(userB to UserDisplayInfo(userId = userB, displayName = "User B", avatarUrl = null))
 
         val info = messageService.getMessageInfo(message.id, userB)
 
         assertEquals(message.id, info.message.id)
-        assertEquals(1, info.deliveryStatuses.size)
+        assertEquals(1, info.recipients.size)
+        assertEquals(userB, info.recipients[0].userId)
+        assertEquals("User B", info.recipients[0].displayName)
+        // One batched lookup for the whole recipient list, never one call per recipient.
+        verify(exactly = 1) { userDirectory.findDisplayInfo(any()) }
     }
 
     @Test
