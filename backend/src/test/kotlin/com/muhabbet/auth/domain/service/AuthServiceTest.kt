@@ -15,13 +15,9 @@ import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
 import org.springframework.mock.env.MockEnvironment
-import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
-import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -85,23 +81,23 @@ class AuthServiceTest {
     // ─── requestOtp ─────────────────────────────────────
 
     @Test
-    fun `should return OtpResult when valid phone and no cooldown`() = runBlocking {
+    fun `should return OtpResult when valid phone and no cooldown`() {
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns null
         every { otpRepository.save(any()) } answers { firstArg() }
-        coEvery { otpSender.send(validPhone, any()) } returns Unit
+        every { otpSender.send(validPhone, any()) } returns Unit
 
         val result = authService.requestOtp(validPhone)
 
         assertEquals(300, result.ttlSeconds)
         assertEquals(60, result.retryAfterSeconds)
         verify { otpRepository.save(any()) }
-        coVerify { otpSender.send(validPhone, any()) }
+        verify { otpSender.send(validPhone, any()) }
     }
 
     @Test
     fun `should throw AUTH_INVALID_PHONE when phone is invalid`() {
         val ex = assertThrows<BusinessException> {
-            runBlocking { authService.requestOtp("12345") }
+            authService.requestOtp("12345")
         }
         assertEquals(ErrorCode.AUTH_INVALID_PHONE, ex.errorCode)
     }
@@ -117,7 +113,7 @@ class AuthServiceTest {
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns recentOtp
 
         val ex = assertThrows<BusinessException> {
-            runBlocking { authService.requestOtp(validPhone) }
+            authService.requestOtp(validPhone)
         }
         assertEquals(ErrorCode.AUTH_OTP_COOLDOWN, ex.errorCode)
     }
@@ -125,7 +121,7 @@ class AuthServiceTest {
     // ─── verifyOtp ──────────────────────────────────────
 
     @Test
-    fun `should return AuthResult when OTP is correct and new user`() = runBlocking {
+    fun `should return AuthResult when OTP is correct and new user`() {
         val otpHash = passwordEncoder.encode(validOtp) ?: ""
         val activeOtp = OtpRequest(
             phoneNumber = validPhone,
@@ -136,7 +132,7 @@ class AuthServiceTest {
         )
 
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
-        every { otpRepository.incrementAttempts(activeOtp) } returns Unit
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns true
         every { otpRepository.markVerified(activeOtp) } returns Unit
         every { userRepository.findByPhoneNumber(validPhone) } returns null
         every { userRepository.save(any()) } answers { firstArg() }
@@ -159,7 +155,7 @@ class AuthServiceTest {
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns null
 
         val ex = assertThrows<BusinessException> {
-            runBlocking { authService.verifyOtp(validPhone, validOtp, "Device", "android") }
+            authService.verifyOtp(validPhone, validOtp, "Device", "android")
         }
         assertEquals(ErrorCode.AUTH_OTP_EXPIRED, ex.errorCode)
     }
@@ -175,10 +171,10 @@ class AuthServiceTest {
         )
 
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
-        every { otpRepository.incrementAttempts(activeOtp) } returns Unit
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns true
 
         val ex = assertThrows<BusinessException> {
-            runBlocking { authService.verifyOtp(validPhone, "123456", "Device", "android") }
+            authService.verifyOtp(validPhone, "123456", "Device", "android")
         }
         assertEquals(ErrorCode.AUTH_OTP_INVALID, ex.errorCode)
     }
@@ -193,9 +189,11 @@ class AuthServiceTest {
         )
 
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
+        // The budget is spent, so the conditional UPDATE matches no row and claims nothing.
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns false
 
         val ex = assertThrows<BusinessException> {
-            runBlocking { authService.verifyOtp(validPhone, validOtp, "Device", "android") }
+            authService.verifyOtp(validPhone, validOtp, "Device", "android")
         }
         assertEquals(ErrorCode.AUTH_OTP_MAX_ATTEMPTS, ex.errorCode)
     }
@@ -203,7 +201,7 @@ class AuthServiceTest {
     // ─── refresh ────────────────────────────────────────
 
     @Test
-    fun `should return new tokens when refresh token is valid`() = runBlocking {
+    fun `should return new tokens when refresh token is valid`() {
         val rawToken = jwtProvider.generateRefreshToken()
         val tokenHash = AuthService.sha256(rawToken)
         val userId = UUID.randomUUID()
@@ -225,6 +223,10 @@ class AuthServiceTest {
         assertNotNull(result.accessToken)
         assertNotNull(result.refreshToken)
         assertEquals(900L, result.expiresIn)
+        // The rotated token belongs to the same user and device as the one it replaced; the
+        // controller re-states both, and used to send empty strings for them.
+        assertEquals(userId.toString(), result.userId)
+        assertEquals(deviceId.toString(), result.deviceId)
         verify { refreshTokenRepository.revokeByTokenHash(tokenHash) }
     }
 
@@ -233,7 +235,7 @@ class AuthServiceTest {
         every { refreshTokenRepository.findByTokenHash(any()) } returns null
 
         val ex = assertThrows<BusinessException> {
-            runBlocking { authService.refresh("invalid-token") }
+            authService.refresh("invalid-token")
         }
         assertEquals(ErrorCode.AUTH_TOKEN_INVALID, ex.errorCode)
     }

@@ -5,6 +5,8 @@ import com.muhabbet.auth.adapter.out.persistence.repository.SpringDataOtpReposit
 import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Component
@@ -18,15 +20,24 @@ class OtpPersistenceAdapter(
     override fun findActiveByPhoneNumber(phoneNumber: String): OtpRequest? =
         springDataOtpRepository.findActiveByPhoneNumber(phoneNumber, Instant.now())?.toDomain()
 
-    override fun incrementAttempts(otpRequest: OtpRequest) {
-        val entity = springDataOtpRepository.findById(otpRequest.id).orElse(null) ?: return
-        entity.attempts = otpRequest.attempts + 1
-        springDataOtpRepository.save(entity)
-    }
+    /**
+     * Runs in its own transaction so the attempt survives the caller's.
+     *
+     * `AuthService.verifyOtp` is @Transactional and throws BusinessException — an unchecked exception —
+     * on a wrong code. That marks the caller's transaction rollback-only, which used to discard this
+     * write along with it: the counter reset to zero on every wrong guess and the max-attempts guard
+     * never fired, leaving the OTP brute-forceable for its full validity window. Committing separately
+     * is the point of REQUIRES_NEW here, not an optimisation (#266).
+     *
+     * The cost is that the caller's connection sits idle while this one runs, so a verify holds two
+     * connections briefly. That is why the whole decision is one statement — there is nothing else to
+     * do inside this transaction.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    override fun claimAttempt(otpRequest: OtpRequest, maxAttempts: Int): Boolean =
+        springDataOtpRepository.claimAttempt(otpRequest.id, maxAttempts) == 1
 
     override fun markVerified(otpRequest: OtpRequest) {
-        val entity = springDataOtpRepository.findById(otpRequest.id).orElse(null) ?: return
-        entity.verified = true
-        springDataOtpRepository.save(entity)
+        springDataOtpRepository.markVerified(otpRequest.id)
     }
 }

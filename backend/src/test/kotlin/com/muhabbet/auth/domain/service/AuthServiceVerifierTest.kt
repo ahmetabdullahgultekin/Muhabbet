@@ -12,11 +12,10 @@ import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.JwtProperties
 import com.muhabbet.shared.security.JwtProvider
-import io.mockk.coEvery
-import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import kotlinx.coroutines.runBlocking
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -44,6 +43,11 @@ class AuthServiceVerifierTest {
         otpRepository = mockk(relaxed = true)
         otpVerifier = mockk(relaxed = true)
 
+        // claimAttempt decides whether the request is allowed to proceed at all, and a relaxed mock
+        // answers false — which would short-circuit every test here into AUTH_OTP_MAX_ATTEMPTS before
+        // the verifier is ever consulted. Grant by default; the limit itself is covered elsewhere.
+        every { otpRepository.claimAttempt(any(), any()) } returns true
+
         val env = MockEnvironment().withProperty("spring.profiles.active", "test")
         val jwtProvider = JwtProvider(
             JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
@@ -64,44 +68,44 @@ class AuthServiceVerifierTest {
     }
 
     @Test
-    fun `should ask the verifier to send and never use the local sender`() = runBlocking {
-        coEvery { otpRepository.findActiveByPhoneNumber(phone) } returns null
+    fun `should ask the verifier to send and never use the local sender`() {
+        every { otpRepository.findActiveByPhoneNumber(phone) } returns null
         val saved = slot<OtpRequest>()
-        coEvery { otpRepository.save(capture(saved)) } answers { saved.captured }
+        every { otpRepository.save(capture(saved)) } answers { saved.captured }
 
         val result = authService.requestOtp(phone)
 
-        coVerify(exactly = 1) { otpVerifier.start(phone) }
+        verify(exactly = 1) { otpVerifier.start(phone) }
         // No code exists on this side, so none can be echoed back even in mock mode.
         assertNull(result.mockCode)
         assertEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
     }
 
     @Test
-    fun `should reject the code when the verifier rejects it`() = runBlocking {
-        coEvery { otpRepository.findActiveByPhoneNumber(phone) } returns activeRequest()
-        coEvery { otpVerifier.check(phone, "000000") } returns false
+    fun `should reject the code when the verifier rejects it`() {
+        every { otpRepository.findActiveByPhoneNumber(phone) } returns activeRequest()
+        every { otpVerifier.check(phone, "000000") } returns false
 
         val error = assertThrows<BusinessException> {
-            runBlocking { authService.verifyOtp(phone, "000000", "Pixel", "ANDROID") }
+            authService.verifyOtp(phone, "000000", "Pixel", "ANDROID")
         }
 
         assertEquals(ErrorCode.AUTH_OTP_INVALID, error.errorCode)
-        coVerify(exactly = 1) { otpVerifier.check(phone, "000000") }
+        verify(exactly = 1) { otpVerifier.check(phone, "000000") }
     }
 
     @Test
-    fun `should still count a failed attempt against the local limit`() = runBlocking {
+    fun `should still count a failed attempt against the local limit`() {
         val active = activeRequest()
-        coEvery { otpRepository.findActiveByPhoneNumber(phone) } returns active
-        coEvery { otpVerifier.check(any(), any()) } returns false
+        every { otpRepository.findActiveByPhoneNumber(phone) } returns active
+        every { otpVerifier.check(any(), any()) } returns false
 
         assertThrows<BusinessException> {
-            runBlocking { authService.verifyOtp(phone, "111111", "Pixel", "ANDROID") }
+            authService.verifyOtp(phone, "111111", "Pixel", "ANDROID")
         }
 
         // Attempt limiting stays ours even though the code check is delegated.
-        coVerify(exactly = 1) { otpRepository.incrementAttempts(active) }
+        verify(exactly = 1) { otpRepository.claimAttempt(active, any()) }
     }
 
     @Test

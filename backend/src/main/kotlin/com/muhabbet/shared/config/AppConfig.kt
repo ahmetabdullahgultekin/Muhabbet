@@ -36,6 +36,7 @@ import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
@@ -143,11 +144,13 @@ class AppConfig {
     fun messageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        messageBroadcaster: MessageBroadcaster
+        messageBroadcaster: MessageBroadcaster,
+        userDirectory: UserDirectoryPort
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        messageBroadcaster = messageBroadcaster
+        messageBroadcaster = messageBroadcaster,
+        userDirectory = userDirectory
     )
 
     @Bean
@@ -175,13 +178,11 @@ class AppConfig {
         mediaStoragePort: MediaStoragePort,
         mediaFileRepository: MediaFileRepository,
         thumbnailPort: ThumbnailPort,
-        mediaAccessPolicy: com.muhabbet.media.domain.port.out.MediaAccessPolicy,
         mediaProperties: MediaProperties
     ): MediaService = MediaService(
         mediaStoragePort = mediaStoragePort,
         mediaFileRepository = mediaFileRepository,
         thumbnailPort = thumbnailPort,
-        mediaAccessPolicy = mediaAccessPolicy,
         thumbnailWidth = mediaProperties.thumbnailWidth,
         thumbnailHeight = mediaProperties.thumbnailHeight
     )
