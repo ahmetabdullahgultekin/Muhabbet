@@ -1,11 +1,14 @@
 package com.muhabbet.auth.domain.port.`in`
 
 interface RefreshTokenUseCase {
-    suspend fun refresh(refreshToken: String): TokenResult
+    fun refresh(refreshToken: String): TokenResult
 }
 
 data class TokenResult(
     val accessToken: String,
     val refreshToken: String,
-    val expiresIn: Long
+    val expiresIn: Long,
+    /** The owner of the rotated token — the caller re-states it, so it must not be blank. */
+    val userId: String,
+    val deviceId: String
 )

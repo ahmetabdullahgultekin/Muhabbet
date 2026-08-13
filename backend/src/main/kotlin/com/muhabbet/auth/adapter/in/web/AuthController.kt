@@ -14,7 +14,6 @@ import com.muhabbet.shared.dto.RequestOtpResponse
 import com.muhabbet.shared.dto.VerifyOtpRequest
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
-import kotlinx.coroutines.runBlocking
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -33,7 +32,7 @@ class AuthController(
 
     @PostMapping("/otp/request")
     fun requestOtp(@RequestBody request: RequestOtpRequest): ResponseEntity<ApiResponse<RequestOtpResponse>> {
-        val result = runBlocking { requestOtpUseCase.requestOtp(request.phoneNumber) }
+        val result = requestOtpUseCase.requestOtp(request.phoneNumber)
         return ApiResponseBuilder.ok(
             RequestOtpResponse(
                 ttlSeconds = result.ttlSeconds,
@@ -45,14 +44,12 @@ class AuthController(
 
     @PostMapping("/otp/verify")
     fun verifyOtp(@RequestBody request: VerifyOtpRequest): ResponseEntity<ApiResponse<AuthTokenResponse>> {
-        val result = runBlocking {
-            verifyOtpUseCase.verifyOtp(
-                phoneNumber = request.phoneNumber,
-                otp = request.otp,
-                deviceName = request.deviceName,
-                platform = request.platform
-            )
-        }
+        val result = verifyOtpUseCase.verifyOtp(
+            phoneNumber = request.phoneNumber,
+            otp = request.otp,
+            deviceName = request.deviceName,
+            platform = request.platform
+        )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
                 accessToken = result.accessToken,
@@ -67,13 +64,11 @@ class AuthController(
 
     @PostMapping("/firebase-verify")
     fun firebaseVerify(@RequestBody request: FirebaseVerifyRequest): ResponseEntity<ApiResponse<AuthTokenResponse>> {
-        val result = runBlocking {
-            firebaseVerifyUseCase.verifyFirebaseToken(
-                idToken = request.idToken,
-                deviceName = request.deviceName,
-                platform = request.platform
-            )
-        }
+        val result = firebaseVerifyUseCase.verifyFirebaseToken(
+            idToken = request.idToken,
+            deviceName = request.deviceName,
+            platform = request.platform
+        )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
                 accessToken = result.accessToken,
@@ -88,14 +83,15 @@ class AuthController(
 
     @PostMapping("/token/refresh")
     fun refreshToken(@RequestBody request: RefreshTokenRequest): ResponseEntity<ApiResponse<AuthTokenResponse>> {
-        val result = runBlocking { refreshTokenUseCase.refresh(request.refreshToken) }
+        val result = refreshTokenUseCase.refresh(request.refreshToken)
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
                 accessToken = result.accessToken,
                 refreshToken = result.refreshToken,
                 expiresIn = result.expiresIn,
-                userId = "",
-                deviceId = "",
+                userId = result.userId,
+                deviceId = result.deviceId,
+                // A refresh rotates the tokens of an account that already exists.
                 isNewUser = false
             )
         )
@@ -105,7 +101,7 @@ class AuthController(
     fun logout(): ResponseEntity<ApiResponse<Nothing>> {
         val userId = AuthenticatedUser.currentUserId()
         val deviceId = AuthenticatedUser.currentDeviceId()
-        runBlocking { logoutUseCase.logout(userId, deviceId) }
+        logoutUseCase.logout(userId, deviceId)
         return ApiResponseBuilder.noContent()
     }
 }

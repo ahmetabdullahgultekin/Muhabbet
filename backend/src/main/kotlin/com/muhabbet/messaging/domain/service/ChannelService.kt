@@ -54,16 +54,23 @@ open class ChannelService(
 
     @Transactional(readOnly = true)
     override fun listChannels(userId: UUID): List<ChannelInfo> {
+        // findByType is unpaginated: it returns every channel in the system. That is tolerable only
+        // while the member lookup is a single batched query — resolving members per channel made the
+        // cost of one request grow with the channel count (N+1). Do not reintroduce a per-channel
+        // query here; if the channel list itself ever grows large, paginate findByType instead.
         val channels = conversationRepository.findByType(ConversationType.CHANNEL)
+        if (channels.isEmpty()) return emptyList()
+
+        val membersByChannel = conversationRepository.findMembersByConversationIds(channels.map { it.id })
+
         return channels.map { conv ->
-            val members = conversationRepository.findMembersByConversationId(conv.id)
-            val isSubscribed = members.any { it.userId == userId }
+            val members = membersByChannel[conv.id] ?: emptyList()
             ChannelInfo(
                 id = conv.id,
                 name = conv.name ?: "",
                 description = conv.description,
                 subscriberCount = members.size,
-                isSubscribed = isSubscribed,
+                isSubscribed = members.any { it.userId == userId },
                 createdAt = conv.createdAt.toString()
             )
         }
