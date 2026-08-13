@@ -79,7 +79,12 @@ private fun WebSocketLifecycle() {
                                 status = MessageStatus.DELIVERED
                             )
                         )
-                    } catch (_: Exception) { }
+                    } catch (e: Exception) {
+                        // Must not rethrow: this collector is the app-wide delivery-ack pump, and
+                        // letting it die would silently stop every future DELIVERED tick.
+                        // Nothing to show the user — the sender's tick simply stays at one.
+                        Log.w("App", "Failed to send DELIVERED ack for ${message.messageId}: ${e.message}")
+                    }
                 }
             }
         }

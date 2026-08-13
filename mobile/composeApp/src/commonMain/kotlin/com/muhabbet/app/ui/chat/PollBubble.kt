@@ -27,8 +27,12 @@ import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.dto.PollResultResponse
+import com.muhabbet.app.util.Log
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.error_action_failed
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 private val pollJson = Json { ignoreUnknownKeys = true }
@@ -43,6 +47,9 @@ fun PollBubble(
 ) {
     val scope = rememberCoroutineScope()
     var pollResult by remember { mutableStateOf<PollResultResponse?>(null) }
+    // A bubble has no snackbar host, so a failed vote is reported inline under the poll.
+    var voteFailed by remember(messageId) { mutableStateOf(false) }
+    val voteFailedText = stringResource(Res.string.error_action_failed)
     val pollData = remember(pollContent) {
         try {
             pollJson.decodeFromString<PollData>(pollContent)
@@ -54,7 +61,11 @@ fun PollBubble(
     LaunchedEffect(messageId) {
         try {
             pollResult = messageRepository.getPollResults(messageId)
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Best-effort enrichment: the poll question and options still render from the message
+            // body, only the tallies are missing. Not worth interrupting the chat for.
+            Log.w("PollBubble", "Failed to load poll results for $messageId: ${e.message}")
+        }
     }
 
     if (pollData == null) return
@@ -93,7 +104,13 @@ fun PollBubble(
                         scope.launch {
                             try {
                                 pollResult = messageRepository.votePoll(messageId, index)
-                            } catch (_: Exception) { }
+                                voteFailed = false
+                            } catch (e: Exception) {
+                                // Nothing moves on the bar when a vote fails, so the tap reads as
+                                // if it registered. Say otherwise.
+                                Log.e("PollBubble", "Failed to vote on poll $messageId", e)
+                                voteFailed = true
+                            }
                         }
                     }
             ) {
@@ -128,6 +145,15 @@ fun PollBubble(
                     }
                 }
             }
+        }
+
+        if (voteFailed) {
+            Text(
+                text = voteFailedText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = MuhabbetSpacing.XSmall, top = 2.dp)
+            )
         }
 
         if ((pollResult?.totalVotes ?: 0) > 0) {

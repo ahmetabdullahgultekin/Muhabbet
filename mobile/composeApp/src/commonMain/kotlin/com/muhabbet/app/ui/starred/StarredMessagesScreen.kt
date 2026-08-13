@@ -30,6 +30,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -46,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.util.Log
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.MessageRepository
@@ -68,18 +71,26 @@ fun StarredMessagesScreen(
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
 
     LaunchedEffect(Unit) {
         try {
             val result = messageRepository.getStarredMessages()
             messages = result.items
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Without this the screen shows the "no starred messages" empty state, which is a lie.
+            Log.e("StarredMessagesScreen", "Failed to load starred messages", e)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
         isLoading = false
     }
 
     val youLabel = stringResource(Res.string.starred_you)
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(Res.string.starred_title)) },

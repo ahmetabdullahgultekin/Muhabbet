@@ -68,7 +68,10 @@ import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.app.util.Log
 import org.koin.compose.koinInject
+
+private const val TAG = "ChatScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +118,9 @@ fun ChatScreen(
     val stickerContentLabel = stringResource(Res.string.attach_sticker)
     val scheduleQueuedMsg = stringResource(Res.string.schedule_queued)
     val scheduleCancelledMsg = stringResource(Res.string.schedule_cancelled)
+    val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
+    val errorActionMsg = stringResource(Res.string.error_action_failed)
+    val errorDisappearingMsg = stringResource(Res.string.error_disappearing_timer_failed)
 
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
@@ -221,7 +227,12 @@ fun ChatScreen(
             val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
             isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
                 myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Best-effort enrichment: the chat is fully usable without it, so no snackbar.
+            // The defaults (no disappear timer, not announcement-only, not admin) are permissive;
+            // the backend re-checks all three, so a failure here cannot grant real privileges.
+            Log.w(TAG, "Failed to load conversation settings: ${e.message}")
+        }
     }
 
     LaunchedEffect(conversationId) {
@@ -234,7 +245,10 @@ fun ChatScreen(
             messages.lastOrNull { it.senderId != currentUserId }?.let {
                 wsClient.send(WsMessage.AckMessage(messageId = it.id, conversationId = conversationId, status = MessageStatus.READ))
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Read receipt is best-effort; it is re-sent on the next incoming message.
+            Log.w(TAG, "Failed to send READ ack on open: ${e.message}")
+        }
     }
 
     // ── WebSocket listener ───────────────────
@@ -248,7 +262,10 @@ fun ChatScreen(
                             thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
                             clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom)
                         if (ws.senderId != currentUserId) {
-                            try { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) } catch (_: Exception) { }
+                            // Must not rethrow: an exception here would kill the incoming collector
+                            // and the chat would stop receiving messages entirely.
+                            try { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) }
+                            catch (e: Exception) { Log.w(TAG, "Failed to send READ ack for ${ws.messageId}: ${e.message}") }
                         }
                     }
                 }
@@ -318,7 +335,12 @@ fun ChatScreen(
         snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
             if (first <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
                 isLoadingMore = true
-                try { val r = messageRepository.getMessages(conversationId, cursor = nextCursor); messages = r.items.reversed() + messages; nextCursor = r.nextCursor } catch (_: Exception) { }
+                // Without feedback a failed page load is indistinguishable from "no older messages".
+                try { val r = messageRepository.getMessages(conversationId, cursor = nextCursor); messages = r.items.reversed() + messages; nextCursor = r.nextCursor }
+                catch (e: Exception) {
+                    Log.e(TAG, "Failed to load older messages", e)
+                    snackbarHostState.showSnackbar(errorLoadMsg)
+                }
                 isLoadingMore = false
             }
         }
@@ -338,7 +360,25 @@ fun ChatScreen(
         onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog; showDeleteDialog = false; deleteTargetId = null; scope.launch { try { groupRepository.deleteMessage(id); messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
         onDismiss = { showDeleteDialog = false; deleteTargetId = null }
     )
-    if (showDisappearDialog) DisappearTimerDialog(disappearAfterSeconds, onSelect = { s -> showDisappearDialog = false; disappearAfterSeconds = s; scope.launch { try { conversationRepository.setDisappearTimer(conversationId, s) } catch (_: Exception) { } } }, onDismiss = { showDisappearDialog = false })
+    if (showDisappearDialog) DisappearTimerDialog(
+        disappearAfterSeconds,
+        onSelect = { s ->
+            showDisappearDialog = false
+            // Optimistic: the timer icon flips immediately. If the server rejects it we MUST roll
+            // back and say so — leaving the icon "on" would claim messages disappear when they do not.
+            val previous = disappearAfterSeconds
+            disappearAfterSeconds = s
+            scope.launch {
+                try { conversationRepository.setDisappearTimer(conversationId, s) }
+                catch (e: Exception) {
+                    Log.e(TAG, "Failed to set disappearing timer", e)
+                    disappearAfterSeconds = previous
+                    snackbarHostState.showSnackbar(errorDisappearingMsg)
+                }
+            }
+        },
+        onDismiss = { showDisappearDialog = false }
+    )
     if (showLocationDialog) LocationShareDialog(onSend = { loc -> showLocationDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), loc); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.LOCATION, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
     if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.POLL, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
 
@@ -350,7 +390,7 @@ fun ChatScreen(
             if (text.isEmpty()) return@ScheduleSendDialog
             val replyId = replyingTo?.id
             messageText = ""; replyingTo = null; typingJob?.cancel()
-            if (isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { } }; isTypingSent = false }
+            if (isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, false) }; isTypingSent = false }
             val mid = generateMessageId(); val rid = generateMessageId()
             pendingScheduled = pendingScheduled + PendingScheduledMessage(messageId = mid, content = text, scheduledAtMillis = epochMillis)
             scope.launch {
@@ -414,8 +454,9 @@ fun ChatScreen(
                         onLongPress = { contextMenuMessageId = it.id },
                         onDismissMenu = { contextMenuMessageId = null },
                         onReply = { contextMenuMessageId = null; replyingTo = it },
-                        onForward = { msg -> contextMenuMessageId = null; forwardMessage = msg; scope.launch { try { forwardConversations = conversationRepository.getConversations().items } catch (_: Exception) { } } },
-                        onStar = { msg, isStarred -> contextMenuMessageId = null; scope.launch { try { if (isStarred) { messageRepository.unstarMessage(msg.id); starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id); starredIds.value += msg.id } } catch (_: Exception) { } } },
+                        // Without feedback the picker just opens empty, reading as "no chats to forward to".
+                        onForward = { msg -> contextMenuMessageId = null; forwardMessage = msg; scope.launch { try { forwardConversations = conversationRepository.getConversations().items } catch (e: Exception) { Log.e(TAG, "Failed to load forward targets", e); snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                        onStar = { msg, isStarred -> contextMenuMessageId = null; scope.launch { try { if (isStarred) { messageRepository.unstarMessage(msg.id); starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id); starredIds.value += msg.id } } catch (e: Exception) { Log.e(TAG, "Failed to toggle star on ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
                         onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                         onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
                         onImageClick = { fullImageUrl = it },
@@ -424,12 +465,17 @@ fun ChatScreen(
                                 try {
                                     if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
                                     else messageRepository.addReaction(msg.id, emoji)
-                                } catch (_: Exception) { }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
+                                    snackbarHostState.showSnackbar(errorActionMsg)
+                                }
                             }
                         },
-                        onQuickReaction = { msg, emoji -> scope.launch { try { messageRepository.addReaction(msg.id, emoji) } catch (_: Exception) { } } },
+                        onQuickReaction = { msg, emoji -> scope.launch { try { messageRepository.addReaction(msg.id, emoji) } catch (e: Exception) { Log.e(TAG, "Failed to add reaction to ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
                         onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
-                        onViewOnce = { id -> scope.launch { try { messageRepository.markViewOnce(id) } catch (_: Exception) { } } }
+                        // Server-side bookkeeping only — the media is already revealed locally, so a
+                        // failure has no user-visible consequence worth interrupting them for.
+                        onViewOnce = { id -> scope.launch { try { messageRepository.markViewOnce(id) } catch (e: Exception) { Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } }
                     )
                 )
             }
@@ -485,8 +531,8 @@ fun ChatScreen(
                     onTextChange = { new ->
                         messageText = new
                         if (new.isNotEmpty() && editingMessageId == null) {
-                            if (!isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, true)) } catch (_: Exception) { } }; isTypingSent = true }
-                            typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.app.ui.theme.MuhabbetDurations.TypingTimeoutMs); try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { }; isTypingSent = false }
+                            if (!isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, true) }; isTypingSent = true }
+                            typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.app.ui.theme.MuhabbetDurations.TypingTimeoutMs); sendTypingIndicator(wsClient, conversationId, false); isTypingSent = false }
                         }
                     },
                     isEditing = editingMessageId != null, isUploading = isUploading,
@@ -497,7 +543,7 @@ fun ChatScreen(
                             scope.launch { try { groupRepository.editMessage(id, content); messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
                         } else {
                             val text = messageText; val replyId = replyingTo?.id; messageText = ""; replyingTo = null; typingJob?.cancel()
-                            if (isTypingSent) { scope.launch { try { wsClient.send(WsMessage.TypingIndicator(conversationId, false)) } catch (_: Exception) { } }; isTypingSent = false }
+                            if (isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, false) }; isTypingSent = false }
                             val mid = generateMessageId(); val rid = generateMessageId()
                             messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.TEXT, content = text, replyToId = replyId, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                             scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
@@ -535,5 +581,18 @@ fun ChatScreen(
                 scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
             }
         )
+    }
+}
+
+/**
+ * Typing indicators are cosmetic and fire on every typing burst. A failure is almost always just a
+ * dropped WebSocket, and interrupting the user mid-sentence for it would be worse than useless — so
+ * this deliberately stays silent in the UI and only logs.
+ */
+private suspend fun sendTypingIndicator(wsClient: WsClient, conversationId: String, isTyping: Boolean) {
+    try {
+        wsClient.send(WsMessage.TypingIndicator(conversationId, isTyping))
+    } catch (e: Exception) {
+        Log.d(TAG, "Typing indicator ($isTyping) not sent: ${e.message}")
     }
 }

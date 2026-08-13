@@ -93,7 +93,12 @@ class WsClient(
                         delay(30_000L)
                         try {
                             send(WsMessage.Ping)
-                        } catch (_: Exception) { }
+                        } catch (e: Exception) {
+                            // Deliberately does not break the loop or surface to the UI: recovery is
+                            // owned by the reconnect path below. Logged so a heartbeat that keeps
+                            // failing (e.g. a session that outlived its socket) is visible.
+                            Log.w(TAG, "Heartbeat ping failed: ${e.message}")
+                        }
                     }
                 }
 
@@ -125,14 +130,18 @@ class WsClient(
                     }
                 }
 
-                // Stop heartbeat on disconnect
-                heartbeatJob?.cancel()
-                heartbeatJob = null
                 _connectionState.value = ConnectionState.DISCONNECTED
                 Log.d(TAG, "Session closed, will reconnect")
             } catch (e: Exception) {
                 _connectionState.value = ConnectionState.DISCONNECTED
                 Log.e(TAG, "Connection error: ${e.message}")
+            } finally {
+                // Stop heartbeat on BOTH exit paths. This used to run only on the normal path, so a
+                // session that ended by exception orphaned its heartbeat coroutine — and because
+                // send() reads the current `session` field, the orphans kept pinging the *next*
+                // session every 30s, one extra ping per reconnect, forever.
+                heartbeatJob?.cancel()
+                heartbeatJob = null
             }
 
             session = null

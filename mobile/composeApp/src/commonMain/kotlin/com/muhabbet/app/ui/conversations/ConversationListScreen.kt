@@ -190,7 +190,11 @@ fun ConversationListScreen(
             when (wsMessage) {
                 is WsMessage.NewMessage -> {
                     if (wsMessage.senderId != currentUserId) {
-                        try { wsClient.send(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED)) } catch (_: Exception) { }
+                        // Must not rethrow: this collector also drives the list auto-refresh, and
+                        // killing it would freeze the conversation list. The sender's tick just
+                        // stays at one — nothing to show this user.
+                        try { wsClient.send(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED)) }
+                        catch (e: Exception) { Log.w(TAG, "Failed to send DELIVERED ack for ${wsMessage.messageId}: ${e.message}") }
                     }
                     loadConversations()
                 }

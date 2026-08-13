@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.util.Log
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
@@ -76,7 +77,11 @@ fun BroadcastListScreen(
         try {
             val response = apiClient.get<List<BroadcastListResponse>>("/api/v1/broadcasts")
             lists = response.data ?: emptyList()
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Without this the screen shows the "no broadcast lists" empty state, which is a lie.
+            Log.e("BroadcastListScreen", "Failed to load broadcast lists", e)
+            snackbarHostState.showSnackbar(genericErrorMsg)
+        }
         isLoading = false
     }
 

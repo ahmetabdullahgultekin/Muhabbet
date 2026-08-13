@@ -77,9 +77,12 @@ import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import com.muhabbet.app.util.Log
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+
+private const val TAG = "SharedMediaScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -119,17 +122,62 @@ fun SharedMediaScreen(
     val forwardText = stringResource(Res.string.media_viewer_forward)
     val deleteText = stringResource(Res.string.media_viewer_delete)
     val errorSendMsg = stringResource(Res.string.error_send_failed)
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
+    val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
+    val errorDeleteMsg = stringResource(Res.string.error_delete_failed)
+    val errorOpenMsg = stringResource(Res.string.error_open_external)
 
     // Cleanup audio on leave
     DisposableEffect(Unit) {
         onDispose { audioPlayer.stop(); audioPlayer.release() }
     }
 
+    // The forward / delete / open-externally actions appear three times over (viewer, image grid,
+    // document list); the failure handling lives here once so every entry point reports the same way.
+    fun loadForwardTargets() {
+        scope.launch {
+            try {
+                forwardConversations = conversationRepository.getConversations().items
+            } catch (e: Exception) {
+                // Otherwise the picker opens empty and reads as "no chats to forward to".
+                Log.e(TAG, "Failed to load forward targets", e)
+                snackbarHostState.showSnackbar(errorLoadConversationsMsg)
+            }
+        }
+    }
+
+    fun deleteMediaMessage(id: String) {
+        scope.launch {
+            try {
+                groupRepository.deleteMessage(id)
+                mediaMessages = mediaMessages.filter { it.id != id }
+            } catch (e: Exception) {
+                // The tile stays on screen on failure — say why instead of looking like a no-op.
+                Log.e(TAG, "Failed to delete message $id", e)
+                snackbarHostState.showSnackbar(errorDeleteMsg)
+            }
+        }
+    }
+
+    fun openExternally(url: String) {
+        try {
+            uriHandler.openUri(url)
+        } catch (e: Exception) {
+            // No handler app installed, or a malformed URL — the tap looks dead otherwise.
+            Log.e(TAG, "Failed to open media externally", e)
+            scope.launch { snackbarHostState.showSnackbar(errorOpenMsg) }
+        }
+    }
+
     LaunchedEffect(conversationId) {
         try {
             val result = messageRepository.getMediaMessages(conversationId, limit = 100)
             mediaMessages = result.items
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Without this the screen shows the "no shared media" empty state, which is a lie.
+            Log.e(TAG, "Failed to load shared media", e)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
         isLoading = false
     }
 
@@ -145,21 +193,13 @@ fun SharedMediaScreen(
                 val m = msg
                 viewerMessage = null
                 forwardMessage = m
-                scope.launch {
-                    try { forwardConversations = conversationRepository.getConversations().items }
-                    catch (_: Exception) { }
-                }
+                loadForwardTargets()
             },
             onDelete = if (msg.senderId == currentUserId) {
                 {
                     val id = msg.id
                     viewerMessage = null
-                    scope.launch {
-                        try {
-                            groupRepository.deleteMessage(id)
-                            mediaMessages = mediaMessages.filter { it.id != id }
-                        } catch (_: Exception) { }
-                    }
+                    deleteMediaMessage(id)
                 }
             } else null
         )
@@ -253,9 +293,7 @@ fun SharedMediaScreen(
                                                 onClick = {
                                                     if (message.contentType == ContentType.VIDEO) {
                                                         // Open video in external player
-                                                        message.mediaUrl?.let { url ->
-                                                            try { uriHandler.openUri(url) } catch (_: Exception) { }
-                                                        }
+                                                        message.mediaUrl?.let { url -> openExternally(url) }
                                                     } else {
                                                         viewerMessage = message
                                                     }
@@ -290,10 +328,7 @@ fun SharedMediaScreen(
                                                     val m = message
                                                     contextMenuMessage = null
                                                     forwardMessage = m
-                                                    scope.launch {
-                                                        try { forwardConversations = conversationRepository.getConversations().items }
-                                                        catch (_: Exception) { }
-                                                    }
+                                                    loadForwardTargets()
                                                 }
                                             )
                                             if (message.senderId == currentUserId) {
@@ -302,12 +337,7 @@ fun SharedMediaScreen(
                                                     onClick = {
                                                         val id = message.id
                                                         contextMenuMessage = null
-                                                        scope.launch {
-                                                            try {
-                                                                groupRepository.deleteMessage(id)
-                                                                mediaMessages = mediaMessages.filter { it.id != id }
-                                                            } catch (_: Exception) { }
-                                                        }
+                                                        deleteMediaMessage(id)
                                                     }
                                                 )
                                             }
@@ -340,9 +370,7 @@ fun SharedMediaScreen(
                                                         }
                                                     } else {
                                                         // Open document in external viewer
-                                                        message.mediaUrl?.let { url ->
-                                                            try { uriHandler.openUri(url) } catch (_: Exception) { }
-                                                        }
+                                                        message.mediaUrl?.let { url -> openExternally(url) }
                                                     }
                                                 },
                                                 onLongClick = { contextMenuMessage = message }
@@ -386,10 +414,7 @@ fun SharedMediaScreen(
                                                     val m = message
                                                     contextMenuMessage = null
                                                     forwardMessage = m
-                                                    scope.launch {
-                                                        try { forwardConversations = conversationRepository.getConversations().items }
-                                                        catch (_: Exception) { }
-                                                    }
+                                                    loadForwardTargets()
                                                 }
                                             )
                                             if (message.senderId == currentUserId) {
@@ -398,12 +423,7 @@ fun SharedMediaScreen(
                                                     onClick = {
                                                         val id = message.id
                                                         contextMenuMessage = null
-                                                        scope.launch {
-                                                            try {
-                                                                groupRepository.deleteMessage(id)
-                                                                mediaMessages = mediaMessages.filter { it.id != id }
-                                                            } catch (_: Exception) { }
-                                                        }
+                                                        deleteMediaMessage(id)
                                                     }
                                                 )
                                             }

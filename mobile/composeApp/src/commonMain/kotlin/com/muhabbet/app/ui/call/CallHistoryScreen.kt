@@ -29,6 +29,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -47,7 +49,9 @@ import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
+import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.error_load_failed
 import com.muhabbet.composeapp.generated.resources.call_history_empty
 import com.muhabbet.composeapp.generated.resources.calls_new_call
 import com.muhabbet.composeapp.generated.resources.call_incoming
@@ -79,7 +83,9 @@ fun CallHistoryScreen(
 
     var calls by remember { mutableStateOf<List<CallHistoryResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
     val emptyText = stringResource(Res.string.call_history_empty)
     val title = stringResource(Res.string.calls_title)
     val voiceLabel = stringResource(Res.string.call_voice)
@@ -92,7 +98,11 @@ fun CallHistoryScreen(
         try {
             val result = callRepository.getCallHistory()
             calls = result.items
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Without this the screen shows the "no calls yet" empty state, which is a lie.
+            Log.e("CallHistoryScreen", "Failed to load call history", e)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
         isLoading = false
     }
 
@@ -127,7 +137,8 @@ fun CallHistoryScreen(
                     )
                 }
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

@@ -43,8 +43,10 @@ import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.call_connected
+import com.muhabbet.composeapp.generated.resources.call_connection_failed
 import com.muhabbet.composeapp.generated.resources.call_end
 import com.muhabbet.composeapp.generated.resources.call_mute
 import com.muhabbet.composeapp.generated.resources.call_speaker
@@ -69,12 +71,14 @@ fun ActiveCallScreen(
     var isMuted by remember { mutableStateOf(false) }
     var isSpeaker by remember { mutableStateOf(false) }
     var callDurationSeconds by remember { mutableStateOf(0) }
+    var mediaConnectFailed by remember { mutableStateOf(false) }
 
     val endLabel = stringResource(Res.string.call_end)
     val muteLabel = stringResource(Res.string.call_mute)
     val unmuteLabel = stringResource(Res.string.call_unmute)
     val speakerLabel = stringResource(Res.string.call_speaker)
     val connectedLabel = stringResource(Res.string.call_connected)
+    val connectFailedLabel = stringResource(Res.string.call_connection_failed)
     val callTypeLabel = if (callType == CallType.VIDEO)
         stringResource(Res.string.call_video)
     else
@@ -96,7 +100,13 @@ fun ActiveCallScreen(
                     if (message.callId == callId && message.serverUrl.isNotBlank()) {
                         try {
                             callEngine.connect(message.serverUrl, message.token)
-                        } catch (_: Exception) { }
+                            mediaConnectFailed = false
+                        } catch (e: Exception) {
+                            // Without this the screen keeps counting up as if the call were live
+                            // while no audio flows at all. Surfaced as a status line below.
+                            Log.e("ActiveCallScreen", "Failed to connect call media", e)
+                            mediaConnectFailed = true
+                        }
                     }
                 }
                 is WsMessage.CallEnd -> {
@@ -171,6 +181,15 @@ fun ActiveCallScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
+            // Media status — the timer alone cannot tell "connected" from "no audio at all".
+            Text(
+                text = if (mediaConnectFailed) connectFailedLabel else connectedLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (mediaConnectFailed) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
             Spacer(modifier = Modifier.height(64.dp))
 
             // Call controls
@@ -214,7 +233,12 @@ fun ActiveCallScreen(
                             scope.launch {
                                 try {
                                     wsClient.send(WsMessage.CallEnd(callId = callId, reason = CallEndReason.ENDED))
-                                } catch (_: Exception) { }
+                                } catch (e: Exception) {
+                                    // Deliberately silent in the UI: hanging up must always succeed
+                                    // locally and this screen is already gone by now. The peer falls
+                                    // back to its own call timeout.
+                                    Log.e("ActiveCallScreen", "Failed to notify peer of call end", e)
+                                }
                             }
                             onCallEnded()
                         },

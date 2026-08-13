@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
+import com.muhabbet.app.util.Log
 import kotlinx.coroutines.launch
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
@@ -70,10 +71,17 @@ fun CommunityDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
+
     suspend fun loadDetail() {
         try {
             detail = communityRepository.getCommunityDetail(communityId)
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Without this the screen sits on a generic title with no groups, indistinguishable
+            // from an empty community.
+            Log.e("CommunityDetailScreen", "Failed to load community $communityId", e)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
     }
 
     LaunchedEffect(communityId) {

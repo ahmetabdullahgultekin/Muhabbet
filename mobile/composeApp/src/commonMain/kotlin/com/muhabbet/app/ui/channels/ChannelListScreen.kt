@@ -26,6 +26,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -47,9 +49,12 @@ import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ChannelInfoResponse
+import com.muhabbet.app.util.Log
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+
+private const val TAG = "ChannelListScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,11 +66,19 @@ fun ChannelListScreen(
     var channels by remember { mutableStateOf<List<ChannelInfoResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
+    val errorActionMsg = stringResource(Res.string.error_action_failed)
 
     LaunchedEffect(Unit) {
         try {
             channels = channelRepository.listChannels()
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Without this the screen shows the "no channels" empty state, which is a lie.
+            Log.e(TAG, "Failed to load channels", e)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
         isLoading = false
     }
 
@@ -84,7 +97,8 @@ fun ChannelListScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -123,7 +137,12 @@ fun ChannelListScreen(
                                         channelRepository.subscribe(channel.id)
                                     }
                                     channels = channelRepository.listChannels()
-                                } catch (_: Exception) { }
+                                } catch (e: Exception) {
+                                    // The subscribe button never flips on failure, so without this
+                                    // the tap looks like it simply did nothing.
+                                    Log.e(TAG, "Failed to toggle subscription for ${channel.id}", e)
+                                    snackbarHostState.showSnackbar(errorActionMsg)
+                                }
                             }
                         }
                     )

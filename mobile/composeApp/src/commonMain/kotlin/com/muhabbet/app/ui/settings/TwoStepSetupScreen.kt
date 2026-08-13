@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.util.Log
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetSizes
@@ -76,7 +77,12 @@ fun TwoStepSetupScreen(
         try {
             val response = apiClient.get<TwoStepStatusResponse>("/api/v1/auth/two-step/status")
             isEnabled = response.data?.enabled ?: false
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            // Security-relevant: on failure isEnabled stays false and the screen claims two-step
+            // verification is OFF when it may well be ON. Never let that pass unannounced.
+            Log.e("TwoStepSetupScreen", "Failed to load two-step status", e)
+            snackbarHostState.showSnackbar(genericErrorMsg)
+        }
         isLoading = false
     }
 

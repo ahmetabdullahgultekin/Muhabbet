@@ -32,6 +32,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.util.Log
 import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
 import com.muhabbet.app.ui.components.UserAvatar
@@ -59,6 +62,7 @@ import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.app_name
+import com.muhabbet.composeapp.generated.resources.error_load_conversations
 import com.muhabbet.composeapp.generated.resources.home_search_no_results
 import com.muhabbet.composeapp.generated.resources.home_search_placeholder
 import com.muhabbet.composeapp.generated.resources.home_tab_calls
@@ -98,6 +102,8 @@ fun HomeShellScreen(
     var searchQuery by remember { mutableStateOf("") }
     var allConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
 
     val appName = stringResource(Res.string.app_name)
     val settingsTitle = stringResource(Res.string.settings_title)
@@ -119,7 +125,11 @@ fun HomeShellScreen(
             try {
                 val result = conversationRepository.getConversations()
                 allConversations = result.items
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                // Without this, search over an empty list reports "no results" for every query.
+                Log.e("HomeShellScreen", "Failed to load conversations for search", e)
+                snackbarHostState.showSnackbar(errorLoadConversationsMsg)
+            }
         }
     }
 
@@ -137,6 +147,7 @@ fun HomeShellScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (isSearchActive) {
                 TopAppBar(

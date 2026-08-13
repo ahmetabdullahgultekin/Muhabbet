@@ -33,6 +33,7 @@ import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
+import com.muhabbet.app.util.Log
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.call_accept
@@ -119,7 +120,12 @@ fun IncomingCallScreen(
                             scope.launch {
                                 try {
                                     wsClient.send(WsMessage.CallAnswer(callId = callId, accepted = false))
-                                } catch (_: Exception) { }
+                                } catch (e: Exception) {
+                                    // Deliberately silent: declining must always dismiss locally, and
+                                    // onDecline() has already navigated away by the time this lands.
+                                    // The caller falls back to its own ring timeout.
+                                    Log.e("IncomingCallScreen", "Failed to send call decline", e)
+                                }
                             }
                             onDecline()
                         },
@@ -146,7 +152,12 @@ fun IncomingCallScreen(
                             scope.launch {
                                 try {
                                     wsClient.send(WsMessage.CallAnswer(callId = callId, accepted = true))
-                                } catch (_: Exception) { }
+                                } catch (e: Exception) {
+                                    // onAccept() has already navigated to ActiveCallScreen, so there
+                                    // is nothing left here to show a message on. The failure becomes
+                                    // visible there: no CallRoomInfo arrives, so no media connects.
+                                    Log.e("IncomingCallScreen", "Failed to send call accept", e)
+                                }
                             }
                             onAccept()
                         },
