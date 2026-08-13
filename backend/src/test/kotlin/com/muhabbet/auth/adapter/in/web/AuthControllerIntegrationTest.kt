@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -218,6 +219,7 @@ class AuthControllerIntegrationTest {
 
         val granted = AtomicInteger(0)
         val refused = AtomicInteger(0)
+        val other = ConcurrentHashMap<String, AtomicInteger>()
         val startTogether = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(attackers)
 
@@ -235,9 +237,14 @@ class AuthControllerIntegrationTest {
                             )
                     ).andReturn().response.contentAsString
 
-                    when (objectMapper.readTree(body).path("error").path("code").asText()) {
+                    when (val code = objectMapper.readTree(body).path("error").path("code").asText()) {
+                        // The code was compared, so an attempt was spent.
                         "AUTH_OTP_INVALID" -> granted.incrementAndGet()
+                        // Turned away before the comparison.
                         "AUTH_OTP_MAX_ATTEMPTS" -> refused.incrementAndGet()
+                        // Anything else is neither, and is recorded so it cannot hide a granted
+                        // attempt behind an unexamined response.
+                        else -> other.computeIfAbsent(code) { AtomicInteger(0) }.incrementAndGet()
                     }
                 })
             }
@@ -249,15 +256,19 @@ class AuthControllerIntegrationTest {
 
         // A wrong code that got as far as being compared is a spent attempt. No more than the
         // configured five may get that far, however many arrive at once.
+        val breakdown = "granted=${granted.get()} refused=${refused.get()} " +
+            "other=${other.mapValues { it.value.get() }}"
         assertTrue(
             granted.get() <= 5,
-            "expected at most 5 attempts to be granted, but ${granted.get()} of $attackers were " +
-                "(${refused.get()} refused) — the limit is not atomic"
+            "expected at most 5 of $attackers concurrent guesses to be granted — $breakdown"
         )
+        // Some requests legitimately land elsewhere: 24 arriving together exceed the auth rate limit,
+        // and those never reach the OTP logic at all. What must not happen is a request being counted
+        // as neither because it quietly succeeded.
         assertEquals(
-            attackers - granted.get(),
-            refused.get(),
-            "every request should be accounted for as either granted or refused"
+            0,
+            other.keys.count { it.isEmpty() },
+            "a concurrent guess returned no error at all, meaning it was accepted — $breakdown"
         )
     }
 }
