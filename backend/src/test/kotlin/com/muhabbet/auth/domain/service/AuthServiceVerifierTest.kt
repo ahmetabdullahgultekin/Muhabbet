@@ -43,6 +43,11 @@ class AuthServiceVerifierTest {
         otpRepository = mockk(relaxed = true)
         otpVerifier = mockk(relaxed = true)
 
+        // claimAttempt decides whether the request is allowed to proceed at all, and a relaxed mock
+        // answers false — which would short-circuit every test here into AUTH_OTP_MAX_ATTEMPTS before
+        // the verifier is ever consulted. Grant by default; the limit itself is covered elsewhere.
+        every { otpRepository.claimAttempt(any(), any()) } returns true
+
         val env = MockEnvironment().withProperty("spring.profiles.active", "test")
         val jwtProvider = JwtProvider(
             JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
@@ -100,7 +105,7 @@ class AuthServiceVerifierTest {
         }
 
         // Attempt limiting stays ours even though the code check is delegated.
-        verify(exactly = 1) { otpRepository.incrementAttempts(active) }
+        verify(exactly = 1) { otpRepository.claimAttempt(active, any()) }
     }
 
     @Test

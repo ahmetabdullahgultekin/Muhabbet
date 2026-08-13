@@ -128,11 +128,11 @@ open class AuthService(
         val activeOtp = otpRepository.findActiveByPhoneNumber(phoneNumber)
             ?: throw BusinessException(ErrorCode.AUTH_OTP_EXPIRED)
 
-        if (activeOtp.attempts >= otpMaxAttempts) {
+        // Claiming an attempt and enforcing the limit are the same statement, so concurrent verifies
+        // cannot each read an under-limit count and all be granted a guess.
+        if (!otpRepository.claimAttempt(activeOtp, otpMaxAttempts)) {
             throw BusinessException(ErrorCode.AUTH_OTP_MAX_ATTEMPTS)
         }
-
-        otpRepository.incrementAttempts(activeOtp)
 
         val accepted = if (otpVerifier != null) {
             otpVerifier.check(phoneNumber, otp)

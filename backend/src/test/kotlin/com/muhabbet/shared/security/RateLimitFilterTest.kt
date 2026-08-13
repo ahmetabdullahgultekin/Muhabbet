@@ -19,7 +19,7 @@ class RateLimitFilterTest {
 
     @BeforeEach
     fun setUp() {
-        rateLimitFilter = RateLimitFilter()
+        rateLimitFilter = RateLimitFilter(maxRequests = 10, windowSeconds = 60)
         filterChain = mockk(relaxed = true)
     }
 
@@ -281,7 +281,7 @@ class RateLimitFilterTest {
             val ip = "10.10.10.10"
 
             // Use a new filter instance to avoid state from other tests
-            val filter = RateLimitFilter()
+            val filter = RateLimitFilter(maxRequests = 10, windowSeconds = 60)
 
             // Exhaust limit
             repeat(10) {
