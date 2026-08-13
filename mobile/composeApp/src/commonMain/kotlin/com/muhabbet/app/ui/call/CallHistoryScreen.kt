@@ -29,6 +29,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -47,7 +49,10 @@ import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.error_load_failed
 import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.call_history_empty
 import com.muhabbet.composeapp.generated.resources.calls_new_call
@@ -80,7 +85,9 @@ fun CallHistoryScreen(
 
     var calls by remember { mutableStateOf<List<CallHistoryResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
     val emptyText = stringResource(Res.string.call_history_empty)
     val title = stringResource(Res.string.calls_title)
     val voiceLabel = stringResource(Res.string.call_voice)
@@ -90,11 +97,19 @@ fun CallHistoryScreen(
     val missedLabel = stringResource(Res.string.call_missed)
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val result = callRepository.getCallHistory()
             calls = result.items
-        } catch (_: Exception) { }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting: showSnackbar suspends until the snackbar is
+        // dismissed (~4s for Short), so reporting first leaves the loading indicator spinning
+        // over content that has already finished loading.
         isLoading = false
+        if (failure != null) {
+            // Without this the screen shows the "no calls yet" empty state, which is a lie.
+            Log.e("CallHistoryScreen", "Failed to load call history", failure)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
     }
 
     Scaffold(
@@ -128,7 +143,8 @@ fun CallHistoryScreen(
                     )
                 }
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

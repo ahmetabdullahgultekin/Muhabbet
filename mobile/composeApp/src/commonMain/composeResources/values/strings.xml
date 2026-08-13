@@ -624,6 +624,20 @@
     <string name="schedule_list_empty">Planlanmış mesaj yok</string>
     <string name="contacts_refresh">Kişileri yenile</string>
     <string name="calls_new_call">Yeni arama</string>
+    <!-- Failure feedback: shown when an action or a load silently failed before -->
+    <string name="error_load_failed">İçerik yüklenemedi</string>
+    <string name="error_action_failed">İşlem tamamlanamadı</string>
+    <string name="error_delete_failed">Silinemedi</string>
+    <string name="error_open_external">Bu dosya açılamadı</string>
+    <string name="error_disappearing_timer_failed">Kaybolan mesaj ayarı değiştirilemedi</string>
+    <string name="call_connection_failed">Arama bağlantısı kurulamadı</string>
+    <!-- Shown while the call is ringing, before media actually connects -->
+    <string name="call_connecting">Bağlanıyor…</string>
+    <!-- Turkish does not inflect the noun after a numeral, so both forms are identical -->
+    <plurals name="poll_vote_count">
+        <item quantity="one">%1$d oy</item>
+        <item quantity="other">%1$d oy</item>
+    </plurals>
 
     <!-- Accessibility labels — read aloud by screen readers for icon-only controls
          and for icons that carry state no adjacent text conveys. -->

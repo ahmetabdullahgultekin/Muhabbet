@@ -624,6 +624,19 @@
     <string name="schedule_list_empty">No scheduled messages</string>
     <string name="contacts_refresh">Refresh contacts</string>
     <string name="calls_new_call">New call</string>
+    <!-- Failure feedback: shown when an action or a load silently failed before -->
+    <string name="error_load_failed">Could not load content</string>
+    <string name="error_action_failed">Could not complete the action</string>
+    <string name="error_delete_failed">Could not delete</string>
+    <string name="error_open_external">Could not open this file</string>
+    <string name="error_disappearing_timer_failed">Could not change the disappearing messages setting</string>
+    <string name="call_connection_failed">Could not connect the call</string>
+    <!-- Shown while the call is ringing, before media actually connects -->
+    <string name="call_connecting">Connecting…</string>
+    <plurals name="poll_vote_count">
+        <item quantity="one">%1$d vote</item>
+        <item quantity="other">%1$d votes</item>
+    </plurals>
 
     <!-- Accessibility labels — read aloud by screen readers for icon-only controls
          and for icons that carry state no adjacent text conveys. -->

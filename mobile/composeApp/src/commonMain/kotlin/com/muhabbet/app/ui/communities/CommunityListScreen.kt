@@ -23,6 +23,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
@@ -53,15 +57,23 @@ fun CommunityListScreen(
 ) {
     var communities by remember { mutableStateOf<List<CommunityResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
 
     LaunchedEffect(Unit) {
-        try {
-            communities = communityRepository.getCommunities()
-        } catch (_: Exception) { }
+        val failure = runCatchingCancellable { communities = communityRepository.getCommunities() }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            // Without this the screen shows the "no communities" empty state, which is a lie.
+            Log.e("CommunityListScreen", "Failed to load communities", failure)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreateCommunity,

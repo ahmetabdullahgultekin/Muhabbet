@@ -44,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
 import com.muhabbet.app.ui.components.UserAvatar
 import com.muhabbet.app.ui.theme.MuhabbetElevation
@@ -70,15 +72,25 @@ fun CommunityDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    val errorLoadMsg = stringResource(Res.string.error_load_failed)
+
     suspend fun loadDetail() {
-        try {
+        val failure = runCatchingCancellable {
             detail = communityRepository.getCommunityDetail(communityId)
-        } catch (_: Exception) { }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s), and
+        // this used to sit between the failure and the `isLoading = false` at the call site.
+        isLoading = false
+        if (failure != null) {
+            // Without this the screen sits on a generic title with no groups, indistinguishable
+            // from an empty community.
+            Log.e("CommunityDetailScreen", "Failed to load community $communityId", failure)
+            snackbarHostState.showSnackbar(errorLoadMsg)
+        }
     }
 
     LaunchedEffect(communityId) {
         loadDetail()
-        isLoading = false
     }
 
     val current = detail

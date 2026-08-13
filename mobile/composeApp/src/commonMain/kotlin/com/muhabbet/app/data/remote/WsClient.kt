@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.serialization.encodeToString
 import kotlin.random.Random
 
@@ -74,12 +75,20 @@ class WsClient(
                 delay(2000)
                 continue
             }
+            // Everything this iteration owns is held in locals as well as in the shared fields.
+            // `connect()` has no re-entry guard and `disconnect()` closes asynchronously, so a
+            // second loop can already be running by the time this one's socket finally closes —
+            // the cleanup below must only ever touch what *this* iteration created.
+            var mySession: WebSocketSession? = null
+            var myHeartbeat: kotlinx.coroutines.Job? = null
             try {
                 _connectionState.value = ConnectionState.CONNECTING
                 Log.d(TAG, "Connecting...")
-                session = apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
+                val ws = apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
                     parameter("token", token)
                 }
+                mySession = ws
+                session = ws
                 reconnectAttempt = 0
                 _connectionState.value = ConnectionState.CONNECTED
                 Log.d(TAG, "Connected")
@@ -88,54 +97,68 @@ class WsClient(
                 drainPendingMessages()
 
                 // Start heartbeat
-                heartbeatJob = scope.launch {
+                val heartbeat = scope.launch {
                     while (isActive) {
                         delay(30_000L)
-                        try {
-                            send(WsMessage.Ping)
-                        } catch (_: Exception) { }
+                        // Deliberately does not break the loop or surface to the UI: recovery is
+                        // owned by the reconnect path below. Logged so a heartbeat that keeps
+                        // failing (e.g. a session that outlived its socket) is visible. Cancellation
+                        // is the exception: it must end the loop, not be logged as a failed ping.
+                        runCatchingCancellable { send(WsMessage.Ping) }
+                            .onFailure { e -> Log.w(TAG, "Heartbeat ping failed: ${e.message}") }
                     }
                 }
+                myHeartbeat = heartbeat
+                heartbeatJob = heartbeat
 
-                session?.let { ws ->
-                    for (frame in ws.incoming) {
-                        if (frame is Frame.Text) {
-                            val text = frame.readText()
-                            try {
-                                val decoded = wsJson.decodeFromString<WsMessage>(text)
-                                // Dedup: skip already-processed messages
-                                val msgId = extractMessageId(decoded)
-                                if (msgId != null && !processedMessageIds.add(msgId)) {
-                                    Log.d(TAG, "Skipping duplicate message: $msgId")
-                                    continue
-                                }
-                                trimProcessedIds()
-                                // E2E decrypt-on-receive: NewMessage bodies may be encrypted
-                                // envelopes; everything else passes through untouched.
-                                val message = if (decoded is WsMessage.NewMessage && messageEncryptor != null) {
-                                    messageEncryptor.decryptIncoming(decoded)
-                                } else {
-                                    decoded
-                                }
-                                _incoming.emit(message)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Parse error: ${e.message}")
+                for (frame in ws.incoming) {
+                    if (frame is Frame.Text) {
+                        val text = frame.readText()
+                        try {
+                            val decoded = wsJson.decodeFromString<WsMessage>(text)
+                            // Dedup: skip already-processed messages
+                            val msgId = extractMessageId(decoded)
+                            if (msgId != null && !processedMessageIds.add(msgId)) {
+                                Log.d(TAG, "Skipping duplicate message: $msgId")
+                                continue
                             }
+                            trimProcessedIds()
+                            // E2E decrypt-on-receive: NewMessage bodies may be encrypted
+                            // envelopes; everything else passes through untouched.
+                            val message = if (decoded is WsMessage.NewMessage && messageEncryptor != null) {
+                                messageEncryptor.decryptIncoming(decoded)
+                            } else {
+                                decoded
+                            }
+                            _incoming.emit(message)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Parse error: ${e.message}")
                         }
                     }
                 }
 
-                // Stop heartbeat on disconnect
-                heartbeatJob?.cancel()
-                heartbeatJob = null
                 _connectionState.value = ConnectionState.DISCONNECTED
                 Log.d(TAG, "Session closed, will reconnect")
             } catch (e: Exception) {
                 _connectionState.value = ConnectionState.DISCONNECTED
                 Log.e(TAG, "Connection error: ${e.message}")
+            } finally {
+                // Stop heartbeat on BOTH exit paths. This used to run only on the normal path, so a
+                // session that ended by exception orphaned its heartbeat coroutine — and because
+                // send() reads the current `session` field, the orphans kept pinging the *next*
+                // session every 30s, one extra ping per reconnect, forever.
+                //
+                // Cancel by identity, not by field. `WsClient` is a Koin single and
+                // `WebSocketLifecycle` calls disconnect()+connect() on every composition swap (every
+                // Activity recreation, including the deliberate language switch), so loop B may
+                // already have overwritten `heartbeatJob`/`session` by the time loop A's socket
+                // closes. Cancelling the field would kill B's live heartbeat and null B's live
+                // session; the field is only cleared when it still holds *this* iteration's object.
+                myHeartbeat?.cancel()
+                if (heartbeatJob === myHeartbeat) heartbeatJob = null
+                if (session === mySession) session = null
             }
 
-            session = null
             if (shouldReconnect) {
                 reconnectAttempt++
                 val baseBackoff = minOf(1000L * (1L shl minOf(reconnectAttempt, 5)), 30_000L)
@@ -209,11 +232,17 @@ class WsClient(
     fun disconnect() {
         shouldReconnect = false
         _connectionState.value = ConnectionState.DISCONNECTED
+        // Capture synchronously, for the same reason the connect loop's finally does. Only
+        // `close()` has to happen off-thread; reading the fields inside the coroutine would mean
+        // reading them *after* a following connect() has installed a new session and heartbeat,
+        // and closing whatever is in the field at that point would tear down the new connection.
+        val staleSession = session
+        val staleHeartbeat = heartbeatJob
+        staleHeartbeat?.cancel()
+        if (heartbeatJob === staleHeartbeat) heartbeatJob = null
+        if (session === staleSession) session = null
         scope.launch {
-            heartbeatJob?.cancel()
-            heartbeatJob = null
-            session?.close()
-            session = null
+            staleSession?.close()
         }
     }
 

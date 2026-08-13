@@ -47,6 +47,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
@@ -73,11 +75,17 @@ fun BroadcastListScreen(
     val genericErrorMsg = stringResource(Res.string.error_generic)
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val response = apiClient.get<List<BroadcastListResponse>>("/api/v1/broadcasts")
             lists = response.data ?: emptyList()
-        } catch (_: Exception) { }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            // Without this the screen shows the "no broadcast lists" empty state, which is a lie.
+            Log.e("BroadcastListScreen", "Failed to load broadcast lists", failure)
+            snackbarHostState.showSnackbar(genericErrorMsg)
+        }
     }
 
     if (showCreateDialog) {
