@@ -37,7 +37,10 @@ import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
 import com.muhabbet.shared.dto.ConversationResponse
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -97,9 +100,11 @@ internal fun ConversationItem(
                 )
                 if (isPinned) {
                     Spacer(Modifier.width(MuhabbetSpacing.XSmall))
+                    // "Pinned" is state carried by this icon alone — nothing in the row's text
+                    // repeats it, so a null description would silently drop it.
                     Icon(
                         Icons.Default.PushPin,
-                        contentDescription = null,
+                        contentDescription = stringResource(Res.string.a11y_conversation_pinned),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )

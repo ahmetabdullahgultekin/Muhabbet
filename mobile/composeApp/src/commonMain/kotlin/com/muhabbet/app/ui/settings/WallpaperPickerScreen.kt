@@ -177,9 +177,11 @@ fun WallpaperPickerScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (selectedColor == colorHex) {
+                                    // The swatch itself is a bare coloured Box with no text, so this
+                                    // check mark is the only thing a screen reader can announce for it.
                                     Icon(
                                         Icons.Default.Check,
-                                        contentDescription = null,
+                                        contentDescription = stringResource(Res.string.a11y_selected),
                                         tint = Color.White,
                                         modifier = Modifier.size(MuhabbetSizes.IconLarge)
                                     )

@@ -147,6 +147,7 @@ fun MessageInputBar(
     onPollCreate: () -> Unit,
     onLocationShare: () -> Unit,
     onGifPick: () -> Unit = {},
+    onStickerPick: () -> Unit = {},
     onCameraPick: () -> Unit = {},
     viewOnceEnabled: Boolean = false,
     onViewOnceToggle: () -> Unit = {},
@@ -163,9 +164,12 @@ fun MessageInputBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Emoji button (opens system keyboard emoji)
+            // Sticker shortcut — opens the shared GIF/sticker sheet on its Stickers tab.
+            // (It used to be labelled a sticker button, drawn as a smiley, and wired to the GIF
+            // tab, which is also what the attach menu's GIF entry below already does. Emoji
+            // themselves need no button: the system keyboard supplies them in the text field.)
             IconButton(
-                onClick = onGifPick,
+                onClick = onStickerPick,
                 enabled = !isUploading && !isEditing
             ) {
                 Icon(

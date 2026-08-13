@@ -51,18 +51,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
+/** Which tab of the shared GIF/sticker sheet a caller wants opened first. */
+enum class GifStickerTab { GIF, STICKER }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GifStickerPicker(
     onDismiss: () -> Unit,
     onGifSelected: (url: String, previewUrl: String) -> Unit,
-    onStickerSelected: (url: String, previewUrl: String) -> Unit
+    onStickerSelected: (url: String, previewUrl: String) -> Unit,
+    initialTab: GifStickerTab = GifStickerTab.GIF
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val giphyClient = remember { GiphyClient() }
 
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(initialTab) }
     var searchQuery by remember { mutableStateOf("") }
     var gifs by remember { mutableStateOf<List<GiphyGif>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -70,7 +74,7 @@ fun GifStickerPicker(
     // Load trending on first display and when tab changes
     LaunchedEffect(selectedTab) {
         isLoading = true
-        gifs = if (selectedTab == 0) {
+        gifs = if (selectedTab == GifStickerTab.GIF) {
             giphyClient.getTrending()
         } else {
             giphyClient.getTrendingStickers()
@@ -82,13 +86,13 @@ fun GifStickerPicker(
     LaunchedEffect(searchQuery, selectedTab) {
         if (searchQuery.isBlank()) {
             isLoading = true
-            gifs = if (selectedTab == 0) giphyClient.getTrending() else giphyClient.getTrendingStickers()
+            gifs = if (selectedTab == GifStickerTab.GIF) giphyClient.getTrending() else giphyClient.getTrendingStickers()
             isLoading = false
             return@LaunchedEffect
         }
         delay(400) // debounce
         isLoading = true
-        gifs = if (selectedTab == 0) {
+        gifs = if (selectedTab == GifStickerTab.GIF) {
             giphyClient.searchGifs(searchQuery)
         } else {
             giphyClient.searchStickers(searchQuery)
@@ -103,15 +107,15 @@ fun GifStickerPicker(
     ) {
         Column(modifier = Modifier.fillMaxWidth().height(420.dp)) {
             // Tab row: GIF | Stickers
-            TabRow(selectedTabIndex = selectedTab) {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
                 Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0; searchQuery = "" },
+                    selected = selectedTab == GifStickerTab.GIF,
+                    onClick = { selectedTab = GifStickerTab.GIF; searchQuery = "" },
                     text = { Text(stringResource(Res.string.attach_gif)) }
                 )
                 Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1; searchQuery = "" },
+                    selected = selectedTab == GifStickerTab.STICKER,
+                    onClick = { selectedTab = GifStickerTab.STICKER; searchQuery = "" },
                     text = { Text(stringResource(Res.string.sticker_title)) }
                 )
             }
@@ -163,7 +167,7 @@ fun GifStickerPicker(
                                 .clip(MaterialTheme.shapes.small)
                                 .clickable {
                                     scope.launch {
-                                        if (selectedTab == 0) {
+                                        if (selectedTab == GifStickerTab.GIF) {
                                             onGifSelected(fullUrl, previewUrl)
                                         } else {
                                             onStickerSelected(fullUrl, previewUrl)

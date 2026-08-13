@@ -123,7 +123,7 @@ fun CreateGroupScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
