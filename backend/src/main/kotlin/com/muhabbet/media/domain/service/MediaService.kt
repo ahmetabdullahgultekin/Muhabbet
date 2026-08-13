@@ -136,9 +136,6 @@ open class MediaService(
     }
 
     override fun uploadDocument(command: UploadDocumentCommand): MediaFile {
-        if (command.contentType !in ValidationRules.ALLOWED_DOCUMENT_TYPES) {
-            throw BusinessException(ErrorCode.MEDIA_UNSUPPORTED_TYPE)
-        }
         if (command.sizeBytes > ValidationRules.MAX_DOCUMENT_SIZE_BYTES) {
             throw BusinessException(ErrorCode.MEDIA_TOO_LARGE)
         }

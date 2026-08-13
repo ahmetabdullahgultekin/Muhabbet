@@ -23,10 +23,34 @@ interface SpringDataOtpRepository : JpaRepository<OtpRequestJpaEntity, UUID> {
     fun findActiveByPhoneNumber(phoneNumber: String, now: Instant): OtpRequestJpaEntity?
 
     /**
-     * Increments in the database rather than from a value the caller read earlier, so two verify
-     * requests racing on the same OTP cannot both write the same number and lose one of the attempts.
+     * Claims one attempt, and refuses once [maxAttempts] have been spent. Returns rows updated: 1 when
+     * the attempt was granted, 0 when the budget is already gone.
+     *
+     * The limit lives in the `WHERE` clause rather than in a preceding read, because checking and then
+     * incrementing is three steps and concurrent verifies interleave inside them: every request reads
+     * the same count, every request finds it under the limit, and the effective limit becomes the
+     * attacker's concurrency rather than the configured number. A single conditional statement is
+     * decided by the row lock.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE OtpRequestJpaEntity o SET o.attempts = o.attempts + 1 WHERE o.id = :id")
-    fun incrementAttempts(@Param("id") id: UUID): Int
+    @Query(
+        """
+        UPDATE OtpRequestJpaEntity o
+           SET o.attempts = o.attempts + 1
+         WHERE o.id = :id
+           AND o.attempts < :maxAttempts
+        """
+    )
+    fun claimAttempt(@Param("id") id: UUID, @Param("maxAttempts") maxAttempts: Int): Int
+
+    /**
+     * Marks verified with an UPDATE rather than by mutating a managed entity.
+     *
+     * The caller's persistence context is holding this row from the lookup that started `verifyOtp`,
+     * with the attempt count as it was *before* [claimAttempt] committed in its own transaction. Loading
+     * and saving it here would flush that stale value back over the increment on commit.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OtpRequestJpaEntity o SET o.verified = true WHERE o.id = :id")
+    fun markVerified(@Param("id") id: UUID): Int
 }

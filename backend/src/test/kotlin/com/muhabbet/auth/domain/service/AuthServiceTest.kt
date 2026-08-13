@@ -132,7 +132,7 @@ class AuthServiceTest {
         )
 
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
-        every { otpRepository.incrementAttempts(activeOtp) } returns Unit
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns true
         every { otpRepository.markVerified(activeOtp) } returns Unit
         every { userRepository.findByPhoneNumber(validPhone) } returns null
         every { userRepository.save(any()) } answers { firstArg() }
@@ -171,7 +171,7 @@ class AuthServiceTest {
         )
 
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
-        every { otpRepository.incrementAttempts(activeOtp) } returns Unit
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns true
 
         val ex = assertThrows<BusinessException> {
             authService.verifyOtp(validPhone, "123456", "Device", "android")
@@ -189,6 +189,8 @@ class AuthServiceTest {
         )
 
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
+        // The budget is spent, so the conditional UPDATE matches no row and claims nothing.
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns false
 
         val ex = assertThrows<BusinessException> {
             authService.verifyOtp(validPhone, validOtp, "Device", "android")
