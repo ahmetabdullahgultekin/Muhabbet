@@ -101,7 +101,7 @@ class AuthServiceVerifierTest {
         }
 
         // Attempt limiting stays ours even though the code check is delegated.
-        coVerify(exactly = 1) { otpRepository.incrementAttempts(active) }
+        coVerify(exactly = 1) { otpRepository.claimAttempt(active, any()) }
     }
 
     @Test

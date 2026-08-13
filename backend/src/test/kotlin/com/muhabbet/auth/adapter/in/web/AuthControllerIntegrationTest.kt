@@ -3,6 +3,8 @@ package com.muhabbet.auth.adapter.`in`.web
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.muhabbet.shared.dto.RequestOtpRequest
 import com.muhabbet.shared.dto.VerifyOtpRequest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -19,6 +21,11 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -183,5 +190,74 @@ class AuthControllerIntegrationTest {
         )
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.error.code").value("AUTH_OTP_MAX_ATTEMPTS"))
+    }
+
+    /**
+     * The limit has to hold when the guesses arrive together, not just one after another.
+     *
+     * The two tests above are sequential, and a check-then-increment implementation passes both while
+     * being wide open: every concurrent request reads the same under-limit count, every one is granted a
+     * guess, and the effective limit becomes the attacker's concurrency. Enforcing the limit inside the
+     * UPDATE is what makes this pass, so this is the test that pins the fix rather than the symptom.
+     */
+    @Test
+    fun `should not grant more attempts than the limit when guesses arrive concurrently`() {
+        val phone = "+905000000044"
+        val attackers = 24
+
+        val requestBody = mockMvc.perform(
+            post("/api/v1/auth/otp/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(RequestOtpRequest(phone)))
+        )
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        val realCode = objectMapper.readTree(requestBody).path("data").path("mockCode").asText()
+        val wrongCode = if (realCode == "000000") "111111" else "000000"
+
+        val granted = AtomicInteger(0)
+        val refused = AtomicInteger(0)
+        val startTogether = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(attackers)
+
+        try {
+            val done: List<Future<*>> = (1..attackers).map {
+                pool.submit(Runnable {
+                    startTogether.await()
+                    val body = mockMvc.perform(
+                        post("/api/v1/auth/otp/verify")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(
+                                objectMapper.writeValueAsString(
+                                    VerifyOtpRequest(phone, wrongCode, "Test Device", "android")
+                                )
+                            )
+                    ).andReturn().response.contentAsString
+
+                    when (objectMapper.readTree(body).path("error").path("code").asText()) {
+                        "AUTH_OTP_INVALID" -> granted.incrementAndGet()
+                        "AUTH_OTP_MAX_ATTEMPTS" -> refused.incrementAndGet()
+                    }
+                })
+            }
+            startTogether.countDown()
+            done.forEach { it.get(30, TimeUnit.SECONDS) }
+        } finally {
+            pool.shutdownNow()
+        }
+
+        // A wrong code that got as far as being compared is a spent attempt. No more than the
+        // configured five may get that far, however many arrive at once.
+        assertTrue(
+            granted.get() <= 5,
+            "expected at most 5 attempts to be granted, but ${granted.get()} of $attackers were " +
+                "(${refused.get()} refused) — the limit is not atomic"
+        )
+        assertEquals(
+            attackers - granted.get(),
+            refused.get(),
+            "every request should be accounted for as either granted or refused"
+        )
     }
 }
