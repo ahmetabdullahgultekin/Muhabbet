@@ -35,16 +35,23 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Two-user authorization regression test for the media presigned-URL IDOR (Phase 0 / P0-5/P0-8/P0-13).
+ * Authorization regression test for the media presigned-URL endpoint (#267, and Phase 0 P0-5/P0-8/P0-13
+ * before it).
  *
  * Drives the REAL Spring Security filter chain (MockMvc + minted JWTs). The MinIO storage port is
  * replaced by a no-op stub (@Primary @TestConfiguration bean) so the test never reaches a real object
- * store; the only behaviour under test is the ownership/membership gate that decides whether a
- * presigned URL is issued at all.
+ * store; the only behaviour under test is the gate deciding whether a presigned URL is issued at all.
  *
- * User A uploads media and references it in a private conversation A belongs to. User B is also a
- * member; an outsider is a member of nothing. The outsider requesting A's media MUST get 403; the
- * uploader and any conversation member MUST get 200.
+ * **Minting is uploader-only.** It used to also accept "you belong to a conversation holding a message
+ * that references this file" — but that message's `media_url` is written from the request body, so the
+ * requester could author the evidence. The second test here is that exploit: an attacker points a
+ * message in their own conversation at a victim's file and still gets 403.
+ *
+ * The consequence, asserted deliberately: a genuine conversation member who did not upload the file
+ * also gets 403. That is a real capability removal, not an oversight. Nothing in the product calls this
+ * endpoint — media renders from the presigned URL already stored on the message — so no user-facing
+ * behaviour depends on it. Restoring member access needs a server-resolved media id, not a
+ * client-supplied string.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -116,7 +123,7 @@ class MediaIdorIntegrationTest {
         "Bearer " + jwtProvider.generateAccessToken(userId, UUID.randomUUID())
 
     @Test
-    fun `presigned url issued to uploader and conversation member but not to outsider`() {
+    fun `presigned url is issued to the uploader and to nobody else`() {
         val userA = seedUser() // uploader + member
         val userB = seedUser() // member of the conversation
         val outsider = seedUser() // member of nothing
@@ -160,12 +167,61 @@ class MediaIdorIntegrationTest {
         mockMvc.perform(get("/api/v1/media/$mediaId/url").header("Authorization", bearer(userA)))
             .andExpect(status().isOk)
 
-        // Conversation member → 200
+        // Conversation member → 403.
+        //
+        // This asserted 200 until #267. Membership was established by a message whose media_url came
+        // straight from the request body, so "a conversation you belong to references this file" was a
+        // claim the requester could manufacture — userB could have sent themselves this exact message
+        // about userA's file and passed the same check. Minting is now uploader-only.
         mockMvc.perform(get("/api/v1/media/$mediaId/url").header("Authorization", bearer(userB)))
-            .andExpect(status().isOk)
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error.code").value("MEDIA_FORBIDDEN"))
 
-        // Outsider → 403 (IDOR closed)
+        // Outsider → 403
         mockMvc.perform(get("/api/v1/media/$mediaId/url").header("Authorization", bearer(outsider)))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error.code").value("MEDIA_FORBIDDEN"))
+    }
+
+    @Test
+    fun `a self-authored message naming someone elses media grants no access`() {
+        val victim = seedUser()
+        val attacker = seedUser()
+
+        val mediaId = UUID.randomUUID()
+        val fileKey = "images/$victim/$mediaId.jpg"
+        mediaFileRepository.save(
+            MediaFile(
+                id = mediaId,
+                uploaderId = victim,
+                fileKey = fileKey,
+                contentType = "image/jpeg",
+                sizeBytes = 123L
+            )
+        )
+
+        // The attacker sets up exactly the evidence the old check looked for: a conversation they
+        // belong to, holding a message that references the victim's file.
+        val conversationId = UUID.randomUUID()
+        conversationRepository.save(
+            Conversation(id = conversationId, type = ConversationType.DIRECT, createdBy = attacker)
+        )
+        conversationRepository.saveMember(
+            ConversationMember(conversationId = conversationId, userId = attacker, role = MemberRole.OWNER)
+        )
+        messageRepository.save(
+            Message(
+                id = UUID.randomUUID(),
+                conversationId = conversationId,
+                senderId = attacker,
+                contentType = com.muhabbet.messaging.domain.model.ContentType.IMAGE,
+                content = "",
+                mediaUrl = "https://media.example/muhabbet-media/$fileKey?X-Amz-Signature=abc",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        mockMvc.perform(get("/api/v1/media/$mediaId/url").header("Authorization", bearer(attacker)))
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.error.code").value("MEDIA_FORBIDDEN"))
     }

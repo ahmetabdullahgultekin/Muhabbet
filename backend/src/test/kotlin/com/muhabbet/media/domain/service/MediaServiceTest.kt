@@ -28,7 +28,6 @@ class MediaServiceTest {
     private lateinit var mediaStoragePort: MediaStoragePort
     private lateinit var mediaFileRepository: MediaFileRepository
     private lateinit var thumbnailPort: ThumbnailPort
-    private lateinit var mediaAccessPolicy: com.muhabbet.media.domain.port.out.MediaAccessPolicy
     private lateinit var mediaService: MediaService
 
     private val uploaderId = UUID.randomUUID()
@@ -40,13 +39,11 @@ class MediaServiceTest {
         mediaStoragePort = mockk(relaxed = true)
         mediaFileRepository = mockk()
         thumbnailPort = mockk()
-        mediaAccessPolicy = mockk(relaxed = true)
 
         mediaService = MediaService(
             mediaStoragePort = mediaStoragePort,
             mediaFileRepository = mediaFileRepository,
             thumbnailPort = thumbnailPort,
-            mediaAccessPolicy = mediaAccessPolicy,
             thumbnailWidth = thumbnailWidth,
             thumbnailHeight = thumbnailHeight
         )
