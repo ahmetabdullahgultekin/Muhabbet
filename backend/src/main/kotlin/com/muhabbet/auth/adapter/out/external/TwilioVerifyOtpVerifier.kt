@@ -30,14 +30,14 @@ class TwilioVerifyOtpVerifier(
         log.info("Twilio Verify OTP verifier initialized")
     }
 
-    override suspend fun start(phoneNumber: String) {
+    override fun start(phoneNumber: String) {
         val verification = Verification
             .creator(smsProperties.twilio.verifyServiceSid, phoneNumber, CHANNEL_SMS)
             .create()
         log.info("Verification started: phone={}, status={}", phoneNumber.takeLast(4), verification.status)
     }
 
-    override suspend fun check(phoneNumber: String, code: String): Boolean {
+    override fun check(phoneNumber: String, code: String): Boolean {
         val status = try {
             VerificationCheck
                 .creator(smsProperties.twilio.verifyServiceSid)

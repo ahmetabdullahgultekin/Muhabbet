@@ -56,7 +56,8 @@ class ConversationServiceTest {
         messageService = MessageService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            messageBroadcaster = messageBroadcaster
+            messageBroadcaster = messageBroadcaster,
+            userDirectory = mockk(relaxed = true)
         )
     }
 
