@@ -76,7 +76,7 @@ open class AuthService(
     }
 
     @Transactional
-    override suspend fun requestOtp(phoneNumber: String): OtpResult {
+    override fun requestOtp(phoneNumber: String): OtpResult {
         if (!ValidationRules.isValidTurkishPhone(phoneNumber)) {
             throw BusinessException(ErrorCode.AUTH_INVALID_PHONE)
         }
@@ -119,7 +119,7 @@ open class AuthService(
     }
 
     @Transactional
-    override suspend fun verifyOtp(
+    override fun verifyOtp(
         phoneNumber: String,
         otp: String,
         deviceName: String,
@@ -128,11 +128,11 @@ open class AuthService(
         val activeOtp = otpRepository.findActiveByPhoneNumber(phoneNumber)
             ?: throw BusinessException(ErrorCode.AUTH_OTP_EXPIRED)
 
-        if (activeOtp.attempts >= otpMaxAttempts) {
+        // Claiming an attempt and enforcing the limit are the same statement, so concurrent verifies
+        // cannot each read an under-limit count and all be granted a guess.
+        if (!otpRepository.claimAttempt(activeOtp, otpMaxAttempts)) {
             throw BusinessException(ErrorCode.AUTH_OTP_MAX_ATTEMPTS)
         }
-
-        otpRepository.incrementAttempts(activeOtp)
 
         val accepted = if (otpVerifier != null) {
             otpVerifier.check(phoneNumber, otp)
@@ -149,7 +149,7 @@ open class AuthService(
     }
 
     @Transactional
-    override suspend fun verifyFirebaseToken(
+    override fun verifyFirebaseToken(
         idToken: String,
         deviceName: String,
         platform: String
@@ -243,7 +243,7 @@ open class AuthService(
     }
 
     @Transactional
-    override suspend fun refresh(refreshToken: String): TokenResult {
+    override fun refresh(refreshToken: String): TokenResult {
         val tokenHash = sha256(refreshToken)
         val record = refreshTokenRepository.findByTokenHash(tokenHash)
             ?: throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
@@ -278,7 +278,9 @@ open class AuthService(
         return TokenResult(
             accessToken = newAccessToken,
             refreshToken = newRefreshToken,
-            expiresIn = jwtProvider.accessTokenExpirySeconds
+            expiresIn = jwtProvider.accessTokenExpirySeconds,
+            userId = record.userId.toString(),
+            deviceId = record.deviceId.toString()
         )
     }
 
@@ -292,7 +294,7 @@ open class AuthService(
     }
 
     @Transactional
-    override suspend fun logout(userId: UUID, deviceId: UUID) {
+    override fun logout(userId: UUID, deviceId: UUID) {
         refreshTokenRepository.revokeAllForDevice(userId, deviceId)
         log.info("Logout: userId={}, deviceId={}", userId, deviceId)
     }

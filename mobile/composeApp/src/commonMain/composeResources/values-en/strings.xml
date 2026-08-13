@@ -637,4 +637,14 @@
         <item quantity="one">%1$d vote</item>
         <item quantity="other">%1$d votes</item>
     </plurals>
+
+    <!-- Accessibility labels — read aloud by screen readers for icon-only controls
+         and for icons that carry state no adjacent text conveys. -->
+    <string name="action_more_options">More options</string>
+    <string name="chat_video">Video</string>
+    <string name="a11y_message_media_preview">Message media preview</string>
+    <string name="a11y_image_full_screen">Full-screen image</string>
+    <string name="a11y_conversation_pinned">Pinned chat</string>
+    <string name="a11y_selected">Selected</string>
+    <string name="group_remove_member">Remove member from group</string>
 </resources>

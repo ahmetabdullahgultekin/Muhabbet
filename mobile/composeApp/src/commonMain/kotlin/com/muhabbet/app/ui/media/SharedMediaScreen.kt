@@ -127,6 +127,12 @@ fun SharedMediaScreen(
     val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
     val errorDeleteMsg = stringResource(Res.string.error_delete_failed)
     val errorOpenMsg = stringResource(Res.string.error_open_external)
+    val photoLabel = stringResource(Res.string.chat_photo)
+    val videoLabel = stringResource(Res.string.chat_video)
+    val playLabel = stringResource(Res.string.voice_play)
+    val pauseLabel = stringResource(Res.string.voice_pause)
+    val voiceMessageLabel = stringResource(Res.string.chat_voice_message)
+    val documentLabel = stringResource(Res.string.attach_document)
 
     // Cleanup audio on leave
     DisposableEffect(Unit) {
@@ -304,15 +310,18 @@ fun SharedMediaScreen(
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
+                                        // The whole cell is the control and carries no text, so the
+                                        // thumbnail is what a screen reader has to announce.
                                         AsyncImage(
                                             model = message.thumbnailUrl ?: message.mediaUrl,
-                                            contentDescription = null,
+                                            contentDescription = if (message.contentType == ContentType.VIDEO) videoLabel else photoLabel,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
                                         )
                                         if (message.contentType == ContentType.VIDEO) {
                                             Icon(
                                                 Icons.Default.PlayArrow,
+                                                // Decorative: the thumbnail above already says "Video".
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
                                                 modifier = Modifier.size(32.dp)
@@ -381,9 +390,11 @@ fun SharedMediaScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         if (isVoice) {
+                                            // Carries state — whether this clip is playing — that no
+                                            // adjacent text repeats, so it must be described.
                                             Icon(
                                                 if (isThisPlaying) Icons.Default.Pause else Icons.Default.Mic,
-                                                contentDescription = null,
+                                                contentDescription = if (isThisPlaying) pauseLabel else playLabel,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge),
                                                 tint = if (isThisPlaying) MaterialTheme.colorScheme.primary
                                                 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -391,6 +402,7 @@ fun SharedMediaScreen(
                                         } else {
                                             Icon(
                                                 Icons.Default.Description,
+                                                // Decorative: the document name sits right beside it.
                                                 contentDescription = null,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge),
                                                 tint = MaterialTheme.colorScheme.primary
@@ -398,7 +410,7 @@ fun SharedMediaScreen(
                                         }
                                         Spacer(Modifier.width(MuhabbetSpacing.Medium))
                                         Text(
-                                            text = message.content.ifBlank { if (isVoice) "Voice" else "Document" },
+                                            text = message.content.ifBlank { if (isVoice) voiceMessageLabel else documentLabel },
                                             style = MaterialTheme.typography.bodyMedium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,

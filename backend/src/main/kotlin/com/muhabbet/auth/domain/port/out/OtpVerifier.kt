@@ -10,9 +10,9 @@ package com.muhabbet.auth.domain.port.out
  */
 interface OtpVerifier {
 
-    /** Asks the provider to generate and deliver a code to [phoneNumber]. */
-    suspend fun start(phoneNumber: String)
+    /** Asks the provider to generate and deliver a code to [phoneNumber]. Blocking, like [OtpSender]. */
+    fun start(phoneNumber: String)
 
     /** Returns true when [code] is the one the provider issued for [phoneNumber]. */
-    suspend fun check(phoneNumber: String, code: String): Boolean
+    fun check(phoneNumber: String, code: String): Boolean
 }

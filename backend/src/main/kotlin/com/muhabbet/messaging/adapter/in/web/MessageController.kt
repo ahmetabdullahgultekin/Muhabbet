@@ -3,7 +3,6 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
-import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.ApiResponse
@@ -16,7 +15,6 @@ import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
-import com.muhabbet.messaging.domain.service.MessageService
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -32,9 +30,7 @@ import java.util.UUID
 @RequestMapping("/api/v1")
 class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
-    private val manageMessageUseCase: ManageMessageUseCase,
-    private val userRepository: UserRepository,
-    private val messageService: MessageService
+    private val manageMessageUseCase: ManageMessageUseCase
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -106,20 +102,18 @@ class MessageController(
     @GetMapping("/messages/{messageId}/info")
     fun getMessageInfo(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<MessageInfoResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        // Lookup + membership authorization happen behind the use case (closes IDOR).
-        val (message, statuses) = getMessageHistoryUseCase.getMessageInfo(messageId, userId)
-        val recipientInfos = statuses
-            .filter { it.userId != message.senderId }
-            .map { ds ->
-                val user = try { userRepository.findById(ds.userId) } catch (_: Exception) { null }
-                RecipientDeliveryInfo(
-                    userId = ds.userId.toString(),
-                    displayName = user?.displayName ?: ds.userId.toString().take(8),
-                    avatarUrl = user?.avatarUrl,
-                    status = ds.status.name,
-                    updatedAt = ds.updatedAt.toString()
-                )
-            }
+        // Lookup, membership authorization and recipient resolution all happen behind the use case
+        // (closes IDOR). All that is left here is shaping the response.
+        val (message, recipients) = getMessageHistoryUseCase.getMessageInfo(messageId, userId)
+        val recipientInfos = recipients.map { recipient ->
+            RecipientDeliveryInfo(
+                userId = recipient.userId.toString(),
+                displayName = recipient.displayName ?: recipient.userId.toString().take(8),
+                avatarUrl = recipient.avatarUrl,
+                status = recipient.status.name,
+                updatedAt = recipient.updatedAt.toString()
+            )
+        }
         val info = MessageInfoResponse(
             messageId = message.id.toString(),
             conversationId = message.conversationId.toString(),
@@ -154,7 +148,7 @@ class MessageController(
     @PostMapping("/messages/{messageId}/view-once")
     fun markViewOnceViewed(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        messageService.markViewOnceViewed(messageId, userId)
+        manageMessageUseCase.markViewOnceViewed(messageId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 }

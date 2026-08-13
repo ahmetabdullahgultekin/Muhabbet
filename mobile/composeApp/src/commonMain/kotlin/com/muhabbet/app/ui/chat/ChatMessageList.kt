@@ -119,7 +119,16 @@ internal fun ChatMessageList(
                         )
                     }) {
                         if (swipeOffset > 20f) Box(Modifier.align(Alignment.CenterStart).padding(start = MuhabbetSpacing.XSmall), contentAlignment = Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f)))
+                            // Decorative: this arrow only fades in mid-drag as a swipe-to-reply hint.
+                            // A screen-reader user never performs the drag — they reach Reply through
+                            // the long-press context menu, which is labelled — so naming it here would
+                            // announce a control that is not reachable that way.
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Reply,
+                                contentDescription = null,
+                                modifier = Modifier.size(MuhabbetSizes.IconMedium),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f))
+                            )
                         }
                         Column(modifier = Modifier.padding(start = (swipeOffset / 3f).coerceAtMost(30f).dp)) {
                             if (reactionTargetId == message.id) QuickReactionBar(visible = true, onReaction = { emoji -> reactionTargetId = null; actions.onQuickReaction(message, emoji) })
@@ -150,7 +159,7 @@ internal fun ChatMessageList(
                 shape = CircleShape,
                 shadowElevation = MuhabbetElevation.Level5,
                 color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(MuhabbetSpacing.Large).size(44.dp)
+                modifier = Modifier.align(Alignment.BottomEnd).padding(MuhabbetSpacing.Large).size(MuhabbetSizes.MinTouchTarget)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.scroll_to_bottom), Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)

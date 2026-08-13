@@ -22,7 +22,7 @@ class TwilioOtpSender(
         log.info("Twilio OTP sender initialized")
     }
 
-    override suspend fun send(phoneNumber: String, otp: String) {
+    override fun send(phoneNumber: String, otp: String) {
         val message = Message.creator(
             PhoneNumber(phoneNumber),
             PhoneNumber(smsProperties.twilio.fromNumber),

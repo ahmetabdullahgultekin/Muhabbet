@@ -475,7 +475,7 @@ private fun MemberItem(
             IconButton(onClick = onRemove) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = null,
+                    contentDescription = stringResource(Res.string.group_remove_member),
                     tint = MaterialTheme.colorScheme.error
                 )
             }

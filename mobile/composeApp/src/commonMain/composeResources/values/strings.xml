@@ -638,4 +638,14 @@
         <item quantity="one">%1$d oy</item>
         <item quantity="other">%1$d oy</item>
     </plurals>
+
+    <!-- Accessibility labels — read aloud by screen readers for icon-only controls
+         and for icons that carry state no adjacent text conveys. -->
+    <string name="action_more_options">Diğer seçenekler</string>
+    <string name="chat_video">Video</string>
+    <string name="a11y_message_media_preview">Mesaj medyası önizlemesi</string>
+    <string name="a11y_image_full_screen">Tam ekran görüntü</string>
+    <string name="a11y_conversation_pinned">Sabitlenmiş sohbet</string>
+    <string name="a11y_selected">Seçili</string>
+    <string name="group_remove_member">Üyeyi gruptan çıkar</string>
 </resources>

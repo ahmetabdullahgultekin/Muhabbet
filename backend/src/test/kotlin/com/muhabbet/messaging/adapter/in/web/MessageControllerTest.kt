@@ -1,13 +1,12 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
-import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.MessageInfo
 import com.muhabbet.messaging.domain.port.`in`.MessagePage
-import com.muhabbet.messaging.domain.service.MessageService
+import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -26,8 +25,6 @@ class MessageControllerTest {
 
     private lateinit var getMessageHistoryUseCase: GetMessageHistoryUseCase
     private lateinit var manageMessageUseCase: ManageMessageUseCase
-    private lateinit var userRepository: UserRepository
-    private lateinit var messageService: MessageService
     private lateinit var controller: MessageController
 
     private val userId = TestData.USER_ID_1
@@ -39,13 +36,9 @@ class MessageControllerTest {
     fun setUp() {
         getMessageHistoryUseCase = mockk()
         manageMessageUseCase = mockk()
-        userRepository = mockk()
-        messageService = mockk()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
-            manageMessageUseCase = manageMessageUseCase,
-            userRepository = userRepository,
-            messageService = messageService
+            manageMessageUseCase = manageMessageUseCase
         )
         setAuthenticatedUser(userId, deviceId)
     }
@@ -119,14 +112,19 @@ class MessageControllerTest {
         @Test
         fun `should return message info with delivery statuses`() {
             val message = TestData.textMessage()
-            val deliveryStatuses = listOf(
-                TestData.deliveryStatus(messageId = message.id, userId = TestData.USER_ID_2, status = DeliveryStatus.READ)
+            val recipients = listOf(
+                MessageRecipient(
+                    userId = TestData.USER_ID_2,
+                    displayName = "User 2",
+                    avatarUrl = null,
+                    status = DeliveryStatus.READ,
+                    updatedAt = java.time.Instant.now()
+                )
             )
 
             every {
                 getMessageHistoryUseCase.getMessageInfo(message.id, userId)
-            } returns MessageInfo(message = message, deliveryStatuses = deliveryStatuses)
-            every { userRepository.findById(TestData.USER_ID_2) } returns TestData.user(id = TestData.USER_ID_2, displayName = "User 2")
+            } returns MessageInfo(message = message, recipients = recipients)
 
             val response = controller.getMessageInfo(message.id)
 
@@ -134,6 +132,32 @@ class MessageControllerTest {
             assert(response.body?.data?.messageId == message.id.toString())
             assert(response.body?.data?.recipients?.size == 1)
             assert(response.body?.data?.recipients?.first()?.status == "READ")
+            assert(response.body?.data?.recipients?.first()?.displayName == "User 2")
+        }
+
+        @Test
+        fun `should fall back to a truncated id when a recipient has no display name`() {
+            val message = TestData.textMessage()
+            val recipients = listOf(
+                MessageRecipient(
+                    userId = TestData.USER_ID_2,
+                    displayName = null,
+                    avatarUrl = null,
+                    status = DeliveryStatus.DELIVERED,
+                    updatedAt = java.time.Instant.now()
+                )
+            )
+
+            every {
+                getMessageHistoryUseCase.getMessageInfo(message.id, userId)
+            } returns MessageInfo(message = message, recipients = recipients)
+
+            val response = controller.getMessageInfo(message.id)
+
+            assert(
+                response.body?.data?.recipients?.first()?.displayName ==
+                    TestData.USER_ID_2.toString().take(8)
+            )
         }
 
         @Test
@@ -170,7 +194,7 @@ class MessageControllerTest {
 
             every {
                 getMessageHistoryUseCase.getMessageInfo(messageId, userId)
-            } returns MessageInfo(message = deleted, deliveryStatuses = emptyList())
+            } returns MessageInfo(message = deleted, recipients = emptyList())
 
             val response = controller.getMessageInfo(messageId)
 
@@ -237,6 +261,34 @@ class MessageControllerTest {
                 assert(false) { "Expected BusinessException" }
             } catch (ex: BusinessException) {
                 assert(ex.errorCode == ErrorCode.MSG_EDIT_WINDOW_EXPIRED)
+            }
+        }
+    }
+
+    @Nested
+    inner class MarkViewOnceViewed {
+
+        @Test
+        fun `should burn a view-once message through the use case port`() {
+            every { manageMessageUseCase.markViewOnceViewed(messageId, userId) } returns Unit
+
+            val response = controller.markViewOnceViewed(messageId)
+
+            assert(response.statusCode.value() == 200)
+            verify { manageMessageUseCase.markViewOnceViewed(messageId, userId) }
+        }
+
+        @Test
+        fun `should propagate MSG_NOT_MEMBER when caller is not a conversation member`() {
+            every {
+                manageMessageUseCase.markViewOnceViewed(messageId, userId)
+            } throws BusinessException(ErrorCode.MSG_NOT_MEMBER)
+
+            try {
+                controller.markViewOnceViewed(messageId)
+                assert(false) { "Expected BusinessException" }
+            } catch (ex: BusinessException) {
+                assert(ex.errorCode == ErrorCode.MSG_NOT_MEMBER)
             }
         }
     }

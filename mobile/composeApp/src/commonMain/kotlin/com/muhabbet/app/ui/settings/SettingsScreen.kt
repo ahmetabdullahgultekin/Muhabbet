@@ -37,8 +37,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Wallpaper
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.MediaRepository
@@ -235,21 +239,21 @@ fun SettingsScreen(
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
                     label = stringResource(Res.string.two_step_title),
-                    icon = Icons.Default.SdStorage,
+                    icon = Icons.Default.VerifiedUser,
                     contentDescription = stringResource(Res.string.two_step_title),
                     onClick = onTwoStepVerification
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
                     label = stringResource(Res.string.app_lock_title),
-                    icon = Icons.Default.SdStorage,
+                    icon = Icons.Default.Lock,
                     contentDescription = stringResource(Res.string.app_lock_title),
                     onClick = onAppLock
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
                     label = stringResource(Res.string.wallpaper_title),
-                    icon = Icons.Default.SdStorage,
+                    icon = Icons.Default.Wallpaper,
                     contentDescription = stringResource(Res.string.wallpaper_title),
                     onClick = onWallpaper
                 )
@@ -259,7 +263,7 @@ fun SettingsScreen(
                 var showMediaQualityDialog by remember { mutableStateOf(false) }
                 SettingsNavRow(
                     label = stringResource(Res.string.media_quality_title),
-                    icon = Icons.Default.SdStorage,
+                    icon = Icons.Default.HighQuality,
                     contentDescription = stringResource(Res.string.media_quality_title),
                     onClick = { showMediaQualityDialog = true }
                 )
@@ -290,7 +294,7 @@ fun SettingsScreen(
                 // Privacy Dashboard link
                 SettingsNavRow(
                     label = stringResource(Res.string.privacy_open_dashboard),
-                    icon = Icons.Default.SdStorage,
+                    icon = Icons.Default.PrivacyTip,
                     contentDescription = stringResource(Res.string.privacy_open_dashboard),
                     onClick = onPrivacyDashboard
                 )

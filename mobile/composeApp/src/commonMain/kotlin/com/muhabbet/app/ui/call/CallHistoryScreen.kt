@@ -53,6 +53,7 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.error_load_failed
+import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.call_history_empty
 import com.muhabbet.composeapp.generated.resources.calls_new_call
 import com.muhabbet.composeapp.generated.resources.call_incoming
@@ -121,7 +122,7 @@ fun CallHistoryScreen(
                             IconButton(onClick = onBack) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = null
+                                    contentDescription = stringResource(Res.string.action_back)
                                 )
                             }
                         }
