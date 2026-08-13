@@ -88,4 +88,100 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/users/me"))
             .andExpect(status().isUnauthorized)
     }
+
+    /**
+     * Guards against the OTP being brute-forceable (#266).
+     *
+     * The unit-level test for this lives in AuthServiceTest, but it stubs the repository and hands
+     * verifyOtp an OtpRequest that already has attempts = 5. That proves the guard reads the counter;
+     * it cannot prove the counter ever gets there, because the defect was that the failing
+     * transaction rolled the increment back. Only a real database and a real transaction show it.
+     */
+    @Test
+    fun `should lock the OTP out after the configured number of wrong codes`() {
+        val phone = "+905000000042"
+
+        val requestBody = mockMvc.perform(
+            post("/api/v1/auth/otp/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(RequestOtpRequest(phone)))
+        )
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        val realCode = objectMapper.readTree(requestBody).path("data").path("mockCode").asText()
+        val wrongCode = if (realCode == "000000") "111111" else "000000"
+
+        // max-attempts is 5, so guesses 1..5 are merely wrong and the 6th is locked out.
+        repeat(5) {
+            mockMvc.perform(
+                post("/api/v1/auth/otp/verify")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            VerifyOtpRequest(phone, wrongCode, "Test Device", "android")
+                        )
+                    )
+            )
+                .andExpect(status().isUnauthorized)
+                .andExpect(jsonPath("$.error.code").value("AUTH_OTP_INVALID"))
+        }
+
+        mockMvc.perform(
+            post("/api/v1/auth/otp/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        VerifyOtpRequest(phone, wrongCode, "Test Device", "android")
+                    )
+                )
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error.code").value("AUTH_OTP_MAX_ATTEMPTS"))
+    }
+
+    /**
+     * The lockout must survive a correct guess arriving late. Before #266 was fixed the counter was
+     * only ever persisted on the success path, so an attacker who eventually guessed right was let in
+     * regardless of how many attempts it took.
+     */
+    @Test
+    fun `should refuse the correct code once the attempt limit is spent`() {
+        val phone = "+905000000043"
+
+        val requestBody = mockMvc.perform(
+            post("/api/v1/auth/otp/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(RequestOtpRequest(phone)))
+        )
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        val realCode = objectMapper.readTree(requestBody).path("data").path("mockCode").asText()
+        val wrongCode = if (realCode == "000000") "111111" else "000000"
+
+        repeat(5) {
+            mockMvc.perform(
+                post("/api/v1/auth/otp/verify")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            VerifyOtpRequest(phone, wrongCode, "Test Device", "android")
+                        )
+                    )
+            )
+        }
+
+        mockMvc.perform(
+            post("/api/v1/auth/otp/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        VerifyOtpRequest(phone, realCode, "Test Device", "android")
+                    )
+                )
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error.code").value("AUTH_OTP_MAX_ATTEMPTS"))
+    }
 }

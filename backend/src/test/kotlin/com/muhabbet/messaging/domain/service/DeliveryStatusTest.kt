@@ -21,7 +21,12 @@ class DeliveryStatusTest {
 
     @BeforeEach
     fun setUp() {
-        service = MessageService(conversationRepository, messageRepository, messageBroadcaster)
+        service = MessageService(
+            conversationRepository,
+            messageRepository,
+            messageBroadcaster,
+            mockk(relaxed = true)
+        )
     }
 
     @Test

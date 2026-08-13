@@ -11,6 +11,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicy
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
@@ -25,7 +26,8 @@ import java.util.UUID
 open class MessageService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val messageBroadcaster: MessageBroadcaster
+    private val messageBroadcaster: MessageBroadcaster,
+    private val mediaAttachmentPolicy: MediaAttachmentPolicy
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -47,6 +49,19 @@ open class MessageService(
         // Verify sender is member
         val member = conversationRepository.findMember(command.conversationId, command.senderId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+
+        // A message referencing media is what authorizes downloading it, so writing that reference has
+        // to be earned — either the sender uploaded it, or they can already see it and are forwarding.
+        command.mediaUrl?.takeIf { it.isNotBlank() }?.let { mediaUrl ->
+            if (!mediaAttachmentPolicy.canAttach(command.senderId, mediaUrl)) {
+                log.warn(
+                    "Rejected media attachment not owned by or visible to sender: sender={}, conv={}",
+                    command.senderId,
+                    command.conversationId
+                )
+                throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+            }
+        }
 
         // Check announcement mode — only admins/owners can send
         val conv = conversationRepository.findById(command.conversationId)

@@ -30,6 +30,7 @@ import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicy
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
@@ -143,11 +144,13 @@ class AppConfig {
     fun messageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        messageBroadcaster: MessageBroadcaster
+        messageBroadcaster: MessageBroadcaster,
+        mediaAttachmentPolicy: MediaAttachmentPolicy
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        messageBroadcaster = messageBroadcaster
+        messageBroadcaster = messageBroadcaster,
+        mediaAttachmentPolicy = mediaAttachmentPolicy
     )
 
     @Bean

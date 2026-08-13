@@ -59,7 +59,8 @@ class MessagingServiceTest {
         messageService = MessageService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            messageBroadcaster = messageBroadcaster
+            messageBroadcaster = messageBroadcaster,
+            mediaAttachmentPolicy = mockk(relaxed = true)
         )
     }
 
