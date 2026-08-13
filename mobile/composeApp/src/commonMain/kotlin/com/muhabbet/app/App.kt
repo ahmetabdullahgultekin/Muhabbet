@@ -16,6 +16,7 @@ import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.platform.CrashReporter
 import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import org.koin.compose.KoinContext
@@ -71,7 +72,7 @@ private fun WebSocketLifecycle() {
             val currentUserId = tokenStorage.getUserId() ?: return@LaunchedEffect
             wsClient.incoming.collect { message ->
                 if (message is WsMessage.NewMessage && message.senderId != currentUserId) {
-                    try {
+                    runCatchingCancellable {
                         wsClient.send(
                             WsMessage.AckMessage(
                                 messageId = message.messageId,
@@ -79,10 +80,12 @@ private fun WebSocketLifecycle() {
                                 status = MessageStatus.DELIVERED
                             )
                         )
-                    } catch (e: Exception) {
+                    }.onFailure { e ->
                         // Must not rethrow: this collector is the app-wide delivery-ack pump, and
                         // letting it die would silently stop every future DELIVERED tick.
                         // Nothing to show the user — the sender's tick simply stays at one.
+                        // Cancellation is the one exception that still propagates, so tearing the
+                        // pump down does not log a failure that never happened.
                         Log.w("App", "Failed to send DELIVERED ack for ${message.messageId}: ${e.message}")
                     }
                 }

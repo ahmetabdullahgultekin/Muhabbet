@@ -69,6 +69,7 @@ import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 
 private const val TAG = "ChatScreen"
@@ -220,14 +221,14 @@ fun ChatScreen(
 
     // ── Data loading effects ─────────────────
     LaunchedEffect(conversationId) {
-        try {
+        runCatchingCancellable {
             val conv = conversationRepository.getConversations().items.firstOrNull { it.id == conversationId }
             disappearAfterSeconds = conv?.disappearAfterSeconds
             isAnnouncementOnly = conv?.announcementOnly ?: false
             val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
             isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
                 myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
-        } catch (e: Exception) {
+        }.onFailure { e ->
             // Best-effort enrichment: the chat is fully usable without it, so no snackbar.
             // The defaults (no disappear timer, not announcement-only, not admin) are permissive;
             // the backend re-checks all three, so a failure here cannot grant real privileges.
@@ -236,16 +237,24 @@ fun ChatScreen(
     }
 
     LaunchedEffect(conversationId) {
-        try {
+        val loadFailure = runCatchingCancellable {
             val result = messageRepository.getMessages(conversationId)
             messages = result.items.reversed(); nextCursor = result.nextCursor
-        } catch (_: Exception) { snackbarHostState.showSnackbar(errorLoadMsg) }
+        }.exceptionOrNull()
+        // Same ordering as the pagination handler below, and for the same reason: showSnackbar
+        // suspends until dismissed (~4s), and it used to sit between the failure and both
+        // `isLoading = false` and the READ ack — so a failed open left the chat spinning and the
+        // read receipt unsent for the life of the message.
         isLoading = false
-        try {
+        if (loadFailure != null) {
+            Log.e(TAG, "Failed to load messages", loadFailure)
+            scope.launch { snackbarHostState.showSnackbar(errorLoadMsg) }
+        }
+        runCatchingCancellable {
             messages.lastOrNull { it.senderId != currentUserId }?.let {
                 wsClient.send(WsMessage.AckMessage(messageId = it.id, conversationId = conversationId, status = MessageStatus.READ))
             }
-        } catch (e: Exception) {
+        }.onFailure { e ->
             // Read receipt is best-effort; it is re-sent on the next incoming message.
             Log.w(TAG, "Failed to send READ ack on open: ${e.message}")
         }
@@ -262,10 +271,11 @@ fun ChatScreen(
                             thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
                             clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom)
                         if (ws.senderId != currentUserId) {
-                            // Must not rethrow: an exception here would kill the incoming collector
-                            // and the chat would stop receiving messages entirely.
-                            try { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) }
-                            catch (e: Exception) { Log.w(TAG, "Failed to send READ ack for ${ws.messageId}: ${e.message}") }
+                            // Must not swallow cancellation (that would keep a dead collector's
+                            // failure path running) but must not rethrow anything else either: a
+                            // throw here kills the collector and the chat stops receiving messages.
+                            runCatchingCancellable { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) }
+                                .onFailure { e -> Log.w(TAG, "Failed to send READ ack for ${ws.messageId}: ${e.message}") }
                         }
                     }
                 }
@@ -336,12 +346,20 @@ fun ChatScreen(
             if (first <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
                 isLoadingMore = true
                 // Without feedback a failed page load is indistinguishable from "no older messages".
-                try { val r = messageRepository.getMessages(conversationId, cursor = nextCursor); messages = r.items.reversed() + messages; nextCursor = r.nextCursor }
-                catch (e: Exception) {
-                    Log.e(TAG, "Failed to load older messages", e)
-                    snackbarHostState.showSnackbar(errorLoadMsg)
-                }
+                val failure = runCatchingCancellable {
+                    val r = messageRepository.getMessages(conversationId, cursor = nextCursor)
+                    messages = r.items.reversed() + messages
+                    nextCursor = r.nextCursor
+                }.exceptionOrNull()
+                // Release the pagination gate first, then report from a coroutine of its own.
+                // This block runs inside the snapshotFlow collector: showSnackbar suspends until
+                // the snackbar is dismissed (~4s), so reporting inline froze both pagination and
+                // every subsequent scroll emission for the life of the message.
                 isLoadingMore = false
+                if (failure != null) {
+                    Log.e(TAG, "Failed to load older messages", failure)
+                    scope.launch { snackbarHostState.showSnackbar(errorLoadMsg) }
+                }
             }
         }
     }
@@ -369,12 +387,12 @@ fun ChatScreen(
             val previous = disappearAfterSeconds
             disappearAfterSeconds = s
             scope.launch {
-                try { conversationRepository.setDisappearTimer(conversationId, s) }
-                catch (e: Exception) {
-                    Log.e(TAG, "Failed to set disappearing timer", e)
-                    disappearAfterSeconds = previous
-                    snackbarHostState.showSnackbar(errorDisappearingMsg)
-                }
+                runCatchingCancellable { conversationRepository.setDisappearTimer(conversationId, s) }
+                    .onFailure { e ->
+                        Log.e(TAG, "Failed to set disappearing timer", e)
+                        disappearAfterSeconds = previous
+                        snackbarHostState.showSnackbar(errorDisappearingMsg)
+                    }
             }
         },
         onDismiss = { showDisappearDialog = false }
@@ -455,27 +473,27 @@ fun ChatScreen(
                         onDismissMenu = { contextMenuMessageId = null },
                         onReply = { contextMenuMessageId = null; replyingTo = it },
                         // Without feedback the picker just opens empty, reading as "no chats to forward to".
-                        onForward = { msg -> contextMenuMessageId = null; forwardMessage = msg; scope.launch { try { forwardConversations = conversationRepository.getConversations().items } catch (e: Exception) { Log.e(TAG, "Failed to load forward targets", e); snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
-                        onStar = { msg, isStarred -> contextMenuMessageId = null; scope.launch { try { if (isStarred) { messageRepository.unstarMessage(msg.id); starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id); starredIds.value += msg.id } } catch (e: Exception) { Log.e(TAG, "Failed to toggle star on ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
+                        onForward = { msg -> contextMenuMessageId = null; forwardMessage = msg; scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e); snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                        onStar = { msg, isStarred -> contextMenuMessageId = null; scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id); starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id); starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
                         onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                         onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
                         onImageClick = { fullImageUrl = it },
                         onReactionToggle = { msg, emoji ->
                             scope.launch {
-                                try {
+                                runCatchingCancellable {
                                     if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
                                     else messageRepository.addReaction(msg.id, emoji)
-                                } catch (e: Exception) {
+                                }.onFailure { e ->
                                     Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
                                     snackbarHostState.showSnackbar(errorActionMsg)
                                 }
                             }
                         },
-                        onQuickReaction = { msg, emoji -> scope.launch { try { messageRepository.addReaction(msg.id, emoji) } catch (e: Exception) { Log.e(TAG, "Failed to add reaction to ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
+                        onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
                         onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
                         // Server-side bookkeeping only — the media is already revealed locally, so a
                         // failure has no user-visible consequence worth interrupting them for.
-                        onViewOnce = { id -> scope.launch { try { messageRepository.markViewOnce(id) } catch (e: Exception) { Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } }
+                        onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } }
                     )
                 )
             }
@@ -590,9 +608,6 @@ fun ChatScreen(
  * this deliberately stays silent in the UI and only logs.
  */
 private suspend fun sendTypingIndicator(wsClient: WsClient, conversationId: String, isTyping: Boolean) {
-    try {
-        wsClient.send(WsMessage.TypingIndicator(conversationId, isTyping))
-    } catch (e: Exception) {
-        Log.d(TAG, "Typing indicator ($isTyping) not sent: ${e.message}")
-    }
+    runCatchingCancellable { wsClient.send(WsMessage.TypingIndicator(conversationId, isTyping)) }
+        .onFailure { e -> Log.d(TAG, "Typing indicator ($isTyping) not sent: ${e.message}") }
 }

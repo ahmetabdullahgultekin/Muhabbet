@@ -28,10 +28,13 @@ import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.dto.PollResultResponse
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.error_action_failed
+import com.muhabbet.composeapp.generated.resources.poll_vote_count
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -59,13 +62,12 @@ fun PollBubble(
     }
 
     LaunchedEffect(messageId) {
-        try {
-            pollResult = messageRepository.getPollResults(messageId)
-        } catch (e: Exception) {
-            // Best-effort enrichment: the poll question and options still render from the message
-            // body, only the tallies are missing. Not worth interrupting the chat for.
-            Log.w("PollBubble", "Failed to load poll results for $messageId: ${e.message}")
-        }
+        runCatchingCancellable { pollResult = messageRepository.getPollResults(messageId) }
+            .onFailure { e ->
+                // Best-effort enrichment: the poll question and options still render from the message
+                // body, only the tallies are missing. Not worth interrupting the chat for.
+                Log.w("PollBubble", "Failed to load poll results for $messageId: ${e.message}")
+            }
     }
 
     if (pollData == null) return
@@ -102,15 +104,21 @@ fun PollBubble(
                     .padding(vertical = 2.dp)
                     .clickable {
                         scope.launch {
-                            try {
-                                pollResult = messageRepository.votePoll(messageId, index)
-                                voteFailed = false
-                            } catch (e: Exception) {
-                                // Nothing moves on the bar when a vote fails, so the tap reads as
-                                // if it registered. Say otherwise.
-                                Log.e("PollBubble", "Failed to vote on poll $messageId", e)
-                                voteFailed = true
-                            }
+                            // Clear the previous failure the moment the user retries: tapping an
+                            // option again IS the retry, and leaving the red line up during it made
+                            // the error look permanent and the poll look broken.
+                            voteFailed = false
+                            // runCatchingCancellable: this bubble lives in a LazyColumn, so
+                            // scrolling it off screen mid-vote cancels the request. A plain catch
+                            // read that as a failed vote and left the error behind on a bubble the
+                            // user had already scrolled past.
+                            runCatchingCancellable { pollResult = messageRepository.votePoll(messageId, index) }
+                                .onFailure { e ->
+                                    // Nothing moves on the bar when a vote fails, so the tap reads
+                                    // as if it registered. Say otherwise.
+                                    Log.e("PollBubble", "Failed to vote on poll $messageId", e)
+                                    voteFailed = true
+                                }
                         }
                     }
             ) {
@@ -156,9 +164,10 @@ fun PollBubble(
             )
         }
 
-        if ((pollResult?.totalVotes ?: 0) > 0) {
+        val totalVoteCount = pollResult?.totalVotes ?: 0
+        if (totalVoteCount > 0) {
             Text(
-                text = "${pollResult?.totalVotes ?: 0} votes",
+                text = pluralStringResource(Res.plurals.poll_vote_count, totalVoteCount, totalVoteCount),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),

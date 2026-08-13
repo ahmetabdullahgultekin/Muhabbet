@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetSizes
@@ -74,16 +75,18 @@ fun TwoStepSetupScreen(
     val enabledMsg = stringResource(Res.string.two_step_enabled)
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val response = apiClient.get<TwoStepStatusResponse>("/api/v1/auth/two-step/status")
             isEnabled = response.data?.enabled ?: false
-        } catch (e: Exception) {
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isLoading = false
+        if (failure != null) {
             // Security-relevant: on failure isEnabled stays false and the screen claims two-step
             // verification is OFF when it may well be ON. Never let that pass unannounced.
-            Log.e("TwoStepSetupScreen", "Failed to load two-step status", e)
+            Log.e("TwoStepSetupScreen", "Failed to load two-step status", failure)
             snackbarHostState.showSnackbar(genericErrorMsg)
         }
-        isLoading = false
     }
 
     Scaffold(

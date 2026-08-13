@@ -44,8 +44,10 @@ import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.call_connected
+import com.muhabbet.composeapp.generated.resources.call_connecting
 import com.muhabbet.composeapp.generated.resources.call_connection_failed
 import com.muhabbet.composeapp.generated.resources.call_end
 import com.muhabbet.composeapp.generated.resources.call_mute
@@ -55,6 +57,15 @@ import com.muhabbet.composeapp.generated.resources.call_video
 import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+
+/**
+ * Where the call actually is, as opposed to where the screen happens to be.
+ *
+ * The screen opens on [CONNECTING] and stays there while the call rings: media only comes up once a
+ * `call.room` frame arrives with LiveKit credentials. A two-state boolean could not tell "ringing"
+ * from "up", so the screen used to claim "Connected" the instant it opened.
+ */
+private enum class CallMediaState { CONNECTING, CONNECTED, FAILED }
 
 @Composable
 fun ActiveCallScreen(
@@ -70,13 +81,14 @@ fun ActiveCallScreen(
 
     var isMuted by remember { mutableStateOf(false) }
     var isSpeaker by remember { mutableStateOf(false) }
-    var callDurationSeconds by remember { mutableStateOf(0) }
-    var mediaConnectFailed by remember { mutableStateOf(false) }
+    var callDurationSeconds by remember(callId) { mutableStateOf(0) }
+    var mediaState by remember(callId) { mutableStateOf(CallMediaState.CONNECTING) }
 
     val endLabel = stringResource(Res.string.call_end)
     val muteLabel = stringResource(Res.string.call_mute)
     val unmuteLabel = stringResource(Res.string.call_unmute)
     val speakerLabel = stringResource(Res.string.call_speaker)
+    val connectingLabel = stringResource(Res.string.call_connecting)
     val connectedLabel = stringResource(Res.string.call_connected)
     val connectFailedLabel = stringResource(Res.string.call_connection_failed)
     val callTypeLabel = if (callType == CallType.VIDEO)
@@ -84,8 +96,11 @@ fun ActiveCallScreen(
     else
         stringResource(Res.string.call_voice)
 
-    // Duration timer — scoped to callId so it cancels when navigation pops
-    LaunchedEffect(callId) {
+    // Duration timer — keyed on the media state, not just callId, so it only counts once media is
+    // actually up. It used to start at screen open, which meant a call that was still ringing (or
+    // that never connected at all) still showed a duration ticking away underneath.
+    LaunchedEffect(callId, mediaState) {
+        if (mediaState != CallMediaState.CONNECTED) return@LaunchedEffect
         while (true) {
             delay(com.muhabbet.app.ui.theme.MuhabbetDurations.CallTimerTickMs)
             callDurationSeconds++
@@ -98,15 +113,17 @@ fun ActiveCallScreen(
             when (message) {
                 is WsMessage.CallRoomInfo -> {
                     if (message.callId == callId && message.serverUrl.isNotBlank()) {
-                        try {
-                            callEngine.connect(message.serverUrl, message.token)
-                            mediaConnectFailed = false
-                        } catch (e: Exception) {
-                            // Without this the screen keeps counting up as if the call were live
-                            // while no audio flows at all. Surfaced as a status line below.
-                            Log.e("ActiveCallScreen", "Failed to connect call media", e)
-                            mediaConnectFailed = true
-                        }
+                        // runCatchingCancellable, not try/catch: connect() is suspend, so hanging up
+                        // mid-connect cancels it — and a plain catch would read that cancellation as
+                        // a media failure and flip the banner on the way out of the call.
+                        runCatchingCancellable { callEngine.connect(message.serverUrl, message.token) }
+                            .onSuccess { mediaState = CallMediaState.CONNECTED }
+                            .onFailure { e ->
+                                // Without this the screen keeps counting up as if the call were live
+                                // while no audio flows at all. Surfaced as a status line below.
+                                Log.e("ActiveCallScreen", "Failed to connect call media", e)
+                                mediaState = CallMediaState.FAILED
+                            }
                     }
                 }
                 is WsMessage.CallEnd -> {
@@ -174,18 +191,26 @@ fun ActiveCallScreen(
 
             Spacer(modifier = Modifier.height(MuhabbetSpacing.XSmall))
 
-            // Duration
-            Text(
-                text = "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            // Duration — withheld entirely while the call is still ringing. A clock under a
+            // "Connecting…" line would read as call duration, which is exactly the false claim
+            // the tri-state above exists to remove.
+            if (mediaState != CallMediaState.CONNECTING) {
+                Text(
+                    text = "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             // Media status — the timer alone cannot tell "connected" from "no audio at all".
             Text(
-                text = if (mediaConnectFailed) connectFailedLabel else connectedLabel,
+                text = when (mediaState) {
+                    CallMediaState.CONNECTING -> connectingLabel
+                    CallMediaState.CONNECTED -> connectedLabel
+                    CallMediaState.FAILED -> connectFailedLabel
+                },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (mediaConnectFailed) MaterialTheme.colorScheme.error
+                color = if (mediaState == CallMediaState.FAILED) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
@@ -231,9 +256,9 @@ fun ActiveCallScreen(
                         onClick = {
                             callEngine.disconnect()
                             scope.launch {
-                                try {
+                                runCatchingCancellable {
                                     wsClient.send(WsMessage.CallEnd(callId = callId, reason = CallEndReason.ENDED))
-                                } catch (e: Exception) {
+                                }.onFailure { e ->
                                     // Deliberately silent in the UI: hanging up must always succeed
                                     // locally and this screen is already gone by now. The peer falls
                                     // back to its own call timeout.

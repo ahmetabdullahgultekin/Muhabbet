@@ -68,6 +68,7 @@ import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.app.ui.components.EmptyChatsIllustration
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -192,9 +193,10 @@ fun ConversationListScreen(
                     if (wsMessage.senderId != currentUserId) {
                         // Must not rethrow: this collector also drives the list auto-refresh, and
                         // killing it would freeze the conversation list. The sender's tick just
-                        // stays at one — nothing to show this user.
-                        try { wsClient.send(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED)) }
-                        catch (e: Exception) { Log.w(TAG, "Failed to send DELIVERED ack for ${wsMessage.messageId}: ${e.message}") }
+                        // stays at one — nothing to show this user. Cancellation still propagates,
+                        // so a collector that is being torn down does not log a phantom failure.
+                        runCatchingCancellable { wsClient.send(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED)) }
+                            .onFailure { e -> Log.w(TAG, "Failed to send DELIVERED ack for ${wsMessage.messageId}: ${e.message}") }
                     }
                     loadConversations()
                 }

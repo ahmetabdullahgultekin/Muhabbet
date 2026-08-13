@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
 import com.muhabbet.app.ui.components.UserAvatar
@@ -122,10 +123,10 @@ fun HomeShellScreen(
     // Load conversations when search is activated, to have a list to filter
     LaunchedEffect(isSearchActive) {
         if (isSearchActive && allConversations.isEmpty()) {
-            try {
+            runCatchingCancellable {
                 val result = conversationRepository.getConversations()
                 allConversations = result.items
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 // Without this, search over an empty list reports "no results" for every query.
                 Log.e("HomeShellScreen", "Failed to load conversations for search", e)
                 snackbarHostState.showSnackbar(errorLoadConversationsMsg)

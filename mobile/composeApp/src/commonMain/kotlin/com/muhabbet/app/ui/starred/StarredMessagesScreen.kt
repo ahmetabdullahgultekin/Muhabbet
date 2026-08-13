@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.MessageRepository
@@ -76,15 +77,17 @@ fun StarredMessagesScreen(
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val result = messageRepository.getStarredMessages()
             messages = result.items
-        } catch (e: Exception) {
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isLoading = false
+        if (failure != null) {
             // Without this the screen shows the "no starred messages" empty state, which is a lie.
-            Log.e("StarredMessagesScreen", "Failed to load starred messages", e)
+            Log.e("StarredMessagesScreen", "Failed to load starred messages", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
-        isLoading = false
     }
 
     val youLabel = stringResource(Res.string.starred_you)

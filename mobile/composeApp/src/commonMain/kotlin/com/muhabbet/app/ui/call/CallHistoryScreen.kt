@@ -50,6 +50,7 @@ import com.muhabbet.app.ui.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.error_load_failed
 import com.muhabbet.composeapp.generated.resources.call_history_empty
@@ -95,15 +96,19 @@ fun CallHistoryScreen(
     val missedLabel = stringResource(Res.string.call_missed)
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val result = callRepository.getCallHistory()
             calls = result.items
-        } catch (e: Exception) {
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting: showSnackbar suspends until the snackbar is
+        // dismissed (~4s for Short), so reporting first leaves the loading indicator spinning
+        // over content that has already finished loading.
+        isLoading = false
+        if (failure != null) {
             // Without this the screen shows the "no calls yet" empty state, which is a lie.
-            Log.e("CallHistoryScreen", "Failed to load call history", e)
+            Log.e("CallHistoryScreen", "Failed to load call history", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
-        isLoading = false
     }
 
     Scaffold(

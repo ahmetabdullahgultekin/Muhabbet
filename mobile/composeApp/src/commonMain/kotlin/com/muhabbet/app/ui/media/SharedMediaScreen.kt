@@ -78,6 +78,7 @@ import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -136,9 +137,9 @@ fun SharedMediaScreen(
     // document list); the failure handling lives here once so every entry point reports the same way.
     fun loadForwardTargets() {
         scope.launch {
-            try {
+            runCatchingCancellable {
                 forwardConversations = conversationRepository.getConversations().items
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 // Otherwise the picker opens empty and reads as "no chats to forward to".
                 Log.e(TAG, "Failed to load forward targets", e)
                 snackbarHostState.showSnackbar(errorLoadConversationsMsg)
@@ -148,10 +149,10 @@ fun SharedMediaScreen(
 
     fun deleteMediaMessage(id: String) {
         scope.launch {
-            try {
+            runCatchingCancellable {
                 groupRepository.deleteMessage(id)
                 mediaMessages = mediaMessages.filter { it.id != id }
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 // The tile stays on screen on failure — say why instead of looking like a no-op.
                 Log.e(TAG, "Failed to delete message $id", e)
                 snackbarHostState.showSnackbar(errorDeleteMsg)
@@ -160,25 +161,26 @@ fun SharedMediaScreen(
     }
 
     fun openExternally(url: String) {
-        try {
-            uriHandler.openUri(url)
-        } catch (e: Exception) {
-            // No handler app installed, or a malformed URL — the tap looks dead otherwise.
-            Log.e(TAG, "Failed to open media externally", e)
-            scope.launch { snackbarHostState.showSnackbar(errorOpenMsg) }
-        }
+        runCatchingCancellable { uriHandler.openUri(url) }
+            .onFailure { e ->
+                // No handler app installed, or a malformed URL — the tap looks dead otherwise.
+                Log.e(TAG, "Failed to open media externally", e)
+                scope.launch { snackbarHostState.showSnackbar(errorOpenMsg) }
+            }
     }
 
     LaunchedEffect(conversationId) {
-        try {
+        val failure = runCatchingCancellable {
             val result = messageRepository.getMediaMessages(conversationId, limit = 100)
             mediaMessages = result.items
-        } catch (e: Exception) {
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isLoading = false
+        if (failure != null) {
             // Without this the screen shows the "no shared media" empty state, which is a lie.
-            Log.e(TAG, "Failed to load shared media", e)
+            Log.e(TAG, "Failed to load shared media", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
-        isLoading = false
     }
 
     val imageVideos = mediaMessages.filter { it.contentType == ContentType.IMAGE || it.contentType == ContentType.VIDEO }

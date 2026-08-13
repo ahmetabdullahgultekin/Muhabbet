@@ -47,6 +47,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -64,15 +65,17 @@ fun ContactSharePicker(
     val errorLoadMsg = stringResource(Res.string.error_load_conversations)
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val result = conversationRepository.getConversations(limit = 100)
             conversations = result.items.filter { it.type == ConversationType.DIRECT }
-        } catch (e: Exception) {
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isLoading = false
+        if (failure != null) {
             // Without this the picker just renders empty, reading as "you have no contacts".
-            Log.e("ContactSharePicker", "Failed to load contacts", e)
+            Log.e("ContactSharePicker", "Failed to load contacts", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
-        isLoading = false
     }
 
     Scaffold(

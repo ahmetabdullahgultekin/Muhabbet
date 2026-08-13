@@ -50,6 +50,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ChannelInfoResponse
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -72,14 +73,14 @@ fun ChannelListScreen(
     val errorActionMsg = stringResource(Res.string.error_action_failed)
 
     LaunchedEffect(Unit) {
-        try {
-            channels = channelRepository.listChannels()
-        } catch (e: Exception) {
+        val failure = runCatchingCancellable { channels = channelRepository.listChannels() }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isLoading = false
+        if (failure != null) {
             // Without this the screen shows the "no channels" empty state, which is a lie.
-            Log.e(TAG, "Failed to load channels", e)
+            Log.e(TAG, "Failed to load channels", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
-        isLoading = false
     }
 
     Scaffold(
@@ -130,14 +131,14 @@ fun ChannelListScreen(
                         onClick = { onChannelClick(channel.id, channel.name) },
                         onSubscribe = {
                             scope.launch {
-                                try {
+                                runCatchingCancellable {
                                     if (channel.isSubscribed) {
                                         channelRepository.unsubscribe(channel.id)
                                     } else {
                                         channelRepository.subscribe(channel.id)
                                     }
                                     channels = channelRepository.listChannels()
-                                } catch (e: Exception) {
+                                }.onFailure { e ->
                                     // The subscribe button never flips on failure, so without this
                                     // the tap looks like it simply did nothing.
                                     Log.e(TAG, "Failed to toggle subscription for ${channel.id}", e)
