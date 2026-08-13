@@ -121,7 +121,7 @@ fun MediaViewer(
         ) {
             AsyncImage(
                 model = imageUrl,
-                contentDescription = null,
+                contentDescription = stringResource(Res.string.a11y_image_full_screen),
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(
@@ -150,7 +150,7 @@ fun MediaViewer(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = null,
+                            contentDescription = stringResource(Res.string.action_close),
                             tint = semanticColors.onScrim
                         )
                     }

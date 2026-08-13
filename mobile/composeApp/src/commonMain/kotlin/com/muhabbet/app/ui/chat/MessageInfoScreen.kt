@@ -88,7 +88,7 @@ fun MessageInfoScreen(
                 title = { Text(stringResource(Res.string.message_info_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -146,13 +146,15 @@ fun MessageInfoScreen(
                                         ) {
                                             AsyncImage(
                                                 model = previewUrl,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(Res.string.a11y_message_media_preview),
                                                 modifier = Modifier.fillMaxSize(),
                                                 contentScale = ContentScale.Crop
                                             )
                                             if (data.contentType == "VIDEO") {
                                                 Icon(
                                                     Icons.Default.Image, // play overlay
+                                                    // Decorative: the preview above is described and
+                                                    // the badge below names the content type.
                                                     contentDescription = null,
                                                     modifier = Modifier.size(40.dp),
                                                     tint = Color.White.copy(alpha = 0.8f)

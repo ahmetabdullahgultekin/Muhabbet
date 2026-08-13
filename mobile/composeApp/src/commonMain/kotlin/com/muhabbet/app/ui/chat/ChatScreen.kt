@@ -129,7 +129,8 @@ fun ChatScreen(
     var disappearAfterSeconds by remember { mutableStateOf<Int?>(null) }
     var showPollDialog by remember { mutableStateOf(false) }
     var showLocationDialog by remember { mutableStateOf(false) }
-    var showGifPicker by remember { mutableStateOf(false) }
+    // Non-null while the shared GIF/sticker sheet is open; the value is the tab it opened on.
+    var gifPickerTab by remember { mutableStateOf<GifStickerTab?>(null) }
 
     // Scheduled send — session-local pending list + dialog visibility
     var showScheduleDialog by remember { mutableStateOf(false) }
@@ -506,7 +507,8 @@ fun ChatScreen(
                     onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
                     onImagePick = { imagePickerLauncher.launch() }, onFilePick = { filePickerLauncher.launch() },
                     onPollCreate = { showPollDialog = true }, onLocationShare = { showLocationDialog = true },
-                    onGifPick = { showGifPicker = true },
+                    onGifPick = { gifPickerTab = GifStickerTab.GIF },
+                    onStickerPick = { gifPickerTab = GifStickerTab.STICKER },
                     onCameraPick = { cameraPickerLauncher.launch() },
                     viewOnceEnabled = viewOnceEnabled,
                     onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled },
@@ -517,18 +519,19 @@ fun ChatScreen(
     }
 
     // GIF/Sticker picker
-    if (showGifPicker) {
+    gifPickerTab?.let { openTab ->
         GifStickerPicker(
-            onDismiss = { showGifPicker = false },
+            initialTab = openTab,
+            onDismiss = { gifPickerTab = null },
             onGifSelected = { url, _ ->
-                showGifPicker = false
+                gifPickerTab = null
                 val mid = generateMessageId()
                 val rid = generateMessageId()
                 messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.GIF, content = gifContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
             },
             onStickerSelected = { url, _ ->
-                showGifPicker = false
+                gifPickerTab = null
                 val mid = generateMessageId()
                 val rid = generateMessageId()
                 messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.STICKER, content = stickerContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())

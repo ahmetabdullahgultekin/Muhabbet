@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.call.CallHistoryScreen
@@ -58,6 +59,8 @@ import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.action_back
+import com.muhabbet.composeapp.generated.resources.action_more_options
 import com.muhabbet.composeapp.generated.resources.app_name
 import com.muhabbet.composeapp.generated.resources.home_search_no_results
 import com.muhabbet.composeapp.generated.resources.home_search_placeholder
@@ -102,6 +105,8 @@ fun HomeShellScreen(
     val appName = stringResource(Res.string.app_name)
     val settingsTitle = stringResource(Res.string.settings_title)
     val searchDesc = stringResource(Res.string.search_messages_placeholder)
+    val backDesc = stringResource(Res.string.action_back)
+    val moreOptionsDesc = stringResource(Res.string.action_more_options)
     val searchPlaceholder = stringResource(Res.string.home_search_placeholder)
     val searchNoResults = stringResource(Res.string.home_search_no_results)
     val communitiesLabel = stringResource(Res.string.home_tab_communities)
@@ -157,7 +162,7 @@ fun HomeShellScreen(
                         }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null
+                                contentDescription = backDesc
                             )
                         }
                     },
@@ -186,10 +191,16 @@ fun HomeShellScreen(
                             )
                         }
                         Box {
-                            IconButton(onClick = { showMoreMenu = true }) {
+                            // Sole route to Settings. It shows no text, so without this description
+                            // a screen reader announces only "button" and UI automation has nothing
+                            // to match on but screen coordinates.
+                            IconButton(
+                                onClick = { showMoreMenu = true },
+                                modifier = Modifier.testTag("overflow_menu")
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
-                                    contentDescription = null
+                                    contentDescription = moreOptionsDesc
                                 )
                             }
                             DropdownMenu(
@@ -198,6 +209,7 @@ fun HomeShellScreen(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(settingsTitle) },
+                                    modifier = Modifier.testTag("menu_settings"),
                                     onClick = {
                                         showMoreMenu = false
                                         onSettings()
