@@ -18,6 +18,12 @@ muhabbet:
     max-attempts: 5
     cooldown-seconds: 60
     mock-enabled: true
+  rate-limit:
+    # Every test in a @SpringBootTest class shares one client IP and one filter instance, so the
+    # production 10/min budget is spent by the class rather than by any single test. Raised here so
+    # the OTP attempt-limit tests can make their attempts; the limit itself is covered separately.
+    max-requests: 1000
+    window-seconds: 60
 
 logging:
   level:

@@ -57,4 +57,28 @@ object ValidationRules {
     val ALLOWED_IMAGE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
     val ALLOWED_VIDEO_TYPES = setOf("video/mp4", "video/quicktime")
     val ALLOWED_VOICE_TYPES = setOf("audio/ogg", "audio/opus", "audio/mp4")
+
+    /**
+     * Document uploads are an allowlist, like every other media kind.
+     *
+     * Two types are deliberately absent even though people do send them: `text/html` and
+     * `image/svg+xml`. Media is served over presigned URLs from the media host, so a browser opening
+     * one renders the uploaded markup on that origin — stored XSS against anyone who follows the link.
+     * Anything executable is out for the same reason.
+     */
+    val ALLOWED_DOCUMENT_TYPES = setOf(
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "application/rtf",
+        "application/zip",
+        "text/plain",
+        "text/csv"
+    )
 }
