@@ -355,17 +355,27 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
 
 - **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.4.1**, Kotlin 2.3.20, Spring Boot
   4.0.6. Run `./gradlew` from repo root.
-- **Backend tests (reliable here):** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers +
-  ArchUnit. **369 tests, 0 failures** at HEAD (2026-06-06). Aggregate counts from
+- **Backend tests:** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers + ArchUnit.
+  **426 tests, 1 failure** at HEAD (2026-08-13) when Docker is running. The one failure is
+  `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when target visibility is
+  nobody` — pre-existing, tracked as #269. Aggregate counts from
   `backend/build/test-results/test/*.xml`.
-- **Shared KMP tests:** `./gradlew :shared:jvmTest` — **53 tests, 0 failures** at HEAD.
-- **Mobile compile canary (no emulator/Firebase needed):**
-  `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` — compiles commonMain (incl. the
-  Compose compiler + generated `Res.string.*`) and resolves KMP/iOS variants. Use this as the cheap
-  gate for mobile commonMain changes. **The full Android app / `assembleDebug` does NOT build on
-  this host** (`processDebugNavigationResources` needs uncached Firebase) and there is **no Android
-  emulator (no KVM)** — do backend + shared + commonMain-metadata only; don't assemble all KMP
-  targets.
+  **Without Docker the count is 416 / 6 failures**: six `@SpringBootTest` classes fail at class-init
+  on "Could not find a valid Docker environment" rather than running. They are not skipped, so a
+  green-looking 410 is really ten unexecuted integration tests. Start Docker before trusting the run.
+- **Redis is required for the integration tests**, not just Postgres. `RedisConfig` registers
+  `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
+  so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
+  it as a service container, which is why this only bites locally.
+- **Shared KMP tests:** `./gradlew :shared:jvmTest` — **56 tests, 0 failures** at HEAD.
+- **Mobile compile canary:** `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` —
+  compiles commonMain (incl. the Compose compiler + generated `Res.string.*`) and resolves KMP/iOS
+  variants. Cheap gate for commonMain changes, but it does **not** catch androidMain breakage.
+- **The Android app builds and runs on this host** (verified 2026-08-13, correcting an earlier note
+  that said otherwise): `./gradlew :mobile:composeApp:assembleDebug` succeeds in ~96 s and produces an
+  ~82 MB debug APK. There **is** an emulator — AVD `openscale_tr`, Android 16, boots in ~35 s via
+  `emulator -avd openscale_tr`. So a change that shows up in the UI can and should be driven on it
+  rather than signed off on a compile.
 - **Module layout:** `backend/` (Spring Boot, hexagonal modules: auth · messaging · media ·
   moderation · presence · notification + `shared/` config/security/web), `shared/` (KMP: model ·
   dto · protocol/WsMessage · validation · port), `mobile/composeApp/` (CMP; androidMain full, iosMain
@@ -420,7 +430,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
 - **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window — **in-process** `ConcurrentHashMap` in `WebSocketRateLimiter`, NOT Redis; per-instance, so move to Redis if scaling out), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
 - **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
-- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (14 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
+- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (15 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
 - **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
 - **UI/UX Remediation (Phase 2)**: Reusable components (`DateTimeFormatter` utility consolidating 6 duplicate formatters, `SectionHeader` component, `ConfirmDialog` wrapper), elevation tokens (`MuhabbetElevation`), full spacing token migration (`MuhabbetSpacing`) across 30+ UI files, elevation token migration across 7 files
 - **Mobile UI Audit + 87 Fixes**: Lead Mobile Engineer audit (87 issues across 6 severity levels). Fixed: 5 critical bugs (dead condition, hardcoded colors, infinite timer loop, stringly-typed state, hardcoded version), 6 ship-blocking feature gaps (copy to clipboard, group sender names, emoji button, block/report dialogs, privacy settings, channels filter), expanded design system (7 semantic colors, avatar tokens, duration/gesture tokens), 62 new localized strings (TR+EN), 15+ `!!` assertion removals, 4 WCAG touch target fixes. Files: 15 modified, 784 insertions, 173 deletions
@@ -555,7 +565,24 @@ All 9 production hardening features completed:
   `docker logs muhabbet-backend | grep "OTP for"`
 
 ## Lessons Learned / Known Gotchas
-- **Windows Gradle**: Use `cmd //c ".\\gradlew.bat <task>"` from bash shell (not `gradlew.bat` directly)
+- **Windows Gradle**: Use `cmd //c ".\\gradlew.bat <task>"` from bash shell (not `gradlew.bat` directly).
+  Quoting breaks through `cmd //c` for arguments containing `=` and `:` — `--args=--spring.datasource.url=jdbc:...`
+  is parsed as a task name. To run the app with overrides, build `:backend:bootJar` and run the jar directly.
+- **`java` on PATH is Java 8**, which cannot run the Spring Boot 4 jar. Use the full path:
+  `"/c/Program Files/Java/jdk-21/bin/java.exe" -jar backend/build/libs/backend-0.1.0-SNAPSHOT.jar`
+- **Ports 5432 and 5433 are both taken on the dev host** by native Windows services
+  `postgresql-x64-17` and `postgresql-x64-18`. Docker will happily bind the same port, but connections
+  from the host reach the native server, which has no `muhabbet` role — the symptom is
+  `FATAL: password authentication failed for user "muhabbet"` while `docker exec ... psql` works fine.
+  Map the container somewhere clear of them (55432 is free) and pass the URL explicitly.
+- **The Gradle daemon caches the environment it started with.** Exporting a var and re-running
+  `bootRun` will not pick it up; the forked JVM inherits the daemon's stale env. `./gradlew --stop`
+  first, or pass the value as a program argument.
+- **The mobile app cannot be pointed at a non-production backend.** `ApiClient.BASE_URL` is hardcoded
+  to `https://muhabbet-api.rollingcatsoftware.com` and `usesCleartextTraffic` is `false`. To verify a
+  backend change through the UI you must temporarily set `BASE_URL` to `http://10.0.2.2:8080` (the
+  emulator's alias for the host) and flip `usesCleartextTraffic` to `true`, rebuild, then revert both.
+  Worth replacing with a build-type-scoped override.
 - **Spring Security 403 vs 401**: Default Spring Security returns 403 for unauthenticated requests. Must configure `authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))` so Ktor Auth plugin triggers token refresh on 401
 - **kotlinx-datetime `toLocalDateTime`**: It's an extension function — needs explicit `import kotlinx.datetime.toLocalDateTime`, not available via fully-qualified `instant.toLocalDateTime()`
 - **SharedFlow vs Channel**: `MutableSharedFlow` broadcasts to ALL collectors (no competition). Use for WS messages shared between multiple screens
