@@ -9,7 +9,6 @@ import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.shared.dto.StorageUsageResponse
-import com.muhabbet.media.domain.port.out.MediaAccessPolicy
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
@@ -24,7 +23,6 @@ open class MediaService(
     private val mediaStoragePort: MediaStoragePort,
     private val mediaFileRepository: MediaFileRepository,
     private val thumbnailPort: ThumbnailPort,
-    private val mediaAccessPolicy: MediaAccessPolicy,
     private val thumbnailWidth: Int,
     private val thumbnailHeight: Int
 ) : UploadMediaUseCase, GetMediaUrlUseCase, GetStorageUsageUseCase {
@@ -180,12 +178,20 @@ open class MediaService(
         val mediaFile = mediaFileRepository.findById(mediaId)
             ?: throw BusinessException(ErrorCode.MEDIA_NOT_FOUND)
 
-        // Authorization (IDOR fix): the requester must own the file OR be a member of a conversation
-        // that references it. Otherwise no presigned URL is issued.
-        val isUploader = mediaFile.uploaderId == requestingUserId
-        if (!isUploader &&
-            !mediaAccessPolicy.isMemberOfConversationContainingMedia(requestingUserId, mediaFile.fileKey)
-        ) {
+        // Only the uploader can mint a URL for their own blob.
+        //
+        // This used to also accept "a conversation you belong to has a message referencing this file".
+        // That decided authorization from `messages.media_url`, a column written straight from the
+        // request body — so a user could send themselves a message naming someone else's file and read
+        // it (#267). Since the reference was client-controlled, no amount of tightening the comparison
+        // made the question safe to ask.
+        //
+        // Dropping the branch costs nothing today: no client calls this endpoint. Media is rendered
+        // from the presigned URL already stored on the message, not by minting a new one. If
+        // member-based access is ever needed — a URL-refresh feature would need it, since presigned
+        // URLs expire — it has to key off a server-resolved media id rather than a client-supplied
+        // string.
+        if (mediaFile.uploaderId != requestingUserId) {
             throw BusinessException(ErrorCode.MEDIA_FORBIDDEN)
         }
 
