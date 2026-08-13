@@ -9,58 +9,72 @@ import androidx.compose.ui.unit.sp
 /**
  * The app's type scale.
  *
- * Every role is spelled out rather than inherited from [Typography]'s defaults so that the
- * scale has exactly one home: a font family, letter-spacing or line-height change is made
- * here and nowhere else. The metrics currently match the Material 3 baseline scale — the
- * point of declaring them is ownership, not divergence.
+ * Every role is named rather than left implicit so that the scale has exactly one home: a font
+ * family, letter-spacing or line-height change is made here and nowhere else. Each is derived from
+ * the Material 3 baseline (see [Base]) so the metrics currently match it — the point of declaring
+ * them is ownership, not divergence.
  *
  * Sizes that genuinely have no Material role (chat body, list rows, bubble metadata) live in
  * [MuhabbetTextStyles] instead of being applied ad hoc with `.copy(fontSize = …)` at call sites.
  */
+/**
+ * The Material 3 baseline, used as the starting point for every role below.
+ *
+ * Material builds each of its roles from a shared default that carries `platformStyle`
+ * (`includeFontPadding = false`), a centred `lineHeightStyle`, and `FontFamily.SansSerif`. A bare
+ * `TextStyle(...)` has none of those, so declaring the roles from scratch — even with identical
+ * sizes — restores legacy font padding, redistributes the leading, and hands font resolution back to
+ * the platform default. Text gets taller, baselines shift, and `maxLines` truncation lands elsewhere,
+ * everywhere in the app at once.
+ *
+ * Copying from the baseline keeps those three properties and changes only what is named.
+ */
+private val Base = Typography()
+
 val MuhabbetTypography = Typography(
-    displayLarge = TextStyle(
+    displayLarge = Base.displayLarge.copy(
         fontSize = 57.sp, lineHeight = 64.sp, letterSpacing = (-0.25).sp, fontWeight = FontWeight.Normal
     ),
-    displayMedium = TextStyle(
+    displayMedium = Base.displayMedium.copy(
         fontSize = 45.sp, lineHeight = 52.sp, letterSpacing = 0.sp, fontWeight = FontWeight.Normal
     ),
-    displaySmall = TextStyle(
+    displaySmall = Base.displaySmall.copy(
         fontSize = 36.sp, lineHeight = 44.sp, letterSpacing = 0.sp, fontWeight = FontWeight.Normal
     ),
-    headlineLarge = TextStyle(
+    headlineLarge = Base.headlineLarge.copy(
         fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = 0.sp, fontWeight = FontWeight.Normal
     ),
-    headlineMedium = TextStyle(
+    headlineMedium = Base.headlineMedium.copy(
         fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = 0.sp, fontWeight = FontWeight.Normal
     ),
-    headlineSmall = TextStyle(
+    headlineSmall = Base.headlineSmall.copy(
         fontSize = 24.sp, lineHeight = 32.sp, letterSpacing = 0.sp, fontWeight = FontWeight.Normal
     ),
-    titleLarge = TextStyle(
+    titleLarge = Base.titleLarge.copy(
         fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = 0.sp, fontWeight = FontWeight.Normal
     ),
-    titleMedium = TextStyle(
+    titleMedium = Base.titleMedium.copy(
         fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp, fontWeight = FontWeight.Medium
     ),
-    titleSmall = TextStyle(
+    titleSmall = Base.titleSmall.copy(
         fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp, fontWeight = FontWeight.Medium
     ),
-    bodyLarge = TextStyle(
+    bodyLarge = Base.bodyLarge.copy(
         fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp, fontWeight = FontWeight.Normal
     ),
-    bodyMedium = TextStyle(
+    bodyMedium = Base.bodyMedium.copy(
         fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.25.sp, fontWeight = FontWeight.Normal
     ),
-    bodySmall = TextStyle(
+    bodySmall = Base.bodySmall.copy(
         fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp, fontWeight = FontWeight.Normal
     ),
-    labelLarge = TextStyle(
+    labelLarge = Base.labelLarge.copy(
         fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp, fontWeight = FontWeight.Medium
     ),
-    labelMedium = TextStyle(
+    labelMedium = Base.labelMedium.copy(
         fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp, fontWeight = FontWeight.Medium
     ),
-    labelSmall = TextStyle(
+    labelSmall = Base.labelSmall.copy(
         fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp, fontWeight = FontWeight.Medium
     )
 )
@@ -108,8 +122,8 @@ object MuhabbetTextStyles {
     )
 
     /** Emoji glyph in the quick-reaction picker — sized as artwork, not as text. */
-    val EmojiPicker: TextStyle = TextStyle(fontSize = 22.sp)
+    val EmojiPicker: TextStyle = MuhabbetTypography.bodyLarge.copy(fontSize = 22.sp)
 
     /** Emoji glyph in a reaction badge attached to a bubble. */
-    val EmojiBadge: TextStyle = TextStyle(fontSize = 14.sp)
+    val EmojiBadge: TextStyle = MuhabbetTypography.bodyLarge.copy(fontSize = 14.sp)
 }
