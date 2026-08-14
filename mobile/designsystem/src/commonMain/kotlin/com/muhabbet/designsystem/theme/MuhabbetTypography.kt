@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.theme
+package com.muhabbet.designsystem.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

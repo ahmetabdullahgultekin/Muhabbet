@@ -39,8 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.multidevice.MultiDeviceConfig
-import com.muhabbet.app.ui.components.ConfirmDialog
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.ConfirmDialog
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.LinkedDeviceResponse

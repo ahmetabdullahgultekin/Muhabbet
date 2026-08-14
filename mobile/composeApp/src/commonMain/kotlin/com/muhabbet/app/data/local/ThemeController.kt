@@ -1,6 +1,6 @@
 package com.muhabbet.app.data.local
 
-import com.muhabbet.app.ui.theme.MuhabbetThemeMode
+import com.muhabbet.designsystem.theme.MuhabbetThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

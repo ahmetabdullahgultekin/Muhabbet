@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.components
+package com.muhabbet.designsystem.components
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme

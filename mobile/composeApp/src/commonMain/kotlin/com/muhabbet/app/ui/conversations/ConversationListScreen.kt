@@ -1,6 +1,6 @@
 package com.muhabbet.app.ui.conversations
 
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -59,14 +59,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
-import com.muhabbet.app.ui.components.EmptyChatsIllustration
+import com.muhabbet.designsystem.components.EmptyChatsIllustration
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.util.normalizeToE164

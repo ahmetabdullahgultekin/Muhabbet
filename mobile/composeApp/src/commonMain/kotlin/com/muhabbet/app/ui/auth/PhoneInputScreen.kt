@@ -31,8 +31,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.PhoneAuthErrorCode
 import com.muhabbet.app.platform.PhoneVerificationResult
 import com.muhabbet.app.platform.getDeviceModel

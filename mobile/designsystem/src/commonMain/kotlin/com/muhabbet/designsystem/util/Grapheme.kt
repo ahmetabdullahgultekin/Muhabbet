@@ -1,4 +1,4 @@
-package com.muhabbet.app.util
+package com.muhabbet.designsystem.util
 
 /**
  * Extracts the first visible grapheme from a string, upper-cased for display.

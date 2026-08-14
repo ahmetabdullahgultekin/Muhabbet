@@ -57,11 +57,11 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 @Composable
 fun ReplyPreviewBar(
@@ -93,7 +93,7 @@ fun ReplyPreviewBar(
                     maxLines = 1
                 )
             }
-            IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.app.ui.theme.MuhabbetSizes.MinTouchTarget)) {
+            IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.designsystem.theme.MuhabbetSizes.MinTouchTarget)) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(MuhabbetSizes.IconSmall))
             }
         }
@@ -126,7 +126,7 @@ fun EditModeBar(
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.app.ui.theme.MuhabbetSizes.MinTouchTarget)) {
+            IconButton(onClick = onCancel, modifier = Modifier.size(com.muhabbet.designsystem.theme.MuhabbetSizes.MinTouchTarget)) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
             }
         }

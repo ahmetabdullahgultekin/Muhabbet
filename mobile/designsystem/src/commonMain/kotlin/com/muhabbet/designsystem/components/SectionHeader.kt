@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.components
+package com.muhabbet.designsystem.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

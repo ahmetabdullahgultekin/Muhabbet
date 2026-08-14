@@ -1,6 +1,6 @@
 package com.muhabbet.app
 
-import com.muhabbet.app.ui.theme.MuhabbetTheme
+import com.muhabbet.designsystem.theme.MuhabbetTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect

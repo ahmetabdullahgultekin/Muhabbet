@@ -29,8 +29,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
@@ -79,10 +79,10 @@ fun IncomingCallScreen(
             modifier = Modifier.safeDrawingPadding().padding(MuhabbetSpacing.XXLarge)
         ) {
             // Caller avatar
-            com.muhabbet.app.ui.components.UserAvatar(
+            com.muhabbet.designsystem.components.UserAvatar(
                 avatarUrl = null,
                 displayName = callerName ?: callerId,
-                size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarCall
+                size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarCall
             )
 
             Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))

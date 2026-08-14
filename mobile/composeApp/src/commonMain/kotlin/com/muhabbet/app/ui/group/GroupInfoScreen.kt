@@ -1,6 +1,6 @@
 package com.muhabbet.app.ui.group
 
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,8 +56,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
@@ -227,10 +227,10 @@ fun GroupInfoScreen(
                         modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        com.muhabbet.app.ui.components.UserAvatar(
+                        com.muhabbet.designsystem.components.UserAvatar(
                             avatarUrl = conversation?.avatarUrl,
                             displayName = conversation?.name ?: "G",
-                            size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarXLarge,
+                            size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarXLarge,
                             isGroup = true,
                             contentDescription = stringResource(Res.string.cd_group_avatar)
                         )
@@ -424,10 +424,10 @@ private fun MemberItem(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        com.muhabbet.app.ui.components.UserAvatar(
+        com.muhabbet.designsystem.components.UserAvatar(
             avatarUrl = member.avatarUrl,
             displayName = member.displayName ?: "?",
-            size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarSmall
+            size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {

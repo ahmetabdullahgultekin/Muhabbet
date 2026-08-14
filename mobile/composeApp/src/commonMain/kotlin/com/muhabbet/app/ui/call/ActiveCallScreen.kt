@@ -35,9 +35,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
@@ -103,7 +103,7 @@ fun ActiveCallScreen(
     LaunchedEffect(callId, mediaState) {
         if (mediaState != CallMediaState.CONNECTED) return@LaunchedEffect
         while (true) {
-            delay(com.muhabbet.app.ui.theme.MuhabbetDurations.CallTimerTickMs)
+            delay(com.muhabbet.designsystem.theme.MuhabbetDurations.CallTimerTickMs)
             callDurationSeconds++
         }
     }

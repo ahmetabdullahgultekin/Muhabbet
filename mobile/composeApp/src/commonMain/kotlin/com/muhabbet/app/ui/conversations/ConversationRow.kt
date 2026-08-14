@@ -31,11 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetTextStyles
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
@@ -205,7 +205,7 @@ private fun shimmerAlpha(): Float {
         targetValue = 1f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
             animation = androidx.compose.animation.core.tween(
-                durationMillis = com.muhabbet.app.ui.theme.MuhabbetDurations.ShimmerDurationMs,
+                durationMillis = com.muhabbet.designsystem.theme.MuhabbetDurations.ShimmerDurationMs,
                 easing = androidx.compose.animation.core.LinearEasing
             ),
             repeatMode = androidx.compose.animation.core.RepeatMode.Reverse

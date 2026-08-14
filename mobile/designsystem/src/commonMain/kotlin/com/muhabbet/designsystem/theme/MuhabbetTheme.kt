@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.theme
+package com.muhabbet.designsystem.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -10,7 +10,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.platform.SystemBarsEffect
+import com.muhabbet.designsystem.platform.SystemBarsEffect
 
 // ─── WhatsApp-aligned palette ──────────────────────────────
 

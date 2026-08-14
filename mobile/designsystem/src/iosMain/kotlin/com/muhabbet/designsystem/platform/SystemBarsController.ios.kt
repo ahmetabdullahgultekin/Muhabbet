@@ -1,4 +1,4 @@
-package com.muhabbet.app.platform
+package com.muhabbet.designsystem.platform
 
 import androidx.compose.runtime.Composable
 

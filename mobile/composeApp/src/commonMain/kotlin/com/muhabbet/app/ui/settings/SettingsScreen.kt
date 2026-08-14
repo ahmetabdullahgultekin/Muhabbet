@@ -1,6 +1,6 @@
 package com.muhabbet.app.ui.settings
 
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,7 +52,7 @@ import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*

@@ -33,8 +33,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
 import com.muhabbet.app.platform.rememberFirebasePhoneAuth

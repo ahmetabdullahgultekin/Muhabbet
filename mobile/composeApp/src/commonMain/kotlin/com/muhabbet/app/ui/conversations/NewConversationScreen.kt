@@ -48,8 +48,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
 import com.muhabbet.app.util.sha256Hex
@@ -325,7 +325,7 @@ private fun ContactItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = com.muhabbet.app.util.firstGrapheme(contact.displayName ?: "?"),
+                    text = com.muhabbet.designsystem.util.firstGrapheme(contact.displayName ?: "?"),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )

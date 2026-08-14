@@ -39,9 +39,9 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CommunityResponse

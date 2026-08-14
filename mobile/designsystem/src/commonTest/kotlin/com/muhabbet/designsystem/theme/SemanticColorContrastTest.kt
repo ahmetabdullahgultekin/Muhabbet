@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.theme
+package com.muhabbet.designsystem.theme
 
 import androidx.compose.ui.graphics.Color
 import kotlin.math.abs

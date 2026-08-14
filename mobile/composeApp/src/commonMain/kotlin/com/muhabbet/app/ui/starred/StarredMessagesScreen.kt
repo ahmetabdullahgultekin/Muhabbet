@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
 import com.muhabbet.shared.model.ContentType

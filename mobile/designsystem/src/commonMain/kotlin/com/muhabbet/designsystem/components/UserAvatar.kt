@@ -1,4 +1,4 @@
-package com.muhabbet.app.ui.components
+package com.muhabbet.designsystem.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.util.firstGrapheme
+import com.muhabbet.designsystem.util.firstGrapheme
 
 /**
  * Circular avatar: remote image when there is one, otherwise a group glyph or the first grapheme of

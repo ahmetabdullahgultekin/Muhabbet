@@ -65,9 +65,9 @@ import kotlinx.datetime.Instant
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
@@ -551,7 +551,7 @@ fun ChatScreen(
                         messageText = new
                         if (new.isNotEmpty() && editingMessageId == null) {
                             if (!isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, true) }; isTypingSent = true }
-                            typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.app.ui.theme.MuhabbetDurations.TypingTimeoutMs); sendTypingIndicator(wsClient, conversationId, false); isTypingSent = false }
+                            typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.designsystem.theme.MuhabbetDurations.TypingTimeoutMs); sendTypingIndicator(wsClient, conversationId, false); isTypingSent = false }
                         }
                     },
                     isEditing = editingMessageId != null, isUploading = isUploading,

@@ -48,9 +48,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
@@ -67,7 +67,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.ConfirmDialog
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -272,7 +272,7 @@ fun ForwardPickerDialog(
                                 .padding(vertical = MuhabbetSpacing.Medium, horizontal = MuhabbetSpacing.Small),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            com.muhabbet.app.ui.components.UserAvatar(
+                            com.muhabbet.designsystem.components.UserAvatar(
                                 avatarUrl = conv.avatarUrl,
                                 displayName = convName,
                                 size = 36.dp,
