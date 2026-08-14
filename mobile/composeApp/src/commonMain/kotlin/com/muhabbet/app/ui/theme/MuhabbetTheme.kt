@@ -10,6 +10,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.platform.SystemBarsEffect
 
 // ─── WhatsApp-aligned palette ──────────────────────────────
 
@@ -176,6 +177,9 @@ object MuhabbetSizes {
     val IconMedium: Dp = 20.dp
     val IconLarge: Dp = 24.dp
 
+    /** An icon carrying a state on its own, not labelling something else — e.g. the view-once eye. */
+    val IconHero: Dp = 32.dp
+
     // Avatar sizes
     val AvatarXSmall: Dp = 36.dp
     val AvatarSmall: Dp = 40.dp
@@ -204,6 +208,12 @@ object MuhabbetSizes {
     val BubblePaddingVertical: Dp = 6.dp
     val ImagePreviewMaxHeight: Dp = 200.dp
     val StickerSize: Dp = 150.dp
+
+    /**
+     * The sealed tile standing in for an unopened view-once message. Deliberately not a preview —
+     * see the note in `ViewOnceBubble`.
+     */
+    val ViewOncePlaceholder: Dp = 120.dp
 
     // Chat list
     val ChatListItemMinHeight: Dp = 72.dp
@@ -317,22 +327,37 @@ val MuhabbetOledBlackColorScheme = darkColorScheme(
 
 @Composable
 fun MuhabbetTheme(
-    oledBlack: Boolean = false,
+    mode: MuhabbetThemeMode = MuhabbetThemeMode.System,
     content: @Composable () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
-    val colorScheme = when {
-        isDark && oledBlack -> MuhabbetOledBlackColorScheme
-        isDark -> MuhabbetDarkColorScheme
-        else -> MuhabbetLightColorScheme
+    // Only System consults the OS. Light/Dark/Oled are explicit user choices and are honoured
+    // unconditionally — the previous `isDark && oledBlack` guard silently downgraded a user who
+    // picked OLED on a light-mode phone all the way back to Light.
+    val resolved = when (mode) {
+        MuhabbetThemeMode.System -> if (isSystemInDarkTheme()) ResolvedThemeMode.Dark else ResolvedThemeMode.Light
+        MuhabbetThemeMode.Light -> ResolvedThemeMode.Light
+        MuhabbetThemeMode.Dark -> ResolvedThemeMode.Dark
+        MuhabbetThemeMode.Oled -> ResolvedThemeMode.Oled
     }
-    val semanticColors = when {
-        isDark && oledBlack -> OledSemanticColors
-        isDark -> DarkSemanticColors
-        else -> LightSemanticColors
+    val colorScheme = when (resolved) {
+        ResolvedThemeMode.Light -> MuhabbetLightColorScheme
+        ResolvedThemeMode.Dark -> MuhabbetDarkColorScheme
+        ResolvedThemeMode.Oled -> MuhabbetOledBlackColorScheme
+    }
+    val semanticColors = when (resolved) {
+        ResolvedThemeMode.Light -> LightSemanticColors
+        ResolvedThemeMode.Dark -> DarkSemanticColors
+        ResolvedThemeMode.Oled -> OledSemanticColors
     }
 
-    CompositionLocalProvider(LocalSemanticColors provides semanticColors) {
+    // Status- and navigation-bar icons are painted by the OS, outside the Compose tree, so they
+    // cannot pick up the scheme by themselves. Light icons everywhere except the light theme.
+    SystemBarsEffect(lightIcons = resolved != ResolvedThemeMode.Light)
+
+    CompositionLocalProvider(
+        LocalSemanticColors provides semanticColors,
+        LocalThemeMode provides resolved
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = MuhabbetTypography,

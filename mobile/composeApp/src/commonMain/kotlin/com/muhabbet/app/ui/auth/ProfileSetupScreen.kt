@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalFocusManager
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -58,17 +58,20 @@ fun ProfileSetupScreen(
     val nameErrorMsg = stringResource(Res.string.profile_name_error)
     val updateFailedMsg = stringResource(Res.string.profile_update_failed)
 
-    // imePadding lifts the content above the keyboard and verticalScroll makes the button
-    // reachable when it still does not fit. Without either, opening the keyboard pushed
-    // "Get Started" off-screen with no way back to it — immediately after a user had successfully
-    // verified their number, which is the worst possible place to strand someone.
+    // safeDrawingPadding lifts the content above the keyboard (the IME is part of safeDrawing) and
+    // verticalScroll makes the button reachable when it still does not fit. Without either, opening
+    // the keyboard pushed "Get Started" off-screen with no way back to it — immediately after a user
+    // had successfully verified their number, which is the worst possible place to strand someone.
     val focusManager = LocalFocusManager.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // safeDrawing already includes the IME, so this replaces the imePadding that used to sit
+            // inside the scroll container — and additionally keeps the content clear of the system
+            // bars, which nothing was doing before.
+            .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
-            .imePadding()
             .padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally

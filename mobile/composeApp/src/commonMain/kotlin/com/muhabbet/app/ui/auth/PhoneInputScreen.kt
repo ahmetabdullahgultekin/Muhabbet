@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -63,7 +64,9 @@ fun PhoneInputScreen(
     val authFailedMsg = stringResource(Res.string.phone_auth_failed)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
+        // safeDrawingPadding, not a Scaffold: this screen has no app bar to consume insets, and
+        // since targetSdk 36 the content draws behind the system bars whether it asks to or not.
+        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

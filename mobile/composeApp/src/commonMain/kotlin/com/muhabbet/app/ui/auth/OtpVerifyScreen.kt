@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,7 +75,8 @@ fun OtpVerifyScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
+        // See PhoneInputScreen: no Scaffold here, so the insets must be consumed explicitly.
+        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

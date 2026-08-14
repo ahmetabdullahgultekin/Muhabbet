@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Splash screen theme (Android 12+ SplashScreen API) -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Splash screen theme (Android 12+ SplashScreen API).
+
+      statusBarColor/navigationBarColor are ignored from API 35 on, where edge-to-edge is enforced;
+      they are kept only so that API 26-34 does not paint an opaque bar in the wrong colour. The
+      app window's own bars are configured in Kotlin instead — enableEdgeToEdge() in MainActivity
+      for transparency, SystemBarsEffect for icon polarity — because those must follow the user's
+      in-app theme choice, which XML cannot see.
+
+      windowSplashScreenBackground is API 31+; older platforms ignore unknown attributes at runtime,
+      so it is declared here rather than duplicated into a values-v31 variant that would then need a
+      values-night-v31 twin (night mode outranks version in resource resolution).
+    -->
     <style name="Theme.Muhabbet.Splash" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@drawable/splash_background</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">@color/muhabbet_splash_background</item>
+        <item name="android:statusBarColor">@color/muhabbet_splash_background</item>
+        <item name="android:navigationBarColor">@color/muhabbet_splash_background</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/muhabbet_splash_background</item>
     </style>
 </resources>

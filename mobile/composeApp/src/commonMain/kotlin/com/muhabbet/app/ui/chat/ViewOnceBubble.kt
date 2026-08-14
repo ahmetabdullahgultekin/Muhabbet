@@ -23,10 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.muhabbet.app.ui.theme.LocalSemanticColors
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetSizes
@@ -48,7 +44,6 @@ fun ViewOnceBubble(
     val onBubbleColor = if (isOwn) semanticColors.onBubbleOwn else semanticColors.onBubbleOther
     var hasBeenViewed by remember { mutableStateOf(false) }
 
-    val isMedia = message.contentType == ContentType.IMAGE || message.contentType == ContentType.VIDEO
     val typeLabel = when (message.contentType) {
         ContentType.IMAGE -> stringResource(Res.string.view_once_photo)
         ContentType.VIDEO -> stringResource(Res.string.view_once_video)
@@ -92,45 +87,37 @@ fun ViewOnceBubble(
                     )
                 }
             } else {
-                // Not yet viewed - show blurred preview
+                // Not yet viewed.
+                //
+                // Deliberately a sealed placeholder rather than a preview of the content. There used
+                // to be a `blur(20.dp)` thumbnail here, which failed twice over:
+                //
+                //  1. `Modifier.blur` has NO EFFECT below Android API 31, and minSdk is 26. On
+                //     Android 8.0-11 the thumbnail rendered fully sharp — the feature's entire
+                //     purpose failing silently on a large slice of devices.
+                //  2. Even where it worked, a 20dp blur of a 120dp thumbnail still leaks the
+                //     composition, the dominant colour and usually the subject.
+                //
+                // Rule this establishes: blur may degrade decoratively, never protectively.
                 Column(
                     modifier = Modifier.padding(MuhabbetSpacing.Small),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (isMedia && message.thumbnailUrl != null) {
-                        Box(contentAlignment = Alignment.Center) {
-                            AsyncImage(
-                                model = message.thumbnailUrl,
-                                contentDescription = typeLabel,
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .blur(20.dp),
-                                contentScale = ContentScale.Crop
-                            )
-                            Icon(
-                                Icons.Default.Visibility,
-                                contentDescription = stringResource(Res.string.view_once_tap_to_view),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(120.dp)
-                                .background(
-                                    onBubbleColor.copy(alpha = 0.1f),
-                                    MaterialTheme.shapes.medium
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Visibility,
-                                contentDescription = stringResource(Res.string.view_once_tap_to_view),
-                                tint = onBubbleColor.copy(alpha = 0.6f),
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(MuhabbetSizes.ViewOncePlaceholder)
+                            .background(
+                                onBubbleColor.copy(alpha = 0.1f),
+                                MaterialTheme.shapes.medium
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Visibility,
+                            contentDescription = stringResource(Res.string.view_once_tap_to_view),
+                            tint = onBubbleColor.copy(alpha = 0.6f),
+                            modifier = Modifier.size(MuhabbetSizes.IconHero)
+                        )
                     }
 
                     Text(

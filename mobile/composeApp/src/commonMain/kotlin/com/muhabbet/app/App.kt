@@ -4,8 +4,11 @@ import com.muhabbet.app.ui.theme.MuhabbetTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.arkivanov.decompose.ComponentContext
+import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
@@ -34,16 +37,23 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
     }
 
     KoinContext(koin = koin) {
-        MuhabbetTheme {
-            val tokenStorage: TokenStorage = koinInject()
-            val root = remember { RootComponent(componentContext, tokenStorage) }
+        val tokenStorage: TokenStorage = koinInject()
+        val themeController: ThemeController = koinInject()
 
-            // Initialize crash reporter and set user
-            LaunchedEffect(Unit) {
-                CrashReporter.init()
-                tokenStorage.getUserId()?.let { CrashReporter.setUser(it) }
-            }
+        // RootComponent owns the entire navigation stack, so it is remembered ABOVE the theme.
+        // Inside it, the theme mode becoming state would put it under a boundary that recomposes on
+        // every theme change — and a re-created RootComponent silently resets the user to the start
+        // of the app.
+        val root = remember { RootComponent(componentContext, tokenStorage) }
+        val themeMode by themeController.mode.collectAsState()
 
+        // Initialize crash reporter and set user
+        LaunchedEffect(Unit) {
+            CrashReporter.init()
+            tokenStorage.getUserId()?.let { CrashReporter.setUser(it) }
+        }
+
+        MuhabbetTheme(mode = themeMode) {
             WebSocketLifecycle()
             RootContent(root)
         }

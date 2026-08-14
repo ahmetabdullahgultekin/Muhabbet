@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Wallpaper
+import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.MediaRepository
@@ -87,6 +88,7 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val restartApp = rememberRestartApp()
+    val themeController: ThemeController = koinInject()
 
     val profileUpdatedMsg = stringResource(Res.string.settings_profile_updated)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -285,7 +287,7 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                ThemeSection(tokenStorage = tokenStorage, restartApp = restartApp)
+                ThemeSection(themeController = themeController)
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()

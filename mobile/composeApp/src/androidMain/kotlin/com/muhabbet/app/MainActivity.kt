@@ -1,9 +1,12 @@
 package com.muhabbet.app
 
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -17,6 +20,18 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Fully transparent bars, with the framework's own contrast scrim disabled, so the app
+        // paints edge to edge and the theme decides what shows through. Both styles are declared
+        // `dark` only to stop the framework auto-flipping icon colours from the system's night
+        // setting — the icons follow the in-app theme instead, via SystemBarsEffect.
+        //
+        // This is not opt-in behaviour: targetSdk is 36, and from API 35 the platform draws the app
+        // edge to edge regardless. Calling it explicitly is what makes the pre-35 path match, and
+        // what replaces the android:statusBarColor the platform now ignores.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
 
         // Apply saved language preference before rendering UI

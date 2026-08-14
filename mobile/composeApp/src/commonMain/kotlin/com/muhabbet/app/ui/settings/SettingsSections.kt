@@ -24,6 +24,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,8 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.app.ui.theme.MuhabbetThemeMode
 import com.muhabbet.app.ui.theme.MuhabbetElevation
 import com.muhabbet.app.ui.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.theme.MuhabbetSizes
@@ -281,37 +284,33 @@ internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit)
     }
 }
 
+/**
+ * Theme picker. Unlike [LanguageSection] this does not restart the app — [ThemeController] is read
+ * at the composition root, so a new mode repaints the tree in place.
+ */
 @Composable
-internal fun ThemeSection(tokenStorage: TokenStorage, restartApp: () -> Unit) {
-    var selectedTheme by remember { mutableStateOf(tokenStorage.getTheme() ?: "system") }
+internal fun ThemeSection(themeController: ThemeController) {
+    val selectedTheme by themeController.mode.collectAsState()
     SettingsSectionTitle(stringResource(Res.string.settings_theme))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
     val themeOptions = listOf(
-        "system" to stringResource(Res.string.settings_theme_system),
-        "light" to stringResource(Res.string.settings_theme_light),
-        "dark" to stringResource(Res.string.settings_theme_dark),
-        "oled" to stringResource(Res.string.settings_theme_oled)
+        MuhabbetThemeMode.System to stringResource(Res.string.settings_theme_system),
+        MuhabbetThemeMode.Light to stringResource(Res.string.settings_theme_light),
+        MuhabbetThemeMode.Dark to stringResource(Res.string.settings_theme_dark),
+        MuhabbetThemeMode.Oled to stringResource(Res.string.settings_theme_oled)
     )
-    themeOptions.forEach { (key, label) ->
+    themeOptions.forEach { (mode, label) ->
         Row(
             modifier = Modifier.fillMaxWidth()
-                .clickable {
-                    selectedTheme = key
-                    tokenStorage.setTheme(key)
-                    restartApp()
-                }
+                .clickable { themeController.set(mode) }
                 .padding(vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
         ) {
             RadioButton(
-                selected = selectedTheme == key,
-                onClick = {
-                    selectedTheme = key
-                    tokenStorage.setTheme(key)
-                    restartApp()
-                }
+                selected = selectedTheme == mode,
+                onClick = { themeController.set(mode) }
             )
             Text(text = label, style = MaterialTheme.typography.bodyLarge)
         }

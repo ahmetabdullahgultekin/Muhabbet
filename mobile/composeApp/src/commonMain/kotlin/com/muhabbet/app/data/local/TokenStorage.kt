@@ -10,8 +10,11 @@ interface TokenStorage {
     fun isLoggedIn(): Boolean = getAccessToken() != null
     fun getLanguage(): String? = null
     fun setLanguage(lang: String) {}
-    fun getTheme(): String? = null
-    fun setTheme(theme: String) {}
+    // Abstract, unlike its neighbours: the theme is read at the composition root on every frame, so
+    // an implementation that inherited a null-returning default would pin the whole app to the
+    // system theme with nothing to show for it. Better to fail to compile.
+    fun getTheme(): String?
+    fun setTheme(theme: String)
     fun getLastSyncTimestamp(): String? = null
     fun setLastSyncTimestamp(timestamp: String) {}
     fun getAppLockEnabled(): Boolean = false

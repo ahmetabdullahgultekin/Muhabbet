@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -160,6 +161,10 @@ fun StatusViewerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // Only the chrome is inset — the story image behind it stays full-bleed, which
+                    // is the whole point of the viewer. Without this the progress ticks sit under
+                    // the status bar.
+                    .safeDrawingPadding()
                     .padding(top = MuhabbetSpacing.Large, start = MuhabbetSpacing.Small, end = MuhabbetSpacing.Small)
             ) {
                 // Segmented progress bars

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches MuhabbetDarkColorScheme.background. See values/colors.xml for why this must track it. -->
+    <color name="muhabbet_splash_background">#111B21</color>
+</resources>
