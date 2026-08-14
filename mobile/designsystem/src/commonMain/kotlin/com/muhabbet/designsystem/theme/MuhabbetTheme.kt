@@ -12,31 +12,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.platform.SystemBarsEffect
 
-// ─── WhatsApp-aligned palette ──────────────────────────────
-
-private val WhatsAppAccent = Color(0xFF00A884)
-private val WhatsAppDarkBg = Color(0xFF111B21)
-private val WhatsAppDarkSurface = Color(0xFF1F2C34)
-private val WhatsAppDarkElevated = Color(0xFF2A3942)
-private val WhatsAppWallpaperDark = Color(0xFF0D1418)
-private val WhatsAppOwnBubbleDark = Color(0xFF005C4B)
-private val WhatsAppTextPrimary = Color(0xFFE9EDEF)
-private val WhatsAppTextSecondary = Color(0xFF8696A0)
-private val WhatsAppReadTickDark = Color(0xFF53BDEB)
-private val WhatsAppOwnBubbleLight = Color(0xFFD9FDD3)
-private val WhatsAppWallpaperLight = Color(0xFFECE5DD)
-private val WhatsAppUnreadLight = Color(0xFF25D366)
-private val WhatsAppTextPrimaryLight = Color(0xFF111B21)
-private val WhatsAppTextSecondaryLight = Color(0xFF667781)
-private val WhatsAppReadTickLight = Color(0xFF4FB6EC)
-private val WhatsAppInputFieldLight = Color(0xFFF0F2F5)
-private val WhatsAppDividerLight = Color(0xFFE9EDEF)
-private val WhatsAppDividerDark = Color(0xFF2A3942)
-
-// Retained for error states
-private val Red700 = Color(0xFFD32F2F)
-private val Red400 = Color(0xFFEF5350)
-
 // ─── Semantic colors (beyond M3 colorScheme) ────────────────
 
 /** Opacity of the control bars drawn over the full-screen media viewer's backdrop. */
@@ -76,8 +51,8 @@ data class MuhabbetSemanticColors(
 )
 
 val LightSemanticColors = MuhabbetSemanticColors(
-    statusOnline = WhatsAppUnreadLight,
-    statusRead = WhatsAppReadTickLight,
+    statusOnline = MuhabbetPalette.UnreadLight,
+    statusRead = MuhabbetPalette.ReadTickLight,
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFFBDBDBD),
     callDecline = Color(0xFFE53935),
@@ -85,17 +60,17 @@ val LightSemanticColors = MuhabbetSemanticColors(
     callAccept = Color(0xFF43A047),
     onCallAccept = Color.White,
     callMissed = Color(0xFFE53935),
-    bubbleOwn = WhatsAppOwnBubbleLight,
+    bubbleOwn = MuhabbetPalette.OwnBubbleLight,
     bubbleOther = Color.White,
-    onBubbleOwn = WhatsAppTextPrimaryLight,
-    onBubbleOther = WhatsAppTextPrimaryLight,
-    linkColor = WhatsAppAccent,
-    chatWallpaper = WhatsAppWallpaperLight,
+    onBubbleOwn = MuhabbetPalette.TextPrimaryLight,
+    onBubbleOther = MuhabbetPalette.TextPrimaryLight,
+    linkColor = MuhabbetPalette.Accent,
+    chatWallpaper = MuhabbetPalette.WallpaperLight,
     inputBarBackground = Color.White,
-    inputFieldBackground = WhatsAppInputFieldLight,
-    dividerColor = WhatsAppDividerLight,
-    secondaryText = WhatsAppTextSecondaryLight,
-    unreadBadge = WhatsAppUnreadLight,
+    inputFieldBackground = MuhabbetPalette.InputFieldLight,
+    dividerColor = MuhabbetPalette.DividerLight,
+    secondaryText = MuhabbetPalette.TextSecondaryLight,
+    unreadBadge = MuhabbetPalette.UnreadLight,
     onUnreadBadge = Color.White,
     scrim = Color.Black,
     scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
@@ -103,26 +78,26 @@ val LightSemanticColors = MuhabbetSemanticColors(
 )
 
 val DarkSemanticColors = MuhabbetSemanticColors(
-    statusOnline = WhatsAppAccent,
-    statusRead = WhatsAppReadTickDark,
+    statusOnline = MuhabbetPalette.Accent,
+    statusRead = MuhabbetPalette.ReadTickDark,
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
     onCallDecline = Color.White,
-    callAccept = WhatsAppAccent,
+    callAccept = MuhabbetPalette.Accent,
     onCallAccept = Color.White,
     callMissed = Color(0xFFEF5350),
-    bubbleOwn = WhatsAppOwnBubbleDark,
-    bubbleOther = WhatsAppDarkSurface,
-    onBubbleOwn = WhatsAppTextPrimary,
-    onBubbleOther = WhatsAppTextPrimary,
-    linkColor = WhatsAppAccent,
-    chatWallpaper = WhatsAppWallpaperDark,
-    inputBarBackground = WhatsAppDarkSurface,
-    inputFieldBackground = WhatsAppDarkElevated,
-    dividerColor = WhatsAppDividerDark,
-    secondaryText = WhatsAppTextSecondary,
-    unreadBadge = WhatsAppAccent,
+    bubbleOwn = MuhabbetPalette.OwnBubbleDark,
+    bubbleOther = MuhabbetPalette.DarkSurface,
+    onBubbleOwn = MuhabbetPalette.TextPrimary,
+    onBubbleOther = MuhabbetPalette.TextPrimary,
+    linkColor = MuhabbetPalette.Accent,
+    chatWallpaper = MuhabbetPalette.WallpaperDark,
+    inputBarBackground = MuhabbetPalette.DarkSurface,
+    inputFieldBackground = MuhabbetPalette.DarkElevated,
+    dividerColor = MuhabbetPalette.DividerDark,
+    secondaryText = MuhabbetPalette.TextSecondary,
+    unreadBadge = MuhabbetPalette.Accent,
     onUnreadBadge = Color.White,
     scrim = Color.Black,
     scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
@@ -130,26 +105,26 @@ val DarkSemanticColors = MuhabbetSemanticColors(
 )
 
 val OledSemanticColors = MuhabbetSemanticColors(
-    statusOnline = WhatsAppAccent,
-    statusRead = WhatsAppReadTickDark,
+    statusOnline = MuhabbetPalette.Accent,
+    statusRead = MuhabbetPalette.ReadTickDark,
     statusDelivered = Color(0xFF9E9E9E),
     statusSending = Color(0xFF757575),
     callDecline = Color(0xFFEF5350),
     onCallDecline = Color.White,
-    callAccept = WhatsAppAccent,
+    callAccept = MuhabbetPalette.Accent,
     onCallAccept = Color.White,
     callMissed = Color(0xFFEF5350),
-    bubbleOwn = WhatsAppOwnBubbleDark,
+    bubbleOwn = MuhabbetPalette.OwnBubbleDark,
     bubbleOther = Color(0xFF0A1014),
-    onBubbleOwn = WhatsAppTextPrimary,
-    onBubbleOther = WhatsAppTextPrimary,
-    linkColor = WhatsAppAccent,
+    onBubbleOwn = MuhabbetPalette.TextPrimary,
+    onBubbleOther = MuhabbetPalette.TextPrimary,
+    linkColor = MuhabbetPalette.Accent,
     chatWallpaper = Color.Black,
     inputBarBackground = Color(0xFF0A1014),
     inputFieldBackground = Color(0xFF1A2228),
     dividerColor = Color(0xFF1A2228),
-    secondaryText = WhatsAppTextSecondary,
-    unreadBadge = WhatsAppAccent,
+    secondaryText = MuhabbetPalette.TextSecondary,
+    unreadBadge = MuhabbetPalette.Accent,
     onUnreadBadge = Color.White,
     scrim = Color.Black,
     scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
@@ -249,85 +224,10 @@ object MuhabbetElevation {
     val Level6: Dp = 8.dp
 }
 
-// ─── M3 Color schemes ──────────────────────────────────────
-
-val MuhabbetLightColorScheme = lightColorScheme(
-    primary = WhatsAppAccent,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFB2F1E5),
-    onPrimaryContainer = Color(0xFF002117),
-    secondary = WhatsAppUnreadLight,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFC8E6C9),
-    onSecondaryContainer = Color(0xFF1B5E20),
-    tertiary = Color(0xFFFFB300),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFECB3),
-    onTertiaryContainer = Color(0xFF7F6003),
-    error = Red700,
-    onError = Color.White,
-    surface = Color.White,
-    onSurface = WhatsAppTextPrimaryLight,
-    surfaceVariant = WhatsAppInputFieldLight,
-    onSurfaceVariant = WhatsAppTextSecondaryLight,
-    outline = WhatsAppDividerLight,
-    outlineVariant = Color(0xFFCAC4D0)
-)
-
-val MuhabbetDarkColorScheme = darkColorScheme(
-    primary = WhatsAppAccent,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF005048),
-    onPrimaryContainer = Color(0xFFB2DFDB),
-    secondary = WhatsAppAccent,
-    onSecondary = Color(0xFF003A08),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Color(0xFFC8E6C9),
-    tertiary = Color(0xFFFFB300),
-    onTertiary = Color(0xFF3F2E00),
-    tertiaryContainer = Color(0xFF5B4300),
-    onTertiaryContainer = Color(0xFFFFECB3),
-    error = Red400,
-    onError = Color(0xFF601410),
-    surface = WhatsAppDarkSurface,
-    onSurface = WhatsAppTextPrimary,
-    surfaceVariant = WhatsAppDarkElevated,
-    onSurfaceVariant = WhatsAppTextSecondary,
-    outline = WhatsAppDividerDark,
-    outlineVariant = Color(0xFF49454F),
-    background = WhatsAppDarkBg,
-    onBackground = WhatsAppTextPrimary
-)
-
-// OLED Black theme — true black backgrounds for AMOLED displays
-val MuhabbetOledBlackColorScheme = darkColorScheme(
-    primary = WhatsAppAccent,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF003D36),
-    onPrimaryContainer = Color(0xFFB2DFDB),
-    secondary = WhatsAppAccent,
-    onSecondary = Color(0xFF003A08),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Color(0xFFC8E6C9),
-    tertiary = Color(0xFFFFB300),
-    onTertiary = Color(0xFF3F2E00),
-    tertiaryContainer = Color(0xFF5B4300),
-    onTertiaryContainer = Color(0xFFFFECB3),
-    error = Red400,
-    onError = Color(0xFF601410),
-    surface = Color(0xFF0A1014),
-    onSurface = WhatsAppTextPrimary,
-    surfaceVariant = Color(0xFF1A2228),
-    onSurfaceVariant = WhatsAppTextSecondary,
-    outline = Color(0xFF1A2228),
-    outlineVariant = Color(0xFF49454F),
-    background = Color.Black,
-    onBackground = WhatsAppTextPrimary
-)
-
 @Composable
 fun MuhabbetTheme(
     mode: MuhabbetThemeMode = MuhabbetThemeMode.System,
+    hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     // Only System consults the OS. Light/Dark/Oled are explicit user choices and are honoured
@@ -354,9 +254,14 @@ fun MuhabbetTheme(
     // cannot pick up the scheme by themselves. Light icons everywhere except the light theme.
     SystemBarsEffect(lightIcons = resolved != ResolvedThemeMode.Light)
 
+    // Provided from here so that every component gets haptics for free and the user's on/off
+    // preference is checked in exactly one place rather than at each call site.
+    val haptics = rememberMuhabbetHaptics(enabled = hapticsEnabled)
+
     CompositionLocalProvider(
         LocalSemanticColors provides semanticColors,
-        LocalThemeMode provides resolved
+        LocalThemeMode provides resolved,
+        LocalHaptics provides haptics
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
