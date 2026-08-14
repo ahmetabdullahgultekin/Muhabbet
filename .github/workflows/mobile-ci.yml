@@ -93,6 +93,28 @@ jobs:
       - name: Build shared module
         run: ./gradlew :shared:jvmJar :shared:assembleRelease
 
+      # Static UI guardrails: string-resource sync across both locales, and the design-system
+      # ratchet. Reads sources off disk, so it needs no Android SDK — hence SKIP_MOBILE.
+      - name: Verify UI guardrails
+        run: ./gradlew verifyUi
+        env:
+          SKIP_MOBILE: 'true'
+
+      # Until now nothing in CI ran the mobile tests at all — including the WCAG contrast checks
+      # that guard the palette. Not continue-on-error: a failure here should stop the build.
+      - name: Run mobile unit tests
+        run: ./gradlew :mobile:designsystem:testDebugUnitTest :mobile:composeApp:testDebugUnitTest
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-test-results
+          path: |
+            mobile/composeApp/build/reports/tests/
+            mobile/designsystem/build/reports/tests/
+          retention-days: 7
+
       - name: Build Android debug APK
         run: ./gradlew :mobile:composeApp:assembleDebug
 

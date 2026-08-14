@@ -26,5 +26,8 @@ dependencyResolutionManagement {
 include(":backend")
 include(":shared")
 if (System.getenv("SKIP_MOBILE") != "true") {
+    // Inside the guard: both apply an Android plugin, which needs an SDK to configure. Backend and
+    // security CI set SKIP_MOBILE=true and must stay configurable without one.
+    include(":mobile:designsystem")
     include(":mobile:composeApp")
 }

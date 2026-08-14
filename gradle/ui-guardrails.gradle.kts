@@ -16,71 +16,95 @@
 
 val mobileSrc = rootProject.file("mobile/composeApp/src")
 val uiSrc = File(mobileSrc, "commonMain/kotlin/com/muhabbet/app/ui")
+val designSystemSrc = rootProject.file("mobile/designsystem/src")
 val resourcesDir = File(mobileSrc, "commonMain/composeResources")
 val baselineFile = rootProject.file("gradle/ui-guardrails-baseline.properties")
 
-/** A rule counts lines matching [pattern] in files under [root], minus anything [exempt] allows. */
+/**
+ * Both roots are scanned. Scanning only composeApp would let the design-system module escape every
+ * rule the moment code moved into it — the counts would fall, the ratchet would look like it was
+ * improving, and the new module would be unpoliced.
+ */
+val scanRoots = listOf(uiSrc, designSystemSrc)
+
+/** A rule counts lines matching [pattern] across [scanRoots], minus anything [exempt] allows. */
 data class UiRule(
     val id: String,
     val why: String,
-    val root: File,
     val pattern: Regex,
     val exempt: (File) -> Boolean = { false }
 )
 
-/** The design system owns colours, type sizes and motion; screens consume tokens. */
-val inTheme: (File) -> Boolean = { it.path.replace('\\', '/').contains("/ui/theme/") }
+private fun File.unixPath(): String = path.replace('\\', '/')
 
-/** Shared components are allowed to use the primitives they exist to wrap. */
-val inComponents: (File) -> Boolean = { it.path.replace('\\', '/').contains("/ui/components/") }
+/**
+ * The token definitions themselves — the one place a raw colour, `sp` or `dp` is the point.
+ *
+ * Deliberately narrower than "anywhere in the design system": shared components must consume tokens
+ * like everyone else. `SectionHeader` hardcoding 16.dp/12.dp/8.dp is exactly the kind of thing this
+ * rule exists to surface, and exempting the whole module would have hidden it.
+ */
+val inTokenDefinitions: (File) -> Boolean = { it.unixPath().contains("/designsystem/") && it.unixPath().contains("/theme/") }
+
+/**
+ * The whole design-system module — for rules about wrapping raw Material primitives. Components
+ * exist precisely to call `Scaffold`, `TopAppBar` and `CircularProgressIndicator` so screens do not.
+ */
+val inDesignSystem: (File) -> Boolean = { it.unixPath().contains("/designsystem/") }
+
+/**
+ * The library's own text utilities, where the *correct* Turkish casing is implemented. Its
+ * `else -> uppercase()` fallback is the one legitimate call in the codebase.
+ */
+val inTextUtils: (File) -> Boolean = { it.unixPath().contains("/designsystem/") && it.unixPath().contains("/util/") }
 
 val uiRules = listOf(
     UiRule(
         "hardcodedColor",
         "Colour literals belong in the theme, so a palette change is one file.",
-        uiSrc, Regex("""Color\(0x"""), inTheme
+        Regex("""Color\(0x"""), inTokenDefinitions
     ),
     UiRule(
         "topAppBarColors",
         "23 copies of the same colour block are why top bars come in three different colours. Use MuhabbetTopBar.",
-        uiSrc, Regex("""topAppBarColors\("""), inComponents
+        Regex("""topAppBarColors\("""), inDesignSystem
     ),
     UiRule(
         "rawTopAppBar",
         "Hand-rolled TopAppBar. Use MuhabbetTopBar; ChatScreen and HomeShellScreen are the two deliberate exceptions.",
-        uiSrc, Regex("""[^a-zA-Z]TopAppBar\("""), inComponents
+        Regex("""[^a-zA-Z]TopAppBar\("""), inDesignSystem
     ),
     UiRule(
         "rawScaffold",
         "Hand-rolled Scaffold. Use MuhabbetScaffold, which also carries the one correct WindowInsets policy.",
-        uiSrc, Regex("""[^a-zA-Z]Scaffold\("""), inComponents
+        Regex("""[^a-zA-Z]Scaffold\("""), inDesignSystem
     ),
     UiRule(
         "bareProgress",
         "A centred spinner is not a loading state. Use MuhabbetScreenState / MuhabbetSkeleton.",
-        uiSrc, Regex("""CircularProgressIndicator\("""), inComponents
+        Regex("""CircularProgressIndicator\("""), inDesignSystem
     ),
     UiRule(
         "directIcons",
         "Icons are referenced by semantic name via MuhabbetIcons, so the icon set can change in one file.",
-        uiSrc, Regex("""(?<!import )\bIcons\.""") , inTheme
+        Regex("""(?<!import )\bIcons\."""), inDesignSystem
     ),
     UiRule(
         "spLiteral",
         "Type sizes live in MuhabbetTypography / MuhabbetTextStyles.",
-        uiSrc, Regex("""\b\d+(\.\d+)?\.sp\b"""), inTheme
+        Regex("""\b\d+(\.\d+)?\.sp\b"""), inTokenDefinitions
     ),
     UiRule(
         "dpLiteral",
         "Dimensions live in MuhabbetSpacing / MuhabbetSizes / MuhabbetCorners.",
-        uiSrc, Regex("""\b\d+(\.\d+)?\.dp\b"""), inTheme
+        Regex("""\b\d+(\.\d+)?\.dp\b"""), inTokenDefinitions
     ),
     UiRule(
         // Already at 0 — the view-once thumbnail blur was removed because Modifier.blur is a no-op
         // below API 31 while minSdk is 26, so it protected nothing on Android 8.0-11.
         "modifierBlur",
         "Blur may degrade decoratively, never protectively. Modifier.blur does nothing below API 31 and minSdk is 26.",
-        uiSrc, Regex("""\.blur\(""")
+        Regex("""\.blur\(""")
     ),
     UiRule(
         // Kotlin's no-arg lowercase()/uppercase() are locale-INDEPENDENT (root locale), which is the
@@ -90,7 +114,7 @@ val uiRules = listOf(
         // HomeShellScreen failing for Turkish names.
         "unlocaledCase",
         "Turkish needs i/İ and ı/I handled explicitly. Route case changes through a shared util.",
-        uiSrc, Regex("""\.(uppercase|lowercase)\(\)""")
+        Regex("""\.(uppercase|lowercase)\(\)"""), inTextUtils
     )
 )
 
@@ -111,7 +135,7 @@ val verifyDesignSystem by tasks.registering {
     group = "verification"
     description = "Ratchets design-system violations in the mobile UI layer; fails when a count rises."
     // Declared conditionally so a checkout without the mobile sources still configures.
-    if (uiSrc.exists()) inputs.dir(uiSrc)
+    scanRoots.filter { it.exists() }.forEach { inputs.dir(it) }
     if (baselineFile.exists()) inputs.file(baselineFile)
     doLast {
         val baseline = loadBaseline()
@@ -119,7 +143,7 @@ val verifyDesignSystem by tasks.registering {
         val regressions = mutableListOf<String>()
 
         uiRules.forEach { rule ->
-            val hits = rule.root.kotlinFiles()
+            val hits = scanRoots.flatMap { it.kotlinFiles() }
                 .filterNot(rule.exempt)
                 .sumOf { file -> file.readLines().count { rule.pattern.containsMatchIn(it) } }
             counts[rule.id] = hits
