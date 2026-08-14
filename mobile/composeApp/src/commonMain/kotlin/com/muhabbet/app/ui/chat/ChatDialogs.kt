@@ -276,7 +276,8 @@ fun ForwardPickerDialog(
                                 avatarUrl = conv.avatarUrl,
                                 displayName = convName,
                                 size = 36.dp,
-                                isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP
+                                isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP,
+                                contentDescription = if (conv.type == com.muhabbet.shared.model.ConversationType.GROUP) stringResource(Res.string.cd_group_avatar) else convName
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(convName, style = MaterialTheme.typography.bodyLarge)
@@ -301,6 +302,7 @@ fun DeleteConfirmDialog(
         title = stringResource(Res.string.chat_delete_title),
         message = stringResource(Res.string.chat_delete_confirm),
         confirmLabel = stringResource(Res.string.delete),
+        dismissLabel = stringResource(Res.string.cancel),
         onConfirm = onConfirm,
         onDismiss = onDismiss,
         isDestructive = true

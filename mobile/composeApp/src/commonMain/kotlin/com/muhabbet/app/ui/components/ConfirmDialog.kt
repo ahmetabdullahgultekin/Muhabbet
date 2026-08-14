@@ -5,23 +5,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import com.muhabbet.composeapp.generated.resources.Res
-import com.muhabbet.composeapp.generated.resources.cancel
-import org.jetbrains.compose.resources.stringResource
 
 /**
  * Reusable confirm/dismiss dialog for destructive or confirming actions.
  * Used for delete, leave, logout confirmations across the app.
+ *
+ * Every label is a parameter, including [dismissLabel], which used to default to
+ * `stringResource(Res.string.cancel)`. Presentational components carry no strings of their own: the
+ * caller owns the wording, and this component is about to move into a module that has no access to
+ * the app's string resources at all.
  */
 @Composable
 fun ConfirmDialog(
     title: String,
     message: String,
     confirmLabel: String,
+    dismissLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    isDestructive: Boolean = false,
-    dismissLabel: String = stringResource(Res.string.cancel)
+    isDestructive: Boolean = false
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,

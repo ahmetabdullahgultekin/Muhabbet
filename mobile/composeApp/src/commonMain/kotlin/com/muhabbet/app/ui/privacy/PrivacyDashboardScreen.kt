@@ -86,6 +86,7 @@ fun PrivacyDashboardScreen(
             title = stringResource(Res.string.privacy_delete_confirm_title),
             message = stringResource(Res.string.privacy_delete_confirm_message),
             confirmLabel = stringResource(Res.string.privacy_delete_account),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 showDeleteDialog = false
                 scope.launch {

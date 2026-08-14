@@ -104,6 +104,7 @@ fun UserProfileScreen(
             title = stringResource(Res.string.profile_block),
             message = stringResource(Res.string.profile_block_confirm),
             confirmLabel = stringResource(Res.string.profile_block),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 scope.launch {
                     snackbarHostState.showSnackbar(blockSuccessMsg)
@@ -120,6 +121,7 @@ fun UserProfileScreen(
             title = stringResource(Res.string.profile_report),
             message = stringResource(Res.string.profile_report_confirm),
             confirmLabel = stringResource(Res.string.profile_report),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 scope.launch {
                     snackbarHostState.showSnackbar(reportSuccessMsg)
@@ -464,7 +466,8 @@ private fun MutualGroupItem(
             avatarUrl = group.avatarUrl,
             displayName = group.name,
             size = MuhabbetSizes.AvatarSmall,
-            isGroup = true
+            isGroup = true,
+            contentDescription = stringResource(Res.string.cd_group_avatar)
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
@@ -484,5 +487,3 @@ private fun MutualGroupItem(
     }
 }
 
-/** @deprecated Use com.muhabbet.app.util.firstGrapheme instead */
-internal fun firstGrapheme(text: String): String = com.muhabbet.app.util.firstGrapheme(text)

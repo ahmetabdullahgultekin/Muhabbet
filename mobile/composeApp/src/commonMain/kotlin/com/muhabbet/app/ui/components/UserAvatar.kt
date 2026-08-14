@@ -19,18 +19,25 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.profile.firstGrapheme
-import com.muhabbet.composeapp.generated.resources.Res
-import com.muhabbet.composeapp.generated.resources.cd_group_avatar
-import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.app.util.firstGrapheme
 
+/**
+ * Circular avatar: remote image when there is one, otherwise a group glyph or the first grapheme of
+ * the name.
+ *
+ * @param contentDescription what a screen reader announces. Defaults to [displayName], which is
+ *   what the photo branch has always used. Group avatars pass an explicit label instead, because a
+ *   generic group glyph carrying a person-shaped name reads wrong. Supplied by the caller rather
+ *   than read from resources here: this component lives in a module with no string resources.
+ */
 @Composable
 fun UserAvatar(
     avatarUrl: String?,
     displayName: String,
     size: Dp,
     modifier: Modifier = Modifier,
-    isGroup: Boolean = false
+    isGroup: Boolean = false,
+    contentDescription: String? = null
 ) {
     Surface(
         modifier = modifier.size(size).clip(CircleShape),
@@ -40,7 +47,7 @@ fun UserAvatar(
         if (avatarUrl != null) {
             AsyncImage(
                 model = avatarUrl,
-                contentDescription = displayName,
+                contentDescription = contentDescription ?: displayName,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
@@ -49,7 +56,7 @@ fun UserAvatar(
                 if (isGroup) {
                     Icon(
                         imageVector = Icons.Default.Group,
-                        contentDescription = stringResource(Res.string.cd_group_avatar),
+                        contentDescription = contentDescription ?: displayName,
                         modifier = Modifier.size(size * 0.5f),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )

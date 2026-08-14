@@ -39,6 +39,7 @@ import com.muhabbet.app.ui.theme.MuhabbetTextStyles
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
+import com.muhabbet.composeapp.generated.resources.cd_group_avatar
 import com.muhabbet.shared.dto.ConversationResponse
 import org.jetbrains.compose.resources.stringResource
 
@@ -71,7 +72,8 @@ internal fun ConversationItem(
                 avatarUrl = avatarUrl,
                 displayName = displayName,
                 size = MuhabbetSizes.AvatarChatList,
-                isGroup = isGroup
+                isGroup = isGroup,
+                contentDescription = if (isGroup) stringResource(Res.string.cd_group_avatar) else displayName
             )
             // Green online dot
             if (isOnline) {

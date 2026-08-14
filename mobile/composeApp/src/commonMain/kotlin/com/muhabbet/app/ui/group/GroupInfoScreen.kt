@@ -163,6 +163,7 @@ fun GroupInfoScreen(
             title = stringResource(Res.string.group_leave_title),
             message = stringResource(Res.string.group_leave_confirm),
             confirmLabel = stringResource(Res.string.group_leave_button),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 scope.launch {
                     try {
@@ -230,7 +231,8 @@ fun GroupInfoScreen(
                             avatarUrl = conversation?.avatarUrl,
                             displayName = conversation?.name ?: "G",
                             size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarXLarge,
-                            isGroup = true
+                            isGroup = true,
+                            contentDescription = stringResource(Res.string.cd_group_avatar)
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
                         Text(

@@ -131,6 +131,7 @@ fun LinkedDevicesScreen(
             title = stringResource(Res.string.linked_devices_revoke),
             message = revokeConfirm,
             confirmLabel = stringResource(Res.string.linked_devices_revoke),
+            dismissLabel = stringResource(Res.string.cancel),
             isDestructive = true,
             onConfirm = {
                 val toRevoke = id

@@ -317,7 +317,7 @@ private fun SelectableContactItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = com.muhabbet.app.ui.profile.firstGrapheme(contact.displayName ?: "?"),
+                    text = com.muhabbet.app.util.firstGrapheme(contact.displayName ?: "?"),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
