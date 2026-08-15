@@ -98,6 +98,7 @@ fun CreateCommunityScreen(
                 onClick = {
                     scope.launch {
                         isCreating = true
+                        var createFailed = false
                         try {
                             val created = communityRepository.createCommunity(
                                 CreateCommunityRequest(
@@ -107,9 +108,12 @@ fun CreateCommunityScreen(
                             )
                             onCommunityCreated(created.id)
                         } catch (_: Exception) {
-                            snackbarHostState.showSnackbar(genericErrorMsg)
+                            createFailed = true
                         }
+                        // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                        // dismissed (~4s).
                         isCreating = false
+                        if (createFailed) snackbarHostState.showSnackbar(genericErrorMsg)
                     }
                 },
                 enabled = !isCreating && name.isNotBlank(),

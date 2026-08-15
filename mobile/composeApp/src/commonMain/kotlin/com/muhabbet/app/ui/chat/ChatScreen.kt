@@ -191,6 +191,7 @@ fun ChatScreen(
         if (picked == null) return@rememberFilePickerLauncher
         scope.launch {
             isUploading = true
+            var sendFailed = false
             try {
                 val upload = mediaUploadHelper.uploadDocument(picked.bytes, picked.fileName, picked.mimeType)
                 val msgId = generateMessageId(); val reqId = generateMessageId()
@@ -199,8 +200,10 @@ fun ChatScreen(
                     status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
                     content = picked.fileName, contentType = ContentType.DOCUMENT, mediaUrl = upload.url))
-            } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
+            } catch (_: Exception) { sendFailed = true }
+            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploading = false
+            if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
         }
     }
 
@@ -208,6 +211,7 @@ fun ChatScreen(
         if (picked == null) return@rememberImagePickerLauncher
         scope.launch {
             isUploading = true
+            var sendFailed = false
             try {
                 val upload = mediaUploadHelper.uploadImage(picked.bytes, picked.fileName)
                 val msgId = generateMessageId(); val reqId = generateMessageId()
@@ -216,8 +220,10 @@ fun ChatScreen(
                     thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
                     content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url, thumbnailUrl = upload.thumbnailUrl))
-            } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
+            } catch (_: Exception) { sendFailed = true }
+            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploading = false
+            if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
         }
     }
 
@@ -226,6 +232,7 @@ fun ChatScreen(
         if (picked == null) return@rememberCameraPickerLauncher
         scope.launch {
             isUploading = true
+            var sendFailed = false
             try {
                 val upload = mediaUploadHelper.uploadImage(picked.bytes, picked.fileName)
                 val msgId = generateMessageId(); val reqId = generateMessageId()
@@ -236,8 +243,10 @@ fun ChatScreen(
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
                     content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url, thumbnailUrl = upload.thumbnailUrl))
                 if (viewOnceEnabled) viewOnceEnabled = false
-            } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
+            } catch (_: Exception) { sendFailed = true }
+            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploading = false
+            if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
         }
     }
 
@@ -607,6 +616,7 @@ fun ChatScreen(
                             val audio = audioRecorder.stopRecording(); isRecording = false
                             if (audio != null) scope.launch {
                                 isUploading = true
+                                var sendFailed = false
                                 try {
                                     val upload = mediaUploadHelper.uploadAudio(
                                         audio.bytes,
@@ -626,8 +636,11 @@ fun ChatScreen(
                                         clientTimestamp = Clock.System.now()
                                     )
                                     wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
-                                } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
+                                } catch (_: Exception) { sendFailed = true }
+                                // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                                // dismissed (~4s).
                                 isUploading = false
+                                if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
                             }
                         }, onCancelRecording = { audioRecorder.cancelRecording(); isRecording = false }, modifier = Modifier.weight(1f))
                     }

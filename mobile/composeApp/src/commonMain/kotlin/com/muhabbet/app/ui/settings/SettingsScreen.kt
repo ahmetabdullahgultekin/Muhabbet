@@ -93,6 +93,7 @@ fun SettingsScreen(
         if (picked == null) return@rememberImagePickerLauncher
         scope.launch {
             isUploadingPhoto = true
+            var uploadFailed = false
             try {
                 val uploadResponse = mediaUploadHelper.uploadProfilePhoto(
                     bytes = picked.bytes,
@@ -100,12 +101,17 @@ fun SettingsScreen(
                 )
                 authRepository.updateProfile(avatarUrl = uploadResponse.url)
                 avatarUrl = uploadResponse.url
-                snackbarHostState.showSnackbar(profileUpdatedMsg)
             } catch (e: Exception) {
                 Log.e(TAG, "Profile photo upload failed", e)
-                snackbarHostState.showSnackbar(photoUploadFailedMsg)
+                uploadFailed = true
             }
+            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+            // Both outcomes reported here, because the success snackbar held the avatar spinner
+            // just as long as the failure one did.
             isUploadingPhoto = false
+            snackbarHostState.showSnackbar(
+                if (uploadFailed) photoUploadFailedMsg else profileUpdatedMsg
+            )
         }
     }
 
@@ -182,17 +188,23 @@ fun SettingsScreen(
                     onSave = {
                         isSaving = true
                         scope.launch {
+                            var saveFailed = false
                             try {
                                 authRepository.updateProfile(
                                     displayName = displayName.ifBlank { null },
                                     about = about.ifBlank { null }
                                 )
-                                snackbarHostState.showSnackbar(profileUpdatedMsg)
                             } catch (e: Exception) {
                                 Log.e(TAG, "Failed to save profile", e)
-                                snackbarHostState.showSnackbar(genericErrorMsg)
+                                saveFailed = true
                             }
+                            // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                            // dismissed (~4s). Both outcomes, for the same reason as the photo
+                            // upload above: a successful save spun the button just as long.
                             isSaving = false
+                            snackbarHostState.showSnackbar(
+                                if (saveFailed) genericErrorMsg else profileUpdatedMsg
+                            )
                         }
                     }
                 )

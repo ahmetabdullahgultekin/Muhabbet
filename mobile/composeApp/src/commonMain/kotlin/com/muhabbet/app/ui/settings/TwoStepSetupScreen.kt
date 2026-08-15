@@ -131,13 +131,17 @@ fun TwoStepSetupScreen(
                                 onClick = {
                                     scope.launch {
                                         isSaving = true
+                                        var disableFailed = false
                                         try {
                                             apiClient.delete<Unit>("/api/v1/auth/two-step")
                                             isEnabled = false
                                         } catch (_: Exception) {
-                                            snackbarHostState.showSnackbar(genericErrorMsg)
+                                            disableFailed = true
                                         }
+                                        // Clear the spinner BEFORE reporting — showSnackbar
+                                        // suspends until dismissed (~4s).
                                         isSaving = false
+                                        if (disableFailed) snackbarHostState.showSnackbar(genericErrorMsg)
                                     }
                                 },
                                 enabled = !isSaving,
@@ -218,6 +222,7 @@ fun TwoStepSetupScreen(
                                     pin != confirmPin -> snackbarHostState.showSnackbar(pinMismatchMsg)
                                     else -> {
                                         isSaving = true
+                                        var setupFailed = false
                                         try {
                                             apiClient.post<Unit>(
                                                 "/api/v1/auth/two-step",
@@ -227,11 +232,17 @@ fun TwoStepSetupScreen(
                                                 )
                                             )
                                             isEnabled = true
-                                            snackbarHostState.showSnackbar(enabledMsg)
                                         } catch (_: Exception) {
-                                            snackbarHostState.showSnackbar(genericErrorMsg)
+                                            setupFailed = true
                                         }
+                                        // Clear the spinner BEFORE reporting — showSnackbar
+                                        // suspends until dismissed (~4s). This is the success
+                                        // path too: the button spun for the whole time the
+                                        // "two-step enabled" confirmation was on screen.
                                         isSaving = false
+                                        snackbarHostState.showSnackbar(
+                                            if (setupFailed) genericErrorMsg else enabledMsg
+                                        )
                                     }
                                 }
                             }

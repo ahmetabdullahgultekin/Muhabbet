@@ -97,6 +97,7 @@ fun CreateGroupScreen(
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             isSyncing = true
+            var syncFailed = false
             try {
                 val deviceContacts = withContext(Dispatchers.Default) {
                     contactsProvider.readContacts()
@@ -110,9 +111,11 @@ fun CreateGroupScreen(
                     contacts = result.matchedContacts
                 }
             } catch (_: Exception) {
-                snackbarHostState.showSnackbar(errorMsg)
+                syncFailed = true
             }
+            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isSyncing = false
+            if (syncFailed) snackbarHostState.showSnackbar(errorMsg)
         }
     }
 
@@ -147,8 +150,10 @@ fun CreateGroupScreen(
                                 )
                                 onGroupCreated(conv.id, groupName.trim())
                             } catch (_: Exception) {
-                                snackbarHostState.showSnackbar(errorMsg)
+                                // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                                // dismissed (~4s).
                                 isCreating = false
+                                snackbarHostState.showSnackbar(errorMsg)
                             }
                         }
                     },
