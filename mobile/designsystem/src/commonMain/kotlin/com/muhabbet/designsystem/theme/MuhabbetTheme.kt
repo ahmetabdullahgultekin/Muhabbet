@@ -160,6 +160,15 @@ object MuhabbetSizes {
     /** The large, faded icon above an empty- or error-state message. */
     val IconEmptyState: Dp = 56.dp
 
+    /** A colour swatch standing in for a legend entry — the storage breakdown's category dots. */
+    val IndicatorDot: Dp = 8.dp
+
+    /**
+     * Stroke for a spinner shrunk to icon size. M3's default stroke is proportioned for the default
+     * 40dp indicator and reads as a solid disc once the diameter drops to 16–24dp.
+     */
+    val ProgressStrokeThin: Dp = 2.dp
+
     /** Height of a placeholder text line in a skeleton — matches a body line's visual weight. */
     val SkeletonLine: Dp = 14.dp
 

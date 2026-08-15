@@ -17,9 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -31,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.ThemeController
@@ -46,7 +43,8 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
-import com.muhabbet.designsystem.components.MuhabbetSwitch
+import com.muhabbet.designsystem.components.SettingsSwitchRow
+import com.muhabbet.designsystem.components.SettingsRadioRow
 
 /**
  * Avatar (with camera overlay) + display-name / about fields + save button.
@@ -144,38 +142,6 @@ internal fun ProfileEditorSection(
     }
 }
 
-/**
- * Reusable settings navigation row: an icon + label inside a clickable [Surface].
- * Used by every "open sub-screen" entry in [SettingsScreen].
- */
-@Composable
-internal fun SettingsNavRow(
-    label: String,
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        tonalElevation = MuhabbetElevation.Level1,
-        shape = MaterialTheme.shapes.small
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Medium, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-            Text(text = label, style = MaterialTheme.typography.bodyLarge)
-        }
-    }
-}
-
 @Composable
 internal fun SettingsSectionTitle(title: String) {
     Text(
@@ -260,27 +226,15 @@ internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit)
         "en" to stringResource(Res.string.settings_language_english)
     )
     options.forEach { (key, label) ->
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .clickable {
-                    selectedLanguage = key
-                    tokenStorage.setLanguage(key)
-                    restartApp()
-                }
-                .padding(vertical = MuhabbetSpacing.Small),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
-        ) {
-            RadioButton(
-                selected = selectedLanguage == key,
-                onClick = {
-                    selectedLanguage = key
-                    tokenStorage.setLanguage(key)
-                    restartApp()
-                }
-            )
-            Text(text = label, style = MaterialTheme.typography.bodyLarge)
-        }
+        SettingsRadioRow(
+            title = label,
+            selected = selectedLanguage == key,
+            onSelect = {
+                selectedLanguage = key
+                tokenStorage.setLanguage(key)
+                restartApp()
+            }
+        )
     }
 }
 
@@ -301,19 +255,11 @@ internal fun ThemeSection(themeController: ThemeController) {
         MuhabbetThemeMode.Oled to stringResource(Res.string.settings_theme_oled)
     )
     themeOptions.forEach { (mode, label) ->
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .clickable { themeController.set(mode) }
-                .padding(vertical = MuhabbetSpacing.Small),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
-        ) {
-            RadioButton(
-                selected = selectedTheme == mode,
-                onClick = { themeController.set(mode) }
-            )
-            Text(text = label, style = MaterialTheme.typography.bodyLarge)
-        }
+        SettingsRadioRow(
+            title = label,
+            selected = selectedTheme == mode,
+            onSelect = { themeController.set(mode) }
+        )
     }
 }
 
@@ -323,27 +269,12 @@ internal fun PrivacySection() {
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
     var readReceiptsEnabled by remember { mutableStateOf(true) }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(Res.string.settings_privacy_read_receipts),
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        MuhabbetSwitch(
-            checked = readReceiptsEnabled,
-            onCheckedChange = { readReceiptsEnabled = it }
-        )
-    }
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_privacy_read_receipts),
+        subtitle = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
+        checked = readReceiptsEnabled,
+        onCheckedChange = { readReceiptsEnabled = it }
+    )
 }
 
 @Composable
@@ -353,34 +284,16 @@ internal fun NotificationsSection() {
 
     var notificationsEnabled by remember { mutableStateOf(true) }
     var vibrationEnabled by remember { mutableStateOf(true) }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = stringResource(Res.string.settings_notifications_enabled),
-            style = MaterialTheme.typography.bodyLarge
-        )
-        MuhabbetSwitch(
-            checked = notificationsEnabled,
-            onCheckedChange = { notificationsEnabled = it }
-        )
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = stringResource(Res.string.settings_notifications_vibrate),
-            style = MaterialTheme.typography.bodyLarge
-        )
-        MuhabbetSwitch(
-            checked = vibrationEnabled,
-            onCheckedChange = { vibrationEnabled = it }
-        )
-    }
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_notifications_enabled),
+        checked = notificationsEnabled,
+        onCheckedChange = { notificationsEnabled = it }
+    )
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_notifications_vibrate),
+        checked = vibrationEnabled,
+        onCheckedChange = { vibrationEnabled = it }
+    )
 }
 
 /**
@@ -393,24 +306,14 @@ internal fun NotificationsSection() {
 @Composable
 internal fun HapticsSection(themeController: ThemeController) {
     val enabled by themeController.hapticsEnabled.collectAsState()
-    SettingsSectionTitle(stringResource(Res.string.settings_haptics))
-    Spacer(Modifier.height(MuhabbetSpacing.Small))
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = stringResource(Res.string.settings_haptics_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
-        MuhabbetSwitch(
-            checked = enabled,
-            onCheckedChange = { themeController.setHapticsEnabled(it) }
-        )
-    }
+    // No section title: the row's own title is the same string, and the divider above it in
+    // SettingsScreen already separates it from the block before.
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_haptics),
+        subtitle = stringResource(Res.string.settings_haptics_subtitle),
+        checked = enabled,
+        onCheckedChange = { themeController.setHapticsEnabled(it) }
+    )
 }
 
 @Composable

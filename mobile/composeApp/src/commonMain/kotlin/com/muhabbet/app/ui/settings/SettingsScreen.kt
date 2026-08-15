@@ -52,6 +52,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.SettingsNavRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -214,30 +215,30 @@ fun SettingsScreen(
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 SettingsNavRow(
-                    label = stringResource(Res.string.starred_title),
+                    title = stringResource(Res.string.starred_title),
                     icon = Muhabbet.icons.Star,
-                    contentDescription = stringResource(Res.string.starred_title),
+                    iconContentDescription = stringResource(Res.string.starred_title),
                     onClick = onStarredMessages
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
-                    label = stringResource(Res.string.two_step_title),
+                    title = stringResource(Res.string.two_step_title),
                     icon = Muhabbet.icons.TwoStep,
-                    contentDescription = stringResource(Res.string.two_step_title),
+                    iconContentDescription = stringResource(Res.string.two_step_title),
                     onClick = onTwoStepVerification
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
-                    label = stringResource(Res.string.app_lock_title),
+                    title = stringResource(Res.string.app_lock_title),
                     icon = Muhabbet.icons.Lock,
-                    contentDescription = stringResource(Res.string.app_lock_title),
+                    iconContentDescription = stringResource(Res.string.app_lock_title),
                     onClick = onAppLock
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
-                    label = stringResource(Res.string.wallpaper_title),
+                    title = stringResource(Res.string.wallpaper_title),
                     icon = Muhabbet.icons.Wallpaper,
-                    contentDescription = stringResource(Res.string.wallpaper_title),
+                    iconContentDescription = stringResource(Res.string.wallpaper_title),
                     onClick = onWallpaper
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
@@ -245,9 +246,9 @@ fun SettingsScreen(
                 // Media Quality row
                 var showMediaQualityDialog by remember { mutableStateOf(false) }
                 SettingsNavRow(
-                    label = stringResource(Res.string.media_quality_title),
+                    title = stringResource(Res.string.media_quality_title),
                     icon = Muhabbet.icons.MediaQuality,
-                    contentDescription = stringResource(Res.string.media_quality_title),
+                    iconContentDescription = stringResource(Res.string.media_quality_title),
                     onClick = { showMediaQualityDialog = true }
                 )
                 if (showMediaQualityDialog) {
@@ -280,9 +281,9 @@ fun SettingsScreen(
 
                 // Privacy Dashboard link
                 SettingsNavRow(
-                    label = stringResource(Res.string.privacy_open_dashboard),
+                    title = stringResource(Res.string.privacy_open_dashboard),
                     icon = Muhabbet.icons.Privacy,
-                    contentDescription = stringResource(Res.string.privacy_open_dashboard),
+                    iconContentDescription = stringResource(Res.string.privacy_open_dashboard),
                     onClick = onPrivacyDashboard
                 )
 

@@ -1,14 +1,15 @@
 package com.muhabbet.designsystem.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,45 +17,61 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 
 /**
- * Reusable section header with optional colored dot indicator.
- * Used in MessageInfoScreen, SettingsScreen, GroupInfoScreen, UserProfileScreen.
+ * The heading above a group of related rows.
+ *
+ * Takes an optional leading indicator, in the two forms the app actually uses: a coloured dot (the
+ * storage breakdown's legend) or an icon (the privacy dashboard's sections). Whichever is present
+ * tints the title too, so the heading reads as one accented unit rather than a stray coloured mark
+ * next to unrelated text. With neither, it is a plain bold label.
+ *
+ * The privacy dashboard had reimplemented the icon variant privately rather than extending this —
+ * which is how the app ended up with two section headers that agreed on nothing but the font.
+ *
+ * [contentPadding] exists because the two parents are padded differently: the dashboard is a bare
+ * `LazyColumn` and needs the header to supply its own inset, while the settings column already has
+ * one and would double it.
  */
 @Composable
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
-    dotColor: Color? = null
+    icon: ImageVector? = null,
+    dotColor: Color? = null,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = MuhabbetSpacing.Large,
+        vertical = MuhabbetSpacing.Medium
+    )
 ) {
+    // The dot carries its own colour (each storage category has one); the icon uses the accent.
+    val titleColor = dotColor ?: if (icon != null) accentColor else MaterialTheme.colorScheme.onSurface
+
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier.fillMaxWidth().padding(contentPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
     ) {
         if (dotColor != null) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = dotColor
-            )
-        } else {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+            Box(Modifier.size(MuhabbetSizes.IndicatorDot).clip(CircleShape).background(dotColor))
+        } else if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(MuhabbetSizes.IconLarge)
             )
         }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = titleColor
+        )
     }
 }
