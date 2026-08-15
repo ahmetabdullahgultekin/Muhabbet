@@ -42,6 +42,11 @@ import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.breathing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
+import com.muhabbet.designsystem.theme.MuhabbetGradients
+import com.muhabbet.designsystem.components.UserAvatar
 
 @Composable
 fun IncomingCallScreen(
@@ -57,6 +62,7 @@ fun IncomingCallScreen(
 
     val acceptLabel = stringResource(Res.string.call_accept)
     val declineLabel = stringResource(Res.string.call_decline)
+    val haptics = Muhabbet.haptics
     val ringingLabel = stringResource(Res.string.call_ringing)
     val callTypeLabel = if (callType == CallType.VIDEO)
         stringResource(Res.string.call_video)
@@ -66,7 +72,7 @@ fun IncomingCallScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MuhabbetGradients.brandBackdrop),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -76,10 +82,11 @@ fun IncomingCallScreen(
             modifier = Modifier.safeDrawingPadding().padding(MuhabbetSpacing.XXLarge)
         ) {
             // Caller avatar
-            com.muhabbet.designsystem.components.UserAvatar(
+            UserAvatar(
                 avatarUrl = null,
                 displayName = callerName ?: callerId,
-                size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarCall
+                size = MuhabbetSizes.AvatarCall,
+                modifier = Modifier.breathing()
             )
 
             Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
@@ -106,11 +113,11 @@ fun IncomingCallScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(MuhabbetSpacing.XXLarge))
 
             // Accept / Decline buttons
             Row(
-                horizontalArrangement = Arrangement.spacedBy(64.dp),
+                horizontalArrangement = Arrangement.spacedBy(MuhabbetSizes.CallActionGap),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Decline
@@ -127,10 +134,11 @@ fun IncomingCallScreen(
                                     Log.e("IncomingCallScreen", "Failed to send call decline", e)
                                 }
                             }
+                            haptics.perform(MuhabbetHapticIntent.CallDeclined)
                             onDecline()
                         },
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(MuhabbetSizes.CallActionButton)
                             .clip(CircleShape)
                             .background(LocalSemanticColors.current.callDecline)
                     ) {
@@ -138,7 +146,7 @@ fun IncomingCallScreen(
                             imageVector = Muhabbet.icons.CallEnd,
                             contentDescription = declineLabel,
                             tint = LocalSemanticColors.current.onCallDecline,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconHero)
                         )
                     }
                     Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))
@@ -159,10 +167,11 @@ fun IncomingCallScreen(
                                     Log.e("IncomingCallScreen", "Failed to send call accept", e)
                                 }
                             }
+                            haptics.perform(MuhabbetHapticIntent.CallAccepted)
                             onAccept()
                         },
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(MuhabbetSizes.CallActionButton)
                             .clip(CircleShape)
                             .background(LocalSemanticColors.current.callAccept)
                     ) {
@@ -170,7 +179,7 @@ fun IncomingCallScreen(
                             imageVector = if (callType == CallType.VIDEO) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
                             contentDescription = acceptLabel,
                             tint = LocalSemanticColors.current.onCallAccept,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(MuhabbetSizes.IconHero)
                         )
                     }
                     Spacer(modifier = Modifier.height(MuhabbetSpacing.Small))

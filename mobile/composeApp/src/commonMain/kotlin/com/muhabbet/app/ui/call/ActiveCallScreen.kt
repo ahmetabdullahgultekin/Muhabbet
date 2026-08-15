@@ -54,6 +54,11 @@ import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import kotlin.time.Clock
+import com.muhabbet.designsystem.theme.breathing
+import com.muhabbet.designsystem.theme.MuhabbetGradients
+import com.muhabbet.designsystem.theme.MuhabbetDurations
+import com.muhabbet.designsystem.components.UserAvatar
 
 /**
  * Where the call actually is, as opposed to where the screen happens to be.
@@ -98,9 +103,13 @@ fun ActiveCallScreen(
     // that never connected at all) still showed a duration ticking away underneath.
     LaunchedEffect(callId, mediaState) {
         if (mediaState != CallMediaState.CONNECTED) return@LaunchedEffect
+        // Elapsed since a start mark, not an incrementing counter. `delay` guarantees *at least*
+        // the requested time, so `delay(1000); n++` loses a little on every tick and a long call
+        // ends up visibly short — the one number on this screen a user might later quote.
+        val startedAt = Clock.System.now()
         while (true) {
-            delay(com.muhabbet.designsystem.theme.MuhabbetDurations.CallTimerTickMs)
-            callDurationSeconds++
+            callDurationSeconds = (Clock.System.now() - startedAt).inWholeSeconds.toInt()
+            delay(MuhabbetDurations.CallTimerTickMs)
         }
     }
 
@@ -147,7 +156,7 @@ fun ActiveCallScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MuhabbetGradients.brandBackdrop),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -157,20 +166,19 @@ fun ActiveCallScreen(
             // call controls stay clear of the gesture bar. There is no Scaffold on this screen.
             modifier = Modifier.safeDrawingPadding().padding(MuhabbetSpacing.XXLarge)
         ) {
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = (otherUserName ?: "?").take(1).uppercase(),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+            // UserAvatar rather than a hand-rolled initial. The old expression,
+            // `(otherUserName ?: "?").take(1).uppercase()`, was wrong twice over: `uppercase()` is
+            // locale-independent, so "ismail" gave "I" where Turkish wants "İ", and `take(1)` cuts a
+            // surrogate pair or an emoji in half. `UserAvatar` routes through `firstGrapheme`, which
+            // has handled both since Phase 1 — this screen was simply not using it.
+            //
+            // It breathes while the call is still connecting, and stops once it is up.
+            UserAvatar(
+                avatarUrl = null,
+                displayName = otherUserName ?: otherUserId,
+                size = MuhabbetSizes.AvatarCall,
+                modifier = Modifier.breathing(enabled = mediaState == CallMediaState.CONNECTING)
+            )
 
             Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
 

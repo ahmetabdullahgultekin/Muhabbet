@@ -14,6 +14,16 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.Modifier
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 
 /**
  * The app's motion scale.
@@ -118,3 +128,36 @@ object MuhabbetMotion {
     val EmphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
     val EmphasizedAccelerate: Easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 }
+
+/**
+ * A slow scale pulse, for something that is waiting on someone else.
+ *
+ * Used on the avatar while a call rings or connects. The point is not decoration: a completely still
+ * screen during the seconds between dialling and connecting gives no signal that anything is
+ * happening, and that is exactly when a user starts wondering whether to hang up and try again.
+ *
+ * Deliberately small (a few percent) and slow. A pulse you consciously notice is worse than none —
+ * it competes with the two buttons that matter. There is no haptic attached: repeating haptics are
+ * the fastest way to make a phone feel broken, and this repeats for as long as the call rings.
+ *
+ * @param enabled when false the modifier is inert, so a caller can stop the pulse the moment the
+ *   call connects without swapping modifier chains.
+ */
+@Composable
+fun Modifier.breathing(enabled: Boolean = true): Modifier {
+    if (!enabled) return this
+    val transition = rememberInfiniteTransition(label = "breathing")
+    val scale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = BreathingPeak,
+        animationSpec = infiniteRepeatable(
+            animation = tween(BreathingPeriodMs, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breathingScale"
+    )
+    return graphicsLayer { scaleX = scale; scaleY = scale }
+}
+
+private const val BreathingPeak = 1.04f
+private const val BreathingPeriodMs = 1400

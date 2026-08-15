@@ -157,6 +157,12 @@ object MuhabbetSizes {
     /** The delivery tick beside a bubble's timestamp — smaller than an icon, it is punctuation. */
     val IconStatusTick: Dp = 14.dp
 
+    /** Accept and decline on the incoming-call screen — the largest touch targets in the app. */
+    val CallActionButton: Dp = 64.dp
+
+    /** Gap between accept and decline. Wide on purpose: these two must not be mis-tapped. */
+    val CallActionGap: Dp = 64.dp
+
     /** A resting outline: divider-weight, present but not asking for attention. */
     val BorderHairline: Dp = 1.dp
 
