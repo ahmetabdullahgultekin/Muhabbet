@@ -16,16 +16,21 @@
 
 val mobileSrc = rootProject.file("mobile/composeApp/src")
 val uiSrc = File(mobileSrc, "commonMain/kotlin/com/muhabbet/app/ui")
+val navSrc = File(mobileSrc, "commonMain/kotlin/com/muhabbet/app/navigation")
 val designSystemSrc = rootProject.file("mobile/designsystem/src")
 val resourcesDir = File(mobileSrc, "commonMain/composeResources")
 val baselineFile = rootProject.file("gradle/ui-guardrails-baseline.properties")
 
 /**
- * Both roots are scanned. Scanning only composeApp would let the design-system module escape every
- * rule the moment code moved into it — the counts would fall, the ratchet would look like it was
- * improving, and the new module would be unpoliced.
+ * All three roots are scanned. Scanning only composeApp would let the design-system module escape
+ * every rule the moment code moved into it — the counts would fall, the ratchet would look like it
+ * was improving, and the new module would be unpoliced.
+ *
+ * `navigation/` joined late, for `rawStackAnimation`. It was verified to contribute **zero** hits to
+ * every pre-existing rule before being added, so no baseline moved: adding a root that silently
+ * raised counts would have made this commit's ratchet numbers unreadable.
  */
-val scanRoots = listOf(uiSrc, designSystemSrc)
+val scanRoots = listOf(uiSrc, navSrc, designSystemSrc)
 
 /** A rule counts lines matching [pattern] across [scanRoots], minus anything [exempt] allows. */
 data class UiRule(
@@ -57,6 +62,9 @@ val inDesignSystem: (File) -> Boolean = { it.unixPath().contains("/designsystem/
  * `else -> uppercase()` fallback is the one legitimate call in the codebase.
  */
 val inTextUtils: (File) -> Boolean = { it.unixPath().contains("/designsystem/") && it.unixPath().contains("/util/") }
+
+/** The one file allowed to build a `StackAnimation`, for the same reason `MuhabbetTopBar` exists. */
+val inStackAnimations: (File) -> Boolean = { it.unixPath().endsWith("/navigation/MuhabbetStackAnimations.kt") }
 
 val uiRules = listOf(
     UiRule(
@@ -121,6 +129,15 @@ val uiRules = listOf(
         "unlocaledCase",
         "Turkish needs i/İ and ı/I handled explicitly. Use foldForSearch (search) or firstGrapheme (display).",
         Regex("""\.(uppercase|lowercase)\(\)"""), inTextUtils
+    ),
+    UiRule(
+        // Starts at 0 and stays there. The three Children call sites now share two presets built on
+        // MuhabbetMotion; a fourth screen stack calling stackAnimation(slide()) inline would quietly
+        // reintroduce Decompose's stock tween, which is exactly the drift that gave this app top
+        // bars in three different colours.
+        "rawStackAnimation",
+        "Navigation motion comes from sharedAxisX()/rootFade() in MuhabbetStackAnimations.kt, so it uses the same springs as everything else.",
+        Regex("""stackAnimation\("""), inStackAnimations
     )
 )
 

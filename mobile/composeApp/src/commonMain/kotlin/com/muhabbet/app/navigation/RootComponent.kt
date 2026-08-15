@@ -7,8 +7,6 @@ import com.arkivanov.decompose.router.stack.StackNavigation
 import com.arkivanov.decompose.router.stack.childStack
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.extensions.compose.stack.Children
-import com.arkivanov.decompose.extensions.compose.stack.animation.fade
-import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.data.local.TokenStorage
 import kotlinx.serialization.Serializable
@@ -59,7 +57,7 @@ class RootComponent(
 fun RootContent(root: RootComponent) {
     Children(
         stack = root.childStack,
-        animation = stackAnimation(fade())
+        animation = rootFade()
     ) { child ->
         when (val instance = child.instance) {
             is RootComponent.Child.Auth -> AuthContent(instance.component)

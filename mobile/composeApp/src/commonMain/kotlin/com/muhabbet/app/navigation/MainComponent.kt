@@ -12,8 +12,6 @@ import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.push
 import com.arkivanov.decompose.router.stack.replaceCurrent
 import com.arkivanov.decompose.extensions.compose.stack.Children
-import com.arkivanov.decompose.extensions.compose.stack.animation.slide
-import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.ui.call.ActiveCallScreen
 import com.muhabbet.app.ui.call.CallHistoryScreen
@@ -253,7 +251,7 @@ class MainComponent(
 fun MainContent(component: MainComponent) {
     Children(
         stack = component.childStack,
-        animation = stackAnimation(slide())
+        animation = sharedAxisX()
     ) { child ->
         when (val config = child.instance) {
             is MainComponent.Config.HomeShell -> HomeShellScreen(
