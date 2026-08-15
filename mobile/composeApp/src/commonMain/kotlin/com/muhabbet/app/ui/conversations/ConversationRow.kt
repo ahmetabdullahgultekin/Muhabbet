@@ -40,12 +40,19 @@ import com.muhabbet.composeapp.generated.resources.cd_group_avatar
 import com.muhabbet.shared.dto.ConversationResponse
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
+    modifier: Modifier = Modifier,
     avatarUrl: String? = null,
     isOnline: Boolean,
     isGroup: Boolean = false,
@@ -55,12 +62,19 @@ internal fun ConversationItem(
     onPin: () -> Unit = {}
 ) {
     val hasUnread = conversation.unreadCount > 0
+    val haptics = Muhabbet.haptics
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = MuhabbetSizes.ChatListItemMinHeight)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.perform(MuhabbetHapticIntent.ItemLongPressed)
+                    onLongClick()
+                }
+            )
             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -134,13 +148,22 @@ internal fun ConversationItem(
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (hasUnread) {
-                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                Badge(
-                    containerColor = LocalSemanticColors.current.unreadBadge,
-                    contentColor = LocalSemanticColors.current.onUnreadBadge
-                ) {
-                    Text(conversation.unreadCount.toString())
+            // The badge is the one thing in this row that appears because something happened
+            // elsewhere, so it is the one thing worth animating: a spatial spring reads as arriving
+            // rather than as a repaint. Scale only — a moving badge would drag the timestamp with it.
+            AnimatedVisibility(
+                visible = hasUnread,
+                enter = scaleIn(Muhabbet.motion.spatialDefault()) + fadeIn(Muhabbet.motion.effectsFast()),
+                exit = scaleOut(Muhabbet.motion.effectsFast()) + fadeOut(Muhabbet.motion.effectsFast())
+            ) {
+                Column {
+                    Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+                    Badge(
+                        containerColor = LocalSemanticColors.current.unreadBadge,
+                        contentColor = LocalSemanticColors.current.onUnreadBadge
+                    ) {
+                        Text(conversation.unreadCount.toString())
+                    }
                 }
             }
         }

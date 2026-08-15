@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.home
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +70,14 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.util.foldForSearch
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -133,14 +140,28 @@ fun HomeShellScreen(
         }
     }
 
+    // One place a tab change happens, so the haptic cannot be wired to three of the four items.
+    // Re-selecting the current tab is silent: a haptic for "nothing happened" is noise.
+    val haptics = Muhabbet.haptics
+    val selectTab: (HomeTab) -> Unit = { tab ->
+        if (tab != selectedTab) {
+            haptics.perform(MuhabbetHapticIntent.TabSwitched)
+            selectedTab = tab
+        }
+    }
+
+    // foldForSearch, not lowercase(). Kotlin's no-arg lowercase() applies root-locale rules, so
+    // "İsmail" became "i" + U+0307 — which nobody can type — and searching a Turkish contact list
+    // for "ismail" matched nothing. See the function's docblock; it also folds ı/I/i/İ together, so
+    // the user does not have to know which of the four the name was stored with.
     val filteredConversations = remember(searchQuery, allConversations) {
         if (searchQuery.isBlank()) allConversations
         else allConversations.filter { conv ->
-            val query = searchQuery.trim().lowercase()
-            val nameMatch = conv.name?.lowercase()?.contains(query) == true
+            val query = foldForSearch(searchQuery.trim())
+            val nameMatch = conv.name?.let { foldForSearch(it).contains(query) } == true
             val participantMatch = conv.participants.any { p ->
-                p.displayName?.lowercase()?.contains(query) == true ||
-                    p.phoneNumber?.lowercase()?.contains(query) == true
+                p.displayName?.let { foldForSearch(it).contains(query) } == true ||
+                    p.phoneNumber?.let { foldForSearch(it).contains(query) } == true
             }
             nameMatch || participantMatch
         }
@@ -226,7 +247,7 @@ fun HomeShellScreen(
                 ) {
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.COMMUNITIES,
-                        onClick = { selectedTab = HomeTab.COMMUNITIES },
+                        onClick = { selectTab(HomeTab.COMMUNITIES) },
                         icon = { Icon(Muhabbet.icons.TabCommunities, contentDescription = communitiesLabel) },
                         label = { Text(communitiesLabel) },
                         colors = NavigationBarItemDefaults.colors(
@@ -239,7 +260,7 @@ fun HomeShellScreen(
                     )
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.CHATS,
-                        onClick = { selectedTab = HomeTab.CHATS },
+                        onClick = { selectTab(HomeTab.CHATS) },
                         icon = { Icon(Muhabbet.icons.TabChats, contentDescription = chatsLabel) },
                         label = { Text(chatsLabel) },
                         colors = NavigationBarItemDefaults.colors(
@@ -252,7 +273,7 @@ fun HomeShellScreen(
                     )
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.UPDATES,
-                        onClick = { selectedTab = HomeTab.UPDATES },
+                        onClick = { selectTab(HomeTab.UPDATES) },
                         icon = { Icon(Muhabbet.icons.TabUpdates, contentDescription = updatesLabel) },
                         label = { Text(updatesLabel) },
                         colors = NavigationBarItemDefaults.colors(
@@ -265,7 +286,7 @@ fun HomeShellScreen(
                     )
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.CALLS,
-                        onClick = { selectedTab = HomeTab.CALLS },
+                        onClick = { selectTab(HomeTab.CALLS) },
                         icon = { Icon(Muhabbet.icons.TabCalls, contentDescription = callsLabel) },
                         label = { Text(callsLabel) },
                         colors = NavigationBarItemDefaults.colors(
@@ -322,7 +343,23 @@ fun HomeShellScreen(
                     }
                 }
             } else {
-                Crossfade(targetState = selectedTab, label = "homeTabTransition") { tab ->
+                // AnimatedContent with a direction, not Crossfade. Crossfading between bottom-nav
+                // tabs is a well-known unfinished-app tell: the tabs sit in a row, so movement
+                // between them should agree with that row. Going right slides left, and back.
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        val enter = slideInHorizontally(Muhabbet.motion.offsetSpatialDefault()) {
+                            if (forward) it / TabSlideFraction else -it / TabSlideFraction
+                        } + fadeIn(Muhabbet.motion.effectsFast())
+                        val exit = slideOutHorizontally(Muhabbet.motion.offsetSpatialDefault()) {
+                            if (forward) -it / TabSlideFraction else it / TabSlideFraction
+                        } + fadeOut(Muhabbet.motion.effectsFast())
+                        enter togetherWith exit
+                    },
+                    label = "homeTabTransition"
+                ) { tab ->
                     when (tab) {
                         HomeTab.COMMUNITIES -> CommunityListScreen(
                             onCommunityClick = onCommunityClick,
@@ -400,3 +437,8 @@ private fun ConversationSearchResultItem(
     }
 }
 
+/**
+ * How far a tab slides in as a fraction of the screen: a hint of travel, not a page turn. A full
+ * width slide between sibling tabs reads as navigating away rather than switching.
+ */
+private const val TabSlideFraction = 6

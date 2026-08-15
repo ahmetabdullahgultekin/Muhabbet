@@ -546,8 +546,12 @@ private fun ConversationListBody(
                 item(key = "filter_chips") {
                     ConversationFilterChips(activeFilter = activeFilter, onFilterChange = onFilterChange)
                 }
+                // animateItem: a conversation that jumps to the top on a new message, or slides out
+                // when archived, moves there instead of teleporting. The app had zero uses of this
+                // anywhere; the keys it needs were already in place.
                 items(sortedConversations, key = { it.id }) { conv ->
                     ConversationListItemRow(
+                        modifier = Modifier.animateItem(),
                         conv = conv,
                         currentUserId = currentUserId,
                         contactNameMap = contactNameMap,
@@ -590,6 +594,7 @@ private fun ConversationListBody(
                     }
                     items(archivedConversations, key = { "archived_${it.id}" }) { conv ->
                         ConversationListItemRow(
+                            modifier = Modifier.animateItem(),
                             conv = conv,
                             currentUserId = currentUserId,
                             contactNameMap = contactNameMap,
@@ -617,6 +622,7 @@ private fun ConversationListBody(
 @Composable
 private fun ConversationListItemRow(
     conv: ConversationResponse,
+    modifier: Modifier = Modifier,
     currentUserId: String,
     contactNameMap: Map<String, String>,
     onlineUsers: Map<String, Boolean>,
@@ -642,6 +648,7 @@ private fun ConversationListItemRow(
     val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
     ConversationItem(
         conversation = conv,
+        modifier = modifier,
         displayName = resolvedName,
         avatarUrl = avatarUrl,
         isOnline = isOtherOnline,
