@@ -53,6 +53,9 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,10 +119,11 @@ fun TwoStepSetupScreen(
                     .padding(MuhabbetSpacing.XLarge)
             ) {
                 if (isEnabled) {
+                    val statusCardShape = MaterialTheme.shapes.medium
                     Surface(
-                        tonalElevation = MuhabbetElevation.Level1,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
+                        color = MuhabbetDepth.Raised.containerColor(),
+                        shape = statusCardShape,
+                        modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, statusCardShape)
                     ) {
                         Column(modifier = Modifier.padding(MuhabbetSpacing.Large)) {
                             Text(

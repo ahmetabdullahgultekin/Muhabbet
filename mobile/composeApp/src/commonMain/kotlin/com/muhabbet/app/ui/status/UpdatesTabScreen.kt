@@ -77,6 +77,9 @@ import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetErrorState
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -281,9 +284,10 @@ fun UpdatesTabScreen(
                         .padding(padding)
                 ) {
                     item(key = "my_status") {
+                        val myStatusShape = RoundedCornerShape(MuhabbetCorners.Bubble)
                         Surface(
-                            shape = RoundedCornerShape(MuhabbetCorners.Bubble),
-                            tonalElevation = MuhabbetElevation.Level1,
+                            shape = myStatusShape,
+                            color = MuhabbetDepth.Raised.containerColor(),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)

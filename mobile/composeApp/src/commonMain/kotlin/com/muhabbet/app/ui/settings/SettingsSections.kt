@@ -45,6 +45,9 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.SettingsSwitchRow
 import com.muhabbet.designsystem.components.SettingsRadioRow
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 /**
  * Avatar (with camera overlay) + display-name / about fields + save button.
@@ -172,10 +175,11 @@ internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageR
             )
         }
     } else if (storageUsage != null) {
+        val storageCardShape = MaterialTheme.shapes.small
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            tonalElevation = MuhabbetElevation.Level1,
-            shape = MaterialTheme.shapes.small
+            modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, storageCardShape),
+            color = MuhabbetDepth.Raised.containerColor(),
+            shape = storageCardShape
         ) {
             Column(modifier = Modifier.padding(MuhabbetSpacing.Medium)) {
                 StorageRow(

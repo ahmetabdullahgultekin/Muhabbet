@@ -25,6 +25,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.designsystem.components.EmptyChatsIllustration
+import com.muhabbet.designsystem.components.MuhabbetSkeletonList
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -66,12 +67,11 @@ internal fun ConversationListBody(
         modifier = Modifier.fillMaxSize()
     ) {
         if (isLoading) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(8) {
-                    ConversationSkeletonItem()
-                    HorizontalDivider()
-                }
-            }
+            // MuhabbetSkeletonList, not a LazyColumn of hand-rolled rows: it wraps its rows in a
+            // single ShimmerHost. The old version called ConversationSkeletonItem per row, and that
+            // function created its own rememberInfiniteTransition — eight placeholder rows meant
+            // eight independent infinite animations, each waking the frame clock on its own.
+            MuhabbetSkeletonList(modifier = Modifier.fillMaxSize())
         } else if (conversations.isEmpty()) {
             EmptyChatsIllustration(
                 title = stringResource(Res.string.empty_chats_title),

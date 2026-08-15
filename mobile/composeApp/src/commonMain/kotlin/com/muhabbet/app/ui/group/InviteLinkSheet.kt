@@ -52,6 +52,9 @@ import com.muhabbet.designsystem.components.MuhabbetSwitch
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,10 +100,11 @@ fun InviteLinkSheet(
                 val link = inviteLink ?: return@Column
 
                 // Show link
+                val linkCardShape = MaterialTheme.shapes.medium
                 Surface(
-                    tonalElevation = MuhabbetElevation.Level1,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
+                    color = MuhabbetDepth.Raised.containerColor(),
+                    shape = linkCardShape,
+                    modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, linkCardShape)
                 ) {
                     Row(
                         modifier = Modifier.padding(MuhabbetSpacing.Medium),

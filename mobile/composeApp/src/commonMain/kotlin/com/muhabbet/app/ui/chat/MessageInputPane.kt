@@ -52,13 +52,21 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
+import androidx.compose.ui.graphics.RectangleShape
 
 @Composable
 fun ReplyPreviewBar(
     replyingTo: Message,
     onCancel: () -> Unit
 ) {
-    Surface(tonalElevation = MuhabbetElevation.Level4) {
+    // Raised, not Floating: the input bar is attached to the page, not hovering over it.
+    Surface(
+        color = MuhabbetDepth.Raised.containerColor(),
+        modifier = Modifier.depth(MuhabbetDepth.Raised, RectangleShape)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Medium, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically

@@ -62,6 +62,9 @@ import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,10 +179,11 @@ private fun EventCard(
     event: GroupEventResponse,
     onRsvp: (String) -> Unit
 ) {
+    val cardShape = MaterialTheme.shapes.medium
     Surface(
-        tonalElevation = MuhabbetElevation.Level2,
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth()
+        color = MuhabbetDepth.Raised.containerColor(),
+        shape = cardShape,
+        modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, cardShape)
     ) {
         Column(modifier = Modifier.padding(MuhabbetSpacing.Large)) {
             Text(
