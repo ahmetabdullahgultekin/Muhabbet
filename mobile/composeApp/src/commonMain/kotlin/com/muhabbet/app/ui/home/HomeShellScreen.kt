@@ -50,7 +50,6 @@ import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.status.UpdatesTabScreen
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import com.muhabbet.designsystem.theme.MuhabbetTextStyles
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.composeapp.generated.resources.Res

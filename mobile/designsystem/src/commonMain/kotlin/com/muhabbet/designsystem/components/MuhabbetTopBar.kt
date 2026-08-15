@@ -11,7 +11,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import com.muhabbet.designsystem.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Colours and metrics every top bar shares — including the two bespoke ones.
@@ -75,7 +75,7 @@ fun MuhabbetTopBar(
         title = {
             Text(
                 text = title,
-                style = MuhabbetTextStyles.TopBarTitle,
+                style = Muhabbet.text.TopBarTitle,
                 // Long group names and Turkish titles overflow more often than English ones; a bar
                 // title should never wrap the layout.
                 maxLines = 1,

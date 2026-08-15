@@ -212,6 +212,15 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // The OFL is satisfied by bundling the licence (mobile/designsystem/licenses/), but
+                // naming the typeface is the decent thing to do and costs one line.
+                Text(
+                    text = stringResource(Res.string.settings_font_attribution),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 SettingsNavRow(

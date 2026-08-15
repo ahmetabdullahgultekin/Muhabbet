@@ -28,7 +28,6 @@ import coil3.compose.AsyncImage
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import com.muhabbet.designsystem.theme.MuhabbetTextStyles
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -124,7 +123,7 @@ fun VideoBubble(
                 ) {
                     Text(
                         text = formatDuration(durationSeconds),
-                        style = MuhabbetTextStyles.ChatMeta,
+                        style = Muhabbet.text.ChatMeta,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }

@@ -33,7 +33,6 @@ import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import com.muhabbet.designsystem.theme.MuhabbetTextStyles
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
@@ -93,7 +92,7 @@ internal fun ConversationItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = displayName,
-                    style = MuhabbetTextStyles.ConversationTitle,
+                    style = Muhabbet.text.ConversationTitle,
                     fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -115,7 +114,7 @@ internal fun ConversationItem(
             if (preview != null) {
                 Text(
                     text = preview,
-                    style = MuhabbetTextStyles.ConversationPreview,
+                    style = Muhabbet.text.ConversationPreview,
                     fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (hasUnread) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -130,7 +129,7 @@ internal fun ConversationItem(
             if (lastAt != null) {
                 Text(
                     text = formatTimestamp(lastAt),
-                    style = MuhabbetTextStyles.ConversationTimestamp,
+                    style = Muhabbet.text.ConversationTimestamp,
                     color = if (hasUnread) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )

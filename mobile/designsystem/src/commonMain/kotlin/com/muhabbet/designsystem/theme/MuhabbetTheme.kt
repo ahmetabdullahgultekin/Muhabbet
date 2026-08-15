@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -272,14 +273,22 @@ fun MuhabbetTheme(
     // preference is checked in exactly one place rather than at each call site.
     val haptics = rememberMuhabbetHaptics(enabled = hapticsEnabled)
 
+    // Manrope has to be resolved here rather than in a top-level `val`: `Res.font` is @Composable.
+    // The messaging text styles are derived from the resulting Typography and provided alongside it,
+    // which is the whole reason MuhabbetTextStyles is a class — as an object it would have been
+    // built from a family-free scale and every chat bubble would have stayed on the system font.
+    val typography = rememberMuhabbetTypography()
+    val textStyles = remember(typography) { MuhabbetTextStyles(typography) }
+
     CompositionLocalProvider(
         LocalSemanticColors provides semanticColors,
         LocalThemeMode provides resolved,
-        LocalHaptics provides haptics
+        LocalHaptics provides haptics,
+        LocalTextStyles provides textStyles
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = MuhabbetTypography,
+            typography = typography,
             shapes = MuhabbetShapes,
             content = content
         )

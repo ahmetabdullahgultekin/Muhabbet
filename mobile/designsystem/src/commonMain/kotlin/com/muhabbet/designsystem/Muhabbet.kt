@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.LocalTextStyles
 import com.muhabbet.designsystem.theme.LocalThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetDurations
@@ -15,6 +16,7 @@ import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetTextStyles
 import com.muhabbet.designsystem.theme.ResolvedThemeMode
 
 /**
@@ -36,6 +38,10 @@ object Muhabbet {
     /** Roles Material 3 has no name for: bubbles, ticks, presence, wallpaper, scrim. */
     val colors: MuhabbetSemanticColors
         @Composable @ReadOnlyComposable get() = LocalSemanticColors.current
+
+    /** Messaging text styles that sit between the Material roles: bubble body, list row, metadata. */
+    val text: MuhabbetTextStyles
+        @Composable @ReadOnlyComposable get() = LocalTextStyles.current
 
     /** Which variant is actually rendering, after System has been resolved against the OS. */
     val themeMode: ResolvedThemeMode

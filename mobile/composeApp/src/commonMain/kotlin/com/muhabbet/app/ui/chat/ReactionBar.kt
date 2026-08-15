@@ -23,7 +23,7 @@ import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import com.muhabbet.designsystem.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.Muhabbet
 
 val QUICK_REACTIONS = listOf("\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
 
@@ -53,7 +53,7 @@ fun QuickReactionBar(
                 QUICK_REACTIONS.forEach { emoji ->
                     Text(
                         text = emoji,
-                        style = MuhabbetTextStyles.EmojiPicker,
+                        style = Muhabbet.text.EmojiPicker,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .size(MuhabbetSizes.MinTouchTarget)
@@ -91,7 +91,7 @@ fun ReactionBadges(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(text = emoji, style = MuhabbetTextStyles.EmojiBadge)
+                    Text(text = emoji, style = Muhabbet.text.EmojiBadge)
                     if (count > 1) {
                         Text(
                             text = count.toString(),

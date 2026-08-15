@@ -41,7 +41,6 @@ import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import com.muhabbet.designsystem.theme.MuhabbetTextStyles
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -161,7 +160,7 @@ fun MessageBubble(
                             )
                             Text(
                                 text = stringResource(Res.string.chat_forwarded),
-                                style = MuhabbetTextStyles.ChatForwardedLabel,
+                                style = Muhabbet.text.ChatForwardedLabel,
                                 color = onBubbleColor.copy(alpha = 0.8f),
                             )
                         }
@@ -281,7 +280,7 @@ fun MessageBubble(
                         ) {
                             Text(
                                 text = message.content,
-                                style = MuhabbetTextStyles.ChatBody,
+                                style = Muhabbet.text.ChatBody,
                                 color = onBubbleColor,
                                 modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)
                             )
@@ -304,14 +303,14 @@ fun MessageBubble(
                         if (message.editedAt != null && !message.isDeleted) {
                             Text(
                                 text = stringResource(Res.string.chat_edited),
-                                style = MuhabbetTextStyles.ChatMeta,
+                                style = Muhabbet.text.ChatMeta,
                                 color = onBubbleColor.copy(alpha = 0.5f)
                             )
                         }
                         val timestamp = message.serverTimestamp ?: message.clientTimestamp
                         Text(
                             text = formatMessageTime(timestamp),
-                            style = MuhabbetTextStyles.ChatMeta,
+                            style = Muhabbet.text.ChatMeta,
                             color = onBubbleColor.copy(alpha = 0.6f)
                         )
                         if (isOwn && !message.isDeleted) {

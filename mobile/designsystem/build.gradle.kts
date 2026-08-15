@@ -51,6 +51,12 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.materialIconsExtended)
 
+            // The font files. This is the one resource type the module carries: rule 1 above bans
+            // strings, not typefaces, and the family has to live with the type scale that applies
+            // it. The generated `Res` class stays internal — Manrope is reached through
+            // MuhabbetTypography, never named by a screen.
+            implementation(compose.components.resources)
+
             // Image loading is part of the visual language: UserAvatar is the most-reused
             // component in the app. The Ktor network layer stays in composeApp.
             implementation("io.coil-kt.coil3:coil-compose:3.5.0")
