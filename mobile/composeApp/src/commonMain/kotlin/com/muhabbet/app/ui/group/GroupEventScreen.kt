@@ -14,12 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -65,6 +59,7 @@ import com.muhabbet.shared.dto.RsvpRequest
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,7 +120,7 @@ fun GroupEventScreen(
                 title = { Text(stringResource(Res.string.group_event_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -141,7 +136,7 @@ fun GroupEventScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.group_event_create))
+                Icon(Muhabbet.icons.Add, contentDescription = stringResource(Res.string.group_event_create))
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -160,7 +155,7 @@ fun GroupEventScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.CalendarToday,
+                        Muhabbet.icons.Calendar,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -231,7 +226,7 @@ private fun EventCard(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.CalendarToday,
+                    Muhabbet.icons.Calendar,
                     contentDescription = null,
                     modifier = Modifier.size(MuhabbetSizes.IconSmall),
                     tint = MaterialTheme.colorScheme.primary
@@ -247,7 +242,7 @@ private fun EventCard(
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.LocationOn,
+                        Muhabbet.icons.Location,
                         contentDescription = null,
                         modifier = Modifier.size(MuhabbetSizes.IconSmall),
                         tint = MaterialTheme.colorScheme.primary
@@ -263,7 +258,7 @@ private fun EventCard(
             Spacer(Modifier.height(MuhabbetSpacing.Small))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.People,
+                    Muhabbet.icons.People,
                     contentDescription = null,
                     modifier = Modifier.size(MuhabbetSizes.IconSmall),
                     tint = MaterialTheme.colorScheme.primary

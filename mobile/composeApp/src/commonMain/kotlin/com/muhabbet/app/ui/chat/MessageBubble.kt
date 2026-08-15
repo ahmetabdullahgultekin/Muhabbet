@@ -17,19 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -43,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.muhabbet.app.platform.AudioPlayer
@@ -60,6 +46,7 @@ import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -167,7 +154,7 @@ fun MessageBubble(
                             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.Send,
+                                Muhabbet.icons.Send,
                                 contentDescription = stringResource(Res.string.chat_forwarded),
                                 modifier = Modifier.size(12.dp),
                                 tint = onBubbleColor.copy(alpha = 0.8f)
@@ -207,7 +194,7 @@ fun MessageBubble(
                                     .clickable { /* open URL */ }
                             ) {
                                 Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
+                                    Icon(Muhabbet.icons.Document, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
                                         tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(MuhabbetSpacing.Small))
                                     Text(message.content, style = MaterialTheme.typography.bodySmall,
@@ -279,7 +266,7 @@ fun MessageBubble(
                                     modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
-                                        Icons.Default.PlayArrow,
+                                        Muhabbet.icons.Play,
                                         contentDescription = stringResource(Res.string.video_play),
                                         modifier = Modifier.padding(MuhabbetSpacing.Small),
                                         tint = MaterialTheme.colorScheme.onSurface
@@ -329,10 +316,10 @@ fun MessageBubble(
                         )
                         if (isOwn && !message.isDeleted) {
                             val (icon, tint) = when (message.status) {
-                                MessageStatus.SENDING -> Icons.Default.AccessTime to onBubbleColor.copy(alpha = 0.5f)
-                                MessageStatus.SENT -> Icons.Default.Check to onBubbleColor.copy(alpha = 0.7f)
-                                MessageStatus.DELIVERED -> Icons.Default.DoneAll to onBubbleColor.copy(alpha = 0.7f)
-                                MessageStatus.READ -> Icons.Default.DoneAll to semanticColors.statusRead
+                                MessageStatus.SENDING -> Muhabbet.icons.Pending to onBubbleColor.copy(alpha = 0.5f)
+                                MessageStatus.SENT -> Muhabbet.icons.Sent to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.DELIVERED -> Muhabbet.icons.Delivered to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.READ -> Muhabbet.icons.Delivered to semanticColors.statusRead
                             }
                             val statusDesc = when (message.status) {
                                 MessageStatus.SENDING -> stringResource(Res.string.status_sending)
@@ -366,25 +353,25 @@ fun MessageBubble(
                             clipboardManager.setText(AnnotatedString(message.content))
                             onCopy()
                         },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = stringResource(Res.string.chat_context_copy), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                        leadingIcon = { Icon(Muhabbet.icons.Copy, contentDescription = stringResource(Res.string.chat_context_copy), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                 }
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_reply)) },
                     onClick = onReply,
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = stringResource(Res.string.chat_context_reply), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                    leadingIcon = { Icon(Muhabbet.icons.Reply, contentDescription = stringResource(Res.string.chat_context_reply), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_forward)) },
                     onClick = onForward,
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.chat_context_forward), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                    leadingIcon = { Icon(Muhabbet.icons.Send, contentDescription = stringResource(Res.string.chat_context_forward), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                 )
                 DropdownMenuItem(
                     text = { Text(if (isStarred) stringResource(Res.string.chat_context_unstar) else stringResource(Res.string.chat_context_star)) },
                     onClick = onStar,
                     leadingIcon = {
                         Icon(
-                            if (isStarred) Icons.Default.Star else Icons.Default.StarBorder,
+                            if (isStarred) Muhabbet.icons.Star else Muhabbet.icons.StarOutline,
                             contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconMedium),
                             tint = if (isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
                         )
@@ -393,20 +380,20 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_info)) },
                     onClick = onInfo,
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = stringResource(Res.string.chat_context_info), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                    leadingIcon = { Icon(Muhabbet.icons.Info, contentDescription = stringResource(Res.string.chat_context_info), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                 )
                 if (isOwn) {
                     if (message.contentType == ContentType.TEXT) {
                         DropdownMenuItem(
                             text = { Text(stringResource(Res.string.chat_context_edit)) },
                             onClick = onEdit,
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.chat_context_edit), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                            leadingIcon = { Icon(Muhabbet.icons.Edit, contentDescription = stringResource(Res.string.chat_context_edit), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                         )
                     }
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
                         onClick = onDelete,
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.chat_context_delete), modifier = Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.error) }
+                        leadingIcon = { Icon(Muhabbet.icons.Delete, contentDescription = stringResource(Res.string.chat_context_delete), modifier = Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.error) }
                     )
                 }
             }

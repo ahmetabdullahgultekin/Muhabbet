@@ -16,9 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +72,7 @@ import com.muhabbet.shared.dto.UserStatusGroup
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -173,7 +171,7 @@ fun UpdatesTabScreen(
                             enabled = !isUploadingStatus
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
+                                imageVector = Muhabbet.icons.Add,
                                 contentDescription = statusAddPhoto,
                                 modifier = Modifier.size(MuhabbetSizes.IconSmall)
                             )
@@ -255,7 +253,7 @@ fun UpdatesTabScreen(
                     actions = {
                         IconButton(onClick = onSettings) {
                             Icon(
-                                imageVector = Icons.Outlined.Settings,
+                                imageVector = Muhabbet.icons.Settings,
                                 contentDescription = settingsTitle
                             )
                         }
@@ -327,7 +325,7 @@ fun UpdatesTabScreen(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = Icons.Default.Add,
+                                                imageVector = Muhabbet.icons.Add,
                                                 contentDescription = statusAdd,
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(14.dp)

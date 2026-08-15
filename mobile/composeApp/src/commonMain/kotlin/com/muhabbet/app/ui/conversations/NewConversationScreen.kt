@@ -15,16 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.outlined.Group
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.ContactPhone
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -61,6 +56,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,7 +132,7 @@ fun NewConversationScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Muhabbet.icons.Back,
                             contentDescription = stringResource(Res.string.action_back)
                         )
                     }
@@ -147,7 +143,7 @@ fun NewConversationScreen(
                         enabled = hasPermission && !isSyncing
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
+                            imageVector = Muhabbet.icons.Refresh,
                             contentDescription = stringResource(Res.string.contacts_refresh)
                         )
                     }
@@ -170,7 +166,7 @@ fun NewConversationScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContactPhone,
+                            imageVector = Muhabbet.icons.Contact,
                             contentDescription = stringResource(Res.string.cd_contacts),
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -216,7 +212,7 @@ fun NewConversationScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContactPhone,
+                            imageVector = Muhabbet.icons.Contact,
                             contentDescription = stringResource(Res.string.cd_contacts),
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -254,7 +250,7 @@ fun NewConversationScreen(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = Icons.Outlined.Group,
+                                                imageVector = Muhabbet.icons.GroupOutlined,
                                                 contentDescription = stringResource(Res.string.new_conversation_new_group),
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)

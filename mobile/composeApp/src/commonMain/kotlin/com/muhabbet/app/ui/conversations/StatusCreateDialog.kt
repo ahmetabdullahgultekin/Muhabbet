@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -27,6 +25,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * "Create status" dialog (text + optional photo). State is hoisted into [ConversationListScreen].
@@ -57,7 +56,7 @@ internal fun StatusCreateDialog(
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onPickImage) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Muhabbet.icons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                         Text(stringResource(Res.string.status_add_photo))
                     }

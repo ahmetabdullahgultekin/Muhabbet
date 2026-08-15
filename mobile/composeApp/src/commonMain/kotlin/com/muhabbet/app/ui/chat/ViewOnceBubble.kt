@@ -9,9 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +28,7 @@ import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 @Composable
 fun ViewOnceBubble(
@@ -75,7 +73,7 @@ fun ViewOnceBubble(
                     horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                 ) {
                     Icon(
-                        Icons.Default.VisibilityOff,
+                        Muhabbet.icons.Hidden,
                         contentDescription = stringResource(Res.string.view_once_opened),
                         tint = onBubbleColor.copy(alpha = 0.5f),
                         modifier = Modifier.size(MuhabbetSizes.IconMedium)
@@ -113,7 +111,7 @@ fun ViewOnceBubble(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Default.Visibility,
+                            Muhabbet.icons.Visible,
                             contentDescription = stringResource(Res.string.view_once_tap_to_view),
                             tint = onBubbleColor.copy(alpha = 0.6f),
                             modifier = Modifier.size(MuhabbetSizes.IconHero)

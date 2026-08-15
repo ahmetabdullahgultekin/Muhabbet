@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +39,7 @@ import com.muhabbet.shared.model.Message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Per-message action callbacks for [ChatMessageList]. Grouped into a holder to keep the
@@ -124,7 +122,7 @@ internal fun ChatMessageList(
                             // the long-press context menu, which is labelled — so naming it here would
                             // announce a control that is not reachable that way.
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Reply,
+                                imageVector = Muhabbet.icons.Reply,
                                 contentDescription = null,
                                 modifier = Modifier.size(MuhabbetSizes.IconMedium),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f))
@@ -162,7 +160,7 @@ internal fun ChatMessageList(
                 modifier = Modifier.align(Alignment.BottomEnd).padding(MuhabbetSpacing.Large).size(MuhabbetSizes.MinTouchTarget)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.scroll_to_bottom), Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Muhabbet.icons.ScrollDown, stringResource(Res.string.scroll_to_bottom), Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }

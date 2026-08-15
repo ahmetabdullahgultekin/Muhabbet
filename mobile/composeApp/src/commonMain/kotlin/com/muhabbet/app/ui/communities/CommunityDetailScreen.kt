@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -57,6 +53,7 @@ import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,7 +110,7 @@ fun CommunityDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            Muhabbet.icons.Back,
                             contentDescription = stringResource(Res.string.action_back)
                         )
                     }
@@ -202,7 +199,7 @@ fun CommunityDetailScreen(
                             fontWeight = FontWeight.Bold
                         )
                         TextButton(onClick = { showAddGroupSheet = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall))
+                            Icon(Muhabbet.icons.Add, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall))
                             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                             Text(stringResource(Res.string.community_add_group))
                         }

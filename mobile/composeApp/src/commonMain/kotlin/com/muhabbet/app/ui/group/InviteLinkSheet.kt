@@ -9,11 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,6 +48,7 @@ import com.muhabbet.shared.dto.InviteLinkResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,7 +110,7 @@ fun InviteLinkSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.Link,
+                            Muhabbet.icons.Link,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(MuhabbetSizes.IconMedium)
@@ -142,7 +138,7 @@ fun InviteLinkSheet(
                             clipboardManager.setText(AnnotatedString(link.inviteUrl))
                             scope.launch { snackbarHostState.showSnackbar(linkCopiedMsg) }
                         }) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(Res.string.invite_link_copy))
+                            Icon(Muhabbet.icons.Copy, contentDescription = stringResource(Res.string.invite_link_copy))
                         }
                         Text(
                             text = stringResource(Res.string.invite_link_copy),
@@ -152,7 +148,7 @@ fun InviteLinkSheet(
                     // Share
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         IconButton(onClick = { shareLauncher(link.inviteUrl) }) {
-                            Icon(Icons.Default.Share, contentDescription = stringResource(Res.string.invite_link_share))
+                            Icon(Muhabbet.icons.Share, contentDescription = stringResource(Res.string.invite_link_share))
                         }
                         Text(
                             text = stringResource(Res.string.invite_link_share),
@@ -171,7 +167,7 @@ fun InviteLinkSheet(
                                 }
                             }
                         }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.invite_link_revoke), tint = MaterialTheme.colorScheme.error)
+                            Icon(Muhabbet.icons.Delete, contentDescription = stringResource(Res.string.invite_link_revoke), tint = MaterialTheme.colorScheme.error)
                         }
                         Text(
                             text = stringResource(Res.string.invite_link_revoke),

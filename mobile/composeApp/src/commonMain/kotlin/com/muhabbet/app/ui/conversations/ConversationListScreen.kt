@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -53,8 +50,6 @@ import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.model.Message
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.testTag
@@ -77,6 +72,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 private const val TAG = "ConversationList"
 
@@ -371,14 +367,14 @@ fun ConversationListScreen(
                     actions = {
                         IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
                             Icon(
-                                imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                                imageVector = if (isSearching) Muhabbet.icons.Close else Muhabbet.icons.Search,
                                 contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         IconButton(onClick = onSettings) {
                             Icon(
-                                imageVector = Icons.Outlined.Settings,
+                                imageVector = Muhabbet.icons.Settings,
                                 contentDescription = stringResource(Res.string.settings_title),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
@@ -394,7 +390,7 @@ fun ConversationListScreen(
                 modifier = Modifier.testTag("new_chat_fab")
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Muhabbet.icons.Add,
                     contentDescription = stringResource(Res.string.new_conversation_title),
                     tint = MaterialTheme.colorScheme.onPrimary
                 )

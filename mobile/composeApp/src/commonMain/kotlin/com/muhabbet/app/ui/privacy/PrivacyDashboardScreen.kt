@@ -12,16 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Gavel
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,6 +48,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +101,7 @@ fun PrivacyDashboardScreen(
                 title = { Text(stringResource(Res.string.privacy_dashboard_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -128,7 +119,7 @@ fun PrivacyDashboardScreen(
             // Visibility section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Visibility,
+                    icon = Muhabbet.icons.Visible,
                     title = stringResource(Res.string.privacy_visibility_section)
                 )
             }
@@ -190,7 +181,7 @@ fun PrivacyDashboardScreen(
             // Security section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Lock,
+                    icon = Muhabbet.icons.Lock,
                     title = stringResource(Res.string.privacy_security_section)
                 )
             }
@@ -212,7 +203,7 @@ fun PrivacyDashboardScreen(
                         // Don't show a padlock or claim end-to-end encryption when E2EConfig.ENABLED
                         // is false — state the truthful TLS-in-transit posture instead.
                         Icon(
-                            if (E2EConfig.ENABLED) Icons.Default.Lock else Icons.Default.Info,
+                            if (E2EConfig.ENABLED) Muhabbet.icons.Lock else Muhabbet.icons.Info,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -240,7 +231,7 @@ fun PrivacyDashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Default.Block,
+                        Muhabbet.icons.Block,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -264,7 +255,7 @@ fun PrivacyDashboardScreen(
             // My Data section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Download,
+                    icon = Muhabbet.icons.Download,
                     title = stringResource(Res.string.privacy_data_section)
                 )
             }
@@ -292,7 +283,7 @@ fun PrivacyDashboardScreen(
                         CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
                     } else {
                         Icon(
-                            Icons.Default.Download,
+                            Muhabbet.icons.Download,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -322,7 +313,7 @@ fun PrivacyDashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Default.Delete,
+                        Muhabbet.icons.Delete,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -347,7 +338,7 @@ fun PrivacyDashboardScreen(
             // KVKK Rights section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Gavel,
+                    icon = Muhabbet.icons.Moderation,
                     title = stringResource(Res.string.privacy_kvkk_section)
                 )
             }
@@ -444,7 +435,7 @@ private fun PrivacyVisibilityRow(
                     onClick = { onValueChange(key) },
                     label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     leadingIcon = if (isSelected) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall)) }
+                        { Icon(Muhabbet.icons.Sent, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall)) }
                     } else null
                 )
             }
@@ -459,7 +450,7 @@ private fun KvkkRight(text: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            Icons.Default.Check,
+            Muhabbet.icons.Sent,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(MuhabbetSizes.IconSmall)

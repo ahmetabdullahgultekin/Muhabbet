@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Long-press context menu for a conversation row (pin/archive/mute/lock/delete).
@@ -53,7 +51,7 @@ internal fun ConversationActionsDialog(
         text = {
             Column {
                 ActionRow(
-                    icon = Icons.Default.PushPin,
+                    icon = Muhabbet.icons.Pin,
                     iconTint = MaterialTheme.colorScheme.onSurface,
                     label = if (conversation.isPinned) unpinLabel else pinLabel,
                     onClick = onPinToggle
@@ -71,7 +69,7 @@ internal fun ConversationActionsDialog(
                     onClick = onLockToggle
                 )
                 ActionRow(
-                    icon = Icons.Default.Close,
+                    icon = Muhabbet.icons.Close,
                     iconTint = MaterialTheme.colorScheme.error,
                     label = deleteLabel,
                     labelColor = MaterialTheme.colorScheme.error,

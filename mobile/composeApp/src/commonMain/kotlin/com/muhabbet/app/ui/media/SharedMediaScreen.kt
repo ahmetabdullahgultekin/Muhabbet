@@ -23,13 +23,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -82,6 +75,7 @@ import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 private const val TAG = "SharedMediaScreen"
 
@@ -234,7 +228,7 @@ fun SharedMediaScreen(
                 title = { Text(stringResource(Res.string.shared_media_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -271,7 +265,7 @@ fun SharedMediaScreen(
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(
-                                        Icons.Default.Image,
+                                        Muhabbet.icons.Image,
                                         contentDescription = null,
                                         modifier = Modifier.size(48.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -320,7 +314,7 @@ fun SharedMediaScreen(
                                         )
                                         if (message.contentType == ContentType.VIDEO) {
                                             Icon(
-                                                Icons.Default.PlayArrow,
+                                                Muhabbet.icons.Play,
                                                 // Decorative: the thumbnail above already says "Video".
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
@@ -393,7 +387,7 @@ fun SharedMediaScreen(
                                             // Carries state — whether this clip is playing — that no
                                             // adjacent text repeats, so it must be described.
                                             Icon(
-                                                if (isThisPlaying) Icons.Default.Pause else Icons.Default.Mic,
+                                                if (isThisPlaying) Muhabbet.icons.Pause else Muhabbet.icons.Mic,
                                                 contentDescription = if (isThisPlaying) pauseLabel else playLabel,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge),
                                                 tint = if (isThisPlaying) MaterialTheme.colorScheme.primary
@@ -401,7 +395,7 @@ fun SharedMediaScreen(
                                             )
                                         } else {
                                             Icon(
-                                                Icons.Default.Description,
+                                                Muhabbet.icons.Document,
                                                 // Decorative: the document name sits right beside it.
                                                 contentDescription = null,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge),

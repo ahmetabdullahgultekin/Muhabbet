@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.LocationData
 import kotlinx.serialization.json.Json
+import com.muhabbet.designsystem.Muhabbet
 
 private val locationJson = Json { ignoreUnknownKeys = true }
 
@@ -45,7 +44,7 @@ fun LocationBubble(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Default.LocationOn,
+            imageVector = Muhabbet.icons.Location,
             contentDescription = null,
             modifier = Modifier.size(32.dp),
             tint = if (isOwn) MaterialTheme.colorScheme.onPrimary

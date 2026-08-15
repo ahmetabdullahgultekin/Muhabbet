@@ -12,11 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +53,7 @@ import com.muhabbet.composeapp.generated.resources.call_video
 import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Where the call actually is, as opposed to where the screen happens to be.
@@ -241,7 +237,7 @@ fun ActiveCallScreen(
                             )
                     ) {
                         Icon(
-                            imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            imageVector = if (isMuted) Muhabbet.icons.MicOff else Muhabbet.icons.Mic,
                             contentDescription = if (isMuted) unmuteLabel else muteLabel,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
@@ -276,7 +272,7 @@ fun ActiveCallScreen(
                             .background(LocalSemanticColors.current.callDecline)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CallEnd,
+                            imageVector = Muhabbet.icons.CallEnd,
                             contentDescription = endLabel,
                             tint = LocalSemanticColors.current.onCallDecline,
                             modifier = Modifier.size(32.dp)
@@ -302,7 +298,7 @@ fun ActiveCallScreen(
                             )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VolumeUp,
+                            imageVector = Muhabbet.icons.Speaker,
                             contentDescription = speakerLabel,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )

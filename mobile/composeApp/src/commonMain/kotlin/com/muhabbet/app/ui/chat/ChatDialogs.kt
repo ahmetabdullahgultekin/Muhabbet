@@ -23,12 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.automirrored.filled.Forward
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -69,6 +63,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.designsystem.components.ConfirmDialog
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Full-screen media viewer with semi-transparent action bars.
@@ -149,7 +144,7 @@ fun MediaViewer(
                 ) {
                     IconButton(onClick = onDismiss) {
                         Icon(
-                            Icons.Default.Close,
+                            Muhabbet.icons.Close,
                             contentDescription = stringResource(Res.string.action_close),
                             tint = semanticColors.onScrim
                         )
@@ -180,7 +175,7 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onForward() }
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = forwardText, tint = semanticColors.onScrim)
+                            Icon(Muhabbet.icons.Forward, contentDescription = forwardText, tint = semanticColors.onScrim)
                             Text(forwardText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
                         }
                     }
@@ -192,7 +187,7 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onDelete() }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = deleteText, tint = semanticColors.onScrim)
+                            Icon(Muhabbet.icons.Delete, contentDescription = deleteText, tint = semanticColors.onScrim)
                             Text(deleteText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
                         }
                     }

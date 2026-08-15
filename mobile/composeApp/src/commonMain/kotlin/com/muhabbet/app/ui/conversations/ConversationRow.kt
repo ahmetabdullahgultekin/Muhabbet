@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +40,7 @@ import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
 import com.muhabbet.composeapp.generated.resources.cd_group_avatar
 import com.muhabbet.shared.dto.ConversationResponse
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -105,7 +104,7 @@ internal fun ConversationItem(
                     // "Pinned" is state carried by this icon alone — nothing in the row's text
                     // repeats it, so a null description would silently drop it.
                     Icon(
-                        Icons.Default.PushPin,
+                        Muhabbet.icons.Pin,
                         contentDescription = stringResource(Res.string.a11y_conversation_pinned),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant

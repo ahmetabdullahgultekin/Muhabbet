@@ -16,15 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,7 +52,6 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
-import androidx.compose.material.icons.filled.Image
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole
@@ -70,6 +60,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,7 +178,7 @@ fun GroupInfoScreen(
 
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 actions = {
@@ -196,11 +187,11 @@ fun GroupInfoScreen(
                             editName = conversation?.name ?: ""
                             showEditDialog = true
                         }) {
-                            Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.group_edit_name_title))
+                            Icon(Muhabbet.icons.Edit, contentDescription = stringResource(Res.string.group_edit_name_title))
                         }
                     }
                     IconButton(onClick = { showLeaveDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(Res.string.group_leave_title))
+                        Icon(Muhabbet.icons.LeaveGroup, contentDescription = stringResource(Res.string.group_leave_title))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -260,7 +251,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Image,
+                                Muhabbet.icons.Image,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -286,7 +277,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Link,
+                                Muhabbet.icons.Link,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -312,7 +303,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.CalendarToday,
+                                Muhabbet.icons.Calendar,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -337,7 +328,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Campaign,
+                                Muhabbet.icons.Channel,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -476,7 +467,7 @@ private fun MemberItem(
         if (canRemove) {
             IconButton(onClick = onRemove) {
                 Icon(
-                    Icons.Default.Delete,
+                    Muhabbet.icons.Delete,
                     contentDescription = stringResource(Res.string.group_remove_member),
                     tint = MaterialTheme.colorScheme.error
                 )

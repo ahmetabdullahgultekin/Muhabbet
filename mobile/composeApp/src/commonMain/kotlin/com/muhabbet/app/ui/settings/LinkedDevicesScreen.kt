@@ -11,10 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +43,7 @@ import com.muhabbet.shared.dto.LinkedDeviceResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Linked-devices management screen (Tier 2, NON-CRYPTO slice).
@@ -91,7 +88,7 @@ fun LinkedDevicesScreen(
                 title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 }
             )
@@ -100,7 +97,7 @@ fun LinkedDevicesScreen(
             if (MultiDeviceConfig.ENABLED) {
                 ExtendedFloatingActionButton(
                     onClick = onLinkNewDevice,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    icon = { Icon(Muhabbet.icons.Add, contentDescription = null) },
                     text = { Text(linkNewText) }
                 )
             }
@@ -175,7 +172,7 @@ private fun DeviceRow(device: LinkedDeviceResponse, onRevoke: () -> Unit) {
             if (device.isCompanion && !device.isPrimary) {
                 IconButton(onClick = onRevoke) {
                     Icon(
-                        Icons.Default.Delete,
+                        Muhabbet.icons.Delete,
                         contentDescription = stringResource(Res.string.linked_devices_revoke),
                         tint = MaterialTheme.colorScheme.error
                     )

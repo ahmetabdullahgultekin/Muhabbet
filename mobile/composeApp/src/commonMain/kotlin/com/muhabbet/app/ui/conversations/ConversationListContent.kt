@@ -17,8 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +41,7 @@ import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.Message
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 internal enum class ConversationFilter {
     ALL, UNREAD, FAVORITES, GROUPS
@@ -118,7 +117,7 @@ internal fun ConversationStatusRow(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.Add,
+                            Muhabbet.icons.Add,
                             contentDescription = stringResource(Res.string.status_create_title),
                             modifier = Modifier.size(MuhabbetSizes.IconLarge),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer

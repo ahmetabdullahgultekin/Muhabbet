@@ -16,12 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,6 +55,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +83,7 @@ fun MessageInfoScreen(
                 title = { Text(stringResource(Res.string.message_info_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -152,7 +147,7 @@ fun MessageInfoScreen(
                                             )
                                             if (data.contentType == "VIDEO") {
                                                 Icon(
-                                                    Icons.Default.Image, // play overlay
+                                                    Muhabbet.icons.Image, // play overlay
                                                     // Decorative: the preview above is described and
                                                     // the badge below names the content type.
                                                     contentDescription = null,
@@ -168,7 +163,7 @@ fun MessageInfoScreen(
                                     if (data.contentType != "TEXT") {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
-                                                Icons.Default.Image,
+                                                Muhabbet.icons.Image,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(MuhabbetSizes.IconSmall),
                                                 tint = MaterialTheme.colorScheme.primary
@@ -196,7 +191,7 @@ fun MessageInfoScreen(
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
-                                            Icons.Default.Schedule,
+                                            Muhabbet.icons.Schedule,
                                             contentDescription = null,
                                             modifier = Modifier.size(14.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -259,7 +254,7 @@ fun MessageInfoScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
-                                        Icons.Default.Schedule,
+                                        Muhabbet.icons.Schedule,
                                         contentDescription = null,
                                         modifier = Modifier.size(40.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -325,9 +320,9 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
 
         // Status icon
         val (icon, tint) = when (recipient.status) {
-            "READ" -> Icons.Default.DoneAll to LocalSemanticColors.current.statusRead
-            "DELIVERED" -> Icons.Default.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant
-            else -> Icons.Default.Check to MaterialTheme.colorScheme.onSurfaceVariant
+            "READ" -> Muhabbet.icons.Delivered to LocalSemanticColors.current.statusRead
+            "DELIVERED" -> Muhabbet.icons.Delivered to MaterialTheme.colorScheme.onSurfaceVariant
+            else -> Muhabbet.icons.Sent to MaterialTheme.colorScheme.onSurfaceVariant
         }
         Icon(icon, contentDescription = recipient.status, modifier = Modifier.size(18.dp), tint = tint)
     }

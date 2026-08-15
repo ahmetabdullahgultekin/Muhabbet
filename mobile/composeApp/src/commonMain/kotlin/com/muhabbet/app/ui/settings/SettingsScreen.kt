@@ -10,9 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,12 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.HighQuality
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Wallpaper
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
@@ -60,6 +51,7 @@ import com.muhabbet.shared.dto.StorageUsageResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -157,7 +149,7 @@ fun SettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Muhabbet.icons.Back,
                             contentDescription = stringResource(Res.string.action_back)
                         )
                     }
@@ -234,28 +226,28 @@ fun SettingsScreen(
 
                 SettingsNavRow(
                     label = stringResource(Res.string.starred_title),
-                    icon = Icons.Default.Star,
+                    icon = Muhabbet.icons.Star,
                     contentDescription = stringResource(Res.string.starred_title),
                     onClick = onStarredMessages
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
                     label = stringResource(Res.string.two_step_title),
-                    icon = Icons.Default.VerifiedUser,
+                    icon = Muhabbet.icons.TwoStep,
                     contentDescription = stringResource(Res.string.two_step_title),
                     onClick = onTwoStepVerification
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
                     label = stringResource(Res.string.app_lock_title),
-                    icon = Icons.Default.Lock,
+                    icon = Muhabbet.icons.Lock,
                     contentDescription = stringResource(Res.string.app_lock_title),
                     onClick = onAppLock
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
                     label = stringResource(Res.string.wallpaper_title),
-                    icon = Icons.Default.Wallpaper,
+                    icon = Muhabbet.icons.Wallpaper,
                     contentDescription = stringResource(Res.string.wallpaper_title),
                     onClick = onWallpaper
                 )
@@ -265,7 +257,7 @@ fun SettingsScreen(
                 var showMediaQualityDialog by remember { mutableStateOf(false) }
                 SettingsNavRow(
                     label = stringResource(Res.string.media_quality_title),
-                    icon = Icons.Default.HighQuality,
+                    icon = Muhabbet.icons.MediaQuality,
                     contentDescription = stringResource(Res.string.media_quality_title),
                     onClick = { showMediaQualityDialog = true }
                 )
@@ -296,7 +288,7 @@ fun SettingsScreen(
                 // Privacy Dashboard link
                 SettingsNavRow(
                     label = stringResource(Res.string.privacy_open_dashboard),
-                    icon = Icons.Default.PrivacyTip,
+                    icon = Muhabbet.icons.Privacy,
                     contentDescription = stringResource(Res.string.privacy_open_dashboard),
                     onClick = onPrivacyDashboard
                 )
@@ -332,7 +324,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        imageVector = Muhabbet.icons.Logout,
                         contentDescription = stringResource(Res.string.settings_logout),
                         modifier = Modifier.size(18.dp)
                     )

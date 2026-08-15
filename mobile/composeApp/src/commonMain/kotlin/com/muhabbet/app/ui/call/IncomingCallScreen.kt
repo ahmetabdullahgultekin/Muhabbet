@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +41,7 @@ import com.muhabbet.composeapp.generated.resources.call_video
 import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @Composable
 fun IncomingCallScreen(
@@ -138,7 +135,7 @@ fun IncomingCallScreen(
                             .background(LocalSemanticColors.current.callDecline)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CallEnd,
+                            imageVector = Muhabbet.icons.CallEnd,
                             contentDescription = declineLabel,
                             tint = LocalSemanticColors.current.onCallDecline,
                             modifier = Modifier.size(32.dp)
@@ -170,7 +167,7 @@ fun IncomingCallScreen(
                             .background(LocalSemanticColors.current.callAccept)
                     ) {
                         Icon(
-                            imageVector = if (callType == CallType.VIDEO) Icons.Default.Videocam else Icons.Default.Call,
+                            imageVector = if (callType == CallType.VIDEO) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
                             contentDescription = acceptLabel,
                             tint = LocalSemanticColors.current.onCallAccept,
                             modifier = Modifier.size(32.dp)

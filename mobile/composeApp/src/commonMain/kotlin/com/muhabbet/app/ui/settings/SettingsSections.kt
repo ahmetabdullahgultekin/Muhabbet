@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -47,6 +45,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * Avatar (with camera overlay) + display-name / about fields + save button.
@@ -91,7 +90,7 @@ internal fun ProfileEditorSection(
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Default.CameraAlt,
+                        imageVector = Muhabbet.icons.Camera,
                         contentDescription = stringResource(Res.string.profile_change_photo),
                         modifier = Modifier.size(MuhabbetSizes.IconSmall),
                         tint = MaterialTheme.colorScheme.onPrimary

@@ -18,10 +18,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +47,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 private val solidColors = listOf(
     Color(0xFFE8D5B7), Color(0xFFB7D5E8), Color(0xFFD5E8B7),
@@ -88,7 +85,7 @@ fun WallpaperPickerScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Muhabbet.icons.Back,
                             contentDescription = stringResource(Res.string.action_back)
                         )
                     }
@@ -180,7 +177,7 @@ fun WallpaperPickerScreen(
                                     // The swatch itself is a bare coloured Box with no text, so this
                                     // check mark is the only thing a screen reader can announce for it.
                                     Icon(
-                                        Icons.Default.Check,
+                                        Muhabbet.icons.Sent,
                                         contentDescription = stringResource(Res.string.a11y_selected),
                                         tint = Color.White,
                                         modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -197,7 +194,7 @@ fun WallpaperPickerScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                Icons.Default.Image,
+                                Muhabbet.icons.Image,
                                 contentDescription = stringResource(Res.string.wallpaper_custom),
                                 modifier = Modifier.size(48.dp),
                                 tint = if (customWallpaperSet) MaterialTheme.colorScheme.primary

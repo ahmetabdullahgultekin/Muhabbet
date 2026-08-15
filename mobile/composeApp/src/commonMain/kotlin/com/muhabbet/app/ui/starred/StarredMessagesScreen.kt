@@ -14,15 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Poll
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -60,6 +51,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +91,7 @@ fun StarredMessagesScreen(
                 title = { Text(stringResource(Res.string.starred_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
+                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -126,7 +118,7 @@ fun StarredMessagesScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            Icons.Default.Star,
+                            Muhabbet.icons.Star,
                             contentDescription = stringResource(Res.string.starred_title),
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -214,7 +206,7 @@ private fun StarredMessageItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Icon(
-                Icons.Default.Star,
+                Muhabbet.icons.Star,
                 contentDescription = stringResource(Res.string.starred_title),
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.tertiary
@@ -224,12 +216,12 @@ private fun StarredMessageItem(
 }
 
 private fun contentTypeIcon(contentType: ContentType): ImageVector? = when (contentType) {
-    ContentType.IMAGE -> Icons.Default.Image
-    ContentType.VIDEO -> Icons.Default.Videocam
-    ContentType.DOCUMENT -> Icons.Default.Description
-    ContentType.VOICE -> Icons.Default.Mic
-    ContentType.LOCATION -> Icons.Default.LocationOn
-    ContentType.POLL -> Icons.Default.Poll
+    ContentType.IMAGE -> Muhabbet.icons.Image
+    ContentType.VIDEO -> Muhabbet.icons.Video
+    ContentType.DOCUMENT -> Muhabbet.icons.Document
+    ContentType.VOICE -> Muhabbet.icons.Mic
+    ContentType.LOCATION -> Muhabbet.icons.Location
+    ContentType.POLL -> Muhabbet.icons.Poll
     else -> null
 }
 

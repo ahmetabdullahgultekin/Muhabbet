@@ -11,9 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +42,7 @@ import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import com.muhabbet.designsystem.Muhabbet
 
 /**
  * A message the user scheduled during this chat session that has not yet been delivered.
@@ -172,7 +170,7 @@ fun ScheduledMessagesChip(
             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
         ) {
             Icon(
-                imageVector = Icons.Default.Schedule,
+                imageVector = Muhabbet.icons.Schedule,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSecondaryContainer
@@ -230,7 +228,7 @@ fun ScheduledMessagesDialog(
                             }
                             IconButton(onClick = { onCancelScheduled(item) }) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Muhabbet.icons.Close,
                                     contentDescription = stringResource(Res.string.schedule_cancel),
                                     tint = MaterialTheme.colorScheme.error
                                 )

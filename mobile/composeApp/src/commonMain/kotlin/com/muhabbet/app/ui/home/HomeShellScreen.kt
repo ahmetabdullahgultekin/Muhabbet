@@ -13,14 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,6 +69,7 @@ import com.muhabbet.composeapp.generated.resources.search_messages_placeholder
 import com.muhabbet.composeapp.generated.resources.settings_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -173,7 +166,7 @@ fun HomeShellScreen(
                             searchQuery = ""
                         }) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = Muhabbet.icons.Back,
                                 contentDescription = backDesc
                             )
                         }
@@ -198,7 +191,7 @@ fun HomeShellScreen(
                             searchQuery = ""
                         }) {
                             Icon(
-                                imageVector = Icons.Default.Search,
+                                imageVector = Muhabbet.icons.Search,
                                 contentDescription = searchDesc
                             )
                         }
@@ -211,7 +204,7 @@ fun HomeShellScreen(
                                 modifier = Modifier.testTag("overflow_menu")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.MoreVert,
+                                    imageVector = Muhabbet.icons.More,
                                     contentDescription = moreOptionsDesc
                                 )
                             }
@@ -246,7 +239,7 @@ fun HomeShellScreen(
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.COMMUNITIES,
                         onClick = { selectedTab = HomeTab.COMMUNITIES },
-                        icon = { Icon(Icons.Default.Groups, contentDescription = communitiesLabel) },
+                        icon = { Icon(Muhabbet.icons.TabCommunities, contentDescription = communitiesLabel) },
                         label = { Text(communitiesLabel) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = accentColor,
@@ -259,7 +252,7 @@ fun HomeShellScreen(
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.CHATS,
                         onClick = { selectedTab = HomeTab.CHATS },
-                        icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = chatsLabel) },
+                        icon = { Icon(Muhabbet.icons.TabChats, contentDescription = chatsLabel) },
                         label = { Text(chatsLabel) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = accentColor,
@@ -272,7 +265,7 @@ fun HomeShellScreen(
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.UPDATES,
                         onClick = { selectedTab = HomeTab.UPDATES },
-                        icon = { Icon(Icons.Default.CameraAlt, contentDescription = updatesLabel) },
+                        icon = { Icon(Muhabbet.icons.TabUpdates, contentDescription = updatesLabel) },
                         label = { Text(updatesLabel) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = accentColor,
@@ -285,7 +278,7 @@ fun HomeShellScreen(
                     NavigationBarItem(
                         selected = selectedTab == HomeTab.CALLS,
                         onClick = { selectedTab = HomeTab.CALLS },
-                        icon = { Icon(Icons.Default.Call, contentDescription = callsLabel) },
+                        icon = { Icon(Muhabbet.icons.TabCalls, contentDescription = callsLabel) },
                         label = { Text(callsLabel) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = accentColor,

@@ -15,13 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallMade
-import androidx.compose.material.icons.filled.CallMissed
-import androidx.compose.material.icons.filled.CallReceived
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -64,6 +57,7 @@ import com.muhabbet.composeapp.generated.resources.call_voice
 import com.muhabbet.composeapp.generated.resources.calls_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +115,7 @@ fun CallHistoryScreen(
                         if (showBackButton) {
                             IconButton(onClick = onBack) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    Muhabbet.icons.Back,
                                     contentDescription = stringResource(Res.string.action_back)
                                 )
                             }
@@ -137,7 +131,7 @@ fun CallHistoryScreen(
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Call,
+                        imageVector = Muhabbet.icons.CallStart,
                         contentDescription = stringResource(Res.string.calls_new_call),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
@@ -177,9 +171,9 @@ fun CallHistoryScreen(
                         // Direction icon
                         Icon(
                             imageVector = when {
-                                isMissed || isDeclined -> Icons.Default.CallMissed
-                                isOutgoing -> Icons.Default.CallMade
-                                else -> Icons.Default.CallReceived
+                                isMissed || isDeclined -> Muhabbet.icons.CallMissed
+                                isOutgoing -> Muhabbet.icons.CallOutgoing
+                                else -> Muhabbet.icons.CallIncoming
                             },
                             contentDescription = when {
                                 isMissed -> missedLabel
@@ -218,7 +212,7 @@ fun CallHistoryScreen(
                             onClick = { onCallUser(otherUserId, otherName, call.callType) }
                         ) {
                             Icon(
-                                imageVector = if (isVideo) Icons.Default.Videocam else Icons.Default.Call,
+                                imageVector = if (isVideo) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
                                 contentDescription = if (isVideo) videoLabel else voiceLabel,
                                 tint = MaterialTheme.colorScheme.primary
                             )
