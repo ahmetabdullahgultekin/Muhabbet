@@ -348,9 +348,11 @@ class AppConfig {
 
     @Bean
     fun communityService(
-        communityRepository: CommunityRepository
+        communityRepository: CommunityRepository,
+        conversationRepository: ConversationRepository
     ): CommunityService = CommunityService(
-        communityRepository = communityRepository
+        communityRepository = communityRepository,
+        conversationRepository = conversationRepository
     )
 
     @Bean

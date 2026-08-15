@@ -1,5 +1,7 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
+import com.muhabbet.messaging.domain.port.`in`.CommunitySummary
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.security.AuthenticatedUser
@@ -18,23 +20,39 @@ data class CreateCommunityRequest(val name: String, val description: String? = n
 data class AddGroupRequest(val conversationId: String)
 data class AddMemberRequest(val userId: String)
 
+/**
+ * Field-for-field the client's `CommunityResponse` in `shared/.../dto/Dtos.kt`. The shared DTOs
+ * are the contract; anything added here that is not there is invisible to the app.
+ */
 data class CommunityResponse(
     val id: String,
     val name: String,
     val description: String?,
     val avatarUrl: String?,
-    val createdBy: String,
+    val groupCount: Int,
+    val memberCount: Int,
     val createdAt: String
 )
 
-data class CommunityDetailsResponse(
-    val community: CommunityResponse,
-    val groups: List<CommunityGroupResponse>,
-    val members: List<CommunityMemberResponse>
+/** Field-for-field the client's `CommunityDetailResponse`. */
+data class CommunityDetailResponse(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val avatarUrl: String?,
+    val groups: List<CommunityGroupInfoResponse>,
+    val memberCount: Int,
+    val myRole: String?,
+    val createdAt: String
 )
 
-data class CommunityGroupResponse(val communityId: String, val conversationId: String, val addedAt: String)
-data class CommunityMemberResponse(val communityId: String, val userId: String, val role: String, val joinedAt: String)
+/** Field-for-field the client's `CommunityGroupInfo`. */
+data class CommunityGroupInfoResponse(
+    val conversationId: String,
+    val name: String?,
+    val avatarUrl: String?,
+    val memberCount: Int
+)
 
 @RestController
 @RequestMapping("/api/v1/communities")
@@ -57,27 +75,10 @@ class CommunityController(
     }
 
     @GetMapping("/{communityId}")
-    fun getDetails(@PathVariable communityId: UUID): ResponseEntity<ApiResponse<CommunityDetailsResponse>> {
-        val details = manageCommunityUseCase.getDetails(communityId)
-        val response = CommunityDetailsResponse(
-            community = details.community.toResponse(),
-            groups = details.groups.map {
-                CommunityGroupResponse(
-                    communityId = it.communityId.toString(),
-                    conversationId = it.conversationId.toString(),
-                    addedAt = it.addedAt.toString()
-                )
-            },
-            members = details.members.map {
-                CommunityMemberResponse(
-                    communityId = it.communityId.toString(),
-                    userId = it.userId.toString(),
-                    role = it.role.name,
-                    joinedAt = it.joinedAt.toString()
-                )
-            }
-        )
-        return ApiResponseBuilder.ok(response)
+    fun getDetails(@PathVariable communityId: UUID): ResponseEntity<ApiResponse<CommunityDetailResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val details = manageCommunityUseCase.getDetails(communityId, userId)
+        return ApiResponseBuilder.ok(details.toResponse())
     }
 
     @PostMapping("/{communityId}/groups")
@@ -111,11 +112,31 @@ class CommunityController(
     }
 }
 
-private fun com.muhabbet.messaging.domain.model.Community.toResponse() = CommunityResponse(
-    id = id.toString(),
-    name = name,
-    description = description,
-    avatarUrl = avatarUrl,
-    createdBy = createdBy.toString(),
-    createdAt = createdAt.toString()
+private fun CommunitySummary.toResponse() = CommunityResponse(
+    id = community.id.toString(),
+    name = community.name,
+    description = community.description,
+    avatarUrl = community.avatarUrl,
+    groupCount = groupCount,
+    memberCount = memberCount,
+    createdAt = community.createdAt.toString()
+)
+
+private fun CommunityDetails.toResponse() = CommunityDetailResponse(
+    id = community.id.toString(),
+    name = community.name,
+    description = community.description,
+    avatarUrl = community.avatarUrl,
+    groups = groups.map {
+        CommunityGroupInfoResponse(
+            conversationId = it.conversationId.toString(),
+            name = it.name,
+            avatarUrl = it.avatarUrl,
+            memberCount = it.memberCount
+        )
+    },
+    memberCount = memberCount,
+    // null when the caller is not a member — the client's field is nullable for exactly this case.
+    myRole = myRole?.name,
+    createdAt = community.createdAt.toString()
 )

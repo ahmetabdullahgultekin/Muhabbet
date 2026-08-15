@@ -48,7 +48,8 @@ class CommunityPersistenceAdapter(
     override fun findCommunitiesByUserId(userId: UUID): List<Community> {
         val memberEntries = memberRepo.findByUserId(userId)
         val communityIds = memberEntries.map { it.communityId }
-        return communityRepo.findAllById(communityIds).map { it.toDomain() }
+        // findAllById gives no ordering guarantee, so the list would reshuffle between calls.
+        return communityRepo.findAllById(communityIds).map { it.toDomain() }.sortedBy { it.createdAt }
     }
 
     override fun addGroup(group: CommunityGroup): CommunityGroup =
@@ -59,5 +60,15 @@ class CommunityPersistenceAdapter(
     }
 
     override fun findGroupsByCommunityId(communityId: UUID): List<CommunityGroup> =
-        groupRepo.findByCommunityId(communityId).map { it.toDomain() }
+        groupRepo.findByCommunityIdOrderByAddedAtAsc(communityId).map { it.toDomain() }
+
+    override fun countMembersByCommunityIds(communityIds: List<UUID>): Map<UUID, Int> {
+        if (communityIds.isEmpty()) return emptyMap()
+        return memberRepo.countByCommunityIds(communityIds).toCountById()
+    }
+
+    override fun countGroupsByCommunityIds(communityIds: List<UUID>): Map<UUID, Int> {
+        if (communityIds.isEmpty()) return emptyMap()
+        return groupRepo.countByCommunityIds(communityIds).toCountById()
+    }
 }

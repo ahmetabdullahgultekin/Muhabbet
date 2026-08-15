@@ -75,7 +75,7 @@ class MessagePersistenceAdapter(
     override fun getUnreadCounts(conversationIds: List<UUID>, userId: UUID): Map<UUID, Int> {
         if (conversationIds.isEmpty()) return emptyMap()
         return deliveryStatusRepo.countUnreadByConversations(conversationIds, userId, DeliveryStatus.READ)
-            .associate { row -> (row[0] as UUID) to (row[1] as Long).toInt() }
+            .toCountById()
     }
 
     override fun softDelete(messageId: UUID) {
