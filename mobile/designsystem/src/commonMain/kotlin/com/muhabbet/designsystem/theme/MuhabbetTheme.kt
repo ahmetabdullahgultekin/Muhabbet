@@ -169,6 +169,12 @@ object MuhabbetSizes {
      */
     val ProgressStrokeThin: Dp = 2.dp
 
+    /**
+     * Body height of a picker sheet. Fixed rather than wrapped: the grid inside is paged, so a
+     * wrapping sheet would resize as results arrive.
+     */
+    val PickerSheetHeight: Dp = 420.dp
+
     /** Height of a placeholder text line in a skeleton — matches a body line's visual weight. */
     val SkeletonLine: Dp = 14.dp
 

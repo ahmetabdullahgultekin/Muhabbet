@@ -17,12 +17,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +47,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +57,6 @@ fun InviteLinkSheet(
     snackbarHostState: SnackbarHostState,
     inviteLinkRepository: InviteLinkRepository = koinInject()
 ) {
-    val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     val shareLauncher = rememberShareLauncher()
@@ -79,13 +77,8 @@ fun InviteLinkSheet(
         isLoading = false
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier.padding(MuhabbetSpacing.XLarge)
-        ) {
+    MuhabbetBottomSheet(onDismiss = onDismiss) {
+        Column {
             Text(
                 text = stringResource(Res.string.invite_link_title),
                 style = MaterialTheme.typography.titleMedium,

@@ -16,10 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +41,8 @@ import com.muhabbet.shared.model.ConversationType
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import androidx.compose.foundation.layout.PaddingValues
+import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 
 /**
  * Group-picker bottom sheet for adding an existing group to a community.
@@ -66,7 +66,6 @@ fun AddGroupToCommunitySheet(
     communityRepository: CommunityRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject()
 ) {
-    val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
 
     var eligibleGroups by remember { mutableStateOf<List<ConversationResponse>?>(null) }
@@ -84,16 +83,14 @@ fun AddGroupToCommunitySheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
+    MuhabbetBottomSheet(
+        onDismiss = onDismiss,
+        contentPadding = PaddingValues(
+            horizontal = MuhabbetSpacing.XLarge,
+            vertical = MuhabbetSpacing.Medium
+        )
     ) {
-        Column(
-            modifier = Modifier.padding(
-                horizontal = MuhabbetSpacing.XLarge,
-                vertical = MuhabbetSpacing.Medium
-            )
-        ) {
+        Column {
             Text(
                 text = stringResource(Res.string.community_add_group_title),
                 style = MaterialTheme.typography.titleMedium,

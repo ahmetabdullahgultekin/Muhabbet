@@ -18,7 +18,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -40,6 +39,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.GiphyClient
 import com.muhabbet.app.data.remote.GiphyGif
@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 
 /** Which tab of the shared GIF/sticker sheet a caller wants opened first. */
 enum class GifStickerTab { GIF, STICKER }
@@ -99,12 +100,13 @@ fun GifStickerPicker(
         isLoading = false
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        modifier = Modifier.fillMaxWidth()
+    MuhabbetBottomSheet(
+        onDismiss = onDismiss,
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(MuhabbetSpacing.None),
+        sheetState = sheetState
     ) {
-        Column(modifier = Modifier.fillMaxWidth().height(420.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().height(MuhabbetSizes.PickerSheetHeight)) {
             // Tab row: GIF | Stickers
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 Tab(
