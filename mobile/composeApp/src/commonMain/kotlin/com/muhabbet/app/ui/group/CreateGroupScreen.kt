@@ -61,6 +61,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -199,19 +200,9 @@ fun CreateGroupScreen(
                     }
                 }
 
-                isSyncing -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.contacts_syncing),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
+                isSyncing -> MuhabbetLoadingState(
+                    label = stringResource(Res.string.contacts_syncing)
+                )
 
                 contacts.isEmpty() -> {
                     Column(
@@ -276,7 +267,7 @@ fun CreateGroupScreen(
             }
 
             if (isCreating) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                MuhabbetLoadingState()
             }
         }
     }

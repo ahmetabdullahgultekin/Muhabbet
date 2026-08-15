@@ -254,7 +254,9 @@ fun StatusViewerScreen(
                     Text(
                         text = content,
                         color = onBgColor,
-                        fontSize = if (currentStatus.mediaUrl != null) 16.sp else 24.sp,
+                        // No explicit fontSize: the style below already carries one, and setting
+                        // both meant the type scale was being overridden by a hardcoded number that
+                        // happened to agree with it. Now a scale change reaches this screen too.
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         style = if (currentStatus.mediaUrl != null) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.headlineMedium,

@@ -94,7 +94,7 @@ fun ReactionBadges(
                 modifier = Modifier.clickable { onReactionClick(emoji) }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {

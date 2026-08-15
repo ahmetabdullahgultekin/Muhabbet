@@ -86,6 +86,34 @@ object MuhabbetGradients {
 }
 
 /**
+ * Chat wallpapers the user can pick from.
+ *
+ * The previous set was a 2010s navy-and-purple selection (`#1A1A2E`, `#533483`, `#0F3460`) that
+ * predates the palette and fights it — a cool violet behind copper bubbles reads as two apps stacked.
+ * These are drawn from the Ink and Copper ramps plus a few muted neighbours, so any of them can sit
+ * behind a bubble without arguing with it.
+ *
+ * Exposed as a list rather than named tokens because the user picks one by eye; the app never refers
+ * to "the third wallpaper" in code.
+ */
+val MuhabbetWallpapers: List<Color> = listOf(
+    // Light, warm — the default family.
+    MuhabbetPalette.WallpaperLight,
+    MuhabbetPalette.Ink.I95,
+    MuhabbetPalette.Ink.I90,
+    Color(0xFFF6E9DA),
+    Color(0xFFEFE3D2),
+    Color(0xFFE9DCCB),
+    // Deep, for dark and OLED.
+    MuhabbetPalette.Ink.I10,
+    MuhabbetPalette.Ink.I05,
+    MuhabbetPalette.Ink.I00,
+    Color(0xFF241A12),
+    Color(0xFF2A1E14),
+    Color(0xFF1A1512)
+)
+
+/**
  * Six warm pairs. Enough that a screenful of contacts does not obviously repeat, few enough that
  * they read as a set.
  */

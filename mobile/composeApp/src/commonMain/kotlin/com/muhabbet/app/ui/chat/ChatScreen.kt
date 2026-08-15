@@ -70,6 +70,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 private const val TAG = "ChatScreen"
 
@@ -496,7 +497,7 @@ fun ChatScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
             if (isLoading) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                MuhabbetLoadingState(Modifier.weight(1f).fillMaxWidth())
             } else {
                 ChatMessageList(
                     messages = messages,

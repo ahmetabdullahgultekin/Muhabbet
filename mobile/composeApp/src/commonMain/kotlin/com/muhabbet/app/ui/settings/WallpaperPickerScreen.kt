@@ -52,13 +52,12 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetSwitch
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.theme.MuhabbetWallpapers
 
-private val solidColors = listOf(
-    Color(0xFFE8D5B7), Color(0xFFB7D5E8), Color(0xFFD5E8B7),
-    Color(0xFFE8B7D5), Color(0xFFB7E8D5), Color(0xFFD5B7E8),
-    Color(0xFF2C3E50), Color(0xFF1A1A2E), Color(0xFF16213E),
-    Color(0xFF0F3460), Color(0xFF533483), Color(0xFF2C2C54)
-)
+// The swatches live in the design system with every other colour, so a screen still cannot name a
+// hex. The old set was a navy-and-purple palette from before the rebrand; a cool violet behind
+// copper bubbles reads as two different apps stacked on each other.
+private val solidColors = MuhabbetWallpapers
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

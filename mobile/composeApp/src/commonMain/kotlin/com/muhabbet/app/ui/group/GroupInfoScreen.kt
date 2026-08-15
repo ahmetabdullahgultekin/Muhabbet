@@ -429,7 +429,7 @@ private fun MemberItem(
                             stringResource(Res.string.group_role_owner),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
                 } else if (member.role == MemberRole.ADMIN) {
@@ -441,7 +441,7 @@ private fun MemberItem(
                             stringResource(Res.string.group_role_admin),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
                 }

@@ -37,6 +37,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 /**
  * Device-linking transport/UX scaffolding (Tier 2, NON-CRYPTO slice).
@@ -94,7 +95,7 @@ fun LinkDeviceScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             val currentError = error
             when {
-                isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                isLoading -> MuhabbetLoadingState()
                 currentError != null -> Text(currentError, modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.error)
                 else -> Column(
                     modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.Large),

@@ -151,6 +151,29 @@ object MuhabbetSizes {
     /** The large, faded icon above an empty- or error-state message. */
     val IconEmptyState: Dp = 56.dp
 
+    /**
+     * A hairline gap. Smaller than [MuhabbetSpacing.XSmall] and used only where a 4dp gap would
+     * separate things that belong to each other — a bubble's caption from its body, a timestamp
+     * from its tick.
+     */
+    val GapHairline: Dp = 2.dp
+
+    /** The accent bar down the side of a quoted reply. */
+    val QuoteBarWidth: Dp = 3.dp
+    val QuoteBarHeight: Dp = 32.dp
+
+    /** A glyph sitting inline with body text — the "edited" pencil, the forwarded arrow. */
+    val IconInline: Dp = 12.dp
+
+    /** The document-type glyph on a file attachment bubble. */
+    val IconAttachment: Dp = 28.dp
+
+    /** Play/pause overlay centred on a video or voice bubble. */
+    val MediaControl: Dp = 48.dp
+
+    /** Padding inside an attachment row — tighter than Medium so the glyph sits close to its name. */
+    val AttachmentPadding: Dp = 10.dp
+
     /** A colour swatch standing in for a legend entry — the storage breakdown's category dots. */
     val IndicatorDot: Dp = 8.dp
 

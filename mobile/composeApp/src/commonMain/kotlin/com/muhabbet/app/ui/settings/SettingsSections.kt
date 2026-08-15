@@ -79,7 +79,7 @@ internal fun ProfileEditorSection(
             size = MuhabbetSizes.AvatarXXLarge
         )
         Surface(
-            modifier = Modifier.size(28.dp).align(Alignment.BottomEnd),
+            modifier = Modifier.size(MuhabbetSizes.IconAttachment).align(Alignment.BottomEnd),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary
         ) {

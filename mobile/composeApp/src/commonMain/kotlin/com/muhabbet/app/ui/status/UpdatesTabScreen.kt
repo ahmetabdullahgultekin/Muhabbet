@@ -80,6 +80,7 @@ import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -259,14 +260,7 @@ fun UpdatesTabScreen(
     ) { padding ->
         when {
             isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
             }
             errorMessage != null -> MuhabbetErrorState(
                 message = errorMessage ?: loadFailed,

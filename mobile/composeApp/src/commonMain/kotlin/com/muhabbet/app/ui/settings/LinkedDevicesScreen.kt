@@ -45,6 +45,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 /**
  * Linked-devices management screen (Tier 2, NON-CRYPTO slice).
@@ -103,7 +104,7 @@ fun LinkedDevicesScreen(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
-                isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                isLoading -> MuhabbetLoadingState()
                 devices.isEmpty() -> Text(
                     emptyText,
                     modifier = Modifier.align(Alignment.Center),

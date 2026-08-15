@@ -56,6 +56,7 @@ import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,13 +104,7 @@ fun TwoStepSetupScreen(
         snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else {
             Column(
                 modifier = Modifier

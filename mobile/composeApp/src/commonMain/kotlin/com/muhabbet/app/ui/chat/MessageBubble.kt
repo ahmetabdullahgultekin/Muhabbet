@@ -124,7 +124,7 @@ fun MessageBubble(
                             text = senderName,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
                     // Quoted reply
@@ -132,11 +132,11 @@ fun MessageBubble(
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = onBubbleColor.copy(alpha = 0.1f),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
                         ) {
                             Row(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
                                 Box(
-                                    modifier = Modifier.width(3.dp).height(32.dp)
+                                    modifier = Modifier.width(MuhabbetSizes.QuoteBarWidth).height(MuhabbetSizes.QuoteBarHeight)
                                         .clip(RoundedCornerShape(MuhabbetCorners.Hairline))
                                 )
                                 Column(modifier = Modifier.padding(start = MuhabbetSpacing.Small)) {
@@ -154,14 +154,14 @@ fun MessageBubble(
                     // Forwarded label
                     if (message.forwardedFrom != null) {
                         Row(
-                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
                         ) {
                             Icon(
                                 Muhabbet.icons.Send,
                                 contentDescription = stringResource(Res.string.chat_forwarded),
-                                modifier = Modifier.size(12.dp),
+                                modifier = Modifier.size(MuhabbetSizes.IconInline),
                                 tint = onBubbleColor.copy(alpha = 0.8f)
                             )
                             Text(
@@ -187,7 +187,7 @@ fun MessageBubble(
                                 durationSeconds = null,
                                 isOwn = isOwn,
                                 audioPlayer = audioPlayer,
-                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
                             )
                         }
                         // Document
@@ -195,11 +195,11 @@ fun MessageBubble(
                             Surface(
                                 shape = MaterialTheme.shapes.small,
                                 color = onBubbleColor.copy(alpha = 0.1f),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
                                     .clickable { /* open URL */ }
                             ) {
-                                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Muhabbet.icons.Document, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
+                                Row(modifier = Modifier.padding(MuhabbetSizes.AttachmentPadding), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Muhabbet.icons.Document, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(MuhabbetSizes.IconAttachment),
                                         tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(MuhabbetSpacing.Small))
                                     Text(message.content, style = MaterialTheme.typography.bodySmall,
@@ -221,7 +221,7 @@ fun MessageBubble(
                             AsyncImage(
                                 model = message.mediaUrl,
                                 contentDescription = stringResource(Res.string.attach_gif),
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
@@ -243,7 +243,7 @@ fun MessageBubble(
                             AsyncImage(
                                 model = message.thumbnailUrl ?: message.mediaUrl,
                                 contentDescription = stringResource(Res.string.chat_photo),
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
@@ -253,7 +253,7 @@ fun MessageBubble(
                         // Video
                         if (message.contentType == ContentType.VIDEO && (message.mediaUrl != null || message.thumbnailUrl != null)) {
                             Box(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentAlignment = Alignment.Center
@@ -261,14 +261,14 @@ fun MessageBubble(
                                 AsyncImage(
                                     model = message.thumbnailUrl ?: message.mediaUrl,
                                     contentDescription = stringResource(Res.string.video_play),
-                                    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight),
                                     contentScale = ContentScale.Crop
                                 )
                                 // Play button overlay
                                 Surface(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier.size(MuhabbetSizes.MediaControl)
                                 ) {
                                     Icon(
                                         Muhabbet.icons.Play,
@@ -296,15 +296,15 @@ fun MessageBubble(
                                     LinkPreviewCard(url = firstUrl, isOwn = isOwn)
                                 }
                             }
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(MuhabbetSizes.GapHairline))
                         }
                     }
 
                     // Timestamp + edited + delivery status
                     Row(
-                        modifier = Modifier.align(Alignment.End).padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp),
+                        modifier = Modifier.align(Alignment.End).padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSizes.QuoteBarWidth)
                     ) {
                         if (message.editedAt != null && !message.isDeleted) {
                             Text(
