@@ -278,8 +278,11 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > - **`ApiClient` never checks the HTTP status** (#374). A 403/500 decodes cleanly to `data = null`,
 >   so server errors reach the user as success toasts or empty screens. **Fix this before wiring
 >   anything else**, or the new wiring will look like it works and will not.
-> - **Authorization gaps** (#375): any authenticated user can read any community, and `addGroup`
->   never checks conversation membership — an IDOR disclosing arbitrary conversation metadata.
+> - **Authorization gaps** (#375) — **fixed.** Reading a community now requires membership;
+>   `addGroup` requires the caller to be a member of the conversation and the conversation to be a
+>   GROUP. `addMember` is restricted, not solved: an owner may only enrol someone already in one of
+>   the community's groups, because there is no invite the recipient can accept. That is #387, and
+>   until it lands a community with no groups cannot gain a second member.
 >
 > **The standing rule this produced:** for anything user-visible, check all three of *persistence*,
 > *a reader*, and *a mechanism* before calling it fixed. Adding persistence alone to App Lock or

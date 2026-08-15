@@ -136,7 +136,8 @@ private fun CommunityDetails.toResponse() = CommunityDetailResponse(
         )
     },
     memberCount = memberCount,
-    // null when the caller is not a member — the client's field is nullable for exactly this case.
-    myRole = myRole?.name,
+    // Always present: only members can read a community. The field stays nullable because the
+    // client's `CommunityDetailResponse.myRole` is nullable and the wire shape must not change.
+    myRole = myRole.name,
     createdAt = community.createdAt.toString()
 )

@@ -113,6 +113,11 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // Communities
     COMMUNITY_NOT_FOUND(HttpStatus.NOT_FOUND, "Topluluk bulunamadı"),
     COMMUNITY_PERMISSION_DENIED(HttpStatus.FORBIDDEN, "Bu topluluk işlemi için yetkiniz yok"),
+    COMMUNITY_NOT_A_GROUP(HttpStatus.BAD_REQUEST, "Bu konuşma bir grup değil"),
+    COMMUNITY_MEMBER_NOT_IN_ANY_GROUP(
+        HttpStatus.FORBIDDEN,
+        "Yalnızca topluluğun gruplarında bulunan kullanıcılar topluluğa eklenebilir"
+    ),
 
     // Events
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Etkinlik bulunamadı"),

@@ -13,7 +13,6 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -134,17 +133,19 @@ class CommunityControllerTest {
         }
 
         @Test
-        fun `should serve a null role when the caller is not a member`() {
+        fun `should serve the caller's role on a community that has no groups yet`() {
             every { manageCommunityUseCase.getDetails(communityId, userId) } returns CommunityDetails(
                 community = community(),
                 groups = emptyList(),
                 memberCount = 3,
-                myRole = null
+                myRole = MemberRole.MEMBER
             )
 
             val decoded = decodeDetail(controller.getDetails(communityId).body?.data)
 
-            assertNull(decoded.myRole)
+            // The client's field is nullable, but the server never sends null: non-members are
+            // refused by the use case rather than served a roleless community (#375).
+            assertEquals("MEMBER", decoded.myRole)
             assertEquals(0, decoded.groups.size)
         }
 

@@ -54,6 +54,12 @@ class ConversationPersistenceAdapter(
         return conversationRepo.findAllById(ids).map { it.toDomain() }
     }
 
+    override fun isMemberOfAny(conversationIds: List<UUID>, userId: UUID): Boolean {
+        // An empty IN list is invalid SQL on some drivers, and the answer is known anyway.
+        if (conversationIds.isEmpty()) return false
+        return memberRepo.existsByUserIdAndConversationIdIn(userId, conversationIds)
+    }
+
     override fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int> {
         if (conversationIds.isEmpty()) return emptyMap()
         return memberRepo.countByConversationIds(conversationIds).toCountById()
