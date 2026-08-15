@@ -294,7 +294,7 @@ fun MainContent(component: MainComponent) {
 private fun MainStack(component: MainComponent) {
     Children(
         stack = component.childStack,
-        animation = sharedAxisX()
+        animation = predictiveBack(component.backHandler, component::goBack)
     ) { child ->
         when (val config = child.instance) {
             is MainComponent.Config.HomeShell -> HomeShellScreen(

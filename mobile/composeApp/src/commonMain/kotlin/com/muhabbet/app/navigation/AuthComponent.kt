@@ -53,8 +53,16 @@ class AuthComponent(
         onAuthComplete()
     }
 
-    fun onBackFromOtp() {
+    /**
+     * Pop one step. Named generically because predictive back calls it for whichever screen is on
+     * top, not only for the OTP step.
+     */
+    fun goBack() {
         navigation.pop()
+    }
+
+    fun onBackFromOtp() {
+        goBack()
     }
 
     @Serializable
@@ -73,7 +81,7 @@ class AuthComponent(
 fun AuthContent(component: AuthComponent) {
     Children(
         stack = component.childStack,
-        animation = sharedAxisX()
+        animation = predictiveBack(component.backHandler, component::goBack)
     ) { child ->
         when (val config = child.instance) {
             is AuthComponent.Config.PhoneInput -> PhoneInputScreen(

@@ -1,12 +1,16 @@
 package com.muhabbet.app.navigation
 
 import androidx.compose.foundation.gestures.Orientation
+import com.arkivanov.decompose.ExperimentalDecomposeApi
 import com.arkivanov.decompose.extensions.compose.stack.animation.StackAnimation
+import com.arkivanov.decompose.extensions.compose.stack.animation.predictiveback.materialPredictiveBackAnimatable
+import com.arkivanov.decompose.extensions.compose.stack.animation.predictiveback.predictiveBackAnimation
 import com.arkivanov.decompose.extensions.compose.stack.animation.fade
 import com.arkivanov.decompose.extensions.compose.stack.animation.plus
 import com.arkivanov.decompose.extensions.compose.stack.animation.scale
 import com.arkivanov.decompose.extensions.compose.stack.animation.slide
 import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
+import com.arkivanov.essenty.backhandler.BackHandler
 import com.muhabbet.designsystem.theme.MuhabbetMotion
 
 /*
@@ -67,6 +71,36 @@ fun <C : Any, T : Any> sharedAxisX(): StackAnimation<C, T> = stackAnimation(
 fun <C : Any, T : Any> rootFade(): StackAnimation<C, T> = stackAnimation(
     animator = fade(animationSpec = MuhabbetMotion.effectsSlow()),
     disableInputDuringAnimation = true
+)
+
+/**
+ * [sharedAxisX], but the user can also drag it with a back gesture.
+ *
+ * On Android 14+ this is what makes a back swipe show the screen underneath *while the finger is
+ * still down*, so the gesture is a preview you can abandon rather than a command you have already
+ * issued. Where the platform does not support it — Android 13 and below, and iOS — the animation
+ * falls back to plain [sharedAxisX] and nothing regresses.
+ *
+ * `materialPredictiveBackAnimatable` rather than `androidPredictiveBackAnimatableV1`/`V2`: those two
+ * imitate the Android 13 and Android 14 system look specifically, and this app has its own. One
+ * animatable, one feel, on every platform.
+ *
+ * Not applied to `RootComponent`. That stack is one deep by construction — it only ever calls
+ * `replaceAll` — so a back gesture there should leave the app, not animate between Auth and Main.
+ *
+ * @param onBack invoked when the gesture completes. It, not the stack's own `handleBackButton`,
+ *   performs the pop: Essenty dispatches a back event to a single callback rather than broadcasting,
+ *   and this one is registered later, so it takes precedence.
+ */
+@OptIn(ExperimentalDecomposeApi::class)
+fun <C : Any, T : Any> predictiveBack(
+    backHandler: BackHandler,
+    onBack: () -> Unit
+): StackAnimation<C, T> = predictiveBackAnimation(
+    backHandler = backHandler,
+    fallbackAnimation = sharedAxisX(),
+    selector = { initialBackEvent, _, _ -> materialPredictiveBackAnimatable(initialBackEvent) },
+    onBack = onBack
 )
 
 /**
