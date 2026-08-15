@@ -3,6 +3,7 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.Community
 import com.muhabbet.messaging.domain.model.CommunityGroup
 import com.muhabbet.messaging.domain.model.CommunityMember
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
 import com.muhabbet.messaging.domain.port.`in`.CommunityGroupSummary
@@ -46,6 +47,19 @@ open class CommunityService(
     override fun addGroup(communityId: UUID, conversationId: UUID, userId: UUID): CommunityGroup {
         requireAdminOrOwner(communityId, userId)
 
+        // The conversation id is supplied by the caller, so it is checked against the caller before
+        // anything is stored: linking a conversation publishes its name, avatar and member count to
+        // everyone who can read the community. The membership lookup deliberately comes first, so a
+        // caller who is not in the conversation gets the same answer whether or not it exists.
+        conversationRepository.findMember(conversationId, userId)
+            ?: throw BusinessException(ErrorCode.GROUP_NOT_MEMBER)
+
+        val conversation = conversationRepository.findById(conversationId)
+            ?: throw BusinessException(ErrorCode.GROUP_NOT_FOUND)
+        if (conversation.type != ConversationType.GROUP) {
+            throw BusinessException(ErrorCode.COMMUNITY_NOT_A_GROUP)
+        }
+
         val group = CommunityGroup(communityId = communityId, conversationId = conversationId)
         val saved = communityRepository.addGroup(group)
         log.info("Group added to community: community={}, conversation={}", communityId, conversationId)
@@ -71,6 +85,16 @@ open class CommunityService(
             throw BusinessException(ErrorCode.GROUP_ALREADY_MEMBER)
         }
 
+        // Community membership derives from group membership, as it does in WhatsApp: an owner may
+        // enrol someone who is already in one of the community's own groups, and nobody else. This
+        // is a restriction, not a feature — the real answer is an invite the recipient accepts, and
+        // that is #387. Without it, an owner could attach any user id they could guess or read, and
+        // the community would appear in that person's Communities tab unannounced.
+        val conversationIds = communityRepository.findGroupsByCommunityId(communityId).map { it.conversationId }
+        if (!conversationRepository.isMemberOfAny(conversationIds, userId)) {
+            throw BusinessException(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP)
+        }
+
         val member = CommunityMember(communityId = communityId, userId = userId, role = MemberRole.MEMBER)
         val saved = communityRepository.saveMember(member)
         log.info("Member added to community: community={}, user={}", communityId, userId)
@@ -81,6 +105,13 @@ open class CommunityService(
     override fun getDetails(communityId: UUID, userId: UUID): CommunityDetails {
         val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
+
+        // Members only. There is no discovery, search or invite path in this app, so a community is
+        // only ever opened from the caller's own list or straight after creating it — nothing
+        // legitimate reads a community the caller does not belong to, and reading one exposes every
+        // linked conversation's name, avatar and size.
+        val membership = communityRepository.findMember(communityId, userId)
+            ?: throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
 
         val groups = communityRepository.findGroupsByCommunityId(communityId)
         val conversationIds = groups.map { it.conversationId }
@@ -100,7 +131,7 @@ open class CommunityService(
                 )
             },
             memberCount = communityRepository.countMembersByCommunityIds(listOf(communityId))[communityId] ?: 0,
-            myRole = communityRepository.findMember(communityId, userId)?.role
+            myRole = membership.role
         )
     }
 

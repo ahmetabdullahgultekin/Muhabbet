@@ -28,22 +28,46 @@ data class CommunityGroupSummary(
 )
 
 /**
- * @param myRole the requester's role in this community, or `null` when the requester is not a
- * member. A non-member can still read a community, so absence of a role is a valid answer and
- * not an error.
+ * @param myRole the requester's role in this community. Never null: [ManageCommunityUseCase.getDetails]
+ * refuses non-members, so a details object only ever describes a community the requester belongs to.
  */
 data class CommunityDetails(
     val community: Community,
     val groups: List<CommunityGroupSummary>,
     val memberCount: Int,
-    val myRole: MemberRole?
+    val myRole: MemberRole
 )
 
 interface ManageCommunityUseCase {
     fun create(name: String, description: String?, creatorId: UUID): CommunitySummary
+
+    /**
+     * Links an existing GROUP conversation to a community. The caller must be an admin or owner of
+     * the community **and** a member of the conversation — the conversation id comes from the
+     * caller, so it is authorization, not a lookup key.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_PERMISSION_DENIED` when the
+     * caller does not run the community, `GROUP_NOT_MEMBER` when the caller is not in the
+     * conversation, `COMMUNITY_NOT_A_GROUP` when the conversation is a direct chat or a channel.
+     */
     fun addGroup(communityId: UUID, conversationId: UUID, userId: UUID): CommunityGroup
+
     fun removeGroup(communityId: UUID, conversationId: UUID, userId: UUID)
+
+    /**
+     * Enrols [userId] in the community. Until an invite flow exists (#387), the target must already
+     * be a member of one of the community's groups — see the note in the implementation.
+     */
     fun addMember(communityId: UUID, userId: UUID, requesterId: UUID): CommunityMember
+
+    /**
+     * Reads a community. Members only: this returns the community's groups, and with them the name,
+     * avatar and member count of each linked conversation.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
+     * community exists, `COMMUNITY_PERMISSION_DENIED` when the requester is not a member.
+     */
     fun getDetails(communityId: UUID, userId: UUID): CommunityDetails
+
     fun listForUser(userId: UUID): List<CommunitySummary>
 }

@@ -26,6 +26,9 @@ interface SpringDataConversationMemberRepository : JpaRepository<ConversationMem
     fun findByUserId(userId: UUID): List<ConversationMemberJpaEntity>
     fun findByConversationIdAndUserId(conversationId: UUID, userId: UUID): ConversationMemberJpaEntity?
 
+    /** One user against many conversations — an existence check, so no rows are materialised. */
+    fun existsByUserIdAndConversationIdIn(userId: UUID, conversationIds: List<UUID>): Boolean
+
     @Query("SELECT DISTINCT m.userId FROM ConversationMemberJpaEntity m WHERE m.conversationId IN (SELECT m2.conversationId FROM ConversationMemberJpaEntity m2 WHERE m2.userId = :userId) AND m.userId != :userId")
     fun findAllContactUserIds(userId: UUID): Set<UUID>
 

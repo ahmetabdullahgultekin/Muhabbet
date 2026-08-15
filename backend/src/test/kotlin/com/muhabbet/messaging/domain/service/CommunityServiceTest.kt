@@ -4,6 +4,7 @@ import com.muhabbet.messaging.domain.model.Community
 import com.muhabbet.messaging.domain.model.CommunityGroup
 import com.muhabbet.messaging.domain.model.CommunityMember
 import com.muhabbet.messaging.domain.model.Conversation
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
@@ -164,13 +165,31 @@ class CommunityServiceTest {
         }
 
         @Test
-        fun `should return null role when caller is not a member`() {
+        fun `should reject the read when caller is not a member of the community`() {
             val community = community()
             stubDetails(community = community, myRole = null)
 
-            val details = service.getDetails(community.id, userId)
+            val ex = assertThrows<BusinessException> { service.getDetails(community.id, userId) }
 
-            assertNull(details.myRole)
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+        }
+
+        @Test
+        fun `should disclose no conversation metadata when caller is not a member`() {
+            val community = community()
+            stubDetails(
+                community = community,
+                groups = listOf(CommunityGroup(communityId = community.id, conversationId = conversationId)),
+                conversations = listOf(
+                    Conversation(id = conversationId, type = ConversationType.GROUP, name = "Bahçe Katı")
+                ),
+                myRole = null
+            )
+
+            assertThrows<BusinessException> { service.getDetails(community.id, userId) }
+
+            verify(exactly = 0) { conversationRepository.findConversationsByIds(any()) }
+            verify(exactly = 0) { conversationRepository.countMembersByConversationIds(any()) }
         }
 
         @Test
@@ -235,8 +254,219 @@ class CommunityServiceTest {
         }
     }
 
-    private fun community(name: String = "Mahalle") = Community(
-        id = UUID.randomUUID(),
+    @Nested
+    inner class AddGroup {
+
+        private val conversationId = UUID.randomUUID()
+
+        @Test
+        fun `should link the conversation when caller runs the community and belongs to the group`() {
+            stubCommunityRole(MemberRole.ADMIN)
+            stubConversation(ConversationType.GROUP, callerIsMember = true)
+            every { communityRepository.addGroup(any()) } answers { firstArg() }
+
+            val group = service.addGroup(communityId, conversationId, userId)
+
+            assertEquals(communityId, group.communityId)
+            assertEquals(conversationId, group.conversationId)
+        }
+
+        @Test
+        fun `should reject when caller does not belong to the conversation`() {
+            stubCommunityRole(MemberRole.OWNER)
+            stubConversation(ConversationType.GROUP, callerIsMember = false)
+
+            val ex = assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.GROUP_NOT_MEMBER, ex.errorCode)
+            verify(exactly = 0) { communityRepository.addGroup(any()) }
+        }
+
+        @Test
+        fun `should not reveal whether the conversation exists when caller does not belong to it`() {
+            stubCommunityRole(MemberRole.OWNER)
+            stubConversation(ConversationType.GROUP, callerIsMember = false)
+
+            assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            verify(exactly = 0) { conversationRepository.findById(any()) }
+        }
+
+        @Test
+        fun `should reject when the conversation is a direct chat`() {
+            stubCommunityRole(MemberRole.OWNER)
+            stubConversation(ConversationType.DIRECT, callerIsMember = true)
+
+            val ex = assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_NOT_A_GROUP, ex.errorCode)
+            verify(exactly = 0) { communityRepository.addGroup(any()) }
+        }
+
+        @Test
+        fun `should reject when the conversation is a channel`() {
+            stubCommunityRole(MemberRole.OWNER)
+            stubConversation(ConversationType.CHANNEL, callerIsMember = true)
+
+            val ex = assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_NOT_A_GROUP, ex.errorCode)
+        }
+
+        @Test
+        fun `should reject when the conversation does not exist`() {
+            stubCommunityRole(MemberRole.OWNER)
+            every { conversationRepository.findMember(conversationId, userId) } returns
+                ConversationMember(conversationId = conversationId, userId = userId)
+            every { conversationRepository.findById(conversationId) } returns null
+
+            val ex = assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
+        }
+
+        @Test
+        fun `should reject when caller is only a plain member of the community`() {
+            stubCommunityRole(MemberRole.MEMBER)
+
+            val ex = assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.findMember(any(), any()) }
+        }
+
+        @Test
+        fun `should reject when caller is not in the community at all`() {
+            stubCommunityRole(null)
+
+            val ex = assertThrows<BusinessException> { service.addGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { communityRepository.addGroup(any()) }
+        }
+
+        private fun stubConversation(type: ConversationType, callerIsMember: Boolean) {
+            every { conversationRepository.findMember(conversationId, userId) } returns
+                if (callerIsMember) ConversationMember(conversationId = conversationId, userId = userId) else null
+            every { conversationRepository.findById(conversationId) } returns
+                Conversation(id = conversationId, type = type, name = "Bahçe Katı")
+        }
+    }
+
+    @Nested
+    inner class RemoveGroup {
+
+        private val conversationId = UUID.randomUUID()
+
+        @Test
+        fun `should unlink the conversation when caller runs the community`() {
+            stubCommunityRole(MemberRole.ADMIN)
+            every { communityRepository.removeGroup(communityId, conversationId) } returns Unit
+
+            service.removeGroup(communityId, conversationId, userId)
+
+            verify(exactly = 1) { communityRepository.removeGroup(communityId, conversationId) }
+        }
+
+        @Test
+        fun `should reject when caller is only a plain member of the community`() {
+            stubCommunityRole(MemberRole.MEMBER)
+
+            val ex = assertThrows<BusinessException> { service.removeGroup(communityId, conversationId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { communityRepository.removeGroup(any(), any()) }
+        }
+    }
+
+    @Nested
+    inner class AddMember {
+
+        private val targetUserId = UUID.randomUUID()
+        private val groupConversationId = UUID.randomUUID()
+
+        @Test
+        fun `should enrol the user when they already belong to one of the community's groups`() {
+            stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = true)
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+
+            val member = service.addMember(communityId, targetUserId, userId)
+
+            assertEquals(communityId, member.communityId)
+            assertEquals(targetUserId, member.userId)
+            assertEquals(MemberRole.MEMBER, member.role)
+        }
+
+        @Test
+        fun `should reject when the user belongs to none of the community's groups`() {
+            stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = false)
+
+            val ex = assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP, ex.errorCode)
+            verify(exactly = 0) { communityRepository.saveMember(any()) }
+        }
+
+        @Test
+        fun `should reject when the community has no groups yet`() {
+            stubAddMember(groups = emptyList(), targetIsInAGroup = false)
+
+            val ex = assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP, ex.errorCode)
+            verify(exactly = 0) { communityRepository.saveMember(any()) }
+        }
+
+        @Test
+        fun `should reject when caller is only a plain member of the community`() {
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+            stubCommunityRole(MemberRole.MEMBER)
+
+            val ex = assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.isMemberOfAny(any(), any()) }
+        }
+
+        @Test
+        fun `should reject when the user is already a member`() {
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+            stubCommunityRole(MemberRole.OWNER)
+            every { communityRepository.findMember(communityId, targetUserId) } returns
+                CommunityMember(communityId = communityId, userId = targetUserId)
+
+            val ex = assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            assertEquals(ErrorCode.GROUP_ALREADY_MEMBER, ex.errorCode)
+        }
+
+        @Test
+        fun `should reject when the community does not exist`() {
+            every { communityRepository.findById(communityId) } returns null
+
+            val ex = assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_NOT_FOUND, ex.errorCode)
+        }
+
+        private fun stubAddMember(groups: List<UUID>, targetIsInAGroup: Boolean) {
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+            stubCommunityRole(MemberRole.OWNER)
+            every { communityRepository.findMember(communityId, targetUserId) } returns null
+            every { communityRepository.findGroupsByCommunityId(communityId) } returns
+                groups.map { CommunityGroup(communityId = communityId, conversationId = it) }
+            every { conversationRepository.isMemberOfAny(groups, targetUserId) } returns targetIsInAGroup
+        }
+    }
+
+    /** Stubs the requester's role in [communityId]; `null` means the requester is not a member. */
+    private fun stubCommunityRole(role: MemberRole?) {
+        every { communityRepository.findMember(communityId, userId) } returns
+            role?.let { CommunityMember(communityId = communityId, userId = userId, role = it) }
+    }
+
+    private fun community(name: String = "Mahalle", id: UUID = UUID.randomUUID()) = Community(
+        id = id,
         name = name,
         description = null,
         createdBy = userId,

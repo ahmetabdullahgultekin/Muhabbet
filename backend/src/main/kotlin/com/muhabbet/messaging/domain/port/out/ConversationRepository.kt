@@ -15,6 +15,13 @@ interface ConversationRepository {
     fun findConversationsByIds(ids: List<UUID>): List<Conversation>
 
     /**
+     * True when [userId] is a member of at least one of [conversationIds]. One query, rather than
+     * loading every member of every conversation to answer a question about a single user. An
+     * empty [conversationIds] is false: no conversations means no membership to find.
+     */
+    fun isMemberOfAny(conversationIds: List<UUID>, userId: UUID): Boolean
+
+    /**
      * Member counts for many conversations in one query. Conversations with no members are
      * absent from the map rather than mapped to zero.
      */

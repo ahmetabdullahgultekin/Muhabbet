@@ -20,6 +20,28 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 - **The community list reshuffled between refreshes** — it was assembled from an unordered
   `findAllById`. It is now ordered by creation time.
 
+### Security
+- **Any authenticated user could read any community.** `GET /api/v1/communities/{id}` checked only
+  that the caller held a valid token, and answered with the community's name, description, avatar
+  and member count plus every linked group's name, avatar and size. Reading a community now
+  requires membership. Nothing legitimate is lost: the app has no discovery, search, invite or
+  deep-link path, so a community id only ever reaches the detail screen from the caller's own list
+  or straight after they created it. (#375)
+- **Adding a group to a community disclosed arbitrary conversation metadata.** `POST
+  /api/v1/communities/{id}/groups` checked that the caller ran the community and nothing else, so
+  anyone could create a community — they are free and uncapped — post a conversation id they had no
+  relationship with, and read back that conversation's name, avatar and member count from the
+  detail endpoint. Only the unguessability of a random UUID stood in the way, which is not
+  authorization. The caller must now be a member of the conversation, and it must be a group rather
+  than a direct chat or a channel. (#375)
+- **An owner could enrol any user id in a community without their knowledge.** The community then
+  appeared in that person's Communities tab having never been shown to them. Membership now derives
+  from group membership, as it does in WhatsApp: an owner may only add someone already in one of
+  the community's own groups. This is a restriction rather than a feature, and it is deliberately
+  not half of an invite system — a real invite the recipient accepts is #387. A community with no
+  groups yet cannot gain a second member until then. No client flow is affected: the app has never
+  had a way to add a community member at all. (#375)
+
 ## [0.3.1] — 2026-08-15
 
 Everything here came out of driving 0.3.0 on a real phone. The first item is a crash 0.3.0
