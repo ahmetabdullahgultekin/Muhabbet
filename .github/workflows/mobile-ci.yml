@@ -21,6 +21,10 @@ on:
       - 'settings.gradle.kts'
       - 'gradle.properties'
       - 'gradle/**'
+      # The push trigger above has always watched this file; the pull_request trigger did not, so a
+      # change to this workflow could not be tested by the PR that made it — the checks simply never
+      # appeared, which reads identically to "nothing to run". Found while fixing ANDROID_HOME.
+      - '.github/workflows/mobile-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
