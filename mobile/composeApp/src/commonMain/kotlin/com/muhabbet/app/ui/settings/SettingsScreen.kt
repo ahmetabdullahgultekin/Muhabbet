@@ -270,6 +270,10 @@ fun SettingsScreen(
 
                 ThemeSection(themeController = themeController)
 
+                HorizontalDivider(modifier = Modifier.padding(vertical = MuhabbetSpacing.Large))
+
+                HapticsSection(themeController = themeController)
+
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))

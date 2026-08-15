@@ -15,6 +15,11 @@ interface TokenStorage {
     // system theme with nothing to show for it. Better to fail to compile.
     fun getTheme(): String?
     fun setTheme(theme: String)
+
+    // Same reasoning as the theme: read on every frame at the composition root, so a null-returning
+    // default would silently disable haptics app-wide with nothing to show for it.
+    fun getHapticsEnabled(): Boolean
+    fun setHapticsEnabled(enabled: Boolean)
     fun getLastSyncTimestamp(): String? = null
     fun setLastSyncTimestamp(timestamp: String) {}
     fun getAppLockEnabled(): Boolean = false

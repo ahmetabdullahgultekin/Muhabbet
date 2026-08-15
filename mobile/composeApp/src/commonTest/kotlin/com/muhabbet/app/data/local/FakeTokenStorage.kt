@@ -31,6 +31,10 @@ class FakeTokenStorage : TokenStorage {
 
     override fun getLanguage(): String? = language
     override fun setLanguage(lang: String) { language = lang }
+    private var hapticsEnabled: Boolean = true
+    override fun getHapticsEnabled(): Boolean = hapticsEnabled
+    override fun setHapticsEnabled(enabled: Boolean) { hapticsEnabled = enabled }
+
     override fun getTheme(): String? = theme
     override fun setTheme(theme: String) { this.theme = theme }
 }

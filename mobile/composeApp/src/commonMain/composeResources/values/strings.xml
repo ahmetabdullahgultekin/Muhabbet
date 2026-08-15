@@ -651,4 +651,6 @@
     <string name="group_event_empty">Henüz etkinlik yok</string>
     <string name="broadcast_list_empty">Henüz yayın listesi yok</string>
     <string name="communities_empty">Henüz topluluk yok</string>
+    <string name="settings_haptics">Dokunsal geri bildirim</string>
+    <string name="settings_haptics_subtitle">Dokunma ve kaydırmalarda titreşim</string>
 </resources>

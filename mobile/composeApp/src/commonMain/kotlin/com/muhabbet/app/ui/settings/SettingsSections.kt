@@ -46,6 +46,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetSwitch
 
 /**
  * Avatar (with camera overlay) + display-name / about fields + save button.
@@ -338,7 +339,7 @@ internal fun PrivacySection() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(
+        MuhabbetSwitch(
             checked = readReceiptsEnabled,
             onCheckedChange = { readReceiptsEnabled = it }
         )
@@ -361,7 +362,7 @@ internal fun NotificationsSection() {
             text = stringResource(Res.string.settings_notifications_enabled),
             style = MaterialTheme.typography.bodyLarge
         )
-        Switch(
+        MuhabbetSwitch(
             checked = notificationsEnabled,
             onCheckedChange = { notificationsEnabled = it }
         )
@@ -375,9 +376,39 @@ internal fun NotificationsSection() {
             text = stringResource(Res.string.settings_notifications_vibrate),
             style = MaterialTheme.typography.bodyLarge
         )
-        Switch(
+        MuhabbetSwitch(
             checked = vibrationEnabled,
             onCheckedChange = { vibrationEnabled = it }
+        )
+    }
+}
+
+/**
+ * Haptic feedback on or off.
+ *
+ * Unlike the notification switches above — which are still local state with nowhere to go — this
+ * one persists and is read at the composition root, so turning it off silences every haptic in the
+ * app through a single check inside [MuhabbetHaptics].
+ */
+@Composable
+internal fun HapticsSection(themeController: ThemeController) {
+    val enabled by themeController.hapticsEnabled.collectAsState()
+    SettingsSectionTitle(stringResource(Res.string.settings_haptics))
+    Spacer(Modifier.height(MuhabbetSpacing.Small))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = stringResource(Res.string.settings_haptics_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        MuhabbetSwitch(
+            checked = enabled,
+            onCheckedChange = { themeController.setHapticsEnabled(it) }
         )
     }
 }

@@ -46,6 +46,7 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         // of the app.
         val root = remember { RootComponent(componentContext, tokenStorage) }
         val themeMode by themeController.mode.collectAsState()
+        val hapticsEnabled by themeController.hapticsEnabled.collectAsState()
 
         // Initialize crash reporter and set user
         LaunchedEffect(Unit) {
@@ -53,7 +54,7 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
             tokenStorage.getUserId()?.let { CrashReporter.setUser(it) }
         }
 
-        MuhabbetTheme(mode = themeMode) {
+        MuhabbetTheme(mode = themeMode, hapticsEnabled = hapticsEnabled) {
             WebSocketLifecycle()
             RootContent(root)
         }

@@ -136,6 +136,8 @@ val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
 // ─── Spacing tokens ─────────────────────────────────────────
 
 object MuhabbetSpacing {
+    /** No gap. Named so that "deliberately flush" is distinguishable from "forgot to set it". */
+    val None: Dp = 0.dp
     val XSmall: Dp = 4.dp
     val Small: Dp = 8.dp
     val Medium: Dp = 12.dp
