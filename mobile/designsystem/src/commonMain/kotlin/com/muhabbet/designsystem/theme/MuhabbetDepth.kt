@@ -118,7 +118,7 @@ private data class ShadowSpec(val radius: Dp, val y: Dp, val alpha: Float) {
 }
 
 /** Reads from the palette so a brand change retints every shadow in the app from one place. */
-private val ShadowTint = MuhabbetPalette.DarkBg
+private val ShadowTint = MuhabbetPalette.Ink.I00
 
 /**
  * The container colour a [MuhabbetDepth] level should paint itself.

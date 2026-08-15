@@ -108,29 +108,16 @@ class SemanticColorContrastTest {
      * The brand palette replacing these colours must empty this set. A test that is simply expected
      * to be red gets ignored and then deleted; one that pins the exact known debt does not.
      */
-    private val knownDebt = setOf(
-        "Light onUnreadBadge/unreadBadge",
-        "Light onCallAccept/callAccept",
-        "Light onCallDecline/callDecline",
-        "Light linkColor/bubbleOther",
-        "Light linkColor/bubbleOwn",
-        "Light statusRead/bubbleOwn",
-        "Light statusDelivered/bubbleOwn",
-        "Light statusSending/bubbleOwn",
-        "Light statusOnline/inputBarBackground",
-        "Dark onUnreadBadge/unreadBadge",
-        "Dark onCallAccept/callAccept",
-        "Dark onCallDecline/callDecline",
-        "Dark linkColor/bubbleOwn",
-        "Dark statusDelivered/bubbleOwn",
-        "Dark statusSending/bubbleOwn",
-        "Oled onUnreadBadge/unreadBadge",
-        "Oled onCallAccept/callAccept",
-        "Oled onCallDecline/callDecline",
-        "Oled linkColor/bubbleOwn",
-        "Oled statusDelivered/bubbleOwn",
-        "Oled statusSending/bubbleOwn"
-    )
+    /**
+     * Empty, and it stays empty.
+     *
+     * This held 21 pairs inherited with the cloned palette — an unread badge at 1.98:1, a "sending"
+     * clock at 1.69:1 on its own bubble. Every one of them is now above its floor under the copper
+     * palette. The test fails in both directions, so a pair that regresses fails the build and a
+     * pair that is fixed has to be removed from here; adding an entry back is a deliberate act with
+     * a reviewer attached.
+     */
+    private val knownDebt = emptySet<String>()
 
     private fun assertAllPairs(name: String, colors: MuhabbetSemanticColors) {
         val regressions = mutableListOf<String>()

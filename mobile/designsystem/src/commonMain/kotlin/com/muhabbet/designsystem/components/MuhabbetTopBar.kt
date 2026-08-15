@@ -26,20 +26,24 @@ object MuhabbetTopBarDefaults {
     /**
      * The one top-bar palette.
      *
-     * Still `primary` — the inherited green — deliberately. Collapsing 23 duplicated blocks and
-     * changing what they paint are two different changes, and doing them together would leave the
-     * app half-rebranded: white bars above WhatsApp-green bubbles. The switch to `surface` happens
-     * with the palette, as one coherent move. When it does, it is this function and nothing else.
+     * `surface`, not `primary`. A saturated bar across nineteen screens was the single most
+     * recognisable inherited signature in the product, and restraint is most of what reads as
+     * premium; the accent is worth more spent on the few things that actually need pointing at.
+     * The bar lifts to `surfaceContainer` on scroll, which is M3's own elevation-by-colour and is
+     * only legible now that the container ramp is filled in.
+     *
+     * This landing with the palette rather than with the component extraction is deliberate: doing
+     * it earlier would have left the app half-rebranded, white bars above green bubbles.
      */
     // Not @ReadOnlyComposable: TopAppBarDefaults.topAppBarColors caches into the composition.
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun colors(): TopAppBarColors = TopAppBarDefaults.topAppBarColors(
-        containerColor = MaterialTheme.colorScheme.primary,
-        scrolledContainerColor = MaterialTheme.colorScheme.primary,
-        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
