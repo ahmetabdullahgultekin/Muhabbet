@@ -9,9 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -26,12 +23,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 @Composable
 fun VoiceRecordButton(
@@ -81,7 +79,7 @@ fun VoiceRecordButton(
             )
         ) {
             Icon(
-                imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                imageVector = if (isRecording) Muhabbet.icons.Stop else Muhabbet.icons.Mic,
                 contentDescription = stringResource(if (isRecording) Res.string.voice_stop else Res.string.voice_record),
                 modifier = Modifier.size(MuhabbetSizes.IconMedium)
             )

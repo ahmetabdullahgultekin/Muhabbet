@@ -13,14 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,13 +22,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -52,9 +40,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
@@ -65,6 +54,17 @@ import com.muhabbet.shared.dto.RsvpRequest
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetEmptyState
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,20 +119,12 @@ fun GroupEventScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.group_event_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.group_event_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
         floatingActionButton = {
@@ -141,38 +133,19 @@ fun GroupEventScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.group_event_create))
+                Icon(Muhabbet.icons.Add, contentDescription = stringResource(Res.string.group_event_create))
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (events.isEmpty()) {
-            Box(
+            MuhabbetEmptyState(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.CalendarToday,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                    Text(
-                        text = stringResource(Res.string.group_event_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+                icon = Muhabbet.icons.Calendar,
+                title = stringResource(Res.string.group_event_empty)
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -206,10 +179,11 @@ private fun EventCard(
     event: GroupEventResponse,
     onRsvp: (String) -> Unit
 ) {
+    val cardShape = MaterialTheme.shapes.medium
     Surface(
-        tonalElevation = MuhabbetElevation.Level2,
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth()
+        color = MuhabbetDepth.Raised.containerColor(),
+        shape = cardShape,
+        modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, cardShape)
     ) {
         Column(modifier = Modifier.padding(MuhabbetSpacing.Large)) {
             Text(
@@ -231,7 +205,7 @@ private fun EventCard(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.CalendarToday,
+                    Muhabbet.icons.Calendar,
                     contentDescription = null,
                     modifier = Modifier.size(MuhabbetSizes.IconSmall),
                     tint = MaterialTheme.colorScheme.primary
@@ -247,7 +221,7 @@ private fun EventCard(
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.LocationOn,
+                        Muhabbet.icons.Location,
                         contentDescription = null,
                         modifier = Modifier.size(MuhabbetSizes.IconSmall),
                         tint = MaterialTheme.colorScheme.primary
@@ -263,14 +237,14 @@ private fun EventCard(
             Spacer(Modifier.height(MuhabbetSpacing.Small))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.People,
+                    Muhabbet.icons.People,
                     contentDescription = null,
                     modifier = Modifier.size(MuhabbetSizes.IconSmall),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.Small))
                 Text(
-                    text = "${event.goingCount} ${stringResource(Res.string.group_event_going).lowercase()}",
+                    text = stringResource(Res.string.group_event_going_count, event.goingCount),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -291,18 +265,18 @@ private fun EventCard(
                 ) {
                     Text(stringResource(Res.string.group_event_going))
                 }
-                OutlinedButton(
+                MuhabbetButton(
+                    text = stringResource(Res.string.group_event_maybe),
                     onClick = { onRsvp("MAYBE") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(Res.string.group_event_maybe))
-                }
-                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    role = MuhabbetButtonRole.Secondary
+                )
+                MuhabbetButton(
+                    text = stringResource(Res.string.group_event_not_going),
                     onClick = { onRsvp("NOT_GOING") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(Res.string.group_event_not_going))
-                }
+                    modifier = Modifier.weight(1f),
+                    role = MuhabbetButtonRole.Secondary
+                )
             }
         }
     }
@@ -319,41 +293,12 @@ private fun CreateEventDialog(
     // For simplicity, use current time + 1 day as default event time
     val defaultTime = remember { kotlin.time.Clock.System.now().toEpochMilliseconds() + 86400000L }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.group_event_create)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(Res.string.group_event_name_hint)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text(stringResource(Res.string.community_description_hint)) },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                OutlinedTextField(
-                    value = location,
-                    onValueChange = { location = it },
-                    label = { Text(stringResource(Res.string.group_event_location)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.group_event_create),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(Res.string.group_event_create),
+        onConfirm = {
                     onCreate(
                         title,
                         description.ifBlank { null },
@@ -361,14 +306,35 @@ private fun CreateEventDialog(
                         location.ifBlank { null }
                     )
                 },
-                enabled = title.isNotBlank()
-            ) {
-                Text(stringResource(Res.string.group_event_create))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.cancel))
+        confirmEnabled = title.isNotBlank(),
+        content ={
+            Column {
+                MuhabbetTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.group_event_name_hint),
+                    singleLine = true,
+                    imeAction = ImeAction.Next
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+                MuhabbetTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.community_description_hint),
+                    singleLine = false,
+                    maxLines = 3
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+                MuhabbetTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.group_event_location),
+                    singleLine = true,
+                    imeAction = ImeAction.Done
+                )
             }
         }
     )

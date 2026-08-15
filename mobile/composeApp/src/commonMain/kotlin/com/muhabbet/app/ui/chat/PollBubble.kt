@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.MessageRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.dto.PollResultResponse
 import com.muhabbet.app.util.Log

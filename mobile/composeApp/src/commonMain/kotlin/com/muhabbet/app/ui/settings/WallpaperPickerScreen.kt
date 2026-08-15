@@ -18,16 +18,11 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -45,19 +40,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.WallpaperRepository
 import com.muhabbet.app.platform.rememberImagePickerLauncher
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetSwitch
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.theme.MuhabbetWallpapers
 
-private val solidColors = listOf(
-    Color(0xFFE8D5B7), Color(0xFFB7D5E8), Color(0xFFD5E8B7),
-    Color(0xFFE8B7D5), Color(0xFFB7E8D5), Color(0xFFD5B7E8),
-    Color(0xFF2C3E50), Color(0xFF1A1A2E), Color(0xFF16213E),
-    Color(0xFF0F3460), Color(0xFF533483), Color(0xFF2C2C54)
-)
+// The swatches live in the design system with every other colour, so a screen still cannot name a
+// hex. The old set was a navy-and-purple palette from before the rebrand; a cool violet behind
+// copper bubbles reads as two different apps stacked on each other.
+private val solidColors = MuhabbetWallpapers
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,23 +81,12 @@ fun WallpaperPickerScreen(
         }
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.wallpaper_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.wallpaper_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
@@ -180,7 +169,7 @@ fun WallpaperPickerScreen(
                                     // The swatch itself is a bare coloured Box with no text, so this
                                     // check mark is the only thing a screen reader can announce for it.
                                     Icon(
-                                        Icons.Default.Check,
+                                        Muhabbet.icons.Sent,
                                         contentDescription = stringResource(Res.string.a11y_selected),
                                         tint = Color.White,
                                         modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -197,7 +186,7 @@ fun WallpaperPickerScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                Icons.Default.Image,
+                                Muhabbet.icons.Image,
                                 contentDescription = stringResource(Res.string.wallpaper_custom),
                                 modifier = Modifier.size(48.dp),
                                 tint = if (customWallpaperSet) MaterialTheme.colorScheme.primary
@@ -212,9 +201,11 @@ fun WallpaperPickerScreen(
                                 )
                                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                             }
-                            Button(onClick = { galleryPicker.launch() }) {
-                                Text(stringResource(Res.string.wallpaper_choose_from_gallery))
-                            }
+                            MuhabbetButton(
+                                text = stringResource(Res.string.wallpaper_choose_from_gallery),
+                                onClick = { galleryPicker.launch() },
+                                role = MuhabbetButtonRole.Primary
+                            )
                         }
                     }
                 }
@@ -235,7 +226,7 @@ fun WallpaperPickerScreen(
                     text = stringResource(Res.string.wallpaper_dark_mode),
                     style = MaterialTheme.typography.bodyLarge
                 )
-                Switch(
+                MuhabbetSwitch(
                     checked = darkModeEnabled,
                     onCheckedChange = {
                         darkModeEnabled = it
@@ -247,16 +238,16 @@ fun WallpaperPickerScreen(
             Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
             // Remove wallpaper button
-            Button(
+            MuhabbetButton(
+                text = stringResource(Res.string.wallpaper_remove),
                 onClick = {
                     selectedType = "DEFAULT"
                     wallpaperRepository.setWallpaperType("DEFAULT")
                     wallpaperRepository.setSolidColor(null)
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(Res.string.wallpaper_remove))
-            }
+                modifier = Modifier.fillMaxWidth(),
+                role = MuhabbetButtonRole.Primary
+            )
         }
     }
 }

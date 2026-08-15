@@ -1,41 +1,6 @@
 package com.muhabbet.app.util
 
 /**
- * Extracts the first visible grapheme from a string.
- * Handles ASCII, emoji (including compound emoji with ZWJ, skin tones),
- * and surrogate pairs correctly.
- */
-fun firstGrapheme(text: String): String {
-    if (text.isEmpty()) return "?"
-    val ch = text[0]
-    if (ch.code < 0x80) return ch.uppercase()
-    if (ch.isHighSurrogate() && text.length > 1 && text[1].isLowSurrogate()) {
-        var end = 2
-        while (end < text.length) {
-            val c = text[end]
-            if (c == '\u200D') {
-                end++
-                if (end < text.length) {
-                    end++
-                    if (end < text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) {
-                        end++
-                    }
-                }
-            } else if (c == '\uFE0F' || c == '\uFE0E') {
-                end++
-            } else if (c == '\uD83C' && end + 1 < text.length) {
-                val low = text[end + 1]
-                if (low.code in 0xDFFB..0xDFFF) {
-                    end += 2
-                } else break
-            } else break
-        }
-        return text.substring(0, end)
-    }
-    return ch.toString()
-}
-
-/**
  * Applies basic message formatting:
  * *bold* → bold, _italic_ → italic, ~strikethrough~ → strikethrough, `code` → code
  * Returns an AnnotatedString for Compose rendering.

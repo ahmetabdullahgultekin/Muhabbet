@@ -17,19 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -43,23 +30,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -132,7 +124,7 @@ fun MessageBubble(
                             text = senderName,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
                     // Quoted reply
@@ -140,11 +132,11 @@ fun MessageBubble(
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = onBubbleColor.copy(alpha = 0.1f),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
                         ) {
                             Row(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
                                 Box(
-                                    modifier = Modifier.width(3.dp).height(32.dp)
+                                    modifier = Modifier.width(MuhabbetSizes.QuoteBarWidth).height(MuhabbetSizes.QuoteBarHeight)
                                         .clip(RoundedCornerShape(MuhabbetCorners.Hairline))
                                 )
                                 Column(modifier = Modifier.padding(start = MuhabbetSpacing.Small)) {
@@ -162,19 +154,19 @@ fun MessageBubble(
                     // Forwarded label
                     if (message.forwardedFrom != null) {
                         Row(
-                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.Send,
+                                Muhabbet.icons.Send,
                                 contentDescription = stringResource(Res.string.chat_forwarded),
-                                modifier = Modifier.size(12.dp),
+                                modifier = Modifier.size(MuhabbetSizes.IconInline),
                                 tint = onBubbleColor.copy(alpha = 0.8f)
                             )
                             Text(
                                 text = stringResource(Res.string.chat_forwarded),
-                                style = MuhabbetTextStyles.ChatForwardedLabel,
+                                style = Muhabbet.text.ChatForwardedLabel,
                                 color = onBubbleColor.copy(alpha = 0.8f),
                             )
                         }
@@ -195,7 +187,7 @@ fun MessageBubble(
                                 durationSeconds = null,
                                 isOwn = isOwn,
                                 audioPlayer = audioPlayer,
-                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
                             )
                         }
                         // Document
@@ -203,11 +195,11 @@ fun MessageBubble(
                             Surface(
                                 shape = MaterialTheme.shapes.small,
                                 color = onBubbleColor.copy(alpha = 0.1f),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
                                     .clickable { /* open URL */ }
                             ) {
-                                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Description, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(28.dp),
+                                Row(modifier = Modifier.padding(MuhabbetSizes.AttachmentPadding), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Muhabbet.icons.Document, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(MuhabbetSizes.IconAttachment),
                                         tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(MuhabbetSpacing.Small))
                                     Text(message.content, style = MaterialTheme.typography.bodySmall,
@@ -229,7 +221,7 @@ fun MessageBubble(
                             AsyncImage(
                                 model = message.mediaUrl,
                                 contentDescription = stringResource(Res.string.attach_gif),
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
@@ -251,7 +243,7 @@ fun MessageBubble(
                             AsyncImage(
                                 model = message.thumbnailUrl ?: message.mediaUrl,
                                 contentDescription = stringResource(Res.string.chat_photo),
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentScale = ContentScale.Crop
@@ -261,7 +253,7 @@ fun MessageBubble(
                         // Video
                         if (message.contentType == ContentType.VIDEO && (message.mediaUrl != null || message.thumbnailUrl != null)) {
                             Box(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { message.mediaUrl?.let { onImageClick(it) } },
                                 contentAlignment = Alignment.Center
@@ -269,17 +261,17 @@ fun MessageBubble(
                                 AsyncImage(
                                     model = message.thumbnailUrl ?: message.mediaUrl,
                                     contentDescription = stringResource(Res.string.video_play),
-                                    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight),
                                     contentScale = ContentScale.Crop
                                 )
                                 // Play button overlay
                                 Surface(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier.size(MuhabbetSizes.MediaControl)
                                 ) {
                                     Icon(
-                                        Icons.Default.PlayArrow,
+                                        Muhabbet.icons.Play,
                                         contentDescription = stringResource(Res.string.video_play),
                                         modifier = Modifier.padding(MuhabbetSpacing.Small),
                                         tint = MaterialTheme.colorScheme.onSurface
@@ -294,7 +286,7 @@ fun MessageBubble(
                         ) {
                             Text(
                                 text = message.content,
-                                style = MuhabbetTextStyles.ChatBody,
+                                style = Muhabbet.text.ChatBody,
                                 color = onBubbleColor,
                                 modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)
                             )
@@ -304,35 +296,35 @@ fun MessageBubble(
                                     LinkPreviewCard(url = firstUrl, isOwn = isOwn)
                                 }
                             }
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(MuhabbetSizes.GapHairline))
                         }
                     }
 
                     // Timestamp + edited + delivery status
                     Row(
-                        modifier = Modifier.align(Alignment.End).padding(horizontal = MuhabbetSpacing.Small, vertical = 2.dp),
+                        modifier = Modifier.align(Alignment.End).padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSizes.QuoteBarWidth)
                     ) {
                         if (message.editedAt != null && !message.isDeleted) {
                             Text(
                                 text = stringResource(Res.string.chat_edited),
-                                style = MuhabbetTextStyles.ChatMeta,
+                                style = Muhabbet.text.ChatMeta,
                                 color = onBubbleColor.copy(alpha = 0.5f)
                             )
                         }
                         val timestamp = message.serverTimestamp ?: message.clientTimestamp
                         Text(
                             text = formatMessageTime(timestamp),
-                            style = MuhabbetTextStyles.ChatMeta,
+                            style = Muhabbet.text.ChatMeta,
                             color = onBubbleColor.copy(alpha = 0.6f)
                         )
                         if (isOwn && !message.isDeleted) {
                             val (icon, tint) = when (message.status) {
-                                MessageStatus.SENDING -> Icons.Default.AccessTime to onBubbleColor.copy(alpha = 0.5f)
-                                MessageStatus.SENT -> Icons.Default.Check to onBubbleColor.copy(alpha = 0.7f)
-                                MessageStatus.DELIVERED -> Icons.Default.DoneAll to onBubbleColor.copy(alpha = 0.7f)
-                                MessageStatus.READ -> Icons.Default.DoneAll to semanticColors.statusRead
+                                MessageStatus.SENDING -> Muhabbet.icons.Pending to onBubbleColor.copy(alpha = 0.5f)
+                                MessageStatus.SENT -> Muhabbet.icons.Sent to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.DELIVERED -> Muhabbet.icons.Delivered to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.READ -> Muhabbet.icons.Delivered to semanticColors.statusRead
                             }
                             val statusDesc = when (message.status) {
                                 MessageStatus.SENDING -> stringResource(Res.string.status_sending)
@@ -340,7 +332,27 @@ fun MessageBubble(
                                 MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
                                 MessageStatus.READ -> stringResource(Res.string.status_read)
                             }
-                            Icon(icon, contentDescription = statusDesc, modifier = Modifier.size(14.dp), tint = tint)
+                            // The tick changes because the other device answered, so it is worth
+                            // showing rather than swapping. Effects spring, not spatial: this is a
+                            // colour and glyph change, and a tick that overshoots reads as a twitch.
+                            // The label sits on the wrapper so a screen reader is not re-announced
+                            // mid-crossfade.
+                            AnimatedContent(
+                                targetState = message.status,
+                                transitionSpec = {
+                                    fadeIn(Muhabbet.motion.effectsDefault()) togetherWith
+                                        fadeOut(Muhabbet.motion.effectsFast())
+                                },
+                                label = "deliveryStatus",
+                                modifier = Modifier.semantics { contentDescription = statusDesc }
+                            ) { _ ->
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(MuhabbetSizes.IconStatusTick),
+                                    tint = tint
+                                )
+                            }
                         }
                     }
 
@@ -366,25 +378,25 @@ fun MessageBubble(
                             clipboardManager.setText(AnnotatedString(message.content))
                             onCopy()
                         },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = stringResource(Res.string.chat_context_copy), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                        leadingIcon = { Icon(Muhabbet.icons.Copy, contentDescription = stringResource(Res.string.chat_context_copy), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
                 }
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_reply)) },
                     onClick = onReply,
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = stringResource(Res.string.chat_context_reply), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                    leadingIcon = { Icon(Muhabbet.icons.Reply, contentDescription = stringResource(Res.string.chat_context_reply), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_forward)) },
                     onClick = onForward,
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.chat_context_forward), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                    leadingIcon = { Icon(Muhabbet.icons.Send, contentDescription = stringResource(Res.string.chat_context_forward), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                 )
                 DropdownMenuItem(
                     text = { Text(if (isStarred) stringResource(Res.string.chat_context_unstar) else stringResource(Res.string.chat_context_star)) },
                     onClick = onStar,
                     leadingIcon = {
                         Icon(
-                            if (isStarred) Icons.Default.Star else Icons.Default.StarBorder,
+                            if (isStarred) Muhabbet.icons.Star else Muhabbet.icons.StarOutline,
                             contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconMedium),
                             tint = if (isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
                         )
@@ -393,20 +405,20 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.chat_context_info)) },
                     onClick = onInfo,
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = stringResource(Res.string.chat_context_info), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                    leadingIcon = { Icon(Muhabbet.icons.Info, contentDescription = stringResource(Res.string.chat_context_info), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                 )
                 if (isOwn) {
                     if (message.contentType == ContentType.TEXT) {
                         DropdownMenuItem(
                             text = { Text(stringResource(Res.string.chat_context_edit)) },
                             onClick = onEdit,
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.chat_context_edit), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                            leadingIcon = { Icon(Muhabbet.icons.Edit, contentDescription = stringResource(Res.string.chat_context_edit), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                         )
                     }
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
                         onClick = onDelete,
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.chat_context_delete), modifier = Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.error) }
+                        leadingIcon = { Icon(Muhabbet.icons.Delete, contentDescription = stringResource(Res.string.chat_context_delete), modifier = Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.error) }
                     )
                 }
             }

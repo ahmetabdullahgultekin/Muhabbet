@@ -13,3 +13,9 @@ plugins {
     id("app.cash.sqldelight") version "2.3.2" apply false
     id("com.google.gms.google-services") version "4.5.0" apply false
 }
+
+// Static UI guardrails. Applied at the root because they must run without an Android SDK — see the
+// file header. Deliberately NOT gated on SKIP_MOBILE: these read the mobile sources straight off
+// disk rather than through the Gradle module, so `SKIP_MOBILE=true ./gradlew verifyUi` is the
+// combination that works in an SDK-less container.
+apply(from = "gradle/ui-guardrails.gradle.kts")

@@ -22,9 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 
 @Composable
 fun TypingIndicatorBubble(modifier: Modifier = Modifier) {

@@ -16,10 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,9 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
@@ -43,6 +41,8 @@ import com.muhabbet.shared.model.ConversationType
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import androidx.compose.foundation.layout.PaddingValues
+import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 
 /**
  * Group-picker bottom sheet for adding an existing group to a community.
@@ -66,7 +66,6 @@ fun AddGroupToCommunitySheet(
     communityRepository: CommunityRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject()
 ) {
-    val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
 
     var eligibleGroups by remember { mutableStateOf<List<ConversationResponse>?>(null) }
@@ -84,16 +83,14 @@ fun AddGroupToCommunitySheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
+    MuhabbetBottomSheet(
+        onDismiss = onDismiss,
+        contentPadding = PaddingValues(
+            horizontal = MuhabbetSpacing.XLarge,
+            vertical = MuhabbetSpacing.Medium
+        )
     ) {
-        Column(
-            modifier = Modifier.padding(
-                horizontal = MuhabbetSpacing.XLarge,
-                vertical = MuhabbetSpacing.Medium
-            )
-        ) {
+        Column {
             Text(
                 text = stringResource(Res.string.community_add_group_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -179,7 +176,7 @@ private fun GroupPickerItem(
         UserAvatar(
             avatarUrl = group.avatarUrl,
             displayName = group.name ?: "",
-            size = 44.dp
+            size = MuhabbetSizes.AvatarMedium
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Text(

@@ -23,18 +23,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.automirrored.filled.Forward
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,9 +40,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.shared.dto.ConversationResponse
@@ -67,8 +59,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.ConfirmDialog
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 /**
  * Full-screen media viewer with semi-transparent action bars.
@@ -147,13 +145,12 @@ fun MediaViewer(
                         .background(semanticColors.scrimOverlay)
                         .padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.Small)
                 ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = stringResource(Res.string.action_close),
-                            tint = semanticColors.onScrim
-                        )
-                    }
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Close,
+                        contentDescription = stringResource(Res.string.action_close),
+                        onClick = onDismiss,
+                        tint = semanticColors.onScrim
+                    )
                 }
             }
 
@@ -180,7 +177,7 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onForward() }
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = forwardText, tint = semanticColors.onScrim)
+                            Icon(Muhabbet.icons.Forward, contentDescription = forwardText, tint = semanticColors.onScrim)
                             Text(forwardText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
                         }
                     }
@@ -192,7 +189,7 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onDelete() }
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = deleteText, tint = semanticColors.onScrim)
+                            Icon(Muhabbet.icons.Delete, contentDescription = deleteText, tint = semanticColors.onScrim)
                             Text(deleteText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
                         }
                     }
@@ -225,10 +222,11 @@ fun ForwardPickerDialog(
     onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null
 ) {
     val cancelText = stringResource(Res.string.cancel)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.chat_forward_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.chat_forward_title),
+        dismissLabel = cancelText,
+        content ={
             if (forwardConversations.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge))
@@ -272,11 +270,12 @@ fun ForwardPickerDialog(
                                 .padding(vertical = MuhabbetSpacing.Medium, horizontal = MuhabbetSpacing.Small),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            com.muhabbet.app.ui.components.UserAvatar(
+                            com.muhabbet.designsystem.components.UserAvatar(
                                 avatarUrl = conv.avatarUrl,
                                 displayName = convName,
-                                size = 36.dp,
-                                isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP
+                                size = MuhabbetSizes.AvatarXSmall,
+                                isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP,
+                                contentDescription = if (conv.type == com.muhabbet.shared.model.ConversationType.GROUP) stringResource(Res.string.cd_group_avatar) else convName
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(convName, style = MaterialTheme.typography.bodyLarge)
@@ -284,10 +283,6 @@ fun ForwardPickerDialog(
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(cancelText) }
         }
     )
 }
@@ -301,6 +296,7 @@ fun DeleteConfirmDialog(
         title = stringResource(Res.string.chat_delete_title),
         message = stringResource(Res.string.chat_delete_confirm),
         confirmLabel = stringResource(Res.string.delete),
+        dismissLabel = stringResource(Res.string.cancel),
         onConfirm = onConfirm,
         onDismiss = onDismiss,
         isDestructive = true
@@ -321,10 +317,11 @@ fun DisappearTimerDialog(
         86400 to stringResource(Res.string.disappear_1d),
         604800 to stringResource(Res.string.disappear_1w)
     )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.disappear_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.disappear_title),
+        dismissLabel = stringResource(Res.string.cancel),
+        content ={
             Column {
                 timerOptions.forEach { (seconds, label) ->
                     val isSelected = currentSeconds == seconds
@@ -345,10 +342,6 @@ fun DisappearTimerDialog(
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }
@@ -362,56 +355,49 @@ fun LocationShareDialog(
     var locationLat by remember { mutableStateOf("") }
     var locationLng by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = {
-            onDismiss()
-        },
-        title = { Text(stringResource(Res.string.location_share_title)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = locationLabel,
-                    onValueChange = { locationLabel = it },
-                    placeholder = { Text(stringResource(Res.string.location_label_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(MuhabbetSpacing.Small))
-                OutlinedTextField(
-                    value = locationLat,
-                    onValueChange = { locationLat = it },
-                    placeholder = { Text(stringResource(Res.string.location_lat_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                OutlinedTextField(
-                    value = locationLng,
-                    onValueChange = { locationLng = it },
-                    placeholder = { Text(stringResource(Res.string.location_lng_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.location_share_title),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(Res.string.poll_send),
+        onConfirm = {
+            val lat = locationLat.toDoubleOrNull()
+            val lng = locationLng.toDoubleOrNull()
+            if (lat != null && lng != null) {
+                onSend(LocationData(
+                    latitude = lat,
+                    longitude = lng,
+                    label = locationLabel.takeIf { it.isNotBlank() }
+                ))
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val lat = locationLat.toDoubleOrNull()
-                    val lng = locationLng.toDoubleOrNull()
-                    if (lat != null && lng != null) {
-                        onSend(LocationData(
-                            latitude = lat,
-                            longitude = lng,
-                            label = locationLabel.takeIf { it.isNotBlank() }
-                        ))
-                    }
-                },
-                enabled = locationLat.toDoubleOrNull() != null && locationLng.toDoubleOrNull() != null
-            ) { Text(stringResource(Res.string.poll_send)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        confirmEnabled = locationLat.toDoubleOrNull() != null && locationLng.toDoubleOrNull() != null,
+        content = {
+            Column {
+                MuhabbetTextField(
+                    value = locationLabel,
+                    onValueChange = { locationLabel = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.location_label_placeholder),
+                    singleLine = true
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+                MuhabbetTextField(
+                    value = locationLat,
+                    onValueChange = { locationLat = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.location_lat_placeholder),
+                    singleLine = true
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+                MuhabbetTextField(
+                    value = locationLng,
+                    onValueChange = { locationLng = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.location_lng_placeholder),
+                    singleLine = true
+                )
+            }
         }
     )
 }
@@ -424,51 +410,48 @@ fun PollCreateDialog(
     var pollQuestion by remember { mutableStateOf("") }
     var pollOptions by remember { mutableStateOf(listOf("", "")) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.poll_create_title)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = pollQuestion,
-                    onValueChange = { pollQuestion = it },
-                    placeholder = { Text(stringResource(Res.string.poll_question_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(MuhabbetSpacing.Small))
-                pollOptions.forEachIndexed { index, option ->
-                    OutlinedTextField(
-                        value = option,
-                        onValueChange = { newVal ->
-                            pollOptions = pollOptions.toMutableList().also { it[index] = newVal }
-                        },
-                        placeholder = { Text(stringResource(Res.string.poll_option_placeholder, index + 1)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                    )
-                }
-                if (pollOptions.size < 6) {
-                    TextButton(onClick = { pollOptions = pollOptions + "" }) {
-                        Text(stringResource(Res.string.poll_add_option))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.poll_create_title),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(Res.string.poll_send),
+        onConfirm = {
                     val q = pollQuestion.trim()
                     val opts = pollOptions.map { it.trim() }.filter { it.isNotEmpty() }
                     if (q.isNotEmpty() && opts.size >= 2) {
                         onSend(PollData(question = q, options = opts))
                     }
                 },
-                enabled = pollQuestion.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2
-            ) { Text(stringResource(Res.string.poll_send)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        confirmEnabled = pollQuestion.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2,
+        content ={
+            Column {
+                MuhabbetTextField(
+                    value = pollQuestion,
+                    onValueChange = { pollQuestion = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.poll_question_placeholder),
+                    singleLine = true
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+                pollOptions.forEachIndexed { index, option ->
+                    MuhabbetTextField(
+                        value = option,
+                        onValueChange = { newVal ->
+                            pollOptions = pollOptions.toMutableList().also { it[index] = newVal }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        placeholder = stringResource(Res.string.poll_option_placeholder, index + 1),
+                        singleLine = true
+                    )
+                }
+                if (pollOptions.size < 6) {
+                    MuhabbetButton(
+                        text = stringResource(Res.string.poll_add_option),
+                        onClick = { pollOptions = pollOptions + "" },
+                        role = MuhabbetButtonRole.Text
+                    )
+                }
+            }
         }
     )
 }

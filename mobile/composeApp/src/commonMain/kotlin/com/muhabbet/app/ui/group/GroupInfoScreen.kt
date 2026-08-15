@@ -1,6 +1,7 @@
 package com.muhabbet.app.ui.group
 
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,30 +17,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -56,12 +43,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
-import androidx.compose.material.icons.filled.Image
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole
@@ -70,6 +56,13 @@ import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetSwitch
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,19 +111,12 @@ fun GroupInfoScreen(
     val isAdminOrOwner = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
 
     if (showEditDialog) {
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            title = { Text(stringResource(Res.string.group_edit_name_title)) },
-            text = {
-                OutlinedTextField(
-                    value = editName,
-                    onValueChange = { editName = it },
-                    placeholder = { Text(stringResource(Res.string.group_edit_name_placeholder)) },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
+        MuhabbetDialog(
+            onDismiss = { showEditDialog = false },
+            title = stringResource(Res.string.group_edit_name_title),
+            dismissLabel = stringResource(Res.string.cancel),
+            confirmLabel = stringResource(Res.string.save),
+            onConfirm = {
                     if (editName.isNotBlank()) {
                         scope.launch {
                             try {
@@ -142,10 +128,14 @@ fun GroupInfoScreen(
                         }
                     }
                     showEditDialog = false
-                }) { Text(stringResource(Res.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text(stringResource(Res.string.cancel)) }
+                },
+            content ={
+                MuhabbetTextField(
+                    value = editName,
+                    onValueChange = { editName = it },
+                    placeholder = stringResource(Res.string.group_edit_name_placeholder),
+                    singleLine = true
+                )
             }
         )
     }
@@ -163,6 +153,7 @@ fun GroupInfoScreen(
             title = stringResource(Res.string.group_leave_title),
             message = stringResource(Res.string.group_leave_confirm),
             confirmLabel = stringResource(Res.string.group_leave_button),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 scope.launch {
                     try {
@@ -179,43 +170,35 @@ fun GroupInfoScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.group_info_title)) },
-
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
+            MuhabbetTopBar(
+                title = stringResource(Res.string.group_info_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back),
                 actions = {
                     if (isAdminOrOwner) {
-                        IconButton(onClick = {
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Edit,
+                            contentDescription = stringResource(Res.string.group_edit_name_title),
+                            onClick = {
                             editName = conversation?.name ?: ""
                             showEditDialog = true
-                        }) {
-                            Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.group_edit_name_title))
                         }
+                        )
                     }
-                    IconButton(onClick = { showLeaveDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(Res.string.group_leave_title))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.LeaveGroup,
+                        contentDescription = stringResource(Res.string.group_leave_title),
+                        onClick = { showLeaveDialog = true }
+                    )
+                }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
@@ -226,11 +209,12 @@ fun GroupInfoScreen(
                         modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        com.muhabbet.app.ui.components.UserAvatar(
+                        com.muhabbet.designsystem.components.UserAvatar(
                             avatarUrl = conversation?.avatarUrl,
                             displayName = conversation?.name ?: "G",
-                            size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarXLarge,
-                            isGroup = true
+                            size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarXLarge,
+                            isGroup = true,
+                            contentDescription = stringResource(Res.string.cd_group_avatar)
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
                         Text(
@@ -258,7 +242,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Image,
+                                Muhabbet.icons.Image,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -284,7 +268,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Link,
+                                Muhabbet.icons.Link,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -310,7 +294,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.CalendarToday,
+                                Muhabbet.icons.Calendar,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -335,7 +319,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Campaign,
+                                Muhabbet.icons.Channel,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -346,7 +330,7 @@ fun GroupInfoScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f)
                             )
-                            Switch(
+                            MuhabbetSwitch(
                                 checked = announcementOnly,
                                 onCheckedChange = { enabled ->
                                     announcementOnly = enabled
@@ -422,10 +406,10 @@ private fun MemberItem(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        com.muhabbet.app.ui.components.UserAvatar(
+        com.muhabbet.designsystem.components.UserAvatar(
             avatarUrl = member.avatarUrl,
             displayName = member.displayName ?: "?",
-            size = com.muhabbet.app.ui.theme.MuhabbetSizes.AvatarSmall
+            size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
@@ -445,7 +429,7 @@ private fun MemberItem(
                             stringResource(Res.string.group_role_owner),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
                 } else if (member.role == MemberRole.ADMIN) {
@@ -457,7 +441,7 @@ private fun MemberItem(
                             stringResource(Res.string.group_role_admin),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
                 }
@@ -472,13 +456,12 @@ private fun MemberItem(
             }
         }
         if (canRemove) {
-            IconButton(onClick = onRemove) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(Res.string.group_remove_member),
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
+            MuhabbetIconButton(
+                icon = Muhabbet.icons.Delete,
+                contentDescription = stringResource(Res.string.group_remove_member),
+                onClick = onRemove,
+                tint = MaterialTheme.colorScheme.error
+            )
         }
     }
 }

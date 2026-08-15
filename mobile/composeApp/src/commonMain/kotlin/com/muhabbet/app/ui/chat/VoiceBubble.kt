@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.app.platform.SpeechTranscriber
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -39,6 +36,8 @@ import io.ktor.client.statement.bodyAsBytes
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @Composable
 fun VoiceBubble(
@@ -73,19 +72,16 @@ fun VoiceBubble(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
         ) {
-            IconButton(
+            MuhabbetIconButton(
+                icon = if (isPlaying) Muhabbet.icons.Pause else Muhabbet.icons.Play,
+                contentDescription = stringResource(if (isPlaying) Res.string.voice_pause else Res.string.voice_play),
                 onClick = {
                     if (isPlaying) audioPlayer.pause()
                     else audioPlayer.play(mediaUrl)
                 },
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = stringResource(if (isPlaying) Res.string.voice_pause else Res.string.voice_play),
-                    tint = textColor
-                )
-            }
+                modifier = Modifier.size(48.dp),
+                tint = textColor
+            )
 
             LinearProgressIndicator(
                 progress = { progress },

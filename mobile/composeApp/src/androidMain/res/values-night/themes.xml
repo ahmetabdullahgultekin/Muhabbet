@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Dark variant. See values/themes.xml for the rationale behind each item. -->
     <style name="Theme.Muhabbet.Splash" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@drawable/splash_background_dark</item>
-        <item name="android:statusBarColor">#121212</item>
-        <item name="android:navigationBarColor">#121212</item>
+        <item name="android:windowBackground">@color/muhabbet_splash_background</item>
+        <item name="android:statusBarColor">@color/muhabbet_splash_background</item>
+        <item name="android:navigationBarColor">@color/muhabbet_splash_background</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/muhabbet_splash_background</item>
     </style>
 </resources>

@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,22 +29,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.app.ui.transition.handoffAvatar
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
+import com.muhabbet.composeapp.generated.resources.cd_group_avatar
 import com.muhabbet.shared.dto.ConversationResponse
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ConversationItem(
     conversation: ConversationResponse,
     displayName: String,
+    modifier: Modifier = Modifier,
     avatarUrl: String? = null,
     isOnline: Boolean,
     isGroup: Boolean = false,
@@ -56,12 +63,19 @@ internal fun ConversationItem(
     onPin: () -> Unit = {}
 ) {
     val hasUnread = conversation.unreadCount > 0
+    val haptics = Muhabbet.haptics
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = MuhabbetSizes.ChatListItemMinHeight)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.perform(MuhabbetHapticIntent.ItemLongPressed)
+                    onLongClick()
+                }
+            )
             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -71,7 +85,10 @@ internal fun ConversationItem(
                 avatarUrl = avatarUrl,
                 displayName = displayName,
                 size = MuhabbetSizes.AvatarChatList,
-                isGroup = isGroup
+                isGroup = isGroup,
+                contentDescription = if (isGroup) stringResource(Res.string.cd_group_avatar) else displayName,
+                // Only the online dot stays behind; the avatar itself flies into the chat title bar.
+                modifier = Modifier.handoffAvatar(conversation.id, isChatSide = false)
             )
             // Green online dot
             if (isOnline) {
@@ -92,7 +109,7 @@ internal fun ConversationItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = displayName,
-                    style = MuhabbetTextStyles.ConversationTitle,
+                    style = Muhabbet.text.ConversationTitle,
                     fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -103,7 +120,7 @@ internal fun ConversationItem(
                     // "Pinned" is state carried by this icon alone — nothing in the row's text
                     // repeats it, so a null description would silently drop it.
                     Icon(
-                        Icons.Default.PushPin,
+                        Muhabbet.icons.Pin,
                         contentDescription = stringResource(Res.string.a11y_conversation_pinned),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -114,7 +131,7 @@ internal fun ConversationItem(
             if (preview != null) {
                 Text(
                     text = preview,
-                    style = MuhabbetTextStyles.ConversationPreview,
+                    style = Muhabbet.text.ConversationPreview,
                     fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (hasUnread) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -129,88 +146,31 @@ internal fun ConversationItem(
             if (lastAt != null) {
                 Text(
                     text = formatTimestamp(lastAt),
-                    style = MuhabbetTextStyles.ConversationTimestamp,
+                    style = Muhabbet.text.ConversationTimestamp,
                     color = if (hasUnread) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (hasUnread) {
-                Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                Badge(
-                    containerColor = LocalSemanticColors.current.unreadBadge,
-                    contentColor = LocalSemanticColors.current.onUnreadBadge
-                ) {
-                    Text(conversation.unreadCount.toString())
+            // The badge is the one thing in this row that appears because something happened
+            // elsewhere, so it is the one thing worth animating: a spatial spring reads as arriving
+            // rather than as a repaint. Scale only — a moving badge would drag the timestamp with it.
+            AnimatedVisibility(
+                visible = hasUnread,
+                enter = scaleIn(Muhabbet.motion.spatialDefault()) + fadeIn(Muhabbet.motion.effectsFast()),
+                exit = scaleOut(Muhabbet.motion.effectsFast()) + fadeOut(Muhabbet.motion.effectsFast())
+            ) {
+                Column {
+                    Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+                    Badge(
+                        containerColor = LocalSemanticColors.current.unreadBadge,
+                        contentColor = LocalSemanticColors.current.onUnreadBadge
+                    ) {
+                        Text(conversation.unreadCount.toString())
+                    }
                 }
             }
         }
     }
-}
-
-@Composable
-internal fun ConversationSkeletonItem() {
-    val shimmerAlpha = shimmerAlpha()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Avatar placeholder
-        Box(
-            modifier = Modifier
-                .size(MuhabbetSizes.AvatarMedium)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-        )
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-        Column(modifier = Modifier.weight(1f)) {
-            // Name placeholder
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.5f)
-                    .height(14.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-            )
-            Spacer(Modifier.height(MuhabbetSpacing.Small))
-            // Message preview placeholder
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(12.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-            )
-        }
-        Spacer(Modifier.width(MuhabbetSpacing.Small))
-        // Timestamp placeholder
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(10.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = shimmerAlpha))
-        )
-    }
-}
-
-@Composable
-private fun shimmerAlpha(): Float {
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmerTransition")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(
-                durationMillis = com.muhabbet.app.ui.theme.MuhabbetDurations.ShimmerDurationMs,
-                easing = androidx.compose.animation.core.LinearEasing
-            ),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "shimmer"
-    )
-    return alpha
 }
 
 internal fun formatTimestamp(timestamp: String): String =

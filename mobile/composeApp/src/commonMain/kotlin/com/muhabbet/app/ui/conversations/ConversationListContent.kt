@@ -17,10 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,10 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
@@ -43,6 +40,8 @@ import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.Message
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetChip
 
 internal enum class ConversationFilter {
     ALL, UNREAD, FAVORITES, GROUPS
@@ -57,7 +56,7 @@ internal fun MessageSearchResults(
     conversations: List<ConversationResponse>,
     currentUserId: String,
     modifier: Modifier = Modifier,
-    onResultClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit
+    onResultClick: (ChatTarget) -> Unit
 ) {
     LazyColumn(modifier = modifier) {
         items(results, key = { it.id }) { msg ->
@@ -68,7 +67,16 @@ internal fun MessageSearchResults(
                         val conv = conversations.firstOrNull { it.id == msg.conversationId }
                         val otherP = conv?.participants?.firstOrNull { it.userId != currentUserId }
                         val name = conv?.name ?: otherP?.displayName ?: otherP?.phoneNumber ?: ""
-                        onResultClick(msg.conversationId, name, otherP?.userId, conv?.type == ConversationType.GROUP)
+                        val isGroup = conv?.type == ConversationType.GROUP
+                        onResultClick(
+                            ChatTarget(
+                                conversationId = msg.conversationId,
+                                name = name,
+                                otherUserId = otherP?.userId,
+                                isGroup = isGroup,
+                                avatarUrl = if (isGroup) conv?.avatarUrl else otherP?.avatarUrl
+                            )
+                        )
                     }
                     .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -118,7 +126,7 @@ internal fun ConversationStatusRow(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.Add,
+                            Muhabbet.icons.Add,
                             contentDescription = stringResource(Res.string.status_create_title),
                             modifier = Modifier.size(MuhabbetSizes.IconLarge),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -155,7 +163,7 @@ internal fun ConversationStatusRow(
                     UserAvatar(
                         avatarUrl = participant?.avatarUrl,
                         displayName = displayName,
-                        size = 56.dp
+                        size = MuhabbetSizes.AvatarLarge
                     )
                 }
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
@@ -181,47 +189,37 @@ internal fun ConversationFilterChips(
     activeFilter: ConversationFilter,
     onFilterChange: (ConversationFilter) -> Unit
 ) {
-    val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = MaterialTheme.colorScheme.primary,
-        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-        containerColor = Color.Transparent,
-        labelColor = LocalSemanticColors.current.secondaryText
-    )
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.XSmall),
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small),
         contentPadding = PaddingValues(horizontal = MuhabbetSpacing.Medium)
     ) {
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_all),
                 selected = activeFilter == ConversationFilter.ALL,
-                onClick = { onFilterChange(ConversationFilter.ALL) },
-                label = { Text(stringResource(Res.string.filter_all)) },
-                colors = chipColors
+                onClick = { onFilterChange(ConversationFilter.ALL) }
             )
         }
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_unread),
                 selected = activeFilter == ConversationFilter.UNREAD,
-                onClick = { onFilterChange(if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD) },
-                label = { Text(stringResource(Res.string.filter_unread)) },
-                colors = chipColors
+                onClick = { onFilterChange(if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD) }
             )
         }
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_favorites),
                 selected = activeFilter == ConversationFilter.FAVORITES,
-                onClick = { onFilterChange(if (activeFilter == ConversationFilter.FAVORITES) ConversationFilter.ALL else ConversationFilter.FAVORITES) },
-                label = { Text(stringResource(Res.string.filter_favorites)) },
-                colors = chipColors
+                onClick = { onFilterChange(if (activeFilter == ConversationFilter.FAVORITES) ConversationFilter.ALL else ConversationFilter.FAVORITES) }
             )
         }
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_groups),
                 selected = activeFilter == ConversationFilter.GROUPS,
-                onClick = { onFilterChange(if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS) },
-                label = { Text(stringResource(Res.string.filter_groups)) },
-                colors = chipColors
+                onClick = { onFilterChange(if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS) }
             )
         }
     }

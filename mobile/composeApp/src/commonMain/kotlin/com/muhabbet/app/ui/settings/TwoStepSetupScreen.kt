@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -20,8 +18,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,9 +39,10 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.SetupTwoStepRequest
@@ -53,6 +50,13 @@ import com.muhabbet.shared.dto.TwoStepStatusResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,35 +93,18 @@ fun TwoStepSetupScreen(
         }
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.two_step_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.two_step_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else {
             Column(
                 modifier = Modifier
@@ -127,10 +114,11 @@ fun TwoStepSetupScreen(
                     .padding(MuhabbetSpacing.XLarge)
             ) {
                 if (isEnabled) {
+                    val statusCardShape = MaterialTheme.shapes.medium
                     Surface(
-                        tonalElevation = MuhabbetElevation.Level1,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
+                        color = MuhabbetDepth.Raised.containerColor(),
+                        shape = statusCardShape,
+                        modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, statusCardShape)
                     ) {
                         Column(modifier = Modifier.padding(MuhabbetSpacing.Large)) {
                             Text(
@@ -210,16 +198,14 @@ fun TwoStepSetupScreen(
 
                     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-                    OutlinedTextField(
+                    MuhabbetTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = { Text(stringResource(Res.string.two_step_email_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = stringResource(Res.string.two_step_email_hint),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Done
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Done
                     )
 
                     Spacer(Modifier.height(MuhabbetSpacing.XLarge))

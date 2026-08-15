@@ -14,25 +14,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -49,8 +39,9 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.BroadcastListResponse
@@ -58,6 +49,12 @@ import com.muhabbet.shared.dto.CreateBroadcastListRequest
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetEmptyState
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,22 +87,12 @@ fun BroadcastListScreen(
 
     if (showCreateDialog) {
         var listName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = { Text(stringResource(Res.string.broadcast_list_create)) },
-            text = {
-                OutlinedTextField(
-                    value = listName,
-                    onValueChange = { listName = it },
-                    label = { Text(stringResource(Res.string.broadcast_list_name_hint)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+        MuhabbetDialog(
+            onDismiss = { showCreateDialog = false },
+            title = stringResource(Res.string.broadcast_list_create),
+            dismissLabel = stringResource(Res.string.cancel),
+            confirmLabel = stringResource(Res.string.broadcast_list_create),
+            onConfirm = {
                         scope.launch {
                             try {
                                 val response = apiClient.post<BroadcastListResponse>(
@@ -122,33 +109,26 @@ fun BroadcastListScreen(
                         }
                         showCreateDialog = false
                     },
-                    enabled = listName.isNotBlank()
-                ) {
-                    Text(stringResource(Res.string.broadcast_list_create))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) {
-                    Text(stringResource(Res.string.cancel))
-                }
+            confirmEnabled = listName.isNotBlank(),
+            content ={
+                MuhabbetTextField(
+                    value = listName,
+                    onValueChange = { listName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.broadcast_list_name_hint),
+                    singleLine = true,
+                    imeAction = ImeAction.Done
+                )
             }
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.broadcast_list_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.broadcast_list_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
         floatingActionButton = {
@@ -157,38 +137,19 @@ fun BroadcastListScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.broadcast_list_create))
+                Icon(Muhabbet.icons.Add, contentDescription = stringResource(Res.string.broadcast_list_create))
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (lists.isEmpty()) {
-            Box(
+            MuhabbetEmptyState(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.Campaign,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                    Text(
-                        text = stringResource(Res.string.broadcast_list_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+                icon = Muhabbet.icons.Channel,
+                title = stringResource(Res.string.broadcast_list_empty)
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
@@ -208,7 +169,7 @@ fun BroadcastListScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Campaign,
+                                Muhabbet.icons.Channel,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(40.dp)
@@ -220,7 +181,7 @@ fun BroadcastListScreen(
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                                 Text(
-                                    text = "${broadcastList.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                                    text = stringResource(Res.string.community_member_count, broadcastList.memberCount),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

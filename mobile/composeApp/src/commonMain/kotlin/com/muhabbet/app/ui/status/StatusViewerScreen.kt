@@ -13,9 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,12 +34,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetDurations
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetDurations
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.StatusRepository
-import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.shared.dto.StatusResponse
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -48,6 +47,8 @@ import kotlinx.coroutines.delay
 import com.muhabbet.app.util.DateTimeFormatter
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @Composable
 fun StatusViewerScreen(
@@ -160,6 +161,10 @@ fun StatusViewerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // Only the chrome is inset — the story image behind it stays full-bleed, which
+                    // is the whole point of the viewer. Without this the progress ticks sit under
+                    // the status bar.
+                    .safeDrawingPadding()
                     .padding(top = MuhabbetSpacing.Large, start = MuhabbetSpacing.Small, end = MuhabbetSpacing.Small)
             ) {
                 // Segmented progress bars
@@ -198,13 +203,12 @@ fun StatusViewerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back),
-                            tint = onBgColor
-                        )
-                    }
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Back,
+                        contentDescription = stringResource(Res.string.action_back),
+                        onClick = onBack,
+                        tint = onBgColor
+                    )
                     UserAvatar(
                         avatarUrl = null,
                         displayName = displayName,
@@ -250,7 +254,9 @@ fun StatusViewerScreen(
                     Text(
                         text = content,
                         color = onBgColor,
-                        fontSize = if (currentStatus.mediaUrl != null) 16.sp else 24.sp,
+                        // No explicit fontSize: the style below already carries one, and setting
+                        // both meant the type scale was being overridden by a hardcoded number that
+                        // happened to agree with it. Now a scale change reaches this screen too.
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         style = if (currentStatus.mediaUrl != null) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.headlineMedium,

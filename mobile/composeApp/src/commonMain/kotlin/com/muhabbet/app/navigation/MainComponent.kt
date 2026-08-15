@@ -12,8 +12,6 @@ import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.push
 import com.arkivanov.decompose.router.stack.replaceCurrent
 import com.arkivanov.decompose.extensions.compose.stack.Children
-import com.arkivanov.decompose.extensions.compose.stack.animation.slide
-import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.ui.call.ActiveCallScreen
 import com.muhabbet.app.ui.call.CallHistoryScreen
@@ -44,6 +42,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Clock
 import kotlinx.serialization.Serializable
+import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.transition.AvatarHandoff
+import com.muhabbet.app.ui.transition.LocalAvatarHandoff
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 
 class MainComponent(
     componentContext: ComponentContext,
@@ -64,8 +70,18 @@ class MainComponent(
     )
 
     @OptIn(DelicateDecomposeApi::class)
-    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false, scrollToMessageId: String? = null) {
-        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId))
+    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false, scrollToMessageId: String? = null, avatarUrl: String? = null) {
+        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId, avatarUrl))
+    }
+
+    fun openChat(target: ChatTarget) {
+        openChat(
+            conversationId = target.conversationId,
+            conversationName = target.name,
+            otherUserId = target.otherUserId,
+            isGroup = target.isGroup,
+            avatarUrl = target.avatarUrl
+        )
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -223,7 +239,7 @@ class MainComponent(
     sealed interface Config {
         @Serializable data object HomeShell : Config
         @Serializable data object ConversationList : Config
-        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null) : Config
+        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null, val avatarUrl: String? = null) : Config
         @Serializable data object NewConversation : Config
         @Serializable data object Settings : Config
         @Serializable data object CreateGroup : Config
@@ -249,15 +265,40 @@ class MainComponent(
     }
 }
 
+/**
+ * The main stack, plus the one thing that has to sit above it.
+ *
+ * `SharedTransitionLayout` wraps `Children` rather than living inside a screen because the two
+ * avatars that hand off — the conversation row's and the chat title bar's — are in two *different*
+ * children of this stack. Their nearest common ancestor is here and nowhere lower.
+ *
+ * The stack itself is [MainStack] so that adding this wrapper did not re-indent 250 lines of `when`
+ * branches, which would have buried the change in whitespace.
+ */
 @Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
 fun MainContent(component: MainComponent) {
+    SharedTransitionLayout {
+        val stack by component.childStack.subscribeAsState()
+        val handoff = AvatarHandoff(
+            scope = this,
+            activeConversationId = (stack.active.configuration as? MainComponent.Config.Chat)?.conversationId
+        )
+        CompositionLocalProvider(LocalAvatarHandoff provides handoff) {
+            MainStack(component)
+        }
+    }
+}
+
+@Composable
+private fun MainStack(component: MainComponent) {
     Children(
         stack = component.childStack,
-        animation = stackAnimation(slide())
+        animation = predictiveBack(component.backHandler, component::goBack)
     ) { child ->
         when (val config = child.instance) {
             is MainComponent.Config.HomeShell -> HomeShellScreen(
-                onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
+                onConversationClick = component::openChat,
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
@@ -271,7 +312,7 @@ fun MainContent(component: MainComponent) {
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.ConversationList -> ConversationListScreen(
-                onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
+                onConversationClick = component::openChat,
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
@@ -280,6 +321,8 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.Chat -> ChatScreen(
                 conversationId = config.conversationId,
                 conversationName = config.name,
+                conversationAvatarUrl = config.avatarUrl,
+                isGroup = config.isGroup,
                 scrollToMessageId = config.scrollToMessageId,
                 onBack = component::goBack,
                 onTitleClick = {

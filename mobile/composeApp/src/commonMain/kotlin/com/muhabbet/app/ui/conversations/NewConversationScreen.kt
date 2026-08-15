@@ -15,21 +15,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.outlined.Group
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.ContactPhone
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,8 +40,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
 import com.muhabbet.app.util.sha256Hex
@@ -61,6 +54,13 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,37 +129,23 @@ fun NewConversationScreen(
     val filteredContacts = if (searchQuery.isBlank()) contacts
     else contacts.filter { (it.displayName ?: "").contains(searchQuery, ignoreCase = true) }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.new_conversation_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
+            MuhabbetTopBar(
+                title = stringResource(Res.string.new_conversation_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back),
                 actions = {
-                    IconButton(
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Refresh,
+                        contentDescription = stringResource(Res.string.contacts_refresh),
                         onClick = { scope.launch { syncContacts() } },
                         enabled = hasPermission && !isSyncing
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(Res.string.contacts_refresh)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                    )
+                }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
@@ -170,7 +156,7 @@ fun NewConversationScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContactPhone,
+                            imageVector = Muhabbet.icons.Contact,
                             contentDescription = stringResource(Res.string.cd_contacts),
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -190,25 +176,17 @@ fun NewConversationScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Button(onClick = { requestPermission() }) {
-                            Text(stringResource(Res.string.contacts_grant_access))
-                        }
-                    }
-                }
-                // Syncing contacts
-                isSyncing -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.contacts_syncing),
-                            style = MaterialTheme.typography.bodyMedium
+                        MuhabbetButton(
+                            text = stringResource(Res.string.contacts_grant_access),
+                            onClick = { requestPermission() },
+                            role = MuhabbetButtonRole.Primary
                         )
                     }
                 }
+                // Syncing contacts
+                isSyncing -> MuhabbetLoadingState(
+                    label = stringResource(Res.string.contacts_syncing)
+                )
                 // No matched contacts
                 contacts.isEmpty() -> {
                     Column(
@@ -216,7 +194,7 @@ fun NewConversationScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContactPhone,
+                            imageVector = Muhabbet.icons.Contact,
                             contentDescription = stringResource(Res.string.cd_contacts),
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -231,12 +209,12 @@ fun NewConversationScreen(
                 // Show contacts list
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        OutlinedTextField(
+                        MuhabbetTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text(stringResource(Res.string.contacts_search_placeholder)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
+                            placeholder = stringResource(Res.string.contacts_search_placeholder),
+                            singleLine = true
                         )
                         LazyColumn {
                             // "Yeni Grup" button at top
@@ -254,7 +232,7 @@ fun NewConversationScreen(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = Icons.Outlined.Group,
+                                                imageVector = Muhabbet.icons.GroupOutlined,
                                                 contentDescription = stringResource(Res.string.new_conversation_new_group),
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -300,7 +278,7 @@ fun NewConversationScreen(
             }
 
             if (isCreating) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                MuhabbetLoadingState()
             }
         }
     }
@@ -325,7 +303,7 @@ private fun ContactItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = com.muhabbet.app.ui.profile.firstGrapheme(contact.displayName ?: "?"),
+                    text = com.muhabbet.designsystem.util.firstGrapheme(contact.displayName ?: "?"),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )

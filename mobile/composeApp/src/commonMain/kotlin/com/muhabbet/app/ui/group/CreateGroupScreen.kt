@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.ContactPhone
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,9 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,7 +42,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
@@ -61,6 +56,12 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,26 +116,15 @@ fun CreateGroupScreen(
         }
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.group_create_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.group_create_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHostState = snackbarHostState,
         floatingActionButton = {
             if (contacts.isNotEmpty()) {
                 FloatingActionButton(
@@ -182,7 +172,7 @@ fun CreateGroupScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContactPhone,
+                            imageVector = Muhabbet.icons.Contact,
                             contentDescription = null,
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -202,25 +192,17 @@ fun CreateGroupScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Button(onClick = { requestPermission() }) {
-                            Text(stringResource(Res.string.contacts_grant_access))
-                        }
-                    }
-                }
-
-                isSyncing -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.contacts_syncing),
-                            style = MaterialTheme.typography.bodyMedium
+                        MuhabbetButton(
+                            text = stringResource(Res.string.contacts_grant_access),
+                            onClick = { requestPermission() },
+                            role = MuhabbetButtonRole.Primary
                         )
                     }
                 }
+
+                isSyncing -> MuhabbetLoadingState(
+                    label = stringResource(Res.string.contacts_syncing)
+                )
 
                 contacts.isEmpty() -> {
                     Column(
@@ -228,7 +210,7 @@ fun CreateGroupScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContactPhone,
+                            imageVector = Muhabbet.icons.Contact,
                             contentDescription = null,
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -243,15 +225,15 @@ fun CreateGroupScreen(
 
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        OutlinedTextField(
+                        MuhabbetTextField(
                             value = groupName,
                             onValueChange = { groupName = it },
-                            label = { Text(stringResource(Res.string.group_name_label)) },
-                            placeholder = { Text(stringResource(Res.string.group_name_placeholder)) },
-                            singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
+                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
+                            label = stringResource(Res.string.group_name_label),
+                            placeholder = stringResource(Res.string.group_name_placeholder),
+                            singleLine = true
                         )
 
                         Text(
@@ -285,7 +267,7 @@ fun CreateGroupScreen(
             }
 
             if (isCreating) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                MuhabbetLoadingState()
             }
         }
     }
@@ -317,7 +299,7 @@ private fun SelectableContactItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = com.muhabbet.app.ui.profile.firstGrapheme(contact.displayName ?: "?"),
+                    text = com.muhabbet.designsystem.util.firstGrapheme(contact.displayName ?: "?"),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )

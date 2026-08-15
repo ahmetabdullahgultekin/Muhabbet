@@ -1,6 +1,7 @@
 package com.muhabbet.app.ui.settings
 
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,9 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,8 +19,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -37,12 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.HighQuality
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Wallpaper
+import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.MediaRepository
@@ -51,7 +42,7 @@ import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -59,6 +50,10 @@ import com.muhabbet.shared.dto.StorageUsageResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.SettingsNavRow
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +82,7 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val restartApp = rememberRestartApp()
+    val themeController: ThemeController = koinInject()
 
     val profileUpdatedMsg = stringResource(Res.string.settings_profile_updated)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -148,35 +144,18 @@ fun SettingsScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.settings_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else {
             Column(
                 modifier = Modifier
@@ -228,33 +207,42 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // The OFL is satisfied by bundling the licence (mobile/designsystem/licenses/), but
+                // naming the typeface is the decent thing to do and costs one line.
+                Text(
+                    text = stringResource(Res.string.settings_font_attribution),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
                 SettingsNavRow(
-                    label = stringResource(Res.string.starred_title),
-                    icon = Icons.Default.Star,
-                    contentDescription = stringResource(Res.string.starred_title),
+                    title = stringResource(Res.string.starred_title),
+                    icon = Muhabbet.icons.Star,
+                    iconContentDescription = stringResource(Res.string.starred_title),
                     onClick = onStarredMessages
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
-                    label = stringResource(Res.string.two_step_title),
-                    icon = Icons.Default.VerifiedUser,
-                    contentDescription = stringResource(Res.string.two_step_title),
+                    title = stringResource(Res.string.two_step_title),
+                    icon = Muhabbet.icons.TwoStep,
+                    iconContentDescription = stringResource(Res.string.two_step_title),
                     onClick = onTwoStepVerification
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
-                    label = stringResource(Res.string.app_lock_title),
-                    icon = Icons.Default.Lock,
-                    contentDescription = stringResource(Res.string.app_lock_title),
+                    title = stringResource(Res.string.app_lock_title),
+                    icon = Muhabbet.icons.Lock,
+                    iconContentDescription = stringResource(Res.string.app_lock_title),
                     onClick = onAppLock
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 SettingsNavRow(
-                    label = stringResource(Res.string.wallpaper_title),
-                    icon = Icons.Default.Wallpaper,
-                    contentDescription = stringResource(Res.string.wallpaper_title),
+                    title = stringResource(Res.string.wallpaper_title),
+                    icon = Muhabbet.icons.Wallpaper,
+                    iconContentDescription = stringResource(Res.string.wallpaper_title),
                     onClick = onWallpaper
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
@@ -262,9 +250,9 @@ fun SettingsScreen(
                 // Media Quality row
                 var showMediaQualityDialog by remember { mutableStateOf(false) }
                 SettingsNavRow(
-                    label = stringResource(Res.string.media_quality_title),
-                    icon = Icons.Default.HighQuality,
-                    contentDescription = stringResource(Res.string.media_quality_title),
+                    title = stringResource(Res.string.media_quality_title),
+                    icon = Muhabbet.icons.MediaQuality,
+                    iconContentDescription = stringResource(Res.string.media_quality_title),
                     onClick = { showMediaQualityDialog = true }
                 )
                 if (showMediaQualityDialog) {
@@ -285,7 +273,11 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                ThemeSection(tokenStorage = tokenStorage, restartApp = restartApp)
+                ThemeSection(themeController = themeController)
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = MuhabbetSpacing.Large))
+
+                HapticsSection(themeController = themeController)
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
@@ -293,9 +285,9 @@ fun SettingsScreen(
 
                 // Privacy Dashboard link
                 SettingsNavRow(
-                    label = stringResource(Res.string.privacy_open_dashboard),
-                    icon = Icons.Default.PrivacyTip,
-                    contentDescription = stringResource(Res.string.privacy_open_dashboard),
+                    title = stringResource(Res.string.privacy_open_dashboard),
+                    icon = Muhabbet.icons.Privacy,
+                    iconContentDescription = stringResource(Res.string.privacy_open_dashboard),
                     onClick = onPrivacyDashboard
                 )
 
@@ -330,7 +322,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        imageVector = Muhabbet.icons.Logout,
                         contentDescription = stringResource(Res.string.settings_logout),
                         modifier = Modifier.size(18.dp)
                     )

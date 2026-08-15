@@ -59,6 +59,15 @@ class IosTokenStorage : TokenStorage {
         defaults.setObject(lang, forKey = "app_language")
     }
 
+    override fun getHapticsEnabled(): Boolean =
+        if (defaults.objectForKey("haptics_enabled") == null) true
+        else defaults.boolForKey("haptics_enabled")
+
+    override fun setHapticsEnabled(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "haptics_enabled")
+        defaults.synchronize()
+    }
+
     override fun getTheme(): String? = defaults.stringForKey("app_theme")
 
     override fun setTheme(theme: String) {

@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.privacy
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,52 +11,40 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Gavel
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.AuthRepository
-import com.muhabbet.app.ui.components.ConfirmDialog
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.ConfirmDialog
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetDivider
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.SectionHeader
+import com.muhabbet.designsystem.components.SettingsInfoRow
+import com.muhabbet.designsystem.components.SettingsNavRow
+import com.muhabbet.designsystem.components.SettingsSwitchRow
+import com.muhabbet.designsystem.components.MuhabbetChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,6 +73,7 @@ fun PrivacyDashboardScreen(
             title = stringResource(Res.string.privacy_delete_confirm_title),
             message = stringResource(Res.string.privacy_delete_confirm_message),
             confirmLabel = stringResource(Res.string.privacy_delete_account),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 showDeleteDialog = false
                 scope.launch {
@@ -103,23 +91,15 @@ fun PrivacyDashboardScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.privacy_dashboard_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.privacy_dashboard_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding)
@@ -127,7 +107,7 @@ fun PrivacyDashboardScreen(
             // Visibility section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Visibility,
+                    icon = Muhabbet.icons.Visible,
                     title = stringResource(Res.string.privacy_visibility_section)
                 )
             }
@@ -160,36 +140,19 @@ fun PrivacyDashboardScreen(
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(Res.string.settings_privacy_read_receipts),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = readReceiptsEnabled,
-                        onCheckedChange = { readReceiptsEnabled = it }
-                    )
-                }
-                HorizontalDivider()
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_privacy_read_receipts),
+                    subtitle = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
+                    checked = readReceiptsEnabled,
+                    onCheckedChange = { readReceiptsEnabled = it }
+                )
+                MuhabbetDivider()
             }
 
             // Security section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Lock,
+                    icon = Muhabbet.icons.Lock,
                     title = stringResource(Res.string.privacy_security_section)
                 )
             }
@@ -211,7 +174,7 @@ fun PrivacyDashboardScreen(
                         // Don't show a padlock or claim end-to-end encryption when E2EConfig.ENABLED
                         // is false — state the truthful TLS-in-transit posture instead.
                         Icon(
-                            if (E2EConfig.ENABLED) Icons.Default.Lock else Icons.Default.Info,
+                            if (E2EConfig.ENABLED) Muhabbet.icons.Lock else Muhabbet.icons.Info,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -230,123 +193,64 @@ fun PrivacyDashboardScreen(
                 }
             }
 
+            // Informational, not a link: there is no blocked-contacts screen to open. This row used
+            // to carry `.clickable { }` with an empty body, so it looked tappable and did nothing.
+            // Blocking and unblocking happen from a person's profile; listing them centrally needs a
+            // screen plus a repository (the backend's GET /moderation/blocks returns bare IDs, with
+            // no way to resolve them to names), which is a feature, not a restyle.
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { }
-                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Block,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                    )
-                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                    Column {
-                        Text(
-                            text = stringResource(Res.string.privacy_blocked_contacts),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = stringResource(Res.string.privacy_blocked_contacts_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                HorizontalDivider()
+                SettingsInfoRow(
+                    title = stringResource(Res.string.privacy_blocked_contacts),
+                    subtitle = stringResource(Res.string.privacy_blocked_contacts_desc),
+                    icon = Muhabbet.icons.Block
+                )
+                MuhabbetDivider()
             }
 
             // My Data section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Download,
+                    icon = Muhabbet.icons.Download,
                     title = stringResource(Res.string.privacy_data_section)
                 )
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = !isExporting) {
-                            isExporting = true
-                            scope.launch {
-                                try {
-                                    authRepository.exportData()
-                                    snackbarHostState.showSnackbar(exportStartedMsg)
-                                } catch (_: Exception) {
-                                    snackbarHostState.showSnackbar(exportFailedMsg)
-                                }
-                                isExporting = false
+                SettingsNavRow(
+                    title = stringResource(Res.string.privacy_export_data),
+                    subtitle = stringResource(Res.string.privacy_export_data_desc),
+                    icon = Muhabbet.icons.Download,
+                    loading = isExporting,
+                    onClick = {
+                        isExporting = true
+                        scope.launch {
+                            try {
+                                authRepository.exportData()
+                                snackbarHostState.showSnackbar(exportStartedMsg)
+                            } catch (_: Exception) {
+                                snackbarHostState.showSnackbar(exportFailedMsg)
                             }
+                            isExporting = false
                         }
-                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isExporting) {
-                        CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
-                    } else {
-                        Icon(
-                            Icons.Default.Download,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                        )
                     }
-                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                    Column {
-                        Text(
-                            text = stringResource(Res.string.privacy_export_data),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = stringResource(Res.string.privacy_export_data_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                )
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDeleteDialog = true }
-                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                    )
-                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                    Column {
-                        Text(
-                            text = stringResource(Res.string.privacy_delete_account),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            text = stringResource(Res.string.privacy_delete_account_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                HorizontalDivider()
+                SettingsNavRow(
+                    title = stringResource(Res.string.privacy_delete_account),
+                    subtitle = stringResource(Res.string.privacy_delete_account_desc),
+                    icon = Muhabbet.icons.Delete,
+                    destructive = true,
+                    onClick = { showDeleteDialog = true }
+                )
+                MuhabbetDivider()
             }
 
             // KVKK Rights section
             item {
                 SectionHeader(
-                    icon = Icons.Default.Gavel,
+                    icon = Muhabbet.icons.Moderation,
                     title = stringResource(Res.string.privacy_kvkk_section)
                 )
             }
@@ -378,30 +282,6 @@ fun PrivacyDashboardScreen(
             // Bottom spacing
             item { Spacer(Modifier.height(MuhabbetSpacing.XXLarge)) }
         }
-    }
-}
-
-@Composable
-private fun SectionHeader(icon: ImageVector, title: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
     }
 }
 
@@ -438,12 +318,12 @@ private fun PrivacyVisibilityRow(
         ) {
             options.forEach { (key, label) ->
                 val isSelected = selectedValue == key
-                androidx.compose.material3.FilterChip(
+                MuhabbetChip(
+                    label = label,
                     selected = isSelected,
                     onClick = { onValueChange(key) },
-                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     leadingIcon = if (isSelected) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall)) }
+                        { Icon(Muhabbet.icons.Sent, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall)) }
                     } else null
                 )
             }
@@ -454,11 +334,11 @@ private fun PrivacyVisibilityRow(
 @Composable
 private fun KvkkRight(text: String) {
     Row(
-        modifier = Modifier.padding(vertical = 2.dp),
+        modifier = Modifier.padding(vertical = MuhabbetSpacing.XSmall),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            Icons.Default.Check,
+            Muhabbet.icons.Sent,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(MuhabbetSizes.IconSmall)

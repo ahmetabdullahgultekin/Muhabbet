@@ -208,7 +208,31 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `docs/qa/` — QA engineering documentation (9 ISO/IEC 25010 documents + UI/UX analysis)
 - `backend/detekt.yml` — detekt static analysis configuration
 - `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
-- `mobile/.../ui/theme/MuhabbetTheme.kt` — Design tokens (semantic colors, spacing, sizes, elevation)
+- `docs/design/muhabbet-design-system.md` — **The design system's reference document.** Module
+  architecture, the Copper palette and its rationale, Manrope, depth/gradient/blur/motion/haptic
+  rules, component catalogue, guardrail baselines, and what is still unverified.
+  **`docs/whatsapp-ui-clone-spec.md` is SUPERSEDED by it — do not restore consistency with that
+  document.** It specified pixel parity with WhatsApp and the palette constants were literally named
+  `WhatsAppAccent`; the roadmap lists de-cloning as a P1 brand/legal risk.
+- `mobile/designsystem/` — **Separate KMP Gradle module holding the entire visual language.** Cannot
+  see `composeApp` (compiler-enforced), carries no user-visible strings, raw colours are `internal`
+  so no screen can name a hex. Single entry point: `com.muhabbet.designsystem.Muhabbet`.
+- `mobile/designsystem/.../theme/MuhabbetPalette.kt` — Ink + Copper ramps and the 3 ColorSchemes
+- `mobile/designsystem/.../theme/MuhabbetTypography.kt` — Manrope type scale. `MuhabbetTextStyles`
+  is a **class** provided via `LocalTextStyles`, never an object — as an object it silently keeps
+  the system font on every chat/list surface.
+- `gradle/ui-guardrails.gradle.kts` + `ui-guardrails-baseline.properties` — ratcheted UI checks
+  (`./gradlew verifyUi`, runs without an Android SDK). Scans three roots: `composeApp/ui`,
+  `composeApp/navigation`, and all of `mobile/designsystem`.
+- `mobile/composeApp/.../navigation/MuhabbetStackAnimations.kt` — **the only place allowed to build a
+  Decompose `StackAnimation`** (`rawStackAnimation` guardrail = 0). Holds `sharedAxisX()`,
+  `rootFade()` and `predictiveBack()`, all built on `MuhabbetMotion` springs. Lives in `composeApp`,
+  not the design-system module, because `StackAnimation` is a navigation type and the library must
+  not know navigation — the physics is imported, the plumbing is local.
+- `mobile/composeApp/.../ui/transition/AvatarHandoff.kt` — the app's one shared element (list row
+  avatar ↔ chat title avatar). Uses `sharedElementWithCallerManagedVisibility`, because Decompose's
+  `Children` never creates the `AnimatedVisibilityScope` that plain `sharedElement()` requires.
+  **Not device-verified** — see `docs/design/muhabbet-design-system.md` §10.
 - `mobile/.../util/DateTimeFormatter.kt` — Centralized date/time formatting (DRY utility)
 - `mobile/.../ui/components/SectionHeader.kt` — Reusable section header component
 - `mobile/.../ui/components/ConfirmDialog.kt` — Reusable confirm/dismiss dialog

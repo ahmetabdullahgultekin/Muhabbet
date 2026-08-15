@@ -23,8 +23,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.LinkPreviewResponse
 import io.ktor.http.encodeURLQueryComponent

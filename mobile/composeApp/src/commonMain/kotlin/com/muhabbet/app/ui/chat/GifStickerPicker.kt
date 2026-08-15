@@ -14,13 +14,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -41,8 +38,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.GiphyClient
 import com.muhabbet.app.data.remote.GiphyGif
 import com.muhabbet.composeapp.generated.resources.Res
@@ -50,6 +48,8 @@ import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 
 /** Which tab of the shared GIF/sticker sheet a caller wants opened first. */
 enum class GifStickerTab { GIF, STICKER }
@@ -100,12 +100,13 @@ fun GifStickerPicker(
         isLoading = false
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        modifier = Modifier.fillMaxWidth()
+    MuhabbetBottomSheet(
+        onDismiss = onDismiss,
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(MuhabbetSpacing.None),
+        sheetState = sheetState
     ) {
-        Column(modifier = Modifier.fillMaxWidth().height(420.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().height(MuhabbetSizes.PickerSheetHeight)) {
             // Tab row: GIF | Stickers
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 Tab(
@@ -132,7 +133,7 @@ fun GifStickerPicker(
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(18.dp))
+                            Icon(Muhabbet.icons.Close, contentDescription = stringResource(Res.string.action_close), modifier = Modifier.size(18.dp))
                         }
                     }
                 }

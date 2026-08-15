@@ -23,13 +23,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,8 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -62,8 +53,9 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -82,6 +74,10 @@ import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetEmptyState
 
 private const val TAG = "SharedMediaScreen"
 
@@ -228,23 +224,15 @@ fun SharedMediaScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.shared_media_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.shared_media_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = selectedTab) {
@@ -268,22 +256,11 @@ fun SharedMediaScreen(
                 Crossfade(targetState = selectedTab) { tab ->
                     when {
                         tab == 0 && imageVideos.isEmpty() || tab == 1 && documents.isEmpty() -> {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.Image,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                    )
-                                    Spacer(Modifier.height(MuhabbetSpacing.Small))
-                                    Text(
-                                        text = stringResource(Res.string.shared_media_empty),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                            MuhabbetEmptyState(
+                modifier = Modifier.fillMaxSize(),
+                icon = Muhabbet.icons.Image,
+                title = stringResource(Res.string.shared_media_empty)
+            )
                         }
                         tab == 0 -> {
                             LazyVerticalGrid(
@@ -320,7 +297,7 @@ fun SharedMediaScreen(
                                         )
                                         if (message.contentType == ContentType.VIDEO) {
                                             Icon(
-                                                Icons.Default.PlayArrow,
+                                                Muhabbet.icons.Play,
                                                 // Decorative: the thumbnail above already says "Video".
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
@@ -393,7 +370,7 @@ fun SharedMediaScreen(
                                             // Carries state — whether this clip is playing — that no
                                             // adjacent text repeats, so it must be described.
                                             Icon(
-                                                if (isThisPlaying) Icons.Default.Pause else Icons.Default.Mic,
+                                                if (isThisPlaying) Muhabbet.icons.Pause else Muhabbet.icons.Mic,
                                                 contentDescription = if (isThisPlaying) pauseLabel else playLabel,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge),
                                                 tint = if (isThisPlaying) MaterialTheme.colorScheme.primary
@@ -401,7 +378,7 @@ fun SharedMediaScreen(
                                             )
                                         } else {
                                             Icon(
-                                                Icons.Default.Description,
+                                                Muhabbet.icons.Document,
                                                 // Decorative: the document name sits right beside it.
                                                 contentDescription = null,
                                                 modifier = Modifier.size(MuhabbetSizes.IconLarge),
@@ -451,9 +428,7 @@ fun SharedMediaScreen(
             }
 
             if (isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                MuhabbetLoadingState(Modifier.fillMaxSize())
             }
         }
     }

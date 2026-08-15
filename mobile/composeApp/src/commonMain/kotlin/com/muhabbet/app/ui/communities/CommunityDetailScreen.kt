@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,7 +21,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,16 +42,21 @@ import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetErrorState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +89,11 @@ fun CommunityDetailScreen(
         }
     }
 
-    LaunchedEffect(communityId) {
+    // Bumped by the error state's retry button, so a failed load is no longer terminal.
+    var retryKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(communityId, retryKey) {
+        isLoading = true
         loadDetail()
     }
 
@@ -105,46 +109,27 @@ fun CommunityDetailScreen(
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+    MuhabbetScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
-            TopAppBar(
-                title = { Text(detail?.name ?: stringResource(Res.string.communities_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = detail?.name ?: stringResource(Res.string.communities_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
         if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (detail == null) {
-            Box(
+            MuhabbetErrorState(
+                message = stringResource(Res.string.error_generic),
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_generic),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+                retryLabel = stringResource(Res.string.action_retry),
+                onRetry = { retryKey++ }
+            )
         } else {
-            val community = detail ?: return@Scaffold
+            val community = detail ?: return@MuhabbetScaffold
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
@@ -157,7 +142,7 @@ fun CommunityDetailScreen(
                         UserAvatar(
                             avatarUrl = community.avatarUrl,
                             displayName = community.name,
-                            size = 80.dp
+                            size = MuhabbetSizes.AvatarXXLarge
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
                         Text(
@@ -175,7 +160,7 @@ fun CommunityDetailScreen(
                         }
                         Spacer(Modifier.height(MuhabbetSpacing.Small))
                         Text(
-                            text = "${community.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                            text = stringResource(Res.string.community_member_count, community.memberCount),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -202,7 +187,7 @@ fun CommunityDetailScreen(
                             fontWeight = FontWeight.Bold
                         )
                         TextButton(onClick = { showAddGroupSheet = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall))
+                            Icon(Muhabbet.icons.Add, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall))
                             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                             Text(stringResource(Res.string.community_add_group))
                         }
@@ -242,7 +227,7 @@ private fun GroupItem(
             UserAvatar(
                 avatarUrl = group.avatarUrl,
                 displayName = group.name ?: "",
-                size = 44.dp
+                size = MuhabbetSizes.AvatarMedium
             )
             Spacer(Modifier.width(MuhabbetSpacing.Medium))
             Column(modifier = Modifier.weight(1f)) {
@@ -252,7 +237,7 @@ private fun GroupItem(
                     maxLines = 1
                 )
                 Text(
-                    text = "${group.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                    text = stringResource(Res.string.community_member_count, group.memberCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

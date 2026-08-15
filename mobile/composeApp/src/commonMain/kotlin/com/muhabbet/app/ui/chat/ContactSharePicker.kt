@@ -14,16 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,9 +34,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
@@ -50,6 +46,10 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,34 +78,18 @@ fun ContactSharePicker(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+    MuhabbetScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.share_contact)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.share_contact),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
         if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
@@ -134,7 +118,7 @@ fun ContactSharePicker(
                             UserAvatar(
                                 avatarUrl = participant?.avatarUrl,
                                 displayName = displayName,
-                                size = 44.dp
+                                size = MuhabbetSizes.AvatarMedium
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Column {

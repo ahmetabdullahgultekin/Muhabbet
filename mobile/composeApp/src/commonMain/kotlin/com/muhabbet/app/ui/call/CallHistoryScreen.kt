@@ -15,21 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallMade
-import androidx.compose.material.icons.filled.CallMissed
-import androidx.compose.material.icons.filled.CallReceived
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -44,9 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
 import com.muhabbet.app.util.Log
@@ -64,6 +56,10 @@ import com.muhabbet.composeapp.generated.resources.call_voice
 import com.muhabbet.composeapp.generated.resources.calls_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,21 +108,16 @@ fun CallHistoryScreen(
         }
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             if (showTopBar) {
-                TopAppBar(
-                    title = { Text(title) },
-                    navigationIcon = {
-                        if (showBackButton) {
-                            IconButton(onClick = onBack) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(Res.string.action_back)
-                                )
-                            }
-                        }
-                    }
+                // Embedded as the Calls tab, this screen has no back button; pushed as its own
+                // destination, it does. Expressed as a nullable callback rather than an `if` inside
+                // the navigationIcon slot, which is what left an empty slot behind before.
+                MuhabbetTopBar(
+                    title = title,
+                    onBack = if (showBackButton) onBack else null,
+                    backContentDescription = stringResource(Res.string.action_back)
                 )
             }
         },
@@ -137,19 +128,17 @@ fun CallHistoryScreen(
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Call,
+                        imageVector = Muhabbet.icons.CallStart,
                         contentDescription = stringResource(Res.string.calls_new_call),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (calls.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text(emptyText, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -177,9 +166,9 @@ fun CallHistoryScreen(
                         // Direction icon
                         Icon(
                             imageVector = when {
-                                isMissed || isDeclined -> Icons.Default.CallMissed
-                                isOutgoing -> Icons.Default.CallMade
-                                else -> Icons.Default.CallReceived
+                                isMissed || isDeclined -> Muhabbet.icons.CallMissed
+                                isOutgoing -> Muhabbet.icons.CallOutgoing
+                                else -> Muhabbet.icons.CallIncoming
                             },
                             contentDescription = when {
                                 isMissed -> missedLabel
@@ -214,15 +203,12 @@ fun CallHistoryScreen(
                         }
 
                         // Call back icon
-                        IconButton(
-                            onClick = { onCallUser(otherUserId, otherName, call.callType) }
-                        ) {
-                            Icon(
-                                imageVector = if (isVideo) Icons.Default.Videocam else Icons.Default.Call,
-                                contentDescription = if (isVideo) videoLabel else voiceLabel,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        MuhabbetIconButton(
+                            icon = if (isVideo) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
+                            contentDescription = if (isVideo) videoLabel else voiceLabel,
+                            onClick = { onCallUser(otherUserId, otherName, call.callType) },
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

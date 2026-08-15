@@ -9,15 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -31,12 +28,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.multidevice.MultiDeviceConfig
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.DeviceLinkQrPayload
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 /**
  * Device-linking transport/UX scaffolding (Tier 2, NON-CRYPTO slice).
@@ -82,22 +83,19 @@ fun LinkDeviceScreen(
         isLoading = false
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                }
+            MuhabbetTopBar(
+                title = title,
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             val currentError = error
             when {
-                isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                isLoading -> MuhabbetLoadingState()
                 currentError != null -> Text(currentError, modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.error)
                 else -> Column(
                     modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.Large),

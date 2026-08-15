@@ -41,6 +41,10 @@ kotlin {
             // Shared KMP module
             implementation(project(":shared"))
 
+            // Muhabbet's visual language. One-way dependency: the design system cannot see this
+            // module, which is what keeps components from reaching into screens or repositories.
+            implementation(project(":mobile:designsystem"))
+
             // Compose Multiplatform
             implementation(compose.runtime)
             implementation(compose.foundation)

@@ -16,18 +16,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,14 +44,16 @@ import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
-import com.muhabbet.app.ui.components.SectionHeader
-import com.muhabbet.app.ui.components.UserAvatar
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.SectionHeader
+import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.action_retry
 import com.muhabbet.composeapp.generated.resources.cancel
 import com.muhabbet.composeapp.generated.resources.settings_title
 import com.muhabbet.composeapp.generated.resources.status_add
@@ -75,6 +71,16 @@ import com.muhabbet.shared.dto.UserStatusGroup
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetErrorState
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,6 +122,7 @@ fun UpdatesTabScreen(
     val cancelText = stringResource(Res.string.cancel)
     val noStatuses = stringResource(Res.string.status_no_statuses)
     val loadFailed = stringResource(Res.string.status_load_failed)
+    val retryLabel = stringResource(Res.string.action_retry)
     val settingsTitle = stringResource(Res.string.settings_title)
 
     suspend fun loadUpdates() {
@@ -148,22 +155,54 @@ fun UpdatesTabScreen(
     }
 
     if (showStatusInput) {
-        AlertDialog(
-            onDismissRequest = {
-                if (!isUploadingStatus) {
-                    showStatusInput = false
-                    statusText = ""
-                    statusPickedImage = null
+        // One dismissal path instead of two: the scrim tap and the Cancel button ran identical
+        // bodies, and `dismissible` now guards both with the same condition. Previously only the
+        // scrim tap and the button's `enabled` were guarded — the back gesture was not, so an
+        // upload in flight could be cancelled out from under itself.
+        val dismissStatusInput = {
+            showStatusInput = false
+            statusText = ""
+            statusPickedImage = null
+        }
+        MuhabbetDialog(
+            onDismiss = dismissStatusInput,
+            title = statusCreateTitle,
+            dismissLabel = cancelText,
+            confirmLabel = statusPost,
+            confirmEnabled = (statusText.isNotBlank() || statusPickedImage != null) && !isUploadingStatus,
+            dismissible = !isUploadingStatus,
+            onConfirm = {
+                val text = statusText.trim()
+                if (text.isNotEmpty() || statusPickedImage != null) {
+                    isUploadingStatus = true
+                    scope.launch {
+                        try {
+                            var mediaUrl: String? = null
+                            statusPickedImage?.let { img ->
+                                val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
+                                mediaUrl = upload.url
+                            }
+                            statusRepository.createStatus(
+                                content = text.ifEmpty { null },
+                                mediaUrl = mediaUrl
+                            )
+                            loadUpdates()
+                            dismissStatusInput()
+                        } catch (_: Exception) {
+                            errorMessage = loadFailed
+                        }
+                        isUploadingStatus = false
+                    }
                 }
             },
-            title = { Text(statusCreateTitle) },
-            text = {
+            content = {
                 Column {
-                    OutlinedTextField(
+                    MuhabbetTextField(
                         value = statusText,
                         onValueChange = { statusText = it },
-                        placeholder = { Text(statusPlaceholder) },
                         modifier = Modifier.fillMaxWidth(),
+                        placeholder = statusPlaceholder,
+                        singleLine = false,
                         maxLines = 3
                     )
                     Spacer(Modifier.height(MuhabbetSpacing.XSmall))
@@ -173,7 +212,7 @@ fun UpdatesTabScreen(
                             enabled = !isUploadingStatus
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
+                                imageVector = Muhabbet.icons.Add,
                                 contentDescription = statusAddPhoto,
                                 modifier = Modifier.size(MuhabbetSizes.IconSmall)
                             )
@@ -199,66 +238,21 @@ fun UpdatesTabScreen(
                         )
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val text = statusText.trim()
-                        if (text.isEmpty() && statusPickedImage == null) return@TextButton
-                        isUploadingStatus = true
-                        scope.launch {
-                            try {
-                                var mediaUrl: String? = null
-                                statusPickedImage?.let { img ->
-                                    val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
-                                    mediaUrl = upload.url
-                                }
-                                statusRepository.createStatus(
-                                    content = text.ifEmpty { null },
-                                    mediaUrl = mediaUrl
-                                )
-                                loadUpdates()
-                                showStatusInput = false
-                                statusText = ""
-                                statusPickedImage = null
-                            } catch (_: Exception) {
-                                errorMessage = loadFailed
-                            }
-                            isUploadingStatus = false
-                        }
-                    },
-                    enabled = (statusText.isNotBlank() || statusPickedImage != null) && !isUploadingStatus
-                ) {
-                    Text(statusPost)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showStatusInput = false
-                        statusText = ""
-                        statusPickedImage = null
-                    },
-                    enabled = !isUploadingStatus
-                ) {
-                    Text(cancelText)
-                }
             }
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             if (showTopBar) {
-                TopAppBar(
-                    title = { Text(updatesTitle, fontWeight = FontWeight.Bold) },
+                MuhabbetTopBar(
+                    title = updatesTitle,
                     actions = {
-                        IconButton(onClick = onSettings) {
-                            Icon(
-                                imageVector = Icons.Outlined.Settings,
-                                contentDescription = settingsTitle
-                            )
-                        }
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Settings,
+                            contentDescription = settingsTitle,
+                            onClick = onSettings
+                        )
                     }
                 )
             }
@@ -266,28 +260,14 @@ fun UpdatesTabScreen(
     ) { padding ->
         when {
             isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
             }
-            errorMessage != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = errorMessage ?: loadFailed,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+            errorMessage != null -> MuhabbetErrorState(
+                message = errorMessage ?: loadFailed,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                retryLabel = retryLabel,
+                onRetry = { scope.launch { loadUpdates() } }
+            )
             else -> {
                 val myDisplayName = currentUserId?.let { displayNameByUserId[it] } ?: myStatus
                 val myAvatarUrl = currentUserId?.let { avatarByUserId[it] }
@@ -298,9 +278,10 @@ fun UpdatesTabScreen(
                         .padding(padding)
                 ) {
                     item(key = "my_status") {
+                        val myStatusShape = RoundedCornerShape(MuhabbetCorners.Bubble)
                         Surface(
-                            shape = RoundedCornerShape(MuhabbetCorners.Bubble),
-                            tonalElevation = MuhabbetElevation.Level1,
+                            shape = myStatusShape,
+                            color = MuhabbetDepth.Raised.containerColor(),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
@@ -327,7 +308,7 @@ fun UpdatesTabScreen(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = Icons.Default.Add,
+                                                imageVector = Muhabbet.icons.Add,
                                                 contentDescription = statusAdd,
                                                 tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(14.dp)

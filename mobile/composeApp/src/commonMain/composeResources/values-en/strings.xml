@@ -13,6 +13,8 @@
     <string name="save">Save</string>
     <string name="delete">Delete</string>
     <string name="action_close">Close</string>
+    <string name="action_retry">Try again</string>
+    <string name="settings_font_attribution">Typeface: Manrope — SIL Open Font License 1.1</string>
     <string name="action_send">Send</string>
     <string name="action_save">Save</string>
     <string name="attach_file">Attach file</string>
@@ -508,6 +510,10 @@
     <string name="community_description_hint">Description (optional)</string>
     <string name="community_groups">Groups</string>
     <string name="community_members">Members</string>
+    <string name="community_member_count">%1$d members</string>
+    <string name="community_group_count">%1$d groups</string>
+    <string name="community_group_member_summary">%1$d groups · %2$d members</string>
+    <string name="group_event_going_count">%1$d going</string>
     <string name="community_add_group">Add Group</string>
 
     <!-- Group Invite Links -->
@@ -647,4 +653,9 @@
     <string name="a11y_conversation_pinned">Pinned chat</string>
     <string name="a11y_selected">Selected</string>
     <string name="group_remove_member">Remove member from group</string>
+    <string name="group_event_empty">No events yet</string>
+    <string name="broadcast_list_empty">No broadcast lists yet</string>
+    <string name="communities_empty">No communities yet</string>
+    <string name="settings_haptics">Haptic feedback</string>
+    <string name="settings_haptics_subtitle">Vibrate on taps and swipes</string>
 </resources>

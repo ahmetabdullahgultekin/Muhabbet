@@ -9,9 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,13 +25,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
 
 @Composable
 fun VideoBubble(
@@ -81,7 +78,7 @@ fun VideoBubble(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.Videocam,
+                        Muhabbet.icons.Video,
                         contentDescription = stringResource(Res.string.video_message),
                         tint = if (isOwn) semanticColors.onBubbleOwn
                         else semanticColors.onBubbleOther,
@@ -107,7 +104,7 @@ fun VideoBubble(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        Icons.Default.PlayArrow,
+                        Muhabbet.icons.Play,
                         contentDescription = stringResource(Res.string.video_play),
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(MuhabbetSizes.IconMedium)
@@ -126,7 +123,7 @@ fun VideoBubble(
                 ) {
                     Text(
                         text = formatDuration(durationSeconds),
-                        style = MuhabbetTextStyles.ChatMeta,
+                        style = Muhabbet.text.ChatMeta,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }

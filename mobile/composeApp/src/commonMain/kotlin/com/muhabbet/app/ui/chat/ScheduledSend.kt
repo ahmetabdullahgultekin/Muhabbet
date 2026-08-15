@@ -11,10 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -22,7 +18,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
@@ -34,7 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -45,6 +40,9 @@ import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 /**
  * A message the user scheduled during this chat session that has not yet been delivered.
@@ -86,17 +84,39 @@ fun ScheduleSendDialog(
     val invalidPastText = stringResource(Res.string.schedule_error_past)
     var errorText by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                stringResource(
-                    if (step == ScheduleStep.DATE) Res.string.schedule_pick_date
-                    else Res.string.schedule_pick_time
-                )
-            )
+    // A two-step wizard, so the confirm button changes label, action and enablement together. Those
+    // three were previously derived in three separate places inside one `when`.
+    val isDateStep = step == ScheduleStep.DATE
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(
+            if (isDateStep) Res.string.schedule_pick_date else Res.string.schedule_pick_time
+        ),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(
+            if (isDateStep) Res.string.schedule_next else Res.string.schedule_confirm
+        ),
+        confirmEnabled = !isDateStep || datePickerState.selectedDateMillis != null,
+        onConfirm = {
+            if (isDateStep) {
+                errorText = null
+                step = ScheduleStep.TIME
+            } else {
+                datePickerState.selectedDateMillis?.let { dateMillis ->
+                    val epochMillis = combineDateAndTime(
+                        dateMillis = dateMillis,
+                        hour = timePickerState.hour,
+                        minute = timePickerState.minute
+                    )
+                    if (epochMillis <= Clock.System.now().toEpochMilliseconds()) {
+                        errorText = invalidPastText
+                    } else {
+                        onConfirm(epochMillis)
+                    }
+                }
+            }
         },
-        text = {
+        content = {
             Column {
                 when (step) {
                     ScheduleStep.DATE -> DatePicker(state = datePickerState, showModeToggle = false)
@@ -114,33 +134,6 @@ fun ScheduleSendDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
-            when (step) {
-                ScheduleStep.DATE -> TextButton(
-                    onClick = { errorText = null; step = ScheduleStep.TIME },
-                    enabled = datePickerState.selectedDateMillis != null
-                ) { Text(stringResource(Res.string.schedule_next)) }
-
-                ScheduleStep.TIME -> TextButton(
-                    onClick = {
-                        val dateMillis = datePickerState.selectedDateMillis ?: return@TextButton
-                        val epochMillis = combineDateAndTime(
-                            dateMillis = dateMillis,
-                            hour = timePickerState.hour,
-                            minute = timePickerState.minute
-                        )
-                        if (epochMillis <= Clock.System.now().toEpochMilliseconds()) {
-                            errorText = invalidPastText
-                        } else {
-                            onConfirm(epochMillis)
-                        }
-                    }
-                ) { Text(stringResource(Res.string.schedule_confirm)) }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }
@@ -172,7 +165,7 @@ fun ScheduledMessagesChip(
             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
         ) {
             Icon(
-                imageVector = Icons.Default.Schedule,
+                imageVector = Muhabbet.icons.Schedule,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSecondaryContainer
@@ -196,10 +189,11 @@ fun ScheduledMessagesDialog(
     onCancelScheduled: (PendingScheduledMessage) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.schedule_list_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.schedule_list_title),
+        dismissLabel = stringResource(Res.string.action_close),
+        content ={
             if (pending.isEmpty()) {
                 Text(
                     text = stringResource(Res.string.schedule_list_empty),
@@ -228,21 +222,16 @@ fun ScheduledMessagesDialog(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            IconButton(onClick = { onCancelScheduled(item) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = stringResource(Res.string.schedule_cancel),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
+                            MuhabbetIconButton(
+                                icon = Muhabbet.icons.Close,
+                                contentDescription = stringResource(Res.string.schedule_cancel),
+                                onClick = { onCancelScheduled(item) },
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_close)) }
         }
     )
 }

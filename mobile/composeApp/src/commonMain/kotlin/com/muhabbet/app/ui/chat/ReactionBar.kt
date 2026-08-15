@@ -19,11 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.theme.MuhabbetCorners
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetTextStyles
+import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.containerColor
+import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 
 val QUICK_REACTIONS = listOf("\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
 
@@ -39,11 +42,15 @@ fun QuickReactionBar(
         exit = scaleOut(targetScale = 0.8f) + fadeOut(),
         modifier = modifier
     ) {
+        // Floating: it sits over the bubbles it acts on. This replaces a `shadowElevation` +
+        // `tonalElevation` pair with the depth level, so light gets two stacked shadows, dark gets
+        // the container step plus a lit hairline, and OLED gets an outline instead of an invisible
+        // shadow it would still pay fill rate for.
+        val reactionBarShape = RoundedCornerShape(MuhabbetCorners.Pill)
         Surface(
-            shape = RoundedCornerShape(MuhabbetCorners.Pill),
-            shadowElevation = MuhabbetElevation.Level6,
-            tonalElevation = MuhabbetElevation.Level3,
-            color = MaterialTheme.colorScheme.surface
+            shape = reactionBarShape,
+            color = MuhabbetDepth.Floating.containerColor(),
+            modifier = Modifier.depth(MuhabbetDepth.Floating, reactionBarShape)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = 6.dp),
@@ -53,7 +60,7 @@ fun QuickReactionBar(
                 QUICK_REACTIONS.forEach { emoji ->
                     Text(
                         text = emoji,
-                        style = MuhabbetTextStyles.EmojiPicker,
+                        style = Muhabbet.text.EmojiPicker,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .size(MuhabbetSizes.MinTouchTarget)
@@ -87,11 +94,11 @@ fun ReactionBadges(
                 modifier = Modifier.clickable { onReactionClick(emoji) }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(text = emoji, style = MuhabbetTextStyles.EmojiBadge)
+                    Text(text = emoji, style = Muhabbet.text.EmojiBadge)
                     if (count > 1) {
                         Text(
                             text = count.toString(),

@@ -1,47 +1,25 @@
 package com.muhabbet.app.ui.conversations
 
-import com.muhabbet.app.ui.components.ConfirmDialog
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -53,20 +31,13 @@ import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.model.Message
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
-import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
-import com.muhabbet.app.ui.components.EmptyChatsIllustration
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.util.normalizeToE164
@@ -77,13 +48,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 private const val TAG = "ConversationList"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ConversationListScreen(
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationClick: (ChatTarget) -> Unit,
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit = { _, _ -> },
@@ -359,30 +336,24 @@ fun ConversationListScreen(
         onDismissMute = { showMuteDialog = false; muteTargetConvId = null }
     )
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             if (showTopBar) {
-                TopAppBar(
-                    title = { Text(stringResource(Res.string.app_name), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
+                MuhabbetTopBar(
+                    title = stringResource(Res.string.app_name),
                     actions = {
-                        IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
-                            Icon(
-                                imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        IconButton(onClick = onSettings) {
-                            Icon(
-                                imageVector = Icons.Outlined.Settings,
-                                contentDescription = stringResource(Res.string.settings_title),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        MuhabbetIconButton(
+                            icon = if (isSearching) Muhabbet.icons.Close else Muhabbet.icons.Search,
+                            contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
+                            onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } },
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Settings,
+                            contentDescription = stringResource(Res.string.settings_title),
+                            onClick = onSettings,
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 )
             }
@@ -394,18 +365,18 @@ fun ConversationListScreen(
                 modifier = Modifier.testTag("new_chat_fab")
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Muhabbet.icons.Add,
                     contentDescription = stringResource(Res.string.new_conversation_title),
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Search bar
             if (showTopBar && isSearching) {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = searchQuery,
                     onValueChange = { newQuery ->
                         searchQuery = newQuery
@@ -422,10 +393,10 @@ fun ConversationListScreen(
                             searchResults = emptyList()
                         }
                     },
-                    placeholder = { Text(stringResource(Res.string.search_messages_placeholder)) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small).testTag("search_input"),
+                    placeholder = stringResource(Res.string.search_messages_placeholder),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small).testTag("search_input")
+                    imeAction = ImeAction.Search
                 )
             }
 
@@ -477,287 +448,5 @@ fun ConversationListScreen(
                 )
             }
         }
-    }
-}
-
-/**
- * Loading / empty / list body for [ConversationListScreen]. Splits active vs archived,
- * sorts pinned-first, and renders the status row + filter chips above the list.
- */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-private fun ConversationListBody(
-    isLoading: Boolean,
-    isRefreshing: Boolean,
-    conversations: List<ConversationResponse>,
-    activeFilter: ConversationFilter,
-    onFilterChange: (ConversationFilter) -> Unit,
-    showStatusRow: Boolean,
-    statusGroups: List<UserStatusGroup>,
-    currentUserId: String,
-    contactNameMap: Map<String, String>,
-    onlineUsers: Map<String, Boolean>,
-    defaultChatName: String,
-    onRefresh: () -> Unit,
-    onAddStatus: () -> Unit,
-    onStatusClick: (userId: String, displayName: String) -> Unit,
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
-    onConversationLongClick: (ConversationResponse) -> Unit,
-    onPin: (ConversationResponse) -> Unit
-) {
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        if (isLoading) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(8) {
-                    ConversationSkeletonItem()
-                    HorizontalDivider()
-                }
-            }
-        } else if (conversations.isEmpty()) {
-            EmptyChatsIllustration(
-                title = stringResource(Res.string.empty_chats_title),
-                subtitle = stringResource(Res.string.empty_chats_subtitle),
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            // Filter conversations
-            val filteredConversations = when (activeFilter) {
-                ConversationFilter.UNREAD -> conversations.filter { it.unreadCount > 0 }
-                ConversationFilter.FAVORITES -> conversations.filter { it.isPinned }
-                ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
-                else -> conversations
-            }
-            // Split active vs archived
-            val activeConversations = filteredConversations.filter { !it.isArchived }
-            val archivedConversations = filteredConversations.filter { it.isArchived }
-
-            // Sort: pinned first, then by lastMessageAt
-            val sortedConversations = activeConversations.sortedWith(
-                compareByDescending<ConversationResponse> { it.isPinned }
-                    .thenByDescending { it.lastMessageAt ?: "" }
-            )
-
-            LazyColumn {
-                if (showStatusRow) {
-                    item(key = "status_row") {
-                        ConversationStatusRow(
-                            statusGroups = statusGroups,
-                            conversations = conversations,
-                            onAddStatus = onAddStatus,
-                            onStatusClick = onStatusClick
-                        )
-                    }
-                }
-                item(key = "filter_chips") {
-                    ConversationFilterChips(activeFilter = activeFilter, onFilterChange = onFilterChange)
-                }
-                items(sortedConversations, key = { it.id }) { conv ->
-                    ConversationListItemRow(
-                        conv = conv,
-                        currentUserId = currentUserId,
-                        contactNameMap = contactNameMap,
-                        onlineUsers = onlineUsers,
-                        defaultChatName = defaultChatName,
-                        isPinned = conv.isPinned,
-                        onConversationClick = onConversationClick,
-                        onConversationLongClick = onConversationLongClick,
-                        onPin = { onPin(conv) }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
-                    )
-                }
-
-                // Archived section
-                if (archivedConversations.isNotEmpty()) {
-                    item(key = "archived_header") {
-                        Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.conv_archived_section),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.width(MuhabbetSpacing.Small))
-                            Text(
-                                text = "(${archivedConversations.size})",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    items(archivedConversations, key = { "archived_${it.id}" }) { conv ->
-                        ConversationListItemRow(
-                            conv = conv,
-                            currentUserId = currentUserId,
-                            contactNameMap = contactNameMap,
-                            onlineUsers = onlineUsers,
-                            defaultChatName = defaultChatName,
-                            isPinned = false,
-                            onConversationClick = onConversationClick,
-                            onConversationLongClick = onConversationLongClick,
-                            onPin = {}
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Resolves the display name/avatar/online state for a single conversation, then renders a
- * [ConversationItem]. Name priority: contact-saved name > nickname > phone.
- */
-@Composable
-private fun ConversationListItemRow(
-    conv: ConversationResponse,
-    currentUserId: String,
-    contactNameMap: Map<String, String>,
-    onlineUsers: Map<String, Boolean>,
-    defaultChatName: String,
-    isPinned: Boolean,
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
-    onConversationLongClick: (ConversationResponse) -> Unit,
-    onPin: () -> Unit
-) {
-    val otherParticipant = conv.participants.firstOrNull { it.userId != currentUserId }
-    val isGroup = conv.type == ConversationType.GROUP
-    val contactName = if (!isGroup) {
-        otherParticipant?.phoneNumber?.let { contactNameMap[it] }
-    } else null
-    val resolvedName = conv.name
-        ?: contactName
-        ?: otherParticipant?.displayName
-        ?: otherParticipant?.phoneNumber
-        ?: defaultChatName
-    val isOtherOnline = otherParticipant?.let {
-        onlineUsers[it.userId] ?: it.isOnline
-    } ?: false
-    val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
-    ConversationItem(
-        conversation = conv,
-        displayName = resolvedName,
-        avatarUrl = avatarUrl,
-        isOnline = isOtherOnline,
-        isGroup = isGroup,
-        isPinned = isPinned,
-        onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
-        onLongClick = { onConversationLongClick(conv) },
-        onPin = onPin
-    )
-}
-
-/** Localized labels for the conversation long-press action menu. */
-internal data class ConversationActionLabels(
-    val pin: String,
-    val unpin: String,
-    val archive: String,
-    val unarchive: String,
-    val mute: String,
-    val unmute: String,
-    val lock: String,
-    val unlock: String,
-    val delete: String,
-    val cancel: String
-)
-
-/**
- * Hosts all four dialogs of [ConversationListScreen] (status create, long-press actions,
- * delete confirm, mute picker). Pure wiring — visibility and side effects are driven by the caller.
- */
-@Composable
-private fun ConversationListDialogs(
-    showStatusInput: Boolean,
-    statusText: String,
-    statusPickedImage: PickedImage?,
-    isUploadingStatus: Boolean,
-    onStatusTextChange: (String) -> Unit,
-    onPickStatusImage: () -> Unit,
-    onPostStatus: () -> Unit,
-    onDismissStatus: () -> Unit,
-    longPressTargetConv: ConversationResponse?,
-    actionLabels: ConversationActionLabels,
-    onPinToggle: (ConversationResponse) -> Unit,
-    onArchiveToggle: (ConversationResponse) -> Unit,
-    onMuteToggle: (ConversationResponse) -> Unit,
-    onLockToggle: (ConversationResponse) -> Unit,
-    onDeleteFromMenu: (ConversationResponse) -> Unit,
-    onDismissMenu: () -> Unit,
-    deleteTargetConv: ConversationResponse?,
-    deleteTitle: String,
-    deleteMessage: String,
-    onConfirmDelete: (ConversationResponse) -> Unit,
-    onDismissDelete: () -> Unit,
-    showMuteDialog: Boolean,
-    onMuteDuration: (String) -> Unit,
-    onDismissMute: () -> Unit
-) {
-    if (showStatusInput) {
-        StatusCreateDialog(
-            statusText = statusText,
-            pickedImage = statusPickedImage,
-            isUploading = isUploadingStatus,
-            cancelLabel = actionLabels.cancel,
-            onTextChange = onStatusTextChange,
-            onPickImage = onPickStatusImage,
-            onPost = onPostStatus,
-            onDismiss = onDismissStatus
-        )
-    }
-
-    longPressTargetConv?.let { conv ->
-        ConversationActionsDialog(
-            conversation = conv,
-            pinLabel = actionLabels.pin,
-            unpinLabel = actionLabels.unpin,
-            archiveLabel = actionLabels.archive,
-            unarchiveLabel = actionLabels.unarchive,
-            muteLabel = actionLabels.mute,
-            unmuteLabel = actionLabels.unmute,
-            lockLabel = actionLabels.lock,
-            unlockLabel = actionLabels.unlock,
-            deleteLabel = actionLabels.delete,
-            cancelLabel = actionLabels.cancel,
-            onPinToggle = { onPinToggle(conv) },
-            onArchiveToggle = { onArchiveToggle(conv) },
-            onMuteToggle = { onMuteToggle(conv) },
-            onLockToggle = { onLockToggle(conv) },
-            onDelete = { onDeleteFromMenu(conv) },
-            onDismiss = onDismissMenu
-        )
-    }
-
-    deleteTargetConv?.let { conv ->
-        ConfirmDialog(
-            title = deleteTitle,
-            message = deleteMessage,
-            confirmLabel = actionLabels.delete,
-            onConfirm = { onConfirmDelete(conv) },
-            onDismiss = onDismissDelete,
-            isDestructive = true,
-            dismissLabel = actionLabels.cancel
-        )
-    }
-
-    if (showMuteDialog) {
-        MutePickerDialog(
-            onDismiss = onDismissMute,
-            onMuteDuration = onMuteDuration
-        )
     }
 }

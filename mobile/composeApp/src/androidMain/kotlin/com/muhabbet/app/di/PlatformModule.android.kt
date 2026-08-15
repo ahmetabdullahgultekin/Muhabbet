@@ -79,6 +79,12 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putString("app_language", lang).apply()
     }
 
+    override fun getHapticsEnabled(): Boolean = plainPrefs.getBoolean("haptics_enabled", true)
+
+    override fun setHapticsEnabled(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("haptics_enabled", enabled).apply()
+    }
+
     override fun getTheme(): String? = plainPrefs.getString("app_theme", null)
 
     override fun setTheme(theme: String) {

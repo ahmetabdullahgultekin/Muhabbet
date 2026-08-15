@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -8,13 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,14 +22,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetBrandMark
+import com.muhabbet.designsystem.components.MuhabbetStepRail
+import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.theme.MuhabbetGradients
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.PhoneAuthErrorCode
 import com.muhabbet.app.platform.PhoneVerificationResult
 import com.muhabbet.app.platform.getDeviceModel
@@ -63,55 +62,52 @@ fun PhoneInputScreen(
     val authFailedMsg = stringResource(Res.string.phone_auth_failed)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge),
+        // safeDrawingPadding, not a Scaffold: this screen has no app bar to consume insets, and
+        // since targetSdk 36 the content draws behind the system bars whether it asks to or not.
+        // The backdrop is painted before the inset padding so it reaches the screen edges.
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MuhabbetGradients.brandBackdrop)
+            .safeDrawingPadding()
+            .padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Logo circle
-        Surface(
-            modifier = Modifier.size(80.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary
-        ) {
-            androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = "M",
-                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-        }
+        MuhabbetBrandMark()
 
         Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
         Text(
             text = stringResource(Res.string.phone_title),
             style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Spacer(Modifier.height(MuhabbetSpacing.Small))
 
         Text(
             text = stringResource(Res.string.phone_subtitle),
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
+        Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
-        OutlinedTextField(
+        MuhabbetStepRail(current = 1, total = AuthSteps)
+
+        Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+
+        MuhabbetTextField(
             value = phoneNumber,
             onValueChange = {
                 if (it.length <= 13) phoneNumber = it
                 error = null
             },
-            label = { Text(stringResource(Res.string.phone_label)) },
-            placeholder = { Text(stringResource(Res.string.phone_placeholder)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
-            singleLine = true,
-            isError = error != null,
-            supportingText = error?.let { { Text(it) } },
-            modifier = Modifier.fillMaxWidth().testTag("phone_input")
+            modifier = Modifier.fillMaxWidth().testTag("phone_input"),
+            label = stringResource(Res.string.phone_label),
+            placeholder = stringResource(Res.string.phone_placeholder),
+            error = error,
+            keyboardType = KeyboardType.Phone
         )
 
         Spacer(Modifier.height(MuhabbetSpacing.Large))
@@ -186,7 +182,7 @@ fun PhoneInputScreen(
                 CircularProgressIndicator(
                     modifier = Modifier.size(MuhabbetSizes.IconMedium),
                     color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
+                    strokeWidth = MuhabbetSizes.ProgressStrokeThin
                 )
             } else {
                 Text(stringResource(Res.string.phone_continue))
@@ -231,3 +227,9 @@ private fun shouldFallbackForRawMessage(rawMessage: String?): Boolean {
     )
     return triggers.any { msg.contains(it) }
 }
+
+/**
+ * How many screens sign-up is. Read by all three of them so the rail cannot disagree with itself —
+ * a progress indicator that says "2 of 3" on a two-step flow is worse than no indicator.
+ */
+internal const val AuthSteps = 3

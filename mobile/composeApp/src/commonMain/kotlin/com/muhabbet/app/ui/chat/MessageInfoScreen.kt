@@ -16,12 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -43,24 +36,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import com.muhabbet.app.ui.theme.LocalSemanticColors
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.LocalSemanticColors
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import coil3.compose.AsyncImage
 import com.muhabbet.app.data.repository.MessageRepository
-import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.RecipientDeliveryInfo
-import com.muhabbet.app.ui.components.SectionHeader
+import com.muhabbet.designsystem.components.SectionHeader
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,20 +79,12 @@ fun MessageInfoScreen(
         isLoading = false
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.message_info_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.message_info_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
@@ -103,9 +92,7 @@ fun MessageInfoScreen(
         val data = info
         when {
             isLoading -> {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
             }
             currentError != null -> {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -152,7 +139,7 @@ fun MessageInfoScreen(
                                             )
                                             if (data.contentType == "VIDEO") {
                                                 Icon(
-                                                    Icons.Default.Image, // play overlay
+                                                    Muhabbet.icons.Image, // play overlay
                                                     // Decorative: the preview above is described and
                                                     // the badge below names the content type.
                                                     contentDescription = null,
@@ -168,7 +155,7 @@ fun MessageInfoScreen(
                                     if (data.contentType != "TEXT") {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
-                                                Icons.Default.Image,
+                                                Muhabbet.icons.Image,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(MuhabbetSizes.IconSmall),
                                                 tint = MaterialTheme.colorScheme.primary
@@ -196,7 +183,7 @@ fun MessageInfoScreen(
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
-                                            Icons.Default.Schedule,
+                                            Muhabbet.icons.Schedule,
                                             contentDescription = null,
                                             modifier = Modifier.size(14.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -259,7 +246,7 @@ fun MessageInfoScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
-                                        Icons.Default.Schedule,
+                                        Muhabbet.icons.Schedule,
                                         contentDescription = null,
                                         modifier = Modifier.size(40.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -303,7 +290,7 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
         UserAvatar(
             avatarUrl = recipient.avatarUrl,
             displayName = recipient.displayName ?: recipient.userId.take(8),
-            size = 40.dp
+            size = MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
 
@@ -325,9 +312,9 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
 
         // Status icon
         val (icon, tint) = when (recipient.status) {
-            "READ" -> Icons.Default.DoneAll to LocalSemanticColors.current.statusRead
-            "DELIVERED" -> Icons.Default.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant
-            else -> Icons.Default.Check to MaterialTheme.colorScheme.onSurfaceVariant
+            "READ" -> Muhabbet.icons.Delivered to LocalSemanticColors.current.statusRead
+            "DELIVERED" -> Muhabbet.icons.Delivered to MaterialTheme.colorScheme.onSurfaceVariant
+            else -> Muhabbet.icons.Sent to MaterialTheme.colorScheme.onSurfaceVariant
         }
         Icon(icon, contentDescription = recipient.status, modifier = Modifier.size(18.dp), tint = tint)
     }

@@ -12,17 +12,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -38,9 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.ApiClient
-import com.muhabbet.app.ui.theme.MuhabbetElevation
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.action_retry
 import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_no_recipients
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_recipients
@@ -49,6 +46,10 @@ import com.muhabbet.composeapp.generated.resources.error_generic
 import kotlinx.serialization.Serializable
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetErrorState
 
 @Serializable
 private data class BroadcastMemberEntry(
@@ -68,7 +69,13 @@ fun BroadcastDetailScreen(
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf(false) }
 
-    LaunchedEffect(broadcastListId) {
+    // Bumped by the error state's retry button. Keying the effect on it re-runs the load without
+    // needing a coroutine scope at the call site.
+    var retryKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(broadcastListId, retryKey) {
+        isLoading = true
+        loadError = false
         try {
             val response = apiClient.get<List<BroadcastMemberEntry>>(
                 "/api/v1/broadcasts/$broadcastListId/members"
@@ -80,49 +87,30 @@ fun BroadcastDetailScreen(
         isLoading = false
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(broadcastListName.ifBlank { stringResource(Res.string.broadcast_detail_title) }) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = broadcastListName.ifBlank { stringResource(Res.string.broadcast_detail_title) },
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
         when {
-            isLoading -> Box(
+            isLoading -> MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
+            loadError -> MuhabbetErrorState(
+                message = stringResource(Res.string.error_generic),
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-            loadError -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_generic),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+                retryLabel = stringResource(Res.string.action_retry),
+                onRetry = { retryKey++ }
+            )
             members.isEmpty() -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.Campaign,
+                        Muhabbet.icons.Channel,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -164,7 +152,7 @@ fun BroadcastDetailScreen(
                             horizontalArrangement = Arrangement.Start
                         ) {
                             Icon(
-                                Icons.Default.Person,
+                                Muhabbet.icons.Person,
                                 contentDescription = null,
                                 modifier = Modifier.size(40.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant

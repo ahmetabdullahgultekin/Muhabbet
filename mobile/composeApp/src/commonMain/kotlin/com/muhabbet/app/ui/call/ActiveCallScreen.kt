@@ -10,12 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,9 +30,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.remote.WsClient
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.CallEngine
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
@@ -57,6 +53,12 @@ import com.muhabbet.composeapp.generated.resources.call_video
 import com.muhabbet.composeapp.generated.resources.call_voice
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import kotlin.time.Clock
+import com.muhabbet.designsystem.theme.breathing
+import com.muhabbet.designsystem.theme.MuhabbetGradients
+import com.muhabbet.designsystem.theme.MuhabbetDurations
+import com.muhabbet.designsystem.components.UserAvatar
 
 /**
  * Where the call actually is, as opposed to where the screen happens to be.
@@ -101,9 +103,13 @@ fun ActiveCallScreen(
     // that never connected at all) still showed a duration ticking away underneath.
     LaunchedEffect(callId, mediaState) {
         if (mediaState != CallMediaState.CONNECTED) return@LaunchedEffect
+        // Elapsed since a start mark, not an incrementing counter. `delay` guarantees *at least*
+        // the requested time, so `delay(1000); n++` loses a little on every tick and a long call
+        // ends up visibly short — the one number on this screen a user might later quote.
+        val startedAt = Clock.System.now()
         while (true) {
-            delay(com.muhabbet.app.ui.theme.MuhabbetDurations.CallTimerTickMs)
-            callDurationSeconds++
+            callDurationSeconds = (Clock.System.now() - startedAt).inWholeSeconds.toInt()
+            delay(MuhabbetDurations.CallTimerTickMs)
         }
     }
 
@@ -150,28 +156,29 @@ fun ActiveCallScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MuhabbetGradients.brandBackdrop),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(MuhabbetSpacing.XXLarge)
+            // Insets go on the content, not the Box: the background stays full-bleed while the
+            // call controls stay clear of the gesture bar. There is no Scaffold on this screen.
+            modifier = Modifier.safeDrawingPadding().padding(MuhabbetSpacing.XXLarge)
         ) {
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = (otherUserName ?: "?").take(1).uppercase(),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+            // UserAvatar rather than a hand-rolled initial. The old expression,
+            // `(otherUserName ?: "?").take(1).uppercase()`, was wrong twice over: `uppercase()` is
+            // locale-independent, so "ismail" gave "I" where Turkish wants "İ", and `take(1)` cuts a
+            // surrogate pair or an emoji in half. `UserAvatar` routes through `firstGrapheme`, which
+            // has handled both since Phase 1 — this screen was simply not using it.
+            //
+            // It breathes while the call is still connecting, and stops once it is up.
+            UserAvatar(
+                avatarUrl = null,
+                displayName = otherUserName ?: otherUserId,
+                size = MuhabbetSizes.AvatarCall,
+                modifier = Modifier.breathing(enabled = mediaState == CallMediaState.CONNECTING)
+            )
 
             Spacer(modifier = Modifier.height(MuhabbetSpacing.XLarge))
 
@@ -238,7 +245,7 @@ fun ActiveCallScreen(
                             )
                     ) {
                         Icon(
-                            imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            imageVector = if (isMuted) Muhabbet.icons.MicOff else Muhabbet.icons.Mic,
                             contentDescription = if (isMuted) unmuteLabel else muteLabel,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
@@ -273,7 +280,7 @@ fun ActiveCallScreen(
                             .background(LocalSemanticColors.current.callDecline)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CallEnd,
+                            imageVector = Muhabbet.icons.CallEnd,
                             contentDescription = endLabel,
                             tint = LocalSemanticColors.current.onCallDecline,
                             modifier = Modifier.size(32.dp)
@@ -299,7 +306,7 @@ fun ActiveCallScreen(
                             )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VolumeUp,
+                            imageVector = Muhabbet.icons.Speaker,
                             contentDescription = speakerLabel,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )

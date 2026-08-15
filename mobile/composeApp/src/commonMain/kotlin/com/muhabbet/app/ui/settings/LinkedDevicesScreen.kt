@@ -11,10 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,8 +18,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -39,14 +33,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.multidevice.MultiDeviceConfig
-import com.muhabbet.app.ui.components.ConfirmDialog
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.ConfirmDialog
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.LinkedDeviceResponse
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 /**
  * Linked-devices management screen (Tier 2, NON-CRYPTO slice).
@@ -84,23 +83,20 @@ fun LinkedDevicesScreen(
         if (MultiDeviceConfig.ENABLED) reload() else isLoading = false
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+    MuhabbetScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                }
+            MuhabbetTopBar(
+                title = title,
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
         floatingActionButton = {
             if (MultiDeviceConfig.ENABLED) {
                 ExtendedFloatingActionButton(
                     onClick = onLinkNewDevice,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    icon = { Icon(Muhabbet.icons.Add, contentDescription = null) },
                     text = { Text(linkNewText) }
                 )
             }
@@ -108,7 +104,7 @@ fun LinkedDevicesScreen(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
-                isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                isLoading -> MuhabbetLoadingState()
                 devices.isEmpty() -> Text(
                     emptyText,
                     modifier = Modifier.align(Alignment.Center),
@@ -131,6 +127,7 @@ fun LinkedDevicesScreen(
             title = stringResource(Res.string.linked_devices_revoke),
             message = revokeConfirm,
             confirmLabel = stringResource(Res.string.linked_devices_revoke),
+            dismissLabel = stringResource(Res.string.cancel),
             isDestructive = true,
             onConfirm = {
                 val toRevoke = id
@@ -172,13 +169,12 @@ private fun DeviceRow(device: LinkedDeviceResponse, onRevoke: () -> Unit) {
             }
             // Only companion devices can be revoked from here; the primary cannot unlink itself.
             if (device.isCompanion && !device.isPrimary) {
-                IconButton(onClick = onRevoke) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = stringResource(Res.string.linked_devices_revoke),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
+                MuhabbetIconButton(
+                    icon = Muhabbet.icons.Delete,
+                    contentDescription = stringResource(Res.string.linked_devices_revoke),
+                    onClick = onRevoke,
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

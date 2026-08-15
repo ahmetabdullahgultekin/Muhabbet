@@ -14,16 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Message
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Report
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -47,15 +37,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.ui.theme.LocalSemanticColors
-import com.muhabbet.app.ui.theme.MuhabbetSizes
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import androidx.compose.material3.SnackbarHost
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import androidx.compose.material3.SnackbarHostState
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.app.ui.components.ConfirmDialog
-import com.muhabbet.app.ui.components.UserAvatar
+import com.muhabbet.designsystem.components.ConfirmDialog
+import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.shared.dto.MutualGroupResponse
 import com.muhabbet.shared.dto.UserProfileDetailResponse
@@ -64,6 +54,9 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,6 +97,7 @@ fun UserProfileScreen(
             title = stringResource(Res.string.profile_block),
             message = stringResource(Res.string.profile_block_confirm),
             confirmLabel = stringResource(Res.string.profile_block),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 scope.launch {
                     snackbarHostState.showSnackbar(blockSuccessMsg)
@@ -120,6 +114,7 @@ fun UserProfileScreen(
             title = stringResource(Res.string.profile_report),
             message = stringResource(Res.string.profile_report_confirm),
             confirmLabel = stringResource(Res.string.profile_report),
+            dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
                 scope.launch {
                     snackbarHostState.showSnackbar(reportSuccessMsg)
@@ -131,34 +126,24 @@ fun UserProfileScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.profile_view_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.profile_view_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (error != null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text(error ?: "", color = MaterialTheme.colorScheme.error)
             }
         } else {
-            val p = profile ?: return@Scaffold
+            val p = profile ?: return@MuhabbetScaffold
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
@@ -219,13 +204,13 @@ fun UserProfileScreen(
                     ) {
                         if (onMessageClick != null) {
                             ProfileActionButton(
-                                icon = Icons.AutoMirrored.Filled.Message,
+                                icon = Muhabbet.icons.NewMessage,
                                 label = stringResource(Res.string.profile_action_message),
                                 onClick = onMessageClick
                             )
                         }
                         ProfileActionButton(
-                            icon = Icons.Default.Call,
+                            icon = Muhabbet.icons.CallStart,
                             label = stringResource(Res.string.profile_action_call),
                             onClick = { scope.launch { snackbarHostState.showSnackbar(callComingSoonMsg) } }
                         )
@@ -245,7 +230,7 @@ fun UserProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            if (E2EConfig.ENABLED) Icons.Default.Lock else Icons.Default.Info,
+                            if (E2EConfig.ENABLED) Muhabbet.icons.Lock else Muhabbet.icons.Info,
                             contentDescription = null,
                             tint = if (E2EConfig.ENABLED) {
                                 MaterialTheme.colorScheme.primary
@@ -302,7 +287,7 @@ fun UserProfileScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Image,
+                                Muhabbet.icons.Image,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -325,7 +310,7 @@ fun UserProfileScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Group,
+                                Muhabbet.icons.Group,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -360,7 +345,7 @@ fun UserProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.Block,
+                            Muhabbet.icons.Block,
                             contentDescription = stringResource(Res.string.profile_block),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -380,7 +365,7 @@ fun UserProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.Report,
+                            Muhabbet.icons.Report,
                             contentDescription = stringResource(Res.string.profile_report),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
@@ -464,7 +449,8 @@ private fun MutualGroupItem(
             avatarUrl = group.avatarUrl,
             displayName = group.name,
             size = MuhabbetSizes.AvatarSmall,
-            isGroup = true
+            isGroup = true,
+            contentDescription = stringResource(Res.string.cd_group_avatar)
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
@@ -484,5 +470,3 @@ private fun MutualGroupItem(
     }
 }
 
-/** @deprecated Use com.muhabbet.app.util.firstGrapheme instead */
-internal fun firstGrapheme(text: String): String = com.muhabbet.app.util.firstGrapheme(text)

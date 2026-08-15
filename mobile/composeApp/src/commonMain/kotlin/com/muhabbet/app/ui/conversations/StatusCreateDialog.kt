@@ -7,13 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,11 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.platform.PickedImage
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 /**
  * "Create status" dialog (text + optional photo). State is hoisted into [ConversationListScreen].
@@ -42,22 +41,27 @@ internal fun StatusCreateDialog(
     onPost: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.status_create_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.status_create_title),
+        dismissLabel = cancelLabel,
+        confirmLabel = stringResource(Res.string.status_post),
+        onConfirm = onPost,
+        confirmEnabled = (statusText.isNotBlank() || pickedImage != null) && !isUploading,
+        content ={
             Column {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = statusText,
                     onValueChange = onTextChange,
-                    placeholder = { Text(stringResource(Res.string.status_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.status_placeholder),
+                    singleLine = false,
                     maxLines = 3
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onPickImage) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Muhabbet.icons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                         Text(stringResource(Res.string.status_add_photo))
                     }
@@ -76,15 +80,6 @@ internal fun StatusCreateDialog(
                     CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge).align(Alignment.CenterHorizontally))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onPost,
-                enabled = (statusText.isNotBlank() || pickedImage != null) && !isUploading
-            ) { Text(stringResource(Res.string.status_post)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(cancelLabel) }
         }
     )
 }

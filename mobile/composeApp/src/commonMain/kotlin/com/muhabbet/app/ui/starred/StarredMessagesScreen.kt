@@ -14,23 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Poll
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -50,8 +39,9 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import com.muhabbet.app.ui.theme.MuhabbetSpacing
-import com.muhabbet.app.ui.theme.MuhabbetSizes
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
 import com.muhabbet.shared.model.ContentType
@@ -60,6 +50,9 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,32 +85,19 @@ fun StarredMessagesScreen(
 
     val youLabel = stringResource(Res.string.starred_you)
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+    MuhabbetScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.starred_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.starred_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->
         when {
             isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
             }
             messages.isEmpty() -> {
                 Box(
@@ -126,7 +106,7 @@ fun StarredMessagesScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            Icons.Default.Star,
+                            Muhabbet.icons.Star,
                             contentDescription = stringResource(Res.string.starred_title),
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -214,7 +194,7 @@ private fun StarredMessageItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Icon(
-                Icons.Default.Star,
+                Muhabbet.icons.Star,
                 contentDescription = stringResource(Res.string.starred_title),
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.tertiary
@@ -224,12 +204,12 @@ private fun StarredMessageItem(
 }
 
 private fun contentTypeIcon(contentType: ContentType): ImageVector? = when (contentType) {
-    ContentType.IMAGE -> Icons.Default.Image
-    ContentType.VIDEO -> Icons.Default.Videocam
-    ContentType.DOCUMENT -> Icons.Default.Description
-    ContentType.VOICE -> Icons.Default.Mic
-    ContentType.LOCATION -> Icons.Default.LocationOn
-    ContentType.POLL -> Icons.Default.Poll
+    ContentType.IMAGE -> Muhabbet.icons.Image
+    ContentType.VIDEO -> Muhabbet.icons.Video
+    ContentType.DOCUMENT -> Muhabbet.icons.Document
+    ContentType.VOICE -> Muhabbet.icons.Mic
+    ContentType.LOCATION -> Muhabbet.icons.Location
+    ContentType.POLL -> Muhabbet.icons.Poll
     else -> null
 }
 

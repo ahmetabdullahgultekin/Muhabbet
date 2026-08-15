@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The window background shown before Compose draws its first frame.
+
+      This MUST track MuhabbetTheme's `background`, because the handover
+      from the splash window to the Compose content is not cross-faded — any difference renders as a
+      flash. The dark value used to be #121212 against a #111B21 background, which is exactly that
+      flash; it then tracked #111B21 until the copper palette moved the background to warm ink.
+
+      One home for the value. It is referenced directly as the window background, so it must stay a
+      FLAT COLOUR: an earlier version pointed windowBackground at a drawable that painted a centred
+      green oval, and because the Compose content never paints an opaque background of its own, that
+      oval bled through and rendered as a stray green circle over the login screen.
+    -->
+    <color name="muhabbet_splash_background">#FDFBF9</color>
+</resources>
