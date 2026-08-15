@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,12 +10,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,12 +26,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.designsystem.components.MuhabbetOtpField
+import com.muhabbet.designsystem.components.MuhabbetStepRail
+import com.muhabbet.designsystem.theme.MuhabbetGradients
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.getDeviceModel
@@ -74,15 +73,60 @@ fun OtpVerifyScreen(
         }
     }
 
+    // Hoisted out of the button's onClick so the boxed field can auto-submit on the sixth digit and
+    // the button can still submit, without the verify path existing twice.
+    val submit = {
+        isLoading = true
+        error = null
+        scope.launch {
+            try {
+                if (useFirebase && firebasePhoneAuth != null && firebaseVerificationId != null) {
+                    // Firebase: verify code → get ID token → exchange with backend
+                    val idToken = firebasePhoneAuth.verifyCode(firebaseVerificationId, otp)
+                    val result = authRepository.verifyFirebaseToken(
+                        idToken = idToken,
+                        deviceName = getDeviceModel(),
+                        platform = getPlatformName()
+                    )
+                    onOtpVerified(result.isNewUser)
+                } else {
+                    // Mock/backend OTP: verify directly with backend
+                    val result = authRepository.verifyOtp(
+                        phoneNumber = phoneNumber,
+                        otp = otp,
+                        deviceName = getDeviceModel(),
+                        platform = getPlatformName()
+                    )
+                    onOtpVerified(result.isNewUser)
+                }
+            } catch (e: Exception) {
+                error = e.message ?: verifyFailedMsg
+            } finally {
+                isLoading = false
+            }
+        }
+        Unit
+    }
+
     Column(
-        // See PhoneInputScreen: no Scaffold here, so the insets must be consumed explicitly.
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(MuhabbetSpacing.XLarge),
+        // See PhoneInputScreen: no Scaffold here, so the insets must be consumed explicitly, and the
+        // backdrop is painted before them so it reaches the screen edges.
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MuhabbetGradients.brandBackdrop)
+            .safeDrawingPadding()
+            .padding(MuhabbetSpacing.XLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        MuhabbetStepRail(current = 2, total = AuthSteps)
+
+        Spacer(Modifier.height(MuhabbetSpacing.XLarge))
+
         Text(
             text = stringResource(Res.string.otp_title),
-            style = MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Spacer(Modifier.height(MuhabbetSpacing.Small))
@@ -103,29 +147,41 @@ fun OtpVerifyScreen(
                     text = "Dev Mode — Code: $mockCode",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(
+                        horizontal = MuhabbetSpacing.Medium,
+                        vertical = MuhabbetSpacing.XSmall
+                    )
                 )
             }
         }
 
         Spacer(Modifier.height(MuhabbetSpacing.XXLarge))
 
-        OutlinedTextField(
+        MuhabbetOtpField(
             value = otp,
             onValueChange = {
-                if (it.length <= 6 && it.all { c -> c.isDigit() }) {
-                    otp = it
-                    error = null
-                }
+                otp = it
+                error = null
             },
-            label = { Text(stringResource(Res.string.otp_label)) },
-            placeholder = { Text(stringResource(Res.string.otp_placeholder)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            singleLine = true,
+            modifier = Modifier.testTag("otp_input"),
+            length = OtpLength,
             isError = error != null,
-            supportingText = error?.let { { Text(it) } },
-            modifier = Modifier.fillMaxWidth().testTag("otp_input")
+            enabled = !isLoading,
+            // The code arrives by SMS and is six digits long; asking for a button press after the
+            // sixth one is ceremony. The button stays for the case where autofill puts the code in
+            // and the submit fails, so there is still something to press.
+            onFilled = { submit() }
         )
+
+        error?.let {
+            Spacer(Modifier.height(MuhabbetSpacing.Small))
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center
+            )
+        }
 
         Spacer(Modifier.height(MuhabbetSpacing.Small))
 
@@ -170,7 +226,7 @@ fun OtpVerifyScreen(
                     if (isResending) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(MuhabbetSizes.IconSmall),
-                            strokeWidth = 2.dp
+                            strokeWidth = MuhabbetSizes.ProgressStrokeThin
                         )
                     } else {
                         Text(stringResource(Res.string.otp_resend))
@@ -182,48 +238,15 @@ fun OtpVerifyScreen(
         Spacer(Modifier.height(MuhabbetSpacing.Large))
 
         Button(
-            onClick = {
-                isLoading = true
-                error = null
-                scope.launch {
-                    try {
-                        if (useFirebase && firebasePhoneAuth != null && firebaseVerificationId != null) {
-                            // Firebase: verify code → get ID token → exchange with backend
-                            val idToken = firebasePhoneAuth.verifyCode(
-                                firebaseVerificationId,
-                                otp
-                            )
-                            val result = authRepository.verifyFirebaseToken(
-                                idToken = idToken,
-                                deviceName = getDeviceModel(),
-                                platform = getPlatformName()
-                            )
-                            onOtpVerified(result.isNewUser)
-                        } else {
-                            // Mock/backend OTP: verify directly with backend
-                            val result = authRepository.verifyOtp(
-                                phoneNumber = phoneNumber,
-                                otp = otp,
-                                deviceName = getDeviceModel(),
-                                platform = getPlatformName()
-                            )
-                            onOtpVerified(result.isNewUser)
-                        }
-                    } catch (e: Exception) {
-                        error = e.message ?: verifyFailedMsg
-                    } finally {
-                        isLoading = false
-                    }
-                }
-            },
-            enabled = !isLoading && otp.length == 6 && countdown > 0,
+            onClick = submit,
+            enabled = !isLoading && otp.length == OtpLength && countdown > 0,
             modifier = Modifier.fillMaxWidth().testTag("otp_verify")
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(MuhabbetSizes.IconMedium),
                     color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
+                    strokeWidth = MuhabbetSizes.ProgressStrokeThin
                 )
             } else {
                 Text(stringResource(Res.string.otp_verify))
@@ -237,3 +260,6 @@ fun OtpVerifyScreen(
         }
     }
 }
+
+/** Digits in a verification code. Both the field and the submit guard read it. */
+private const val OtpLength = 6
