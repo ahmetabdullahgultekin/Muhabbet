@@ -154,6 +154,20 @@ object MuhabbetSizes {
     /** A colour swatch standing in for a legend entry — the storage breakdown's category dots. */
     val IndicatorDot: Dp = 8.dp
 
+    /** A resting outline: divider-weight, present but not asking for attention. */
+    val BorderHairline: Dp = 1.dp
+
+    /** A focused or errored outline, and the brand mark's ring. Doubled so it reads as a state. */
+    val BorderActive: Dp = 2.dp
+
+    /** One digit box in a verification code. Wider than tall would read as a text field. */
+    val OtpBoxWidth: Dp = 44.dp
+    val OtpBoxHeight: Dp = 56.dp
+
+    /** One segment of the sign-up progress rail. */
+    val StepRailSegmentWidth: Dp = 28.dp
+    val StepRailSegmentHeight: Dp = 4.dp
+
     /**
      * Stroke for a spinner shrunk to icon size. M3's default stroke is proportioned for the default
      * 40dp indicator and reads as a solid disc once the diameter drops to 16–24dp.

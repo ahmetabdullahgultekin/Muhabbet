@@ -73,6 +73,16 @@ internal object MuhabbetPalette {
     /** Chat wallpaper: a warm tint a step off the surface, so bubbles have something to sit on. */
     val WallpaperLight = Color(0xFFF3EDE7)
 
+    /**
+     * The middle stop of the full-screen brand gradient (auth, calls).
+     *
+     * Deliberately barely there. The gradient rule allows a full-bleed ground because it is an
+     * identity moment, but a ground carrying a form has to stay out of the way of the text on top
+     * of it — so the travel from one end to the other is a few percent of luminance, not a wash.
+     */
+    val BackdropTintLight = Color(0xFFF6E9DA)
+    val BackdropTintDark = Color(0xFF1F1611)
+
     // Semantic non-brand hues. Green only where it means "connected" or "answer".
     val Success = Color(0xFF1F7A4D)
     val SuccessOnDark = Color(0xFF4BAE7F)

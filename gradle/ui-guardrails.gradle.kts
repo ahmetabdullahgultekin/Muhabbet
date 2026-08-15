@@ -121,6 +121,39 @@ val uiRules = listOf(
 fun File.kotlinFiles(): List<File> =
     if (exists()) walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() else emptyList()
 
+/**
+ * The file's lines with comment text blanked out, so the rules measure code and not prose.
+ *
+ * This is not a nicety. Every rule below is a ratchet, and a ratchet that counts documentation
+ * punishes explaining yourself: a docblock saying *"replaces a flat `Surface(80.dp)`"* was scored as
+ * a new `dp` literal and failed the build. The incentive that creates — delete the sentence, or
+ * describe the old code less precisely — is the exact opposite of what these checks exist for, and
+ * the whole convention in this repo is that a rule states its reasoning in a comment.
+ *
+ * Deliberately crude: it strips line comments to end-of-line, tracks block-comment open and close
+ * markers, and does not understand strings that contain those markers. A false *negative* here costs
+ * one uncounted violation; getting cute with a real lexer costs more than that is worth.
+ */
+fun File.analysableLines(): List<String> {
+    var inBlock = false
+    return readLines().map { line ->
+        val out = StringBuilder()
+        var i = 0
+        while (i < line.length) {
+            if (inBlock) {
+                if (line.startsWith("*/", i)) { inBlock = false; i += 2 } else i++
+            } else if (line.startsWith("/*", i)) {
+                inBlock = true; i += 2
+            } else if (line.startsWith("//", i)) {
+                break
+            } else {
+                out.append(line[i]); i++
+            }
+        }
+        out.toString()
+    }
+}
+
 fun loadBaseline(): Map<String, Int> {
     if (!baselineFile.exists()) return emptyMap()
     return baselineFile.readLines()
@@ -145,7 +178,7 @@ val verifyDesignSystem by tasks.registering {
         uiRules.forEach { rule ->
             val hits = scanRoots.flatMap { it.kotlinFiles() }
                 .filterNot(rule.exempt)
-                .sumOf { file -> file.readLines().count { rule.pattern.containsMatchIn(it) } }
+                .sumOf { file -> file.analysableLines().count { rule.pattern.containsMatchIn(it) } }
             counts[rule.id] = hits
             val allowed = baseline[rule.id]
             if (allowed == null) {
