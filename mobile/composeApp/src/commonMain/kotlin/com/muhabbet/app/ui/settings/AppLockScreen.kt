@@ -38,6 +38,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetSwitch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +84,7 @@ fun AppLockScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
-                Switch(
+                MuhabbetSwitch(
                     checked = isLockEnabled,
                     onCheckedChange = {
                         isLockEnabled = it

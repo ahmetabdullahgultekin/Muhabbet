@@ -60,6 +60,8 @@ import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -259,18 +261,18 @@ private fun EventCard(
                 ) {
                     Text(stringResource(Res.string.group_event_going))
                 }
-                OutlinedButton(
+                MuhabbetButton(
+                    text = stringResource(Res.string.group_event_maybe),
                     onClick = { onRsvp("MAYBE") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(Res.string.group_event_maybe))
-                }
-                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    role = MuhabbetButtonRole.Secondary
+                )
+                MuhabbetButton(
+                    text = stringResource(Res.string.group_event_not_going),
                     onClick = { onRsvp("NOT_GOING") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(Res.string.group_event_not_going))
-                }
+                    modifier = Modifier.weight(1f),
+                    role = MuhabbetButtonRole.Secondary
+                )
             }
         }
     }

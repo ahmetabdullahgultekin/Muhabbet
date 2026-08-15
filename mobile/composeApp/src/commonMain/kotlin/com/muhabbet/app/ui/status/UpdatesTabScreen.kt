@@ -76,6 +76,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetErrorState
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -243,12 +244,11 @@ fun UpdatesTabScreen(
                 MuhabbetTopBar(
                     title = updatesTitle,
                     actions = {
-                        IconButton(onClick = onSettings) {
-                            Icon(
-                                imageVector = Muhabbet.icons.Settings,
-                                contentDescription = settingsTitle
-                            )
-                        }
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Settings,
+                            contentDescription = settingsTitle,
+                            onClick = onSettings
+                        )
                     }
                 )
             }

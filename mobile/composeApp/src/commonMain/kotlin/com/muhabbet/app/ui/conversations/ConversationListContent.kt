@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +41,7 @@ import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.Message
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetChip
 
 internal enum class ConversationFilter {
     ALL, UNREAD, FAVORITES, GROUPS
@@ -180,47 +180,37 @@ internal fun ConversationFilterChips(
     activeFilter: ConversationFilter,
     onFilterChange: (ConversationFilter) -> Unit
 ) {
-    val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = MaterialTheme.colorScheme.primary,
-        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-        containerColor = Color.Transparent,
-        labelColor = LocalSemanticColors.current.secondaryText
-    )
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.XSmall),
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small),
         contentPadding = PaddingValues(horizontal = MuhabbetSpacing.Medium)
     ) {
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_all),
                 selected = activeFilter == ConversationFilter.ALL,
-                onClick = { onFilterChange(ConversationFilter.ALL) },
-                label = { Text(stringResource(Res.string.filter_all)) },
-                colors = chipColors
+                onClick = { onFilterChange(ConversationFilter.ALL) }
             )
         }
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_unread),
                 selected = activeFilter == ConversationFilter.UNREAD,
-                onClick = { onFilterChange(if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD) },
-                label = { Text(stringResource(Res.string.filter_unread)) },
-                colors = chipColors
+                onClick = { onFilterChange(if (activeFilter == ConversationFilter.UNREAD) ConversationFilter.ALL else ConversationFilter.UNREAD) }
             )
         }
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_favorites),
                 selected = activeFilter == ConversationFilter.FAVORITES,
-                onClick = { onFilterChange(if (activeFilter == ConversationFilter.FAVORITES) ConversationFilter.ALL else ConversationFilter.FAVORITES) },
-                label = { Text(stringResource(Res.string.filter_favorites)) },
-                colors = chipColors
+                onClick = { onFilterChange(if (activeFilter == ConversationFilter.FAVORITES) ConversationFilter.ALL else ConversationFilter.FAVORITES) }
             )
         }
         item {
-            FilterChip(
+            MuhabbetChip(
+                label = stringResource(Res.string.filter_groups),
                 selected = activeFilter == ConversationFilter.GROUPS,
-                onClick = { onFilterChange(if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS) },
-                label = { Text(stringResource(Res.string.filter_groups)) },
-                colors = chipColors
+                onClick = { onFilterChange(if (activeFilter == ConversationFilter.GROUPS) ConversationFilter.ALL else ConversationFilter.GROUPS) }
             )
         }
     }

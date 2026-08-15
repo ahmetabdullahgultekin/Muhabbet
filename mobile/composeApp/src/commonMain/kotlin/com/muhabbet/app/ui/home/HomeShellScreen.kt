@@ -78,6 +78,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -183,15 +184,14 @@ fun HomeShellScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = {
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Back,
+                            contentDescription = backDesc,
+                            onClick = {
                             isSearchActive = false
                             searchQuery = ""
-                        }) {
-                            Icon(
-                                imageVector = Muhabbet.icons.Back,
-                                contentDescription = backDesc
-                            )
                         }
+                        )
                     },
                     // Bespoke bar (transforms into a search field), shared colours.
                     colors = MuhabbetTopBarDefaults.colors()
@@ -200,28 +200,24 @@ fun HomeShellScreen(
                 MuhabbetTopBar(
                     title = appName,
                     actions = {
-                        IconButton(onClick = {
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Search,
+                            contentDescription = searchDesc,
+                            onClick = {
                             isSearchActive = true
                             searchQuery = ""
-                        }) {
-                            Icon(
-                                imageVector = Muhabbet.icons.Search,
-                                contentDescription = searchDesc
-                            )
                         }
+                        )
                         Box {
                             // Sole route to Settings. It shows no text, so without this description
                             // a screen reader announces only "button" and UI automation has nothing
                             // to match on but screen coordinates.
-                            IconButton(
+                            MuhabbetIconButton(
+                                icon = Muhabbet.icons.More,
+                                contentDescription = moreOptionsDesc,
                                 onClick = { showMoreMenu = true },
                                 modifier = Modifier.testTag("overflow_menu")
-                            ) {
-                                Icon(
-                                    imageVector = Muhabbet.icons.More,
-                                    contentDescription = moreOptionsDesc
-                                )
-                            }
+                            )
                             DropdownMenu(
                                 expanded = showMoreMenu,
                                 onDismissRequest = { showMoreMenu = false }

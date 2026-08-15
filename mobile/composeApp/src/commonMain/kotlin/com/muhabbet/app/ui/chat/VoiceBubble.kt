@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @Composable
 fun VoiceBubble(
@@ -71,19 +72,16 @@ fun VoiceBubble(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
         ) {
-            IconButton(
+            MuhabbetIconButton(
+                icon = if (isPlaying) Muhabbet.icons.Pause else Muhabbet.icons.Play,
+                contentDescription = stringResource(if (isPlaying) Res.string.voice_pause else Res.string.voice_play),
                 onClick = {
                     if (isPlaying) audioPlayer.pause()
                     else audioPlayer.play(mediaUrl)
                 },
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Muhabbet.icons.Pause else Muhabbet.icons.Play,
-                    contentDescription = stringResource(if (isPlaying) Res.string.voice_pause else Res.string.voice_play),
-                    tint = textColor
-                )
-            }
+                modifier = Modifier.size(48.dp),
+                tint = textColor
+            )
 
             LinearProgressIndicator(
                 progress = { progress },

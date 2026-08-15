@@ -53,6 +53,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 private const val TAG = "ConversationList"
 
@@ -341,20 +342,18 @@ fun ConversationListScreen(
                 MuhabbetTopBar(
                     title = stringResource(Res.string.app_name),
                     actions = {
-                        IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
-                            Icon(
-                                imageVector = if (isSearching) Muhabbet.icons.Close else Muhabbet.icons.Search,
-                                contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        IconButton(onClick = onSettings) {
-                            Icon(
-                                imageVector = Muhabbet.icons.Settings,
-                                contentDescription = stringResource(Res.string.settings_title),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        MuhabbetIconButton(
+                            icon = if (isSearching) Muhabbet.icons.Close else Muhabbet.icons.Search,
+                            contentDescription = stringResource(if (isSearching) Res.string.action_close else Res.string.search_messages_placeholder),
+                            onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } },
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Settings,
+                            contentDescription = stringResource(Res.string.settings_title),
+                            onClick = onSettings,
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 )
             }

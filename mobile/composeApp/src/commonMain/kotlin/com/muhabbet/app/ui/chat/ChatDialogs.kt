@@ -64,6 +64,9 @@ import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 /**
  * Full-screen media viewer with semi-transparent action bars.
@@ -142,13 +145,12 @@ fun MediaViewer(
                         .background(semanticColors.scrimOverlay)
                         .padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.Small)
                 ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Muhabbet.icons.Close,
-                            contentDescription = stringResource(Res.string.action_close),
-                            tint = semanticColors.onScrim
-                        )
-                    }
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Close,
+                        contentDescription = stringResource(Res.string.action_close),
+                        onClick = onDismiss,
+                        tint = semanticColors.onScrim
+                    )
                 }
             }
 
@@ -443,9 +445,11 @@ fun PollCreateDialog(
                     )
                 }
                 if (pollOptions.size < 6) {
-                    TextButton(onClick = { pollOptions = pollOptions + "" }) {
-                        Text(stringResource(Res.string.poll_add_option))
-                    }
+                    MuhabbetButton(
+                        text = stringResource(Res.string.poll_add_option),
+                        onClick = { pollOptions = pollOptions + "" },
+                        role = MuhabbetButtonRole.Text
+                    )
                 }
             }
         }

@@ -69,6 +69,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 private const val TAG = "ChatScreen"
 
@@ -477,8 +478,16 @@ fun ChatScreen(
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = LocalSemanticColors.current.secondaryText)
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back)) } },
-                actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Muhabbet.icons.Timer else Muhabbet.icons.TimerOff, contentDescription = stringResource(Res.string.chat_disappearing)) } },
+                navigationIcon = { MuhabbetIconButton(
+                                       icon = Muhabbet.icons.Back,
+                                       contentDescription = stringResource(Res.string.action_back),
+                                       onClick = onBack
+                                   ) },
+                actions = { MuhabbetIconButton(
+                                icon = if (disappearAfterSeconds != null) Muhabbet.icons.Timer else Muhabbet.icons.TimerOff,
+                                contentDescription = stringResource(Res.string.chat_disappearing),
+                                onClick = { showDisappearDialog = true }
+                            ) },
                 // Bespoke bar (avatar + name + presence subtitle), shared colours.
                 colors = MuhabbetTopBarDefaults.colors()
             )

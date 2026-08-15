@@ -59,6 +59,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -202,15 +203,12 @@ fun CallHistoryScreen(
                         }
 
                         // Call back icon
-                        IconButton(
-                            onClick = { onCallUser(otherUserId, otherName, call.callType) }
-                        ) {
-                            Icon(
-                                imageVector = if (isVideo) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
-                                contentDescription = if (isVideo) videoLabel else voiceLabel,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        MuhabbetIconButton(
+                            icon = if (isVideo) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
+                            contentDescription = if (isVideo) videoLabel else voiceLabel,
+                            onClick = { onCallUser(otherUserId, otherName, call.callType) },
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

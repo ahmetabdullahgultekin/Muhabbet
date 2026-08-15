@@ -57,6 +57,9 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,15 +135,12 @@ fun NewConversationScreen(
                 onBack = onBack,
                 backContentDescription = stringResource(Res.string.action_back),
                 actions = {
-                    IconButton(
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Refresh,
+                        contentDescription = stringResource(Res.string.contacts_refresh),
                         onClick = { scope.launch { syncContacts() } },
                         enabled = hasPermission && !isSyncing
-                    ) {
-                        Icon(
-                            imageVector = Muhabbet.icons.Refresh,
-                            contentDescription = stringResource(Res.string.contacts_refresh)
-                        )
-                    }
+                    )
                 }
             )
         },
@@ -175,9 +175,11 @@ fun NewConversationScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Button(onClick = { requestPermission() }) {
-                            Text(stringResource(Res.string.contacts_grant_access))
-                        }
+                        MuhabbetButton(
+                            text = stringResource(Res.string.contacts_grant_access),
+                            onClick = { requestPermission() },
+                            role = MuhabbetButtonRole.Primary
+                        )
                     }
                 }
                 // Syncing contacts

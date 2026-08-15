@@ -43,6 +43,8 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
 
 @Composable
 fun OtpVerifyScreen(
@@ -255,9 +257,11 @@ fun OtpVerifyScreen(
 
         Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-        TextButton(onClick = onBack) {
-            Text(stringResource(Res.string.otp_change_number))
-        }
+        MuhabbetButton(
+            text = stringResource(Res.string.otp_change_number),
+            onClick = onBack,
+            role = MuhabbetButtonRole.Text
+        )
     }
 }
 

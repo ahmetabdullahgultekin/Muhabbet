@@ -42,6 +42,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 /**
  * A message the user scheduled during this chat session that has not yet been delivered.
@@ -221,13 +222,12 @@ fun ScheduledMessagesDialog(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            IconButton(onClick = { onCancelScheduled(item) }) {
-                                Icon(
-                                    imageVector = Muhabbet.icons.Close,
-                                    contentDescription = stringResource(Res.string.schedule_cancel),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
+                            MuhabbetIconButton(
+                                icon = Muhabbet.icons.Close,
+                                contentDescription = stringResource(Res.string.schedule_cancel),
+                                onClick = { onCancelScheduled(item) },
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }

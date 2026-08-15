@@ -51,6 +51,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @Composable
 fun ReplyPreviewBar(
@@ -157,16 +158,13 @@ fun MessageInputBar(
             // (It used to be labelled a sticker button, drawn as a smiley, and wired to the GIF
             // tab, which is also what the attach menu's GIF entry below already does. Emoji
             // themselves need no button: the system keyboard supplies them in the text field.)
-            IconButton(
+            MuhabbetIconButton(
+                icon = Muhabbet.icons.Emoji,
+                contentDescription = stringResource(Res.string.attach_sticker),
                 onClick = onStickerPick,
-                enabled = !isUploading && !isEditing
-            ) {
-                Icon(
-                    imageVector = Muhabbet.icons.Emoji,
-                    contentDescription = stringResource(Res.string.attach_sticker),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                enabled = !isUploading && !isEditing,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             // Attach button with menu
             Box {
@@ -227,17 +225,14 @@ fun MessageInputBar(
             }
 
             // View-once toggle
-            IconButton(
+            MuhabbetIconButton(
+                icon = if (viewOnceEnabled) Muhabbet.icons.Visible else Muhabbet.icons.Hidden,
+                contentDescription = stringResource(Res.string.view_once_label),
                 onClick = onViewOnceToggle,
-                enabled = !isEditing
-            ) {
-                Icon(
-                    imageVector = if (viewOnceEnabled) Muhabbet.icons.Visible else Muhabbet.icons.Hidden,
-                    contentDescription = stringResource(Res.string.view_once_label),
-                    tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
+                enabled = !isEditing,
+                tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
+            )
 
             OutlinedTextField(
                 value = messageText,

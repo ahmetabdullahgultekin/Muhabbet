@@ -53,6 +53,8 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
 
 private const val TAG = "ChannelListScreen"
 
@@ -194,13 +196,17 @@ private fun ChannelItem(
         }
         Spacer(Modifier.width(MuhabbetSpacing.Small))
         if (channel.isSubscribed) {
-            OutlinedButton(onClick = onSubscribe) {
-                Text(stringResource(Res.string.channels_unsubscribe))
-            }
+            MuhabbetButton(
+                text = stringResource(Res.string.channels_unsubscribe),
+                onClick = onSubscribe,
+                role = MuhabbetButtonRole.Secondary
+            )
         } else {
-            Button(onClick = onSubscribe) {
-                Text(stringResource(Res.string.channels_subscribe))
-            }
+            MuhabbetButton(
+                text = stringResource(Res.string.channels_subscribe),
+                onClick = onSubscribe,
+                role = MuhabbetButtonRole.Primary
+            )
         }
     }
 }

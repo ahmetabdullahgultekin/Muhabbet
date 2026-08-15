@@ -61,6 +61,8 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetSwitch
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,16 +178,20 @@ fun GroupInfoScreen(
                 backContentDescription = stringResource(Res.string.action_back),
                 actions = {
                     if (isAdminOrOwner) {
-                        IconButton(onClick = {
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Edit,
+                            contentDescription = stringResource(Res.string.group_edit_name_title),
+                            onClick = {
                             editName = conversation?.name ?: ""
                             showEditDialog = true
-                        }) {
-                            Icon(Muhabbet.icons.Edit, contentDescription = stringResource(Res.string.group_edit_name_title))
                         }
+                        )
                     }
-                    IconButton(onClick = { showLeaveDialog = true }) {
-                        Icon(Muhabbet.icons.LeaveGroup, contentDescription = stringResource(Res.string.group_leave_title))
-                    }
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.LeaveGroup,
+                        contentDescription = stringResource(Res.string.group_leave_title),
+                        onClick = { showLeaveDialog = true }
+                    )
                 }
             )
         },
@@ -324,7 +330,7 @@ fun GroupInfoScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f)
                             )
-                            Switch(
+                            MuhabbetSwitch(
                                 checked = announcementOnly,
                                 onCheckedChange = { enabled ->
                                     announcementOnly = enabled
@@ -450,13 +456,12 @@ private fun MemberItem(
             }
         }
         if (canRemove) {
-            IconButton(onClick = onRemove) {
-                Icon(
-                    Muhabbet.icons.Delete,
-                    contentDescription = stringResource(Res.string.group_remove_member),
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
+            MuhabbetIconButton(
+                icon = Muhabbet.icons.Delete,
+                contentDescription = stringResource(Res.string.group_remove_member),
+                onClick = onRemove,
+                tint = MaterialTheme.colorScheme.error
+            )
         }
     }
 }

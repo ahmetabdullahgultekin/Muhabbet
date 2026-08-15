@@ -49,6 +49,9 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetSwitch
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
 
 private val solidColors = listOf(
     Color(0xFFE8D5B7), Color(0xFFB7D5E8), Color(0xFFD5E8B7),
@@ -199,9 +202,11 @@ fun WallpaperPickerScreen(
                                 )
                                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                             }
-                            Button(onClick = { galleryPicker.launch() }) {
-                                Text(stringResource(Res.string.wallpaper_choose_from_gallery))
-                            }
+                            MuhabbetButton(
+                                text = stringResource(Res.string.wallpaper_choose_from_gallery),
+                                onClick = { galleryPicker.launch() },
+                                role = MuhabbetButtonRole.Primary
+                            )
                         }
                     }
                 }
@@ -222,7 +227,7 @@ fun WallpaperPickerScreen(
                     text = stringResource(Res.string.wallpaper_dark_mode),
                     style = MaterialTheme.typography.bodyLarge
                 )
-                Switch(
+                MuhabbetSwitch(
                     checked = darkModeEnabled,
                     onCheckedChange = {
                         darkModeEnabled = it
@@ -234,16 +239,16 @@ fun WallpaperPickerScreen(
             Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
             // Remove wallpaper button
-            Button(
+            MuhabbetButton(
+                text = stringResource(Res.string.wallpaper_remove),
                 onClick = {
                     selectedType = "DEFAULT"
                     wallpaperRepository.setWallpaperType("DEFAULT")
                     wallpaperRepository.setSolidColor(null)
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(Res.string.wallpaper_remove))
-            }
+                modifier = Modifier.fillMaxWidth(),
+                role = MuhabbetButtonRole.Primary
+            )
         }
     }
 }

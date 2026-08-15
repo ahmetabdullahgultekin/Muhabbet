@@ -44,6 +44,7 @@ import com.muhabbet.designsystem.components.SectionHeader
 import com.muhabbet.designsystem.components.SettingsInfoRow
 import com.muhabbet.designsystem.components.SettingsNavRow
 import com.muhabbet.designsystem.components.SettingsSwitchRow
+import com.muhabbet.designsystem.components.MuhabbetChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -317,10 +318,10 @@ private fun PrivacyVisibilityRow(
         ) {
             options.forEach { (key, label) ->
                 val isSelected = selectedValue == key
-                androidx.compose.material3.FilterChip(
+                MuhabbetChip(
+                    label = label,
                     selected = isSelected,
                     onClick = { onValueChange(key) },
-                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     leadingIcon = if (isSelected) {
                         { Icon(Muhabbet.icons.Sent, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall)) }
                     } else null

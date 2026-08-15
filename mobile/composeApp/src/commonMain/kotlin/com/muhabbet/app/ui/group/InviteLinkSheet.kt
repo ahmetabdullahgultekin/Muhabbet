@@ -48,6 +48,10 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetBottomSheet
+import com.muhabbet.designsystem.components.MuhabbetSwitch
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,12 +131,14 @@ fun InviteLinkSheet(
                 ) {
                     // Copy
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = {
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Copy,
+                            contentDescription = stringResource(Res.string.invite_link_copy),
+                            onClick = {
                             clipboardManager.setText(AnnotatedString(link.inviteUrl))
                             scope.launch { snackbarHostState.showSnackbar(linkCopiedMsg) }
-                        }) {
-                            Icon(Muhabbet.icons.Copy, contentDescription = stringResource(Res.string.invite_link_copy))
                         }
+                        )
                         Text(
                             text = stringResource(Res.string.invite_link_copy),
                             style = MaterialTheme.typography.labelSmall
@@ -140,9 +146,11 @@ fun InviteLinkSheet(
                     }
                     // Share
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = { shareLauncher(link.inviteUrl) }) {
-                            Icon(Muhabbet.icons.Share, contentDescription = stringResource(Res.string.invite_link_share))
-                        }
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Share,
+                            contentDescription = stringResource(Res.string.invite_link_share),
+                            onClick = { shareLauncher(link.inviteUrl) }
+                        )
                         Text(
                             text = stringResource(Res.string.invite_link_share),
                             style = MaterialTheme.typography.labelSmall
@@ -150,7 +158,10 @@ fun InviteLinkSheet(
                     }
                     // Revoke
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = {
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.Delete,
+                            contentDescription = stringResource(Res.string.invite_link_revoke),
+                            onClick = {
                             scope.launch {
                                 try {
                                     inviteLinkRepository.revokeInviteLink(conversationId, link.id)
@@ -159,9 +170,9 @@ fun InviteLinkSheet(
                                     snackbarHostState.showSnackbar(genericErrorMsg)
                                 }
                             }
-                        }) {
-                            Icon(Muhabbet.icons.Delete, contentDescription = stringResource(Res.string.invite_link_revoke), tint = MaterialTheme.colorScheme.error)
-                        }
+                        },
+                            tint = MaterialTheme.colorScheme.error
+                        )
                         Text(
                             text = stringResource(Res.string.invite_link_revoke),
                             style = MaterialTheme.typography.labelSmall,
@@ -180,7 +191,7 @@ fun InviteLinkSheet(
                         text = stringResource(Res.string.invite_link_require_approval),
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Switch(
+                    MuhabbetSwitch(
                         checked = requireApproval,
                         onCheckedChange = { requireApproval = it }
                     )
@@ -188,7 +199,8 @@ fun InviteLinkSheet(
 
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                Button(
+                MuhabbetButton(
+                    text = stringResource(Res.string.invite_link_create),
                     onClick = {
                         scope.launch {
                             isLoading = true
@@ -203,10 +215,9 @@ fun InviteLinkSheet(
                             isLoading = false
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(Res.string.invite_link_create))
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                    role = MuhabbetButtonRole.Primary
+                )
             }
 
             Spacer(Modifier.height(MuhabbetSpacing.XLarge))

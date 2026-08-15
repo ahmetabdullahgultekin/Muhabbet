@@ -44,6 +44,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 /**
  * Linked-devices management screen (Tier 2, NON-CRYPTO slice).
@@ -167,13 +168,12 @@ private fun DeviceRow(device: LinkedDeviceResponse, onRevoke: () -> Unit) {
             }
             // Only companion devices can be revoked from here; the primary cannot unlink itself.
             if (device.isCompanion && !device.isPrimary) {
-                IconButton(onClick = onRevoke) {
-                    Icon(
-                        Muhabbet.icons.Delete,
-                        contentDescription = stringResource(Res.string.linked_devices_revoke),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
+                MuhabbetIconButton(
+                    icon = Muhabbet.icons.Delete,
+                    contentDescription = stringResource(Res.string.linked_devices_revoke),
+                    onClick = onRevoke,
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

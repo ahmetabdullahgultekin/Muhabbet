@@ -59,6 +59,8 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetButtonRole
+import com.muhabbet.designsystem.components.MuhabbetButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -189,9 +191,11 @@ fun CreateGroupScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Button(onClick = { requestPermission() }) {
-                            Text(stringResource(Res.string.contacts_grant_access))
-                        }
+                        MuhabbetButton(
+                            text = stringResource(Res.string.contacts_grant_access),
+                            onClick = { requestPermission() },
+                            role = MuhabbetButtonRole.Primary
+                        )
                     }
                 }
 

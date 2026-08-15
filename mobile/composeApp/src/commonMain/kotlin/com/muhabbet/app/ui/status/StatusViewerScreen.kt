@@ -48,6 +48,7 @@ import com.muhabbet.app.util.DateTimeFormatter
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetIconButton
 
 @Composable
 fun StatusViewerScreen(
@@ -202,13 +203,12 @@ fun StatusViewerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Muhabbet.icons.Back,
-                            contentDescription = stringResource(Res.string.action_back),
-                            tint = onBgColor
-                        )
-                    }
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Back,
+                        contentDescription = stringResource(Res.string.action_back),
+                        onClick = onBack,
+                        tint = onBgColor
+                    )
                     UserAvatar(
                         avatarUrl = null,
                         displayName = displayName,
