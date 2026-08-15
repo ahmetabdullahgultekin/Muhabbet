@@ -19,6 +19,19 @@ package com.muhabbet.shared.port
  */
 interface E2EKeyManager {
 
+    /**
+     * Whether this implementation produces real cryptographic material.
+     *
+     * Abstract rather than defaulted to `true`, deliberately: a default would let a future
+     * placeholder implementation inherit "these keys are real" by saying nothing, which is exactly
+     * how [NoOpKeyManager]'s output reached the production key tables — `registerKeys()` uploaded
+     * `noop-identity-key-<random>` on every launch, and at the database level that is
+     * indistinguishable from X3DH material. A new implementation must now state which it is.
+     *
+     * Callers that publish key material to a server MUST refuse when this is false.
+     */
+    val producesRealKeyMaterial: Boolean
+
     /** Generate a new identity key pair. Returns Base64-encoded public key. */
     fun generateIdentityKeyPair(): String
 
@@ -64,6 +77,10 @@ interface E2EKeyManager {
  * Used until Signal Protocol library is integrated.
  */
 class NoOpKeyManager : E2EKeyManager {
+
+    /** Placeholder values throughout — nothing here may be published to a server. */
+    override val producesRealKeyMaterial: Boolean = false
+
     private var identityKey: String? = null
     private var registrationId: Int = 1
     private var nextPreKeyId = 1

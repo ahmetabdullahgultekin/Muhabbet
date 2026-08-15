@@ -29,6 +29,24 @@ class E2ESetupService(
      * New keys are only generated on first run or after key wipe.
      */
     suspend fun registerKeys() {
+        // Refuses to publish placeholder material. NoOpKeyManager is wired on BOTH platforms while
+        // libsignal is blocked, and it mints a fresh "noop-identity-key-<random>" per process
+        // because it holds the key in a plain field. This method ran on every launch, so the
+        // production key tables accumulated junk that is indistinguishable from real X3DH material
+        // at the database level, for users who have E2E switched off.
+        //
+        // The caller also gates on E2EConfig.ENABLED. This second check is deliberate: the flag and
+        // the key manager are set in different files, and the combination that does damage —
+        // flag on, placeholder manager wired — is exactly the one a rollout would produce.
+        if (!keyManager.producesRealKeyMaterial) {
+            Log.e(
+                TAG,
+                "Refusing to register keys: ${keyManager::class.simpleName} produces placeholder " +
+                    "material. Wire a real E2EKeyManager before enabling E2E."
+            )
+            return
+        }
+
         // 1. Reuse existing identity key or generate new one
         val identityKey = keyManager.getIdentityPublicKey()
             ?: keyManager.generateIdentityKeyPair()
