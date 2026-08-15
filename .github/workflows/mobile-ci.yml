@@ -21,6 +21,10 @@ on:
       - 'settings.gradle.kts'
       - 'gradle.properties'
       - 'gradle/**'
+      # The push trigger above has always watched this file; the pull_request trigger did not, so a
+      # change to this workflow could not be tested by the PR that made it — the checks simply never
+      # appeared, which reads identically to "nothing to run". Found while fixing ANDROID_HOME.
+      - '.github/workflows/mobile-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,6 +33,17 @@ concurrency:
 env:
   JAVA_VERSION: '21'
   GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+
+  # Without this the Android job has NEVER built — every run since the workflow was written died at
+  # "SDK location not found ... ANDROID_HOME". The SDK is on the self-hosted runner at
+  # /opt/android-sdk (platforms 34/35/36, build-tools 34/35/36, owned by the runner user), but
+  # nothing pointed at it: local.properties carries sdk.dir for developers and is gitignored, so the
+  # checkout has neither the file nor the variable.
+  #
+  # Hardcoding a host path is acceptable precisely because these jobs are pinned to `self-hosted`.
+  # Override with a repository variable if the SDK ever moves, rather than editing this file.
+  ANDROID_HOME: ${{ vars.ANDROID_HOME || '/opt/android-sdk' }}
+  ANDROID_SDK_ROOT: ${{ vars.ANDROID_HOME || '/opt/android-sdk' }}
 
 jobs:
   # --- Android Build ---
@@ -105,8 +120,13 @@ jobs:
       - name: Run mobile unit tests
         run: ./gradlew :mobile:designsystem:testDebugUnitTest :mobile:composeApp:testDebugUnitTest
 
+      # Uploading a report is a convenience, not a gate. It has failed the whole Android job on
+      # "Artifact storage quota has been hit" — an account-level condition with nothing to do with
+      # the code — and because the job stopped there, the APK build never ran and the run read as a
+      # build failure. The tests themselves are the gate and fail the job at their own step.
       - name: Upload test results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mobile-test-results
@@ -146,14 +166,20 @@ jobs:
 
       - name: Upload lint results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: android-lint-results
           path: mobile/composeApp/build/reports/lint-results-*.html
           retention-days: 14
 
+      # ~128 MB a run. Twenty-six of these from February and March were still stored in August and
+      # accounted for 3.10 GB of a 3.13 GB account total, which is what exhausted the artifact quota
+      # and started failing this job. Retention is what keeps that from recurring; continue-on-error
+      # is what keeps it from failing the build if it does.
       - name: Upload debug APK
         if: success()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk

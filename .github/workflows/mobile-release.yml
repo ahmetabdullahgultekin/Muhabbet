@@ -1,0 +1,203 @@
+name: Mobile Release
+
+# Builds and SIGNS the release APK + AAB for a tag, and attaches them to that tag's GitHub release.
+#
+# Why this exists: 0.3.0 was built on the server, which does not hold the release keystore, so the
+# only artifact it could produce was unsigned. An unsigned APK fails to install with "package
+# appears to be invalid", and signing it with any other key makes Android refuse it as an upgrade.
+# Every release therefore required a manual signing step on the owner's machine. This workflow moves
+# that step into CI so a tag produces an installable APK on its own.
+#
+# REQUIRED SECRETS — the workflow fails fast and explains itself if any is missing:
+#   MUHABBET_KEYSTORE_BASE64    base64 of the release .jks   (base64 -w0 muhabbet-release.jks)
+#   MUHABBET_KEYSTORE_PASSWORD  the keystore password
+#   MUHABBET_KEY_ALIAS          the key alias inside the keystore
+#   MUHABBET_KEY_PASSWORD       the key password
+#
+# NOTE ON TRUST: these jobs run on the SELF-HOSTED runner, which is the same server that hosts the
+# production backend. The signing key is decoded to disk there for the duration of the build and
+# shredded afterwards. That is a deliberate trade the owner accepted; anyone who can run arbitrary
+# workflow code on that runner can read the key while a release build is in flight.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and sign, e.g. v0.3.1'
+        required: true
+
+concurrency:
+  group: mobile-release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+  ANDROID_HOME: ${{ vars.ANDROID_HOME || '/opt/android-sdk' }}
+  ANDROID_SDK_ROOT: ${{ vars.ANDROID_HOME || '/opt/android-sdk' }}
+
+  # The certificate every Muhabbet release since 0.2.0 has been signed with. This is a public
+  # fingerprint, not a secret. It is asserted after signing because the failure it guards against is
+  # silent and unrecoverable-in-place: an APK signed with the wrong key installs fine on a clean
+  # phone and is refused as an upgrade by every existing user, which is only discovered after
+  # publishing. Read from the 0.2.2 asset with `apksigner verify --print-certs`.
+  EXPECTED_SIGNER_SHA256: 'e848191121876e08cc0968ae2a3c8591810add502e52e5d5dd1c8bb1f2aa3560'
+
+jobs:
+  release:
+    name: Build signed release
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      # The dispatch input reaches the shell only through env, never interpolated into a run line,
+      # and is shape-checked before it is used as a git ref.
+      - name: Resolve and validate the tag
+        id: resolve
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          if ! printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Refusing to build '$TAG' — expected a tag like v0.3.1."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Fail early if the signing secrets are absent
+        env:
+          KS_B64: ${{ secrets.MUHABBET_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.MUHABBET_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MUHABBET_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.MUHABBET_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$KS_B64" ]    && missing="$missing MUHABBET_KEYSTORE_BASE64"
+          [ -z "$KS_PASS" ]   && missing="$missing MUHABBET_KEYSTORE_PASSWORD"
+          [ -z "$KEY_ALIAS" ] && missing="$missing MUHABBET_KEY_ALIAS"
+          [ -z "$KEY_PASS" ]  && missing="$missing MUHABBET_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            echo "The keystore goes in base64: base64 -w0 muhabbet-release.jks"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      # google-services.json is gitignored, so the checkout does not have it and the Android build
+      # cannot configure without it. Same secret the CI workflow uses.
+      - name: Inject google-services.json
+        env:
+          GS_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GS_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON is not set. A release build must not ship a dummy Firebase config."
+            exit 1
+          fi
+          mkdir -p mobile/composeApp
+          printf '%s' "$GS_JSON" | base64 --decode > mobile/composeApp/google-services.json
+
+      - name: Decode the release keystore
+        env:
+          KS_B64: ${{ secrets.MUHABBET_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          KS_DIR="$RUNNER_TEMP/signing"
+          mkdir -p "$KS_DIR"
+          printf '%s' "$KS_B64" | base64 --decode > "$KS_DIR/release.jks"
+          if [ ! -s "$KS_DIR/release.jks" ]; then
+            echo "::error::Decoded keystore is empty — MUHABBET_KEYSTORE_BASE64 is probably not valid base64."
+            exit 1
+          fi
+          echo "MUHABBET_KEYSTORE_FILE=$KS_DIR/release.jks" >> "$GITHUB_ENV"
+
+      # signingConfigs.release in mobile/composeApp/build.gradle.kts activates only when
+      # MUHABBET_KEYSTORE_FILE is present in the environment, so these four drive it directly.
+      - name: Build signed APK and AAB
+        env:
+          MUHABBET_KEYSTORE_PASSWORD: ${{ secrets.MUHABBET_KEYSTORE_PASSWORD }}
+          MUHABBET_KEY_ALIAS: ${{ secrets.MUHABBET_KEY_ALIAS }}
+          MUHABBET_KEY_PASSWORD: ${{ secrets.MUHABBET_KEY_PASSWORD }}
+        run: |
+          ./gradlew :mobile:composeApp:verifyBuildInfoVersion
+          ./gradlew :mobile:composeApp:assembleRelease :mobile:composeApp:bundleRelease
+
+      - name: Verify the signature is the real release key
+        id: verify
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          [ -z "$APKSIGNER" ] && { echo "::error::apksigner not found under $ANDROID_HOME/build-tools"; exit 1; }
+
+          APK=$(find mobile/composeApp/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No signed APK was produced — the release buildType did not pick up the signing config."
+            find mobile/composeApp/build/outputs/apk/release -name '*.apk' || true
+            exit 1
+          fi
+
+          "$APKSIGNER" verify --print-certs -v "$APK" > signer.txt 2>&1 || {
+            echo "::error::apksigner could not verify the APK"; cat signer.txt; exit 1; }
+          cat signer.txt
+
+          ACTUAL=$(grep -m1 'certificate SHA-256 digest' signer.txt | awk '{print $NF}')
+          if [ "$ACTUAL" != "$EXPECTED_SIGNER_SHA256" ]; then
+            echo "::error::Signed with the WRONG KEY. Expected $EXPECTED_SIGNER_SHA256, got $ACTUAL."
+            echo "Publishing this would break upgrades for every existing user. Refusing."
+            exit 1
+          fi
+          grep -q 'v2 scheme (APK Signature Scheme v2): true' signer.txt || {
+            echo "::error::APK is not v2-signed; Android 11+ will reject it."; exit 1; }
+
+          VERSION="${TAG#v}"
+          cp "$APK" "muhabbet-$VERSION.apk"
+          AAB=$(find mobile/composeApp/build/outputs/bundle/release -name '*.aab' | head -1)
+          [ -n "$AAB" ] && cp "$AAB" "muhabbet-$VERSION.aab"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Attach the artifacts to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+          VERSION: ${{ steps.verify.outputs.version }}
+        run: |
+          # --clobber so re-running a release replaces its artifacts instead of erroring. The release
+          # is left in whatever draft state it already had; publishing stays a human decision.
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft --title "Muhabbet $VERSION" \
+              --notes "Signed build produced by Mobile Release for $TAG."
+          fi
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber \
+            "muhabbet-$VERSION.apk" $([ -f "muhabbet-$VERSION.aab" ] && echo "muhabbet-$VERSION.aab")
+          echo "Attached signed artifacts to $TAG."
+
+      # Runs even when the build fails, so a failed run never leaves the signing key on the runner.
+      - name: Shred the keystore
+        if: always()
+        run: |
+          if [ -n "${MUHABBET_KEYSTORE_FILE:-}" ] && [ -f "$MUHABBET_KEYSTORE_FILE" ]; then
+            shred -u "$MUHABBET_KEYSTORE_FILE" 2>/dev/null || rm -f "$MUHABBET_KEYSTORE_FILE"
+          fi
+          rm -rf "$RUNNER_TEMP/signing" mobile/composeApp/google-services.json
