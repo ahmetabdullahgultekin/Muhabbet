@@ -12,6 +12,13 @@ interface ConversationRepository {
     fun findMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, List<ConversationMember>>
     fun findMember(conversationId: UUID, userId: UUID): ConversationMember?
     fun findConversationsByUserId(userId: UUID): List<Conversation>
+    fun findConversationsByIds(ids: List<UUID>): List<Conversation>
+
+    /**
+     * Member counts for many conversations in one query. Conversations with no members are
+     * absent from the map rather than mapped to zero.
+     */
+    fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int>
     fun findAllContactUserIds(userId: UUID): Set<UUID>
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?
     fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID)

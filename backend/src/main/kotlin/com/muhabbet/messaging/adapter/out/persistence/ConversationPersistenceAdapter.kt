@@ -49,6 +49,16 @@ class ConversationPersistenceAdapter(
         return conversationRepo.findAllById(conversationIds).map { it.toDomain() }
     }
 
+    override fun findConversationsByIds(ids: List<UUID>): List<Conversation> {
+        if (ids.isEmpty()) return emptyList()
+        return conversationRepo.findAllById(ids).map { it.toDomain() }
+    }
+
+    override fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int> {
+        if (conversationIds.isEmpty()) return emptyMap()
+        return memberRepo.countByConversationIds(conversationIds).toCountById()
+    }
+
     override fun findAllContactUserIds(userId: UUID): Set<UUID> =
         memberRepo.findAllContactUserIds(userId)
 

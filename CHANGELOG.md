@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 [Semantic Versioning](https://semver.org/). While the app is pre-1.0 the minor number carries
 breaking changes; 1.0.0 is reserved for the first release that ships end-to-end encryption on.
 
+## [Unreleased]
+
+### Fixed
+- **Opening a community always failed.** `GET /api/v1/communities/{id}` answered with a nested
+  `{community, groups, members}` object, but the app has only ever been able to read the flat shape
+  declared in the shared DTOs — so every community opened onto "Could not load content". The
+  endpoint now returns that flat shape, and each group carries its own name, avatar and member
+  count instead of just an id.
+- **Every community claimed 0 groups and 0 members.** The list endpoint never sent the two counts
+  the row displays, and the client's defaults filled in zeros. Both counts are now served, batched
+  into one query each rather than one per community.
+- **The community list reshuffled between refreshes** — it was assembled from an unordered
+  `findAllById`. It is now ordered by creation time.
+
 ## [0.3.0] — 2026-08-15
 
 The app stops looking like a clone of another messenger and starts looking like itself. The palette,

@@ -5,8 +5,11 @@ import com.muhabbet.messaging.domain.model.CommunityGroup
 import com.muhabbet.messaging.domain.model.CommunityMember
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
+import com.muhabbet.messaging.domain.port.`in`.CommunityGroupSummary
+import com.muhabbet.messaging.domain.port.`in`.CommunitySummary
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
@@ -14,13 +17,14 @@ import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 open class CommunityService(
-    private val communityRepository: CommunityRepository
+    private val communityRepository: CommunityRepository,
+    private val conversationRepository: ConversationRepository
 ) : ManageCommunityUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
-    override fun create(name: String, description: String?, creatorId: UUID): Community {
+    override fun create(name: String, description: String?, creatorId: UUID): CommunitySummary {
         val community = Community(
             name = name,
             description = description,
@@ -34,7 +38,8 @@ open class CommunityService(
         )
 
         log.info("Community created: id={}, name={}, creator={}", saved.id, name, creatorId)
-        return saved
+        // A community starts with no groups and exactly one member: the creator just added above.
+        return CommunitySummary(community = saved, groupCount = 0, memberCount = 1)
     }
 
     @Transactional
@@ -73,19 +78,50 @@ open class CommunityService(
     }
 
     @Transactional(readOnly = true)
-    override fun getDetails(communityId: UUID): CommunityDetails {
+    override fun getDetails(communityId: UUID, userId: UUID): CommunityDetails {
         val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
 
         val groups = communityRepository.findGroupsByCommunityId(communityId)
-        val members = communityRepository.findMembersByCommunityId(communityId)
+        val conversationIds = groups.map { it.conversationId }
+        // Two batched lookups instead of two queries per group.
+        val conversations = conversationRepository.findConversationsByIds(conversationIds).associateBy { it.id }
+        val groupMemberCounts = conversationRepository.countMembersByConversationIds(conversationIds)
 
-        return CommunityDetails(community = community, groups = groups, members = members)
+        return CommunityDetails(
+            community = community,
+            groups = groups.map { group ->
+                val conversation = conversations[group.conversationId]
+                CommunityGroupSummary(
+                    conversationId = group.conversationId,
+                    name = conversation?.name,
+                    avatarUrl = conversation?.avatarUrl,
+                    memberCount = groupMemberCounts[group.conversationId] ?: 0
+                )
+            },
+            memberCount = communityRepository.countMembersByCommunityIds(listOf(communityId))[communityId] ?: 0,
+            myRole = communityRepository.findMember(communityId, userId)?.role
+        )
     }
 
     @Transactional(readOnly = true)
-    override fun listForUser(userId: UUID): List<Community> =
-        communityRepository.findCommunitiesByUserId(userId)
+    override fun listForUser(userId: UUID): List<CommunitySummary> {
+        val communities = communityRepository.findCommunitiesByUserId(userId)
+        if (communities.isEmpty()) return emptyList()
+
+        // Batched so the list costs three queries regardless of how many communities come back.
+        val communityIds = communities.map { it.id }
+        val groupCounts = communityRepository.countGroupsByCommunityIds(communityIds)
+        val memberCounts = communityRepository.countMembersByCommunityIds(communityIds)
+
+        return communities.map { community ->
+            CommunitySummary(
+                community = community,
+                groupCount = groupCounts[community.id] ?: 0,
+                memberCount = memberCounts[community.id] ?: 0
+            )
+        }
+    }
 
     private fun requireAdminOrOwner(communityId: UUID, userId: UUID) {
         val member = communityRepository.findMember(communityId, userId)

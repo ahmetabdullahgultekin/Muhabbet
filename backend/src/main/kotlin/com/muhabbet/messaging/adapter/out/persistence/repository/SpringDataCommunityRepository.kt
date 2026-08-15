@@ -12,14 +12,34 @@ import java.util.UUID
 interface SpringDataCommunityJpaRepository : JpaRepository<CommunityJpaEntity, UUID>
 
 interface SpringDataCommunityGroupRepository : JpaRepository<CommunityGroupJpaEntity, CommunityGroupId> {
-    fun findByCommunityId(communityId: UUID): List<CommunityGroupJpaEntity>
+    fun findByCommunityIdOrderByAddedAtAsc(communityId: UUID): List<CommunityGroupJpaEntity>
 
     @Query("DELETE FROM CommunityGroupJpaEntity cg WHERE cg.communityId = :communityId AND cg.conversationId = :conversationId")
     fun deleteByCommunityIdAndConversationId(communityId: UUID, conversationId: UUID)
+
+    // Batch group counts for the community list (replaces N findByCommunityId calls)
+    @Query(
+        """
+        SELECT cg.communityId, COUNT(cg) FROM CommunityGroupJpaEntity cg
+        WHERE cg.communityId IN :communityIds
+        GROUP BY cg.communityId
+        """
+    )
+    fun countByCommunityIds(communityIds: List<UUID>): List<Array<Any>>
 }
 
 interface SpringDataCommunityMemberRepository : JpaRepository<CommunityMemberJpaEntity, CommunityMemberId> {
     fun findByCommunityId(communityId: UUID): List<CommunityMemberJpaEntity>
     fun findByUserId(userId: UUID): List<CommunityMemberJpaEntity>
     fun findByCommunityIdAndUserId(communityId: UUID, userId: UUID): CommunityMemberJpaEntity?
+
+    // Batch member counts for the community list (replaces N findByCommunityId calls)
+    @Query(
+        """
+        SELECT cm.communityId, COUNT(cm) FROM CommunityMemberJpaEntity cm
+        WHERE cm.communityId IN :communityIds
+        GROUP BY cm.communityId
+        """
+    )
+    fun countByCommunityIds(communityIds: List<UUID>): List<Array<Any>>
 }
