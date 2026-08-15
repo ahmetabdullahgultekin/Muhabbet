@@ -400,11 +400,14 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
 - **Mobile compile canary:** `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` —
   compiles commonMain (incl. the Compose compiler + generated `Res.string.*`) and resolves KMP/iOS
   variants. Cheap gate for commonMain changes, but it does **not** catch androidMain breakage.
-- **The Android app builds and runs on this host** (verified 2026-08-13, correcting an earlier note
-  that said otherwise): `./gradlew :mobile:composeApp:assembleDebug` succeeds in ~96 s and produces an
-  ~82 MB debug APK. There **is** an emulator — AVD `openscale_tr`, Android 16, boots in ~35 s via
-  `emulator -avd openscale_tr`. So a change that shows up in the UI can and should be driven on it
-  rather than signed off on a compile.
+- **The Android app assembles on this host**: `./gradlew :mobile:composeApp:assembleDebug` succeeds
+  and produces an ~82 MB debug APK (re-verified 2026-08-15).
+- **There is NO emulator on this host, and there cannot be one** (checked 2026-08-15, correcting the
+  previous note that claimed AVD `openscale_tr` boots here). `/dev/kvm` does not exist, `/proc/cpuinfo`
+  reports **zero** `vmx`/`svm` flags — this Hetzner VM has no nested virtualisation — and there are
+  neither AVDs (`emulator -list-avds` is empty) nor any `system-images/` in the SDK. Anything that is
+  only true when a human looks at it — motion, layout, gesture, colour on a real panel — **cannot be
+  signed off here**. Build the APK, hand it to the owner, and say plainly what was not seen.
 - **Module layout:** `backend/` (Spring Boot, hexagonal modules: auth · messaging · media ·
   moderation · presence · notification + `shared/` config/security/web), `shared/` (KMP: model ·
   dto · protocol/WsMessage · validation · port), `mobile/composeApp/` (CMP; androidMain full, iosMain

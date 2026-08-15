@@ -6,6 +6,65 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 [Semantic Versioning](https://semver.org/). While the app is pre-1.0 the minor number carries
 breaking changes; 1.0.0 is reserved for the first release that ships end-to-end encryption on.
 
+## [0.3.0] — 2026-08-15
+
+The app stops looking like a clone of another messenger and starts looking like itself. The palette,
+the type scale and the components are Muhabbet's own, and the whole visual language now lives in a
+Gradle module that the compiler stops any screen from working around.
+
+### Fixed
+- **The theme setting never did anything.** Settings offered system / light / dark / OLED and saved
+  the choice, but the theme only ever read the system setting — so picking *light* on a dark-mode
+  phone changed nothing, and the OLED scheme, which was fully written, could not be reached at all.
+  Choosing a theme now repaints immediately instead of restarting the app. (#355)
+- **View-once photos were not hidden on Android 8.0–11.** The preview was blurred with an effect that
+  does nothing below Android 12, so on those versions the "hidden" photo rendered fully sharp. It is
+  now a sealed placeholder on every version. Anyone on Android 8–11 who sent or received a view-once
+  photo before this build should assume its preview was visible. (#355)
+- **Contact search could not find Turkish names.** Lowercasing `İsmail` produced an `i` followed by an
+  invisible combining dot, which nobody types, so searching for `ismail` matched nothing. Search now
+  folds the four i-shapes and the Turkish diacritics together, so `ismail` finds `İsmail` and `oz`
+  finds `Öz`. (#355)
+- **A status upload could be cancelled out from under itself** — the composer blocked the Cancel
+  button and the scrim while an upload was in flight, but not the back gesture. (#355)
+- **Six screens ignored the notch and the navigation bar.** They have no scaffold, so nothing was
+  applying insets while the app drew edge to edge. (#355)
+- The unread badge and the "sending" clock were unreadable — white on green at 1.98:1 and 1.69:1
+  against WCAG's 4.5:1. All 21 measured contrast failures in the old palette are gone. (#355)
+
+### Changed
+- **New palette and typeface.** Ink and Copper replace the cloned green; Manrope replaces the stock
+  Material type scale. The old constants were literally named `WhatsAppAccent`, which the roadmap
+  tracked as a brand and legal risk before any screenshot goes public.
+- **Every screen shares one frame.** 27 hand-rolled scaffolds, 26 top bars in three different
+  colours, 13 dialogs and 4 bottom sheets collapse onto shared components; 181 icons are now named by
+  meaning rather than by glyph. Loading states are skeletons instead of a bare spinner, and empty
+  states say something instead of repeating the screen title.
+- **The app has physics.** Springs, haptics and a depth scale, one vocabulary everywhere: list
+  animation, chat entry, navigation transitions, a shared-element handoff that carries the avatar
+  from the conversation row into the chat title, and a back gesture you can preview and abandon on
+  Android 14+.
+
+### Added
+- `:mobile:designsystem`, a separate library module. It cannot see the app, so a component in it can
+  never reach a screen, a repository or a string; the raw colour values are `internal`, so no screen
+  can name a hex.
+- `./gradlew verifyUi` — ratcheted checks over the UI layer that run without an Android SDK, plus
+  WCAG contrast tests that fail in both directions, so fixing a known failure forces the list to be
+  tightened rather than left to rot.
+- Mobile CI now runs the mobile tests. Until this release it ran none of them.
+
+### Known issues
+- **Nothing in this release has been seen on a screen by its author.** The build host has no emulator
+  and no device. Compilation, 69 unit tests and the contrast maths all pass, but motion and feel are
+  exactly what none of those prove. Please report anything that looks wrong.
+  - Watch for **back skipping a screen** (two back handlers are registered where predictive back is
+    now active), and for a **stray avatar** floating over the screen when leaving a chat.
+- Push notifications still do not arrive; FCM registration fails with `FIS_AUTH_ERROR` against a
+  restricted Firebase API key.
+- Sharing a location still asks for latitude and longitude by hand.
+- End-to-end encryption is still off, and the UI still says so.
+
 ## [0.2.2] — 2026-08-12
 
 0.2.1 could not open a conversation at all: the chat screen showed "Failed to load conversation"
