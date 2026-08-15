@@ -222,7 +222,17 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
   is a **class** provided via `LocalTextStyles`, never an object — as an object it silently keeps
   the system font on every chat/list surface.
 - `gradle/ui-guardrails.gradle.kts` + `ui-guardrails-baseline.properties` — ratcheted UI checks
-  (`./gradlew verifyUi`, runs without an Android SDK)
+  (`./gradlew verifyUi`, runs without an Android SDK). Scans three roots: `composeApp/ui`,
+  `composeApp/navigation`, and all of `mobile/designsystem`.
+- `mobile/composeApp/.../navigation/MuhabbetStackAnimations.kt` — **the only place allowed to build a
+  Decompose `StackAnimation`** (`rawStackAnimation` guardrail = 0). Holds `sharedAxisX()`,
+  `rootFade()` and `predictiveBack()`, all built on `MuhabbetMotion` springs. Lives in `composeApp`,
+  not the design-system module, because `StackAnimation` is a navigation type and the library must
+  not know navigation — the physics is imported, the plumbing is local.
+- `mobile/composeApp/.../ui/transition/AvatarHandoff.kt` — the app's one shared element (list row
+  avatar ↔ chat title avatar). Uses `sharedElementWithCallerManagedVisibility`, because Decompose's
+  `Children` never creates the `AnimatedVisibilityScope` that plain `sharedElement()` requires.
+  **Not device-verified** — see `docs/design/muhabbet-design-system.md` §10.
 - `mobile/.../util/DateTimeFormatter.kt` — Centralized date/time formatting (DRY utility)
 - `mobile/.../ui/components/SectionHeader.kt` — Reusable section header component
 - `mobile/.../ui/components/ConfirmDialog.kt` — Reusable confirm/dismiss dialog

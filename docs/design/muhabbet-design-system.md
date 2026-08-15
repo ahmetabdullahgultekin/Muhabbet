@@ -290,18 +290,22 @@ justified in the commit message.
 | `directIcons` | 181 | 0 |
 | `topAppBarColors` | 23 | 0 |
 | `rawScaffold` | 27 | 0 |
-| `rawTopAppBar` | 27 | 2 (ChatScreen + HomeShell, deliberate) |
+| `hardcodedColor` | 4 | 0 |
 | `modifierBlur` | 0 | 0 |
-| `bareProgress` | 44 | 30 |
-| `dpLiteral` | 182 | 160 |
-| `unlocaledCase` | 12 | 12 |
-| `hardcodedColor` | 4 | 4 (wallpaper swatches) |
-| `spLiteral` | 5 | 5 |
+| `rawStackAnimation` | 0 | 0 (added in Phase 7) |
+| `rawTopAppBar` | 27 | 2 (ChatScreen + HomeShell, deliberate) |
+| `unlocaledCase` | 12 | 2 (both legitimate, named in the rule's comment) |
+| `spLiteral` | 5 | 4 |
+| `bareProgress` | 44 | 20 |
+| `dpLiteral` | 182 | 118 |
 
-Both source roots are scanned. Scanning only `composeApp` would let the design system escape every
-rule the moment code moved into it — counts would fall, the ratchet would look like it was
-improving, and the new module would be unpoliced. Exemptions are narrow: raw colours, `dp` and `sp`
-are permitted **only** under `designsystem/theme/`, not in its components.
+All three source roots are scanned: `composeApp/ui`, `composeApp/navigation`, and the whole design
+system. Scanning only `composeApp` would let the design system escape every rule the moment code
+moved into it — counts would fall, the ratchet would look like it was improving, and the new module
+would be unpoliced. `navigation/` joined in Phase 7 for `rawStackAnimation`, and was checked to
+contribute zero hits to every other rule first so no baseline moved silently. Exemptions are narrow:
+raw colours, `dp` and `sp` are permitted **only** under `designsystem/theme/`, not in its
+components; `stackAnimation(` only in `navigation/MuhabbetStackAnimations.kt`.
 
 `verifyStringResourceSync` checks `values/` ↔ `values-en/` in both directions plus every
 `Res.string.X` referenced from Kotlin.
@@ -327,3 +331,23 @@ Outstanding before this can be called done:
   version, so the fallback-then-reflow on the first frame is unmitigated — most likely visible on
   iOS, where font resolution is async.
 - The four 44dp → 48dp avatar rows, and the copper palette generally, are arithmetic so far.
+
+### Navigation motion (Phase 7) — four specific things to look at
+
+These are not general "check it looks right" items; each has a named failure mode.
+
+- **Double pop.** `MainComponent` and `AuthComponent` both keep `handleBackButton = true` on their
+  `childStack` while `predictiveBack(...)` also pops via `onBack`. This *should* be correct —
+  Essenty dispatches a back event to one callback rather than broadcasting, and the animation's is
+  registered later — but if it is wrong the symptom is back skipping a screen. Fix, if needed, is
+  one word: `handleBackButton = false` on those two stacks.
+- **Ghost avatar.** The list ↔ chat handoff uses
+  `sharedElementWithCallerManagedVisibility`, so visibility is ours to get right. The fragile moment
+  is the *pop*: `activeConversationId` goes null the instant `Config.Chat` leaves the stack, while
+  the chat screen is still animating out, so the title avatar may drop a frame early. If it reads as
+  a flicker, revert the 7.3 commit alone — 7.1 and 7.2 do not depend on it.
+- **The two transition constants.** `OutgoingMinAlpha = 0.4f` and `BackChildScale = 0.94f` in
+  `navigation/MuhabbetStackAnimations.kt` are reasoned starting points, not measurements. Too little
+  scale and the transition reads flat; too much and the app looks like it is zooming out.
+- **API 28.** Predictive back does not exist there, so the fallback path (`sharedAxisX` alone) is
+  what runs. Worth confirming it is not merely *absent* but *correct*.
