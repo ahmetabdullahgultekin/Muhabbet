@@ -13,6 +13,7 @@
     <string name="save">Kaydet</string>
     <string name="delete">Sil</string>
     <string name="action_close">Kapat</string>
+    <string name="action_retry">Tekrar dene</string>
     <string name="action_send">Gönder</string>
     <string name="action_save">Kaydet</string>
     <string name="attach_file">Dosya ekle</string>

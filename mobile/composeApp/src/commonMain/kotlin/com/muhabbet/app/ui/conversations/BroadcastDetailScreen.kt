@@ -37,6 +37,7 @@ import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.action_retry
 import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_no_recipients
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_recipients
@@ -48,6 +49,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetErrorState
 
 @Serializable
 private data class BroadcastMemberEntry(
@@ -67,7 +69,13 @@ fun BroadcastDetailScreen(
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf(false) }
 
-    LaunchedEffect(broadcastListId) {
+    // Bumped by the error state's retry button. Keying the effect on it re-runs the load without
+    // needing a coroutine scope at the call site.
+    var retryKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(broadcastListId, retryKey) {
+        isLoading = true
+        loadError = false
         try {
             val response = apiClient.get<List<BroadcastMemberEntry>>(
                 "/api/v1/broadcasts/$broadcastListId/members"
@@ -90,15 +98,12 @@ fun BroadcastDetailScreen(
     ) { padding ->
         when {
             isLoading -> MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
-            loadError -> Box(
+            loadError -> MuhabbetErrorState(
+                message = stringResource(Res.string.error_generic),
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_generic),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+                retryLabel = stringResource(Res.string.action_retry),
+                onRetry = { retryKey++ }
+            )
             members.isEmpty() -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center

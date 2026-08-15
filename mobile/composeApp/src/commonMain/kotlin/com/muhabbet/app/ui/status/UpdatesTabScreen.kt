@@ -54,6 +54,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.action_retry
 import com.muhabbet.composeapp.generated.resources.cancel
 import com.muhabbet.composeapp.generated.resources.settings_title
 import com.muhabbet.composeapp.generated.resources.status_add
@@ -74,6 +75,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetErrorState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +117,7 @@ fun UpdatesTabScreen(
     val cancelText = stringResource(Res.string.cancel)
     val noStatuses = stringResource(Res.string.status_no_statuses)
     val loadFailed = stringResource(Res.string.status_load_failed)
+    val retryLabel = stringResource(Res.string.action_retry)
     val settingsTitle = stringResource(Res.string.settings_title)
 
     suspend fun loadUpdates() {
@@ -261,19 +264,12 @@ fun UpdatesTabScreen(
                     CircularProgressIndicator()
                 }
             }
-            errorMessage != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = errorMessage ?: loadFailed,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+            errorMessage != null -> MuhabbetErrorState(
+                message = errorMessage ?: loadFailed,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                retryLabel = retryLabel,
+                onRetry = { scope.launch { loadUpdates() } }
+            )
             else -> {
                 val myDisplayName = currentUserId?.let { displayNameByUserId[it] } ?: myStatus
                 val myAvatarUrl = currentUserId?.let { avatarByUserId[it] }

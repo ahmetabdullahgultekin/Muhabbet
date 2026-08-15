@@ -13,6 +13,7 @@
     <string name="save">Save</string>
     <string name="delete">Delete</string>
     <string name="action_close">Close</string>
+    <string name="action_retry">Try again</string>
     <string name="action_send">Send</string>
     <string name="action_save">Save</string>
     <string name="attach_file">Attach file</string>

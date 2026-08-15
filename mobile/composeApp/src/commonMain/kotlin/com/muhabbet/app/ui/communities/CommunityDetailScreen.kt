@@ -56,6 +56,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetErrorState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +89,11 @@ fun CommunityDetailScreen(
         }
     }
 
-    LaunchedEffect(communityId) {
+    // Bumped by the error state's retry button, so a failed load is no longer terminal.
+    var retryKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(communityId, retryKey) {
+        isLoading = true
         loadDetail()
     }
 
@@ -117,15 +122,12 @@ fun CommunityDetailScreen(
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (detail == null) {
-            Box(
+            MuhabbetErrorState(
+                message = stringResource(Res.string.error_generic),
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_generic),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+                retryLabel = stringResource(Res.string.action_retry),
+                onRetry = { retryKey++ }
+            )
         } else {
             val community = detail ?: return@MuhabbetScaffold
             LazyColumn(
