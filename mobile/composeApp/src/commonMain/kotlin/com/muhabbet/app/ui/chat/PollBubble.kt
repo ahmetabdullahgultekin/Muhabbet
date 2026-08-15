@@ -132,13 +132,18 @@ fun PollBubble(
                             fontWeight = if (isMyVote) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.weight(1f)
                         )
-                        Spacer(Modifier.width(MuhabbetSpacing.Small))
-                        Text(
-                            text = "$voteCount",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
+                        // Only when the tallies actually arrived. Printing the 0 that stands in for
+                        // "results not loaded" told the user, in the same typeface as a real result,
+                        // that nobody had voted.
+                        if (pollResult != null) {
+                            Spacer(Modifier.width(MuhabbetSpacing.Small))
+                            Text(
+                                text = "$voteCount",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                     if (totalVotes > 0) {
                         Spacer(Modifier.height(MuhabbetSpacing.XSmall))

@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.util.Log
 import com.muhabbet.shared.dto.PreKeyDto
 import com.muhabbet.shared.port.E2EKeyManager
 
@@ -72,12 +73,17 @@ class E2ESetupService(
                 oneTimePreKeyId = bundle.oneTimePreKeyId
             )
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // Absorbed on purpose: the caller (MessageEncryptor) falls back to sending the message
+            // unencrypted, and E2E is flag-OFF in production anyway, so there is nothing to tell the
+            // user. Logged because a silent false here is indistinguishable from a design decision.
+            Log.w(TAG, "Could not establish an encrypted session with $recipientId: $e")
             false
         }
     }
 
     companion object {
         const val INITIAL_PREKEY_COUNT = 100
+        private const val TAG = "E2ESetupService"
     }
 }

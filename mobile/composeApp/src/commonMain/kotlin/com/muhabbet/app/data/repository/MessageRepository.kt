@@ -2,6 +2,8 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.ApiException
+import com.muhabbet.app.util.Log
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.PollResultResponse
@@ -9,11 +11,16 @@ import com.muhabbet.shared.dto.PollVoteRequest
 import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
 import com.muhabbet.shared.model.Message
+import kotlin.coroutines.cancellation.CancellationException
 
 class MessageRepository(
     private val apiClient: ApiClient,
     private val localCache: LocalCache
 ) {
+
+    private companion object {
+        const val TAG = "MessageRepository"
+    }
 
     suspend fun getMessages(
         conversationId: String,
@@ -30,8 +37,17 @@ class MessageRepository(
             // Cache messages
             localCache.upsertMessages(result.items)
             result
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ApiException) {
+            // The cache answers an UNREACHABLE server, not one that answered and said no. Serving
+            // it here would hide a 403 behind data the user has no reason to doubt — the same
+            // failure-that-looks-like-success this whole change exists to remove.
+            Log.e(TAG, "Message fetch rejected by the server: $e")
+            throw e
         } catch (e: Exception) {
-            // Fallback to cache on network failure
+            // Genuinely offline: stale beats blank, but never silent in the log.
+            Log.w(TAG, "Message fetch failed, falling back to cache: $e")
             if (cursor == null) {
                 val cached = localCache.getMessagesByPage(conversationId, limit)
                 if (cached.isNotEmpty()) {

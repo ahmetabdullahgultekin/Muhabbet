@@ -30,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -73,13 +75,18 @@ fun AddGroupToCommunitySheet(
 
     val addedMsg = stringResource(Res.string.community_add_group_added)
     val failedMsg = stringResource(Res.string.community_add_group_failed)
+    val loadFailedMsg = stringResource(Res.string.error_load_failed)
 
     LaunchedEffect(communityId, excludeConversationIds) {
-        eligibleGroups = try {
-            conversationRepository.getConversations(limit = 100).items
+        runCatchingCancellable {
+            eligibleGroups = conversationRepository.getConversations(limit = 100).items
                 .filter { it.type == ConversationType.GROUP && it.id !in excludeConversationIds }
-        } catch (_: Exception) {
-            emptyList()
+        }.onFailure { e ->
+            // This used to swallow the failure into an empty list, and the sheet then said "you
+            // have no groups to add" to a user who has plenty.
+            Log.e(TAG, "Failed to load groups eligible for this community", e)
+            eligibleGroups = emptyList()
+            snackbarHostState.showSnackbar(loadFailedMsg)
         }
     }
 
@@ -187,3 +194,5 @@ private fun GroupPickerItem(
         )
     }
 }
+
+private const val TAG = "AddGroupToCommunitySheet"

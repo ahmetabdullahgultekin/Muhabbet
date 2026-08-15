@@ -45,6 +45,8 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.delay
 import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -75,11 +77,13 @@ fun StatusViewerScreen(
     val barFg = MaterialTheme.colorScheme.inverseOnSurface
 
     LaunchedEffect(userId) {
-        try {
+        runCatchingCancellable {
             val groups = statusRepository.getContactStatuses()
             val userGroup = groups.firstOrNull { it.userId == userId }
             statuses = userGroup?.statuses ?: emptyList()
-        } catch (_: Exception) {
+        }.onFailure { e ->
+            // Already localized and already visible; the log was the missing half.
+            Log.e(TAG, "Failed to load statuses for $userId", e)
             errorMsg = loadFailedMsg
         }
         isLoading = false
@@ -270,3 +274,5 @@ fun StatusViewerScreen(
 
 private fun formatStatusTime(epochMillis: Long): String =
     DateTimeFormatter.formatTime(epochMillis)
+
+private const val TAG = "StatusViewerScreen"

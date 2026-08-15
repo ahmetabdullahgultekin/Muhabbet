@@ -114,6 +114,10 @@ private fun WebSocketLifecycle() {
                     Log.d("App", "Push token registered: ${pushToken.take(10)}...")
                 }
             } catch (e: Exception) {
+                // Deliberately absorbed. This is startup bootstrap with no screen of its own; a
+                // snackbar on launch, over whatever the user opened the app to do, would say
+                // nothing they can act on. The failure is now real rather than swallowed by
+                // ApiClient, so the log line is the record — push simply will not arrive.
                 Log.e("App", "Push token registration failed: ${e.message}")
             }
         }
@@ -127,6 +131,9 @@ private fun WebSocketLifecycle() {
                 e2eSetupService.registerKeys()
                 Log.d("App", "E2E encryption keys registered")
             } catch (e: Exception) {
+                // Deliberately absorbed, same reasoning. E2E is flag-OFF in production
+                // (E2EConfig.ENABLED), so a failed key registration changes nothing a user can see
+                // today; it must not be silent when the flag is turned on.
                 Log.e("App", "E2E key registration failed: ${e.message}")
             }
         }

@@ -20,6 +20,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -30,6 +31,13 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
 /**
+ * The app's REST client.
+ *
+ * Every verb **throws [ApiException] on a non-2xx status**. It used to log the status and decode the
+ * body regardless, and because the error envelope is a valid `ApiResponse` with `data = null`, a
+ * rejection was indistinguishable from an empty answer — see [ApiException]. Callers must therefore
+ * treat a returned [ApiResponse] as a request the server accepted, and handle the exception.
+ *
  * @param engine supplied only by tests, so they can drive the repositories through a mock engine
  * instead of reaching the network. Production callers pass nothing and get the platform engine.
  */
@@ -135,41 +143,64 @@ class ApiClient(
 
     suspend inline fun <reified T> get(path: String): ApiResponse<T> {
         Log.d(TAG, "GET $path")
-        val response = httpClient.get(path)
-        Log.d(TAG, "GET $path -> ${response.status}")
-        val text = response.bodyAsText()
-        return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
+        return decodeEnvelope(bodyOfSuccessful("GET", path, httpClient.get(path)))
     }
 
     suspend inline fun <reified T> post(path: String, body: Any): ApiResponse<T> {
         Log.d(TAG, "POST $path")
-        val response = httpClient.post(path) { setBody(body) }
-        Log.d(TAG, "POST $path -> ${response.status}")
-        val text = response.bodyAsText()
-        return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
+        return decodeEnvelope(bodyOfSuccessful("POST", path, httpClient.post(path) { setBody(body) }))
     }
 
     suspend inline fun <reified T> put(path: String, body: Any): ApiResponse<T> {
         Log.d(TAG, "PUT $path")
-        val response = httpClient.put(path) { setBody(body) }
-        Log.d(TAG, "PUT $path -> ${response.status}")
-        val text = response.bodyAsText()
-        return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
+        return decodeEnvelope(bodyOfSuccessful("PUT", path, httpClient.put(path) { setBody(body) }))
     }
 
     suspend inline fun <reified T> patch(path: String, body: Any): ApiResponse<T> {
         Log.d(TAG, "PATCH $path")
-        val response = httpClient.patch(path) { setBody(body) }
-        Log.d(TAG, "PATCH $path -> ${response.status}")
-        val text = response.bodyAsText()
-        return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
+        return decodeEnvelope(bodyOfSuccessful("PATCH", path, httpClient.patch(path) { setBody(body) }))
     }
 
     suspend inline fun <reified T> delete(path: String): ApiResponse<T> {
         Log.d(TAG, "DELETE $path")
-        val response = httpClient.delete(path)
-        Log.d(TAG, "DELETE $path -> ${response.status}")
-        val text = response.bodyAsText()
-        return json.decodeFromString(ApiResponse.serializer(serializer<T>()), text)
+        return decodeEnvelope(bodyOfSuccessful("DELETE", path, httpClient.delete(path)))
     }
+
+    /**
+     * Logs the outcome and returns the body — or throws [ApiException] if the status is not 2xx.
+     *
+     * `internal` rather than private because the five verbs above are `inline` with a `reified` type
+     * parameter and so are compiled into their callers.
+     *
+     * [response] is the FINAL response: the `Auth` plugin installed above intercepts a 401, runs
+     * `refreshTokens`, and replays the request before the call returns, so a 401 that refresh
+     * recovers from never reaches here. Only a 401 the server stands by does.
+     */
+    @PublishedApi
+    internal suspend fun bodyOfSuccessful(
+        method: String,
+        path: String,
+        response: HttpResponse,
+    ): String {
+        Log.d(TAG, "$method $path -> ${response.status}")
+        val text = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            throw ApiException.from(json, response.status, text)
+        }
+        return text
+    }
+
+    /**
+     * Decodes a 2xx body into the envelope, treating an empty one as "no data".
+     *
+     * A 204, or a 200 that writes nothing, gives `decodeFromString` an empty string and it throws.
+     * The several `delete<Unit>` callers would then see a successful delete as a failure.
+     */
+    @PublishedApi
+    internal inline fun <reified T> decodeEnvelope(body: String): ApiResponse<T> =
+        if (body.isBlank()) {
+            ApiResponse(data = null, error = null, timestamp = "")
+        } else {
+            json.decodeFromString(ApiResponse.serializer(serializer<T>()), body)
+        }
 }

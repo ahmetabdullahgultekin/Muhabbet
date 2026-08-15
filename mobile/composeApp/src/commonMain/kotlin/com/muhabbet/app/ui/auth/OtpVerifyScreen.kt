@@ -28,7 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.testTag
+import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.util.Log
 import com.muhabbet.designsystem.components.MuhabbetOtpField
 import com.muhabbet.designsystem.components.MuhabbetStepRail
 import com.muhabbet.designsystem.theme.MuhabbetGradients
@@ -67,6 +69,12 @@ fun OtpVerifyScreen(
 
     val verifyFailedMsg = stringResource(Res.string.otp_verify_failed)
     val genericErrorMsg = stringResource(Res.string.error_generic)
+    val otpErrors = OtpErrorMessages(
+        invalid = stringResource(Res.string.otp_error_invalid),
+        expired = stringResource(Res.string.otp_error_expired),
+        maxAttempts = stringResource(Res.string.otp_error_max_attempts),
+        cooldown = stringResource(Res.string.otp_error_cooldown),
+    )
 
     LaunchedEffect(Unit) {
         while (countdown > 0) {
@@ -102,7 +110,8 @@ fun OtpVerifyScreen(
                     onOtpVerified(result.isNewUser)
                 }
             } catch (e: Exception) {
-                error = e.message ?: verifyFailedMsg
+                Log.w(TAG, "OTP verification rejected: $e")
+                error = otpErrors.forFailure(e, verifyFailedMsg)
             } finally {
                 isLoading = false
             }
@@ -217,7 +226,8 @@ fun OtpVerifyScreen(
                                 otp = ""
                                 error = null
                             } catch (e: Exception) {
-                                error = e.message ?: genericErrorMsg
+                                Log.w(TAG, "OTP resend rejected: $e")
+                                error = otpErrors.forFailure(e, genericErrorMsg)
                             } finally {
                                 isResending = false
                             }
@@ -267,3 +277,36 @@ fun OtpVerifyScreen(
 
 /** Digits in a verification code. Both the field and the submit guard read it. */
 private const val OtpLength = 6
+
+private const val TAG = "OtpVerifyScreen"
+
+/**
+ * The four rejections the OTP endpoints report in normal use, in the device's language.
+ *
+ * A mistyped code is not a malfunction, it is the expected answer to a typo, and this screen is the
+ * only feedback the user gets — the boxed field auto-submits on the sixth digit. Until now the
+ * screen printed `e.message`, which is the backend's own `ErrorCode.defaultMessage`: hardcoded
+ * Turkish, shown verbatim to an English-locale user, and free to become an HTTP status line the
+ * moment the request fails before reaching the application.
+ *
+ * Resolved at composition because `stringResource` is `@Composable` and the failures arrive inside
+ * `scope.launch`.
+ */
+private class OtpErrorMessages(
+    val invalid: String,
+    val expired: String,
+    val maxAttempts: String,
+    val cooldown: String,
+) {
+    /**
+     * [fallback] covers everything else — a 500, a dead network, a Firebase failure — because those
+     * are malfunctions, and naming them precisely helps nobody holding a phone.
+     */
+    fun forFailure(e: Throwable, fallback: String): String = when ((e as? ApiException)?.code) {
+        "AUTH_OTP_INVALID" -> invalid
+        "AUTH_OTP_EXPIRED" -> expired
+        "AUTH_OTP_MAX_ATTEMPTS" -> maxAttempts
+        "AUTH_OTP_COOLDOWN", "AUTH_OTP_RATE_LIMIT" -> cooldown
+        else -> fallback
+    }
+}

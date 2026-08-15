@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.util.Log
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -81,7 +82,11 @@ fun PrivacyDashboardScreen(
                         authRepository.deleteAccount()
                         snackbarHostState.showSnackbar(deleteSuccessMsg)
                         onLogout()
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        // deleteAccount() cleared the tokens before checking anything, so a 500 used
+                        // to log the user out and tell them their account was gone. The snackbar was
+                        // already here; the log was not, and this is a KVKK path worth a record.
+                        Log.e(TAG, "Account deletion failed", e)
                         snackbarHostState.showSnackbar(errorMsg)
                     }
                 }
@@ -227,7 +232,8 @@ fun PrivacyDashboardScreen(
                             try {
                                 authRepository.exportData()
                                 snackbarHostState.showSnackbar(exportStartedMsg)
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Data export request failed", e)
                                 snackbarHostState.showSnackbar(exportFailedMsg)
                             }
                             isExporting = false
@@ -350,3 +356,5 @@ private fun KvkkRight(text: String) {
         )
     }
 }
+
+private const val TAG = "PrivacyDashboardScreen"

@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.muhabbet.app.data.repository.DeviceLinkRepository
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.multidevice.MultiDeviceConfig
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
@@ -72,11 +74,20 @@ fun LinkedDevicesScreen(
     val linkNewText = stringResource(Res.string.linked_devices_link_new)
     val revokedMsg = stringResource(Res.string.linked_devices_revoked)
     val revokeConfirm = stringResource(Res.string.linked_devices_revoke_confirm)
+    val loadFailedMsg = stringResource(Res.string.error_load_failed)
+    val actionFailedMsg = stringResource(Res.string.error_action_failed)
 
     suspend fun reload() {
-        runCatching { repository.listDevices() }
-            .onSuccess { devices = it }
+        // Was runCatching { }.onSuccess { } with no onFailure: a rejected list left `devices` empty
+        // and the screen said "no linked devices yet", which is exactly what it says when the
+        // account really has none. Multi-device is server-flagged OFF, so 403 is the common answer.
+        val failure = runCatchingCancellable { devices = repository.listDevices() }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            Log.e(TAG, "Failed to list linked devices", failure)
+            snackbarHostState.showSnackbar(loadFailedMsg)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -133,10 +144,16 @@ fun LinkedDevicesScreen(
                 val toRevoke = id
                 pendingRevokeId = null
                 scope.launch {
-                    runCatching { repository.revokeDevice(toRevoke) }
+                    // Same omission on the write side: a rejected revoke dismissed the dialog and
+                    // left the device in the list, reading as a tap that never registered.
+                    runCatchingCancellable { repository.revokeDevice(toRevoke) }
                         .onSuccess {
                             reload()
                             snackbarHostState.showSnackbar(revokedMsg)
+                        }
+                        .onFailure { e ->
+                            Log.e(TAG, "Failed to revoke device", e)
+                            snackbarHostState.showSnackbar(actionFailedMsg)
                         }
                 }
             },
@@ -179,3 +196,5 @@ private fun DeviceRow(device: LinkedDeviceResponse, onRevoke: () -> Unit) {
         }
     }
 }
+
+private const val TAG = "LinkedDevicesScreen"

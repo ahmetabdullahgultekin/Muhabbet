@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.testTag
+import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.designsystem.components.MuhabbetBrandMark
 import com.muhabbet.designsystem.components.MuhabbetStepRail
@@ -160,7 +161,12 @@ fun PhoneInputScreen(
                     } catch (e: Exception) {
                         // Firebase may throw directly (rate limiting or misconfiguration). No
                         // structured code here — last-resort, locale-invariant message scan.
-                        if (useFirebase && shouldFallbackForRawMessage(e.message)) {
+                        //
+                        // ApiException is excluded because it is OUR backend failing, not Firebase,
+                        // and it carries a structured code already. Letting it through would also
+                        // misfire: a 429 whose body never reached the application falls back to the
+                        // status line, and "429 Too Many Requests" contains the "too many" trigger.
+                        if (useFirebase && e !is ApiException && shouldFallbackForRawMessage(e.message)) {
                             try {
                                 val response = authRepository.requestOtp(phoneNumber)
                                 onPhoneSubmitted(phoneNumber, response.mockCode, null)

@@ -2,6 +2,7 @@ package com.muhabbet.app.platform
 
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -56,9 +57,14 @@ actual class BackgroundSyncManager : KoinComponent {
                 messageRepository.syncMessagesSince(lastSync)
                 tokenStorage.setLastSyncTimestamp(Clock.System.now().toString())
                 onComplete(true)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // Same reasoning as the Android worker: no user to tell, but the timestamp must not
+                // advance past messages that were never fetched, and the failure must be findable.
+                Log.w(TAG, "Background message sync failed: $e")
                 onComplete(false)
             }
         }
     }
 }
+
+private const val TAG = "BackgroundSyncManager"
