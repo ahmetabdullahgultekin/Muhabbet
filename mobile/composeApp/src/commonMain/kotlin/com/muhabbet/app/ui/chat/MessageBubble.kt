@@ -75,7 +75,11 @@ fun MessageBubble(
     onReactionToggle: (String) -> Unit = {},
     onInfo: () -> Unit = {},
     onCopy: () -> Unit = {},
-    onViewOnce: (String) -> Unit = {}
+    onViewOnce: (String) -> Unit = {},
+    // Documents, link previews and shared locations all end in "hand this URL to the platform".
+    // The bubble does not do it itself: opening can fail (nothing installed that handles the URL),
+    // and the snackbar that has to say so lives on the screen.
+    onOpenUrl: (String) -> Unit = {}
 ) {
     // Dispatch view-once messages to ViewOnceBubble
     if (message.viewOnce && !message.isDeleted) {
@@ -192,25 +196,16 @@ fun MessageBubble(
                         }
                         // Document
                         if (message.contentType == ContentType.DOCUMENT && message.mediaUrl != null) {
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = onBubbleColor.copy(alpha = 0.1f),
+                            DocumentBubble(
+                                fileName = message.content,
+                                onBubbleColor = onBubbleColor,
+                                onOpen = { message.mediaUrl?.let(onOpenUrl) },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSizes.GapHairline)
-                                    .clickable { /* open URL */ }
-                            ) {
-                                Row(modifier = Modifier.padding(MuhabbetSizes.AttachmentPadding), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Muhabbet.icons.Document, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(MuhabbetSizes.IconAttachment),
-                                        tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(Modifier.width(MuhabbetSpacing.Small))
-                                    Text(message.content, style = MaterialTheme.typography.bodySmall,
-                                        color = onBubbleColor,
-                                        maxLines = 2)
-                                }
-                            }
+                            )
                         }
                         // Location
                         if (message.contentType == ContentType.LOCATION) {
-                            LocationBubble(content = message.content, isOwn = isOwn, modifier = Modifier.fillMaxWidth())
+                            LocationBubble(content = message.content, isOwn = isOwn, onOpenUrl = onOpenUrl, modifier = Modifier.fillMaxWidth())
                         }
                         // Poll
                         if (message.contentType == ContentType.POLL) {
@@ -245,7 +240,12 @@ fun MessageBubble(
                                 contentDescription = stringResource(Res.string.chat_photo),
                                 modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable { message.mediaUrl?.let { onImageClick(it) } },
+                                    // The bubble draws whenever EITHER url is present, so the tap has to
+                                    // accept the same pair or a thumbnail-only image renders perfectly and
+                                    // is dead to touch. The viewer is a plain zoomable AsyncImage, so a
+                                    // thumbnail opens fine, just soft: 320px is all the client was given
+                                    // for that message and there is no id to ask the server for more.
+                                    .clickable { (message.mediaUrl ?: message.thumbnailUrl)?.let(onImageClick) },
                                 contentScale = ContentScale.Crop
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.XSmall))
@@ -293,7 +293,7 @@ fun MessageBubble(
                             if (message.contentType == ContentType.TEXT) {
                                 val firstUrl = extractFirstUrl(message.content)
                                 if (firstUrl != null) {
-                                    LinkPreviewCard(url = firstUrl, isOwn = isOwn)
+                                    LinkPreviewCard(url = firstUrl, isOwn = isOwn, onOpenUrl = onOpenUrl)
                                 }
                             }
                             Spacer(Modifier.height(MuhabbetSizes.GapHairline))
