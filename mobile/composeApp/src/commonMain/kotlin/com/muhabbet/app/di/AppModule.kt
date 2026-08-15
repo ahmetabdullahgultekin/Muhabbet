@@ -75,7 +75,13 @@ fun appModule(): Module = module {
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
     single { DeviceLinkRepository(apiClient = get()) }
-    // E2EKeyManager and EncryptionPort are provided by platform modules:
-    // Android: SignalKeyManager + SignalEncryption (libsignal-android)
-    // iOS: NoOpKeyManager + NoOpEncryption (stub)
+    // E2EKeyManager and EncryptionPort are provided by platform modules.
+    //
+    // BOTH platforms currently wire NoOpKeyManager + NoOpEncryption. This comment used to claim
+    // Android wires SignalKeyManager; that stopped being true in #49, when the four libsignal
+    // sources were renamed *.kt.disabled because they do not compile against the pinned API. See
+    // CLAUDE.md -> "libsignal upgrade (BLOCKED)".
+    //   Android: NoOpKeyManager + NoOpEncryption (PlatformModule.android.kt)
+    //   iOS:     NoOpKeyManager + NoOpEncryption (PlatformModule.ios.kt)
+    // NoOp returns PLAINTEXT and placeholder key material — see E2EKeyManager.producesRealKeyMaterial.
 }

@@ -12,6 +12,7 @@ import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.di.appModule
 import com.muhabbet.app.navigation.RootComponent
@@ -123,10 +124,15 @@ private fun WebSocketLifecycle() {
         }
     }
 
-    // Register E2E encryption keys on startup
+    // Register E2E encryption keys on startup — only when E2E is actually on.
+    //
+    // This used to run on every launch for every logged-in user, gated on nothing but isLoggedIn().
+    // With E2E flag-OFF and NoOpKeyManager wired, that published placeholder key material to the
+    // production backend each time the process started. A feature that is switched off should put
+    // nothing on the server.
     val e2eSetupService: E2ESetupService = koinInject()
     LaunchedEffect(Unit) {
-        if (tokenStorage.isLoggedIn()) {
+        if (E2EConfig.ENABLED && tokenStorage.isLoggedIn()) {
             try {
                 e2eSetupService.registerKeys()
                 Log.d("App", "E2E encryption keys registered")
