@@ -154,6 +154,9 @@ object MuhabbetSizes {
     /** A colour swatch standing in for a legend entry — the storage breakdown's category dots. */
     val IndicatorDot: Dp = 8.dp
 
+    /** The delivery tick beside a bubble's timestamp — smaller than an icon, it is punctuation. */
+    val IconStatusTick: Dp = 14.dp
+
     /** A resting outline: divider-weight, present but not asking for attention. */
     val BorderHairline: Dp = 1.dp
 

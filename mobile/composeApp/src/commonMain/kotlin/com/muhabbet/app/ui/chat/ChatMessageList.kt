@@ -40,6 +40,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.Animatable
 
 /**
  * Per-message action callbacks for [ChatMessageList]. Grouped into a holder to keep the
@@ -107,16 +110,45 @@ internal fun ChatMessageList(
                     val isOwn = message.senderId == currentUserId
                     val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
                     val isStarred = message.id in starredIds
-                    var swipeOffset by remember { mutableStateOf(0f) }
+                    // Animatable, not a plain Float: releasing a drag below the threshold used to
+                    // snap the bubble back to zero in one frame. It now springs back, which is what
+                    // the gesture promised while the finger was down.
+                    val swipeOffset = remember { Animatable(0f) }
+                    var isArmed by remember { mutableStateOf(false) }
+                    val threshold = Muhabbet.gestures.SwipeReplyThreshold
+                    val maxSwipe = Muhabbet.gestures.SwipeReplyMax
+                    val haptics = Muhabbet.haptics
+                    val scope = rememberCoroutineScope()
 
-                    Box(modifier = Modifier.pointerInput(Unit) {
+                    Box(modifier = Modifier.pointerInput(message.id) {
                         detectHorizontalDragGestures(
-                            onDragEnd = { if (swipeOffset > 80f && !message.isDeleted) actions.onSwipeReply(message); swipeOffset = 0f },
-                            onDragCancel = { swipeOffset = 0f },
-                            onHorizontalDrag = { _, d -> swipeOffset = (swipeOffset + d).coerceIn(0f, 120f) }
+                            onDragEnd = {
+                                if (swipeOffset.value > threshold && !message.isDeleted) {
+                                    haptics.perform(MuhabbetHapticIntent.SwipeCommitted)
+                                    actions.onSwipeReply(message)
+                                }
+                                isArmed = false
+                                scope.launch { swipeOffset.animateTo(0f, Muhabbet.motion.spatialDefault()) }
+                            },
+                            onDragCancel = {
+                                isArmed = false
+                                scope.launch { swipeOffset.animateTo(0f, Muhabbet.motion.spatialDefault()) }
+                            },
+                            onHorizontalDrag = { _, d ->
+                                val next = (swipeOffset.value + d).coerceIn(0f, maxSwipe)
+                                // Fired once on the way past the threshold, not on every frame past
+                                // it: a haptic per drag event is a buzz, not a signal.
+                                if (next > threshold && !isArmed) {
+                                    isArmed = true
+                                    haptics.perform(MuhabbetHapticIntent.SwipeArmed)
+                                } else if (next <= threshold) {
+                                    isArmed = false
+                                }
+                                scope.launch { swipeOffset.snapTo(next) }
+                            }
                         )
                     }) {
-                        if (swipeOffset > 20f) Box(Modifier.align(Alignment.CenterStart).padding(start = MuhabbetSpacing.XSmall), contentAlignment = Alignment.Center) {
+                        if (swipeOffset.value > SwipeHintVisibleAt) Box(Modifier.align(Alignment.CenterStart).padding(start = MuhabbetSpacing.XSmall), contentAlignment = Alignment.Center) {
                             // Decorative: this arrow only fades in mid-drag as a swipe-to-reply hint.
                             // A screen-reader user never performs the drag — they reach Reply through
                             // the long-press context menu, which is labelled — so naming it here would
@@ -125,10 +157,12 @@ internal fun ChatMessageList(
                                 imageVector = Muhabbet.icons.Reply,
                                 contentDescription = null,
                                 modifier = Modifier.size(MuhabbetSizes.IconMedium),
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = (swipeOffset / 80f).coerceIn(0f, 1f))
+                                tint = MaterialTheme.colorScheme.primary.copy(
+                                    alpha = (swipeOffset.value / threshold).coerceIn(0f, 1f)
+                                )
                             )
                         }
-                        Column(modifier = Modifier.padding(start = (swipeOffset / 3f).coerceAtMost(30f).dp)) {
+                        Column(modifier = Modifier.padding(start = (swipeOffset.value / SwipeTravelDivisor).coerceAtMost(MaxSwipeShiftPx).dp)) {
                             if (reactionTargetId == message.id) QuickReactionBar(visible = true, onReaction = { emoji -> reactionTargetId = null; actions.onQuickReaction(message, emoji) })
                             MessageBubble(message, isOwn, audioPlayer, repliedMessage, isStarred,
                                 showContextMenu = contextMenuMessageId == message.id,
@@ -166,3 +200,12 @@ internal fun ChatMessageList(
         }
     }
 }
+
+/** How far the finger must travel before the reply arrow starts fading in. */
+private const val SwipeHintVisibleAt = 20f
+
+/** The bubble follows the finger at a third of its speed, so the drag feels weighted. */
+private const val SwipeTravelDivisor = 3f
+
+/** Cap on how far the bubble itself shifts, regardless of how far the finger goes. */
+private const val MaxSwipeShiftPx = 30f

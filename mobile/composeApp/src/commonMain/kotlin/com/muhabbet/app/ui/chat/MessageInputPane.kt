@@ -45,6 +45,12 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.Muhabbet
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 
 @Composable
 fun ReplyPreviewBar(
@@ -245,10 +251,23 @@ fun MessageInputBar(
 
             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
 
-            if (messageText.isBlank() && !isEditing) {
+            // The mic and the send button occupy the same spot and swap as soon as the field has
+            // text, which was an instant cut. A scale crossfade makes it read as one control
+            // changing what it does, which is what it is. Spatial: it is a size change.
+            AnimatedContent(
+                targetState = messageText.isBlank() && !isEditing,
+                transitionSpec = {
+                    (scaleIn(Muhabbet.motion.spatialFast()) + fadeIn(Muhabbet.motion.effectsFast()))
+                        .togetherWith(
+                            scaleOut(Muhabbet.motion.effectsFast()) + fadeOut(Muhabbet.motion.effectsFast())
+                        )
+                },
+                label = "micSendMorph"
+            ) { showMic ->
+            if (showMic) {
                 FilledIconButton(
                     onClick = onMicClick,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(MuhabbetSizes.MinTouchTarget),
                     shape = CircleShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -266,7 +285,7 @@ fun MessageInputBar(
                     color = if (isEditing) MaterialTheme.colorScheme.tertiary
                     else MaterialTheme.colorScheme.primary,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(MuhabbetSizes.MinTouchTarget)
                         .testTag("send_button")
                         .combinedClickable(
                             enabled = messageText.isNotBlank(),
@@ -286,6 +305,7 @@ fun MessageInputBar(
                         )
                     }
                 }
+            }
             }
         }
     }

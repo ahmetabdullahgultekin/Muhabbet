@@ -46,6 +46,12 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -326,7 +332,27 @@ fun MessageBubble(
                                 MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
                                 MessageStatus.READ -> stringResource(Res.string.status_read)
                             }
-                            Icon(icon, contentDescription = statusDesc, modifier = Modifier.size(14.dp), tint = tint)
+                            // The tick changes because the other device answered, so it is worth
+                            // showing rather than swapping. Effects spring, not spatial: this is a
+                            // colour and glyph change, and a tick that overshoots reads as a twitch.
+                            // The label sits on the wrapper so a screen reader is not re-announced
+                            // mid-crossfade.
+                            AnimatedContent(
+                                targetState = message.status,
+                                transitionSpec = {
+                                    fadeIn(Muhabbet.motion.effectsDefault()) togetherWith
+                                        fadeOut(Muhabbet.motion.effectsFast())
+                                },
+                                label = "deliveryStatus",
+                                modifier = Modifier.semantics { contentDescription = statusDesc }
+                            ) { _ ->
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(MuhabbetSizes.IconStatusTick),
+                                    tint = tint
+                                )
+                            }
                         }
                     }
 
