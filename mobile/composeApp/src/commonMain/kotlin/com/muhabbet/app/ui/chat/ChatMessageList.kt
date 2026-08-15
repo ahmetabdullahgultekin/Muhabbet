@@ -43,6 +43,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 
 /**
  * Per-message action callbacks for [ChatMessageList]. Grouped into a holder to keep the
@@ -110,13 +111,13 @@ internal fun ChatMessageList(
                     val isOwn = message.senderId == currentUserId
                     val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
                     val isStarred = message.id in starredIds
+                    val threshold = Muhabbet.gestures.SwipeReplyThreshold
+                    val maxSwipe = Muhabbet.gestures.SwipeReplyMax
                     // Animatable, not a plain Float: releasing a drag below the threshold used to
                     // snap the bubble back to zero in one frame. It now springs back, which is what
                     // the gesture promised while the finger was down.
-                    val swipeOffset = remember { Animatable(0f) }
+                    val swipeOffset = remember(maxSwipe) { swipeReplyOffset(maxSwipe) }
                     var isArmed by remember { mutableStateOf(false) }
-                    val threshold = Muhabbet.gestures.SwipeReplyThreshold
-                    val maxSwipe = Muhabbet.gestures.SwipeReplyMax
                     val haptics = Muhabbet.haptics
                     val scope = rememberCoroutineScope()
 
@@ -200,6 +201,31 @@ internal fun ChatMessageList(
         }
     }
 }
+
+/**
+ * The swipe-to-reply drag distance in pixels, as an [Animatable] that is bounded to its own domain.
+ *
+ * The bounds are the whole point. This value means "how far the finger has dragged this bubble
+ * toward Reply", so `0..max` is not a safety margin, it is the definition — and `onHorizontalDrag`
+ * has always coerced into it. The spring-back added in 0.3.0 did not carry that invariant over:
+ * `MuhabbetMotion.spatialDefault()` is under-damped **on purpose** (damping 0.80, documented there
+ * as the thing that "reads as physical rather than scripted"), so animating to `0f` crosses zero and
+ * settles from below. Roughly 270 ms and sixteen frames of the settle are negative.
+ *
+ * That negative reached `Modifier.padding(start = …)`, whose element constructor requires a
+ * non-negative `Dp`, and release build 0.3.0 died with `IllegalArgumentException: Padding must be
+ * non-negative` the first time anyone released a swipe-to-reply. Before 0.3.0 `swipeOffset` was a
+ * plain `Float` that only ever moved by `coerceIn(0f, max)` or an assignment to `0f`, so the same
+ * padding expression could not go negative and the `coerceAtMost` upper cap was sufficient.
+ *
+ * Declaring the domain on the state holder fixes it once for all three readers — hint visibility,
+ * arrow alpha and the bubble shift — instead of each of them defending itself, which would leave the
+ * next reader to rediscover this. Compose ends the animation at the bound, so the spring-back still
+ * reads as a spring; the only motion lost is a sub-dp bounce past rest that a start padding could
+ * never have rendered in the first place.
+ */
+internal fun swipeReplyOffset(max: Float): Animatable<Float, AnimationVector1D> =
+    Animatable(0f).apply { updateBounds(lowerBound = 0f, upperBound = max) }
 
 /** How far the finger must travel before the reply arrow starts fading in. */
 private const val SwipeHintVisibleAt = 20f
