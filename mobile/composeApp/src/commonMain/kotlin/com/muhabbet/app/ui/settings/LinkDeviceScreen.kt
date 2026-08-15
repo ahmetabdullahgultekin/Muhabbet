@@ -15,7 +15,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -29,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.multidevice.MultiDeviceConfig
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -36,6 +36,7 @@ import com.muhabbet.shared.dto.DeviceLinkQrPayload
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 /**
  * Device-linking transport/UX scaffolding (Tier 2, NON-CRYPTO slice).
@@ -81,15 +82,12 @@ fun LinkDeviceScreen(
         isLoading = false
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
-                    }
-                }
+            MuhabbetTopBar(
+                title = title,
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         }
     ) { padding ->

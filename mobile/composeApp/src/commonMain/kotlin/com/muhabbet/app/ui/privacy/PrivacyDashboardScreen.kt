@@ -20,8 +20,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -40,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -49,6 +48,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,23 +95,15 @@ fun PrivacyDashboardScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.privacy_dashboard_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            MuhabbetTopBar(
+                title = stringResource(Res.string.privacy_dashboard_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding)

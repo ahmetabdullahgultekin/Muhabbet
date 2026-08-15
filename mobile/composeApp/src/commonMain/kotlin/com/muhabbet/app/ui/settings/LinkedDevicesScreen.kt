@@ -18,8 +18,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -35,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.multidevice.MultiDeviceConfig
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
@@ -44,6 +43,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 /**
  * Linked-devices management screen (Tier 2, NON-CRYPTO slice).
@@ -81,16 +81,13 @@ fun LinkedDevicesScreen(
         if (MultiDeviceConfig.ENABLED) reload() else isLoading = false
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+    MuhabbetScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back))
-                    }
-                }
+            MuhabbetTopBar(
+                title = title,
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back)
             )
         },
         floatingActionButton = {

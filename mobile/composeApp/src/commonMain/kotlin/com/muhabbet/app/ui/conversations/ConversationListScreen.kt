@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.conversations
 
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -20,8 +21,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -73,6 +72,7 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 private const val TAG = "ConversationList"
 
@@ -355,15 +355,11 @@ fun ConversationListScreen(
         onDismissMute = { showMuteDialog = false; muteTargetConvId = null }
     )
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             if (showTopBar) {
-                TopAppBar(
-                    title = { Text(stringResource(Res.string.app_name), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
+                MuhabbetTopBar(
+                    title = stringResource(Res.string.app_name),
                     actions = {
                         IconButton(onClick = { isSearching = !isSearching; if (!isSearching) { searchQuery = ""; searchResults = emptyList() } }) {
                             Icon(
@@ -396,7 +392,7 @@ fun ConversationListScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Search bar

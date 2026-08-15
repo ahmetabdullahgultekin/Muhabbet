@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +46,7 @@ import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.SectionHeader
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetCorners
@@ -73,6 +73,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -245,11 +246,11 @@ fun UpdatesTabScreen(
         )
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             if (showTopBar) {
-                TopAppBar(
-                    title = { Text(updatesTitle, fontWeight = FontWeight.Bold) },
+                MuhabbetTopBar(
+                    title = updatesTitle,
                     actions = {
                         IconButton(onClick = onSettings) {
                             Icon(

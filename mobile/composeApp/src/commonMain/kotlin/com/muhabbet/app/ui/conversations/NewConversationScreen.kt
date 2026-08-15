@@ -23,8 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.ContactsProvider
@@ -57,6 +56,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,18 +125,12 @@ fun NewConversationScreen(
     val filteredContacts = if (searchQuery.isBlank()) contacts
     else contacts.filter { (it.displayName ?: "").contains(searchQuery, ignoreCase = true) }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.new_conversation_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Muhabbet.icons.Back,
-                            contentDescription = stringResource(Res.string.action_back)
-                        )
-                    }
-                },
+            MuhabbetTopBar(
+                title = stringResource(Res.string.new_conversation_title),
+                onBack = onBack,
+                backContentDescription = stringResource(Res.string.action_back),
                 actions = {
                     IconButton(
                         onClick = { scope.launch { syncContacts() } },
@@ -147,15 +141,10 @@ fun NewConversationScreen(
                             contentDescription = stringResource(Res.string.contacts_refresh)
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {

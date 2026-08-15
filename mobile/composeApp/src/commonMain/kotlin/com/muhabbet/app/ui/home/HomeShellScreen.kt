@@ -23,8 +23,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -46,6 +44,7 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.status.UpdatesTabScreen
@@ -70,6 +69,8 @@ import com.muhabbet.composeapp.generated.resources.settings_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -145,8 +146,8 @@ fun HomeShellScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+    MuhabbetScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
             if (isSearchActive) {
                 TopAppBar(
@@ -171,20 +172,12 @@ fun HomeShellScreen(
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    // Bespoke bar (transforms into a search field), shared colours.
+                    colors = MuhabbetTopBarDefaults.colors()
                 )
             } else {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = appName,
-                            style = MuhabbetTextStyles.TopBarTitle
-                        )
-                    },
+                MuhabbetTopBar(
+                    title = appName,
                     actions = {
                         IconButton(onClick = {
                             isSearchActive = true
@@ -222,12 +215,7 @@ fun HomeShellScreen(
                                 )
                             }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    }
                 )
             }
         },

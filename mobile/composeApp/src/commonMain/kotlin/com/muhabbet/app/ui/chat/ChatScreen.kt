@@ -15,7 +15,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -68,6 +67,8 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 
 private const val TAG = "ChatScreen"
 
@@ -434,7 +435,7 @@ fun ChatScreen(
     )
 
     // ── Scaffold UI ──────────────────────────
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             TopAppBar(
                 title = {
@@ -445,10 +446,11 @@ fun ChatScreen(
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Muhabbet.icons.Back, contentDescription = stringResource(Res.string.action_back)) } },
                 actions = { IconButton(onClick = { showDisappearDialog = true }) { Icon(if (disappearAfterSeconds != null) Muhabbet.icons.Timer else Muhabbet.icons.TimerOff, contentDescription = stringResource(Res.string.chat_disappearing)) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface, titleContentColor = MaterialTheme.colorScheme.onSurface, navigationIconContentColor = MaterialTheme.colorScheme.onSurface, actionIconContentColor = MaterialTheme.colorScheme.onSurface)
+                // Bespoke bar (avatar + name + presence subtitle), shared colours.
+                colors = MuhabbetTopBarDefaults.colors()
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
             if (isLoading) {

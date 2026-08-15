@@ -21,8 +21,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -37,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -58,6 +57,7 @@ import com.muhabbet.composeapp.generated.resources.calls_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,21 +106,16 @@ fun CallHistoryScreen(
         }
     }
 
-    Scaffold(
+    MuhabbetScaffold(
         topBar = {
             if (showTopBar) {
-                TopAppBar(
-                    title = { Text(title) },
-                    navigationIcon = {
-                        if (showBackButton) {
-                            IconButton(onClick = onBack) {
-                                Icon(
-                                    Muhabbet.icons.Back,
-                                    contentDescription = stringResource(Res.string.action_back)
-                                )
-                            }
-                        }
-                    }
+                // Embedded as the Calls tab, this screen has no back button; pushed as its own
+                // destination, it does. Expressed as a nullable callback rather than an `if` inside
+                // the navigationIcon slot, which is what left an empty slot behind before.
+                MuhabbetTopBar(
+                    title = title,
+                    onBack = if (showBackButton) onBack else null,
+                    backContentDescription = stringResource(Res.string.action_back)
                 )
             }
         },
@@ -138,7 +133,7 @@ fun CallHistoryScreen(
                 }
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
