@@ -215,15 +215,19 @@ fun InviteLinkSheet(
                     onClick = {
                         scope.launch {
                             isLoading = true
+                            var createFailed = false
                             try {
                                 inviteLink = inviteLinkRepository.createInviteLink(
                                     conversationId,
                                     CreateInviteLinkRequest(requiresApproval = requireApproval)
                                 )
                             } catch (_: Exception) {
-                                snackbarHostState.showSnackbar(genericErrorMsg)
+                                createFailed = true
                             }
+                            // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                            // dismissed (~4s).
                             isLoading = false
+                            if (createFailed) snackbarHostState.showSnackbar(genericErrorMsg)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

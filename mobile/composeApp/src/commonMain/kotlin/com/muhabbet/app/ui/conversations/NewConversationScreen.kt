@@ -103,6 +103,7 @@ fun NewConversationScreen(
     suspend fun syncContacts() {
         if (!hasPermission || isSyncing) return
         isSyncing = true
+        var syncFailed = false
         try {
             val deviceContacts = withContext(Dispatchers.Default) {
                 contactsProvider.readContacts()
@@ -119,9 +120,11 @@ fun NewConversationScreen(
                 conversationRepository.syncContacts(hashes).matchedContacts
             }
         } catch (_: Exception) {
-            snackbarHostState.showSnackbar(errorMsg)
+            syncFailed = true
         }
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isSyncing = false
+        if (syncFailed) snackbarHostState.showSnackbar(errorMsg)
     }
 
     LaunchedEffect(hasPermission) { syncContacts() }
@@ -264,8 +267,10 @@ fun NewConversationScreen(
                                                 val conv = conversationRepository.createDirectConversation(contact.userId)
                                                 onConversationCreated(conv.id, contact.displayName ?: defaultChatName)
                                             } catch (_: Exception) {
-                                                snackbarHostState.showSnackbar(errorMsg)
+                                                // Clear the spinner BEFORE reporting —
+                                                // showSnackbar suspends until dismissed (~4s).
                                                 isCreating = false
+                                                snackbarHostState.showSnackbar(errorMsg)
                                             }
                                         }
                                     }

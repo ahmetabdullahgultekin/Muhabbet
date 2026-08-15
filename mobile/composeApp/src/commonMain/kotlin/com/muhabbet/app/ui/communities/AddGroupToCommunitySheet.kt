@@ -145,15 +145,27 @@ fun AddGroupToCommunitySheet(
                                     if (isAdding) return@GroupPickerItem
                                     scope.launch {
                                         isAdding = true
+                                        var addFailed = false
                                         try {
                                             communityRepository.addGroupToCommunity(communityId, group.id)
+                                        } catch (_: Exception) {
+                                            addFailed = true
+                                        }
+                                        // Clear the spinner BEFORE reporting — showSnackbar
+                                        // suspends until dismissed (~4s).
+                                        isAdding = false
+                                        if (addFailed) {
+                                            snackbarHostState.showSnackbar(failedMsg)
+                                        } else {
+                                            // The report still precedes the dismiss on purpose:
+                                            // this coroutine runs on the sheet's own
+                                            // rememberCoroutineScope, so onDismiss() takes the
+                                            // sheet out of composition and cancels it — a
+                                            // snackbar started after that never appears.
                                             snackbarHostState.showSnackbar(addedMsg)
                                             onGroupAdded()
                                             onDismiss()
-                                        } catch (_: Exception) {
-                                            snackbarHostState.showSnackbar(failedMsg)
                                         }
-                                        isAdding = false
                                     }
                                 }
                             )

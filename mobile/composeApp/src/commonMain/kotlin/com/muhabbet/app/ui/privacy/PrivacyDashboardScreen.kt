@@ -229,14 +229,20 @@ fun PrivacyDashboardScreen(
                     onClick = {
                         isExporting = true
                         scope.launch {
+                            var exportFailed = false
                             try {
                                 authRepository.exportData()
-                                snackbarHostState.showSnackbar(exportStartedMsg)
                             } catch (e: Exception) {
                                 Log.e(TAG, "Data export request failed", e)
-                                snackbarHostState.showSnackbar(exportFailedMsg)
+                                exportFailed = true
                             }
+                            // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                            // dismissed (~4s). Both outcomes: the "export started" confirmation
+                            // held the row spinner exactly as long as the failure one did.
                             isExporting = false
+                            snackbarHostState.showSnackbar(
+                                if (exportFailed) exportFailedMsg else exportStartedMsg
+                            )
                         }
                     }
                 )
