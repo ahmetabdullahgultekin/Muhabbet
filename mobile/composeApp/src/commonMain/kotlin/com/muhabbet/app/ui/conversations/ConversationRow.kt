@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
 import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.app.ui.transition.handoffAvatar
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -85,7 +86,9 @@ internal fun ConversationItem(
                 displayName = displayName,
                 size = MuhabbetSizes.AvatarChatList,
                 isGroup = isGroup,
-                contentDescription = if (isGroup) stringResource(Res.string.cd_group_avatar) else displayName
+                contentDescription = if (isGroup) stringResource(Res.string.cd_group_avatar) else displayName,
+                // Only the online dot stays behind; the avatar itself flies into the chat title bar.
+                modifier = Modifier.handoffAvatar(conversation.id, isChatSide = false)
             )
             // Green online dot
             if (isOnline) {

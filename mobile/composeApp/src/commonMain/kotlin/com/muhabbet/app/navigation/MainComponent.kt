@@ -43,6 +43,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.transition.AvatarHandoff
+import com.muhabbet.app.ui.transition.LocalAvatarHandoff
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 
 class MainComponent(
     componentContext: ComponentContext,
@@ -258,8 +265,33 @@ class MainComponent(
     }
 }
 
+/**
+ * The main stack, plus the one thing that has to sit above it.
+ *
+ * `SharedTransitionLayout` wraps `Children` rather than living inside a screen because the two
+ * avatars that hand off — the conversation row's and the chat title bar's — are in two *different*
+ * children of this stack. Their nearest common ancestor is here and nowhere lower.
+ *
+ * The stack itself is [MainStack] so that adding this wrapper did not re-indent 250 lines of `when`
+ * branches, which would have buried the change in whitespace.
+ */
 @Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
 fun MainContent(component: MainComponent) {
+    SharedTransitionLayout {
+        val stack by component.childStack.subscribeAsState()
+        val handoff = AvatarHandoff(
+            scope = this,
+            activeConversationId = (stack.active.configuration as? MainComponent.Config.Chat)?.conversationId
+        )
+        CompositionLocalProvider(LocalAvatarHandoff provides handoff) {
+            MainStack(component)
+        }
+    }
+}
+
+@Composable
+private fun MainStack(component: MainComponent) {
     Children(
         stack = component.childStack,
         animation = sharedAxisX()

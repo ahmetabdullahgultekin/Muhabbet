@@ -70,6 +70,7 @@ import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.app.ui.transition.handoffAvatar
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
@@ -494,7 +495,8 @@ fun ChatScreen(
                             displayName = conversationName,
                             size = Muhabbet.sizes.AvatarSmall,
                             isGroup = isGroup,
-                            contentDescription = if (isGroup) groupAvatarLabel else null
+                            contentDescription = if (isGroup) groupAvatarLabel else null,
+                            modifier = Modifier.handoffAvatar(conversationId, isChatSide = true)
                         )
                         Spacer(Modifier.width(Muhabbet.spacing.Small))
                         Column {
