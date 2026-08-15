@@ -199,6 +199,8 @@
     <string name="location_label_placeholder">Konum adı (isteğe bağlı)</string>
     <string name="location_lat_placeholder">Enlem</string>
     <string name="location_lng_placeholder">Boylam</string>
+    <!-- Screen-reader action label on a shared-location bubble -->
+    <string name="location_open_in_maps">Haritada aç</string>
 
     <!-- Status/Stories -->
     <string name="status_my">Durumum</string>
@@ -635,6 +637,9 @@
     <string name="error_action_failed">İşlem tamamlanamadı</string>
     <string name="error_delete_failed">Silinemedi</string>
     <string name="error_open_external">Bu dosya açılamadı</string>
+    <!-- Chat bubbles hand a URL to the platform: a file, a link preview or a map. One wording for
+         all three, because the failure is always the same one: nothing here can open it. -->
+    <string name="error_open_failed">Bu öğe açılamadı</string>
     <string name="error_disappearing_timer_failed">Kaybolan mesaj ayarı değiştirilemedi</string>
     <string name="call_connection_failed">Arama bağlantısı kurulamadı</string>
     <!-- Shown while the call is ringing, before media actually connects -->

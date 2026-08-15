@@ -61,7 +61,9 @@ internal class ChatMessageActions(
     val onReactionToggle: (Message, String) -> Unit,
     val onQuickReaction: (Message, String) -> Unit,
     val onInfo: (Message) -> Unit,
-    val onViewOnce: (String) -> Unit
+    val onViewOnce: (String) -> Unit,
+    /** Documents, link previews and shared locations; the screen owns opening and its failure. */
+    val onOpenUrl: (String) -> Unit
 )
 
 /**
@@ -177,7 +179,8 @@ internal fun ChatMessageList(
                                 onImageClick = { actions.onImageClick(it) },
                                 onReactionToggle = { emoji -> actions.onReactionToggle(message, emoji) },
                                 onInfo = { actions.onInfo(message) },
-                                onViewOnce = { id -> actions.onViewOnce(id) }
+                                onViewOnce = { id -> actions.onViewOnce(id) },
+                                onOpenUrl = { url -> actions.onOpenUrl(url) }
                             )
                         }
                     }

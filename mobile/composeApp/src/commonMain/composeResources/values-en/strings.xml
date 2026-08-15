@@ -199,6 +199,8 @@
     <string name="location_label_placeholder">Location name (optional)</string>
     <string name="location_lat_placeholder">Latitude</string>
     <string name="location_lng_placeholder">Longitude</string>
+    <!-- Screen-reader action label on a shared-location bubble -->
+    <string name="location_open_in_maps">Open in maps</string>
 
     <!-- Status/Stories -->
     <string name="status_my">My Status</string>
@@ -635,6 +637,9 @@
     <string name="error_action_failed">Could not complete the action</string>
     <string name="error_delete_failed">Could not delete</string>
     <string name="error_open_external">Could not open this file</string>
+    <!-- Chat bubbles hand a URL to the platform: a file, a link preview or a map. One wording for
+         all three, because the failure is always the same one: nothing here can open it. -->
+    <string name="error_open_failed">Could not open this</string>
     <string name="error_disappearing_timer_failed">Could not change the disappearing messages setting</string>
     <string name="call_connection_failed">Could not connect the call</string>
     <!-- Shown while the call is ringing, before media actually connects -->

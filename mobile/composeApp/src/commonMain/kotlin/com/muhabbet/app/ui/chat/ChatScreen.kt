@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
@@ -111,6 +112,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val snackbarHostState = remember { SnackbarHostState() }
+    val uriHandler = LocalUriHandler.current
 
     // Resolved strings for coroutine blocks
     val errorLoadMsg = stringResource(Res.string.error_load_messages)
@@ -128,7 +130,19 @@ fun ChatScreen(
     val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
     val errorActionMsg = stringResource(Res.string.error_action_failed)
     val errorDisappearingMsg = stringResource(Res.string.error_disappearing_timer_failed)
+    val errorOpenMsg = stringResource(Res.string.error_open_failed)
     val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
+
+    // Documents, link previews and shared locations all end here. Opening can genuinely fail —
+    // nothing installed that handles the URL, or the platform refusing it — and a tap that opens
+    // nothing is indistinguishable from the dead bubbles this replaces, so it has to say so.
+    fun openExternally(url: String) {
+        runCatchingCancellable { uriHandler.openUri(url) }
+            .onFailure { e ->
+                Log.e(TAG, "Failed to open $url externally", e)
+                scope.launch { snackbarHostState.showSnackbar(errorOpenMsg) }
+            }
+    }
 
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
@@ -570,7 +584,8 @@ fun ChatScreen(
                         onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
                         // Server-side bookkeeping only — the media is already revealed locally, so a
                         // failure has no user-visible consequence worth interrupting them for.
-                        onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } }
+                        onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } },
+                        onOpenUrl = { url -> openExternally(url) }
                     )
                 )
             }
