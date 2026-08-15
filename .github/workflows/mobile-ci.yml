@@ -30,6 +30,17 @@ env:
   JAVA_VERSION: '21'
   GRADLE_OPTS: '-Dorg.gradle.daemon=false'
 
+  # Without this the Android job has NEVER built — every run since the workflow was written died at
+  # "SDK location not found ... ANDROID_HOME". The SDK is on the self-hosted runner at
+  # /opt/android-sdk (platforms 34/35/36, build-tools 34/35/36, owned by the runner user), but
+  # nothing pointed at it: local.properties carries sdk.dir for developers and is gitignored, so the
+  # checkout has neither the file nor the variable.
+  #
+  # Hardcoding a host path is acceptable precisely because these jobs are pinned to `self-hosted`.
+  # Override with a repository variable if the SDK ever moves, rather than editing this file.
+  ANDROID_HOME: ${{ vars.ANDROID_HOME || '/opt/android-sdk' }}
+  ANDROID_SDK_ROOT: ${{ vars.ANDROID_HOME || '/opt/android-sdk' }}
+
 jobs:
   # --- Android Build ---
   android-build:
