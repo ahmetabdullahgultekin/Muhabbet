@@ -20,6 +20,39 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 - **The community list reshuffled between refreshes** — it was assembled from an unordered
   `findAllById`. It is now ordered by creation time.
 
+## [0.3.1] — 2026-08-15
+
+Everything here came out of driving 0.3.0 on a real phone. The first item is a crash 0.3.0
+introduced and should have blocked its release.
+
+### Fixed
+- **Swiping a message to reply crashed the app.** 0.3.0 replaced the swipe offset with a spring-back
+  animation, and that spring is under-damped by design — so returning to rest crossed zero and
+  settled from below for about 270 ms. The offset feeds a `padding`, which rejects a negative value,
+  and the app died with `IllegalArgumentException: Padding must be non-negative`. The offset is now
+  bounded to its own domain rather than clamped where it is read, which fixes all three places that
+  consume it. 0.2.x could not hit this: the offset was a plain value that only ever moved by
+  clamping into range. (#359)
+- **Communities could not be opened.** The server sent a community's details in a shape the app has
+  never been able to decode — the app expected the community's own fields at the top level and the
+  server nested them, and the two disagreed about what a group in a community looks like. Decoding
+  threw every time, so the screen could only ever report failure. The server now sends what the app
+  asks for, and the group and member counts, which were always displayed as 0, are real. Community
+  and group ordering is now stable between refreshes instead of reshuffling. (#358)
+- **Four things that looked tappable and were not.** A photo that arrived as a thumbnail rendered
+  perfectly and ignored every tap; a PNG or file attachment had an empty click handler; a shared
+  location had no click handler at all; and a link preview's handler was never passed to it, so the
+  default did nothing. All four now open, and when nothing on the device can open them, the app says
+  so instead of appearing to ignore you. (#357)
+
+### Known issues
+- Video messages still have the thumbnail-only dead tap that photos had. (#361)
+- A bare link inside message text is still not tappable — only the preview card is. (#362)
+- The full-screen image viewer has no swipe between images, no save, no share and no error state. (#363)
+- Removing a group from a community fails. (#360)
+- Everything above was verified by compiler and tests, not on a screen — the build host has no
+  emulator and no device.
+
 ## [0.3.0] — 2026-08-15
 
 The app stops looking like a clone of another messenger and starts looking like itself. The palette,
