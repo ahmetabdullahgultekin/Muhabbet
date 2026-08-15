@@ -139,7 +139,11 @@ private fun CommunityListItem(
                     maxLines = 1
                 )
                 Text(
-                    text = "${community.groupCount} ${stringResource(Res.string.community_groups).lowercase()} \u00b7 ${community.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                    text = stringResource(
+                        Res.string.community_group_member_summary,
+                        community.groupCount,
+                        community.memberCount
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1

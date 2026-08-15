@@ -238,7 +238,7 @@ private fun EventCard(
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.Small))
                 Text(
-                    text = "${event.goingCount} ${stringResource(Res.string.group_event_going).lowercase()}",
+                    text = stringResource(Res.string.group_event_going_count, event.goingCount),
                     style = MaterialTheme.typography.bodySmall
                 )
             }

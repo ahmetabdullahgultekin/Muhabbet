@@ -110,10 +110,16 @@ val uiRules = listOf(
         // Kotlin's no-arg lowercase()/uppercase() are locale-INDEPENDENT (root locale), which is the
         // problem rather than the fix: "ismail".uppercase() is "ISMAIL", not "İSMAİL", and
         // "İsmail".lowercase() is "i̇smail" (i + U+0307), which no user will ever type as a query.
-        // Two live consequences today: avatar initials on ActiveCallScreen, and name search in
-        // HomeShellScreen failing for Turkish names.
+        // Both live consequences are fixed: name search now folds through foldForSearch, and the
+        // call screen's avatar initial goes through UserAvatar/firstGrapheme.
+        //
+        // The 2 remaining hits are correct and are expected to stay:
+        //   PhoneInputScreen      — deliberately locale-invariant scan of an English Firebase
+        //                           message, documented at the call site.
+        //   WallpaperPickerScreen — upper-casing hex digits, which are ASCII by construction.
+        // A rise above 2 means a real one crept back in.
         "unlocaledCase",
-        "Turkish needs i/İ and ı/I handled explicitly. Route case changes through a shared util.",
+        "Turkish needs i/İ and ı/I handled explicitly. Use foldForSearch (search) or firstGrapheme (display).",
         Regex("""\.(uppercase|lowercase)\(\)"""), inTextUtils
     )
 )

@@ -181,7 +181,7 @@ fun BroadcastListScreen(
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                                 Text(
-                                    text = "${broadcastList.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                                    text = stringResource(Res.string.community_member_count, broadcastList.memberCount),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

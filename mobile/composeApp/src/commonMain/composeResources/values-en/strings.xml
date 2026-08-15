@@ -510,6 +510,10 @@
     <string name="community_description_hint">Description (optional)</string>
     <string name="community_groups">Groups</string>
     <string name="community_members">Members</string>
+    <string name="community_member_count">%1$d members</string>
+    <string name="community_group_count">%1$d groups</string>
+    <string name="community_group_member_summary">%1$d groups · %2$d members</string>
+    <string name="group_event_going_count">%1$d going</string>
     <string name="community_add_group">Add Group</string>
 
     <!-- Group Invite Links -->

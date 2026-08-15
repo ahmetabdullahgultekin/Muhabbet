@@ -510,6 +510,10 @@
     <string name="community_description_hint">Açıklama (isteğe bağlı)</string>
     <string name="community_groups">Gruplar</string>
     <string name="community_members">Üyeler</string>
+    <string name="community_member_count">%1$d üye</string>
+    <string name="community_group_count">%1$d grup</string>
+    <string name="community_group_member_summary">%1$d grup · %2$d üye</string>
+    <string name="group_event_going_count">%1$d katılıyor</string>
     <string name="community_add_group">Grup Ekle</string>
 
     <!-- Group Invite Links -->

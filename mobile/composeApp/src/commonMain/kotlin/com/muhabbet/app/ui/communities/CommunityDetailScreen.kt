@@ -160,7 +160,7 @@ fun CommunityDetailScreen(
                         }
                         Spacer(Modifier.height(MuhabbetSpacing.Small))
                         Text(
-                            text = "${community.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                            text = stringResource(Res.string.community_member_count, community.memberCount),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -237,7 +237,7 @@ private fun GroupItem(
                     maxLines = 1
                 )
                 Text(
-                    text = "${group.memberCount} ${stringResource(Res.string.community_members).lowercase()}",
+                    text = stringResource(Res.string.community_member_count, group.memberCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
