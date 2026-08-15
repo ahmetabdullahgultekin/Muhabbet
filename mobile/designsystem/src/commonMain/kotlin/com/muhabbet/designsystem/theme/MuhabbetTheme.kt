@@ -188,8 +188,6 @@ object MuhabbetSizes {
      */
     val BubbleMaxWidth: Dp = 320.dp
 
-    @Deprecated("Beta design uses uniform corners, no tail")
-    val BubbleTailRadius: Dp = 4.dp
     val BubblePaddingHorizontal: Dp = 8.dp
     val BubblePaddingVertical: Dp = 6.dp
     val ImagePreviewMaxHeight: Dp = 200.dp
