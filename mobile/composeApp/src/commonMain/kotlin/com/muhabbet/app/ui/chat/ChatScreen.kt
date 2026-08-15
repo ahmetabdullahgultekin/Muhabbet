@@ -374,7 +374,11 @@ fun ChatScreen(
     fullImageUrl?.let { url -> FullImageViewer(url) { fullImageUrl = null } }
     forwardMessage?.let { msg -> ForwardPickerDialog(msg, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation) }
     if (showDeleteDialog && deleteTargetId != null) DeleteConfirmDialog(
-        onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog; showDeleteDialog = false; deleteTargetId = null; scope.launch { try { groupRepository.deleteMessage(id); messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
+        onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog
+            showDeleteDialog = false
+            deleteTargetId = null
+            scope.launch { try { groupRepository.deleteMessage(id)
+            messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
         onDismiss = { showDeleteDialog = false; deleteTargetId = null }
     )
     if (showDisappearDialog) DisappearTimerDialog(
@@ -396,8 +400,36 @@ fun ChatScreen(
         },
         onDismiss = { showDisappearDialog = false }
     )
-    if (showLocationDialog) LocationShareDialog(onSend = { loc -> showLocationDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), loc); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.LOCATION, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
-    if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false; val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll); val mid = generateMessageId(); val rid = generateMessageId(); messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.POLL, content = json, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now()); scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
+    if (showLocationDialog) LocationShareDialog(onSend = { loc -> showLocationDialog = false
+        val json = kotlinx.serialization.json.Json.encodeToString(LocationData.serializer(), loc)
+        val mid = generateMessageId()
+        val rid = generateMessageId()
+        messages = messages + Message(
+            id = mid,
+            conversationId = conversationId,
+            senderId = currentUserId,
+            contentType = ContentType.LOCATION,
+            content = json,
+            status = MessageStatus.SENDING,
+            clientTimestamp = Clock.System.now()
+        )
+        scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
+        snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
+    if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false
+        val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll)
+        val mid = generateMessageId()
+        val rid = generateMessageId()
+        messages = messages + Message(
+            id = mid,
+            conversationId = conversationId,
+            senderId = currentUserId,
+            contentType = ContentType.POLL,
+            content = json,
+            status = MessageStatus.SENDING,
+            clientTimestamp = Clock.System.now()
+        )
+        scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
+        snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
 
     // Scheduled send: pick date+time, then reuse the existing send path with scheduledAt set.
     if (showScheduleDialog) ScheduleSendDialog(
@@ -429,7 +461,8 @@ fun ChatScreen(
         onCancelScheduled = { item ->
             pendingScheduled = pendingScheduled.filter { it.messageId != item.messageId }
             if (pendingScheduled.isEmpty()) showScheduledListDialog = false
-            scope.launch { try { groupRepository.deleteMessage(item.messageId); snackbarHostState.showSnackbar(scheduleCancelledMsg) } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
+            scope.launch { try { groupRepository.deleteMessage(item.messageId)
+                snackbarHostState.showSnackbar(scheduleCancelledMsg) } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
         },
         onDismiss = { showScheduledListDialog = false }
     )
@@ -473,8 +506,15 @@ fun ChatScreen(
                         onDismissMenu = { contextMenuMessageId = null },
                         onReply = { contextMenuMessageId = null; replyingTo = it },
                         // Without feedback the picker just opens empty, reading as "no chats to forward to".
-                        onForward = { msg -> contextMenuMessageId = null; forwardMessage = msg; scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e); snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
-                        onStar = { msg, isStarred -> contextMenuMessageId = null; scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id); starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id); starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
+                        onForward = { msg -> contextMenuMessageId = null
+                            forwardMessage = msg
+                            scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
+                            snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                        onStar = { msg, isStarred -> contextMenuMessageId = null
+                            scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
+                            starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
+                            starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
+                            snackbarHostState.showSnackbar(errorActionMsg) } } },
                         onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                         onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
                         onImageClick = { fullImageUrl = it },
@@ -489,7 +529,8 @@ fun ChatScreen(
                                 }
                             }
                         },
-                        onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e); snackbarHostState.showSnackbar(errorActionMsg) } } },
+                        onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
+                            snackbarHostState.showSnackbar(errorActionMsg) } } },
                         onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
                         // Server-side bookkeeping only — the media is already revealed locally, so a
                         // failure has no user-visible consequence worth interrupting them for.
@@ -516,9 +557,23 @@ fun ChatScreen(
                             if (audio != null) scope.launch {
                                 isUploading = true
                                 try {
-                                    val upload = mediaUploadHelper.uploadAudio(audio.bytes, "voice_${Clock.System.now().toEpochMilliseconds()}.ogg", audio.mimeType, audio.durationSeconds)
+                                    val upload = mediaUploadHelper.uploadAudio(
+                                        audio.bytes,
+                                        "voice_${Clock.System.now().toEpochMilliseconds()}.ogg",
+                                        audio.mimeType,
+                                        audio.durationSeconds
+                                    )
                                     val mid = generateMessageId(); val rid = generateMessageId()
-                                    messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.VOICE, content = chatVoiceText, mediaUrl = upload.url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
+                                    messages = messages + Message(
+                                        id = mid,
+                                        conversationId = conversationId,
+                                        senderId = currentUserId,
+                                        contentType = ContentType.VOICE,
+                                        content = chatVoiceText,
+                                        mediaUrl = upload.url,
+                                        status = MessageStatus.SENDING,
+                                        clientTimestamp = Clock.System.now()
+                                    )
                                     wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
                                 } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) }
                                 isUploading = false
@@ -550,7 +605,10 @@ fun ChatScreen(
                         messageText = new
                         if (new.isNotEmpty() && editingMessageId == null) {
                             if (!isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, true) }; isTypingSent = true }
-                            typingJob?.cancel(); typingJob = scope.launch { delay(com.muhabbet.designsystem.theme.MuhabbetDurations.TypingTimeoutMs); sendTypingIndicator(wsClient, conversationId, false); isTypingSent = false }
+                            typingJob?.cancel()
+                                typingJob = scope.launch { delay(com.muhabbet.designsystem.theme.MuhabbetDurations.TypingTimeoutMs)
+                                sendTypingIndicator(wsClient, conversationId, false)
+                                isTypingSent = false }
                         }
                     },
                     isEditing = editingMessageId != null, isUploading = isUploading,
@@ -558,13 +616,24 @@ fun ChatScreen(
                         if (messageText.isBlank()) return@MessageInputBar
                         if (editingMessageId != null) {
                             val id = editingMessageId ?: return@MessageInputBar; val content = messageText.trim(); editingMessageId = null; messageText = ""
-                            scope.launch { try { groupRepository.editMessage(id, content); messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
+                            scope.launch { try { groupRepository.editMessage(id, content)
+                                messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
                         } else {
                             val text = messageText; val replyId = replyingTo?.id; messageText = ""; replyingTo = null; typingJob?.cancel()
                             if (isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, false) }; isTypingSent = false }
                             val mid = generateMessageId(); val rid = generateMessageId()
-                            messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.TEXT, content = text, replyToId = replyId, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
-                            scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
+                            messages = messages + Message(
+                                id = mid,
+                                conversationId = conversationId,
+                                senderId = currentUserId,
+                                contentType = ContentType.TEXT,
+                                content = text,
+                                replyToId = replyId,
+                                status = MessageStatus.SENDING,
+                                clientTimestamp = Clock.System.now()
+                            )
+                            scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
+                                snackbarHostState.showSnackbar(errorSendMsg) } }
                         }
                     },
                     onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
@@ -590,15 +659,35 @@ fun ChatScreen(
                 gifPickerTab = null
                 val mid = generateMessageId()
                 val rid = generateMessageId()
-                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.GIF, content = gifContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
+                messages = messages + Message(
+                    id = mid,
+                    conversationId = conversationId,
+                    senderId = currentUserId,
+                    contentType = ContentType.GIF,
+                    content = gifContentLabel,
+                    mediaUrl = url,
+                    status = MessageStatus.SENDING,
+                    clientTimestamp = Clock.System.now()
+                )
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
+                    snackbarHostState.showSnackbar(errorSendMsg) } }
             },
             onStickerSelected = { url, _ ->
                 gifPickerTab = null
                 val mid = generateMessageId()
                 val rid = generateMessageId()
-                messages = messages + Message(id = mid, conversationId = conversationId, senderId = currentUserId, contentType = ContentType.STICKER, content = stickerContentLabel, mediaUrl = url, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }; snackbarHostState.showSnackbar(errorSendMsg) } }
+                messages = messages + Message(
+                    id = mid,
+                    conversationId = conversationId,
+                    senderId = currentUserId,
+                    contentType = ContentType.STICKER,
+                    content = stickerContentLabel,
+                    mediaUrl = url,
+                    status = MessageStatus.SENDING,
+                    clientTimestamp = Clock.System.now()
+                )
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
+                    snackbarHostState.showSnackbar(errorSendMsg) } }
             }
         )
     }
