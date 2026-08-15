@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,7 +27,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -62,6 +60,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
+import com.muhabbet.designsystem.components.MuhabbetDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -289,10 +288,21 @@ private fun CreateEventDialog(
     // For simplicity, use current time + 1 day as default event time
     val defaultTime = remember { kotlin.time.Clock.System.now().toEpochMilliseconds() + 86400000L }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.group_event_create)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.group_event_create),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(Res.string.group_event_create),
+        onConfirm = {
+                    onCreate(
+                        title,
+                        description.ifBlank { null },
+                        defaultTime,
+                        location.ifBlank { null }
+                    )
+                },
+        confirmEnabled = title.isNotBlank(),
+        content ={
             Column {
                 OutlinedTextField(
                     value = title,
@@ -319,26 +329,6 @@ private fun CreateEventDialog(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onCreate(
-                        title,
-                        description.ifBlank { null },
-                        defaultTime,
-                        location.ifBlank { null }
-                    )
-                },
-                enabled = title.isNotBlank()
-            ) {
-                Text(stringResource(Res.string.group_event_create))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.cancel))
             }
         }
     )

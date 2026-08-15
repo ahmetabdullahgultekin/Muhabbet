@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -74,6 +73,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,16 +147,47 @@ fun UpdatesTabScreen(
     }
 
     if (showStatusInput) {
-        AlertDialog(
-            onDismissRequest = {
-                if (!isUploadingStatus) {
-                    showStatusInput = false
-                    statusText = ""
-                    statusPickedImage = null
+        // One dismissal path instead of two: the scrim tap and the Cancel button ran identical
+        // bodies, and `dismissible` now guards both with the same condition. Previously only the
+        // scrim tap and the button's `enabled` were guarded — the back gesture was not, so an
+        // upload in flight could be cancelled out from under itself.
+        val dismissStatusInput = {
+            showStatusInput = false
+            statusText = ""
+            statusPickedImage = null
+        }
+        MuhabbetDialog(
+            onDismiss = dismissStatusInput,
+            title = statusCreateTitle,
+            dismissLabel = cancelText,
+            confirmLabel = statusPost,
+            confirmEnabled = (statusText.isNotBlank() || statusPickedImage != null) && !isUploadingStatus,
+            dismissible = !isUploadingStatus,
+            onConfirm = {
+                val text = statusText.trim()
+                if (text.isNotEmpty() || statusPickedImage != null) {
+                    isUploadingStatus = true
+                    scope.launch {
+                        try {
+                            var mediaUrl: String? = null
+                            statusPickedImage?.let { img ->
+                                val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
+                                mediaUrl = upload.url
+                            }
+                            statusRepository.createStatus(
+                                content = text.ifEmpty { null },
+                                mediaUrl = mediaUrl
+                            )
+                            loadUpdates()
+                            dismissStatusInput()
+                        } catch (_: Exception) {
+                            errorMessage = loadFailed
+                        }
+                        isUploadingStatus = false
+                    }
                 }
             },
-            title = { Text(statusCreateTitle) },
-            text = {
+            content = {
                 Column {
                     OutlinedTextField(
                         value = statusText,
@@ -197,50 +228,6 @@ fun UpdatesTabScreen(
                                 .align(Alignment.CenterHorizontally)
                         )
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val text = statusText.trim()
-                        if (text.isEmpty() && statusPickedImage == null) return@TextButton
-                        isUploadingStatus = true
-                        scope.launch {
-                            try {
-                                var mediaUrl: String? = null
-                                statusPickedImage?.let { img ->
-                                    val upload = mediaUploadHelper.uploadImage(img.bytes, img.fileName)
-                                    mediaUrl = upload.url
-                                }
-                                statusRepository.createStatus(
-                                    content = text.ifEmpty { null },
-                                    mediaUrl = mediaUrl
-                                )
-                                loadUpdates()
-                                showStatusInput = false
-                                statusText = ""
-                                statusPickedImage = null
-                            } catch (_: Exception) {
-                                errorMessage = loadFailed
-                            }
-                            isUploadingStatus = false
-                        }
-                    },
-                    enabled = (statusText.isNotBlank() || statusPickedImage != null) && !isUploadingStatus
-                ) {
-                    Text(statusPost)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showStatusInput = false
-                        statusText = ""
-                        statusPickedImage = null
-                    },
-                    enabled = !isUploadingStatus
-                ) {
-                    Text(cancelText)
                 }
             }
         )

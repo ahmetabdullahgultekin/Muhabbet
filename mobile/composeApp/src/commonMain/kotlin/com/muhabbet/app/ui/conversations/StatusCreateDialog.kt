@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +25,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetDialog
 
 /**
  * "Create status" dialog (text + optional photo). State is hoisted into [ConversationListScreen].
@@ -41,10 +41,14 @@ internal fun StatusCreateDialog(
     onPost: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.status_create_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.status_create_title),
+        dismissLabel = cancelLabel,
+        confirmLabel = stringResource(Res.string.status_post),
+        onConfirm = onPost,
+        confirmEnabled = (statusText.isNotBlank() || pickedImage != null) && !isUploading,
+        content ={
             Column {
                 OutlinedTextField(
                     value = statusText,
@@ -75,15 +79,6 @@ internal fun StatusCreateDialog(
                     CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge).align(Alignment.CenterHorizontally))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onPost,
-                enabled = (statusText.isNotBlank() || pickedImage != null) && !isUploading
-            ) { Text(stringResource(Res.string.status_post)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(cancelLabel) }
         }
     )
 }

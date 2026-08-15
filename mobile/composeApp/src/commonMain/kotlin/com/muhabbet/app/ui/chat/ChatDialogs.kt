@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +63,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.designsystem.components.ConfirmDialog
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetDialog
 
 /**
  * Full-screen media viewer with semi-transparent action bars.
@@ -220,10 +220,11 @@ fun ForwardPickerDialog(
     onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null
 ) {
     val cancelText = stringResource(Res.string.cancel)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.chat_forward_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.chat_forward_title),
+        dismissLabel = cancelText,
+        content ={
             if (forwardConversations.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge))
@@ -280,10 +281,6 @@ fun ForwardPickerDialog(
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(cancelText) }
         }
     )
 }
@@ -318,10 +315,11 @@ fun DisappearTimerDialog(
         86400 to stringResource(Res.string.disappear_1d),
         604800 to stringResource(Res.string.disappear_1w)
     )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.disappear_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.disappear_title),
+        dismissLabel = stringResource(Res.string.cancel),
+        content ={
             Column {
                 timerOptions.forEach { (seconds, label) ->
                     val isSelected = currentSeconds == seconds
@@ -342,10 +340,6 @@ fun DisappearTimerDialog(
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }
@@ -359,12 +353,24 @@ fun LocationShareDialog(
     var locationLat by remember { mutableStateOf("") }
     var locationLng by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = {
-            onDismiss()
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.location_share_title),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(Res.string.poll_send),
+        onConfirm = {
+            val lat = locationLat.toDoubleOrNull()
+            val lng = locationLng.toDoubleOrNull()
+            if (lat != null && lng != null) {
+                onSend(LocationData(
+                    latitude = lat,
+                    longitude = lng,
+                    label = locationLabel.takeIf { it.isNotBlank() }
+                ))
+            }
         },
-        title = { Text(stringResource(Res.string.location_share_title)) },
-        text = {
+        confirmEnabled = locationLat.toDoubleOrNull() != null && locationLng.toDoubleOrNull() != null,
+        content = {
             Column {
                 OutlinedTextField(
                     value = locationLabel,
@@ -390,25 +396,6 @@ fun LocationShareDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val lat = locationLat.toDoubleOrNull()
-                    val lng = locationLng.toDoubleOrNull()
-                    if (lat != null && lng != null) {
-                        onSend(LocationData(
-                            latitude = lat,
-                            longitude = lng,
-                            label = locationLabel.takeIf { it.isNotBlank() }
-                        ))
-                    }
-                },
-                enabled = locationLat.toDoubleOrNull() != null && locationLng.toDoubleOrNull() != null
-            ) { Text(stringResource(Res.string.poll_send)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }
@@ -421,10 +408,20 @@ fun PollCreateDialog(
     var pollQuestion by remember { mutableStateOf("") }
     var pollOptions by remember { mutableStateOf(listOf("", "")) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.poll_create_title)) },
-        text = {
+    MuhabbetDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.poll_create_title),
+        dismissLabel = stringResource(Res.string.cancel),
+        confirmLabel = stringResource(Res.string.poll_send),
+        onConfirm = {
+                    val q = pollQuestion.trim()
+                    val opts = pollOptions.map { it.trim() }.filter { it.isNotEmpty() }
+                    if (q.isNotEmpty() && opts.size >= 2) {
+                        onSend(PollData(question = q, options = opts))
+                    }
+                },
+        confirmEnabled = pollQuestion.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2,
+        content ={
             Column {
                 OutlinedTextField(
                     value = pollQuestion,
@@ -451,21 +448,6 @@ fun PollCreateDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val q = pollQuestion.trim()
-                    val opts = pollOptions.map { it.trim() }.filter { it.isNotEmpty() }
-                    if (q.isNotEmpty() && opts.size >= 2) {
-                        onSend(PollData(question = q, options = opts))
-                    }
-                },
-                enabled = pollQuestion.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2
-            ) { Text(stringResource(Res.string.poll_send)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }

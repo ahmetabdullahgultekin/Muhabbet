@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -26,7 +25,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -57,6 +55,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
+import com.muhabbet.designsystem.components.MuhabbetDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,22 +88,12 @@ fun BroadcastListScreen(
 
     if (showCreateDialog) {
         var listName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = { Text(stringResource(Res.string.broadcast_list_create)) },
-            text = {
-                OutlinedTextField(
-                    value = listName,
-                    onValueChange = { listName = it },
-                    label = { Text(stringResource(Res.string.broadcast_list_name_hint)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+        MuhabbetDialog(
+            onDismiss = { showCreateDialog = false },
+            title = stringResource(Res.string.broadcast_list_create),
+            dismissLabel = stringResource(Res.string.cancel),
+            confirmLabel = stringResource(Res.string.broadcast_list_create),
+            onConfirm = {
                         scope.launch {
                             try {
                                 val response = apiClient.post<BroadcastListResponse>(
@@ -121,15 +110,16 @@ fun BroadcastListScreen(
                         }
                         showCreateDialog = false
                     },
-                    enabled = listName.isNotBlank()
-                ) {
-                    Text(stringResource(Res.string.broadcast_list_create))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) {
-                    Text(stringResource(Res.string.cancel))
-                }
+            confirmEnabled = listName.isNotBlank(),
+            content ={
+                OutlinedTextField(
+                    value = listName,
+                    onValueChange = { listName = it },
+                    label = { Text(stringResource(Res.string.broadcast_list_name_hint)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         )
     }

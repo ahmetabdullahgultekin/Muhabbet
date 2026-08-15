@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -29,7 +28,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -62,6 +60,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,19 +109,12 @@ fun GroupInfoScreen(
     val isAdminOrOwner = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
 
     if (showEditDialog) {
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            title = { Text(stringResource(Res.string.group_edit_name_title)) },
-            text = {
-                OutlinedTextField(
-                    value = editName,
-                    onValueChange = { editName = it },
-                    placeholder = { Text(stringResource(Res.string.group_edit_name_placeholder)) },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
+        MuhabbetDialog(
+            onDismiss = { showEditDialog = false },
+            title = stringResource(Res.string.group_edit_name_title),
+            dismissLabel = stringResource(Res.string.cancel),
+            confirmLabel = stringResource(Res.string.save),
+            onConfirm = {
                     if (editName.isNotBlank()) {
                         scope.launch {
                             try {
@@ -134,10 +126,14 @@ fun GroupInfoScreen(
                         }
                     }
                     showEditDialog = false
-                }) { Text(stringResource(Res.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text(stringResource(Res.string.cancel)) }
+                },
+            content ={
+                OutlinedTextField(
+                    value = editName,
+                    onValueChange = { editName = it },
+                    placeholder = { Text(stringResource(Res.string.group_edit_name_placeholder)) },
+                    singleLine = true
+                )
             }
         )
     }
