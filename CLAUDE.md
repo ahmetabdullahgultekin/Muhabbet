@@ -250,6 +250,43 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ## Current Phase
 
+> ## ⚠️ READ THIS BEFORE TRUSTING ANY "DONE" BELOW (2026-08-15)
+>
+> **In this file, "DONE" has meant "the code was written", never "it was seen working."** Three
+> parallel audits on 2026-08-15 drove that distinction through the whole app and it did not survive.
+> Everything below this box predates those audits. Where they disagree, the audits win — they carry
+> file:line evidence and, in places, production row counts.
+>
+> The pattern is uniform: **the UI exists, the wiring behind it does not.** It compiles, because an
+> empty `{}` handler and an unoverridden interface default are both valid Kotlin, and until
+> 2026-08-15 CI had never once built the mobile app (see #366), so nothing caught any of it. The
+> owner found the first instances by installing a build on a real phone.
+>
+> Corrections to specific claims below, each with an issue carrying the evidence:
+>
+> | Claimed | Actually |
+> |---|---|
+> | Phase 3 "Voice Calls" | **Has never worked.** The client never sends `call.initiate` — zero mobile references. No mic track is ever published. LiveKit is unconfigured in prod, so `NoOpCallRoomProvider` is the live bean. Three independent fatal breaks. #367–#373 |
+> | "KVKK Privacy Dashboard — DONE" | **All four controls are local state.** Nothing loads, nothing saves; `PATCH /api/v1/users/me/privacy` exists server-side with zero mobile references. #377 |
+> | Communities | Create and read work (8 rows in prod). You **cannot add a person** — no UI, no client method, no list-members endpoint. No announcement channel. #376 |
+> | App Lock (settings) | No persistence, no reader, and **no lock mechanism exists at all** — no biometric dependency, no PIN, no lifecycle gate. #378 |
+> | Wallpaper / HD media quality | Write to a sink; nothing outside their own picker reads them. A complete backend wallpaper vertical sits unused. #380, #383 |
+> | Voice transcription | **Crashes on Android 8–11** (API 31 call, `minSdk` 26, no guard) and opens the live mic on newer versions. #381 |
+> | E2E "flag-OFF, no effect" | `registerKeys()` is **not** gated on `E2EConfig.ENABLED`, so every launch writes `noop-identity-key-<random>` to the production backend. #379 |
+>
+> Two more that are not feature claims but invalidate reasoning about all of them:
+> - **`ApiClient` never checks the HTTP status** (#374). A 403/500 decodes cleanly to `data = null`,
+>   so server errors reach the user as success toasts or empty screens. **Fix this before wiring
+>   anything else**, or the new wiring will look like it works and will not.
+> - **Authorization gaps** (#375): any authenticated user can read any community, and `addGroup`
+>   never checks conversation membership — an IDOR disclosing arbitrary conversation metadata.
+>
+> **The standing rule this produced:** for anything user-visible, check all three of *persistence*,
+> *a reader*, and *a mechanism* before calling it fixed. Adding persistence alone to App Lock or
+> Wallpaper makes them look repaired while the app still never locks and the chat still renders the
+> theme default — worse than leaving them visibly broken. And there is **no emulator on this host**
+> (see the build section), so motion, layout and gesture cannot be signed off here at all.
+
 > **Update (2026-06-19) — status check + 2 real backend bug fixes (branch `claude/project-status-check-iae145`):**
 > Verified gates on this host (no Docker): commonMain compile GREEN, `:shared:jvmTest` 53/53,
 > `:backend:test` 383/389 (the 6 "failures" are Testcontainers-need-Docker, NOT logic — pass on CI).
@@ -443,7 +480,15 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 
 ### Completed Phases
 - **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, 201 backend tests (251 total incl. mobile/shared), Stickers & GIFs, Profile viewing (mutual groups, shared media, action buttons)
-- **Phase 3 (Voice Calls)**: Call signaling infrastructure (WS messages, CallSignalingService, call history DB), notification improvements, Sentry SDK, LiveKit room adapter (`@ConditionalOnProperty`), NoOp fallback, outgoing call initiation in MainComponent
+- **Phase 3 (Voice Calls)** — **NOT WORKING, and never has (audited 2026-08-15, #367–#373).** What
+  exists: WS message types, `CallSignalingService`, the `call_history` table, a LiveKit room adapter
+  and a NoOp fallback. What does not: the client **never sends `call.initiate`** (zero references
+  outside the shared protocol, one test and the backend handler), so nothing reaches the network;
+  no microphone track is ever published, so a connected call would be silent; and `LIVEKIT_*` is
+  absent from the deploying compose file, `.env.prod` and the running container, so the **NoOp
+  provider is the live bean** and `CallRoomInfo` is never sent. `call_history` has 0 rows in prod.
+  The "outgoing call initiation in MainComponent" named here mints a local timestamp as a fake call
+  id and pushes a screen. Group calls are a complete backend vertical with no code path at all.
 - **Phase 4 (Trust & Security)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion, message backup system (BackupService, BackupController, BackupPersistenceAdapter)
 - **Phase 5 (iOS + Scale)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth. Redis Pub/Sub message broadcaster for horizontal WS scaling
 - **Phase 6 (Growth)**: Channel analytics (daily stats, subscriber tracking, REST API), Bot platform (create/manage bots, API token auth, webhook support, permissions system)
@@ -468,18 +513,29 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Mobile UI Audit + 87 Fixes**: Lead Mobile Engineer audit (87 issues across 6 severity levels). Fixed: 5 critical bugs (dead condition, hardcoded colors, infinite timer loop, stringly-typed state, hardcoded version), 6 ship-blocking feature gaps (copy to clipboard, group sender names, emoji button, block/report dialogs, privacy settings, channels filter), expanded design system (7 semantic colors, avatar tokens, duration/gesture tokens), 62 new localized strings (TR+EN), 15+ `!!` assertion removals, 4 WCAG touch target fixes. Files: 15 modified, 784 insertions, 173 deletions
 - **Production Hardening (Feb 2026)**: SQLDelight offline cache (cache-first repositories, PendingMessage queue), WebSocket resilience (offline queue drain, dedup, jitter backoff), KVKK Privacy Dashboard (data export, account deletion, visibility toggles), MediaUploadHelper (centralized compression pipeline), PersistentSignalProtocolStore (EncryptedSharedPreferences replacing InMemoryStore), background message sync (backend endpoint + WorkManager + BGTask), iOS platform completion (CameraPicker, AudioRecorder fix, KeychainHelper), voice transcription (SpeechRecognizer + SFSpeechRecognizer, Turkish ASR)
 
-### Current Phase: Production Hardening (Feb 2026) — COMPLETE
-All 9 production hardening features completed:
+### Current Phase: Production Hardening (Feb 2026) — "COMPLETE" as written, not as audited
+The nine items below were marked complete in Feb 2026 on the strength of the code existing. The
+2026-08-15 audit re-checked them and two do not hold: **#28 Privacy Dashboard** (visibility controls
+are local state) and **#33 voice transcription** (crashes below API 31). Read the corrections inline;
+where an item has no correction, it was not individually re-audited either — absence of a note here
+is not evidence that it works.
 
 25. ~~Mobile UI audit + 87 issue fixes~~ — **DONE** (critical bugs, feature gaps, design system, a11y)
 26. ~~SQLDelight offline caching~~ — **DONE** (conversations + messages cached in local DB, cache-first repository pattern)
 27. ~~WebSocket connection resilience~~ — **DONE** (offline message queue, dedup via LinkedHashSet, exponential backoff with jitter)
-28. ~~KVKK Privacy Dashboard~~ — **DONE** (data export, account deletion, visibility controls, KVKK rights info)
+28. KVKK Privacy Dashboard — **PARTIAL (#377).** Data export and account deletion call real
+    endpoints. The **visibility controls do not**: read receipts, last-seen, profile-photo and about
+    visibility are all `remember { mutableStateOf(...) }` that write back to themselves — nothing
+    loads on open, nothing saves on change, and the defaults silently kept are the most permissive.
+    `PATCH /api/v1/users/me/privacy` and both shared DTOs already exist with **zero** mobile
+    references. This is the screen that makes the app's privacy claim to the user, so treat it as a
+    correctness *and* honesty defect, not a cosmetic one.
 29. ~~Media compression pipeline~~ — **DONE** (MediaUploadHelper: images 1280px/80%, profiles 512px/75%, thumbnails 320px/60%)
 30. ~~Persistent E2E key storage~~ — **DONE** (Android: EncryptedSharedPreferences, iOS: Keychain for tokens)
 31. ~~Background message sync~~ — **DONE** (backend GET /api/v1/messages/since, Android WorkManager 15min, iOS BGTask)
 32. ~~iOS platform modules~~ — **DONE** (CameraPicker, AudioRecorder fix, KeychainHelper for secure storage)
-33. ~~Voice message transcription~~ — **DONE** (Android SpeechRecognizer, iOS SFSpeechRecognizer, Turkish tr-TR)
+33. Voice message transcription — **BROKEN (#381)**: crashes on Android 8–11 (unguarded API 31
+    call), and opens the live microphone instead of reading the audio file on API 31+
 
 ### Implementation Architecture
 
@@ -512,12 +568,22 @@ All 9 production hardening features completed:
 - **Sync endpoint**: `GET /api/v1/messages/since?timestamp={lastSync}` — returns messages since last sync
 
 #### Privacy Dashboard (KVKK)
-- **Screen**: `PrivacyDashboardScreen` in settings navigation
-- **Features**: Data export request, account deletion, read receipts toggle, last seen visibility, profile photo visibility
-- **Backend**: Already has `GET /api/v1/users/data/export` and `DELETE /api/v1/users/data/account`
+- **Screen**: `PrivacyDashboardScreen` (`ui/privacy/`, not `ui/settings/`)
+- **Working**: data export request, account deletion — both call real endpoints.
+- **NOT working (#377)**: the read-receipts toggle and the last-seen / profile-photo / about
+  visibility pickers are local `mutableStateOf` only. `PrivacyDashboardScreen.kt:57-61`.
+- **Backend**: `GET /api/v1/users/data/export`, `DELETE /api/v1/users/data/account`, **and**
+  `PATCH /api/v1/users/me/privacy` (`UserController.kt:155`) with `UpdatePrivacyRequest` /
+  `PrivacySettingsResponse` in shared — the last one has zero mobile callers. Wiring it is the fix,
+  but land #374 first or a rejected PATCH will decode to `data = null` and read as success.
 
-#### Voice Message Transcription
-- **Android**: `SpeechRecognizer` API (on-device, Turkish tr-TR supported)
+#### Voice Message Transcription — **BROKEN (#381)**
+- **Android**: crashes on **Android 8–11**. `createOnDeviceSpeechRecognizer` is API 31, `minSdk` is
+  26, there is no `SDK_INT` guard, and the surrounding `catch (_: Exception)` does not catch
+  `NoSuchMethodError`. On API 31+ the audio file is passed as a `String` under a key that expects a
+  `ParcelFileDescriptor`, so the file never arrives and `startListening` opens the **live
+  microphone** instead of transcribing the message. `SpeechTranscriber.android.kt:46,50,74`.
+- **Android (as designed)**: `SpeechRecognizer` API (on-device, Turkish tr-TR supported)
 - **iOS**: `SFSpeechRecognizer` (Apple Speech framework, on-device when available)
 - **UI**: "Transcribe" button on VoiceBubble, downloads audio + runs on-device ASR, shows inline transcript
 - **Language**: Turkish (tr) primary, auto-detect for multilingual messages
