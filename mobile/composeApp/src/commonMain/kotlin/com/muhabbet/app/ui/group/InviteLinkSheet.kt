@@ -39,6 +39,7 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CreateInviteLinkRequest
@@ -75,13 +76,19 @@ fun InviteLinkSheet(
     val genericErrorMsg = stringResource(Res.string.error_generic)
 
     LaunchedEffect(conversationId) {
-        try {
+        val failure = runCatchingCancellable {
             inviteLink = inviteLinkRepository.getInviteLink(conversationId)
             requireApproval = inviteLink?.requiresApproval ?: false
-        } catch (e: Exception) {
-            Log.e("InviteLinkSheet", "Failed to load invite link", e)
-        }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            // A group with no link answers 404 and the repository maps that to null, so anything
+            // reaching here is a real failure. Left unreported the sheet shows the "create a link"
+            // branch, which invites a user without the right to create one to try.
+            Log.e(TAG, "Failed to load invite link", failure)
+            snackbarHostState.showSnackbar(genericErrorMsg)
+        }
     }
 
     MuhabbetBottomSheet(onDismiss = onDismiss) {
@@ -228,3 +235,5 @@ fun InviteLinkSheet(
         }
     }
 }
+
+private const val TAG = "InviteLinkSheet"

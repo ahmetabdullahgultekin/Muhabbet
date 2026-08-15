@@ -44,6 +44,7 @@ import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
@@ -101,7 +102,7 @@ fun SettingsScreen(
                 avatarUrl = uploadResponse.url
                 snackbarHostState.showSnackbar(profileUpdatedMsg)
             } catch (e: Exception) {
-                Log.e("SettingsScreen", "Profile photo upload failed", e)
+                Log.e(TAG, "Profile photo upload failed", e)
                 snackbarHostState.showSnackbar(photoUploadFailedMsg)
             }
             isUploadingPhoto = false
@@ -109,23 +110,27 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(Unit) {
-        try {
+        val failure = runCatchingCancellable {
             val profile = authRepository.getProfile()
             displayName = profile.displayName ?: ""
             about = profile.about ?: ""
             avatarUrl = profile.avatarUrl
-        } catch (e: Exception) {
-            Log.e("SettingsScreen", "Failed to load profile", e)
-        }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            // The form stays blank on failure, and Save writes what the form holds — so a load the
+            // user was never told about is how a display name gets overwritten with "".
+            Log.e(TAG, "Failed to load profile", failure)
+            snackbarHostState.showSnackbar(genericErrorMsg)
+        }
     }
 
     LaunchedEffect(Unit) {
-        try {
-            storageUsage = mediaRepository.getStorageUsage()
-        } catch (e: Exception) {
-            Log.e("SettingsScreen", "Failed to load storage usage", e)
-        }
+        // Deliberately absorbed. This is the storage-usage card only; the profile above already
+        // reports an outage, and the card simply does not render its numbers.
+        runCatchingCancellable { storageUsage = mediaRepository.getStorageUsage() }
+            .onFailure { e -> Log.e(TAG, "Failed to load storage usage", e) }
         storageLoading = false
     }
 
@@ -184,7 +189,7 @@ fun SettingsScreen(
                                 )
                                 snackbarHostState.showSnackbar(profileUpdatedMsg)
                             } catch (e: Exception) {
-                                Log.e("SettingsScreen", "Failed to save profile", e)
+                                Log.e(TAG, "Failed to save profile", e)
                                 snackbarHostState.showSnackbar(genericErrorMsg)
                             }
                             isSaving = false
@@ -333,3 +338,5 @@ fun SettingsScreen(
         }
     }
 }
+
+private const val TAG = "SettingsScreen"

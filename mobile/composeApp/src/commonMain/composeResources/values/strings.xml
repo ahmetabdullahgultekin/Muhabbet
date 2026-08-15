@@ -664,4 +664,10 @@
     <string name="communities_empty">Henüz topluluk yok</string>
     <string name="settings_haptics">Dokunsal geri bildirim</string>
     <string name="settings_haptics_subtitle">Dokunma ve kaydırmalarda titreşim</string>
+    <string name="otp_error_invalid">Doğrulama kodu hatalı</string>
+    <string name="otp_error_expired">Doğrulama kodunun süresi doldu. Yeni bir kod isteyin.</string>
+    <string name="otp_error_max_attempts">Çok fazla hatalı deneme yapıldı. Yeni bir kod isteyin.</string>
+    <string name="otp_error_cooldown">Yeni kod istemeden önce biraz bekleyin</string>
+    <string name="search_failed">Arama yapılamadı</string>
+    <string name="status_post_failed">Durum paylaşılamadı</string>
 </resources>

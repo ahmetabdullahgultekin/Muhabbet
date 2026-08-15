@@ -46,6 +46,7 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.shared.dto.ConversationResponse
@@ -93,16 +94,23 @@ fun GroupInfoScreen(
     val removeFailedMsg = stringResource(Res.string.group_remove_failed)
     val announcementEnabledMsg = stringResource(Res.string.announcement_mode_enabled)
     val announcementDisabledMsg = stringResource(Res.string.announcement_mode_disabled)
+    val loadFailedMsg = stringResource(Res.string.error_load_failed)
 
     LaunchedEffect(conversationId) {
-        try {
+        val failure = runCatchingCancellable {
             val convs = conversationRepository.getConversations()
             conversation = convs.items.firstOrNull { it.id == conversationId }
             announcementOnly = conversation?.announcementOnly ?: false
-        } catch (e: Exception) {
-            Log.e("GroupInfoScreen", "Failed to load group info", e)
-        }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            // Every switch and member row below reads `conversation`. Left null, the screen renders
+            // as a group with no members and no admin rights — indistinguishable from a group the
+            // user really has been removed from.
+            Log.e(TAG, "Failed to load group info", failure)
+            snackbarHostState.showSnackbar(loadFailedMsg)
+        }
     }
 
     val myRole = conversation?.participants
@@ -465,3 +473,5 @@ private fun MemberItem(
         }
     }
 }
+
+private const val TAG = "GroupInfoScreen"

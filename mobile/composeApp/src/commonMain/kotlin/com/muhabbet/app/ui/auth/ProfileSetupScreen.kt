@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.util.Log
 import com.muhabbet.designsystem.components.MuhabbetStepRail
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.theme.MuhabbetGradients
@@ -138,7 +139,12 @@ fun ProfileSetupScreen(
                         authRepository.updateProfile(displayName)
                         onComplete()
                     } catch (e: Exception) {
-                        error = e.message ?: updateFailedMsg
+                        // `updateProfile` used to discard the response, so a rejected PATCH walked
+                        // straight into onComplete() and onboarding finished with no display name
+                        // saved. Now it throws — reported in the user's language, because the
+                        // server's own message arrives in Turkish whatever the device is set to.
+                        Log.e(TAG, "Failed to save the display name", e)
+                        error = updateFailedMsg
                     } finally {
                         isLoading = false
                     }
@@ -159,3 +165,5 @@ fun ProfileSetupScreen(
         }
     }
 }
+
+private const val TAG = "ProfileSetupScreen"

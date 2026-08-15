@@ -58,6 +58,9 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetErrorState
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,14 +71,23 @@ fun MessageInfoScreen(
 ) {
     var info by remember { mutableStateOf<MessageInfoResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var loadFailed by remember { mutableStateOf(false) }
 
-    LaunchedEffect(messageId) {
-        try {
-            info = messageRepository.getMessageInfo(messageId)
-        } catch (e: Exception) {
-            error = e.message
-        }
+    // Bumped by the error state's retry button; keying the effect on it re-runs the load.
+    var retryKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(messageId, retryKey) {
+        isLoading = true
+        loadFailed = false
+        // The message this screen exists to explain is right behind it, so a failure needs a way
+        // back to a working screen, not a dead end.
+        runCatchingCancellable { info = messageRepository.getMessageInfo(messageId) }
+            .onFailure { e ->
+                // This used to render e.message: the backend's own text, hardcoded Turkish on an
+                // English device, and — once ApiClient started throwing — potentially a status line.
+                Log.e(TAG, "Failed to load message info", e)
+                loadFailed = true
+            }
         isLoading = false
     }
 
@@ -88,16 +100,18 @@ fun MessageInfoScreen(
             )
         }
     ) { padding ->
-        val currentError = error
         val data = info
         when {
             isLoading -> {
                 MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
             }
-            currentError != null -> {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(currentError, color = MaterialTheme.colorScheme.error)
-                }
+            loadFailed -> {
+                MuhabbetErrorState(
+                    message = stringResource(Res.string.error_load_failed),
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    retryLabel = stringResource(Res.string.action_retry),
+                    onRetry = { retryKey++ }
+                )
             }
             data != null -> {
                 val readRecipients = data.recipients.filter { it.status == "READ" }
@@ -322,3 +336,5 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
 
 private fun formatTimestamp(isoString: String): String =
     DateTimeFormatter.formatFullTimestamp(isoString)
+
+private const val TAG = "MessageInfoScreen"

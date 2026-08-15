@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.muhabbet.app.data.repository.DeviceLinkRepository
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.multidevice.MultiDeviceConfig
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -72,14 +74,19 @@ fun LinkDeviceScreen(
             isLoading = false
             return@LaunchedEffect
         }
-        runCatching { repository.beginLink() }
+        runCatchingCancellable { repository.beginLink() }
             .onSuccess { begin ->
                 // The QR carries ONLY the public token + the API base, never key material.
                 qrPayloadJson = buildQrPayloadJson(
                     DeviceLinkQrPayload(linkToken = begin.linkToken, apiBaseUrl = apiBaseUrl)
                 )
             }
-            .onFailure { error = failedText }
+            .onFailure { e ->
+                // Already localized and already visible; the log is what was missing, and it is the
+                // only way to tell a 403 from the flag being off from a dead network.
+                Log.e(TAG, "Failed to begin a device link session", e)
+                error = failedText
+            }
         isLoading = false
     }
 
@@ -134,3 +141,5 @@ fun LinkDeviceScreen(
 /** Serialize the QR payload to the compact JSON the companion scanner decodes. */
 private fun buildQrPayloadJson(payload: DeviceLinkQrPayload): String =
     kotlinx.serialization.json.Json.encodeToString(DeviceLinkQrPayload.serializer(), payload)
+
+private const val TAG = "LinkDeviceScreen"

@@ -47,6 +47,8 @@ import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.designsystem.components.ConfirmDialog
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.dto.MutualGroupResponse
 import com.muhabbet.shared.dto.UserProfileDetailResponse
 import kotlinx.coroutines.launch
@@ -84,11 +86,11 @@ fun UserProfileScreen(
     val reportSuccessMsg = stringResource(Res.string.profile_report_success)
 
     LaunchedEffect(userId) {
-        try {
-            profile = conversationRepository.getUserProfileDetail(userId)
-        } catch (e: Exception) {
-            error = errorMsg
-        }
+        runCatchingCancellable { profile = conversationRepository.getUserProfileDetail(userId) }
+            .onFailure { e ->
+                Log.e(TAG, "Failed to load user profile", e)
+                error = errorMsg
+            }
         isLoading = false
     }
 
@@ -470,3 +472,4 @@ private fun MutualGroupItem(
     }
 }
 
+private const val TAG = "UserProfileScreen"

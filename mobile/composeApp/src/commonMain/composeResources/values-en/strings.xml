@@ -663,4 +663,10 @@
     <string name="communities_empty">No communities yet</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_subtitle">Vibrate on taps and swipes</string>
+    <string name="otp_error_invalid">That verification code is not correct</string>
+    <string name="otp_error_expired">That verification code has expired. Request a new one.</string>
+    <string name="otp_error_max_attempts">Too many incorrect attempts. Request a new code.</string>
+    <string name="otp_error_cooldown">Wait a moment before requesting a new code</string>
+    <string name="search_failed">Search failed</string>
+    <string name="status_post_failed">Could not post your status</string>
 </resources>

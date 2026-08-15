@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.util.Log
 import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import org.koin.core.component.KoinComponent
@@ -64,12 +65,20 @@ class MessageSyncWorker(
             ?: Clock.System.now().minus(60.minutes).toString()
 
         return try {
-            val messages = messageRepository.syncMessagesSince(lastSync)
+            messageRepository.syncMessagesSince(lastSync)
             // Update last sync timestamp to now
             tokenStorage.setLastSyncTimestamp(Clock.System.now().toString())
             Result.success()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // No user to tell — this runs with the app closed — but never silent. It used to be:
+            // a failed sync now retries WITHOUT advancing the timestamp (previously an error
+            // decoded to an empty page, the worker "succeeded", and the timestamp moved past
+            // messages it had never fetched), and a persistent 401 would otherwise be an invisible
+            // 15-minute retry loop.
+            Log.w(TAG, "Background message sync failed, will retry: $e")
             Result.retry()
         }
     }
 }
+
+private const val TAG = "MessageSyncWorker"

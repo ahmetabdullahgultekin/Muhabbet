@@ -43,6 +43,7 @@ import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -124,6 +125,9 @@ fun ConversationListScreen(
     val unmuteText = stringResource(Res.string.conv_unmute)
     val lockText = stringResource(Res.string.chat_lock)
     val unlockText = stringResource(Res.string.chat_unlock)
+    val actionFailedMsg = stringResource(Res.string.error_action_failed)
+    val searchFailedMsg = stringResource(Res.string.search_failed)
+    val statusPostFailedMsg = stringResource(Res.string.status_post_failed)
 
     var showMuteDialog by remember { mutableStateOf(false) }
     var muteTargetConvId by remember { mutableStateOf<String?>(null) }
@@ -140,9 +144,15 @@ fun ConversationListScreen(
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load conversations", e)
-            snackbarHostState.showSnackbar(errorMsg)
+            // Reported on a separate coroutine on purpose: showSnackbar suspends until the snackbar
+            // is dismissed (~4s), and loadConversations() is also driven by the WebSocket collector
+            // and by pull-to-refresh. Awaiting it here would stall the collector for every incoming
+            // event and hold the refresh spinner for the life of the snackbar.
+            scope.launch { snackbarHostState.showSnackbar(errorMsg) }
         }
     }
 
@@ -150,12 +160,14 @@ fun ConversationListScreen(
     LaunchedEffect(refreshKey, showStatusRow) {
         loadConversations()
         if (showStatusRow) {
-            try {
-                statusGroups = statusRepository.getContactStatuses()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load contact statuses", e)
-                statusGroups = emptyList()
-            }
+            // Deliberately absorbed. The status row is an optional strip above a conversation list
+            // the user came here for; a second snackbar stacked behind the conversation one would
+            // report the same outage twice. The log is the record.
+            runCatchingCancellable { statusGroups = statusRepository.getContactStatuses() }
+                .onFailure { e ->
+                    Log.e(TAG, "Failed to load contact statuses", e)
+                    statusGroups = emptyList()
+                }
         } else {
             statusGroups = emptyList()
         }
@@ -237,6 +249,7 @@ fun ConversationListScreen(
             if (text.isNotEmpty() || statusPickedImage != null) {
                 isUploadingStatus = true
                 scope.launch {
+                    var postFailed = false
                     try {
                         var mediaUrl: String? = null
                         statusPickedImage?.let { img ->
@@ -245,13 +258,19 @@ fun ConversationListScreen(
                         }
                         statusRepository.createStatus(content = text.ifEmpty { null }, mediaUrl = mediaUrl)
                         statusGroups = statusRepository.getContactStatuses()
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
+                        // The composer closes either way, so without this the status just never
+                        // appears and the user has no reason to suspect it did not post.
                         Log.e(TAG, "Failed to create status", e)
+                        postFailed = true
                     }
                     isUploadingStatus = false
                     showStatusInput = false
                     statusText = ""
                     statusPickedImage = null
+                    if (postFailed) snackbarHostState.showSnackbar(statusPostFailedMsg)
                 }
             }
         },
@@ -265,7 +284,12 @@ fun ConversationListScreen(
                     if (conv.isPinned) conversationRepository.unpinConversation(conv.id)
                     else conversationRepository.pinConversation(conv.id)
                     loadConversations()
-                } catch (e: Exception) { Log.e(TAG, "Pin toggle failed", e) }
+                } catch (e: Exception) {
+                    // Unchecked post/delete until now: a rejected pin silently left the row
+                    // unchanged and the tap looked like it had simply not registered.
+                    Log.e(TAG, "Pin toggle failed", e)
+                    snackbarHostState.showSnackbar(actionFailedMsg)
+                }
             }
         },
         onArchiveToggle = { conv ->
@@ -275,7 +299,10 @@ fun ConversationListScreen(
                     if (conv.isArchived) conversationRepository.unarchiveConversation(conv.id)
                     else conversationRepository.archiveConversation(conv.id)
                     loadConversations()
-                } catch (e: Exception) { Log.e(TAG, "Archive toggle failed", e) }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Archive toggle failed", e)
+                    snackbarHostState.showSnackbar(actionFailedMsg)
+                }
             }
         },
         onMuteToggle = { conv ->
@@ -285,7 +312,10 @@ fun ConversationListScreen(
                     try {
                         conversationRepository.unmuteConversation(conv.id)
                         loadConversations()
-                    } catch (e: Exception) { Log.e(TAG, "Unmute failed", e) }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Unmute failed", e)
+                        snackbarHostState.showSnackbar(actionFailedMsg)
+                    }
                 }
             } else {
                 muteTargetConvId = conv.id
@@ -299,7 +329,10 @@ fun ConversationListScreen(
                     if (conv.isLocked) conversationRepository.unlockConversation(conv.id)
                     else conversationRepository.lockConversation(conv.id)
                     loadConversations()
-                } catch (e: Exception) { Log.e(TAG, "Lock toggle failed", e) }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Lock toggle failed", e)
+                    snackbarHostState.showSnackbar(actionFailedMsg)
+                }
             }
         },
         onDeleteFromMenu = { conv ->
@@ -329,7 +362,10 @@ fun ConversationListScreen(
                 try {
                     conversationRepository.muteConversation(convId, duration)
                     loadConversations()
-                } catch (e: Exception) { Log.e(TAG, "Mute failed", e) }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Mute failed", e)
+                    snackbarHostState.showSnackbar(actionFailedMsg)
+                }
             }
             muteTargetConvId = null
         },
@@ -382,11 +418,15 @@ fun ConversationListScreen(
                         searchQuery = newQuery
                         if (newQuery.length >= 2) {
                             scope.launch {
-                                try {
+                                runCatchingCancellable {
                                     searchResults = messageRepository.searchMessages(newQuery).items
-                                } catch (e: Exception) {
+                                }.onFailure { e ->
+                                    // An empty result list is how "no matches" renders, so a failed
+                                    // search that only cleared the list read as a confident "nothing
+                                    // in your messages says that".
                                     Log.e(TAG, "Message search failed", e)
                                     searchResults = emptyList()
+                                    snackbarHostState.showSnackbar(searchFailedMsg)
                                 }
                             }
                         } else {
@@ -442,7 +482,12 @@ fun ConversationListScreen(
                                 if (conv.isPinned) conversationRepository.unpinConversation(conv.id)
                                 else conversationRepository.pinConversation(conv.id)
                                 loadConversations()
-                            } catch (e: Exception) { Log.e(TAG, "Pin toggle failed", e) }
+                            } catch (e: Exception) {
+                    // Unchecked post/delete until now: a rejected pin silently left the row
+                    // unchanged and the tap looked like it had simply not registered.
+                    Log.e(TAG, "Pin toggle failed", e)
+                    snackbarHostState.showSnackbar(actionFailedMsg)
+                }
                         }
                     }
                 )

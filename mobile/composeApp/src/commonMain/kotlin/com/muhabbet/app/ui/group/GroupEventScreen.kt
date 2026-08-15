@@ -46,6 +46,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CreateGroupEventRequest
@@ -66,6 +67,8 @@ import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 
+private const val TAG = "GroupEventScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupEventScreen(
@@ -82,13 +85,18 @@ fun GroupEventScreen(
     val genericErrorMsg = stringResource(Res.string.error_generic)
 
     LaunchedEffect(conversationId) {
-        try {
+        val failure = runCatchingCancellable {
             val response = apiClient.get<List<GroupEventResponse>>("/api/v1/conversations/$conversationId/events")
             events = response.data ?: emptyList()
-        } catch (e: Exception) {
-            Log.e("GroupEventScreen", "Failed to load group events", e)
-        }
+        }.exceptionOrNull()
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
+        if (failure != null) {
+            // Otherwise the screen renders "no events yet" — the same thing it shows a group that
+            // genuinely has none, and the user would go on to create a duplicate.
+            Log.e(TAG, "Failed to load group events", failure)
+            snackbarHostState.showSnackbar(genericErrorMsg)
+        }
     }
 
     if (showCreateDialog) {

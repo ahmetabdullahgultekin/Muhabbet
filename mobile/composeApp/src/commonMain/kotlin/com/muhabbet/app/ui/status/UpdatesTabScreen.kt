@@ -52,6 +52,8 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.action_retry
 import com.muhabbet.composeapp.generated.resources.cancel
@@ -64,6 +66,7 @@ import com.muhabbet.composeapp.generated.resources.status_my
 import com.muhabbet.composeapp.generated.resources.status_no_statuses
 import com.muhabbet.composeapp.generated.resources.status_placeholder
 import com.muhabbet.composeapp.generated.resources.status_post
+import com.muhabbet.composeapp.generated.resources.status_post_failed
 import com.muhabbet.composeapp.generated.resources.updates_recent
 import com.muhabbet.composeapp.generated.resources.updates_status_meta
 import com.muhabbet.composeapp.generated.resources.updates_title
@@ -122,20 +125,29 @@ fun UpdatesTabScreen(
     val cancelText = stringResource(Res.string.cancel)
     val noStatuses = stringResource(Res.string.status_no_statuses)
     val loadFailed = stringResource(Res.string.status_load_failed)
+    val statusPostFailed = stringResource(Res.string.status_post_failed)
     val retryLabel = stringResource(Res.string.action_retry)
     val settingsTitle = stringResource(Res.string.settings_title)
 
     suspend fun loadUpdates() {
         isLoading = true
         errorMessage = null
-        try {
-            val groups = statusRepository.getContactStatuses()
+        runCatchingCancellable {
+            statusGroups = statusRepository.getContactStatuses()
                 .filter { it.statuses.isNotEmpty() }
                 .sortedByDescending { group ->
                     group.statuses.maxOfOrNull { it.createdAt } ?: 0L
                 }
-            statusGroups = groups
+        }.onFailure { e ->
+            Log.e(TAG, "Failed to load contact statuses", e)
+            errorMessage = loadFailed
+        }
 
+        // Separate from the load above, and deliberately absorbed. This call only supplies names and
+        // avatars for statuses that have already arrived; sharing one catch meant a failure here
+        // replaced a perfectly good Updates tab with a full-screen "statuses could not be loaded".
+        // Without it the rows fall back to a truncated user id, which is a cosmetic loss.
+        runCatchingCancellable {
             val participants = conversationRepository.getConversations().items
                 .flatMap { it.participants }
                 .associateBy { it.userId }
@@ -144,9 +156,7 @@ fun UpdatesTabScreen(
                 participant.displayName ?: participant.phoneNumber ?: participant.userId.take(8)
             }
             avatarByUserId = participants.mapValues { (_, participant) -> participant.avatarUrl }
-        } catch (_: Exception) {
-            errorMessage = loadFailed
-        }
+        }.onFailure { e -> Log.w(TAG, "Status author names unavailable: ${e.message}") }
         isLoading = false
     }
 
@@ -188,8 +198,9 @@ fun UpdatesTabScreen(
                             )
                             loadUpdates()
                             dismissStatusInput()
-                        } catch (_: Exception) {
-                            errorMessage = loadFailed
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to post status", e)
+                            errorMessage = statusPostFailed
                         }
                         isUploadingStatus = false
                     }
@@ -409,3 +420,5 @@ fun UpdatesTabScreen(
         }
     }
 }
+
+private const val TAG = "UpdatesTabScreen"
