@@ -1,3 +1,15 @@
+> **SUPERSEDED — 2026-08-15 — by [`docs/design/muhabbet-design-system.md`](design/muhabbet-design-system.md).**
+>
+> This document specified pixel parity with WhatsApp Android, and the app was built to it: the
+> palette constants were literally named `WhatsAppAccent = 0xFF00A884` and
+> `WhatsAppOwnBubbleLight = 0xFFD9FDD3`. That directly contradicts
+> [`PRODUCT_ROADMAP_2026-06-06.md:146`](../PRODUCT_ROADMAP_2026-06-06.md) and `:212`, which list
+> de-cloning the theme as a P1 brand and legal risk before any screenshot goes public.
+>
+> **Do not restore consistency with this document.** It is kept only so that the hex values below
+> can be recognised if they turn up somewhere that was missed. Every colour, the type scale and the
+> top-bar treatment described here have been deliberately replaced.
+
 # WhatsApp UI Clone Specification
 > Research date: March 2026 | Target: WhatsApp Android v2.26.x
 
