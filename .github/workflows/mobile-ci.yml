@@ -120,8 +120,13 @@ jobs:
       - name: Run mobile unit tests
         run: ./gradlew :mobile:designsystem:testDebugUnitTest :mobile:composeApp:testDebugUnitTest
 
+      # Uploading a report is a convenience, not a gate. It has failed the whole Android job on
+      # "Artifact storage quota has been hit" — an account-level condition with nothing to do with
+      # the code — and because the job stopped there, the APK build never ran and the run read as a
+      # build failure. The tests themselves are the gate and fail the job at their own step.
       - name: Upload test results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mobile-test-results
@@ -161,14 +166,20 @@ jobs:
 
       - name: Upload lint results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: android-lint-results
           path: mobile/composeApp/build/reports/lint-results-*.html
           retention-days: 14
 
+      # ~128 MB a run. Twenty-six of these from February and March were still stored in August and
+      # accounted for 3.10 GB of a 3.13 GB account total, which is what exhausted the artifact quota
+      # and started failing this job. Retention is what keeps that from recurring; continue-on-error
+      # is what keeps it from failing the build if it does.
       - name: Upload debug APK
         if: success()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
