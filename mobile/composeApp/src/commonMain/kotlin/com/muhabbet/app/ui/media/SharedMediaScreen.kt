@@ -76,6 +76,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetEmptyState
 
 private const val TAG = "SharedMediaScreen"
 
@@ -254,22 +256,11 @@ fun SharedMediaScreen(
                 Crossfade(targetState = selectedTab) { tab ->
                     when {
                         tab == 0 && imageVideos.isEmpty() || tab == 1 && documents.isEmpty() -> {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Muhabbet.icons.Image,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                    )
-                                    Spacer(Modifier.height(MuhabbetSpacing.Small))
-                                    Text(
-                                        text = stringResource(Res.string.shared_media_empty),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                            MuhabbetEmptyState(
+                modifier = Modifier.fillMaxSize(),
+                icon = Muhabbet.icons.Image,
+                title = stringResource(Res.string.shared_media_empty)
+            )
                         }
                         tab == 0 -> {
                             LazyVerticalGrid(
@@ -437,9 +428,7 @@ fun SharedMediaScreen(
             }
 
             if (isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                MuhabbetLoadingState(Modifier.fillMaxSize())
             }
         }
     }

@@ -52,6 +52,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 private const val TAG = "ChannelListScreen"
 
@@ -92,9 +93,7 @@ fun ChannelListScreen(
         snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (channels.isEmpty()) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding),

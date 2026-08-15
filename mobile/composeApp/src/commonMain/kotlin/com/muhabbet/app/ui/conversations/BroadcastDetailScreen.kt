@@ -47,6 +47,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
 @Serializable
 private data class BroadcastMemberEntry(
@@ -88,12 +89,7 @@ fun BroadcastDetailScreen(
         }
     ) { padding ->
         when {
-            isLoading -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            isLoading -> MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
             loadError -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center

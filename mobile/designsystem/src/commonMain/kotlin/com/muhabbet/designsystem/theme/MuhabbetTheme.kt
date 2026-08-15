@@ -155,6 +155,15 @@ object MuhabbetSizes {
     /** An icon carrying a state on its own, not labelling something else — e.g. the view-once eye. */
     val IconHero: Dp = 32.dp
 
+    /** The large, faded icon above an empty- or error-state message. */
+    val IconEmptyState: Dp = 56.dp
+
+    /** Height of a placeholder text line in a skeleton — matches a body line's visual weight. */
+    val SkeletonLine: Dp = 14.dp
+
+    /** The secondary placeholder line, thinner so the two do not read as a progress bar. */
+    val SkeletonLineSmall: Dp = 12.dp
+
     // Avatar sizes
     val AvatarXSmall: Dp = 36.dp
     val AvatarSmall: Dp = 40.dp

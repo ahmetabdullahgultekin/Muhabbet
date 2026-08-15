@@ -647,4 +647,7 @@
     <string name="a11y_conversation_pinned">Pinned chat</string>
     <string name="a11y_selected">Selected</string>
     <string name="group_remove_member">Remove member from group</string>
+    <string name="group_event_empty">No events yet</string>
+    <string name="broadcast_list_empty">No broadcast lists yet</string>
+    <string name="communities_empty">No communities yet</string>
 </resources>

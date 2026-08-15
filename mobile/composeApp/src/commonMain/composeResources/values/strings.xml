@@ -648,4 +648,7 @@
     <string name="a11y_conversation_pinned">Sabitlenmiş sohbet</string>
     <string name="a11y_selected">Seçili</string>
     <string name="group_remove_member">Üyeyi gruptan çıkar</string>
+    <string name="group_event_empty">Henüz etkinlik yok</string>
+    <string name="broadcast_list_empty">Henüz yayın listesi yok</string>
+    <string name="communities_empty">Henüz topluluk yok</string>
 </resources>
