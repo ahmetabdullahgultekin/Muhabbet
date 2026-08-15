@@ -79,6 +79,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.app.ui.conversations.ChatTarget
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -90,7 +91,7 @@ private enum class HomeTab {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeShellScreen(
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationClick: (ChatTarget) -> Unit,
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit,
@@ -322,16 +323,18 @@ fun HomeShellScreen(
                                 conversation = conv,
                                 currentUserId = currentUserId,
                                 onClick = {
-                                    val otherUserId = if (conv.type == ConversationType.DIRECT) {
-                                        conv.participants.firstOrNull { it.userId != currentUserId }?.userId
-                                    } else null
+                                    val other = conv.participants.firstOrNull { it.userId != currentUserId }
+                                    val isGroup = conv.type == ConversationType.GROUP
                                     isSearchActive = false
                                     searchQuery = ""
                                     onConversationClick(
-                                        conv.id,
-                                        conv.name ?: conv.participants.firstOrNull { it.userId != currentUserId }?.displayName ?: "",
-                                        otherUserId,
-                                        conv.type == ConversationType.GROUP
+                                        ChatTarget(
+                                            conversationId = conv.id,
+                                            name = conv.name ?: other?.displayName ?: "",
+                                            otherUserId = if (isGroup) null else other?.userId,
+                                            isGroup = isGroup,
+                                            avatarUrl = if (isGroup) conv.avatarUrl else other?.avatarUrl
+                                        )
                                     )
                                 }
                             )

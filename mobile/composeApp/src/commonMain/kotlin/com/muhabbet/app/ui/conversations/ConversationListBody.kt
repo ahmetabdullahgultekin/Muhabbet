@@ -57,7 +57,7 @@ internal fun ConversationListBody(
     onRefresh: () -> Unit,
     onAddStatus: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit,
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationClick: (ChatTarget) -> Unit,
     onConversationLongClick: (ConversationResponse) -> Unit,
     onPin: (ConversationResponse) -> Unit
 ) {
@@ -192,7 +192,7 @@ private fun ConversationListItemRow(
     onlineUsers: Map<String, Boolean>,
     defaultChatName: String,
     isPinned: Boolean,
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationClick: (ChatTarget) -> Unit,
     onConversationLongClick: (ConversationResponse) -> Unit,
     onPin: () -> Unit
 ) {
@@ -218,7 +218,17 @@ private fun ConversationListItemRow(
         isOnline = isOtherOnline,
         isGroup = isGroup,
         isPinned = isPinned,
-        onClick = { onConversationClick(conv.id, resolvedName, otherParticipant?.userId, isGroup) },
+        onClick = {
+            onConversationClick(
+                ChatTarget(
+                    conversationId = conv.id,
+                    name = resolvedName,
+                    otherUserId = otherParticipant?.userId,
+                    isGroup = isGroup,
+                    avatarUrl = avatarUrl
+                )
+            )
+        },
         onLongClick = { onConversationLongClick(conv) },
         onPin = onPin
     )

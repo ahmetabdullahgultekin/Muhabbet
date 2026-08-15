@@ -56,7 +56,7 @@ internal fun MessageSearchResults(
     conversations: List<ConversationResponse>,
     currentUserId: String,
     modifier: Modifier = Modifier,
-    onResultClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit
+    onResultClick: (ChatTarget) -> Unit
 ) {
     LazyColumn(modifier = modifier) {
         items(results, key = { it.id }) { msg ->
@@ -67,7 +67,16 @@ internal fun MessageSearchResults(
                         val conv = conversations.firstOrNull { it.id == msg.conversationId }
                         val otherP = conv?.participants?.firstOrNull { it.userId != currentUserId }
                         val name = conv?.name ?: otherP?.displayName ?: otherP?.phoneNumber ?: ""
-                        onResultClick(msg.conversationId, name, otherP?.userId, conv?.type == ConversationType.GROUP)
+                        val isGroup = conv?.type == ConversationType.GROUP
+                        onResultClick(
+                            ChatTarget(
+                                conversationId = msg.conversationId,
+                                name = name,
+                                otherUserId = otherP?.userId,
+                                isGroup = isGroup,
+                                avatarUrl = if (isGroup) conv?.avatarUrl else otherP?.avatarUrl
+                            )
+                        )
                     }
                     .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically

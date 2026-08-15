@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -67,6 +69,7 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
@@ -79,6 +82,8 @@ private const val TAG = "ChatScreen"
 fun ChatScreen(
     conversationId: String,
     conversationName: String,
+    conversationAvatarUrl: String? = null,
+    isGroup: Boolean = false,
     scrollToMessageId: String? = null,
     onBack: () -> Unit,
     onTitleClick: () -> Unit = {},
@@ -122,6 +127,7 @@ fun ChatScreen(
     val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
     val errorActionMsg = stringResource(Res.string.error_action_failed)
     val errorDisappearingMsg = stringResource(Res.string.error_disappearing_timer_failed)
+    val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
 
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
@@ -474,9 +480,27 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column(modifier = Modifier.clickable { onTitleClick() }) {
-                        Text(conversationName)
-                        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = LocalSemanticColors.current.secondaryText)
+                    // Avatar in the title, not just a name. Every messenger worth comparing against
+                    // shows the person you are talking to at the top of the conversation, and its
+                    // absence here was the single most "unfinished" thing left on this screen. The
+                    // whole row is the tap target for the profile, so the avatar is not a separate
+                    // affordance to discover.
+                    Row(
+                        modifier = Modifier.clickable { onTitleClick() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        UserAvatar(
+                            avatarUrl = conversationAvatarUrl,
+                            displayName = conversationName,
+                            size = Muhabbet.sizes.AvatarSmall,
+                            isGroup = isGroup,
+                            contentDescription = if (isGroup) groupAvatarLabel else null
+                        )
+                        Spacer(Modifier.width(Muhabbet.spacing.Small))
+                        Column {
+                            Text(conversationName)
+                            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = LocalSemanticColors.current.secondaryText)
+                        }
                     }
                 },
                 navigationIcon = { MuhabbetIconButton(

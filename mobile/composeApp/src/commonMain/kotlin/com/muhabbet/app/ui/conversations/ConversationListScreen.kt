@@ -60,7 +60,7 @@ private const val TAG = "ConversationList"
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ConversationListScreen(
-    onConversationClick: (id: String, name: String, otherUserId: String?, isGroup: Boolean) -> Unit,
+    onConversationClick: (ChatTarget) -> Unit,
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit = { _, _ -> },

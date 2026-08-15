@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Clock
 import kotlinx.serialization.Serializable
+import com.muhabbet.app.ui.conversations.ChatTarget
 
 class MainComponent(
     componentContext: ComponentContext,
@@ -62,8 +63,18 @@ class MainComponent(
     )
 
     @OptIn(DelicateDecomposeApi::class)
-    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false, scrollToMessageId: String? = null) {
-        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId))
+    fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false, scrollToMessageId: String? = null, avatarUrl: String? = null) {
+        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId, avatarUrl))
+    }
+
+    fun openChat(target: ChatTarget) {
+        openChat(
+            conversationId = target.conversationId,
+            conversationName = target.name,
+            otherUserId = target.otherUserId,
+            isGroup = target.isGroup,
+            avatarUrl = target.avatarUrl
+        )
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -221,7 +232,7 @@ class MainComponent(
     sealed interface Config {
         @Serializable data object HomeShell : Config
         @Serializable data object ConversationList : Config
-        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null) : Config
+        @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null, val avatarUrl: String? = null) : Config
         @Serializable data object NewConversation : Config
         @Serializable data object Settings : Config
         @Serializable data object CreateGroup : Config
@@ -255,7 +266,7 @@ fun MainContent(component: MainComponent) {
     ) { child ->
         when (val config = child.instance) {
             is MainComponent.Config.HomeShell -> HomeShellScreen(
-                onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
+                onConversationClick = component::openChat,
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
@@ -269,7 +280,7 @@ fun MainContent(component: MainComponent) {
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.ConversationList -> ConversationListScreen(
-                onConversationClick = { id, name, otherUserId, isGroup -> component.openChat(id, name, otherUserId, isGroup) },
+                onConversationClick = component::openChat,
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
@@ -278,6 +289,8 @@ fun MainContent(component: MainComponent) {
             is MainComponent.Config.Chat -> ChatScreen(
                 conversationId = config.conversationId,
                 conversationName = config.name,
+                conversationAvatarUrl = config.avatarUrl,
+                isGroup = config.isGroup,
                 scrollToMessageId = config.scrollToMessageId,
                 onBack = component::goBack,
                 onTitleClick = {
