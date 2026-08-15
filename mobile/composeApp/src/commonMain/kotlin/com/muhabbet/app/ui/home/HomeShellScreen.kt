@@ -71,6 +71,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -379,7 +380,7 @@ private fun ConversationSearchResultItem(
         UserAvatar(
             avatarUrl = avatarUrl,
             displayName = displayName,
-            size = 44.dp
+            size = MuhabbetSizes.AvatarMedium
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {

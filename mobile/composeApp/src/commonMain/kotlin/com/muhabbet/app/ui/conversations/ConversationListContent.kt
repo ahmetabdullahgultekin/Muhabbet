@@ -154,7 +154,7 @@ internal fun ConversationStatusRow(
                     UserAvatar(
                         avatarUrl = participant?.avatarUrl,
                         displayName = displayName,
-                        size = 56.dp
+                        size = MuhabbetSizes.AvatarLarge
                     )
                 }
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))

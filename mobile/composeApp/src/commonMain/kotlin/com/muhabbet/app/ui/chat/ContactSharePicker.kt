@@ -49,6 +49,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,7 +118,7 @@ fun ContactSharePicker(
                             UserAvatar(
                                 avatarUrl = participant?.avatarUrl,
                                 displayName = displayName,
-                                size = 44.dp
+                                size = MuhabbetSizes.AvatarMedium
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Column {

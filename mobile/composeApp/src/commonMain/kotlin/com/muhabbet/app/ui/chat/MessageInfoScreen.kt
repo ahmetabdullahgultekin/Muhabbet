@@ -290,7 +290,7 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
         UserAvatar(
             avatarUrl = recipient.avatarUrl,
             displayName = recipient.displayName ?: recipient.userId.take(8),
-            size = 40.dp
+            size = MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
 

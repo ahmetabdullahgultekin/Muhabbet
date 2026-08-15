@@ -271,7 +271,7 @@ fun ForwardPickerDialog(
                             com.muhabbet.designsystem.components.UserAvatar(
                                 avatarUrl = conv.avatarUrl,
                                 displayName = convName,
-                                size = 36.dp,
+                                size = MuhabbetSizes.AvatarXSmall,
                                 isGroup = conv.type == com.muhabbet.shared.model.ConversationType.GROUP,
                                 contentDescription = if (conv.type == com.muhabbet.shared.model.ConversationType.GROUP) stringResource(Res.string.cd_group_avatar) else convName
                             )

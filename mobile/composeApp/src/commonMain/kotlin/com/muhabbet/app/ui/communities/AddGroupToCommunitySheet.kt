@@ -176,7 +176,7 @@ private fun GroupPickerItem(
         UserAvatar(
             avatarUrl = group.avatarUrl,
             displayName = group.name ?: "",
-            size = 44.dp
+            size = MuhabbetSizes.AvatarMedium
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Text(

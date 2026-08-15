@@ -140,7 +140,7 @@ fun CommunityDetailScreen(
                         UserAvatar(
                             avatarUrl = community.avatarUrl,
                             displayName = community.name,
-                            size = 80.dp
+                            size = MuhabbetSizes.AvatarXXLarge
                         )
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
                         Text(
@@ -225,7 +225,7 @@ private fun GroupItem(
             UserAvatar(
                 avatarUrl = group.avatarUrl,
                 displayName = group.name ?: "",
-                size = 44.dp
+                size = MuhabbetSizes.AvatarMedium
             )
             Spacer(Modifier.width(MuhabbetSpacing.Medium))
             Column(modifier = Modifier.weight(1f)) {

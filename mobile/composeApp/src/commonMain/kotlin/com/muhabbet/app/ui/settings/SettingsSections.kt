@@ -73,7 +73,7 @@ internal fun ProfileEditorSection(
         UserAvatar(
             avatarUrl = avatarUrl,
             displayName = displayName,
-            size = 80.dp
+            size = MuhabbetSizes.AvatarXXLarge
         )
         Surface(
             modifier = Modifier.size(28.dp).align(Alignment.BottomEnd),

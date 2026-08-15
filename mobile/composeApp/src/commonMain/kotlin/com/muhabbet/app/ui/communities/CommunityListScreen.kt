@@ -46,6 +46,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,7 +129,7 @@ private fun CommunityListItem(
             UserAvatar(
                 avatarUrl = community.avatarUrl,
                 displayName = community.name,
-                size = 52.dp
+                size = MuhabbetSizes.AvatarChatList
             )
             Spacer(Modifier.width(MuhabbetSpacing.Medium))
             Column(modifier = Modifier.weight(1f)) {
