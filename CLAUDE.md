@@ -40,7 +40,7 @@ module/
 ```
 
 ### Modules
-- `auth` — **DONE** — OTP via MockOtpSender (Netgsm later), JWT HS256, device management, phone hash for contact sync
+- `auth` — **DONE** — OTP via Twilio Verify in prod (`SMS_PROVIDER=twilio-verify`; MockOtpSender/Netgsm adapters also exist), JWT HS256, device management, phone hash for contact sync
 - `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination, backup, bots, channel analytics
 - `media` — **DONE** — Upload/download via MinIO (S3 API), thumbnail generation, pre-signed URLs via nginx proxy
 - `presence` — **DONE** — Online/offline tracking via Redis (TTL-based keys), typing indicators, last seen persistence
@@ -592,9 +592,15 @@ All 9 production hardening features completed:
 - **Before deploying**, tag the current image so `latest` being overwritten does not strand you:
   `docker tag <image-id> muhabbet-muhabbet-backend:rollback-$(date +%F)`
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
-- **Getting an OTP in prod**: the active sender is `MockOtpSender` (`SMS_PROVIDER` is unset →
-  `mock`), so the code is written to the log rather than sent:
-  `docker logs muhabbet-backend | grep "OTP for"`
+- **You CANNOT read an OTP out of the prod log** (verified 2026-08-15, correcting an earlier note
+  that said the code is logged). `.env.prod` sets `SMS_PROVIDER=twilio-verify`, so the active
+  verifier is `TwilioVerifyOtpVerifier` and the code goes to Twilio, never to stdout. The log line
+  is `Verification started: phone=0001, status=pending` — last four digits only, no code. The test
+  numbers above are unallocated, so an OTP sent to them reaches nobody and **you cannot log in as a
+  test user against prod**. To exercise an authenticated endpoint, either mint a JWT with
+  `JWT_SECRET` from `.env.prod` (must carry `iss: "muhabbet"` — see "JWT for scripts/bots"), or use
+  a real phone you control. Do not "verify" a deployment by asserting the container is healthy and
+  calling that an end-to-end check.
 
 ## Lessons Learned / Known Gotchas
 - **Windows Gradle**: Use `cmd //c ".\\gradlew.bat <task>"` from bash shell (not `gradlew.bat` directly).
