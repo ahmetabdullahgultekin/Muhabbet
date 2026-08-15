@@ -49,8 +49,6 @@ import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.model.Message
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -73,6 +71,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 private const val TAG = "ConversationList"
 
@@ -397,7 +396,7 @@ fun ConversationListScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Search bar
             if (showTopBar && isSearching) {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = searchQuery,
                     onValueChange = { newQuery ->
                         searchQuery = newQuery
@@ -414,10 +413,10 @@ fun ConversationListScreen(
                             searchResults = emptyList()
                         }
                     },
-                    placeholder = { Text(stringResource(Res.string.search_messages_placeholder)) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small).testTag("search_input"),
+                    placeholder = stringResource(Res.string.search_messages_placeholder),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small).testTag("search_input")
+                    imeAction = ImeAction.Search
                 )
             }
 

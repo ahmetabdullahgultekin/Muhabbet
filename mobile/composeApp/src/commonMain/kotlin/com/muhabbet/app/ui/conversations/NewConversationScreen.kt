@@ -22,7 +22,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,6 +56,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -216,12 +216,12 @@ fun NewConversationScreen(
                 // Show contacts list
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        OutlinedTextField(
+                        MuhabbetTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text(stringResource(Res.string.contacts_search_placeholder)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
+                            placeholder = stringResource(Res.string.contacts_search_placeholder),
+                            singleLine = true
                         )
                         LazyColumn {
                             // "Yeni Grup" button at top

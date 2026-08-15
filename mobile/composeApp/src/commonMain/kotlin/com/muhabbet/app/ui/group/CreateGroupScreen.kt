@@ -24,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -59,6 +58,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -230,15 +230,15 @@ fun CreateGroupScreen(
 
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        OutlinedTextField(
+                        MuhabbetTextField(
                             value = groupName,
                             onValueChange = { groupName = it },
-                            label = { Text(stringResource(Res.string.group_name_label)) },
-                            placeholder = { Text(stringResource(Res.string.group_name_placeholder)) },
-                            singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
+                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
+                            label = stringResource(Res.string.group_name_label),
+                            placeholder = stringResource(Res.string.group_name_placeholder),
+                            singleLine = true
                         )
 
                         Text(

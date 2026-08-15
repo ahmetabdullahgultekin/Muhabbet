@@ -14,14 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +54,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,13 +111,13 @@ fun BroadcastListScreen(
                     },
             confirmEnabled = listName.isNotBlank(),
             content ={
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = listName,
                     onValueChange = { listName = it },
-                    label = { Text(stringResource(Res.string.broadcast_list_name_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.broadcast_list_name_hint),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth()
+                    imeAction = ImeAction.Done
                 )
             }
         )

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +25,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 /**
  * "Create status" dialog (text + optional photo). State is hoisted into [ConversationListScreen].
@@ -50,11 +50,12 @@ internal fun StatusCreateDialog(
         confirmEnabled = (statusText.isNotBlank() || pickedImage != null) && !isUploading,
         content ={
             Column {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = statusText,
                     onValueChange = onTextChange,
-                    placeholder = { Text(stringResource(Res.string.status_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.status_placeholder),
+                    singleLine = false,
                     maxLines = 3
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))

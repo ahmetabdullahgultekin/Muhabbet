@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -40,6 +38,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,24 +71,25 @@ fun CreateCommunityScreen(
                 .padding(padding)
                 .padding(MuhabbetSpacing.XLarge)
         ) {
-            OutlinedTextField(
+            MuhabbetTextField(
                 value = name,
                 onValueChange = { if (it.length <= 64) name = it },
-                label = { Text(stringResource(Res.string.community_name_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = stringResource(Res.string.community_name_hint),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth()
+                imeAction = ImeAction.Next
             )
 
             Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-            OutlinedTextField(
+            MuhabbetTextField(
                 value = description,
                 onValueChange = { if (it.length <= 256) description = it },
-                label = { Text(stringResource(Res.string.community_description_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = stringResource(Res.string.community_description_hint),
+                singleLine = false,
                 maxLines = 4,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth()
+                imeAction = ImeAction.Done
             )
 
             Spacer(Modifier.height(MuhabbetSpacing.XLarge))

@@ -23,7 +23,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -61,6 +60,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,10 +128,10 @@ fun GroupInfoScreen(
                     showEditDialog = false
                 },
             content ={
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = editName,
                     onValueChange = { editName = it },
-                    placeholder = { Text(stringResource(Res.string.group_edit_name_placeholder)) },
+                    placeholder = stringResource(Res.string.group_edit_name_placeholder),
                     singleLine = true
                 )
             }

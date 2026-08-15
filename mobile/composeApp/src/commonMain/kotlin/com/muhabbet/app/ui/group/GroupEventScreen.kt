@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -23,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,6 +59,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -304,30 +303,31 @@ private fun CreateEventDialog(
         confirmEnabled = title.isNotBlank(),
         content ={
             Column {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text(stringResource(Res.string.group_event_name_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.group_event_name_hint),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth()
+                    imeAction = ImeAction.Next
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text(stringResource(Res.string.community_description_hint)) },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.community_description_hint),
+                    singleLine = false,
+                    maxLines = 3
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text(stringResource(Res.string.group_event_location)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(Res.string.group_event_location),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth()
+                    imeAction = ImeAction.Done
                 )
             }
         }

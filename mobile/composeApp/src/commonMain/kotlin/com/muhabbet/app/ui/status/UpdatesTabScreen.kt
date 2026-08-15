@@ -22,7 +22,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -76,6 +75,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetErrorState
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -192,11 +192,12 @@ fun UpdatesTabScreen(
             },
             content = {
                 Column {
-                    OutlinedTextField(
+                    MuhabbetTextField(
                         value = statusText,
                         onValueChange = { statusText = it },
-                        placeholder = { Text(statusPlaceholder) },
                         modifier = Modifier.fillMaxWidth(),
+                        placeholder = statusPlaceholder,
+                        singleLine = false,
                         maxLines = 3
                     )
                     Spacer(Modifier.height(MuhabbetSpacing.XSmall))

@@ -16,7 +16,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +44,7 @@ import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.SettingsSwitchRow
 import com.muhabbet.designsystem.components.SettingsRadioRow
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 /**
  * Avatar (with camera overlay) + display-name / about fields + save button.
@@ -104,23 +104,24 @@ internal fun ProfileEditorSection(
     SettingsSectionTitle(stringResource(Res.string.settings_profile_section))
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-    OutlinedTextField(
+    MuhabbetTextField(
         value = displayName,
         onValueChange = { if (it.length <= 64) onDisplayNameChange(it) },
-        label = { Text(stringResource(Res.string.settings_display_name)) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        label = stringResource(Res.string.settings_display_name),
+        singleLine = true
     )
 
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-    OutlinedTextField(
+    MuhabbetTextField(
         value = about,
         onValueChange = { if (it.length <= 140) onAboutChange(it) },
-        label = { Text(stringResource(Res.string.settings_about)) },
-        placeholder = { Text(stringResource(Res.string.settings_about_placeholder)) },
-        maxLines = 3,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        label = stringResource(Res.string.settings_about),
+        placeholder = stringResource(Res.string.settings_about_placeholder),
+        singleLine = false,
+        maxLines = 3
     )
 
     Spacer(Modifier.height(MuhabbetSpacing.Large))

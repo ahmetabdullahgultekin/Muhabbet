@@ -27,7 +27,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,6 +63,7 @@ import com.muhabbet.designsystem.components.ConfirmDialog
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 /**
  * Full-screen media viewer with semi-transparent action bars.
@@ -372,28 +372,28 @@ fun LocationShareDialog(
         confirmEnabled = locationLat.toDoubleOrNull() != null && locationLng.toDoubleOrNull() != null,
         content = {
             Column {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = locationLabel,
                     onValueChange = { locationLabel = it },
-                    placeholder = { Text(stringResource(Res.string.location_label_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.location_label_placeholder),
+                    singleLine = true
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = locationLat,
                     onValueChange = { locationLat = it },
-                    placeholder = { Text(stringResource(Res.string.location_lat_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.location_lat_placeholder),
+                    singleLine = true
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.XSmall))
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = locationLng,
                     onValueChange = { locationLng = it },
-                    placeholder = { Text(stringResource(Res.string.location_lng_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.location_lng_placeholder),
+                    singleLine = true
                 )
             }
         }
@@ -423,23 +423,23 @@ fun PollCreateDialog(
         confirmEnabled = pollQuestion.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2,
         content ={
             Column {
-                OutlinedTextField(
+                MuhabbetTextField(
                     value = pollQuestion,
                     onValueChange = { pollQuestion = it },
-                    placeholder = { Text(stringResource(Res.string.poll_question_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = stringResource(Res.string.poll_question_placeholder),
+                    singleLine = true
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 pollOptions.forEachIndexed { index, option ->
-                    OutlinedTextField(
+                    MuhabbetTextField(
                         value = option,
                         onValueChange = { newVal ->
                             pollOptions = pollOptions.toMutableList().also { it[index] = newVal }
                         },
-                        placeholder = { Text(stringResource(Res.string.poll_option_placeholder, index + 1)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        placeholder = stringResource(Res.string.poll_option_placeholder, index + 1),
+                        singleLine = true
                     )
                 }
                 if (pollOptions.size < 6) {

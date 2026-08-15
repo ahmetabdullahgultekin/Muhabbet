@@ -52,6 +52,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -198,16 +199,14 @@ fun TwoStepSetupScreen(
 
                     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-                    OutlinedTextField(
+                    MuhabbetTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = { Text(stringResource(Res.string.two_step_email_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = stringResource(Res.string.two_step_email_hint),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Done
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Done
                     )
 
                     Spacer(Modifier.height(MuhabbetSpacing.XLarge))
