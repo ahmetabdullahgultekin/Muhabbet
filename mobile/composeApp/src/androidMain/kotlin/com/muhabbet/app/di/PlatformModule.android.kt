@@ -91,6 +91,12 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putString("app_theme", theme).apply()
     }
 
+    override fun getMediaQuality(): String? = plainPrefs.getString("media_quality", null)
+
+    override fun setMediaQuality(quality: String) {
+        plainPrefs.edit().putString("media_quality", quality).apply()
+    }
+
     override fun getLastSyncTimestamp(): String? = plainPrefs.getString("last_sync_timestamp", null)
 
     override fun setLastSyncTimestamp(timestamp: String) {

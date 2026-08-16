@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.muhabbet.app.data.local.MediaQuality
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
@@ -31,10 +32,12 @@ fun MediaQualityDialog(
     onDismiss: () -> Unit,
     tokenStorage: TokenStorage = koinInject()
 ) {
-    var selectedQuality by remember { mutableStateOf(tokenStorage.getMediaQuality() ?: "standard") }
+    var selectedQuality by remember {
+        mutableStateOf(MediaQuality.fromStorageKey(tokenStorage.getMediaQuality()))
+    }
     val qualityOptions = listOf(
-        "standard" to stringResource(Res.string.media_quality_standard),
-        "hd" to stringResource(Res.string.media_quality_hd)
+        MediaQuality.Standard to stringResource(Res.string.media_quality_standard),
+        MediaQuality.Hd to stringResource(Res.string.media_quality_hd)
     )
 
     MuhabbetDialog(
@@ -52,13 +55,13 @@ fun MediaQualityDialog(
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                qualityOptions.forEach { (key, label) ->
+                qualityOptions.forEach { (quality, label) ->
                     SettingsRadioRow(
                         title = label,
-                        selected = selectedQuality == key,
+                        selected = selectedQuality == quality,
                         onSelect = {
-                            selectedQuality = key
-                            tokenStorage.setMediaQuality(key)
+                            selectedQuality = quality
+                            tokenStorage.setMediaQuality(quality.storageKey)
                         }
                     )
                 }

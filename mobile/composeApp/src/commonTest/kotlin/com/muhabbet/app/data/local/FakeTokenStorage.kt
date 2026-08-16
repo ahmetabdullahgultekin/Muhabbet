@@ -37,4 +37,8 @@ class FakeTokenStorage : TokenStorage {
 
     override fun getTheme(): String? = theme
     override fun setTheme(theme: String) { this.theme = theme }
+
+    private var mediaQuality: String? = null
+    override fun getMediaQuality(): String? = mediaQuality
+    override fun setMediaQuality(quality: String) { mediaQuality = quality }
 }
