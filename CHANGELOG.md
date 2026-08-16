@@ -8,7 +8,34 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Added
+- **`GET /api/v1/users/me/privacy`.** `PATCH` shipped without a read side, so the settings screen
+  had no way to fetch the stored values and could only assume them — always the most permissive
+  option, which it then wrote back on the next edit. (#377)
+
 ### Fixed
+- **The KVKK privacy screen did nothing.** Read receipts, last seen and about visibility were
+  `remember { mutableStateOf }` seeded with the most permissive setting: nothing loaded on open,
+  nothing saved on change, and reopening reported "everyone" to a user who may have chosen
+  "nobody". All three now load and save. The read-receipts switch in Settings was a second,
+  independent copy that could contradict the first; both now read one shared controller. (#377, #382)
+- **Two privacy settings were stored but never read.** Turning off read receipts changed nothing —
+  the READ was still broadcast to the sender and still aggregated into their tick on every history
+  load. Restricting "about" changed nothing — the text was returned to every caller regardless.
+  Both are now enforced server-side. Read receipts are suppressed at publish time, not storage
+  time: the reader's own row stays READ so their unread badge still clears, while the sender sees
+  DELIVERED. Existing accounts are unaffected until they change a setting. (#377)
+- **The HD media-quality setting was inert at both ends.** `TokenStorage.getMediaQuality`/
+  `setMediaQuality` had default bodies that no implementation overrode, so the picker reset on
+  every open; and no upload path read the value, so every photo compressed at a hardcoded 1280/80.
+  Both halves are fixed — the members are abstract and overridden on all three implementations, and
+  uploads resolve the selected profile per upload. (#383)
+- **Settings → Hesap showed a UUID under "Telefon".** The screen already fetched the profile and
+  discarded the phone number it contained. (#383)
+- **"Yeni Grup" was unreachable where it was needed and dead where it appeared.** It lived inside
+  the contacts list, so it was invisible in the three states where that list does not render, and
+  on the Calls tab it rendered while doing nothing. It now sits beside the by-number row, hidden on
+  the call surface for the same reason that one is. (#383)
 - **Opening a community always failed.** `GET /api/v1/communities/{id}` answered with a nested
   `{community, groups, members}` object, but the app has only ever been able to read the flat shape
   declared in the shared DTOs — so every community opened onto "Could not load content". The
@@ -19,6 +46,15 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   into one query each rather than one per community.
 - **The community list reshuffled between refreshes** — it was assembled from an unordered
   `findAllById`. It is now ordered by creation time.
+
+### Removed
+- **The "Profil Fotoğrafı" visibility picker**, the notification and vibration switches, and the
+  "Video mesajı" attachment entry. None of them had a mechanism to control: there is no
+  `profile_photo_visibility` column or request field and avatars are returned unconditionally;
+  push delivery is off in the deploying stack (`FCM_ENABLED: "false"`), so no notification
+  preference could take effect; and no video recorder exists on either platform. Each is removed
+  rather than given persistence, which would have made them look repaired while still doing
+  nothing. They return with the mechanism, not before it. (#377, #382, #383)
 
 ### Security
 - **Any authenticated user could read any community.** `GET /api/v1/communities/{id}` checked only

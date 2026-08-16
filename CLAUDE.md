@@ -267,10 +267,10 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > | Claimed | Actually |
 > |---|---|
 > | Phase 3 "Voice Calls" | **Has never worked.** The client never sends `call.initiate` — zero mobile references. No mic track is ever published. LiveKit is unconfigured in prod, so `NoOpCallRoomProvider` is the live bean. Three independent fatal breaks. #367–#373 |
-> | "KVKK Privacy Dashboard — DONE" | **All four controls are local state.** Nothing loads, nothing saves; `PATCH /api/v1/users/me/privacy` exists server-side with zero mobile references. #377 |
+> | "KVKK Privacy Dashboard — DONE" | Was: **all four controls local state**, nothing loaded, nothing saved. **#377 fixed** — three controls now load and save through `PrivacySettingsController` (shared with Settings, so the two read-receipt switches cannot disagree), plus a new `GET /users/me/privacy`. The audit understated it: of the three fields the PATCH accepted, only `onlineStatusVisibility` had a **reader** — `aboutVisibility` and `readReceiptsEnabled` were stored and never consulted, so wiring the client alone would have produced a screen that saves and still changes nothing. Both now enforce server-side. The fourth control (profile photo) had **no column at all** and was removed, not faked. |
 > | Communities | Create and read work (8 rows in prod). You **cannot add a person** — no UI, no client method, no list-members endpoint. No announcement channel. #376 |
 > | App Lock (settings) | No persistence, no reader, and **no lock mechanism exists at all** — no biometric dependency, no PIN, no lifecycle gate. #378 |
-> | Wallpaper / HD media quality | Write to a sink; nothing outside their own picker reads them. A complete backend wallpaper vertical sits unused. #380, #383 |
+> | Wallpaper / HD media quality | Wrote to a sink; nothing outside their own picker read them. **HD media quality (#383) fixed** — `TokenStorage` members are now abstract and overridden on all three implementations, and `MediaUploadHelper` resolves a `MediaQuality` profile per upload instead of hardcoding 1280/80. **Wallpaper (#380) still open**; a complete backend wallpaper vertical still sits unused. |
 > | Voice transcription | **Crashes on Android 8–11** (API 31 call, `minSdk` 26, no guard) and opens the live mic on newer versions. #381 |
 > | E2E "flag-OFF, no effect" | `registerKeys()` is **not** gated on `E2EConfig.ENABLED`, so every launch writes `noop-identity-key-<random>` to the production backend. #379 |
 >
@@ -526,13 +526,20 @@ is not evidence that it works.
 25. ~~Mobile UI audit + 87 issue fixes~~ — **DONE** (critical bugs, feature gaps, design system, a11y)
 26. ~~SQLDelight offline caching~~ — **DONE** (conversations + messages cached in local DB, cache-first repository pattern)
 27. ~~WebSocket connection resilience~~ — **DONE** (offline message queue, dedup via LinkedHashSet, exponential backoff with jitter)
-28. KVKK Privacy Dashboard — **PARTIAL (#377).** Data export and account deletion call real
-    endpoints. The **visibility controls do not**: read receipts, last-seen, profile-photo and about
-    visibility are all `remember { mutableStateOf(...) }` that write back to themselves — nothing
-    loads on open, nothing saves on change, and the defaults silently kept are the most permissive.
-    `PATCH /api/v1/users/me/privacy` and both shared DTOs already exist with **zero** mobile
-    references. This is the screen that makes the app's privacy claim to the user, so treat it as a
-    correctness *and* honesty defect, not a cosmetic one.
+28. KVKK Privacy Dashboard — **#377 FIXED.** Data export and account deletion already called real
+    endpoints. The visibility controls now do too: last-seen (`onlineStatusVisibility`), about
+    visibility and read receipts load on open and save on change via `PrivacySettingsController`
+    (a Koin singleton — the same flow backs the read-receipts switch in Settings, so the two
+    cannot disagree), backed by the new `GET /api/v1/users/me/privacy` and the existing PATCH.
+    State is **null until loaded** and the screen says so; it no longer seeds the most permissive
+    option and write it back.
+    Server-side enforcement was the missing half and is now in place: `aboutVisibility` gates
+    `about` in `getUserById`/`getUserDetail`, and `readReceiptsEnabled` downgrades a published
+    READ to DELIVERED in **both** the WS broadcast and the REST history aggregate (the stored row
+    stays READ so the reader's own unread badge still clears — one column serves both concerns).
+    The **profile-photo picker was removed**: no `profile_photo_visibility` column, no request
+    field, no reader, and `avatarUrl` is returned unconditionally — there was nothing to connect
+    it to. It returns with the column, the field and the gate, together.
 29. ~~Media compression pipeline~~ — **DONE** (MediaUploadHelper: images 1280px/80%, profiles 512px/75%, thumbnails 320px/60%)
 30. ~~Persistent E2E key storage~~ — **DONE** (Android: EncryptedSharedPreferences, iOS: Keychain for tokens)
 31. ~~Background message sync~~ — **DONE** (backend GET /api/v1/messages/since, Android WorkManager 15min, iOS BGTask)
@@ -572,13 +579,31 @@ is not evidence that it works.
 
 #### Privacy Dashboard (KVKK)
 - **Screen**: `PrivacyDashboardScreen` (`ui/privacy/`, not `ui/settings/`)
-- **Working**: data export request, account deletion — both call real endpoints.
-- **NOT working (#377)**: the read-receipts toggle and the last-seen / profile-photo / about
-  visibility pickers are local `mutableStateOf` only. `PrivacyDashboardScreen.kt:57-61`.
-- **Backend**: `GET /api/v1/users/data/export`, `DELETE /api/v1/users/data/account`, **and**
-  `PATCH /api/v1/users/me/privacy` (`UserController.kt:155`) with `UpdatePrivacyRequest` /
-  `PrivacySettingsResponse` in shared — the last one has zero mobile callers. Wiring it is the fix,
-  but land #374 first or a rejected PATCH will decode to `data = null` and read as success.
+- **Working**: data export request, account deletion, and (since #377) read receipts, last-seen and
+  about visibility — all call real endpoints.
+- **Single source of truth**: `data/local/PrivacySettingsController.kt`, a Koin **singleton**. Both
+  this screen and `SettingsSections.PrivacySection` collect its flow. Do not reintroduce per-screen
+  `remember { mutableStateOf }` for a privacy value — two copies is how the two read-receipt
+  switches were able to show opposite answers.
+- **Three fields only.** `UpdatePrivacyRequest` carries `readReceiptsEnabled`,
+  `onlineStatusVisibility` and `aboutVisibility`. `onlineStatusVisibility` **is** the last-seen
+  control (it gates presence and last-seen together); there is no separate `lastSeenVisibility`,
+  and no `profilePhotoVisibility` anywhere in the schema. The shared DTO used to advertise both —
+  it no longer does, and the backend now uses the shared DTOs rather than private copies.
+- **Backend**: `GET /api/v1/users/data/export`, `DELETE /api/v1/users/data/account`, and both
+  `GET` and `PATCH /api/v1/users/me/privacy` in `UserController`, using the shared
+  `UpdatePrivacyRequest` / `PrivacySettingsResponse`. The GET was added by #377 — without a read
+  endpoint a settings screen can only guess, and the guess was the most permissive option.
+- **Enforcement lives on the server, and each field has a reader.** Check this before adding a
+  fourth setting: `onlineStatusVisibility` and `aboutVisibility` are applied in
+  `UserController.resolveVisibility` (one shared predicate, so the "contacts" case costs one
+  membership query, not one per field). `readReceiptsEnabled` is applied in `MessageService` via
+  `ReadReceiptPolicyPort` → `AuthReadReceiptPolicyAdapter`, downgrading a published READ to
+  DELIVERED in `updateStatus` (WS) **and** `resolveDeliveryStatuses` (REST history). Doing only the
+  first would be undone as soon as the sender scrolled. The reader's own row stays READ so their
+  unread badge still clears — the same column serves both, which is why the fix is publish-time,
+  not storage-time.
+- **A backend deploy is required** for any of the above to take effect.
 
 #### Voice Message Transcription — **BROKEN (#381)**
 - **Android**: crashes on **Android 8–11**. `createOnDeviceSpeechRecognizer` is API 31, `minSdk` is
