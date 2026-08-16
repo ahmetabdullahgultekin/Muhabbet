@@ -131,6 +131,7 @@ fun ChatScreen(
     val errorActionMsg = stringResource(Res.string.error_action_failed)
     val errorDisappearingMsg = stringResource(Res.string.error_disappearing_timer_failed)
     val errorOpenMsg = stringResource(Res.string.error_open_failed)
+    val errorVideoUnavailableMsg = stringResource(Res.string.error_video_unavailable)
     val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
 
     // Documents, link previews and shared locations all end here. Opening can genuinely fail —
@@ -594,7 +595,12 @@ fun ChatScreen(
                         // Server-side bookkeeping only — the media is already revealed locally, so a
                         // failure has no user-visible consequence worth interrupting them for.
                         onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } },
-                        onOpenUrl = { url -> openExternally(url) }
+                        onOpenUrl = { url -> openExternally(url) },
+                        // The bubble drew a video it has no playable url for. Saying so is the
+                        // whole point — a tap that does nothing is the defect being fixed.
+                        onMediaUnavailable = {
+                            scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
+                        }
                     )
                 )
             }

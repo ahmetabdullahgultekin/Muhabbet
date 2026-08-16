@@ -63,8 +63,13 @@ internal class ChatMessageActions(
     val onQuickReaction: (Message, String) -> Unit,
     val onInfo: (Message) -> Unit,
     val onViewOnce: (String) -> Unit,
-    /** Documents, link previews and shared locations; the screen owns opening and its failure. */
-    val onOpenUrl: (String) -> Unit
+    /**
+     * Documents, link previews, shared locations, videos and URLs inside message text; the screen
+     * owns opening and its failure.
+     */
+    val onOpenUrl: (String) -> Unit,
+    /** A video bubble drawn from a thumbnail whose video itself is not reachable (#361). */
+    val onMediaUnavailable: () -> Unit
 )
 
 /**
@@ -181,7 +186,8 @@ internal fun ChatMessageList(
                                 onReactionToggle = { emoji -> actions.onReactionToggle(message, emoji) },
                                 onInfo = { actions.onInfo(message) },
                                 onViewOnce = { id -> actions.onViewOnce(id) },
-                                onOpenUrl = { url -> actions.onOpenUrl(url) }
+                                onOpenUrl = { url -> actions.onOpenUrl(url) },
+                                onMediaUnavailable = { actions.onMediaUnavailable() }
                             )
                         }
                     }
