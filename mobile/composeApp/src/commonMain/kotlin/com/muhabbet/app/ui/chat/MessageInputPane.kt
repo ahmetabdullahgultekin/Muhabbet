@@ -149,7 +149,6 @@ fun MessageInputBar(
     onCameraPick: () -> Unit = {},
     viewOnceEnabled: Boolean = false,
     onViewOnceToggle: () -> Unit = {},
-    onVideoRecord: () -> Unit = {},
     onScheduleSend: () -> Unit = {}
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
@@ -224,11 +223,11 @@ fun MessageInputBar(
                         onClick = { showAttachMenu = false; onCameraPick() },
                         leadingIcon = { Icon(Muhabbet.icons.Camera, contentDescription = stringResource(Res.string.attach_camera), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
                     )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.video_message)) },
-                        onClick = { showAttachMenu = false; onVideoRecord() },
-                        leadingIcon = { Icon(Muhabbet.icons.Video, contentDescription = stringResource(Res.string.video_message), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
-                    )
+                    // No "video message" entry: there is no video recorder in this app. No caller
+                    // ever passed onVideoRecord, no expect/actual capture exists on either
+                    // platform, and CameraPicker is stills-only — so the item opened the menu,
+                    // closed it, and did nothing. Removed rather than wired, because wiring it
+                    // would mean building a recorder, an encoder and an upload path first.
                 }
             }
 
