@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -84,6 +85,7 @@ fun NewConversationScreen(
     var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
     var permissionDenied by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showStartByNumber by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -150,142 +152,192 @@ fun NewConversationScreen(
         },
         snackbarHostState = snackbarHostState
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when {
-                // Not yet granted: show permission prompt
-                !hasPermission -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Muhabbet.icons.Contact,
-                            contentDescription = stringResource(Res.string.cd_contacts),
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.new_conversation_contacts_required),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Small))
-                        Text(
-                            text = if (permissionDenied)
-                                stringResource(Res.string.contacts_permission_denied)
-                            else
-                                stringResource(Res.string.new_conversation_contacts_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        MuhabbetButton(
-                            text = stringResource(Res.string.contacts_grant_access),
-                            onClick = { requestPermission() },
-                            role = MuhabbetButtonRole.Primary
-                        )
-                    }
-                }
-                // Syncing contacts
-                isSyncing -> MuhabbetLoadingState(
-                    label = stringResource(Res.string.contacts_syncing)
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Above the `when`, not inside the contacts list, on purpose.
+            //
+            // This screen has four states and the list is only one of them. The other three —
+            // permission not granted, sync running, nobody matched — are precisely when a user has
+            // no other way to reach anybody, and an entry point that appears only once you already
+            // have matched contacts would not have fixed #389 for the account that needs it. In
+            // production that is every account: 3 users, 2 conversations.
+            //
+            // Hidden when the screen is picking a contact for the caller (the Calls tab): this row
+            // opens a chat, which on a "who do you want to call" surface would answer a different
+            // question than the one asked.
+            if (onContactPicked == null) {
+                NewConversationActionRow(
+                    icon = Muhabbet.icons.DialPad,
+                    label = stringResource(Res.string.start_by_number_row),
+                    onClick = { showStartByNumber = true }
                 )
-                // No matched contacts
-                contacts.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Muhabbet.icons.Contact,
-                            contentDescription = stringResource(Res.string.cd_contacts),
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.contacts_none_found),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                HorizontalDivider()
+            }
+
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                when {
+                    // Not yet granted: show permission prompt
+                    !hasPermission -> {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Muhabbet.icons.Contact,
+                                contentDescription = stringResource(Res.string.cd_contacts),
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Large))
+                            Text(
+                                stringResource(Res.string.new_conversation_contacts_required),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Small))
+                            Text(
+                                text = if (permissionDenied)
+                                    stringResource(Res.string.contacts_permission_denied)
+                                else
+                                    stringResource(Res.string.new_conversation_contacts_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Large))
+                            MuhabbetButton(
+                                text = stringResource(Res.string.contacts_grant_access),
+                                onClick = { requestPermission() },
+                                role = MuhabbetButtonRole.Primary
+                            )
+                        }
                     }
-                }
-                // Show contacts list
-                else -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        MuhabbetTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
-                            placeholder = stringResource(Res.string.contacts_search_placeholder),
-                            singleLine = true
-                        )
-                        LazyColumn {
-                            // "Yeni Grup" button at top
-                            item(key = "create_group") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(onClick = onCreateGroup)
-                                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        modifier = Modifier.size(40.dp).clip(CircleShape),
-                                        color = MaterialTheme.colorScheme.primary
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Muhabbet.icons.GroupOutlined,
-                                                contentDescription = stringResource(Res.string.new_conversation_new_group),
-                                                tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                                    Text(
-                                        text = stringResource(Res.string.new_conversation_new_group),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Medium
+                    // Syncing contacts
+                    isSyncing -> MuhabbetLoadingState(
+                        label = stringResource(Res.string.contacts_syncing)
+                    )
+                    // No matched contacts
+                    contacts.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Muhabbet.icons.Contact,
+                                contentDescription = stringResource(Res.string.cd_contacts),
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Large))
+                            Text(
+                                stringResource(Res.string.contacts_none_found),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                    // Show contacts list
+                    else -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            MuhabbetTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
+                                placeholder = stringResource(Res.string.contacts_search_placeholder),
+                                singleLine = true
+                            )
+                            LazyColumn {
+                                // "Yeni Grup" button at top
+                                item(key = "create_group") {
+                                    NewConversationActionRow(
+                                        icon = Muhabbet.icons.GroupOutlined,
+                                        label = stringResource(Res.string.new_conversation_new_group),
+                                        onClick = onCreateGroup
                                     )
+                                    HorizontalDivider()
                                 }
-                                HorizontalDivider()
-                            }
-                            items(filteredContacts, key = { it.userId }) { contact ->
-                                ContactItem(
-                                    contact = contact,
-                                    defaultName = defaultChatName,
-                                    onClick = {
-                                        if (isCreating) return@ContactItem
-                                        if (onContactPicked != null) {
-                                            onContactPicked(contact.userId, contact.displayName)
-                                            return@ContactItem
-                                        }
-                                        isCreating = true
-                                        scope.launch {
-                                            try {
-                                                val conv = conversationRepository.createDirectConversation(contact.userId)
-                                                onConversationCreated(conv.id, contact.displayName ?: defaultChatName)
-                                            } catch (_: Exception) {
-                                                // Clear the spinner BEFORE reporting —
-                                                // showSnackbar suspends until dismissed (~4s).
-                                                isCreating = false
-                                                snackbarHostState.showSnackbar(errorMsg)
+                                items(filteredContacts, key = { it.userId }) { contact ->
+                                    ContactItem(
+                                        contact = contact,
+                                        defaultName = defaultChatName,
+                                        onClick = {
+                                            if (isCreating) return@ContactItem
+                                            if (onContactPicked != null) {
+                                                onContactPicked(contact.userId, contact.displayName)
+                                                return@ContactItem
+                                            }
+                                            isCreating = true
+                                            scope.launch {
+                                                try {
+                                                    val conv = conversationRepository.createDirectConversation(contact.userId)
+                                                    onConversationCreated(conv.id, contact.displayName ?: defaultChatName)
+                                                } catch (_: Exception) {
+                                                    // Clear the spinner BEFORE reporting —
+                                                    // showSnackbar suspends until dismissed (~4s).
+                                                    isCreating = false
+                                                    snackbarHostState.showSnackbar(errorMsg)
+                                                }
                                             }
                                         }
-                                    }
-                                )
-                                HorizontalDivider()
+                                    )
+                                    HorizontalDivider()
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (isCreating) {
-                MuhabbetLoadingState()
+                if (isCreating) {
+                    MuhabbetLoadingState()
+                }
             }
         }
+
+        if (showStartByNumber) {
+            StartChatByNumberSheet(
+                onDismiss = { showStartByNumber = false },
+                onConversationOpened = onConversationCreated
+            )
+        }
+    }
+}
+
+/**
+ * One tappable "start something new" row — a tinted circular glyph and a label.
+ *
+ * Extracted because the number entry and "Yeni Grup" are the same row twice, and a second copy of
+ * the block was how the two would have drifted into two different circle sizes.
+ */
+@Composable
+private fun NewConversationActionRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(MuhabbetSizes.AvatarSmall).clip(CircleShape),
+            color = MaterialTheme.colorScheme.primary
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    // Null: the label beside it already names the action, and announcing it twice
+                    // makes the row read as two controls to a screen reader.
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                )
+            }
+        }
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
