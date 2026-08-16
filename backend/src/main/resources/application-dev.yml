@@ -3,6 +3,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    # Dev only: lets an already-applied migration file be edited without the app refusing to
+    # start. Never set this in application.yml or application-prod.yml — see #429.
+    validate-on-migrate: false
 
 logging:
   level:
