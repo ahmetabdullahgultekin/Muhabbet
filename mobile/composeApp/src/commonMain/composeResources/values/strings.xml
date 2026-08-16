@@ -721,4 +721,8 @@
     <string name="contacts_consent_review">İzni tekrar gözden geçir</string>
     <!-- Debug builds only: the backend echoed the code back in mock mode (#435) -->
     <string name="otp_dev_mode_code">Geliştirici modu — Kod: %1$s</string>
+    <!-- Connection strip (#511). Shown only after the socket has been down for a few seconds, so
+         the wording has to cover a real outage rather than a momentary blip. -->
+    <string name="connection_status_label">Bağlantı durumu</string>
+    <string name="connection_offline_strip">Bağlantı yok. Mesajlar yeniden bağlanınca gönderilecek.</string>
 </resources>

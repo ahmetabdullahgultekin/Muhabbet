@@ -24,6 +24,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.remote.MessageQueuedException
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.connection.ConnectionStrip
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
@@ -121,6 +124,8 @@ fun ChatScreen(
     val ackedMessageIds = remember(conversationId) { AckedMessageIds() }
     val snackbarHostState = remember { SnackbarHostState() }
     val uriHandler = LocalUriHandler.current
+    // Rendered by the ConnectionStrip below. Nothing had ever read this flow before #511.
+    val connectionState by wsClient.connectionState.collectAsState()
 
     // Resolved strings for coroutine blocks
     val errorLoadMsg = stringResource(Res.string.error_load_messages)
@@ -141,6 +146,21 @@ fun ChatScreen(
     val errorOpenMsg = stringResource(Res.string.error_open_failed)
     val errorVideoUnavailableMsg = stringResource(Res.string.error_video_unavailable)
     val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
+
+    // One place decides what a send that did not reach the wire looks like.
+    //
+    // A message the socket *queued* is not a failure: it is sitting in the offline queue and will
+    // go out on the next connect. Deleting its bubble and reporting "could not send" — which is
+    // what every one of these call sites used to do — tells the user something untrue and invites
+    // them to type it again, so it arrives twice. A queued message therefore stays exactly where it
+    // is, still MessageStatus.SENDING, which already renders as a pending clock, and the
+    // ConnectionStrip above explains why it is still waiting. Only a genuine failure removes the
+    // bubble and says so. (#511)
+    suspend fun reportSendOutcome(messageId: String, error: Throwable) {
+        if (error is MessageQueuedException) return
+        messages = messages.filter { it.id != messageId }
+        snackbarHostState.showSnackbar(errorSendMsg)
+    }
 
     // Documents, link previews and shared locations all end here. Opening can genuinely fail —
     // nothing installed that handles the URL, or the platform refusing it — and a tap that opens
@@ -476,8 +496,8 @@ fun ChatScreen(
             status = MessageStatus.SENDING,
             clientTimestamp = Clock.System.now()
         )
-        scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
-        snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showLocationDialog = false })
+        scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.LOCATION)) } catch (e: Exception) {
+        reportSendOutcome(mid, e) } } }, onDismiss = { showLocationDialog = false })
     if (showPollDialog) PollCreateDialog(onSend = { poll -> showPollDialog = false
         val json = kotlinx.serialization.json.Json.encodeToString(PollData.serializer(), poll)
         val mid = generateMessageId()
@@ -491,8 +511,8 @@ fun ChatScreen(
             status = MessageStatus.SENDING,
             clientTimestamp = Clock.System.now()
         )
-        scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
-        snackbarHostState.showSnackbar(errorSendMsg) } } }, onDismiss = { showPollDialog = false })
+        scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = json, contentType = ContentType.POLL)) } catch (e: Exception) {
+        reportSendOutcome(mid, e) } } }, onDismiss = { showPollDialog = false })
 
     // Scheduled send: pick date+time, then reuse the existing send path with scheduledAt set.
     if (showScheduleDialog) ScheduleSendDialog(
@@ -576,6 +596,10 @@ fun ChatScreen(
         snackbarHostState = snackbarHostState
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
+            // Above the messages and below the bar, so it is the first thing read on a screen the
+            // user is about to type into. Self-hiding, and silent for the first few seconds of any
+            // outage — see ConnectionStrip.
+            ConnectionStrip(state = connectionState)
             if (isLoading) {
                 MuhabbetLoadingState(Modifier.weight(1f).fillMaxWidth())
             } else {
@@ -732,8 +756,8 @@ fun ChatScreen(
                                 status = MessageStatus.SENDING,
                                 clientTimestamp = Clock.System.now()
                             )
-                            scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
-                                snackbarHostState.showSnackbar(errorSendMsg) } }
+                            scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId)) } catch (e: Exception) {
+                                reportSendOutcome(mid, e) } }
                         }
                     },
                     onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
@@ -769,8 +793,8 @@ fun ChatScreen(
                     status = MessageStatus.SENDING,
                     clientTimestamp = Clock.System.now()
                 )
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
-                    snackbarHostState.showSnackbar(errorSendMsg) } }
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (e: Exception) {
+                    reportSendOutcome(mid, e) } }
             },
             onStickerSelected = { url, _ ->
                 gifPickerTab = null
@@ -786,8 +810,8 @@ fun ChatScreen(
                     status = MessageStatus.SENDING,
                     clientTimestamp = Clock.System.now()
                 )
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (_: Exception) { messages = messages.filter { it.id != mid }
-                    snackbarHostState.showSnackbar(errorSendMsg) } }
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (e: Exception) {
+                    reportSendOutcome(mid, e) } }
             }
         )
     }
