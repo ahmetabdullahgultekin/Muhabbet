@@ -64,6 +64,13 @@ class AuthServiceVerifierTest {
             jwtProvider = jwtProvider,
             passwordEncoder = BCryptPasswordEncoder(),
             otpVerifier = otpVerifier,
+        
+            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
+            // Relaxed mocks answer false for Boolean, which would make every test here
+            // fail on the quota rather than on what it is testing. The quota itself is
+            // covered by RedisOtpQuotaAdapterTest against a real Redis.
+            io.mockk.every { it.tryConsume(any()) } returns true
+        }
         )
     }
 
@@ -137,7 +144,14 @@ class AuthServiceVerifierTest {
         ),
         passwordEncoder = BCryptPasswordEncoder(),
         otpVerifier = verifier,
-    )
+    
+            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
+            // Relaxed mocks answer false for Boolean, which would make every test here
+            // fail on the quota rather than on what it is testing. The quota itself is
+            // covered by RedisOtpQuotaAdapterTest against a real Redis.
+            io.mockk.every { it.tryConsume(any()) } returns true
+        }
+        )
 
     private fun activeRequest() = OtpRequest(
         phoneNumber = phone,

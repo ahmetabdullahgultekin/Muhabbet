@@ -3,6 +3,7 @@ package com.muhabbet.shared.config
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
+import com.muhabbet.auth.domain.port.out.OtpQuotaPort
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
@@ -91,7 +92,8 @@ class AppConfig {
         passwordEncoder: PasswordEncoder,
         otpProperties: OtpProperties,
         jwtProperties: JwtProperties,
-        otpVerifier: OtpVerifier?
+        otpVerifier: OtpVerifier?,
+        otpQuotaPort: OtpQuotaPort
     ): AuthService = AuthService(
         userRepository = userRepository,
         otpRepository = otpRepository,
@@ -108,7 +110,8 @@ class AppConfig {
         otpMaxAttempts = otpProperties.maxAttempts,
         refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
         mockEnabled = otpProperties.mockEnabled,
-        testNumbers = otpProperties.testNumbers.toSet()
+        testNumbers = otpProperties.testNumbers.toSet(),
+        otpQuotaPort = otpQuotaPort
     )
 
     @Bean
