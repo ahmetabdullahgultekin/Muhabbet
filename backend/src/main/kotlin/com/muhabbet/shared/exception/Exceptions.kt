@@ -163,7 +163,18 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),
-    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla istek");
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla istek"),
+
+    // Protocol-level client mistakes. These are the shapes Spring MVC rejects before a controller
+    // is ever reached; each needs a code of its own so the client can tell "you called this wrong"
+    // apart from INTERNAL_ERROR, which means "the server broke, a retry may help".
+    ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "Böyle bir adres yok"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Bu adres bu HTTP metodunu desteklemiyor"),
+
+    // Distinct from MEDIA_UNSUPPORTED_TYPE, which is about the *file* someone uploaded. This one is
+    // about the request's own Content-Type — e.g. JSON posted to a multipart-only endpoint.
+    UNSUPPORTED_CONTENT_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Desteklenmeyen içerik türü"),
+    NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "İstenen içerik türü sunulamıyor");
 }
 
 /**
