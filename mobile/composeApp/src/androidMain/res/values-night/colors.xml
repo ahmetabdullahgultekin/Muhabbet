@@ -2,4 +2,7 @@
 <resources>
     <!-- Matches MuhabbetDarkColorScheme.background. See values/colors.xml for why this must track it. -->
     <color name="muhabbet_splash_background">#12100E</color>
+
+    <!-- Dark variant: MuhabbetPalette.Copper.C70 (#E08A3C), `primary` in the dark colour scheme. -->
+    <color name="muhabbet_notification_accent">#E08A3C</color>
 </resources>
