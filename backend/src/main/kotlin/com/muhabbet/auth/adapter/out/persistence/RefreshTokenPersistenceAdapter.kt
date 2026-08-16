@@ -19,6 +19,9 @@ class RefreshTokenPersistenceAdapter(
     override fun findByTokenHash(tokenHash: String): RefreshTokenRecord? =
         springDataRefreshTokenRepository.findByTokenHashActive(tokenHash, Instant.now())?.toDomain()
 
+    override fun findByUserId(userId: UUID): List<RefreshTokenRecord> =
+        springDataRefreshTokenRepository.findByUserId(userId).map { it.toDomain() }
+
     override fun revokeAllForDevice(userId: UUID, deviceId: UUID) {
         springDataRefreshTokenRepository.revokeAllForDevice(userId, deviceId, Instant.now())
     }
