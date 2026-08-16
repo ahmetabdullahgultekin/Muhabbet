@@ -78,6 +78,39 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   groups yet cannot gain a second member until then. No client flow is affected: the app has never
   had a way to add a community member at all. (#375)
 
+## [0.3.3] — 2026-08-16
+
+0.3.2 was never published; everything in it is here too. This adds the second batch of
+drawn-but-dead controls.
+
+### Fixed
+- **Broadcast lists have never worked.** The app was asking the server at an address it does not
+  answer at, so every request failed — and because failures used to look like emptiness, the screen
+  said "you have no broadcast lists" instead. Two more problems were behind that: the member count
+  was never sent (so every list would have shown "0 members"), and the member list printed internal
+  ids instead of names. (#392)
+- **Privacy settings now actually apply.** Read receipts and "about" visibility were being saved and
+  then ignored by the server; both are now enforced. The screen loads your real settings instead of
+  guessing, and tells you if saving failed instead of pretending. (#377, #382)
+- **HD media quality works.** The setting was saved nowhere and read by nothing; photos were always
+  compressed the same way regardless. (#383)
+- **Video messages and links written inside a message are now tappable.** (#361, #362)
+- Settings showed an internal id where your phone number should be. (#383)
+
+### Removed, because they never did anything
+- **Notification and vibration switches.** Push does not work, so there was nothing for them to
+  switch off. They will come back when there is.
+- **Profile-photo visibility.** The server has no such setting; avatars were always visible.
+- **"Video mesajı"** from the attachment sheet — no video recorder exists on either platform.
+
+### Known issues
+Unchanged from 0.3.2: calls do not work (#367–#373), App Lock and wallpaper still do nothing (#378,
+#380), voice transcription crashes on Android 8–11 (#381), push notifications do not arrive, and E2E
+encryption is off.
+
+**Worth checking first:** long-pressing a message that contains a link, to reach reply/forward/delete.
+Links became separately tappable in this release and that gesture has not been tested on a device.
+
 ## [0.3.2] — 2026-08-16
 
 Mostly things that looked like they worked. Three audits went through the app after 0.3.1 and found
