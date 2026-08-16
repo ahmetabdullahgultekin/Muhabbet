@@ -5,6 +5,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Off for the same reason as application-dev.yml (#429) — not because these tests need it:
+    # each class builds Postgres fresh from these files via Testcontainers, so checksums can't
+    # actually drift here.
+    validate-on-migrate: false
 
 muhabbet:
   jwt:
