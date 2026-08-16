@@ -28,12 +28,15 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
-        timeout-minutes: 8
+        # The health window below can now take 240s on its own, on top of a Gradle build. The old
+        # 8m/6m pair left no room for it: the ssh action would be killed mid-loop and the run would
+        # fail with "Run Command Timeout" rather than a health verdict.
+        timeout-minutes: 15
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 6m
+          command_timeout: 12m
           script: |
             set -e
             cd /opt/projects/Muhabbet
@@ -49,27 +52,46 @@ jobs:
             ./infra/deploy.sh build muhabbet
             ./infra/deploy.sh restart muhabbet
 
-            # Health check with retries (Spring Boot startup ~30s).
+            # Health check with retries. The old window was 5 x 15s = 75s, and every deploy failed
+            # it while the service came up healthy moments later — so the pipeline reported failure
+            # on success and triggered the rollback below on a good deployment. 75s does not cover
+            # a Spring Boot 4 boot plus Flyway plus Traefik noticing the new container.
+            #
+            # The container's own health state is checked first because it is local and immediate;
+            # the public URL additionally depends on Traefik picking up the route, so a pass there
+            # is the stronger signal but a slower one.
             HEALTHY=0
-            for i in 1 2 3 4 5; do
-              sleep 15
+            for i in $(seq 1 24); do
+              sleep 10
               if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
-                echo "API healthy after attempt $i"
+                echo "API healthy after ${i}0s"
                 HEALTHY=1
                 break
               fi
-              echo "Attempt $i: API not ready yet..."
+              STATE="$(docker inspect --format '{{.State.Health.Status}}' muhabbet-backend 2>/dev/null || echo unknown)"
+              echo "Attempt $i: API not ready yet (container health: $STATE)"
             done
 
             if [ "$HEALTHY" != "1" ]; then
-              echo "Health check FAILED — attempting rollback to previous backend image."
+              echo "Health check FAILED after 240s. Container state and last 50 log lines:"
+              docker ps --filter name=muhabbet-backend --format '{{.Names}} {{.Status}}' || true
+              docker logs --tail 50 muhabbet-backend 2>&1 || true
+
+              echo "Attempting rollback to previous backend image."
               if [ -n "$PREV_IMAGE_ID" ] && [ -n "$PREV_IMAGE_REF" ]; then
                 # Re-point the compose repo:tag at the known-good image ID, then restart without rebuilding.
+                #
+                # This used to run against /opt/projects/Muhabbet/infra, which is the LEGACY nginx
+                # stack: a different compose file with its own postgres/redis/minio, no Traefik
+                # labels, no .env.prod and no service called "backend". It could not have worked,
+                # and its failing is the only reason a healthy deployment survived the bad health
+                # check above. The stack that actually runs is the repo-root compose file, with
+                # .env.prod alongside it and the service named muhabbet-backend.
                 docker tag "$PREV_IMAGE_ID" "$PREV_IMAGE_REF"
-                cd /opt/projects/Muhabbet/infra
-                docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build backend || true
-                for i in 1 2 3; do
-                  sleep 15
+                cd /opt/projects/Muhabbet
+                docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-build muhabbet-backend || true
+                for i in 1 2 3 4 5 6; do
+                  sleep 10
                   if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
                     echo "Rollback to previous image is healthy."
                     break
@@ -78,7 +100,7 @@ jobs:
               else
                 echo "No previous image captured — cannot auto-roll back. Manual intervention required."
               fi
-              echo "Deploy failed health check; rolled back to previous image."
+              echo "Deploy failed health check."
               exit 1
             fi
 
