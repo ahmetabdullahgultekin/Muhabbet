@@ -89,6 +89,20 @@
     <string name="new_conversation_contacts_hint">Grant contacts access to see people using Muhabbet</string>
     <string name="new_conversation_new_group">New Group</string>
 
+    <!-- Start a chat by typing a phone number (#389) -->
+    <string name="start_by_number_row">Message a phone number</string>
+    <string name="start_by_number_title">Message a phone number</string>
+    <string name="start_by_number_hint">Reach someone who is not in your address book by typing their number.</string>
+    <string name="start_by_number_field_label">Phone number</string>
+    <string name="start_by_number_field_placeholder">05XX XXX XX XX</string>
+    <string name="start_by_number_invalid">Enter a valid phone number</string>
+    <string name="start_by_number_action">Start chat</string>
+    <string name="start_by_number_searching">Searching…</string>
+    <string name="start_by_number_not_registered">This number is not on Muhabbet.</string>
+    <string name="start_by_number_invite">Invite to Muhabbet</string>
+    <string name="start_by_number_invite_text">You can reach me on Muhabbet, a KVKK-compliant Turkish messaging app.</string>
+    <string name="start_by_number_own_number">That is your own number.</string>
+
     <!-- Group -->
     <string name="group_create_title">New Group</string>
     <string name="group_name_label">Group Name</string>

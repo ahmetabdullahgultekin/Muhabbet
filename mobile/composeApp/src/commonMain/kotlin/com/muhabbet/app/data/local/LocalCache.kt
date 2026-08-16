@@ -13,7 +13,7 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class LocalCache(driverFactory: DatabaseDriverFactory) {
+class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
@@ -21,7 +21,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) {
 
     // --- Conversations ---
 
-    fun getConversations(): List<ConversationResponse> {
+    override fun getConversations(): List<ConversationResponse> {
         return queries.getConversations().executeAsList().map { row ->
             ConversationResponse(
                 id = row.id,
@@ -41,7 +41,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) {
         }
     }
 
-    fun upsertConversation(conv: ConversationResponse) {
+    override fun upsertConversation(conv: ConversationResponse) {
         queries.upsertConversation(
             id = conv.id,
             type = conv.type.name,
@@ -58,13 +58,13 @@ class LocalCache(driverFactory: DatabaseDriverFactory) {
         )
     }
 
-    fun upsertConversations(conversations: List<ConversationResponse>) {
+    override fun upsertConversations(conversations: List<ConversationResponse>) {
         database.transaction {
             conversations.forEach { upsertConversation(it) }
         }
     }
 
-    fun deleteConversation(id: String) {
+    override fun deleteConversation(id: String) {
         queries.deleteConversation(id)
         queries.deleteMessagesForConversation(id)
     }

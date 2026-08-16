@@ -1,6 +1,6 @@
 package com.muhabbet.app.data.repository
 
-import com.muhabbet.app.data.local.LocalCache
+import com.muhabbet.app.data.local.ConversationCache
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.util.Log
@@ -16,7 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 class ConversationRepository(
     private val apiClient: ApiClient,
-    private val localCache: LocalCache
+    private val localCache: ConversationCache
 ) {
 
     private companion object {

@@ -89,6 +89,20 @@
     <string name="new_conversation_contacts_hint">Muhabbet kullanan kişilerinizi görmek için rehber erişimi verin</string>
     <string name="new_conversation_new_group">Yeni Grup</string>
 
+    <!-- Start a chat by typing a phone number (#389) -->
+    <string name="start_by_number_row">Numara ile sohbet başlat</string>
+    <string name="start_by_number_title">Numara ile sohbet başlat</string>
+    <string name="start_by_number_hint">Rehberinizde kayıtlı olmayan birine numarasını yazarak ulaşın.</string>
+    <string name="start_by_number_field_label">Telefon numarası</string>
+    <string name="start_by_number_field_placeholder">05XX XXX XX XX</string>
+    <string name="start_by_number_invalid">Geçerli bir telefon numarası girin</string>
+    <string name="start_by_number_action">Sohbet başlat</string>
+    <string name="start_by_number_searching">Aranıyor…</string>
+    <string name="start_by_number_not_registered">Bu numara Muhabbet\'te kayıtlı değil.</string>
+    <string name="start_by_number_invite">Muhabbet\'e davet et</string>
+    <string name="start_by_number_invite_text">Muhabbet\'te bana ulaşabilirsin. Muhabbet, KVKK uyumlu yerli mesajlaşma uygulamasıdır.</string>
+    <string name="start_by_number_own_number">Bu sizin kendi numaranız.</string>
+
     <!-- Group -->
     <string name="group_create_title">Yeni Grup</string>
     <string name="group_name_label">Grup Adı</string>

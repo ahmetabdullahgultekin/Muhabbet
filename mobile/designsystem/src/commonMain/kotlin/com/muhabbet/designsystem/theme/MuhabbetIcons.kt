@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -117,6 +118,9 @@ object MuhabbetIcons {
     val Poll: ImageVector get() = Icons.Default.Poll
     val Location: ImageVector get() = Icons.Default.LocationOn
     val Contact: ImageVector get() = Icons.Outlined.ContactPhone
+
+    /** Typing a phone number, as opposed to picking someone the address book already knows. */
+    val DialPad: ImageVector get() = Icons.Default.Dialpad
 
     // Message actions
     val Reply: ImageVector get() = Icons.AutoMirrored.Filled.Reply
