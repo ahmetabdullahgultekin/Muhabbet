@@ -218,6 +218,14 @@ object MuhabbetSizes {
     /** The secondary placeholder line, thinner so the two do not read as a progress bar. */
     val SkeletonLineSmall: Dp = 12.dp
 
+    /**
+     * How tall a scrolling picker inside a bottom sheet may grow.
+     *
+     * Capped rather than free: an unbounded `LazyColumn` in a sheet expands to the full screen, so
+     * the sheet's own title and the confirm affordance below it scroll out of reach.
+     */
+    val PickerSheetMaxHeight: Dp = 360.dp
+
     // Avatar sizes
     val AvatarXSmall: Dp = 36.dp
     val AvatarSmall: Dp = 40.dp

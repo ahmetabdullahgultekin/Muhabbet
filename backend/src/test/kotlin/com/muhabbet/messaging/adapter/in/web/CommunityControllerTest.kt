@@ -100,6 +100,44 @@ class CommunityControllerTest {
     }
 
     @Nested
+    inner class Update {
+
+        @Test
+        fun `should serve the renamed community with its counts intact`() {
+            every {
+                manageCommunityUseCase.update(communityId, userId, "Yeni Mahalle", "Yeni açıklama")
+            } returns CommunitySummary(
+                community = community().copy(name = "Yeni Mahalle", description = "Yeni açıklama"),
+                groupCount = 4,
+                memberCount = 128
+            )
+
+            val decoded = clientJson.decodeFromString<ClientCommunityResponse>(
+                jackson.writeValueAsString(
+                    controller.update(communityId, UpdateCommunityRequest("Yeni Mahalle", "Yeni açıklama")).body?.data
+                )
+            )
+
+            assertEquals("Yeni Mahalle", decoded.name)
+            assertEquals("Yeni açıklama", decoded.description)
+            assertEquals(4, decoded.groupCount)
+            assertEquals(128, decoded.memberCount)
+        }
+
+        @Test
+        fun `should pass the authenticated caller to the use case`() {
+            // Authorization is the use case's job, but only if it is told who is asking: the
+            // controller must never take a user id from the request body.
+            every { manageCommunityUseCase.update(communityId, userId, "Mahalle", null) } returns
+                CommunitySummary(community = community(), groupCount = 0, memberCount = 1)
+
+            controller.update(communityId, UpdateCommunityRequest("Mahalle", null))
+
+            verify { manageCommunityUseCase.update(communityId, userId, "Mahalle", null) }
+        }
+    }
+
+    @Nested
     inner class GetDetails {
 
         @Test

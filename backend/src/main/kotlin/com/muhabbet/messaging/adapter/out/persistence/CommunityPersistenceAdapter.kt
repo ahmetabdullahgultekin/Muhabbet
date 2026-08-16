@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.out.persistence
 
 import com.muhabbet.messaging.adapter.out.persistence.entity.CommunityGroupJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.entity.CommunityJpaEntity
+import com.muhabbet.messaging.adapter.out.persistence.entity.CommunityMemberId
 import com.muhabbet.messaging.adapter.out.persistence.entity.CommunityMemberJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataCommunityGroupRepository
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataCommunityJpaRepository
@@ -44,6 +45,10 @@ class CommunityPersistenceAdapter(
 
     override fun findMembersByCommunityId(communityId: UUID): List<CommunityMember> =
         memberRepo.findByCommunityId(communityId).map { it.toDomain() }
+
+    override fun removeMember(communityId: UUID, userId: UUID) {
+        memberRepo.deleteById(CommunityMemberId(communityId, userId))
+    }
 
     override fun findCommunitiesByUserId(userId: UUID): List<Community> {
         val memberEntries = memberRepo.findByUserId(userId)

@@ -118,6 +118,15 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
         HttpStatus.FORBIDDEN,
         "Yalnızca topluluğun gruplarında bulunan kullanıcılar topluluğa eklenebilir"
     ),
+    COMMUNITY_INVALID_NAME(HttpStatus.BAD_REQUEST, "Geçersiz topluluk adı"),
+
+    // Leaving would delete the community rather than hand it over, and there is no delete endpoint
+    // to do that honestly (cascade semantics are undecided). Refusing keeps the rows reachable
+    // instead of stranding a community nobody can open, rename or remove.
+    COMMUNITY_LAST_MEMBER_CANNOT_LEAVE(
+        HttpStatus.BAD_REQUEST,
+        "Topluluğun tek üyesi ayrılamaz, önce başka birini ekleyin"
+    ),
 
     // Events
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Etkinlik bulunamadı"),

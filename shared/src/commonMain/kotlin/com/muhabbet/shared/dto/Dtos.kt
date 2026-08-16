@@ -480,6 +480,44 @@ data class CommunityGroupInfo(
     val memberCount: Int
 )
 
+@Serializable
+data class UpdateCommunityRequest(
+    val name: String,
+    val description: String? = null
+)
+
+/**
+ * One row of `GET /api/v1/communities/{id}/members`.
+ *
+ * [role] is the raw `MemberRole` name rather than the enum, for the same reason
+ * [CommunityDetailResponse.myRole] is: a role added on the server must not fail the whole decode on
+ * an app that has not shipped yet.
+ */
+@Serializable
+data class CommunityMemberResponse(
+    val userId: String,
+    val displayName: String? = null,
+    val avatarUrl: String? = null,
+    val role: String,
+    val joinedAt: String
+)
+
+/**
+ * Someone the caller is allowed to enrol right now, from
+ * `GET /api/v1/communities/{id}/member-candidates`.
+ *
+ * The server computes this from the same rule `addMember` enforces — membership of one of the
+ * community's own groups (#375) — so the picker cannot offer a person the add would then reject.
+ * It is deliberately not a user search: until the invite flow (#387) exists, nobody outside those
+ * groups can be added at all.
+ */
+@Serializable
+data class CommunityMemberCandidateResponse(
+    val userId: String,
+    val displayName: String? = null,
+    val avatarUrl: String? = null
+)
+
 // ─── Group Event DTOs ───────────────────────────────────
 @Serializable
 data class CreateGroupEventRequest(

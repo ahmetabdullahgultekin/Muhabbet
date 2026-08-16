@@ -570,6 +570,24 @@
     <string name="community_add_group_empty">You have no groups to add</string>
     <string name="community_add_group_added">Group added to community</string>
     <string name="community_add_group_failed">Could not add group</string>
+    <string name="community_remove_group">Remove Group</string>
+    <string name="community_remove_group_confirm">Remove %1$s from this community? The group itself is not deleted, only unlinked.</string>
+    <string name="community_remove_group_removed">Group removed from community</string>
+    <string name="community_remove_group_failed">Could not remove group</string>
+    <string name="community_edit_title">Edit Community</string>
+    <string name="community_updated">Community updated</string>
+    <string name="community_update_failed">Could not update community</string>
+    <string name="community_leave_title">Leave Community</string>
+    <string name="community_leave_confirm">Are you sure you want to leave this community?</string>
+    <string name="community_leave_button">Leave</string>
+    <string name="community_leave_failed">Could not leave the community</string>
+    <string name="community_add_member">Add Member</string>
+    <string name="community_add_member_title">Add Member to Community</string>
+    <string name="community_add_member_subtitle">People in this community\'s groups can be added</string>
+    <string name="community_add_member_empty">Nobody can be added yet. Only people who are already in one of this community\'s groups are eligible.</string>
+    <string name="community_add_member_added">Member added to community</string>
+    <string name="community_add_member_failed">Could not add member</string>
+    <string name="community_members_empty">No members yet</string>
 
     <!-- Search -->
     <string name="home_search_title">Search</string>

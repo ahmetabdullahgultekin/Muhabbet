@@ -349,10 +349,12 @@ class AppConfig {
     @Bean
     fun communityService(
         communityRepository: CommunityRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        userDirectoryPort: UserDirectoryPort
     ): CommunityService = CommunityService(
         communityRepository = communityRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        userDirectoryPort = userDirectoryPort
     )
 
     @Bean

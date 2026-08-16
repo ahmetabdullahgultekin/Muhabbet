@@ -29,6 +29,7 @@ import com.muhabbet.app.ui.media.SharedMediaScreen
 import com.muhabbet.app.ui.starred.StarredMessagesScreen
 import com.muhabbet.app.ui.communities.CommunityDetailScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
+import com.muhabbet.app.ui.communities.CommunityMembersScreen
 import com.muhabbet.app.ui.communities.CreateCommunityScreen
 import com.muhabbet.app.ui.conversations.BroadcastDetailScreen
 import com.muhabbet.app.ui.conversations.BroadcastListScreen
@@ -177,6 +178,13 @@ class MainComponent(
         navigation.push(Config.CommunityDetail(communityId))
     }
 
+    fun openCommunityMembers(communityId: String) {
+        val target = Config.CommunityMembers(communityId)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
+    }
+
     @OptIn(DelicateDecomposeApi::class)
     fun openPickContactForCall() {
         navigation.push(Config.PickContactForCall)
@@ -257,6 +265,7 @@ class MainComponent(
         @Serializable data object AppLock : Config
         @Serializable data object Wallpaper : Config
         @Serializable data class CommunityDetail(val communityId: String) : Config
+        @Serializable data class CommunityMembers(val communityId: String) : Config
         @Serializable data object CreateCommunity : Config
         @Serializable data object PickContactForCall : Config
         @Serializable data class GroupEvents(val conversationId: String) : Config
@@ -443,9 +452,18 @@ private fun MainStack(component: MainComponent) {
             is MainComponent.Config.CommunityDetail -> CommunityDetailScreen(
                 communityId = config.communityId,
                 onBack = component::goBack,
-                onGroupClick = { conversationId ->
-                    component.openChat(conversationId, "", isGroup = true)
-                }
+                onGroupClick = { conversationId, name ->
+                    // The name comes from CommunityGroupInfo, which the detail screen already has.
+                    // Passing "" here left the chat opened from a community with a blank title bar,
+                    // because ChatScreen has no fallback of its own.
+                    component.openChat(conversationId, name, isGroup = true)
+                },
+                onMembersClick = component::openCommunityMembers
+            )
+            is MainComponent.Config.CommunityMembers -> CommunityMembersScreen(
+                communityId = config.communityId,
+                onBack = component::goBack,
+                onMemberClick = { userId -> component.openUserProfile(userId) }
             )
             is MainComponent.Config.PickContactForCall -> NewConversationScreen(
                 onConversationCreated = { id, name -> component.replaceWithChat(id, name) },

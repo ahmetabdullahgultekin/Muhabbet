@@ -9,6 +9,7 @@ import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -17,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 data class CreateCommunityRequest(val name: String, val description: String? = null)
+data class UpdateCommunityRequest(val name: String, val description: String? = null)
 data class AddGroupRequest(val conversationId: String)
-data class AddMemberRequest(val userId: String)
 
 /**
  * Field-for-field the client's `CommunityResponse` in `shared/.../dto/Dtos.kt`. The shared DTOs
@@ -81,6 +82,16 @@ class CommunityController(
         return ApiResponseBuilder.ok(details.toResponse())
     }
 
+    @PatchMapping("/{communityId}")
+    fun update(
+        @PathVariable communityId: UUID,
+        @RequestBody request: UpdateCommunityRequest
+    ): ResponseEntity<ApiResponse<CommunityResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val updated = manageCommunityUseCase.update(communityId, userId, request.name, request.description)
+        return ApiResponseBuilder.ok(updated.toResponse())
+    }
+
     @PostMapping("/{communityId}/groups")
     fun addGroup(
         @PathVariable communityId: UUID,
@@ -101,15 +112,6 @@ class CommunityController(
         return ApiResponseBuilder.ok(Unit)
     }
 
-    @PostMapping("/{communityId}/members")
-    fun addMember(
-        @PathVariable communityId: UUID,
-        @RequestBody request: AddMemberRequest
-    ): ResponseEntity<ApiResponse<Unit>> {
-        val requesterId = AuthenticatedUser.currentUserId()
-        manageCommunityUseCase.addMember(communityId, UUID.fromString(request.userId), requesterId)
-        return ApiResponseBuilder.ok(Unit)
-    }
 }
 
 private fun CommunitySummary.toResponse() = CommunityResponse(

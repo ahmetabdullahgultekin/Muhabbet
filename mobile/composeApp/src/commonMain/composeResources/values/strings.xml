@@ -570,6 +570,24 @@
     <string name="community_add_group_empty">Eklenebilecek bir grubunuz yok</string>
     <string name="community_add_group_added">Grup topluluğa eklendi</string>
     <string name="community_add_group_failed">Grup eklenemedi</string>
+    <string name="community_remove_group">Grubu Kaldır</string>
+    <string name="community_remove_group_confirm">%1$s topluluktan kaldırılsın mı? Grup silinmez, yalnızca bu topluluktan çıkarılır.</string>
+    <string name="community_remove_group_removed">Grup topluluktan kaldırıldı</string>
+    <string name="community_remove_group_failed">Grup kaldırılamadı</string>
+    <string name="community_edit_title">Topluluğu Düzenle</string>
+    <string name="community_updated">Topluluk güncellendi</string>
+    <string name="community_update_failed">Topluluk güncellenemedi</string>
+    <string name="community_leave_title">Topluluktan Ayrıl</string>
+    <string name="community_leave_confirm">Bu topluluktan ayrılmak istediğinize emin misiniz?</string>
+    <string name="community_leave_button">Ayrıl</string>
+    <string name="community_leave_failed">Topluluktan ayrılamadınız</string>
+    <string name="community_add_member">Üye Ekle</string>
+    <string name="community_add_member_title">Topluluğa Üye Ekle</string>
+    <string name="community_add_member_subtitle">Topluluğun gruplarındaki kişiler eklenebilir</string>
+    <string name="community_add_member_empty">Eklenebilecek kimse yok. Yalnızca bu topluluğun gruplarında bulunan kişiler eklenebilir.</string>
+    <string name="community_add_member_added">Üye topluluğa eklendi</string>
+    <string name="community_add_member_failed">Üye eklenemedi</string>
+    <string name="community_members_empty">Henüz üye yok</string>
 
     <!-- Search -->
     <string name="home_search_title">Ara</string>

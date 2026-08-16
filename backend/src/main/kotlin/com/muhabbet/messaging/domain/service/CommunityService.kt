@@ -7,25 +7,33 @@ import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
 import com.muhabbet.messaging.domain.port.`in`.CommunityGroupSummary
+import com.muhabbet.messaging.domain.port.`in`.CommunityMemberCandidate
+import com.muhabbet.messaging.domain.port.`in`.CommunityMemberSummary
 import com.muhabbet.messaging.domain.port.`in`.CommunitySummary
+import com.muhabbet.messaging.domain.port.`in`.ManageCommunityMembershipUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 import java.util.UUID
 
 open class CommunityService(
     private val communityRepository: CommunityRepository,
-    private val conversationRepository: ConversationRepository
-) : ManageCommunityUseCase {
+    private val conversationRepository: ConversationRepository,
+    private val userDirectoryPort: UserDirectoryPort
+) : ManageCommunityUseCase, ManageCommunityMembershipUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
     override fun create(name: String, description: String?, creatorId: UUID): CommunitySummary {
+        requireValidName(name)
         val community = Community(
             name = name,
             description = description,
@@ -41,6 +49,33 @@ open class CommunityService(
         log.info("Community created: id={}, name={}, creator={}", saved.id, name, creatorId)
         // A community starts with no groups and exactly one member: the creator just added above.
         return CommunitySummary(community = saved, groupCount = 0, memberCount = 1)
+    }
+
+    @Transactional
+    override fun update(
+        communityId: UUID,
+        requesterId: UUID,
+        name: String,
+        description: String?
+    ): CommunitySummary {
+        val community = communityRepository.findById(communityId)
+            ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
+
+        requireAdminOrOwner(communityId, requesterId)
+        requireValidName(name)
+
+        val saved = communityRepository.update(
+            community.copy(name = name, description = description, updatedAt = Instant.now())
+        )
+        log.info("Community updated: id={}, by={}", communityId, requesterId)
+
+        // Re-read the counts rather than assume: the caller renders this straight back into the
+        // list row it came from, and a rename must not reset the row's group and member numbers.
+        return CommunitySummary(
+            community = saved,
+            groupCount = communityRepository.countGroupsByCommunityIds(listOf(communityId))[communityId] ?: 0,
+            memberCount = communityRepository.countMembersByCommunityIds(listOf(communityId))[communityId] ?: 0
+        )
     }
 
     @Transactional
@@ -102,6 +137,92 @@ open class CommunityService(
     }
 
     @Transactional(readOnly = true)
+    override fun listMembers(communityId: UUID, requesterId: UUID): List<CommunityMemberSummary> {
+        communityRepository.findById(communityId)
+            ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
+        requireMember(communityId, requesterId)
+
+        val members = communityRepository.findMembersByCommunityId(communityId)
+        // One directory lookup for the whole list, not one per row.
+        val displayInfo = userDirectoryPort.findDisplayInfo(members.map { it.userId })
+
+        return members
+            .sortedWith(compareBy({ it.role.ordinal }, { it.joinedAt }))
+            .map { member ->
+                val info = displayInfo[member.userId]
+                CommunityMemberSummary(
+                    userId = member.userId,
+                    displayName = info?.displayName,
+                    avatarUrl = info?.avatarUrl,
+                    role = member.role,
+                    joinedAt = member.joinedAt
+                )
+            }
+    }
+
+    @Transactional(readOnly = true)
+    override fun listAddableUsers(communityId: UUID, requesterId: UUID): List<CommunityMemberCandidate> {
+        communityRepository.findById(communityId)
+            ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
+        requireAdminOrOwner(communityId, requesterId)
+
+        val conversationIds = communityRepository.findGroupsByCommunityId(communityId).map { it.conversationId }
+        if (conversationIds.isEmpty()) return emptyList()
+
+        val alreadyMembers = communityRepository.findMembersByCommunityId(communityId).map { it.userId }.toSet()
+        // Same rule addMember enforces, asked in the other direction: everyone in the community's
+        // groups, minus everyone already in the community.
+        val candidateIds = conversationRepository.findMembersByConversationIds(conversationIds)
+            .values
+            .flatten()
+            .map { it.userId }
+            .toSet() - alreadyMembers
+        if (candidateIds.isEmpty()) return emptyList()
+
+        val displayInfo = userDirectoryPort.findDisplayInfo(candidateIds)
+        return candidateIds
+            .map { userId ->
+                val info = displayInfo[userId]
+                CommunityMemberCandidate(
+                    userId = userId,
+                    displayName = info?.displayName,
+                    avatarUrl = info?.avatarUrl
+                )
+            }
+            // A set has no order, so without this the picker reshuffles on every open.
+            .sortedWith(compareBy({ it.displayName == null }, { it.displayName }, { it.userId }))
+    }
+
+    @Transactional
+    override fun leave(communityId: UUID, userId: UUID) {
+        communityRepository.findById(communityId)
+            ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
+
+        val member = requireMember(communityId, userId)
+        val others = communityRepository.findMembersByCommunityId(communityId)
+            .filter { it.userId != userId }
+
+        if (others.isEmpty()) {
+            // Removing the only member would leave rows nothing can reach: there is no discovery,
+            // no invite (#387) and no delete endpoint. Refuse instead of orphaning the community.
+            throw BusinessException(ErrorCode.COMMUNITY_LAST_MEMBER_CANNOT_LEAVE)
+        }
+
+        if (member.role == MemberRole.OWNER && others.none { it.role == MemberRole.OWNER }) {
+            // Same succession as leaving a group: the longest-standing admin, else the
+            // longest-standing member. A community with no owner can never be renamed or gain a
+            // group again, so somebody must inherit before this row goes.
+            val bySeniority = others.sortedBy { it.joinedAt }
+            val successor = bySeniority.firstOrNull { it.role == MemberRole.ADMIN } ?: bySeniority.first()
+            communityRepository.saveMember(successor.copy(role = MemberRole.OWNER))
+            log.info("Community ownership transferred: community={}, to={}", communityId, successor.userId)
+        }
+
+        communityRepository.removeMember(communityId, userId)
+        log.info("Member left community: community={}, user={}", communityId, userId)
+    }
+
+    @Transactional(readOnly = true)
     override fun getDetails(communityId: UUID, userId: UUID): CommunityDetails {
         val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
@@ -110,8 +231,7 @@ open class CommunityService(
         // only ever opened from the caller's own list or straight after creating it — nothing
         // legitimate reads a community the caller does not belong to, and reading one exposes every
         // linked conversation's name, avatar and size.
-        val membership = communityRepository.findMember(communityId, userId)
-            ?: throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
+        val membership = requireMember(communityId, userId)
 
         val groups = communityRepository.findGroupsByCommunityId(communityId)
         val conversationIds = groups.map { it.conversationId }
@@ -154,11 +274,21 @@ open class CommunityService(
         }
     }
 
-    private fun requireAdminOrOwner(communityId: UUID, userId: UUID) {
-        val member = communityRepository.findMember(communityId, userId)
+    private fun requireMember(communityId: UUID, userId: UUID): CommunityMember =
+        communityRepository.findMember(communityId, userId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
-        if (member.role == MemberRole.MEMBER) {
+
+    private fun requireAdminOrOwner(communityId: UUID, userId: UUID): CommunityMember {
+        val member = requireMember(communityId, userId)
+        if (!member.administers()) {
             throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
+        }
+        return member
+    }
+
+    private fun requireValidName(name: String) {
+        if (!ValidationRules.isValidCommunityName(name)) {
+            throw BusinessException(ErrorCode.COMMUNITY_INVALID_NAME)
         }
     }
 }
