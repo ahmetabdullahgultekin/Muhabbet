@@ -54,20 +54,45 @@ open class UserDataService(
             throw BusinessException(ErrorCode.USER_ALREADY_DELETED)
         }
 
-        // Soft-delete user
+        refreshTokenRepository.revokeAllForUser(userId)
+        userDataQueryPort.removeUserFromAllConversations(userId)
+
+        // Everything that identifies the person or makes them findable — discovery hash, devices,
+        // push tokens, keys, contacts, per-user settings.
+        userDataQueryPort.erasePersonalData(userId)
+
+        // The row itself has to survive: messages.sender_id references it, and those messages sit
+        // in other people's conversations. So the identity is overwritten in place rather than the
+        // row deleted. This used to only set status and deletedAt, which left the phone number in
+        // plaintext and the account fully reconstructible — a status flag is not erasure under
+        // KVKK m.7 or GDPR Art. 17 (#426).
         userRepository.save(
             user.copy(
+                phoneNumber = anonymousPhonePlaceholder(userId),
+                displayName = null,
+                avatarUrl = null,
+                about = null,
+                lastSeenAt = null,
+                twoStepPinHash = null,
+                twoStepEmail = null,
+                twoStepEnabledAt = null,
                 status = UserStatus.DELETED,
                 deletedAt = Instant.now()
             )
         )
 
-        // Revoke all refresh tokens
-        refreshTokenRepository.revokeAllForUser(userId)
+        log.info("Account erased: userId={}", userId)
+    }
 
-        // Remove user from all conversations
-        userDataQueryPort.removeUserFromAllConversations(userId)
+    /**
+     * `users.phone_number` is `VARCHAR(15) NOT NULL UNIQUE`, so the number cannot simply be nulled
+     * out. Derived from the account id, which keeps it unique without a lookup, and prefixed so it
+     * can never be mistaken for a real number — an E.164 number always starts `+`.
+     */
+    private fun anonymousPhonePlaceholder(userId: UUID): String =
+        "d-" + java.lang.Long.toUnsignedString(userId.leastSignificantBits, RADIX_36)
 
-        log.info("Account deletion requested: userId={}", userId)
+    private companion object {
+        const val RADIX_36 = 36
     }
 }
