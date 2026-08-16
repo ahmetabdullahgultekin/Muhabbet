@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.WallpaperRepository
 import com.muhabbet.app.platform.rememberImagePickerLauncher
+import com.muhabbet.app.platform.rememberWallpaperImageSaver
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -70,11 +71,15 @@ fun WallpaperPickerScreen(
     var darkModeEnabled by remember { mutableStateOf(wallpaperRepository.getDarkModeWallpaperEnabled()) }
     var customWallpaperSet by remember { mutableStateOf(wallpaperRepository.getCustomPath() != null) }
 
-    // Gallery picker: on result, persist the image file name so the chat screen can load it.
-    // The path stored is the fileName (platform-neutral identifier persisted via WallpaperRepository).
+    // Gallery picker: on result, copy the bytes into app-private storage and persist THAT path —
+    // img.fileName alone is just a label the picker made up, not a location the chat screen could
+    // ever open (#380). If the copy fails, leave the previous selection in place rather than
+    // pointing the chat at a file that doesn't exist.
+    val wallpaperImageSaver = rememberWallpaperImageSaver()
     val galleryPicker = rememberImagePickerLauncher { pickedImage ->
         pickedImage?.let { img ->
-            wallpaperRepository.setCustomPath(img.fileName)
+            val savedPath = wallpaperImageSaver.save(img.fileName, img.bytes) ?: return@let
+            wallpaperRepository.setCustomPath(savedPath)
             wallpaperRepository.setWallpaperType("CUSTOM")
             selectedType = "CUSTOM"
             customWallpaperSet = true

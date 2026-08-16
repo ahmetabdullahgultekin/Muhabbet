@@ -48,12 +48,17 @@ interface TokenStorage {
     fun setContactSyncConsentAt(timestamp: String)
     fun clearContactSyncConsent()
 
-    fun getWallpaperType(): String? = null
-    fun setWallpaperType(type: String) {}
-    fun getSolidColor(): String? = null
-    fun setSolidColor(color: String?) {}
-    fun getCustomWallpaperPath(): String? = null
-    fun setCustomWallpaperPath(path: String?) {}
-    fun getDarkModeWallpaperEnabled(): Boolean = false
-    fun setDarkModeWallpaperEnabled(enabled: Boolean) {}
+    // Abstract for the same reason as media quality above (#380): these four were defaulted, no
+    // implementation overrode any of them, and so WallpaperPickerScreen wrote to an empty body and
+    // read back null/false on every platform every time — the picker looked like it remembered a
+    // choice only because that choice lived in the screen's own `remember{}` for the one composition
+    // it was open. A no-op that compiles is exactly the failure this file already guards against.
+    fun getWallpaperType(): String?
+    fun setWallpaperType(type: String)
+    fun getSolidColor(): String?
+    fun setSolidColor(color: String?)
+    fun getCustomWallpaperPath(): String?
+    fun setCustomWallpaperPath(path: String?)
+    fun getDarkModeWallpaperEnabled(): Boolean
+    fun setDarkModeWallpaperEnabled(enabled: Boolean)
 }
