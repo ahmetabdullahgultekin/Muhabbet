@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,6 +42,8 @@ import com.muhabbet.app.util.findUrlSpans
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.designsystem.components.MuhabbetMenu
+import com.muhabbet.designsystem.components.MuhabbetMenuItem
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetElevation
@@ -402,56 +402,52 @@ fun MessageBubble(
             }
 
             // Context menu
-            DropdownMenu(expanded = showContextMenu, onDismissRequest = onDismissMenu) {
+            MuhabbetMenu(expanded = showContextMenu, onDismissRequest = onDismissMenu) {
                 // Copy — the most fundamental message action
                 if (message.contentType == ContentType.TEXT && !message.isDeleted) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.chat_context_copy)) },
+                    MuhabbetMenuItem(
+                        text = stringResource(Res.string.chat_context_copy),
+                        icon = Muhabbet.icons.Copy,
                         onClick = {
                             clipboardManager.setText(AnnotatedString(message.content))
                             onCopy()
-                        },
-                        leadingIcon = { Icon(Muhabbet.icons.Copy, contentDescription = stringResource(Res.string.chat_context_copy), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                        }
                     )
                 }
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.chat_context_reply)) },
-                    onClick = onReply,
-                    leadingIcon = { Icon(Muhabbet.icons.Reply, contentDescription = stringResource(Res.string.chat_context_reply), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                MuhabbetMenuItem(
+                    text = stringResource(Res.string.chat_context_reply),
+                    icon = Muhabbet.icons.Reply,
+                    onClick = onReply
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.chat_context_forward)) },
-                    onClick = onForward,
-                    leadingIcon = { Icon(Muhabbet.icons.Send, contentDescription = stringResource(Res.string.chat_context_forward), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                MuhabbetMenuItem(
+                    text = stringResource(Res.string.chat_context_forward),
+                    icon = Muhabbet.icons.Send,
+                    onClick = onForward
                 )
-                DropdownMenuItem(
-                    text = { Text(if (isStarred) stringResource(Res.string.chat_context_unstar) else stringResource(Res.string.chat_context_star)) },
-                    onClick = onStar,
-                    leadingIcon = {
-                        Icon(
-                            if (isStarred) Muhabbet.icons.Star else Muhabbet.icons.StarOutline,
-                            contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconMedium),
-                            tint = if (isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                MuhabbetMenuItem(
+                    text = if (isStarred) stringResource(Res.string.chat_context_unstar) else stringResource(Res.string.chat_context_star),
+                    icon = if (isStarred) Muhabbet.icons.Star else Muhabbet.icons.StarOutline,
+                    iconTint = if (isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                    onClick = onStar
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.chat_context_info)) },
-                    onClick = onInfo,
-                    leadingIcon = { Icon(Muhabbet.icons.Info, contentDescription = stringResource(Res.string.chat_context_info), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                MuhabbetMenuItem(
+                    text = stringResource(Res.string.chat_context_info),
+                    icon = Muhabbet.icons.Info,
+                    onClick = onInfo
                 )
                 if (isOwn) {
                     if (message.contentType == ContentType.TEXT) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.chat_context_edit)) },
-                            onClick = onEdit,
-                            leadingIcon = { Icon(Muhabbet.icons.Edit, contentDescription = stringResource(Res.string.chat_context_edit), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+                        MuhabbetMenuItem(
+                            text = stringResource(Res.string.chat_context_edit),
+                            icon = Muhabbet.icons.Edit,
+                            onClick = onEdit
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.chat_context_delete), color = MaterialTheme.colorScheme.error) },
-                        onClick = onDelete,
-                        leadingIcon = { Icon(Muhabbet.icons.Delete, contentDescription = stringResource(Res.string.chat_context_delete), modifier = Modifier.size(MuhabbetSizes.IconMedium), tint = MaterialTheme.colorScheme.error) }
+                    MuhabbetMenuItem(
+                        text = stringResource(Res.string.chat_context_delete),
+                        icon = Muhabbet.icons.Delete,
+                        destructive = true,
+                        onClick = onDelete
                     )
                 }
             }
