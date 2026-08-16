@@ -41,6 +41,7 @@ import com.muhabbet.app.platform.getPlatformName
 import com.muhabbet.app.platform.rememberFirebasePhoneAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.muhabbet.app.BuildInfo
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -148,14 +149,17 @@ fun OtpVerifyScreen(
             textAlign = TextAlign.Center
         )
 
-        if (mockCode != null) {
+        // Gated on the build type, not on the server's answer. This used to render whenever the
+        // backend returned a code, so a production build would have shown a verification code on
+        // screen the moment mock mode was switched on server-side (#435).
+        if (mockCode != null && BuildInfo.DEBUG) {
             Spacer(Modifier.height(MuhabbetSpacing.Medium))
             Surface(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
-                    text = "Dev Mode — Code: $mockCode",
+                    text = stringResource(Res.string.otp_dev_mode_code, mockCode),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     modifier = Modifier.padding(
@@ -184,14 +188,20 @@ fun OtpVerifyScreen(
             onFilled = { submit() }
         )
 
-        error?.let {
-            Spacer(Modifier.height(MuhabbetSpacing.Small))
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center
-            )
+        // One error slot, showing the newest reason. Once the code has expired, "that code is not
+        // correct" is no longer true of anything — the code it referred to is gone — so showing both
+        // left the user to work out which of two red messages applied (#403). Expiry is rendered
+        // below and supersedes it.
+        if (countdown > 0) {
+            error?.let {
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
 
         Spacer(Modifier.height(MuhabbetSpacing.Small))
