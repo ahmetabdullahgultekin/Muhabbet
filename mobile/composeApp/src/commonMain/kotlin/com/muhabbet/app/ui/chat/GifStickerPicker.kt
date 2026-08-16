@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetBottomSheet
+import com.muhabbet.designsystem.components.keyboardActionsFor
 
 /** Which tab of the shared GIF/sticker sheet a caller wants opened first. */
 enum class GifStickerTab { GIF, STICKER }
@@ -130,6 +131,10 @@ fun GifStickerPicker(
                 singleLine = true,
                 shape = RoundedCornerShape(MuhabbetCorners.Pill),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                // Results already update as the query is typed, so the search key's job is to get
+                // the keyboard out of the way of the grid it just filtered. Without a handler it
+                // did nothing whatsoever — Compose has no default for Search (#479).
+                keyboardActions = keyboardActionsFor(ImeAction.Search, action = null),
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
                         IconButton(onClick = { searchQuery = "" }) {

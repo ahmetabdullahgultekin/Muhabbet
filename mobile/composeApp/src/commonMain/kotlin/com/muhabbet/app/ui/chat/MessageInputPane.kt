@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,7 +23,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,8 +36,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +64,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
 import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.keyboardActionsFor
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
@@ -158,6 +165,7 @@ fun MessageInputBar(
     onScheduleSend: () -> Unit = {}
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
+    val fieldBackground = LocalSemanticColors.current.inputFieldBackground
 
     Surface(
         color = LocalSemanticColors.current.inputBarBackground,
@@ -167,52 +175,84 @@ fun MessageInputBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.Small),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Sticker shortcut — opens the shared GIF/sticker sheet on its Stickers tab.
-            // (It used to be labelled a sticker button, drawn as a smiley, and wired to the GIF
-            // tab, which is also what the attach menu's GIF entry below already does. Emoji
-            // themselves need no button: the system keyboard supplies them in the text field.)
-            MuhabbetIconButton(
-                icon = Muhabbet.icons.Emoji,
-                contentDescription = stringResource(Res.string.attach_sticker),
-                onClick = onStickerPick,
-                enabled = !isUploading && !isEditing,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
             // Attach button — opens the attachment sheet below, not a menu anchored to this icon.
+            //
+            // The only control left standing beside the field. It used to be one of four (a smiley,
+            // this, a view-once eye, and the mic), which left the single most-used input in the app
+            // with about half the row on a 1080px screen (#479). The smiley moved inside the field
+            // as a leading affordance, and view-once moved into the attachment sheet, where the
+            // media it applies to is actually chosen.
+            //
+            // It also carries whether view-once is armed, in its tint and in its label. The eye was
+            // a bad control but it was an always-visible one, and view-once is the one composer
+            // setting with a privacy consequence — a state that can only be seen by reopening the
+            // sheet that sets it is not a state the user can be held to. This costs no width: the
+            // entrance to the setting is the natural place to show it is on.
             IconButton(
                 onClick = { showAttachMenu = true },
                 enabled = !isUploading && !isEditing
             ) {
                 if (isUploading) {
-                    CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(MuhabbetSizes.IconLarge),
+                        strokeWidth = MuhabbetSizes.ProgressStrokeThin
+                    )
                 } else {
                     Icon(
                         imageVector = Muhabbet.icons.Attach,
-                        contentDescription = stringResource(Res.string.attach_file),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        contentDescription = stringResource(
+                            if (viewOnceEnabled) Res.string.attach_file_view_once_on
+                            else Res.string.attach_file
+                        ),
+                        tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-
-            // View-once toggle
-            MuhabbetIconButton(
-                icon = if (viewOnceEnabled) Muhabbet.icons.Visible else Muhabbet.icons.Hidden,
-                contentDescription = stringResource(Res.string.view_once_label),
-                onClick = onViewOnceToggle,
-                enabled = !isEditing,
-                tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
 
             OutlinedTextField(
                 value = messageText,
                 onValueChange = onTextChange,
                 placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
                 modifier = Modifier.weight(1f).testTag("message_input"),
-                maxLines = 4,
+                // Grows line by line as it fills and scrolls inside itself past the cap, which is
+                // what a composer has to do — a message is not a form field. Named rather than a
+                // bare 4 so the cap is a decision and not a leftover.
+                maxLines = ComposerMaxLines,
                 shape = RoundedCornerShape(MuhabbetCorners.Pill),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
+                // Sticker shortcut — opens the shared GIF/sticker sheet on its Stickers tab.
+                // A leading affordance inside the field rather than a sibling of it: it belongs to
+                // the input, and as a sibling it was spending a whole 48dp slot of the row saying
+                // so. (Emoji themselves need no button: the system keyboard supplies them.)
+                leadingIcon = {
+                    MuhabbetIconButton(
+                        icon = Muhabbet.icons.Emoji,
+                        contentDescription = stringResource(Res.string.attach_sticker),
+                        onClick = onStickerPick,
+                        enabled = !isUploading && !isEditing,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                // The bug this pane was reported for: `ImeAction.Send` was declared and no handler
+                // was supplied, so the keyboard drew a send key that did nothing at all. Guarded on
+                // blank for the same reason the send button is: an empty message is not a message.
+                keyboardActions = keyboardActionsFor(ImeAction.Send) {
+                    if (messageText.isNotBlank()) onSend()
+                },
+                // Filled and borderless rather than outlined. `inputFieldBackground` has been in the
+                // semantic palette since it was written and had no reader until now; a composer that
+                // reads as one continuous pill is also what lets the leading icon sit inside it
+                // without looking bolted on.
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = fieldBackground,
+                    unfocusedContainerColor = fieldBackground,
+                    disabledContainerColor = fieldBackground,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    disabledBorderColor = Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                )
             )
 
             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
@@ -284,10 +324,20 @@ fun MessageInputBar(
             onPollCreate = onPollCreate,
             onLocationShare = onLocationShare,
             onGifPick = onGifPick,
-            onCameraPick = onCameraPick
+            onCameraPick = onCameraPick,
+            viewOnceEnabled = viewOnceEnabled,
+            onViewOnceToggle = onViewOnceToggle
         )
     }
 }
+
+/**
+ * How far the composer grows before it starts scrolling inside itself.
+ *
+ * Four lines is roughly a paragraph — enough to see what you wrote before sending it, and short
+ * enough that the message list is still the larger half of the screen with the keyboard up.
+ */
+private const val ComposerMaxLines = 4
 
 /**
  * The attachment picker, opened from [MessageInputBar]'s attach button.
@@ -301,6 +351,9 @@ fun MessageInputBar(
  * `onVideoRecord`, no expect/actual capture exists on either platform, and `CameraPicker` is
  * stills-only — the old menu item opened the menu, closed it, and did nothing. Removed rather than
  * wired, because wiring it would mean building a recorder, an encoder and an upload path first.
+ *
+ * Since #479 it also carries the view-once switch, which used to be a permanent unlabelled eye in
+ * the composer row. It only ever applied to photos, so this is where the decision is actually made.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -311,7 +364,9 @@ private fun AttachmentSheet(
     onPollCreate: () -> Unit,
     onLocationShare: () -> Unit,
     onGifPick: () -> Unit,
-    onCameraPick: () -> Unit
+    onCameraPick: () -> Unit,
+    viewOnceEnabled: Boolean,
+    onViewOnceToggle: () -> Unit
 ) {
     val imageLabel = stringResource(Res.string.attach_image)
     val documentLabel = stringResource(Res.string.attach_document)
@@ -332,6 +387,62 @@ private fun AttachmentSheet(
             AttachmentGridItem(Muhabbet.icons.Location, locationLabel, Modifier.weight(1f)) { onDismiss(); onLocationShare() }
             AttachmentGridItem(Muhabbet.icons.Gif, gifLabel, Modifier.weight(1f)) { onDismiss(); onGifPick() }
         }
+        Spacer(Modifier.height(MuhabbetSpacing.Large))
+        ViewOnceRow(enabled = viewOnceEnabled, onToggle = onViewOnceToggle)
+    }
+}
+
+/**
+ * The view-once switch, at the bottom of the attachment sheet.
+ *
+ * It was an eye in the composer row with no label at all, and the owner's report of it was simply
+ * "I could not understand what it does" (#479). Two things were wrong beyond the missing label:
+ *
+ * - **The glyph was inverted.** Off — the state every ordinary message is sent in — drew the
+ *   *crossed-out* eye, so the resting composer permanently signalled "something here is hidden".
+ *   It now reads the way it means: a plain eye while photos are ordinary, a struck-through eye once
+ *   they will vanish after one look.
+ * - **Tint was the only signal of on/off**, which a screen reader cannot see and a colour-blind
+ *   user may not either. The whole row is one `Role.Switch` node now, so the state is announced.
+ *
+ * The description says "photo" rather than "media" because that is the truth: `viewOnce` is only
+ * applied on the two image paths. There is no video recorder, and a document or a poll marked
+ * view-once would be a promise the backend never made.
+ */
+@Composable
+private fun ViewOnceRow(enabled: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MuhabbetCorners.Medium))
+            .toggleable(value = enabled, onValueChange = { onToggle() }, role = Role.Switch)
+            .heightIn(min = MuhabbetSizes.MinTouchTarget)
+            .padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (enabled) Muhabbet.icons.Hidden else Muhabbet.icons.Visible,
+            // The row's own toggleable semantics already announce the label and the state; a second
+            // description here would make a screen reader read the setting out twice.
+            contentDescription = null,
+            tint = if (enabled) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(MuhabbetSizes.IconLarge)
+        )
+        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(Res.string.view_once_label),
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = stringResource(Res.string.view_once_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
+        Switch(checked = enabled, onCheckedChange = null)
     }
 }
 

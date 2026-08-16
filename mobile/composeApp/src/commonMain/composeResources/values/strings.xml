@@ -18,6 +18,7 @@
     <string name="action_send">Gönder</string>
     <string name="action_save">Kaydet</string>
     <string name="attach_file">Dosya ekle</string>
+    <string name="attach_file_view_once_on">Dosya ekle — bir kez görüntüle açık</string>
     <string name="voice_play">Oynat</string>
     <string name="voice_pause">Duraklat</string>
     <string name="voice_record">Kaydet</string>
@@ -497,6 +498,7 @@
 
     <!-- View Once -->
     <string name="view_once_label">Bir kez görüntüle</string>
+    <string name="view_once_hint">Fotoğraf bir kez açıldıktan sonra kaybolur</string>
     <string name="view_once_opened">Açıldı</string>
     <string name="view_once_tap_to_view">Görüntülemek için dokunun</string>
     <string name="view_once_photo">Fotoğraf</string>

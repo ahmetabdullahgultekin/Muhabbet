@@ -182,7 +182,15 @@ fun ChatScreen(
     var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     val starredIds = remember { mutableStateOf(setOf<String>()) }
 
-    // View-once and announcement mode
+    // View-once and announcement mode.
+    //
+    // The toggle lives in the attachment sheet since #479, but the state stays here: it has to
+    // outlive the sheet, which dismisses before the picker even opens. It applies to the next photo
+    // and then clears itself, which is why both image paths below reset it after sending.
+    //
+    // Until #479 it was also never put on the wire — `WsMessage.SendMessage.viewOnce` defaulted to
+    // false and neither picker passed it, so the sender saw a sealed local bubble, the server stored
+    // an ordinary message, and the recipient (and the sender after a reload) got the photo in full.
     var viewOnceEnabled by remember { mutableStateOf(false) }
     var isAnnouncementOnly by remember { mutableStateOf(false) }
     var isAdminOrOwner by remember { mutableStateOf(false) }
@@ -226,10 +234,16 @@ fun ChatScreen(
                 val msgId = generateMessageId(); val reqId = generateMessageId()
                 messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
                     contentType = ContentType.IMAGE, content = chatPhotoText, mediaUrl = upload.url,
-                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now())
+                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now(),
+                    viewOnce = viewOnceEnabled)
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
-                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url, thumbnailUrl = upload.thumbnailUrl))
+                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url,
+                    thumbnailUrl = upload.thumbnailUrl, viewOnce = viewOnceEnabled))
             } catch (_: Exception) { sendFailed = true }
+            // Disarmed on the way out of the attempt, not inside the `try`: `wsClient.send` throws
+            // when the socket is down, so clearing it there left the flag set after a failure with
+            // the sheet closed — armed, invisible, and applied to whatever photo came next.
+            viewOnceEnabled = false
             // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploading = false
             if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
@@ -250,9 +264,13 @@ fun ChatScreen(
                     thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now(),
                     viewOnce = viewOnceEnabled)
                 wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
-                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url, thumbnailUrl = upload.thumbnailUrl))
-                if (viewOnceEnabled) viewOnceEnabled = false
+                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url,
+                    thumbnailUrl = upload.thumbnailUrl, viewOnce = viewOnceEnabled))
             } catch (_: Exception) { sendFailed = true }
+            // Disarmed on the way out of the attempt, not inside the `try`: `wsClient.send` throws
+            // when the socket is down, so clearing it there left the flag set after a failure with
+            // the sheet closed — armed, invisible, and applied to whatever photo came next.
+            viewOnceEnabled = false
             // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploading = false
             if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
