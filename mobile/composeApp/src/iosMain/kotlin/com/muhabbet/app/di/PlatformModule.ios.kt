@@ -95,4 +95,32 @@ class IosTokenStorage : TokenStorage {
     override fun setLastSyncTimestamp(timestamp: String) {
         defaults.setObject(timestamp, forKey = "last_sync_timestamp")
     }
+
+    override fun getWallpaperType(): String? = defaults.stringForKey("wallpaper_type")
+
+    override fun setWallpaperType(type: String) {
+        defaults.setObject(type, forKey = "wallpaper_type")
+    }
+
+    override fun getSolidColor(): String? = defaults.stringForKey("wallpaper_solid_color")
+
+    override fun setSolidColor(color: String?) {
+        if (color == null) defaults.removeObjectForKey("wallpaper_solid_color")
+        else defaults.setObject(color, forKey = "wallpaper_solid_color")
+    }
+
+    override fun getCustomWallpaperPath(): String? = defaults.stringForKey("wallpaper_custom_path")
+
+    override fun setCustomWallpaperPath(path: String?) {
+        if (path == null) defaults.removeObjectForKey("wallpaper_custom_path")
+        else defaults.setObject(path, forKey = "wallpaper_custom_path")
+    }
+
+    override fun getDarkModeWallpaperEnabled(): Boolean =
+        if (defaults.objectForKey("wallpaper_dark_mode") == null) false
+        else defaults.boolForKey("wallpaper_dark_mode")
+
+    override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "wallpaper_dark_mode")
+    }
 }

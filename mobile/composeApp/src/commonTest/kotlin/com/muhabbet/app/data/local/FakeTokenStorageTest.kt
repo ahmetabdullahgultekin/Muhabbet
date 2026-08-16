@@ -63,4 +63,33 @@ class FakeTokenStorageTest {
         storage.setTheme("dark")
         assertEquals("dark", storage.getTheme())
     }
+
+    /**
+     * #380: every wallpaper getter/setter used to be a defaulted no-op on [TokenStorage], so this
+     * exact assertion — a written value reading back — would have failed on every implementation.
+     * `AndroidTokenStorage` and `IosTokenStorage` cannot be exercised here (they need a real
+     * Context / NSUserDefaults), but a defaulted no-op body would have made this fail on the fake
+     * too — the trap in this interface, once, at the cheapest possible layer.
+     */
+    @Test
+    fun should_persist_wallpaper_preferences_after_write() {
+        val storage = FakeTokenStorage()
+        assertNull(storage.getWallpaperType())
+        assertNull(storage.getSolidColor())
+        assertNull(storage.getCustomWallpaperPath())
+        assertFalse(storage.getDarkModeWallpaperEnabled())
+
+        storage.setWallpaperType("SOLID")
+        storage.setSolidColor("#112233")
+        storage.setCustomWallpaperPath("/data/user/0/com.muhabbet.app/files/wallpapers/wall.jpg")
+        storage.setDarkModeWallpaperEnabled(true)
+
+        assertEquals("SOLID", storage.getWallpaperType())
+        assertEquals("#112233", storage.getSolidColor())
+        assertEquals(
+            "/data/user/0/com.muhabbet.app/files/wallpapers/wall.jpg",
+            storage.getCustomWallpaperPath()
+        )
+        assertTrue(storage.getDarkModeWallpaperEnabled())
+    }
 }

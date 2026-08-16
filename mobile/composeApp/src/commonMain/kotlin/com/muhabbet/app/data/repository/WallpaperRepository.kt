@@ -49,4 +49,33 @@ class WallpaperRepository(
     fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         tokenStorage.setDarkModeWallpaperEnabled(enabled)
     }
+
+    /** What a chat screen should actually paint behind its messages. See [resolveWallpaper]. */
+    sealed class ChatWallpaper {
+        data object Default : ChatWallpaper()
+        data class Solid(val hexColor: String) : ChatWallpaper()
+        data class Custom(val path: String) : ChatWallpaper()
+    }
+
+    /**
+     * Resolves the stored selection into what a chat screen should actually paint, given whether
+     * it is currently rendering a dark theme.
+     *
+     * This is the reader half of the wallpaper feature (#380): `WallpaperPickerScreen` only ever
+     * wrote through [setWallpaperType]/[setSolidColor]/[setCustomPath], and nothing consulted them
+     * when drawing a chat. Resolving the three stored fields — plus the dark-mode override — in one
+     * place keeps that decision out of the composable and out of every future caller.
+     *
+     * When [isDarkTheme] is true and the user has not opted in via [getDarkModeWallpaperEnabled],
+     * dark chats keep the theme's own wallpaper regardless of what is stored — matching the
+     * "wallpaper_dark_mode" toggle's label ("Dark mode wallpaper") and the picker screen it controls.
+     */
+    fun resolveWallpaper(isDarkTheme: Boolean): ChatWallpaper {
+        if (isDarkTheme && !getDarkModeWallpaperEnabled()) return ChatWallpaper.Default
+        return when (getWallpaperType()) {
+            "SOLID" -> getSolidColor()?.let { ChatWallpaper.Solid(it) } ?: ChatWallpaper.Default
+            "CUSTOM" -> getCustomPath()?.let { ChatWallpaper.Custom(it) } ?: ChatWallpaper.Default
+            else -> ChatWallpaper.Default
+        }
+    }
 }

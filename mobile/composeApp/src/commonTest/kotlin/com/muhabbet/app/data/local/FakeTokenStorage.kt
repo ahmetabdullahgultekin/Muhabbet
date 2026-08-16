@@ -46,4 +46,20 @@ class FakeTokenStorage : TokenStorage {
     override fun getContactSyncConsentAt(): String? = contactSyncConsentAt
     override fun setContactSyncConsentAt(timestamp: String) { contactSyncConsentAt = timestamp }
     override fun clearContactSyncConsent() { contactSyncConsentAt = null }
+
+    private var wallpaperType: String? = null
+    override fun getWallpaperType(): String? = wallpaperType
+    override fun setWallpaperType(type: String) { wallpaperType = type }
+
+    private var solidColor: String? = null
+    override fun getSolidColor(): String? = solidColor
+    override fun setSolidColor(color: String?) { solidColor = color }
+
+    private var customWallpaperPath: String? = null
+    override fun getCustomWallpaperPath(): String? = customWallpaperPath
+    override fun setCustomWallpaperPath(path: String?) { customWallpaperPath = path }
+
+    private var darkModeWallpaperEnabled: Boolean = false
+    override fun getDarkModeWallpaperEnabled(): Boolean = darkModeWallpaperEnabled
+    override fun setDarkModeWallpaperEnabled(enabled: Boolean) { darkModeWallpaperEnabled = enabled }
 }
