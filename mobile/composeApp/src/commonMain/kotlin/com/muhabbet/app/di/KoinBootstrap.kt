@@ -1,7 +1,6 @@
 package com.muhabbet.app.di
 
 import org.koin.core.Koin
-import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.mp.KoinPlatform
@@ -13,10 +12,10 @@ import org.koin.mp.KoinPlatform
  * point) composes, and `MuhabbetFirebaseMessagingService.onNewToken` (androidMain), which the
  * system can invoke to deliver a rotated FCM token before `MainActivity` has ever run in the
  * process — without this, Koin would not exist yet at that call site (#398). `runCatching` covers
- * the race between the two: `GlobalContext.getOrNull()` can read null for both, and only one
+ * the race between the two: `KoinPlatform.getKoinOrNull()` can read null for both, and only one
  * `startKoin` call wins.
  */
 fun bootstrapOrReuseKoin(platformModule: Module): Koin =
-    GlobalContext.getOrNull() ?: runCatching {
+    KoinPlatform.getKoinOrNull() ?: runCatching {
         startKoin { modules(platformModule, appModule()) }.koin
     }.getOrElse { KoinPlatform.getKoin() }
