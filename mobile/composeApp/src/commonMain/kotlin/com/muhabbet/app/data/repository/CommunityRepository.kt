@@ -74,4 +74,12 @@ class CommunityRepository(
     suspend fun leaveCommunity(communityId: String) {
         apiClient.post<Unit>("/api/v1/communities/$communityId/leave", emptyMap<String, String>())
     }
+
+    /**
+     * Deletes the community outright (#407). Owner only server-side — the screen must hide this
+     * action for anyone else, since a non-owner call reaches the server only to 403.
+     */
+    suspend fun deleteCommunity(communityId: String) {
+        apiClient.delete<Unit>("/api/v1/communities/$communityId")
+    }
 }

@@ -120,9 +120,9 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     ),
     COMMUNITY_INVALID_NAME(HttpStatus.BAD_REQUEST, "Geçersiz topluluk adı"),
 
-    // Leaving would delete the community rather than hand it over, and there is no delete endpoint
-    // to do that honestly (cascade semantics are undecided). Refusing keeps the rows reachable
-    // instead of stranding a community nobody can open, rename or remove.
+    // Leaving would strand the community with no member and no owner. #407 added a real delete
+    // endpoint (owner only) as the honest way to remove one; leave still refuses for a sole member
+    // so the escape hatch is an explicit, auditable delete rather than an implicit one on the way out.
     COMMUNITY_LAST_MEMBER_CANNOT_LEAVE(
         HttpStatus.BAD_REQUEST,
         "Topluluğun tek üyesi ayrılamaz, önce başka birini ekleyin"

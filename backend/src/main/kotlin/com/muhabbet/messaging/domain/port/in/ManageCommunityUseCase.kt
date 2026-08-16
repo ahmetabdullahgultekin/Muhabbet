@@ -93,6 +93,20 @@ interface ManageCommunityUseCase {
     fun removeGroup(communityId: UUID, conversationId: UUID, userId: UUID)
 
     /**
+     * Deletes the community outright. Owner only — unlike [update] and [addGroup], an admin cannot
+     * do this: it is irreversible and cannot be undone from inside the app the way a rename or an
+     * unlink can.
+     *
+     * Cascades to `community_members` and `community_groups` (the community's own membership and
+     * group-link rows). It does **not** delete the linked conversations: a group that outlives its
+     * community must keep its messages and members, so only the link is removed, never the group.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
+     * community exists, `COMMUNITY_PERMISSION_DENIED` when the caller is not the owner.
+     */
+    fun delete(communityId: UUID, requesterId: UUID)
+
+    /**
      * Reads a community. Members only: this returns the community's groups, and with them the name,
      * avatar and member count of each linked conversation.
      *
@@ -142,8 +156,8 @@ interface ManageCommunityMembershipUseCase {
      *
      * The last owner does not strand the community: ownership passes to the longest-standing
      * remaining admin, or failing that the longest-standing member, exactly as leaving a group
-     * does. A sole member is refused rather than allowed to leave an unreachable, undeletable
-     * community behind.
+     * does. A sole member is refused rather than allowed to leave an unreachable community behind —
+     * [ManageCommunityUseCase.delete] is the deliberate way to remove one, not the last leave.
      *
      * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
      * community exists, `COMMUNITY_PERMISSION_DENIED` when the caller is not a member,

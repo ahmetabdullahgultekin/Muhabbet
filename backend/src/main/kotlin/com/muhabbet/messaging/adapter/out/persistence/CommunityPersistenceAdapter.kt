@@ -37,6 +37,11 @@ class CommunityPersistenceAdapter(
         return communityRepo.save(entity).toDomain()
     }
 
+    // Deleting only the `communities` row is deliberate: the FK cascade on `community_members` and
+    // `community_groups` (V16) removes the membership and group-link rows for us, and neither table
+    // reaches into `conversations`, so no message, member or conversation row is ever touched.
+    override fun delete(id: UUID) = communityRepo.deleteById(id)
+
     override fun saveMember(member: CommunityMember): CommunityMember =
         memberRepo.save(CommunityMemberJpaEntity.fromDomain(member)).toDomain()
 
