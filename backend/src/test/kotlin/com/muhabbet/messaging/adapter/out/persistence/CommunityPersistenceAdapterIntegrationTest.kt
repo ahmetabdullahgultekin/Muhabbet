@@ -164,6 +164,52 @@ class CommunityPersistenceAdapterIntegrationTest {
     }
 
     @Test
+    fun `should cascade-delete members and group links when a community is deleted`() {
+        // #407: the app code issues a single DELETE on `communities`; V16's
+        // `... REFERENCES communities(id) ON DELETE CASCADE` on both link tables is what actually
+        // removes these rows. A mock would agree that delete() worked even if that clause were
+        // missing, so this has to run against a real Postgres to mean anything.
+        val conversationId = seedGroupConversation()
+        communityRepository.addGroup(CommunityGroup(communityId = communityId, conversationId = conversationId))
+        communityRepository.saveMember(
+            CommunityMember(communityId = communityId, userId = creatorId, role = MemberRole.OWNER)
+        )
+
+        communityRepository.delete(communityId)
+
+        assertNull(communityRepository.findById(communityId))
+        assertTrue(communityRepository.findGroupsByCommunityId(communityId).isEmpty())
+        assertNull(communityRepository.findMember(communityId, creatorId))
+    }
+
+    @Test
+    fun `should leave the linked conversation intact when a community is deleted`() {
+        // The clause that cascades is on community_groups.community_id, not on
+        // community_groups.conversation_id (nor is there any FK from conversations back to
+        // communities) — so deleting a community must never take its groups' messages or members
+        // with it. This is the assertion #407 asked for explicitly.
+        val conversationId = seedGroupConversation()
+        communityRepository.addGroup(CommunityGroup(communityId = communityId, conversationId = conversationId))
+
+        communityRepository.delete(communityId)
+
+        assertEquals(conversationId, conversationRepository.findById(conversationId)?.id)
+    }
+
+    @Test
+    fun `should leave another community's row alone when one community is deleted`() {
+        val otherCommunityId = communityRepository.save(Community(name = "Okul", createdBy = creatorId)).id
+        communityRepository.saveMember(
+            CommunityMember(communityId = otherCommunityId, userId = creatorId, role = MemberRole.OWNER)
+        )
+
+        communityRepository.delete(communityId)
+
+        assertEquals("Okul", communityRepository.findById(otherCommunityId)?.name)
+        assertEquals(1, communityRepository.findMembersByCommunityId(otherCommunityId).size)
+    }
+
+    @Test
     fun `should persist a new name and description when a community is updated`() {
         // `CommunityRepository.update` has zero callers, so this is the first time the column write
         // is exercised at all.

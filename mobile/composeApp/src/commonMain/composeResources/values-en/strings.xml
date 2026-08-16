@@ -584,6 +584,10 @@
     <string name="community_leave_confirm">Are you sure you want to leave this community?</string>
     <string name="community_leave_button">Leave</string>
     <string name="community_leave_failed">Could not leave the community</string>
+    <string name="community_delete_title">Delete Community</string>
+    <string name="community_delete_confirm">Are you sure you want to delete this community? This cannot be undone. The community's groups are not deleted, only unlinked from it.</string>
+    <string name="community_delete_button">Delete</string>
+    <string name="community_delete_failed">Could not delete the community</string>
     <string name="community_add_member">Add Member</string>
     <string name="community_add_member_title">Add Member to Community</string>
     <string name="community_add_member_subtitle">People in this community's groups can be added</string>
