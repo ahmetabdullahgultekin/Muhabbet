@@ -54,6 +54,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Compose Multiplatform is not Android. Its resource compiler (XmlValuesConverterTask) reads
+      # getTextContent() straight off the DOM and base64-encodes it — there is no replace() call
+      # anywhere in the task, and the runtime only substitutes %1$s-style arguments. So the Android
+      # habit of writing \' for an apostrophe is never unescaped, and the backslash reaches the
+      # screen. Fifteen strings shipped that way (#471): among them the invite text we send to
+      # people who do not have the app yet, the two-step PIN screens, and the "this media may have
+      # been tampered with" warning — every one a moment where the app is asking to be trusted.
+      #
+      # The check is "no backslash at all", not "no \'", because \n is not unescaped either: a line
+      # break has to be written as a real line break. No backslash is legitimate in these files.
+      #
+      # Placed before the JDK and Gradle setup on purpose — it needs neither, so a regression fails
+      # in seconds instead of after an Android build.
+      - name: Reject Android-style escapes in Compose string resources
+        run: |
+          if grep -rnF '\' mobile/composeApp/src/commonMain/composeResources --include=strings.xml; then
+            echo "ERROR: the string resource lines above contain a backslash." >&2
+            echo "Compose Multiplatform resources do not unescape \\' — write the apostrophe directly." >&2
+            echo "\\n is not unescaped either — use a real line break. See issue #471." >&2
+            exit 1
+          fi
+          echo "OK: no backslashes in Compose string resources."
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
