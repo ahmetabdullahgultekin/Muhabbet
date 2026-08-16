@@ -78,6 +78,52 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   groups yet cannot gain a second member until then. No client flow is affected: the app has never
   had a way to add a community member at all. (#375)
 
+## [0.3.4] — 2026-08-16
+
+The first build meant to be installed by someone other than us. Signed with the release key and
+headed for Play internal testing, which is why the notes below are blunter than usual about what
+still does not work.
+
+### Fixed
+- **Messages were being thrown away by the server.** A message sent to anyone not on an open socket
+  at that exact moment was published to Redis, received, and discarded — the subscriber was reading
+  the subscription pattern where the recipient's id should have been. It logged its own failure on
+  every occurrence, which is how it was finally found. (#397)
+- **Tapping the camera button killed the app.** The permission was declared in the manifest and
+  never requested, so Android refused the capture with a `SecurityException`. (#399)
+- **Your address book was uploaded the moment you granted the contacts permission**, with no
+  explanation and no way to decline, while the privacy documents described it as opt-in. There is a
+  consent step now, and declining leaves a usable app. (#425)
+- **"Delete my account" did not delete anything** beyond a status flag — the phone number stayed in
+  plaintext, the contact-sync hash kept matching, and devices kept their push tokens. (#426)
+- **Photos uploaded rotated.** EXIF orientation was ignored and then destroyed by the re-encode, so
+  the information needed to correct it was gone. All eight orientations are handled now. (#408)
+- **Every field whose value happened to equal its default vanished from API responses**, so a user
+  who hid their online status sent no `isOnline` at all rather than `false`. (#269)
+- Typing at the left of the login field produced `5000000001+90`. The country code is a fixed prefix
+  now, and pasting a number with spaces or a leading zero works. (#439)
+- The verification screen stacked a stale error under the current one. (#403)
+- `last_seen_at` had never once been written — a `@Modifying` query ran with no transaction. (#402)
+- A malformed request body answered 500 instead of 400. (#401)
+
+### Changed
+- **The app icon is Muhabbet's own** — the copper mark from the login screen — instead of Material
+  Green 900 with a white speech bubble. (#418)
+- **Login can no longer run up an unbounded bill.** Nothing capped how many billed verifications
+  could be started; there are now hourly and per-number ceilings, plus rate limiting at the edge.
+  (#440)
+- The auth rate limiter no longer trusts a header the client controls. (#270)
+- Flyway checksum validation is on in production, so an edited migration can no longer be silently
+  ignored. (#429)
+- A community can be deleted by its owner. (#407)
+
+### Known issues
+- **Calls do not work and never have.** (#367–#373)
+- **Push notifications do not arrive.** Two independent causes, both being worked. (#398)
+- End-to-end encryption is off, and the app says so.
+- Broadcast lists reach the server now but cannot gain a recipient or be sent to. (#449)
+- App Lock does nothing. (#378)
+
 ## [0.3.3] — 2026-08-16
 
 0.3.2 was never published; everything in it is here too. This adds the second batch of
