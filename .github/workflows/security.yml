@@ -62,12 +62,16 @@ jobs:
       - name: Generate Gradle dependency list
         run: ./gradlew :backend:dependencies --configuration runtimeClasspath > backend-deps.txt
 
+      # Only on failure, and briefly. The account's artifact storage quota is exhausted, so an
+      # unconditional upload fails the job after the scan itself has already succeeded — the same
+      # fault that was making Backend CI red on green builds.
       - name: Upload dependency list
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: dependency-list
           path: backend-deps.txt
-          retention-days: 30
+          retention-days: 3
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -134,6 +138,14 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The action's SARIF upload is what fails here, not the scan. It derives its root
+          # directory from $HOME (/home/deploy) while the workspace is under
+          # /opt/actions-runner-muhabbet, and dies with "The rootDirectory: /home/deploy is not a
+          # parent directory of the file: …/results.sarif". So a clean scan still reported failure,
+          # which has made this check meaningless for months — indistinguishable from a real leak.
+          # The findings are in the step's own output; the artifact adds nothing and also costs
+          # quota that is already exhausted.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
 
   # --- CodeQL Analysis ---
   codeql:
