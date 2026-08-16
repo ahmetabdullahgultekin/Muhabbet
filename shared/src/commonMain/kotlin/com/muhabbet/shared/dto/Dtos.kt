@@ -597,6 +597,19 @@ data class BroadcastListResponse(
     val createdAt: String
 )
 
+/**
+ * A recipient of a broadcast list, from `GET /api/v1/broadcast-lists/{id}/members`.
+ *
+ * [displayName] is nullable because a user who never set one is normal; the screen falls back to a
+ * localized "unknown", never to the raw id.
+ */
+@Serializable
+data class BroadcastMemberResponse(
+    val userId: String,
+    val displayName: String? = null,
+    val avatarUrl: String? = null
+)
+
 // ─── Login Approval DTOs ────────────────────────────────
 @Serializable
 data class LoginApprovalNotification(

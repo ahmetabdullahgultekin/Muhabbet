@@ -36,7 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.repository.BroadcastListRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.designsystem.components.MuhabbetTopBar
@@ -45,7 +45,6 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.BroadcastListResponse
-import com.muhabbet.shared.dto.CreateBroadcastListRequest
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -56,12 +55,14 @@ import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
 
+private const val TAG = "BroadcastListScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BroadcastListScreen(
     onBack: () -> Unit,
     onBroadcastListClick: (id: String, name: String) -> Unit = { _, _ -> },
-    apiClient: ApiClient = koinInject()
+    broadcastListRepository: BroadcastListRepository = koinInject()
 ) {
     var lists by remember { mutableStateOf<List<BroadcastListResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -73,14 +74,13 @@ fun BroadcastListScreen(
 
     LaunchedEffect(Unit) {
         val failure = runCatchingCancellable {
-            val response = apiClient.get<List<BroadcastListResponse>>("/api/v1/broadcasts")
-            lists = response.data ?: emptyList()
+            lists = broadcastListRepository.getBroadcastLists()
         }.exceptionOrNull()
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
         if (failure != null) {
             // Without this the screen shows the "no broadcast lists" empty state, which is a lie.
-            Log.e("BroadcastListScreen", "Failed to load broadcast lists", failure)
+            Log.e(TAG, "Failed to load broadcast lists", failure)
             snackbarHostState.showSnackbar(genericErrorMsg)
         }
     }
@@ -93,21 +93,20 @@ fun BroadcastListScreen(
             dismissLabel = stringResource(Res.string.cancel),
             confirmLabel = stringResource(Res.string.broadcast_list_create),
             onConfirm = {
+                        // Read before the dialog leaves composition, so the request cannot depend
+                        // on state whose owner has already been disposed.
+                        val requestedName = listName
+                        showCreateDialog = false
                         scope.launch {
-                            try {
-                                val response = apiClient.post<BroadcastListResponse>(
-                                    "/api/v1/broadcasts",
-                                    CreateBroadcastListRequest(name = listName, memberIds = emptyList())
-                                )
-                                val created = response.data
-                                if (created != null) {
-                                    lists = lists + created
-                                }
-                            } catch (_: Exception) {
+                            runCatchingCancellable {
+                                lists = lists + broadcastListRepository.createBroadcastList(requestedName)
+                            }.onFailure { e ->
+                                // A swallowed failure here closed the dialog and showed nothing,
+                                // so a rejected create looked exactly like a successful one.
+                                Log.e(TAG, "Failed to create broadcast list", e)
                                 snackbarHostState.showSnackbar(genericErrorMsg)
                             }
                         }
-                        showCreateDialog = false
                     },
             confirmEnabled = listName.isNotBlank(),
             content ={

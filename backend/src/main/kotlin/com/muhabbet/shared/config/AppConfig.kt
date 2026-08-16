@@ -375,9 +375,11 @@ class AppConfig {
 
     @Bean
     fun broadcastListService(
-        broadcastListRepository: BroadcastListRepository
+        broadcastListRepository: BroadcastListRepository,
+        userDirectoryPort: UserDirectoryPort
     ): BroadcastListService = BroadcastListService(
-        broadcastListRepository = broadcastListRepository
+        broadcastListRepository = broadcastListRepository,
+        userDirectoryPort = userDirectoryPort
     )
 
     @Bean

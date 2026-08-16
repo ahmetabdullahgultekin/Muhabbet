@@ -32,9 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.repository.BroadcastListRepository
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.action_retry
@@ -42,8 +46,9 @@ import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_no_recipients
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_recipients
 import com.muhabbet.composeapp.generated.resources.broadcast_detail_title
+import com.muhabbet.composeapp.generated.resources.unknown
 import com.muhabbet.composeapp.generated.resources.error_generic
-import kotlinx.serialization.Serializable
+import com.muhabbet.shared.dto.BroadcastMemberResponse
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -51,11 +56,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetErrorState
 
-@Serializable
-private data class BroadcastMemberEntry(
-    val broadcastListId: String,
-    val userId: String
-)
+private const val TAG = "BroadcastDetailScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,9 +64,12 @@ fun BroadcastDetailScreen(
     broadcastListId: String,
     broadcastListName: String,
     onBack: () -> Unit,
-    apiClient: ApiClient = koinInject()
+    broadcastListRepository: BroadcastListRepository = koinInject()
 ) {
-    var members by remember { mutableStateOf<List<BroadcastMemberEntry>>(emptyList()) }
+    // The shared DTO, not a private copy. The local one this replaces declared the two fields the
+    // old controller happened to emit, which is how a screen can compile against a shape the
+    // server does not serve.
+    var members by remember { mutableStateOf<List<BroadcastMemberResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf(false) }
 
@@ -76,12 +80,10 @@ fun BroadcastDetailScreen(
     LaunchedEffect(broadcastListId, retryKey) {
         isLoading = true
         loadError = false
-        try {
-            val response = apiClient.get<List<BroadcastMemberEntry>>(
-                "/api/v1/broadcasts/$broadcastListId/members"
-            )
-            members = response.data ?: emptyList()
-        } catch (_: Exception) {
+        runCatchingCancellable {
+            members = broadcastListRepository.getBroadcastListMembers(broadcastListId)
+        }.onFailure { e ->
+            Log.e(TAG, "Failed to load recipients of $broadcastListId", e)
             loadError = true
         }
         isLoading = false
@@ -143,6 +145,9 @@ fun BroadcastDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         tonalElevation = MuhabbetElevation.Level1
                     ) {
+                        // Was `member.userId` — a column of raw UUIDs. The endpoint had never been
+                        // reached, so nobody had seen what it renders.
+                        val displayName = member.displayName ?: stringResource(Res.string.unknown)
                         Row(
                             modifier = Modifier.padding(
                                 horizontal = MuhabbetSpacing.Large,
@@ -151,16 +156,16 @@ fun BroadcastDetailScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Start
                         ) {
-                            Icon(
-                                Muhabbet.icons.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(40.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            UserAvatar(
+                                avatarUrl = member.avatarUrl,
+                                displayName = displayName,
+                                size = MuhabbetSizes.AvatarSmall
                             )
                             Spacer(Modifier.width(MuhabbetSpacing.Medium))
                             Text(
-                                text = member.userId,
-                                style = MaterialTheme.typography.bodyMedium
+                                text = displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1
                             )
                         }
                     }

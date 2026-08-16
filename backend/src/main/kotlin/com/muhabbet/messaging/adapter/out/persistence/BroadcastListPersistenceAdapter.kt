@@ -23,7 +23,7 @@ class BroadcastListPersistenceAdapter(
         listRepo.findById(id).orElse(null)?.toDomain()
 
     override fun findByOwnerId(ownerId: UUID): List<BroadcastList> =
-        listRepo.findByOwnerId(ownerId).map { it.toDomain() }
+        listRepo.findByOwnerIdOrderByCreatedAtDesc(ownerId).map { it.toDomain() }
 
     override fun delete(id: UUID) =
         listRepo.deleteById(id)
@@ -36,4 +36,9 @@ class BroadcastListPersistenceAdapter(
 
     override fun findMembers(broadcastListId: UUID): List<BroadcastListMember> =
         memberRepo.findByBroadcastListId(broadcastListId).map { it.toDomain() }
+
+    override fun countMembersByListIds(listIds: List<UUID>): Map<UUID, Int> {
+        if (listIds.isEmpty()) return emptyMap()
+        return memberRepo.countByBroadcastListIds(listIds).toCountById()
+    }
 }
