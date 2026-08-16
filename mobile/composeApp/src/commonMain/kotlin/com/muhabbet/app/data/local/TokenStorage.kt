@@ -35,6 +35,19 @@ interface TokenStorage {
     fun getMediaQuality(): String?
     fun setMediaQuality(quality: String)
 
+    /**
+     * When the user agreed to contact matching, as an ISO-8601 instant; null means they never have.
+     *
+     * Abstract for the same reason as media quality above, and with more at stake. A defaulted
+     * no-op would read back null forever, so the consent screen would either re-ask on every visit
+     * or — worse, if the gate were written the other way round — never record a refusal and upload
+     * the address book anyway. That is the one control here carrying a legal obligation (#425), so
+     * it must not be possible to satisfy this interface by doing nothing.
+     */
+    fun getContactSyncConsentAt(): String?
+    fun setContactSyncConsentAt(timestamp: String)
+    fun clearContactSyncConsent()
+
     fun getWallpaperType(): String? = null
     fun setWallpaperType(type: String) {}
     fun getSolidColor(): String? = null

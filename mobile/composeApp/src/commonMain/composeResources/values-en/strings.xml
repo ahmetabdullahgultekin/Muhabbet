@@ -705,4 +705,11 @@
     <string name="otp_error_cooldown">Wait a moment before requesting a new code</string>
     <string name="search_failed">Search failed</string>
     <string name="status_post_failed">Could not post your status</string>
+    <!-- Contact-sync consent (KVKK explicit consent, #425) -->
+    <string name="contacts_consent_title">Match your contacts?</string>
+    <string name="contacts_consent_body">To find which of your contacts are on Muhabbet, we irreversibly hash each number on your phone (SHA-256) and send only those hashes to our server. The numbers themselves never leave your device, and hashes that do not match are not kept. You can withdraw this at any time, and if you decline you can still start a chat by typing a number.</string>
+    <string name="contacts_consent_accept">I agree</string>
+    <string name="contacts_consent_decline">Not now</string>
+    <string name="contacts_consent_declined">You have not agreed to contact matching. You can still start a chat by typing a number.</string>
+    <string name="contacts_consent_review">Review this permission</string>
 </resources>

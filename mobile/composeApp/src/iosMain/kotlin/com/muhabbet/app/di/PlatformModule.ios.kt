@@ -74,6 +74,16 @@ class IosTokenStorage : TokenStorage {
         defaults.setObject(theme, forKey = "app_theme")
     }
 
+    override fun getContactSyncConsentAt(): String? = defaults.stringForKey("contact_sync_consent_at")
+
+    override fun setContactSyncConsentAt(timestamp: String) {
+        defaults.setObject(timestamp, forKey = "contact_sync_consent_at")
+    }
+
+    override fun clearContactSyncConsent() {
+        defaults.removeObjectForKey("contact_sync_consent_at")
+    }
+
     override fun getMediaQuality(): String? = defaults.stringForKey("media_quality")
 
     override fun setMediaQuality(quality: String) {

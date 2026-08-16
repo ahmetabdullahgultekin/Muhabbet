@@ -41,4 +41,9 @@ class FakeTokenStorage : TokenStorage {
     private var mediaQuality: String? = null
     override fun getMediaQuality(): String? = mediaQuality
     override fun setMediaQuality(quality: String) { mediaQuality = quality }
+
+    private var contactSyncConsentAt: String? = null
+    override fun getContactSyncConsentAt(): String? = contactSyncConsentAt
+    override fun setContactSyncConsentAt(timestamp: String) { contactSyncConsentAt = timestamp }
+    override fun clearContactSyncConsent() { contactSyncConsentAt = null }
 }

@@ -91,6 +91,16 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putString("app_theme", theme).apply()
     }
 
+    override fun getContactSyncConsentAt(): String? = plainPrefs.getString("contact_sync_consent_at", null)
+
+    override fun setContactSyncConsentAt(timestamp: String) {
+        plainPrefs.edit().putString("contact_sync_consent_at", timestamp).apply()
+    }
+
+    override fun clearContactSyncConsent() {
+        plainPrefs.edit().remove("contact_sync_consent_at").apply()
+    }
+
     override fun getMediaQuality(): String? = plainPrefs.getString("media_quality", null)
 
     override fun setMediaQuality(quality: String) {

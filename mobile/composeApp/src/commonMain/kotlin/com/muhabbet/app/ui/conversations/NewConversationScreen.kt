@@ -50,6 +50,9 @@ import com.muhabbet.app.util.sha256Hex
 import com.muhabbet.shared.dto.MatchedContact
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.designsystem.components.MuhabbetDialog
+import kotlin.time.Clock
 import kotlinx.coroutines.withContext
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -76,7 +79,8 @@ fun NewConversationScreen(
      */
     onContactPicked: ((userId: String, name: String?) -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
-    contactsProvider: ContactsProvider = koinInject()
+    contactsProvider: ContactsProvider = koinInject(),
+    tokenStorage: TokenStorage = koinInject()
 ) {
     var contacts by remember { mutableStateOf<List<MatchedContact>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -86,6 +90,14 @@ fun NewConversationScreen(
     var permissionDenied by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var showStartByNumber by remember { mutableStateOf(false) }
+
+    // The Android READ_CONTACTS permission authorises reading contacts *on the device*. It says
+    // nothing about sending anything derived from them to a server, and the people in the address
+    // book are not users of this service and never agreed to anything. Until #425 this screen
+    // uploaded the whole book the instant the OS permission was granted, while the KVKK texts
+    // described contact matching as opt-in on explicit consent — a control that did not exist.
+    var contactSyncConsented by remember { mutableStateOf(tokenStorage.getContactSyncConsentAt() != null) }
+    var showConsentDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -103,7 +115,7 @@ fun NewConversationScreen(
     // because the key never changed. Someone who joined Muhabbet after your last sync stayed
     // invisible until the screen was destroyed and recreated, with no way to force it.
     suspend fun syncContacts() {
-        if (!hasPermission || isSyncing) return
+        if (!hasPermission || !contactSyncConsented || isSyncing) return
         isSyncing = true
         var syncFailed = false
         try {
@@ -129,7 +141,25 @@ fun NewConversationScreen(
         if (syncFailed) snackbarHostState.showSnackbar(errorMsg)
     }
 
-    LaunchedEffect(hasPermission) { syncContacts() }
+    LaunchedEffect(hasPermission, contactSyncConsented) {
+        if (hasPermission && !contactSyncConsented) showConsentDialog = true else syncContacts()
+    }
+
+    if (showConsentDialog) {
+        MuhabbetDialog(
+            title = stringResource(Res.string.contacts_consent_title),
+            onDismiss = { showConsentDialog = false },
+            dismissLabel = stringResource(Res.string.contacts_consent_decline),
+            confirmLabel = stringResource(Res.string.contacts_consent_accept),
+            onConfirm = {
+                tokenStorage.setContactSyncConsentAt(Clock.System.now().toString())
+                contactSyncConsented = true
+                showConsentDialog = false
+            }
+        ) {
+            Text(stringResource(Res.string.contacts_consent_body))
+        }
+    }
 
     val filteredContacts = if (searchQuery.isBlank()) contacts
     else contacts.filter { (it.displayName ?: "").contains(searchQuery, ignoreCase = true) }
@@ -219,6 +249,34 @@ fun NewConversationScreen(
                             MuhabbetButton(
                                 text = stringResource(Res.string.contacts_grant_access),
                                 onClick = { requestPermission() },
+                                role = MuhabbetButtonRole.Primary
+                            )
+                        }
+                    }
+                    // Permission granted, consent refused. Without this the screen would sit on an
+                    // empty list with no explanation and no way back — declining has to leave a
+                    // usable app, not a dead end. Starting a chat by number still works from the
+                    // row above, so nothing here is a hostage.
+                    !contactSyncConsented -> {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Muhabbet.icons.Contact,
+                                contentDescription = stringResource(Res.string.cd_contacts),
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Large))
+                            Text(
+                                stringResource(Res.string.contacts_consent_declined),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Large))
+                            MuhabbetButton(
+                                text = stringResource(Res.string.contacts_consent_review),
+                                onClick = { showConsentDialog = true },
                                 role = MuhabbetButtonRole.Primary
                             )
                         }
