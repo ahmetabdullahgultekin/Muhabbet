@@ -129,11 +129,19 @@ class AppConfig {
     fun userDataService(
         userRepository: UserRepository,
         refreshTokenRepository: RefreshTokenRepository,
-        userDataQueryPort: UserDataQueryPort
+        userDataQueryPort: UserDataQueryPort,
+        deviceRepository: DeviceRepository,
+        loginApprovalRepository: LoginApprovalRepository,
+        deviceLinkSessionRepository: DeviceLinkSessionRepository,
+        phoneHashRepository: PhoneHashRepository
     ): UserDataService = UserDataService(
         userRepository = userRepository,
         refreshTokenRepository = refreshTokenRepository,
-        userDataQueryPort = userDataQueryPort
+        userDataQueryPort = userDataQueryPort,
+        deviceRepository = deviceRepository,
+        loginApprovalRepository = loginApprovalRepository,
+        deviceLinkSessionRepository = deviceLinkSessionRepository,
+        phoneHashRepository = phoneHashRepository
     )
 
     @Bean

@@ -16,6 +16,9 @@ data class RefreshTokenRecord(
 interface RefreshTokenRepository {
     fun save(record: RefreshTokenRecord): RefreshTokenRecord
     fun findByTokenHash(tokenHash: String): RefreshTokenRecord?
+
+    /** All sessions for the user, including expired/revoked ones — used by the KVKK data export. */
+    fun findByUserId(userId: UUID): List<RefreshTokenRecord>
     fun revokeAllForDevice(userId: UUID, deviceId: UUID)
     fun revokeAllForUser(userId: UUID)
     fun revokeByTokenHash(tokenHash: String)

@@ -8,4 +8,7 @@ interface LoginApprovalRepository {
     fun save(approval: LoginApproval): LoginApproval
     fun findById(id: UUID): LoginApproval?
     fun findPendingByUserId(userId: UUID): List<LoginApproval>
+
+    /** Every approval request regardless of status — used by the KVKK data export. */
+    fun findByUserId(userId: UUID): List<LoginApproval>
 }

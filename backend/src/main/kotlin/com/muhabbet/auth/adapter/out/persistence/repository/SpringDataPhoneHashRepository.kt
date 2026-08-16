@@ -6,4 +6,5 @@ import java.util.UUID
 
 interface SpringDataPhoneHashRepository : JpaRepository<PhoneHashJpaEntity, UUID> {
     fun findByPhoneHashIn(phoneHashes: List<String>): List<PhoneHashJpaEntity>
+    fun existsByUserId(userId: UUID): Boolean
 }
