@@ -19,7 +19,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +61,7 @@ import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetExtendedFab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,16 +130,19 @@ fun CreateGroupScreen(
         snackbarHostState = snackbarHostState,
         floatingActionButton = {
             if (contacts.isNotEmpty()) {
-                FloatingActionButton(
-                    onClick = {
-                        if (isCreating) return@FloatingActionButton
+                MuhabbetExtendedFab(
+                    text = stringResource(Res.string.group_create_button),
+                    // Explicitly labelled: the guard clauses below return from this lambda, and an
+                    // implicit label would silently follow whatever the enclosing call is named.
+                    onClick = createGroup@{
+                        if (isCreating) return@createGroup
                         if (groupName.isBlank()) {
                             scope.launch { snackbarHostState.showSnackbar(groupNameRequiredMsg) }
-                            return@FloatingActionButton
+                            return@createGroup
                         }
                         if (selectedUserIds.isEmpty()) {
                             scope.launch { snackbarHostState.showSnackbar(groupSelectMinimumMsg) }
-                            return@FloatingActionButton
+                            return@createGroup
                         }
                         isCreating = true
                         scope.launch {
@@ -156,16 +159,8 @@ fun CreateGroupScreen(
                                 snackbarHostState.showSnackbar(errorMsg)
                             }
                         }
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Text(
-                        text = stringResource(Res.string.group_create_button),
-                        modifier = Modifier.padding(horizontal = MuhabbetSpacing.Large),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                    }
+                )
             }
         }
     ) { padding ->

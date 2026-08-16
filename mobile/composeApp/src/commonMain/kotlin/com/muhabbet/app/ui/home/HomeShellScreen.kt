@@ -13,12 +13,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -33,7 +29,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -43,11 +38,12 @@ import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
 import com.muhabbet.designsystem.components.MuhabbetMenu
 import com.muhabbet.designsystem.components.MuhabbetMenuItem
+import com.muhabbet.designsystem.components.MuhabbetNavBar
+import com.muhabbet.designsystem.components.MuhabbetNavItem
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.status.UpdatesTabScreen
-import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
@@ -124,9 +120,19 @@ fun HomeShellScreen(
     val updatesLabel = stringResource(Res.string.home_tab_updates)
     val callsLabel = stringResource(Res.string.home_tab_calls)
 
-    val semanticColors = LocalSemanticColors.current
-    val accentColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = semanticColors.secondaryText
+    // Built by mapping over HomeTab.entries rather than by hand, so the list order and the
+    // selectedTab.ordinal that indexes into it cannot drift apart. A hand-written list is one
+    // reordered line away from a tab that highlights its neighbour.
+    val navItems = remember(communitiesLabel, chatsLabel, updatesLabel, callsLabel) {
+        HomeTab.entries.map { tab ->
+            when (tab) {
+                HomeTab.COMMUNITIES -> MuhabbetNavItem(Muhabbet.icons.TabCommunities, communitiesLabel)
+                HomeTab.CHATS -> MuhabbetNavItem(Muhabbet.icons.TabChats, chatsLabel)
+                HomeTab.UPDATES -> MuhabbetNavItem(Muhabbet.icons.TabUpdates, updatesLabel)
+                HomeTab.CALLS -> MuhabbetNavItem(Muhabbet.icons.TabCalls, callsLabel)
+            }
+        }
+    }
 
     // Load conversations when search is activated, to have a list to filter
     LaunchedEffect(isSearchActive) {
@@ -239,62 +245,11 @@ fun HomeShellScreen(
         },
         bottomBar = {
             if (!isSearchActive) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ) {
-                    NavigationBarItem(
-                        selected = selectedTab == HomeTab.COMMUNITIES,
-                        onClick = { selectTab(HomeTab.COMMUNITIES) },
-                        icon = { Icon(Muhabbet.icons.TabCommunities, contentDescription = communitiesLabel) },
-                        label = { Text(communitiesLabel) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = accentColor,
-                            selectedTextColor = accentColor,
-                            unselectedIconColor = inactiveColor,
-                            unselectedTextColor = inactiveColor,
-                            indicatorColor = Color.Transparent
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == HomeTab.CHATS,
-                        onClick = { selectTab(HomeTab.CHATS) },
-                        icon = { Icon(Muhabbet.icons.TabChats, contentDescription = chatsLabel) },
-                        label = { Text(chatsLabel) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = accentColor,
-                            selectedTextColor = accentColor,
-                            unselectedIconColor = inactiveColor,
-                            unselectedTextColor = inactiveColor,
-                            indicatorColor = Color.Transparent
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == HomeTab.UPDATES,
-                        onClick = { selectTab(HomeTab.UPDATES) },
-                        icon = { Icon(Muhabbet.icons.TabUpdates, contentDescription = updatesLabel) },
-                        label = { Text(updatesLabel) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = accentColor,
-                            selectedTextColor = accentColor,
-                            unselectedIconColor = inactiveColor,
-                            unselectedTextColor = inactiveColor,
-                            indicatorColor = Color.Transparent
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == HomeTab.CALLS,
-                        onClick = { selectTab(HomeTab.CALLS) },
-                        icon = { Icon(Muhabbet.icons.TabCalls, contentDescription = callsLabel) },
-                        label = { Text(callsLabel) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = accentColor,
-                            selectedTextColor = accentColor,
-                            unselectedIconColor = inactiveColor,
-                            unselectedTextColor = inactiveColor,
-                            indicatorColor = Color.Transparent
-                        )
-                    )
-                }
+                MuhabbetNavBar(
+                    items = navItems,
+                    selectedIndex = selectedTab.ordinal,
+                    onSelect = { index -> selectTab(HomeTab.entries[index]) }
+                )
             }
         }
     ) { padding ->

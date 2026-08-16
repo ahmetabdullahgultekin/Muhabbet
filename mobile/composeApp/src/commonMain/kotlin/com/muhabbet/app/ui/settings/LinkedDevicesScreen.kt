@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +47,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetExtendedFab
 
 /**
  * Linked-devices management screen (Tier 2, NON-CRYPTO slice).
@@ -105,10 +105,10 @@ fun LinkedDevicesScreen(
         },
         floatingActionButton = {
             if (MultiDeviceConfig.ENABLED) {
-                ExtendedFloatingActionButton(
+                MuhabbetExtendedFab(
+                    text = linkNewText,
                     onClick = onLinkNewDevice,
-                    icon = { Icon(Muhabbet.icons.Add, contentDescription = null) },
-                    text = { Text(linkNewText) }
+                    icon = Muhabbet.icons.Add
                 )
             }
         }
