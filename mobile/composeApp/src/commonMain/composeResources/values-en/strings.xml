@@ -373,9 +373,9 @@
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Notifications</string>
-    <string name="settings_notifications_enabled">Enable Notifications</string>
+    <string name="settings_notifications_unavailable">Push notifications are not available yet</string>
+    <string name="settings_notifications_unavailable_desc">Push delivery is switched off in this build. Your messages appear when you open the app.</string>
     <string name="settings_notifications_sound">Notification Sound</string>
-    <string name="settings_notifications_vibrate">Vibration</string>
 
     <!-- Chat Settings -->
     <string name="settings_chat_section">Chat</string>
@@ -388,6 +388,7 @@
     <!-- Account -->
     <string name="settings_account_section">Account</string>
     <string name="settings_account_phone">Phone number</string>
+    <string name="settings_account_phone_unknown">Unavailable</string>
     <string name="settings_account_delete">Delete Account</string>
     <string name="settings_account_delete_confirm">Your account and all data will be permanently deleted. This cannot be undone.</string>
     <string name="settings_account_export">Export My Data</string>
@@ -442,10 +443,12 @@
     <string name="privacy_delete_confirm_message">This action cannot be undone. All your messages, media files, and personal data will be permanently deleted.</string>
     <string name="privacy_delete_success">Account deletion request received</string>
     <string name="privacy_visibility_section">Visibility</string>
+    <string name="privacy_settings_loading">Loading privacy settings…</string>
+    <string name="privacy_settings_load_failed">Could not load privacy settings</string>
+    <string name="privacy_settings_save_failed">Could not save setting</string>
+    <string name="privacy_settings_retry">Try again</string>
     <string name="privacy_last_seen">Last Seen</string>
     <string name="privacy_last_seen_desc">Who can see your last seen time</string>
-    <string name="privacy_profile_photo">Profile Photo</string>
-    <string name="privacy_profile_photo_desc">Who can see your profile photo</string>
     <string name="privacy_about">About</string>
     <string name="privacy_about_desc">Who can see your about info</string>
     <string name="privacy_visibility_everyone">Everyone</string>

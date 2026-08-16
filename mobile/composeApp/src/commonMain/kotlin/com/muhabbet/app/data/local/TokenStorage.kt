@@ -26,8 +26,15 @@ interface TokenStorage {
     fun setAppLockEnabled(enabled: Boolean) {}
     fun getAppLockTimeout(): String? = null
     fun setAppLockTimeout(timeout: String) {}
-    fun getMediaQuality(): String? = null
-    fun setMediaQuality(quality: String) {}
+
+    // Abstract for the same reason as the theme and haptics above. These two were defaulted, no
+    // implementation overrode either, and so the HD option in Settings wrote to an empty body and
+    // read back null on every platform — the picker reset to "standard" each time it opened and
+    // every upload compressed at the standard profile regardless. A no-op that compiles is exactly
+    // the failure this file already guards against twice.
+    fun getMediaQuality(): String?
+    fun setMediaQuality(quality: String)
+
     fun getWallpaperType(): String? = null
     fun setWallpaperType(type: String) {}
     fun getSolidColor(): String? = null

@@ -566,10 +566,22 @@ data class WallpaperResponse(
 )
 
 // ─── Privacy Settings DTOs ──────────────────────────────
+/**
+ * Every field here is backed by a column on `users` and honoured by a reader on the server. Do not
+ * add one that is not: `PrivacySettingsResponse` used to advertise `lastSeenVisibility` and
+ * `profilePhotoVisibility`, neither of which existed in the schema, the request DTO or any query —
+ * and the controller quietly answered with a three-field copy of its own rather than this class.
+ *
+ * `onlineStatusVisibility` **is** the last-seen control; it gates presence and last-seen together
+ * (see `UserController.resolveVisibility`). It is not a separate setting, which is why the screen
+ * labels it "last seen" and sends it under this name.
+ *
+ * Values for the visibility fields: `everyone`, `contacts`, `nobody`.
+ */
 @Serializable
 data class UpdatePrivacyRequest(
     val readReceiptsEnabled: Boolean? = null,
-    val onlineStatusVisibility: String? = null,  // everyone, contacts, nobody
+    val onlineStatusVisibility: String? = null,
     val aboutVisibility: String? = null
 )
 
@@ -577,9 +589,7 @@ data class UpdatePrivacyRequest(
 data class PrivacySettingsResponse(
     val readReceiptsEnabled: Boolean,
     val onlineStatusVisibility: String,
-    val aboutVisibility: String,
-    val lastSeenVisibility: String,
-    val profilePhotoVisibility: String
+    val aboutVisibility: String
 )
 
 // ─── Broadcast List DTOs ────────────────────────────────

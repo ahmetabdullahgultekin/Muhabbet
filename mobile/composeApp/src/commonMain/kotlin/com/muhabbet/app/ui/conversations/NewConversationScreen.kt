@@ -161,10 +161,24 @@ fun NewConversationScreen(
             // have matched contacts would not have fixed #389 for the account that needs it. In
             // production that is every account: 3 users, 2 conversations.
             //
-            // Hidden when the screen is picking a contact for the caller (the Calls tab): this row
-            // opens a chat, which on a "who do you want to call" surface would answer a different
-            // question than the one asked.
+            // Hidden when the screen is picking a contact for the caller (the Calls tab): these rows
+            // open a chat or a group, which on a "who do you want to call" surface would answer a
+            // different question than the one asked.
+            //
+            // "Yeni Grup" joined the by-number row here for both of those reasons. It used to live
+            // inside the contacts `LazyColumn`, which gave it the same two faults: it was invisible
+            // in the three states where the list does not render, and on the Calls tab it rendered
+            // anyway while doing nothing at all, because that call site never passed `onCreateGroup`
+            // and the parameter defaults to an empty lambda. Group calls do not exist (#367–#373),
+            // so there is no version of this row that belongs on the call surface — the fix is to
+            // hide it there, not to pass the lambda through.
             if (onContactPicked == null) {
+                NewConversationActionRow(
+                    icon = Muhabbet.icons.GroupOutlined,
+                    label = stringResource(Res.string.new_conversation_new_group),
+                    onClick = onCreateGroup
+                )
+                HorizontalDivider()
                 NewConversationActionRow(
                     icon = Muhabbet.icons.DialPad,
                     label = stringResource(Res.string.start_by_number_row),
@@ -243,15 +257,6 @@ fun NewConversationScreen(
                                 singleLine = true
                             )
                             LazyColumn {
-                                // "Yeni Grup" button at top
-                                item(key = "create_group") {
-                                    NewConversationActionRow(
-                                        icon = Muhabbet.icons.GroupOutlined,
-                                        label = stringResource(Res.string.new_conversation_new_group),
-                                        onClick = onCreateGroup
-                                    )
-                                    HorizontalDivider()
-                                }
                                 items(filteredContacts, key = { it.userId }) { contact ->
                                     ContactItem(
                                         contact = contact,

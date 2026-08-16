@@ -36,6 +36,7 @@ import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
@@ -145,12 +146,14 @@ class AppConfig {
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
         messageBroadcaster: MessageBroadcaster,
-        userDirectory: UserDirectoryPort
+        userDirectory: UserDirectoryPort,
+        readReceiptPolicy: ReadReceiptPolicyPort
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         messageBroadcaster = messageBroadcaster,
-        userDirectory = userDirectory
+        userDirectory = userDirectory,
+        readReceiptPolicy = readReceiptPolicy
     )
 
     @Bean

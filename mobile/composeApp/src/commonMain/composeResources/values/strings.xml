@@ -373,9 +373,9 @@
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Bildirimler</string>
-    <string name="settings_notifications_enabled">Bildirimleri Etkinleştir</string>
+    <string name="settings_notifications_unavailable">Anlık bildirimler henüz kullanılamıyor</string>
+    <string name="settings_notifications_unavailable_desc">Bu sürümde anlık bildirim gönderimi kapalı. Mesajlarınız uygulamayı açtığınızda görünür.</string>
     <string name="settings_notifications_sound">Bildirim Sesi</string>
-    <string name="settings_notifications_vibrate">Titreşim</string>
 
     <!-- Chat Settings -->
     <string name="settings_chat_section">Sohbet</string>
@@ -388,6 +388,7 @@
     <!-- Account -->
     <string name="settings_account_section">Hesap</string>
     <string name="settings_account_phone">Telefon numarası</string>
+    <string name="settings_account_phone_unknown">Yüklenemedi</string>
     <string name="settings_account_delete">Hesabı Sil</string>
     <string name="settings_account_delete_confirm">Hesabınız ve tüm verileriniz kalıcı olarak silinecektir. Bu işlem geri alınamaz.</string>
     <string name="settings_account_export">Verilerimi İndir</string>
@@ -442,10 +443,12 @@
     <string name="privacy_delete_confirm_message">Bu işlem geri alınamaz. Tüm mesajlarınız, medya dosyalarınız ve kişisel verileriniz kalıcı olarak silinecektir.</string>
     <string name="privacy_delete_success">Hesap silme isteği alındı</string>
     <string name="privacy_visibility_section">Görünürlük</string>
+    <string name="privacy_settings_loading">Gizlilik ayarları yükleniyor…</string>
+    <string name="privacy_settings_load_failed">Gizlilik ayarları yüklenemedi</string>
+    <string name="privacy_settings_save_failed">Ayar kaydedilemedi</string>
+    <string name="privacy_settings_retry">Yeniden dene</string>
     <string name="privacy_last_seen">Son Görülme</string>
     <string name="privacy_last_seen_desc">Son görülme bilginizi kimler görebilir</string>
-    <string name="privacy_profile_photo">Profil Fotoğrafı</string>
-    <string name="privacy_profile_photo_desc">Profil fotoğrafınızı kimler görebilir</string>
     <string name="privacy_about">Hakkımda Bilgisi</string>
     <string name="privacy_about_desc">Hakkımda bilginizi kimler görebilir</string>
     <string name="privacy_visibility_everyone">Herkes</string>

@@ -1,8 +1,11 @@
 package com.muhabbet.auth.adapter.`in`.web
 
+import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.MutualGroupResponse
+import com.muhabbet.shared.dto.PrivacySettingsResponse
+import com.muhabbet.shared.dto.UpdatePrivacyRequest
 import com.muhabbet.shared.dto.UpdateProfileRequest
 import com.muhabbet.shared.dto.UserProfileDetailResponse
 import com.muhabbet.shared.exception.BusinessException
@@ -39,7 +42,7 @@ class UserController(
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 
-        val presence = resolvePresenceVisibility(user, requesterId)
+        val visible = resolveVisibility(user, requesterId)
 
         return ApiResponseBuilder.ok(
             UserProfile(
@@ -48,42 +51,50 @@ class UserController(
                 phoneNumber = null,
                 displayName = user.displayName,
                 avatarUrl = user.avatarUrl,
-                about = user.about,
-                isOnline = presence.isOnline,
-                lastSeenAt = presence.lastSeen
+                about = visible.about,
+                isOnline = visible.isOnline,
+                lastSeenAt = visible.lastSeen
             )
         )
     }
 
-    private data class PresenceView(
+    private data class VisibleProfile(
         val isOnline: Boolean,
-        val lastSeen: kotlinx.datetime.Instant?
+        val lastSeen: kotlinx.datetime.Instant?,
+        val about: String?
     )
 
     /**
-     * Applies the target user's onlineStatusVisibility to their presence/last-seen.
+     * Applies the target user's own privacy settings to the slice of their profile this caller may
+     * see. `onlineStatusVisibility` gates presence and last-seen; `aboutVisibility` gates the about
+     * text. Both speak the same everyone/contacts/nobody vocabulary:
      * - "everyone": visible to any authenticated caller
      * - "contacts": visible only to users who share a conversation with the target
      * - "nobody": hidden from everyone except the user themselves
-     * The user always sees their own presence.
+     *
+     * `aboutVisibility` was stored and never consulted before — the column was written by
+     * `PATCH /me/privacy` and every lookup returned `about` regardless, so the setting was a no-op
+     * end to end. Resolved together with presence so the "contacts" case costs one membership
+     * query rather than one per field.
      */
-    private fun resolvePresenceVisibility(
-        user: com.muhabbet.auth.domain.model.User,
-        requesterId: UUID
-    ): PresenceView {
-        val visible = when (user.onlineStatusVisibility.lowercase()) {
+    private fun resolveVisibility(user: User, requesterId: UUID): VisibleProfile {
+        val contactIds: Set<UUID> by lazy { conversationRepository.findAllContactUserIds(user.id) }
+
+        fun allows(visibility: String): Boolean = when (visibility.lowercase()) {
             "everyone" -> true
             "nobody" -> requesterId == user.id
-            "contacts" -> requesterId == user.id ||
-                requesterId in conversationRepository.findAllContactUserIds(user.id)
+            "contacts" -> requesterId == user.id || requesterId in contactIds
             else -> false
         }
-        if (!visible) return PresenceView(isOnline = false, lastSeen = null)
 
-        val lastSeen = user.lastSeenAt?.let {
-            kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong())
-        }
-        return PresenceView(isOnline = presencePort.isOnline(user.id), lastSeen = lastSeen)
+        val presenceVisible = allows(user.onlineStatusVisibility)
+        return VisibleProfile(
+            isOnline = presenceVisible && presencePort.isOnline(user.id),
+            lastSeen = user.lastSeenAt
+                ?.takeIf { presenceVisible }
+                ?.let { kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong()) },
+            about = user.about?.takeIf { allows(user.aboutVisibility) }
+        )
     }
 
     @GetMapping("/{userId}/detail")
@@ -92,7 +103,7 @@ class UserController(
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 
-        val presence = resolvePresenceVisibility(user, currentUserId)
+        val visible = resolveVisibility(user, currentUserId)
 
         // Find mutual groups: conversations where both users are members and type is GROUP
         val myConversations = conversationRepository.findConversationsByUserId(currentUserId)
@@ -126,9 +137,9 @@ class UserController(
                 phoneNumber = null,
                 displayName = user.displayName,
                 avatarUrl = user.avatarUrl,
-                about = user.about,
-                isOnline = presence.isOnline,
-                lastSeenAt = presence.lastSeen?.toString(),
+                about = visible.about,
+                isOnline = visible.isOnline,
+                lastSeenAt = visible.lastSeen?.toString(),
                 mutualGroups = mutualGroups,
                 sharedMediaCount = sharedMediaCount
             )
@@ -148,6 +159,28 @@ class UserController(
                 displayName = user.displayName,
                 avatarUrl = user.avatarUrl,
                 about = user.about
+            )
+        )
+    }
+
+    /**
+     * The read side of `PATCH /me/privacy`, which shipped without one.
+     *
+     * A settings screen with no way to fetch the stored values can only guess them, and the guess
+     * was the most permissive option in each case — so a user who had restricted something saw
+     * "everyone" the next time they opened the screen, and re-saving silently widened it again.
+     */
+    @GetMapping("/me/privacy")
+    fun getPrivacy(): ResponseEntity<ApiResponse<PrivacySettingsResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val user = userRepository.findById(userId)
+            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED)
+
+        return ApiResponseBuilder.ok(
+            PrivacySettingsResponse(
+                readReceiptsEnabled = user.readReceiptsEnabled,
+                onlineStatusVisibility = user.onlineStatusVisibility,
+                aboutVisibility = user.aboutVisibility
             )
         )
     }
@@ -213,15 +246,3 @@ class UserController(
         )
     }
 }
-
-data class UpdatePrivacyRequest(
-    val readReceiptsEnabled: Boolean? = null,
-    val onlineStatusVisibility: String? = null,
-    val aboutVisibility: String? = null
-)
-
-data class PrivacySettingsResponse(
-    val readReceiptsEnabled: Boolean,
-    val onlineStatusVisibility: String,
-    val aboutVisibility: String
-)

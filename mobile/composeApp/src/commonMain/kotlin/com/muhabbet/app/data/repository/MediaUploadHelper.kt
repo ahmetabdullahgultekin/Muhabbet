@@ -1,6 +1,8 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.crypto.MediaEncryptor
+import com.muhabbet.app.data.local.MediaQuality
+import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.compressImage
 import com.muhabbet.shared.dto.MediaUploadResponse
 import com.muhabbet.shared.port.MediaKeyMaterial
@@ -18,8 +20,16 @@ import com.muhabbet.shared.port.MediaKeyMaterial
  */
 class MediaUploadHelper(
     private val mediaRepository: MediaRepository,
+    private val tokenStorage: TokenStorage,
     private val mediaEncryptor: MediaEncryptor = MediaEncryptor()
 ) {
+
+    /**
+     * Read per upload rather than cached, so switching the setting takes effect on the next photo
+     * instead of the next app launch.
+     */
+    private fun chatImageQuality(): MediaQuality =
+        MediaQuality.fromStorageKey(tokenStorage.getMediaQuality())
 
     /**
      * An upload result that also carries the per-media key material when the blob was encrypted.
@@ -32,19 +42,21 @@ class MediaUploadHelper(
     )
 
     /**
-     * Upload an image with automatic compression.
-     * Always compresses to JPEG (max 1280px, quality 80) before upload.
+     * Upload an image with automatic compression, at the [MediaQuality] the user selected in
+     * Settings (standard by default).
      *
-     * Plaintext path (flag OFF): byte-identical to the legacy behavior. Returns the upload response
-     * directly; any media encryption is invisible to callers that use this overload.
+     * The dimension and quality are no longer parameters: no caller ever passed them, and leaving
+     * them overridable would have re-created the bug this fixes by letting an upload site quietly
+     * opt out of the user's choice. One profile, chosen in one place.
+     *
+     * Plaintext path (flag OFF): any media encryption is invisible to callers of this overload.
      */
     suspend fun uploadImage(
         bytes: ByteArray,
-        fileName: String,
-        maxDimension: Int = 1280,
-        quality: Int = 80
+        fileName: String
     ): MediaUploadResponse {
-        val compressed = compressImage(bytes, maxDimension, quality)
+        val profile = chatImageQuality()
+        val compressed = compressImage(bytes, profile.maxDimension, profile.jpegQuality)
         return mediaRepository.uploadImage(
             bytes = compressed,
             mimeType = "image/jpeg",
@@ -60,11 +72,10 @@ class MediaUploadHelper(
      */
     suspend fun uploadImageE2E(
         bytes: ByteArray,
-        fileName: String,
-        maxDimension: Int = 1280,
-        quality: Int = 80
+        fileName: String
     ): UploadResult {
-        val compressed = compressImage(bytes, maxDimension, quality)
+        val profile = chatImageQuality()
+        val compressed = compressImage(bytes, profile.maxDimension, profile.jpegQuality)
         val encrypted = mediaEncryptor.encryptForUpload(compressed)
         val response = mediaRepository.uploadImage(
             bytes = encrypted.blob,
@@ -77,6 +88,9 @@ class MediaUploadHelper(
     /**
      * Upload a profile photo with more aggressive compression.
      * Uses smaller max dimension (512px) for profile photos.
+     *
+     * Deliberately ignores the user's [MediaQuality] choice: an avatar is displayed at a few dozen
+     * dp, so HD would buy bytes and no visible difference.
      */
     suspend fun uploadProfilePhoto(
         bytes: ByteArray,
@@ -125,6 +139,9 @@ class MediaUploadHelper(
     /**
      * Upload a thumbnail image for video messages.
      * Compresses aggressively since thumbnails are small previews.
+     *
+     * Ignores [MediaQuality] for the same reason as the profile photo: it is a preview, not the
+     * media itself.
      */
     suspend fun uploadThumbnail(
         bytes: ByteArray,

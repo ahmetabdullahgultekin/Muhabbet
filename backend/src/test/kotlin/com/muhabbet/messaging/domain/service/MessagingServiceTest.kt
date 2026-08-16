@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.exception.BusinessException
@@ -39,6 +40,7 @@ class MessagingServiceTest {
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
     private lateinit var userDirectory: UserDirectoryPort
+    private lateinit var readReceiptPolicy: ReadReceiptPolicyPort
     private lateinit var conversationService: ConversationService
     private lateinit var messageService: MessageService
 
@@ -53,6 +55,7 @@ class MessagingServiceTest {
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
         userDirectory = mockk(relaxed = true)
+        readReceiptPolicy = mockk(relaxed = true)
 
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
@@ -64,7 +67,8 @@ class MessagingServiceTest {
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
             messageBroadcaster = messageBroadcaster,
-            userDirectory = userDirectory
+            userDirectory = userDirectory,
+            readReceiptPolicy = readReceiptPolicy
         )
     }
 

@@ -4,9 +4,11 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.AuthTokenResponse
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
+import com.muhabbet.shared.dto.PrivacySettingsResponse
 import com.muhabbet.shared.dto.RegisterPushTokenRequest
 import com.muhabbet.shared.dto.RequestOtpRequest
 import com.muhabbet.shared.dto.RequestOtpResponse
+import com.muhabbet.shared.dto.UpdatePrivacyRequest
 import com.muhabbet.shared.dto.UpdateProfileRequest
 import com.muhabbet.shared.dto.VerifyOtpRequest
 import com.muhabbet.shared.model.UserProfile
@@ -74,6 +76,30 @@ class AuthRepository(
 
     suspend fun updateProfile(displayName: String? = null, about: String? = null, avatarUrl: String? = null) {
         apiClient.patch<UserProfile>("/api/v1/users/me", UpdateProfileRequest(displayName = displayName, about = about, avatarUrl = avatarUrl))
+    }
+
+    suspend fun getPrivacySettings(): PrivacySettingsResponse {
+        val response = apiClient.get<PrivacySettingsResponse>("/api/v1/users/me/privacy")
+        return response.data ?: throw Exception(response.error?.message ?: "PRIVACY_LOAD_FAILED")
+    }
+
+    /**
+     * Null fields are left untouched server-side, so a screen may send only what changed.
+     */
+    suspend fun updatePrivacySettings(
+        readReceiptsEnabled: Boolean? = null,
+        onlineStatusVisibility: String? = null,
+        aboutVisibility: String? = null
+    ): PrivacySettingsResponse {
+        val response = apiClient.patch<PrivacySettingsResponse>(
+            "/api/v1/users/me/privacy",
+            UpdatePrivacyRequest(
+                readReceiptsEnabled = readReceiptsEnabled,
+                onlineStatusVisibility = onlineStatusVisibility,
+                aboutVisibility = aboutVisibility
+            )
+        )
+        return response.data ?: throw Exception(response.error?.message ?: "PRIVACY_UPDATE_FAILED")
     }
 
     suspend fun registerPushToken(token: String) {

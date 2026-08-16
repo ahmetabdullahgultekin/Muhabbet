@@ -69,7 +69,7 @@ fun appModule(): Module = module {
     // Media-blob E2E (Tier 1.4) — flag-gated (E2EConfig.mediaEncryptionActive), default OFF.
     single { com.muhabbet.app.crypto.MediaEncryptor() }
     single { MediaRepository(apiClient = get(), mediaEncryptor = get()) }
-    single { MediaUploadHelper(mediaRepository = get(), mediaEncryptor = get()) }
+    single { MediaUploadHelper(mediaRepository = get(), tokenStorage = get(), mediaEncryptor = get()) }
     single { GroupRepository(apiClient = get()) }
     single { StatusRepository(apiClient = get()) }
     single { ChannelRepository(apiClient = get()) }
@@ -82,6 +82,8 @@ fun appModule(): Module = module {
     single { WallpaperRepository(tokenStorage = get()) }
     // Read at the composition root, above MuhabbetTheme — see App.kt.
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }
+    // Singleton on purpose: read receipts appear on two screens and must not disagree.
+    single { com.muhabbet.app.data.local.PrivacySettingsController(authRepository = get()) }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
     single { DeviceLinkRepository(apiClient = get()) }
     // E2EKeyManager and EncryptionPort are provided by platform modules.

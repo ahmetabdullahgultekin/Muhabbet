@@ -74,6 +74,12 @@ class IosTokenStorage : TokenStorage {
         defaults.setObject(theme, forKey = "app_theme")
     }
 
+    override fun getMediaQuality(): String? = defaults.stringForKey("media_quality")
+
+    override fun setMediaQuality(quality: String) {
+        defaults.setObject(quality, forKey = "media_quality")
+    }
+
     override fun getLastSyncTimestamp(): String? = defaults.stringForKey("last_sync_timestamp")
 
     override fun setLastSyncTimestamp(timestamp: String) {
