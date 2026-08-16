@@ -430,13 +430,16 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
 - **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.7.0**, Kotlin 2.4.10, Spring Boot
   4.0.6. Run `./gradlew` from repo root.
 - **Backend tests:** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers + ArchUnit.
-  **426 tests, 1 failure** at HEAD (2026-08-13) when Docker is running. The one failure is
+  **Without Docker the baseline is 539 tests / 10 failures** at `dev` (2026-08-16). The ten are
+  `@Testcontainers` classes failing at class-init on "Could not find a valid Docker environment"
+  rather than running — they are not skipped, so ten integration tests are silently unexecuted.
+  Start Docker before trusting a run; with it, expect one pre-existing failure,
   `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when target visibility is
-  nobody` — pre-existing, tracked as #269. Aggregate counts from
-  `backend/build/test-results/test/*.xml`.
-  **Without Docker the count is 416 / 6 failures**: six `@SpringBootTest` classes fail at class-init
-  on "Could not find a valid Docker environment" rather than running. They are not skipped, so a
-  green-looking 410 is really ten unexecuted integration tests. Start Docker before trusting the run.
+  nobody` (#269). Aggregate counts from `backend/build/test-results/test/*.xml`.
+  **Do not trust a written baseline — measure it.** The figure here was "416 / 6" for months while
+  the real number had moved to 539 / 10; three separate agents each rediscovered that independently
+  on the same day. Run the suite on the unmodified base commit first, then on your branch, and
+  compare the two runs rather than a number in a document.
 - **Redis is required for the integration tests**, not just Postgres. `RedisConfig` registers
   `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies

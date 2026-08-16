@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -92,13 +93,20 @@ class GlobalExceptionHandlerWebMvcTest {
     inner class WrongVerb {
 
         /**
-         * The exact request from the issue. `/api/v1/communities/{id}` answers GET and PATCH;
-         * DELETE is only mapped on `/{id}/groups/{conversationId}`. Production returned 500
-         * "Beklenmeyen bir hata oluştu" and logged it at ERROR as "Unexpected error".
+         * `/api/v1/communities/{id}` answers GET, PATCH and DELETE; PUT is mapped nowhere on this
+         * controller. Production answered the issue's original request — a DELETE, before #447
+         * added that verb — with 500 "Beklenmeyen bir hata olustu", logged at ERROR as
+         * "Unexpected error".
+         *
+         * The verb under test deliberately is NOT the one from the issue. It was DELETE until #447
+         * shipped `@DeleteMapping("/{communityId}")` and turned this test's "unmapped" example into
+         * a mapped route, so it started calling the controller and failing on an unstubbed mock.
+         * Both changes were correct alone and only collided once merged. Pick a verb this
+         * controller has no reason to ever map, and re-check that when adding one.
          */
         @Test
         fun `should answer 405 in the error envelope when the verb is not mapped`() {
-            mockMvc.perform(delete("/api/v1/communities/$communityId"))
+            mockMvc.perform(put("/api/v1/communities/$communityId"))
                 .andExpect(status().isMethodNotAllowed)
                 .andExpect(jsonPath("$.error.code").value("METHOD_NOT_ALLOWED"))
                 .andExpect(jsonPath("$.error.message").isNotEmpty)
@@ -109,7 +117,7 @@ class GlobalExceptionHandlerWebMvcTest {
         /** RFC 9110 §15.5.6: a 405 must say which verbs the address does accept. */
         @Test
         fun `should name the verbs the address accepts`() {
-            mockMvc.perform(delete("/api/v1/communities/$communityId"))
+            mockMvc.perform(put("/api/v1/communities/$communityId"))
                 .andExpect(header().string("Allow", org.hamcrest.Matchers.containsString("GET")))
                 .andExpect(header().string("Allow", org.hamcrest.Matchers.containsString("PATCH")))
         }
