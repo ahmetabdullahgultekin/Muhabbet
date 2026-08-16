@@ -1,7 +1,13 @@
 package com.muhabbet.designsystem.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -9,18 +15,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.muhabbet.designsystem.theme.LocalHaptics
+import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
+import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 
@@ -35,6 +48,11 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
  *
  * One geometry now: the dashboard's, which supports a subtitle — the reason it was written in the
  * first place — with the minimum tap target the other one had.
+ *
+ * A clickable row also presses back a fraction, the same spatial spring every other pressable
+ * control in the app uses, and a leading icon sits in a tinted tile rather than floating bare on
+ * the row — this was the one component in the catalogue setting no colour, shape or motion of its
+ * own, and it is the whole of the Settings surface.
  */
 @Composable
 private fun RowFrame(
@@ -42,11 +60,28 @@ private fun RowFrame(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit
 ) {
+    // Built only when the row is actually clickable: a row with no action (SettingsInfoRow) has no
+    // press state to track, and this keeps it from paying for one every recomposition.
+    val pressModifier = if (onClick != null) {
+        val interactionSource = remember { MutableInteractionSource() }
+        val pressed by interactionSource.collectIsPressedAsState()
+        val scale by animateFloatAsState(
+            targetValue = if (pressed) RowPressedScale else 1f,
+            animationSpec = MuhabbetMotion.spatialFast(),
+            label = "settingsRowPress"
+        )
+        Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
+    } else {
+        Modifier
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = MuhabbetSizes.MinTouchTarget)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(pressModifier)
             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
@@ -74,6 +109,34 @@ private fun RowLabels(
 }
 
 /**
+ * A leading icon sitting in its own tinted, rounded square rather than floating bare on the row —
+ * the same "icon gets a considered container" move [MuhabbetScreenState] makes for its own icons,
+ * so the two read as one family instead of two unrelated treatments.
+ */
+@Composable
+private fun SettingsIconTile(
+    icon: ImageVector,
+    contentDescription: String?,
+    containerColor: Color,
+    contentColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(MuhabbetSizes.SettingsIconTile)
+            .clip(RoundedCornerShape(MuhabbetCorners.Small))
+            .background(containerColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = contentColor,
+            modifier = Modifier.size(MuhabbetSizes.IconLarge)
+        )
+    }
+}
+
+/**
  * A row that does something when tapped — usually opening a sub-screen.
  *
  * @param onClick required, and deliberately not nullable. The dashboard had a row wired to
@@ -96,7 +159,6 @@ fun SettingsNavRow(
     enabled: Boolean = true,
     loading: Boolean = false
 ) {
-    val accent = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     RowFrame(onClick = if (enabled && !loading) onClick else null, modifier = modifier) {
         if (loading) {
             CircularProgressIndicator(
@@ -104,11 +166,19 @@ fun SettingsNavRow(
                 strokeWidth = LoadingStrokeWidth
             )
         } else if (icon != null) {
-            Icon(
-                imageVector = icon,
+            SettingsIconTile(
+                icon = icon,
                 contentDescription = iconContentDescription,
-                tint = accent,
-                modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                containerColor = if (destructive) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.primaryContainer
+                },
+                contentColor = if (destructive) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                }
             )
         }
         RowLabels(
@@ -182,11 +252,13 @@ fun SettingsInfoRow(
 ) {
     RowFrame(onClick = null, modifier = modifier) {
         if (icon != null) {
-            Icon(
-                imageVector = icon,
+            // Neutral, not accented: this row does nothing when tapped, and an accented tile would
+            // promise otherwise.
+            SettingsIconTile(
+                icon = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         RowLabels(title, subtitle, Modifier.weight(1f))
@@ -201,3 +273,4 @@ fun SettingsInfoRow(
 }
 
 private val LoadingStrokeWidth = MuhabbetSizes.ProgressStrokeThin
+private const val RowPressedScale = 0.98f
