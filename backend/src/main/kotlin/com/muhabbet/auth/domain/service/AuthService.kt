@@ -54,7 +54,13 @@ open class AuthService(
      * Present only when an external verification provider is configured. When set, it owns code
      * generation and checking; [otpSender] and the local hash comparison are bypassed.
      */
-    private val otpVerifier: OtpVerifier? = null
+    private val otpVerifier: OtpVerifier? = null,
+    /**
+     * Numbers that bypass the SMS provider: the code is generated here and written to the log.
+     * See [com.muhabbet.shared.config.OtpProperties.testNumbers] for why this exists and why it is
+     * not a fixed code. Empty by default.
+     */
+    private val testNumbers: Set<String> = emptySet()
 ) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -73,7 +79,35 @@ open class AuthService(
             "Both an OtpSender and an OtpVerifier are configured; muhabbet.sms.provider must " +
                 "select exactly one"
         }
+
+        // A test number skips the SMS provider entirely, so anyone able to add one to the config
+        // could turn a real person's number into an account they can sign into by reading the log.
+        // Restricting the list to +90500 — a range BTK has not allocated, so no handset can ever
+        // hold one — makes that impossible rather than merely discouraged. Failing at startup is
+        // the point: a typo must stop the deployment, not quietly widen the door.
+        testNumbers.forEach { number ->
+            require(number.startsWith(TEST_NUMBER_PREFIX)) {
+                "muhabbet.otp.test-numbers may only contain unallocated $TEST_NUMBER_PREFIX numbers, " +
+                    "so a real subscriber can never be listed; got ${number.takeLast(4)}"
+            }
+            require(ValidationRules.isValidTurkishPhone(number)) {
+                "muhabbet.otp.test-numbers contains a malformed number ending ${number.takeLast(4)}"
+            }
+        }
+        require(testNumbers.size <= MAX_TEST_NUMBERS) {
+            "muhabbet.otp.test-numbers holds ${testNumbers.size} entries; at most $MAX_TEST_NUMBERS " +
+                "is a test fleet, more is a bypass"
+        }
+        if (testNumbers.isNotEmpty()) {
+            log.warn(
+                "OTP bypass active for {} test number(s); their codes are written to this log and " +
+                    "never sent by SMS",
+                testNumbers.size
+            )
+        }
     }
+
+    private fun isTestNumber(phoneNumber: String) = phoneNumber in testNumbers
 
     @Transactional
     override fun requestOtp(phoneNumber: String): OtpResult {
@@ -94,7 +128,10 @@ open class AuthService(
         // generate or hash. The record is still written — cooldown, expiry and attempt limits are
         // ours either way. The stored hash is a sentinel that no input can match, so a mis-wired
         // branch fails closed rather than accepting an unchecked code.
-        val otp = if (otpVerifier == null) generateOtp() else null
+        // A test number always takes the local path, whichever provider is configured: the code is
+        // generated here, hashed here, and checked here.
+        val local = otpVerifier == null || isTestNumber(phoneNumber)
+        val otp = if (local) generateOtp() else null
         val otpHash = otp?.let { passwordEncoder.encode(it) ?: "" } ?: EXTERNALLY_VERIFIED
 
         val otpRequest = OtpRequest(
@@ -104,10 +141,13 @@ open class AuthService(
         )
         otpRepository.save(otpRequest)
 
-        if (otpVerifier != null) {
-            otpVerifier.start(phoneNumber)
-        } else {
-            otpSender!!.send(phoneNumber, otp!!)
+        when {
+            // Nothing is sent anywhere. The code reaches the log and nowhere else, so signing in as
+            // a test account requires server access rather than a handset.
+            isTestNumber(phoneNumber) ->
+                log.warn("TEST NUMBER {} — OTP not sent, code is {}", phoneNumber, otp)
+            otpVerifier != null -> otpVerifier.start(phoneNumber)
+            else -> otpSender!!.send(phoneNumber, otp!!)
         }
         log.info("OTP requested for phone={}", phoneNumber.takeLast(4))
 
@@ -134,7 +174,10 @@ open class AuthService(
             throw BusinessException(ErrorCode.AUTH_OTP_MAX_ATTEMPTS)
         }
 
-        val accepted = if (otpVerifier != null) {
+        // Must mirror requestOtp's branch exactly. Asking the verifier about a test number would
+        // always fail — it was never told to start one — and comparing a hash for a normal number
+        // would always fail too, since the stored value is the EXTERNALLY_VERIFIED sentinel.
+        val accepted = if (otpVerifier != null && !isTestNumber(phoneNumber)) {
             otpVerifier.check(phoneNumber, otp)
         } else {
             passwordEncoder.matches(otp, activeOtp.otpHash)
@@ -311,6 +354,16 @@ open class AuthService(
          * this, so [PasswordEncoder.matches] can only ever return false against it.
          */
         internal const val EXTERNALLY_VERIFIED = "externally-verified"
+
+        /**
+         * BTK has not allocated `+90 500`, so no subscriber can hold one. Confining test numbers to
+         * this range is what makes the SMS bypass safe: the worst a mistake can do is create an
+         * account nobody could have owned anyway.
+         */
+        internal const val TEST_NUMBER_PREFIX = "+90500"
+
+        /** A handful is a test fleet. A long list is a bypass wearing a test fleet's name. */
+        internal const val MAX_TEST_NUMBERS = 10
 
         fun sha256(input: String): String {
             val digest = MessageDigest.getInstance("SHA-256")
