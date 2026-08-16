@@ -3,9 +3,12 @@ package com.muhabbet.messaging.adapter.out.external
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.messaging.AndroidConfig
+import com.google.firebase.messaging.AndroidNotification
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.Notification
+import com.muhabbet.messaging.domain.model.PushNotification
 import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.shared.config.AsyncConfig
 import org.slf4j.LoggerFactory
@@ -36,16 +39,32 @@ class FcmPushNotificationAdapter(
     }
 
     @Async(AsyncConfig.PUSH_EXECUTOR)
-    override fun sendPush(pushToken: String, title: String, body: String, data: Map<String, String>) {
+    override fun sendPush(pushToken: String, notification: PushNotification) {
         val message = Message.builder()
             .setToken(pushToken)
             .setNotification(
                 Notification.builder()
-                    .setTitle(title)
-                    .setBody(body)
+                    .setTitle(notification.title)
+                    .setBody(notification.body)
                     .build()
             )
-            .putAllData(data)
+            .putAllData(notification.data)
+            .setAndroidConfig(
+                AndroidConfig.builder()
+                    // Replaces a push still queued for a device that is currently offline, so a
+                    // phone coming back online gets one notification per conversation and not the
+                    // whole backlog.
+                    .setCollapseKey(notification.collapseKey)
+                    .setNotification(
+                        AndroidNotification.builder()
+                            // Replaces one already showing in the tray. The queue-side collapse key
+                            // does nothing for a device that was awake the whole time, which is the
+                            // case #469 was actually reported against.
+                            .setTag(notification.collapseKey)
+                            .build()
+                    )
+                    .build()
+            )
             .build()
 
         try {
