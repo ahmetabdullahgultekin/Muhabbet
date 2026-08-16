@@ -101,8 +101,11 @@ jobs:
           path: backend/build/reports/tests/
           retention-days: 3
 
+      # Only on failure, like the other two. The account's artifact storage quota is exhausted, so
+      # an unconditional upload turns every green build red at the last step. The PR coverage
+      # comment reads the XML from disk, not from this artifact, so nothing downstream needs it.
       - name: Upload JaCoCo coverage report
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-coverage-report
