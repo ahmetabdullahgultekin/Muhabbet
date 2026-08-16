@@ -112,6 +112,13 @@ class CommunityController(
         return ApiResponseBuilder.ok(Unit)
     }
 
+    @DeleteMapping("/{communityId}")
+    fun delete(@PathVariable communityId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        manageCommunityUseCase.delete(communityId, userId)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
 }
 
 private fun CommunitySummary.toResponse() = CommunityResponse(

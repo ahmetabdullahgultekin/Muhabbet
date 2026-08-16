@@ -202,6 +202,30 @@ class CommunityControllerTest {
         }
     }
 
+    @Nested
+    inner class Delete {
+
+        @Test
+        fun `should delete the community and answer with 200`() {
+            every { manageCommunityUseCase.delete(communityId, userId) } returns Unit
+
+            val response = controller.delete(communityId)
+
+            assertEquals(200, response.statusCode.value())
+        }
+
+        @Test
+        fun `should pass the authenticated caller to the use case, not a caller-supplied id`() {
+            // Same rule Update.`should pass the authenticated caller to the use case` enforces:
+            // ownership for a destructive action must come from the token, never the request.
+            every { manageCommunityUseCase.delete(communityId, userId) } returns Unit
+
+            controller.delete(communityId)
+
+            verify { manageCommunityUseCase.delete(communityId, userId) }
+        }
+    }
+
     private fun community() = Community(
         id = communityId,
         name = "Mahalle",

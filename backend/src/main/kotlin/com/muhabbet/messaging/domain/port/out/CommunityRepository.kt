@@ -10,6 +10,15 @@ interface CommunityRepository {
     fun findById(id: UUID): Community?
     fun update(community: Community): Community
 
+    /**
+     * Deletes the community itself. `community_members` and `community_groups` both declare
+     * `community_id ... REFERENCES communities(id) ON DELETE CASCADE` (`V16`), so this single
+     * statement is enough to remove every membership and every group link — the database does the
+     * cascading, not this adapter. `community_groups.conversation_id` carries no such clause, so
+     * the linked conversations (and their messages and members) are never touched.
+     */
+    fun delete(id: UUID)
+
     /** Insert or update. Saving an existing (communityId, userId) pair changes that member's role. */
     fun saveMember(member: CommunityMember): CommunityMember
     fun findMember(communityId: UUID, userId: UUID): CommunityMember?

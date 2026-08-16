@@ -44,6 +44,7 @@ fun CommunityDetailScreen(
     var showAddGroupSheet by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var groupPendingRemoval by remember { mutableStateOf<CommunityGroupInfo?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -54,6 +55,7 @@ fun CommunityDetailScreen(
     val leaveFailedMsg = stringResource(Res.string.community_leave_failed)
     val groupRemovedMsg = stringResource(Res.string.community_remove_group_removed)
     val groupRemoveFailedMsg = stringResource(Res.string.community_remove_group_failed)
+    val deleteFailedMsg = stringResource(Res.string.community_delete_failed)
 
     suspend fun loadDetail() {
         val failure = runCatchingCancellable {
@@ -82,6 +84,8 @@ fun CommunityDetailScreen(
     // Only OWNER and ADMIN may change a community; the server enforces it, and hiding the controls
     // keeps a plain member from being shown buttons that would 403.
     val canManage = current?.myRole == ROLE_OWNER || current?.myRole == ROLE_ADMIN
+    // Delete is stricter still — owner only (#407), unlike rename/add-group which admins may also do.
+    val isOwner = current?.myRole == ROLE_OWNER
 
     if (showAddGroupSheet && current != null) {
         AddGroupToCommunitySheet(
@@ -143,6 +147,31 @@ fun CommunityDetailScreen(
         )
     }
 
+    if (showDeleteDialog) {
+        ConfirmDialog(
+            title = stringResource(Res.string.community_delete_title),
+            message = stringResource(Res.string.community_delete_confirm),
+            confirmLabel = stringResource(Res.string.community_delete_button),
+            dismissLabel = stringResource(Res.string.cancel),
+            isDestructive = true,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                showDeleteDialog = false
+                scope.launch {
+                    val failure = runCatchingCancellable {
+                        communityRepository.deleteCommunity(communityId)
+                    }.exceptionOrNull()
+                    if (failure == null) {
+                        onBack()
+                    } else {
+                        Log.e(TAG, "Failed to delete community $communityId", failure)
+                        snackbarHostState.showSnackbar(deleteFailedMsg)
+                    }
+                }
+            }
+        )
+    }
+
     groupPendingRemoval?.let { group ->
         val groupName = group.name ?: stringResource(Res.string.unknown)
         ConfirmDialog(
@@ -191,6 +220,13 @@ fun CommunityDetailScreen(
                             contentDescription = stringResource(Res.string.community_leave_title),
                             onClick = { showLeaveDialog = true }
                         )
+                        if (isOwner) {
+                            MuhabbetIconButton(
+                                icon = Muhabbet.icons.Delete,
+                                contentDescription = stringResource(Res.string.community_delete_title),
+                                onClick = { showDeleteDialog = true }
+                            )
+                        }
                     }
                 }
             )

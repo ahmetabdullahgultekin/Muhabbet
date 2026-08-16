@@ -109,6 +109,22 @@ open class CommunityService(
     }
 
     @Transactional
+    override fun delete(communityId: UUID, requesterId: UUID) {
+        communityRepository.findById(communityId)
+            ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
+
+        // Owner only, deliberately stricter than update/addGroup's admin-or-owner: this is
+        // irreversible, so an admin acting up rather than an owner acting down is not enough.
+        requireOwner(communityId, requesterId)
+
+        // The FK cascade on community_members/community_groups (V16) does the unlinking; this
+        // adapter call never touches conversationRepository, so no group's messages or members are
+        // at risk (see CommunityRepository.delete and the persistence adapter for the schema note).
+        communityRepository.delete(communityId)
+        log.info("Community deleted: id={}, by={}", communityId, requesterId)
+    }
+
+    @Transactional
     override fun addMember(communityId: UUID, userId: UUID, requesterId: UUID): CommunityMember {
         communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
@@ -281,6 +297,14 @@ open class CommunityService(
     private fun requireAdminOrOwner(communityId: UUID, userId: UUID): CommunityMember {
         val member = requireMember(communityId, userId)
         if (!member.administers()) {
+            throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
+        }
+        return member
+    }
+
+    private fun requireOwner(communityId: UUID, userId: UUID): CommunityMember {
+        val member = requireMember(communityId, userId)
+        if (member.role != MemberRole.OWNER) {
             throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
         }
         return member

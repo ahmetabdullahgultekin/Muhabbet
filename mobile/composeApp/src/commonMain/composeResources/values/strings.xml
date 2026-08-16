@@ -584,6 +584,10 @@
     <string name="community_leave_confirm">Bu topluluktan ayrılmak istediğinize emin misiniz?</string>
     <string name="community_leave_button">Ayrıl</string>
     <string name="community_leave_failed">Topluluktan ayrılamadınız</string>
+    <string name="community_delete_title">Topluluğu Sil</string>
+    <string name="community_delete_confirm">Bu topluluğu silmek istediğinize emin misiniz? Bu işlem geri alınamaz. Topluluğun grupları silinmez, yalnızca topluluktan ayrılır.</string>
+    <string name="community_delete_button">Sil</string>
+    <string name="community_delete_failed">Topluluk silinemedi</string>
     <string name="community_add_member">Üye Ekle</string>
     <string name="community_add_member_title">Topluluğa Üye Ekle</string>
     <string name="community_add_member_subtitle">Topluluğun gruplarındaki kişiler eklenebilir</string>

@@ -13,6 +13,7 @@ import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import io.mockk.Called
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -387,6 +388,83 @@ class CommunityServiceTest {
 
             assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
             verify(exactly = 0) { communityRepository.removeGroup(any(), any()) }
+        }
+    }
+
+    @Nested
+    inner class Delete {
+
+        @Test
+        fun `should delete the community when caller is the owner`() {
+            stubDeletable(MemberRole.OWNER)
+            every { communityRepository.delete(communityId) } returns Unit
+
+            service.delete(communityId, userId)
+
+            verify(exactly = 1) { communityRepository.delete(communityId) }
+        }
+
+        @Test
+        fun `should never touch any conversation when the community is deleted`() {
+            // The FK cascade (V16) removes community_members and community_groups rows for us; this
+            // service must never reach into conversationRepository, which would be how a group's
+            // messages or members could be destroyed alongside the community that once linked it.
+            stubDeletable(MemberRole.OWNER)
+            every { communityRepository.delete(communityId) } returns Unit
+
+            service.delete(communityId, userId)
+
+            verify { conversationRepository wasNot Called }
+        }
+
+        @Test
+        fun `should reject when caller is an admin rather than the owner`() {
+            // Owner only, deliberately stricter than update/addGroup's admin-or-owner: this is
+            // irreversible, so administering the community is not enough to delete it.
+            stubCommunityRole(MemberRole.ADMIN)
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+
+            val ex = assertThrows<BusinessException> { service.delete(communityId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { communityRepository.delete(any()) }
+        }
+
+        @Test
+        fun `should reject when caller is only a plain member of the community`() {
+            stubCommunityRole(MemberRole.MEMBER)
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+
+            val ex = assertThrows<BusinessException> { service.delete(communityId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { communityRepository.delete(any()) }
+        }
+
+        @Test
+        fun `should reject when caller is not in the community at all`() {
+            stubCommunityRole(null)
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+
+            val ex = assertThrows<BusinessException> { service.delete(communityId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { communityRepository.delete(any()) }
+        }
+
+        @Test
+        fun `should throw COMMUNITY_NOT_FOUND when community does not exist`() {
+            every { communityRepository.findById(communityId) } returns null
+
+            val ex = assertThrows<BusinessException> { service.delete(communityId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_NOT_FOUND, ex.errorCode)
+            verify(exactly = 0) { communityRepository.delete(any()) }
+        }
+
+        private fun stubDeletable(role: MemberRole) {
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+            stubCommunityRole(role)
         }
     }
 
