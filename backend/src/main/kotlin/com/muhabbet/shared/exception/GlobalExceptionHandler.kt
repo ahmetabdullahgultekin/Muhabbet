@@ -4,6 +4,7 @@ import com.muhabbet.shared.dto.ApiError
 import com.muhabbet.shared.dto.ApiResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -64,6 +65,31 @@ class GlobalExceptionHandler {
                     error = ApiError(
                         code = ErrorCode.VALIDATION_ERROR.name,
                         message = ErrorCode.VALIDATION_ERROR.defaultMessage
+                    ),
+                    timestamp = Instant.now().toString()
+                )
+            )
+    }
+
+    /**
+     * A body the deserializer cannot read is the caller's mistake, not ours. Without this it fell
+     * through to [handleUnexpected] and answered 500 `INTERNAL_ERROR` with an ERROR-level stack
+     * trace — telling the caller the server had broken and inviting a retry that could never
+     * succeed, while letting anyone fill the production log with ERROR noise by posting junk.
+     *
+     * The decoder's own message is passed through because it names the offending key, which is the
+     * only thing that makes the 400 actionable ("unknown key 'code'" — the field is `otp`).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleUnreadableBody(ex: HttpMessageNotReadableException): ResponseEntity<ApiResponse<Nothing>> {
+        log.warn("Unreadable request body: {}", ex.mostSpecificCause.message)
+        return ResponseEntity
+            .badRequest()
+            .body(
+                ApiResponse(
+                    error = ApiError(
+                        code = ErrorCode.VALIDATION_ERROR.name,
+                        message = ex.mostSpecificCause.message ?: ErrorCode.VALIDATION_ERROR.defaultMessage
                     ),
                     timestamp = Instant.now().toString()
                 )
