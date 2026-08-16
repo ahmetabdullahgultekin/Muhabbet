@@ -706,4 +706,11 @@
     <string name="otp_error_cooldown">Yeni kod istemeden önce biraz bekleyin</string>
     <string name="search_failed">Arama yapılamadı</string>
     <string name="status_post_failed">Durum paylaşılamadı</string>
+    <!-- Contact-sync consent (KVKK explicit consent, #425) -->
+    <string name="contacts_consent_title">Rehberinizi eşleştirelim mi?</string>
+    <string name="contacts_consent_body">Rehberinizdeki numaraların kimlerinin Muhabbet'te olduğunu bulmak için, numaraları telefonunuzda geri döndürülemez şekilde şifreleyip (SHA-256) yalnızca bu özetleri sunucumuza gönderiyoruz. Numaraların kendisi telefonunuzdan çıkmaz. Eşleşmeyen özetler saklanmaz. Bu izni istediğiniz zaman geri alabilirsiniz; onaylamazsanız da numara girerek sohbet başlatabilirsiniz.</string>
+    <string name="contacts_consent_accept">Onaylıyorum</string>
+    <string name="contacts_consent_decline">Şimdi değil</string>
+    <string name="contacts_consent_declined">Rehber eşleştirmesini onaylamadınız. Numara girerek sohbet başlatabilirsiniz.</string>
+    <string name="contacts_consent_review">İzni tekrar gözden geçir</string>
 </resources>
