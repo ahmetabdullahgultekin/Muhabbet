@@ -6,8 +6,8 @@ object BuildInfo {
      * task `verifyBuildInfoVersion` fails the build when they drift — they did once, with Gradle on
      * 0.1.0 while the settings screen told users 1.0.0.
      */
-    const val VERSION = "0.3.3"
-    const val VERSION_CODE = 8
+    const val VERSION = "0.3.4"
+    const val VERSION_CODE = 9
 
     /**
      * True only in a debuggable build. Verbose diagnostics — including HTTP logging — hang off
