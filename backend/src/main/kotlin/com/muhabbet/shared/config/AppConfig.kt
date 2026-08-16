@@ -107,7 +107,8 @@ class AppConfig {
         otpVerifier = otpVerifier,
         otpMaxAttempts = otpProperties.maxAttempts,
         refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
-        mockEnabled = otpProperties.mockEnabled
+        mockEnabled = otpProperties.mockEnabled,
+        testNumbers = otpProperties.testNumbers.toSet()
     )
 
     @Bean
