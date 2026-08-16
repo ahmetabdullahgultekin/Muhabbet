@@ -116,6 +116,8 @@
     <string name="group_edit_name_title">Grup Adını Düzenle</string>
     <string name="group_edit_name_placeholder">Grup adı</string>
     <string name="group_update_failed">Güncelleme başarısız</string>
+    <string name="group_change_photo">Grup fotoğrafını değiştir</string>
+    <string name="group_photo_failed">Grup fotoğrafı yüklenemedi</string>
     <string name="group_leave_title">Gruptan Ayrıl</string>
     <string name="group_leave_confirm">Bu gruptan ayrılmak istediğinize emin misiniz?</string>
     <string name="group_leave_button">Ayrıl</string>

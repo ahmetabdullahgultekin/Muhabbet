@@ -122,7 +122,13 @@ open class GroupService(
     }
 
     @Transactional
-    override fun updateGroupInfo(conversationId: UUID, requesterId: UUID, name: String?, description: String?): Conversation {
+    override fun updateGroupInfo(
+        conversationId: UUID,
+        requesterId: UUID,
+        name: String?,
+        description: String?,
+        avatarUrl: String?
+    ): Conversation {
         val conversation = conversationRepository.findById(conversationId)
             ?: throw BusinessException(ErrorCode.GROUP_NOT_FOUND)
 
@@ -139,6 +145,7 @@ open class GroupService(
         val updated = conversation.copy(
             name = name ?: conversation.name,
             description = description ?: conversation.description,
+            avatarUrl = avatarUrl ?: conversation.avatarUrl,
             updatedAt = Instant.now()
         )
         val saved = conversationRepository.updateConversation(updated)
@@ -151,6 +158,7 @@ open class GroupService(
                 conversationId = conversationId.toString(),
                 updatedBy = requesterId.toString(),
                 name = name,
+                avatarUrl = avatarUrl,
                 description = description
             )
         )

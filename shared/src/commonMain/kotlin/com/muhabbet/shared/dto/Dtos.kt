@@ -143,10 +143,15 @@ data class AddMembersRequest(
     val userIds: List<String>
 )
 
+/**
+ * Every field is "leave alone" when null, so a caller changing only the photo does not have to
+ * resend the name — and cannot blank it by omission.
+ */
 @Serializable
 data class UpdateGroupRequest(
     val name: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val avatarUrl: String? = null
 )
 
 @Serializable

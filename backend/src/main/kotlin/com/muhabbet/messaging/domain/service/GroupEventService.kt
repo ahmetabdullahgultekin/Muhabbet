@@ -2,6 +2,7 @@ package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.GroupEvent
 import com.muhabbet.messaging.domain.model.GroupEventRsvp
+import com.muhabbet.messaging.domain.model.GroupEventSummary
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.RsvpStatus
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupEventUseCase
@@ -29,7 +30,7 @@ open class GroupEventService(
         description: String?,
         eventTime: Instant,
         location: String?
-    ): GroupEvent {
+    ): GroupEventSummary {
         requireMember(conversationId, userId)
 
         val event = GroupEvent(
@@ -42,12 +43,16 @@ open class GroupEventService(
         )
         val saved = groupEventRepository.save(event)
         log.info("Group event created: id={}, conv={}, title={}", saved.id, conversationId, title)
-        return saved
+        // Nobody can have answered an event that did not exist a moment ago.
+        return GroupEventSummary(saved, goingCount = 0)
     }
 
     @Transactional(readOnly = true)
-    override fun getEvents(conversationId: UUID): List<GroupEvent> =
-        groupEventRepository.findByConversationId(conversationId)
+    override fun getEvents(conversationId: UUID): List<GroupEventSummary> {
+        val events = groupEventRepository.findByConversationId(conversationId)
+        val goingCounts = groupEventRepository.countGoingRsvps(events.map { it.id })
+        return events.map { GroupEventSummary(it, goingCounts[it.id] ?: 0) }
+    }
 
     @Transactional
     override fun deleteEvent(eventId: UUID, userId: UUID) {

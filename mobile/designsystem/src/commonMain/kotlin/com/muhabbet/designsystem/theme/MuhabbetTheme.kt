@@ -176,6 +176,9 @@ object MuhabbetSizes {
     /** The document-type glyph on a file attachment bubble. */
     val IconAttachment: Dp = 28.dp
 
+    /** Stroke of a spinner drawn small — inside a badge or a button, never filling a screen. */
+    val ProgressStrokeInline: Dp = 2.dp
+
     /** Play/pause overlay centred on a video or voice bubble. */
     val MediaControl: Dp = 48.dp
 

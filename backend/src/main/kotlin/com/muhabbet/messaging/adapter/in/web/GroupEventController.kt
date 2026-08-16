@@ -1,8 +1,12 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.GroupEventSummary
 import com.muhabbet.messaging.domain.model.RsvpStatus
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupEventUseCase
 import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.shared.dto.CreateGroupEventRequest
+import com.muhabbet.shared.dto.GroupEventResponse
+import com.muhabbet.shared.dto.RsvpRequest
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -15,26 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
 import java.util.UUID
-
-data class CreateEventRequest(
-    val title: String,
-    val description: String? = null,
-    val eventTime: String,
-    val location: String? = null
-)
-
-data class RsvpRequest(val status: String)
-
-data class GroupEventResponse(
-    val id: String,
-    val conversationId: String,
-    val createdBy: String,
-    val title: String,
-    val description: String?,
-    val eventTime: String,
-    val location: String?,
-    val createdAt: String
-)
 
 data class RsvpResponse(
     val eventId: String,
@@ -52,7 +36,7 @@ class GroupEventController(
     @PostMapping
     fun createEvent(
         @PathVariable conversationId: UUID,
-        @RequestBody request: CreateEventRequest
+        @RequestBody request: CreateGroupEventRequest
     ): ResponseEntity<ApiResponse<GroupEventResponse>> {
         val userId = AuthenticatedUser.currentUserId()
         val event = manageGroupEventUseCase.createEvent(
@@ -60,7 +44,7 @@ class GroupEventController(
             userId = userId,
             title = request.title,
             description = request.description,
-            eventTime = Instant.parse(request.eventTime),
+            eventTime = Instant.ofEpochMilli(request.eventTime),
             location = request.location
         )
         return ApiResponseBuilder.created(event.toResponse())
@@ -118,13 +102,18 @@ class GroupEventController(
     }
 }
 
-private fun com.muhabbet.messaging.domain.model.GroupEvent.toResponse() = GroupEventResponse(
-    id = id.toString(),
-    conversationId = conversationId.toString(),
-    createdBy = createdBy.toString(),
-    title = title,
-    description = description,
-    eventTime = eventTime.toString(),
-    location = location,
-    createdAt = createdAt.toString()
+/**
+ * Maps to the shared [GroupEventResponse] the mobile client actually deserializes. `eventTime` is
+ * epoch millis on both sides — this controller used to publish an ISO-8601 string and parse one
+ * back, which no client ever sent (#498).
+ */
+private fun GroupEventSummary.toResponse() = GroupEventResponse(
+    id = event.id.toString(),
+    title = event.title,
+    description = event.description,
+    eventTime = event.eventTime.toEpochMilli(),
+    location = event.location,
+    createdBy = event.createdBy.toString(),
+    goingCount = goingCount,
+    createdAt = event.createdAt.toString()
 )
