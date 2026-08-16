@@ -112,4 +112,30 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
     override fun setLastSyncTimestamp(timestamp: String) {
         plainPrefs.edit().putString("last_sync_timestamp", timestamp).apply()
     }
+
+    override fun getWallpaperType(): String? = plainPrefs.getString("wallpaper_type", null)
+
+    override fun setWallpaperType(type: String) {
+        plainPrefs.edit().putString("wallpaper_type", type).apply()
+    }
+
+    override fun getSolidColor(): String? = plainPrefs.getString("wallpaper_solid_color", null)
+
+    override fun setSolidColor(color: String?) {
+        if (color == null) plainPrefs.edit().remove("wallpaper_solid_color").apply()
+        else plainPrefs.edit().putString("wallpaper_solid_color", color).apply()
+    }
+
+    override fun getCustomWallpaperPath(): String? = plainPrefs.getString("wallpaper_custom_path", null)
+
+    override fun setCustomWallpaperPath(path: String?) {
+        if (path == null) plainPrefs.edit().remove("wallpaper_custom_path").apply()
+        else plainPrefs.edit().putString("wallpaper_custom_path", path).apply()
+    }
+
+    override fun getDarkModeWallpaperEnabled(): Boolean = plainPrefs.getBoolean("wallpaper_dark_mode", false)
+
+    override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("wallpaper_dark_mode", enabled).apply()
+    }
 }

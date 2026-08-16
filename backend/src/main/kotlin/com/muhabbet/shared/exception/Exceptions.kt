@@ -120,9 +120,9 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     ),
     COMMUNITY_INVALID_NAME(HttpStatus.BAD_REQUEST, "Geçersiz topluluk adı"),
 
-    // Leaving would delete the community rather than hand it over, and there is no delete endpoint
-    // to do that honestly (cascade semantics are undecided). Refusing keeps the rows reachable
-    // instead of stranding a community nobody can open, rename or remove.
+    // Leaving would strand the community with no member and no owner. #407 added a real delete
+    // endpoint (owner only) as the honest way to remove one; leave still refuses for a sole member
+    // so the escape hatch is an explicit, auditable delete rather than an implicit one on the way out.
     COMMUNITY_LAST_MEMBER_CANNOT_LEAVE(
         HttpStatus.BAD_REQUEST,
         "Topluluğun tek üyesi ayrılamaz, önce başka birini ekleyin"
@@ -163,7 +163,18 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // General
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Doğrulama hatası"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu"),
-    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla istek");
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla istek"),
+
+    // Protocol-level client mistakes. These are the shapes Spring MVC rejects before a controller
+    // is ever reached; each needs a code of its own so the client can tell "you called this wrong"
+    // apart from INTERNAL_ERROR, which means "the server broke, a retry may help".
+    ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "Böyle bir adres yok"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Bu adres bu HTTP metodunu desteklemiyor"),
+
+    // Distinct from MEDIA_UNSUPPORTED_TYPE, which is about the *file* someone uploaded. This one is
+    // about the request's own Content-Type — e.g. JSON posted to a multipart-only endpoint.
+    UNSUPPORTED_CONTENT_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Desteklenmeyen içerik türü"),
+    NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "İstenen içerik türü sunulamıyor");
 }
 
 /**

@@ -17,6 +17,7 @@ import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.PhoneNumberLookup
+import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
 import org.koin.core.module.Module
@@ -58,6 +59,15 @@ fun appModule(): Module = module {
     }
     single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }, localCache = get(), messageEncryptor = get()) }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
+    // Single source of truth for push token registration — used by both the login/app-start
+    // effect in App.kt and MuhabbetFirebaseMessagingService.onNewToken (androidMain). See #398.
+    single {
+        PushTokenRegistrar(
+            pushTokenProvider = get(),
+            authRepository = get(),
+            tokenStorage = get()
+        )
+    }
     // localCache is resolved as LocalCache explicitly: the parameter's type is now the narrower
     // ConversationCache interface, which nothing registers, and Koin resolves get() by the
     // parameter type. Left implicit this would fail at startup, not at compile time.
@@ -84,6 +94,11 @@ fun appModule(): Module = module {
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }
     // Singleton on purpose: read receipts appear on two screens and must not disagree.
     single { com.muhabbet.app.data.local.PrivacySettingsController(authRepository = get()) }
+    // Foreground/background state. Written in exactly one place (App.kt, from the lifecycle
+    // RootComponent already carries) and read by any screen that must act when the user comes back
+    // — an open chat re-asserting its read receipt, today. A singleton because a second copy could
+    // report a different answer than the one the writer is updating.
+    single { com.muhabbet.app.platform.AppVisibility() }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
     single { DeviceLinkRepository(apiClient = get()) }
     // E2EKeyManager and EncryptionPort are provided by platform modules.

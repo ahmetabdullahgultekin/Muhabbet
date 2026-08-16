@@ -8,7 +8,13 @@ import java.util.UUID
 interface ManageGroupUseCase {
     fun addMembers(conversationId: UUID, requesterId: UUID, userIds: List<UUID>): List<ConversationMember>
     fun removeMember(conversationId: UUID, requesterId: UUID, targetUserId: UUID)
-    fun updateGroupInfo(conversationId: UUID, requesterId: UUID, name: String?, description: String?): Conversation
+    fun updateGroupInfo(
+        conversationId: UUID,
+        requesterId: UUID,
+        name: String?,
+        description: String?,
+        avatarUrl: String? = null
+    ): Conversation
     fun updateMemberRole(conversationId: UUID, requesterId: UUID, targetUserId: UUID, newRole: MemberRole)
     fun leaveGroup(conversationId: UUID, userId: UUID)
 }

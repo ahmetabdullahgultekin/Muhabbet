@@ -1,5 +1,7 @@
 package com.muhabbet.designsystem.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -10,8 +12,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.style.TextOverflow
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.MuhabbetMotion
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 /**
  * Colours and metrics every top bar shares — including the two bespoke ones.
@@ -57,6 +63,15 @@ object MuhabbetTopBarDefaults {
  * of them would be a god-component; what is shared here is the tokens and the defaults, not
  * enforced uniformity.
  *
+ * Two things beyond colour, both restrained on purpose since a saturated bar was already ruled out
+ * above:
+ *  - The title crossfades rather than cutting when it changes — a group name that resolves after
+ *    the screen is already open, or a "Chat" placeholder swapping for a real one, reads as the bar
+ *    catching up rather than flickering.
+ *  - A hairline fades in at the bottom edge as content scrolls under the bar, driven directly by
+ *    [TopAppBarScrollBehavior]'s own `overlappedFraction` rather than a second animation — a second,
+ *    quieter signal alongside the colour lift, gone again the moment the list is back at the top.
+ *
  * @param onBack when non-null, renders a back button. Screens that are a tab root pass null.
  * @param actions trailing icons, normally [MuhabbetIconButton]s.
  */
@@ -70,17 +85,35 @@ fun MuhabbetTopBar(
     scrollBehavior: TopAppBarScrollBehavior? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
+    val overlapped = scrollBehavior?.state?.overlappedFraction ?: 0f
+    val hairlineColor = MaterialTheme.colorScheme.outlineVariant
     TopAppBar(
-        modifier = modifier,
+        modifier = modifier.drawWithContent {
+            drawContent()
+            if (overlapped > 0f) {
+                drawLine(
+                    color = hairlineColor.copy(alpha = overlapped.coerceIn(0f, 1f)),
+                    start = Offset(0f, size.height),
+                    end = Offset(size.width, size.height),
+                    strokeWidth = MuhabbetSizes.BorderHairline.toPx()
+                )
+            }
+        },
         title = {
-            Text(
-                text = title,
-                style = Muhabbet.text.TopBarTitle,
-                // Long group names and Turkish titles overflow more often than English ones; a bar
-                // title should never wrap the layout.
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            AnimatedContent(
+                targetState = title,
+                transitionSpec = { MuhabbetMotion.enterFadeUp togetherWith MuhabbetMotion.exitFadeDown },
+                label = "topBarTitle"
+            ) { animatedTitle ->
+                Text(
+                    text = animatedTitle,
+                    style = Muhabbet.text.TopBarTitle,
+                    // Long group names and Turkish titles overflow more often than English ones; a bar
+                    // title should never wrap the layout.
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         },
         navigationIcon = {
             if (onBack != null) {

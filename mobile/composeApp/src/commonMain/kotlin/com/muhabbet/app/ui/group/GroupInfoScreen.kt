@@ -4,7 +4,6 @@ import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,8 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,6 +46,10 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
+import com.muhabbet.app.data.repository.MediaUploadHelper
+import com.muhabbet.app.platform.ImagePickerLauncher
+import com.muhabbet.app.platform.PickedImage
+import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole
@@ -64,6 +65,8 @@ import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.MuhabbetSwitch
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.EditableAvatar
+import com.muhabbet.designsystem.components.UserAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +80,7 @@ fun GroupInfoScreen(
     conversationRepository: ConversationRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
+    mediaUploadHelper: MediaUploadHelper = koinInject(),
     apiClient: ApiClient = koinInject()
 ) {
     var conversation by remember { mutableStateOf<ConversationResponse?>(null) }
@@ -86,6 +90,7 @@ fun GroupInfoScreen(
     var showInviteLinkSheet by remember { mutableStateOf(false) }
     var announcementOnly by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
+    var isUploadingPhoto by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
@@ -95,6 +100,32 @@ fun GroupInfoScreen(
     val announcementEnabledMsg = stringResource(Res.string.announcement_mode_enabled)
     val announcementDisabledMsg = stringResource(Res.string.announcement_mode_disabled)
     val loadFailedMsg = stringResource(Res.string.error_load_failed)
+    val photoFailedMsg = stringResource(Res.string.group_photo_failed)
+
+    // Same two steps as the user's own avatar: upload the bytes, then point the group at the
+    // resulting URL. Compression is MediaUploadHelper's job, not this screen's.
+    val photoPickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
+        if (picked == null) return@rememberImagePickerLauncher
+        scope.launch {
+            isUploadingPhoto = true
+            var failed = false
+            try {
+                val uploaded = mediaUploadHelper.uploadProfilePhoto(
+                    bytes = picked.bytes,
+                    fileName = picked.fileName
+                )
+                groupRepository.updateGroupInfo(conversationId, avatarUrl = uploaded.url)
+                conversation = conversation?.copy(avatarUrl = uploaded.url)
+            } catch (e: Exception) {
+                Log.e(TAG, "Group photo upload failed", e)
+                failed = true
+            }
+            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+            isUploadingPhoto = false
+            // Success needs no snackbar: the avatar itself changes, in place, immediately.
+            if (failed) snackbarHostState.showSnackbar(photoFailedMsg)
+        }
+    }
 
     LaunchedEffect(conversationId) {
         val failure = runCatchingCancellable {
@@ -217,13 +248,28 @@ fun GroupInfoScreen(
                         modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XLarge),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        com.muhabbet.designsystem.components.UserAvatar(
-                            avatarUrl = conversation?.avatarUrl,
-                            displayName = conversation?.name ?: "G",
-                            size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarXLarge,
-                            isGroup = true,
-                            contentDescription = stringResource(Res.string.cd_group_avatar)
-                        )
+                        // Only admins and owners may change the photo, so only they are given the
+                        // control — everyone else sees the plain avatar.
+                        if (isAdminOrOwner) {
+                            EditableAvatar(
+                                avatarUrl = conversation?.avatarUrl,
+                                displayName = conversation?.name ?: "G",
+                                size = MuhabbetSizes.AvatarXLarge,
+                                changePhotoContentDescription = stringResource(Res.string.group_change_photo),
+                                onPickPhoto = { photoPickerLauncher.launch() },
+                                isUploading = isUploadingPhoto,
+                                isGroup = true,
+                                avatarContentDescription = stringResource(Res.string.cd_group_avatar)
+                            )
+                        } else {
+                            UserAvatar(
+                                avatarUrl = conversation?.avatarUrl,
+                                displayName = conversation?.name ?: "G",
+                                size = MuhabbetSizes.AvatarXLarge,
+                                isGroup = true,
+                                contentDescription = stringResource(Res.string.cd_group_avatar)
+                            )
+                        }
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
                         Text(
                             text = conversation?.name ?: conversationName,

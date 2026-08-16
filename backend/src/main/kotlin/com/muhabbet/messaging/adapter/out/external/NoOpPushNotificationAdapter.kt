@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.external
 
+import com.muhabbet.messaging.domain.model.PushNotification
 import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -11,7 +12,11 @@ class NoOpPushNotificationAdapter : PushNotificationPort {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun sendPush(pushToken: String, title: String, body: String, data: Map<String, String>) {
-        log.debug("Push notification skipped (FCM disabled): title={}, token={}...", title, pushToken.take(10))
+    override fun sendPush(pushToken: String, notification: PushNotification) {
+        log.debug(
+            "Push notification skipped (FCM disabled): title={}, token={}...",
+            notification.title,
+            pushToken.take(10)
+        )
     }
 }

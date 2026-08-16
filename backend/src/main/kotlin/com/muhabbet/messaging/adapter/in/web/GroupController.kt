@@ -73,7 +73,13 @@ class GroupController(
         @RequestBody request: UpdateGroupRequest
     ): ResponseEntity<ApiResponse<ConversationResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        val updated = manageGroupUseCase.updateGroupInfo(conversationId, userId, request.name, request.description)
+        val updated = manageGroupUseCase.updateGroupInfo(
+            conversationId,
+            userId,
+            request.name,
+            request.description,
+            request.avatarUrl
+        )
 
         val response = ConversationResponse(
             id = updated.id.toString(),

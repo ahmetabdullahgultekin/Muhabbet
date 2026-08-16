@@ -4,8 +4,11 @@ import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.PushNotificationPort
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
@@ -35,7 +38,10 @@ class RedisMessageBroadcaster(
     private val sessionManager: WebSocketSessionManager,
     private val pushNotificationPort: PushNotificationPort,
     private val deviceRepository: DeviceRepository,
-    private val redisTemplate: StringRedisTemplate
+    private val redisTemplate: StringRedisTemplate,
+    private val userDirectory: UserDirectoryPort,
+    private val conversationRepository: ConversationRepository,
+    private val pushComposer: PushNotificationComposer
 ) : MessageBroadcaster {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -51,11 +57,19 @@ class RedisMessageBroadcaster(
             com.muhabbet.shared.model.ContentType.TEXT
         }
 
+        // One lookup, reused by the socket payload and by every offline recipient's push. Resolved
+        // before the loop so a group of fifty does not run fifty identical queries.
+        val senderName = userDirectory.findDisplayInfo(listOf(message.senderId))[message.senderId]?.displayName
+
+        // Only the push title needs the conversation, and most broadcasts reach nobody offline, so
+        // this stays off the hot path until an offline recipient actually asks for it.
+        val conversation by lazy { conversationRepository.findById(message.conversationId) }
+
         val newMessage = WsMessage.NewMessage(
             messageId = message.id.toString(),
             conversationId = message.conversationId.toString(),
             senderId = message.senderId.toString(),
-            senderName = null,
+            senderName = senderName,
             content = message.content,
             contentType = contentType,
             replyToId = message.replyToId?.toString(),
@@ -80,17 +94,12 @@ class RedisMessageBroadcaster(
 
                 // Also send push notification for offline users
                 try {
+                    // recipientLocale is omitted because no device row carries one yet; the
+                    // composer falls back to Turkish and says so. Follow-up on #469.
+                    val push = pushComposer.compose(message, senderName, conversation)
                     val devices = deviceRepository.findByUserId(recipientId)
                     devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
-                        pushNotificationPort.sendPush(
-                            pushToken = device.pushToken!!,
-                            title = "Yeni mesaj",
-                            body = message.content.take(100),
-                            data = mapOf(
-                                "conversationId" to message.conversationId.toString(),
-                                "messageId" to message.id.toString()
-                            )
-                        )
+                        device.pushToken?.let { token -> pushNotificationPort.sendPush(token, push) }
                     }
                 } catch (e: Exception) {
                     log.warn("Push notification failed for userId={}: {}", recipientId, e.message)

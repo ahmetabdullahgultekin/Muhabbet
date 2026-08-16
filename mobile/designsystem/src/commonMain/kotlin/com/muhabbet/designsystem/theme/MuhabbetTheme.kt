@@ -148,8 +148,16 @@ object MuhabbetSizes {
     /** An icon carrying a state on its own, not labelling something else — e.g. the view-once eye. */
     val IconHero: Dp = 32.dp
 
+    /** The tinted square a settings row's leading icon sits in, so the whole Settings surface reads
+     *  as one family instead of loose icons on a plain row. */
+    val SettingsIconTile: Dp = 36.dp
+
     /** The large, faded icon above an empty- or error-state message. */
     val IconEmptyState: Dp = 56.dp
+
+    /** The soft circular backdrop behind [IconEmptyState], so a screen state reads as a considered
+     *  surface rather than a floating icon. */
+    val StateIconBadge: Dp = 96.dp
 
     /**
      * A hairline gap. Smaller than [MuhabbetSpacing.XSmall] and used only where a 4dp gap would
@@ -168,6 +176,9 @@ object MuhabbetSizes {
     /** The document-type glyph on a file attachment bubble. */
     val IconAttachment: Dp = 28.dp
 
+    /** Stroke of a spinner drawn small — inside a badge or a button, never filling a screen. */
+    val ProgressStrokeInline: Dp = 2.dp
+
     /** Play/pause overlay centred on a video or voice bubble. */
     val MediaControl: Dp = 48.dp
 
@@ -176,6 +187,11 @@ object MuhabbetSizes {
 
     /** A colour swatch standing in for a legend entry — the storage breakdown's category dots. */
     val IndicatorDot: Dp = 8.dp
+
+    /** The small accent mark a [com.muhabbet.designsystem.components.SectionHeader] shows when it
+     *  has neither an icon nor a legend dot — every header carries a mark now, not just some. */
+    val SectionAccentWidth: Dp = 3.dp
+    val SectionAccentHeight: Dp = 14.dp
 
     /** The delivery tick beside a bubble's timestamp — smaller than an icon, it is punctuation. */
     val IconStatusTick: Dp = 14.dp
@@ -189,8 +205,17 @@ object MuhabbetSizes {
     /** A resting outline: divider-weight, present but not asking for attention. */
     val BorderHairline: Dp = 1.dp
 
-    /** A focused or errored outline, and the brand mark's ring. Doubled so it reads as a state. */
+    /**
+     * A focused or errored outline, the brand mark's ring, and — since #433 — the width of the
+     * ring [MuhabbetTextField] draws around itself on focus. Doubled so it reads as a state.
+     */
     val BorderActive: Dp = 2.dp
+
+    /** Gap between a text field's own outline and the focus ring drawn around it. */
+    val TextFieldFocusRingSpread: Dp = 3.dp
+
+    /** One cell of the attachment sheet's icon grid — the tinted circle behind each glyph. */
+    val AttachmentSwatch: Dp = 56.dp
 
     /** One digit box in a verification code. Wider than tall would read as a text field. */
     val OtpBoxWidth: Dp = 44.dp

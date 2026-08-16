@@ -98,9 +98,9 @@
     <string name="start_by_number_invalid">Geçerli bir telefon numarası girin</string>
     <string name="start_by_number_action">Sohbet başlat</string>
     <string name="start_by_number_searching">Aranıyor…</string>
-    <string name="start_by_number_not_registered">Bu numara Muhabbet\'te kayıtlı değil.</string>
-    <string name="start_by_number_invite">Muhabbet\'e davet et</string>
-    <string name="start_by_number_invite_text">Muhabbet\'te bana ulaşabilirsin. Muhabbet, KVKK uyumlu yerli mesajlaşma uygulamasıdır.</string>
+    <string name="start_by_number_not_registered">Bu numara Muhabbet'te kayıtlı değil.</string>
+    <string name="start_by_number_invite">Muhabbet'e davet et</string>
+    <string name="start_by_number_invite_text">Muhabbet'te bana ulaşabilirsin. Muhabbet, KVKK uyumlu yerli mesajlaşma uygulamasıdır.</string>
     <string name="start_by_number_own_number">Bu sizin kendi numaranız.</string>
 
     <!-- Group -->
@@ -116,6 +116,8 @@
     <string name="group_edit_name_title">Grup Adını Düzenle</string>
     <string name="group_edit_name_placeholder">Grup adı</string>
     <string name="group_update_failed">Güncelleme başarısız</string>
+    <string name="group_change_photo">Grup fotoğrafını değiştir</string>
+    <string name="group_photo_failed">Grup fotoğrafı yüklenemedi</string>
     <string name="group_leave_title">Gruptan Ayrıl</string>
     <string name="group_leave_confirm">Bu gruptan ayrılmak istediğinize emin misiniz?</string>
     <string name="group_leave_button">Ayrıl</string>
@@ -471,12 +473,12 @@
     <string name="two_step_title">İki Adımlı Doğrulama</string>
     <string name="two_step_description">Hesabınızı korumak için 6 haneli PIN oluşturun</string>
     <string name="two_step_pin_hint">6 haneli PIN</string>
-    <string name="two_step_confirm_pin">PIN\'i onaylayın</string>
+    <string name="two_step_confirm_pin">PIN'i onaylayın</string>
     <string name="two_step_email_hint">Kurtarma e-postası (isteğe bağlı)</string>
     <string name="two_step_enable">Etkinleştir</string>
     <string name="two_step_disable">Devre Dışı Bırak</string>
     <string name="two_step_enabled">İki adımlı doğrulama etkin</string>
-    <string name="two_step_pin_mismatch">PIN\'ler eşleşmiyor</string>
+    <string name="two_step_pin_mismatch">PIN'ler eşleşmiyor</string>
     <string name="two_step_pin_length">PIN 6 haneli olmalıdır</string>
 
     <!-- Mute Duration -->
@@ -584,6 +586,10 @@
     <string name="community_leave_confirm">Bu topluluktan ayrılmak istediğinize emin misiniz?</string>
     <string name="community_leave_button">Ayrıl</string>
     <string name="community_leave_failed">Topluluktan ayrılamadınız</string>
+    <string name="community_delete_title">Topluluğu Sil</string>
+    <string name="community_delete_confirm">Bu topluluğu silmek istediğinize emin misiniz? Bu işlem geri alınamaz. Topluluğun grupları silinmez, yalnızca topluluktan ayrılır.</string>
+    <string name="community_delete_button">Sil</string>
+    <string name="community_delete_failed">Topluluk silinemedi</string>
     <string name="community_add_member">Üye Ekle</string>
     <string name="community_add_member_title">Topluluğa Üye Ekle</string>
     <string name="community_add_member_subtitle">Topluluğun gruplarındaki kişiler eklenebilir</string>
@@ -606,7 +612,7 @@
     <string name="share_media">Paylaş</string>
     <string name="media_saved">Galeriye kaydedildi</string>
     <string name="auto_download_title">Otomatik İndirme</string>
-    <string name="auto_download_wifi">Wi-Fi\'da</string>
+    <string name="auto_download_wifi">Wi-Fi'da</string>
     <string name="auto_download_mobile">Mobil veride</string>
 
     <!-- Announcement Mode -->
@@ -646,7 +652,7 @@
     <string name="link_device_scan_title">Cihazı bağla</string>
     <string name="link_device_scan_instructions">Diğer cihazda gösterilen QR kodunu tarayın</string>
     <string name="link_device_show_qr_title">Bu QR kodunu tarayın</string>
-    <string name="link_device_show_qr_instructions">Yeni cihazda Muhabbet\'i açın ve bu kodu tarayın. Kod kısa sürede geçersiz olur.</string>
+    <string name="link_device_show_qr_instructions">Yeni cihazda Muhabbet'i açın ve bu kodu tarayın. Kod kısa sürede geçersiz olur.</string>
     <string name="link_device_expires_in">Kod %1$s saniye içinde geçersiz olacak</string>
     <string name="link_device_success">Cihaz başarıyla bağlandı</string>
     <string name="link_device_failed">Cihaz bağlanamadı</string>

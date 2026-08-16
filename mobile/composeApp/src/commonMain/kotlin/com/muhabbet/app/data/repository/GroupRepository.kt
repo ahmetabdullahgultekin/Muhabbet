@@ -41,10 +41,16 @@ class GroupRepository(private val apiClient: ApiClient) {
         apiClient.delete<Unit>("/api/v1/conversations/$conversationId/members/$userId")
     }
 
-    suspend fun updateGroupInfo(conversationId: String, name: String?, description: String?): ConversationResponse {
+    /** A null field leaves that part of the group untouched, so callers may send just one. */
+    suspend fun updateGroupInfo(
+        conversationId: String,
+        name: String? = null,
+        description: String? = null,
+        avatarUrl: String? = null
+    ): ConversationResponse {
         val response = apiClient.patch<ConversationResponse>(
             "/api/v1/conversations/$conversationId",
-            UpdateGroupRequest(name = name, description = description)
+            UpdateGroupRequest(name = name, description = description, avatarUrl = avatarUrl)
         )
         return response.data ?: throw Exception(response.error?.message ?: "GROUP_UPDATE_FAILED")
     }
