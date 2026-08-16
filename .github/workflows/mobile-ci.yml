@@ -210,8 +210,23 @@ jobs:
           retention-days: 7
 
   # --- iOS Framework Build ---
+  #
+  # Gated off by default, because it cannot run here. `macos-latest` is a GitHub-hosted runner and
+  # this account has no macOS minutes available, so the job is allocated no runner and fails after
+  # about three seconds with zero steps executed. That is not a build failure — nothing was built —
+  # but it looked like one on every pull request into main, and since main requires a review rather
+  # than passing checks, it was a permanent red mark that taught everyone to ignore red marks.
+  #
+  # It is skipped rather than `continue-on-error: true` deliberately. A job that always fails and is
+  # always ignored is exactly how detekt's total breakage stayed invisible for months (see CLAUDE.md)
+  # — an ignored failure and a real one look identical. A skipped job is honest: it says out loud
+  # that iOS is not being checked.
+  #
+  # To turn it back on, set the repository variable ENABLE_MACOS_CI to 'true'
+  # (Settings → Secrets and variables → Actions → Variables). Nothing else needs changing.
   ios-framework:
     name: iOS Framework Build
+    if: vars.ENABLE_MACOS_CI == 'true'
     runs-on: macos-latest
 
     steps:
