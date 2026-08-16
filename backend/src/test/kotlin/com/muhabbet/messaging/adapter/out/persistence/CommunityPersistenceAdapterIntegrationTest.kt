@@ -138,9 +138,20 @@ class CommunityPersistenceAdapterIntegrationTest {
     }
 
     @Test
+    fun `should delete the row when a member leaves the community`() {
+        communityRepository.saveMember(
+            CommunityMember(communityId = communityId, userId = creatorId, role = MemberRole.OWNER)
+        )
+
+        communityRepository.removeMember(communityId, creatorId)
+
+        assertNull(communityRepository.findMember(communityId, creatorId))
+    }
+
+    @Test
     fun `should change the role and keep the join date when an existing member is saved again`() {
-        // Saving the same (community, user) pair must update that row, not insert a second one or
-        // reset joinedAt to now.
+        // How ownership succession is applied on leave: saving the same (community, user) pair must
+        // update that row, not insert a second one or reset joinedAt to now.
         val joinedAt = Instant.parse("2026-01-01T00:00:00Z")
         communityRepository.saveMember(CommunityMember(communityId, creatorId, MemberRole.MEMBER, joinedAt))
 

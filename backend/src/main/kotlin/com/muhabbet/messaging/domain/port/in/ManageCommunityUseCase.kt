@@ -4,6 +4,7 @@ import com.muhabbet.messaging.domain.model.Community
 import com.muhabbet.messaging.domain.model.CommunityGroup
 import com.muhabbet.messaging.domain.model.CommunityMember
 import com.muhabbet.messaging.domain.model.MemberRole
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -38,8 +39,45 @@ data class CommunityDetails(
     val myRole: MemberRole
 )
 
+/**
+ * One member of a community, with the user's own display fields resolved so the caller does not
+ * have to look each person up separately.
+ */
+data class CommunityMemberSummary(
+    val userId: UUID,
+    val displayName: String?,
+    val avatarUrl: String?,
+    val role: MemberRole,
+    val joinedAt: Instant
+)
+
+/**
+ * Someone an admin may enrol right now: a member of one of the community's groups who is not yet a
+ * member of the community itself.
+ *
+ * Exists so the picker and [ManageCommunityMembershipUseCase.addMember] answer the same question.
+ * A picker that listed all contacts would offer people the add then refuses with
+ * `COMMUNITY_MEMBER_NOT_IN_ANY_GROUP`, which reads to the user as a broken button.
+ */
+data class CommunityMemberCandidate(
+    val userId: UUID,
+    val displayName: String?,
+    val avatarUrl: String?
+)
+
 interface ManageCommunityUseCase {
     fun create(name: String, description: String?, creatorId: UUID): CommunitySummary
+
+    /**
+     * Renames a community and replaces its description. Admins and owners only.
+     *
+     * @param description the new description, or `null` to clear it — this is a replace, not a
+     * merge, so the caller sends the whole thing.
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
+     * community exists, `COMMUNITY_PERMISSION_DENIED` when the caller does not run it,
+     * `COMMUNITY_INVALID_NAME` when the name is blank or longer than the column allows.
+     */
+    fun update(communityId: UUID, requesterId: UUID, name: String, description: String?): CommunitySummary
 
     /**
      * Links an existing GROUP conversation to a community. The caller must be an admin or owner of
@@ -55,12 +93,6 @@ interface ManageCommunityUseCase {
     fun removeGroup(communityId: UUID, conversationId: UUID, userId: UUID)
 
     /**
-     * Enrols [userId] in the community. Until an invite flow exists (#387), the target must already
-     * be a member of one of the community's groups — see the note in the implementation.
-     */
-    fun addMember(communityId: UUID, userId: UUID, requesterId: UUID): CommunityMember
-
-    /**
      * Reads a community. Members only: this returns the community's groups, and with them the name,
      * avatar and member count of each linked conversation.
      *
@@ -70,4 +102,52 @@ interface ManageCommunityUseCase {
     fun getDetails(communityId: UUID, userId: UUID): CommunityDetails
 
     fun listForUser(userId: UUID): List<CommunitySummary>
+}
+
+/**
+ * Who is in a community, and how that changes.
+ *
+ * Split from [ManageCommunityUseCase] rather than added to it: the two are used by different
+ * screens and, with the members work, a single interface would have reached ten methods — the exact
+ * shape CLAUDE.md's interface-segregation rule names. One service still implements both, so no
+ * behaviour is spread across classes; only the contracts a caller must depend on are narrowed.
+ */
+interface ManageCommunityMembershipUseCase {
+
+    /**
+     * Every member of the community, with display names resolved. Members only, for the same reason
+     * [ManageCommunityUseCase.getDetails] is: the answer is a list of who the caller's neighbours
+     * are, which nobody outside should be able to enumerate.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
+     * community exists, `COMMUNITY_PERMISSION_DENIED` when the requester is not a member.
+     */
+    fun listMembers(communityId: UUID, requesterId: UUID): List<CommunityMemberSummary>
+
+    /**
+     * The people [addMember] would currently accept: members of the community's own groups who are
+     * not yet community members. Admins and owners only — it discloses the membership of every
+     * linked group, and only an admin can act on it.
+     */
+    fun listAddableUsers(communityId: UUID, requesterId: UUID): List<CommunityMemberCandidate>
+
+    /**
+     * Enrols [userId] in the community. Until an invite flow exists (#387), the target must already
+     * be a member of one of the community's groups — see the note in the implementation.
+     */
+    fun addMember(communityId: UUID, userId: UUID, requesterId: UUID): CommunityMember
+
+    /**
+     * Removes the caller from the community.
+     *
+     * The last owner does not strand the community: ownership passes to the longest-standing
+     * remaining admin, or failing that the longest-standing member, exactly as leaving a group
+     * does. A sole member is refused rather than allowed to leave an unreachable, undeletable
+     * community behind.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
+     * community exists, `COMMUNITY_PERMISSION_DENIED` when the caller is not a member,
+     * `COMMUNITY_LAST_MEMBER_CANNOT_LEAVE` when the caller is the only member.
+     */
+    fun leave(communityId: UUID, userId: UUID)
 }

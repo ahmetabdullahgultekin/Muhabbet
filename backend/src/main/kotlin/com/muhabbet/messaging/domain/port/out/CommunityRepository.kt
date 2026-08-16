@@ -10,9 +10,11 @@ interface CommunityRepository {
     fun findById(id: UUID): Community?
     fun update(community: Community): Community
 
+    /** Insert or update. Saving an existing (communityId, userId) pair changes that member's role. */
     fun saveMember(member: CommunityMember): CommunityMember
     fun findMember(communityId: UUID, userId: UUID): CommunityMember?
     fun findMembersByCommunityId(communityId: UUID): List<CommunityMember>
+    fun removeMember(communityId: UUID, userId: UUID)
     fun findCommunitiesByUserId(userId: UUID): List<Community>
 
     fun addGroup(group: CommunityGroup): CommunityGroup

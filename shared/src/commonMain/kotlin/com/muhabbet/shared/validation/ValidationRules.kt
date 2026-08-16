@@ -45,6 +45,17 @@ object ValidationRules {
     fun isValidGroupName(name: String): Boolean =
         name.length in GROUP_NAME_MIN..GROUP_NAME_MAX && name.isNotBlank()
 
+    // Community name
+    //
+    // Its own bound rather than the group one: `communities.name` is VARCHAR(256), so borrowing the
+    // 128-char group limit would reject names the column accepts, and borrowing nothing would let a
+    // 300-char name reach Postgres and fail as a 500 instead of a 400.
+    const val COMMUNITY_NAME_MIN = 1
+    const val COMMUNITY_NAME_MAX = 256
+
+    fun isValidCommunityName(name: String): Boolean =
+        name.length in COMMUNITY_NAME_MIN..COMMUNITY_NAME_MAX && name.isNotBlank()
+
     // Group size
     const val MAX_GROUP_MEMBERS = 256
 
