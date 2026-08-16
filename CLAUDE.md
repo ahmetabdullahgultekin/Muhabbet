@@ -250,6 +250,16 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ## Current Phase
 
+> ## 📄 START HERE: `docs/HANDOFF_2026-08-16.md`
+>
+> If you are picking this project up — on another machine, in a new session, or as an agent — read
+> that file first. It carries the context that would otherwise live only in a chat window: what the
+> two-day audit established, the rules that came out of it, what is verified versus merely compiled,
+> the environment facts that cost an hour each to rediscover (signing key location, read-only SSH,
+> why prod OTPs cannot be read from the log), and what to check on a real phone first.
+>
+> The issue tracker is the inventory: `gh issue list -R ahmetabdullahgultekin/Muhabbet`.
+
 > ## ⚠️ READ THIS BEFORE TRUSTING ANY "DONE" BELOW (2026-08-15)
 >
 > **In this file, "DONE" has meant "the code was written", never "it was seen working."** Three
