@@ -14,6 +14,17 @@ data class GroupEvent(
     val createdAt: Instant = Instant.now()
 )
 
+/**
+ * An event together with how many members have answered GOING.
+ *
+ * The event list renders that number, so it is resolved once for the whole page rather than by
+ * asking each event for its RSVPs in turn.
+ */
+data class GroupEventSummary(
+    val event: GroupEvent,
+    val goingCount: Int
+)
+
 enum class RsvpStatus {
     GOING, NOT_GOING, MAYBE
 }

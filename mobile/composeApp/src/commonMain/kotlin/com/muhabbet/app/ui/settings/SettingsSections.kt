@@ -1,7 +1,6 @@
 package com.muhabbet.app.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.PrivacySettingsController
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
-import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.theme.MuhabbetThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -71,42 +70,14 @@ internal fun ProfileEditorSection(
     onAboutChange: (String) -> Unit,
     onSave: () -> Unit
 ) {
-    // The click sits on the whole Box, not just the avatar. The camera badge is drawn over the
-    // avatar's bottom-right corner, so a tap that landed on the badge — the part that looks like
-    // the button, and the node that carries the "Change photo" description a screen reader is told
-    // to activate — hit the Surface and did nothing at all.
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.clickable(enabled = !isUploadingPhoto) { onPickPhoto() }
-    ) {
-        UserAvatar(
-            avatarUrl = avatarUrl,
-            displayName = displayName,
-            size = MuhabbetSizes.AvatarXXLarge
-        )
-        Surface(
-            modifier = Modifier.size(MuhabbetSizes.IconAttachment).align(Alignment.BottomEnd),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (isUploadingPhoto) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(
-                        imageVector = Muhabbet.icons.Camera,
-                        contentDescription = stringResource(Res.string.profile_change_photo),
-                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-        }
-    }
+    EditableAvatar(
+        avatarUrl = avatarUrl,
+        displayName = displayName,
+        size = MuhabbetSizes.AvatarXXLarge,
+        changePhotoContentDescription = stringResource(Res.string.profile_change_photo),
+        onPickPhoto = onPickPhoto,
+        isUploading = isUploadingPhoto
+    )
 
     Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 

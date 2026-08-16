@@ -11,6 +11,7 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.protocol.WsMessage
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -386,6 +387,66 @@ class GroupServiceTest {
             val result = groupService.updateGroupInfo(groupId, ownerId, "New Name", null)
 
             assertEquals("New Name", result.name)
+        }
+
+        @Test
+        fun `should set the group photo when given one`() {
+            val group = groupConversation()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns
+                    member(groupId, ownerId, MemberRole.OWNER)
+            every { conversationRepository.updateConversation(any()) } answers { firstArg() }
+            every { conversationRepository.findMembersByConversationId(groupId) } returns listOf(
+                member(groupId, ownerId, MemberRole.OWNER)
+            )
+
+            val result = groupService.updateGroupInfo(
+                groupId, ownerId, null, null, "https://cdn.example/group.jpg"
+            )
+
+            assertEquals("https://cdn.example/group.jpg", result.avatarUrl)
+        }
+
+        @Test
+        fun `should keep the existing photo when the update does not mention one`() {
+            val group = groupConversation().copy(avatarUrl = "https://cdn.example/old.jpg")
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns
+                    member(groupId, ownerId, MemberRole.OWNER)
+            every { conversationRepository.updateConversation(any()) } answers { firstArg() }
+            every { conversationRepository.findMembersByConversationId(groupId) } returns listOf(
+                member(groupId, ownerId, MemberRole.OWNER)
+            )
+
+            // Renaming a group must not silently drop its photo.
+            val result = groupService.updateGroupInfo(groupId, ownerId, "New Name", null)
+
+            assertEquals("https://cdn.example/old.jpg", result.avatarUrl)
+        }
+
+        @Test
+        fun `should tell the other members about the new photo`() {
+            val group = groupConversation()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns
+                    member(groupId, ownerId, MemberRole.OWNER)
+            every { conversationRepository.updateConversation(any()) } answers { firstArg() }
+            every { conversationRepository.findMembersByConversationId(groupId) } returns listOf(
+                member(groupId, ownerId, MemberRole.OWNER),
+                member(groupId, memberId, MemberRole.MEMBER)
+            )
+
+            groupService.updateGroupInfo(groupId, ownerId, null, null, "https://cdn.example/new.jpg")
+
+            verify {
+                messageBroadcaster.broadcastToUsers(
+                    any(),
+                    match { it is WsMessage.GroupInfoUpdated && it.avatarUrl == "https://cdn.example/new.jpg" }
+                )
+            }
         }
 
         @Test

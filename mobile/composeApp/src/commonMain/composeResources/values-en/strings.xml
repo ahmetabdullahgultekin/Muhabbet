@@ -116,6 +116,8 @@
     <string name="group_edit_name_title">Edit Group Name</string>
     <string name="group_edit_name_placeholder">Group name</string>
     <string name="group_update_failed">Update failed</string>
+    <string name="group_change_photo">Change group photo</string>
+    <string name="group_photo_failed">Group photo upload failed</string>
     <string name="group_leave_title">Leave Group</string>
     <string name="group_leave_confirm">Are you sure you want to leave this group?</string>
     <string name="group_leave_button">Leave</string>
