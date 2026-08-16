@@ -18,6 +18,7 @@
     <string name="action_send">Send</string>
     <string name="action_save">Save</string>
     <string name="attach_file">Attach file</string>
+    <string name="attach_file_view_once_on">Attach file — view once is on</string>
     <string name="voice_play">Play</string>
     <string name="voice_pause">Pause</string>
     <string name="voice_record">Record</string>
@@ -497,6 +498,7 @@
 
     <!-- View Once -->
     <string name="view_once_label">View once</string>
+    <string name="view_once_hint">The photo disappears after it is opened once</string>
     <string name="view_once_opened">Opened</string>
     <string name="view_once_tap_to_view">Tap to view</string>
     <string name="view_once_photo">Photo</string>
