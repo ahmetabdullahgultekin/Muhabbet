@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.socket.CloseStatus
+import org.springframework.web.socket.PongMessage
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
 import org.springframework.web.socket.handler.TextWebSocketHandler
@@ -72,6 +73,10 @@ class ChatWebSocketHandler(
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
+        // Before anything can reject this frame (rate limit, bad JSON, unknown type): it arrived,
+        // so the peer is alive. Liveness must not depend on the frame being well-formed or wanted.
+        sessionManager.touch(session)
+
         val userId = session.attributes["userId"] as? UUID ?: return
 
         // Per-connection rate limiting
@@ -105,6 +110,15 @@ class ChatWebSocketHandler(
             is WsMessage.CallEnd -> handleCallEnd(userId, wsMessage)
             else -> sendError(session, "VALIDATION_ERROR", "Unexpected message type from client")
         }
+    }
+
+    /**
+     * The reply to the ping frames [WebSocketSessionManager.reapStaleSessions] sends. It is the only
+     * proof of life we get from a client that is backgrounded and has stopped sending its own
+     * heartbeat, so it counts as inbound traffic exactly like a text frame does.
+     */
+    override fun handlePongMessage(session: WebSocketSession, message: PongMessage) {
+        sessionManager.touch(session)
     }
 
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
