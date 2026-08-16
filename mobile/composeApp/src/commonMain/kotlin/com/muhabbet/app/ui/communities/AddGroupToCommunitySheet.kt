@@ -136,7 +136,7 @@ fun AddGroupToCommunitySheet(
                 }
 
                 else -> {
-                    LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    LazyColumn(modifier = Modifier.heightIn(max = MuhabbetSizes.PickerSheetMaxHeight)) {
                         items(groups, key = { it.id }) { group ->
                             GroupPickerItem(
                                 group = group,

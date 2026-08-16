@@ -1,32 +1,9 @@
 package com.muhabbet.app.ui.communities
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,45 +11,49 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import kotlinx.coroutines.launch
-import com.muhabbet.designsystem.components.MuhabbetTopBar
-import com.muhabbet.designsystem.components.UserAvatar
-import com.muhabbet.designsystem.theme.MuhabbetElevation
-import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.ConfirmDialog
+import com.muhabbet.designsystem.components.MuhabbetErrorState
+import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetScaffold
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
-import com.muhabbet.designsystem.Muhabbet
-import com.muhabbet.designsystem.components.MuhabbetScaffold
-import com.muhabbet.designsystem.components.MuhabbetLoadingState
-import com.muhabbet.designsystem.components.MuhabbetErrorState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityDetailScreen(
     communityId: String,
     onBack: () -> Unit,
-    onGroupClick: (String) -> Unit,
+    onGroupClick: (conversationId: String, name: String) -> Unit,
+    onMembersClick: (String) -> Unit,
     communityRepository: CommunityRepository = koinInject()
 ) {
     var detail by remember { mutableStateOf<CommunityDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var showAddGroupSheet by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showLeaveDialog by remember { mutableStateOf(false) }
+    var groupPendingRemoval by remember { mutableStateOf<CommunityGroupInfo?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
+    val updatedMsg = stringResource(Res.string.community_updated)
+    val updateFailedMsg = stringResource(Res.string.community_update_failed)
+    val leaveFailedMsg = stringResource(Res.string.community_leave_failed)
+    val groupRemovedMsg = stringResource(Res.string.community_remove_group_removed)
+    val groupRemoveFailedMsg = stringResource(Res.string.community_remove_group_failed)
 
     suspend fun loadDetail() {
         val failure = runCatchingCancellable {
@@ -84,7 +65,7 @@ fun CommunityDetailScreen(
         if (failure != null) {
             // Without this the screen sits on a generic title with no groups, indistinguishable
             // from an empty community.
-            Log.e("CommunityDetailScreen", "Failed to load community $communityId", failure)
+            Log.e(TAG, "Failed to load community $communityId", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
     }
@@ -98,6 +79,10 @@ fun CommunityDetailScreen(
     }
 
     val current = detail
+    // Only OWNER and ADMIN may change a community; the server enforces it, and hiding the controls
+    // keeps a plain member from being shown buttons that would 403.
+    val canManage = current?.myRole == ROLE_OWNER || current?.myRole == ROLE_ADMIN
+
     if (showAddGroupSheet && current != null) {
         AddGroupToCommunitySheet(
             communityId = communityId,
@@ -109,13 +94,105 @@ fun CommunityDetailScreen(
         )
     }
 
+    if (showEditDialog && current != null) {
+        EditCommunityDialog(
+            initialName = current.name,
+            initialDescription = current.description,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { newName, newDescription ->
+                showEditDialog = false
+                scope.launch {
+                    val failure = runCatchingCancellable {
+                        communityRepository.updateCommunity(communityId, newName, newDescription)
+                        loadDetail()
+                    }.exceptionOrNull()
+                    if (failure != null) {
+                        Log.e(TAG, "Failed to update community $communityId", failure)
+                    }
+                    snackbarHostState.showSnackbar(if (failure == null) updatedMsg else updateFailedMsg)
+                }
+            }
+        )
+    }
+
+    if (showLeaveDialog) {
+        ConfirmDialog(
+            title = stringResource(Res.string.community_leave_title),
+            message = stringResource(Res.string.community_leave_confirm),
+            confirmLabel = stringResource(Res.string.community_leave_button),
+            dismissLabel = stringResource(Res.string.cancel),
+            isDestructive = true,
+            onDismiss = { showLeaveDialog = false },
+            onConfirm = {
+                showLeaveDialog = false
+                scope.launch {
+                    val failure = runCatchingCancellable {
+                        communityRepository.leaveCommunity(communityId)
+                    }.exceptionOrNull()
+                    if (failure == null) {
+                        onBack()
+                    } else {
+                        // The server refuses the community's only member, because leaving would
+                        // strand rows nothing can reach. The user has to be told, not silently
+                        // returned to a list that still shows the community.
+                        Log.e(TAG, "Failed to leave community $communityId", failure)
+                        snackbarHostState.showSnackbar(leaveFailedMsg)
+                    }
+                }
+            }
+        )
+    }
+
+    groupPendingRemoval?.let { group ->
+        val groupName = group.name ?: stringResource(Res.string.unknown)
+        ConfirmDialog(
+            title = stringResource(Res.string.community_remove_group),
+            message = stringResource(Res.string.community_remove_group_confirm, groupName),
+            confirmLabel = stringResource(Res.string.community_remove_group),
+            dismissLabel = stringResource(Res.string.cancel),
+            isDestructive = true,
+            onDismiss = { groupPendingRemoval = null },
+            onConfirm = {
+                groupPendingRemoval = null
+                scope.launch {
+                    val failure = runCatchingCancellable {
+                        communityRepository.removeGroupFromCommunity(communityId, group.conversationId)
+                        loadDetail()
+                    }.exceptionOrNull()
+                    if (failure != null) {
+                        Log.e(TAG, "Failed to remove group ${group.conversationId}", failure)
+                    }
+                    snackbarHostState.showSnackbar(
+                        if (failure == null) groupRemovedMsg else groupRemoveFailedMsg
+                    )
+                }
+            }
+        )
+    }
+
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
         topBar = {
             MuhabbetTopBar(
                 title = detail?.name ?: stringResource(Res.string.communities_title),
                 onBack = onBack,
-                backContentDescription = stringResource(Res.string.action_back)
+                backContentDescription = stringResource(Res.string.action_back),
+                actions = {
+                    if (current != null) {
+                        if (canManage) {
+                            MuhabbetIconButton(
+                                icon = Muhabbet.icons.Edit,
+                                contentDescription = stringResource(Res.string.community_edit_title),
+                                onClick = { showEditDialog = true }
+                            )
+                        }
+                        MuhabbetIconButton(
+                            icon = Muhabbet.icons.LeaveGroup,
+                            contentDescription = stringResource(Res.string.community_leave_title),
+                            onClick = { showLeaveDialog = true }
+                        )
+                    }
+                }
             )
         }
     ) { padding ->
@@ -130,118 +207,17 @@ fun CommunityDetailScreen(
             )
         } else {
             val community = detail ?: return@MuhabbetScaffold
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) {
-                // Header
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(MuhabbetSpacing.XLarge),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        UserAvatar(
-                            avatarUrl = community.avatarUrl,
-                            displayName = community.name,
-                            size = MuhabbetSizes.AvatarXXLarge
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                        Text(
-                            text = community.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        community.description?.let { desc ->
-                            Spacer(Modifier.height(MuhabbetSpacing.Small))
-                            Text(
-                                text = desc,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.height(MuhabbetSpacing.Small))
-                        Text(
-                            text = stringResource(Res.string.community_member_count, community.memberCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                item {
-                    HorizontalDivider()
-                    Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                }
-
-                // Groups section header
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Small),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(Res.string.community_groups),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TextButton(onClick = { showAddGroupSheet = true }) {
-                            Icon(Muhabbet.icons.Add, contentDescription = null, modifier = Modifier.size(MuhabbetSizes.IconSmall))
-                            Spacer(Modifier.width(MuhabbetSpacing.XSmall))
-                            Text(stringResource(Res.string.community_add_group))
-                        }
-                    }
-                }
-
-                // Groups list
-                items(community.groups, key = { it.conversationId }) { group ->
-                    GroupItem(
-                        group = group,
-                        onClick = { onGroupClick(group.conversationId) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GroupItem(
-    group: CommunityGroupInfo,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        tonalElevation = MuhabbetElevation.Level1
-    ) {
-        Row(
-            modifier = Modifier.padding(
-                horizontal = MuhabbetSpacing.XLarge,
-                vertical = MuhabbetSpacing.Medium
-            ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            UserAvatar(
-                avatarUrl = group.avatarUrl,
-                displayName = group.name ?: "",
-                size = MuhabbetSizes.AvatarMedium
+            CommunityDetailContent(
+                community = community,
+                canManage = canManage,
+                contentPadding = padding,
+                onMembersClick = { onMembersClick(communityId) },
+                onAddGroupClick = { showAddGroupSheet = true },
+                onGroupClick = onGroupClick,
+                onRemoveGroupClick = { groupPendingRemoval = it }
             )
-            Spacer(Modifier.width(MuhabbetSpacing.Medium))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = group.name ?: "",
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1
-                )
-                Text(
-                    text = stringResource(Res.string.community_member_count, group.memberCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
+
+private const val TAG = "CommunityDetailScreen"
