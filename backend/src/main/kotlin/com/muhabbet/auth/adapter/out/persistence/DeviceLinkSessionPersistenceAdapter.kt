@@ -20,4 +20,7 @@ class DeviceLinkSessionPersistenceAdapter(
 
     override fun findByLinkToken(token: String): DeviceLinkSession? =
         repo.findByLinkToken(token)?.toDomain()
+
+    override fun findByUserId(userId: UUID): List<DeviceLinkSession> =
+        repo.findByUserId(userId).map { it.toDomain() }
 }

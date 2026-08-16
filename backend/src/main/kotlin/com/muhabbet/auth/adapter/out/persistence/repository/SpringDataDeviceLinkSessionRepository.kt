@@ -6,4 +6,5 @@ import java.util.UUID
 
 interface SpringDataDeviceLinkSessionRepository : JpaRepository<DeviceLinkSessionJpaEntity, UUID> {
     fun findByLinkToken(linkToken: String): DeviceLinkSessionJpaEntity?
+    fun findByUserId(userId: UUID): List<DeviceLinkSessionJpaEntity>
 }

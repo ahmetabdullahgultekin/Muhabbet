@@ -10,6 +10,8 @@ import java.util.UUID
 
 interface SpringDataRefreshTokenRepository : JpaRepository<RefreshTokenJpaEntity, UUID> {
 
+    fun findByUserId(userId: UUID): List<RefreshTokenJpaEntity>
+
     @Query(
         """
         SELECT r FROM RefreshTokenJpaEntity r

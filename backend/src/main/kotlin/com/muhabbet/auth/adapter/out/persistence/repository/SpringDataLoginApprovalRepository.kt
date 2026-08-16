@@ -7,4 +7,5 @@ import java.util.UUID
 
 interface SpringDataLoginApprovalRepository : JpaRepository<LoginApprovalJpaEntity, UUID> {
     fun findByUserIdAndStatus(userId: UUID, status: LoginApprovalStatus): List<LoginApprovalJpaEntity>
+    fun findByUserId(userId: UUID): List<LoginApprovalJpaEntity>
 }

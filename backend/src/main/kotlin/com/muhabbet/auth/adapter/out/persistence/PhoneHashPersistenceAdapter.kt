@@ -18,4 +18,7 @@ class PhoneHashPersistenceAdapter(
     override fun findUserIdsByPhoneHashes(phoneHashes: List<String>): Map<String, UUID> =
         springDataPhoneHashRepository.findByPhoneHashIn(phoneHashes)
             .associate { it.phoneHash to it.userId }
+
+    override fun existsByUserId(userId: UUID): Boolean =
+        springDataPhoneHashRepository.existsByUserId(userId)
 }

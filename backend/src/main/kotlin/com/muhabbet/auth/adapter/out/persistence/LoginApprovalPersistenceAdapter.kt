@@ -21,4 +21,7 @@ class LoginApprovalPersistenceAdapter(
 
     override fun findPendingByUserId(userId: UUID): List<LoginApproval> =
         repo.findByUserIdAndStatus(userId, LoginApprovalStatus.PENDING).map { it.toDomain() }
+
+    override fun findByUserId(userId: UUID): List<LoginApproval> =
+        repo.findByUserId(userId).map { it.toDomain() }
 }
