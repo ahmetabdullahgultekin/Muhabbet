@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon background layer.
+
+  Flat fill only — the mark itself lives in ic_launcher_foreground.xml, inside the safe zone. A
+  background layer must be fully opaque and is allowed to bleed edge-to-edge because every launcher
+  crops it to its own mask (circle, squircle, rounded square); there is nothing here for a mask to
+  clip badly.
+
+  Colour: MuhabbetPalette.Ink.I99 (#FDFBF9) in mobile/designsystem/.../theme/MuhabbetPalette.kt —
+  the same warm paper tone `muhabbet_splash_background` (values/colors.xml) and the app's own light
+  background already use. The icon sits on the colour MuhabbetBrandMark is actually seen on in the
+  app, not an invented one.
+-->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#1B5E20" />
+    <solid android:color="#FDFBF9" />
 </shape>

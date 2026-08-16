@@ -14,4 +14,13 @@
       oval bled through and rendered as a stray green circle over the login screen.
     -->
     <color name="muhabbet_splash_background">#FDFBF9</color>
+
+    <!--
+      Notification accent (NotificationCompat.Builder#setColor): the accent stripe/small-icon tint
+      Android draws on API <26 and that some launchers still show for the app's notifications. This
+      was #1B5E20 (Material Green 900, the same stock green as the pre-fix launcher icon — see
+      MuhabbetFirebaseMessagingService.kt); it is now MuhabbetPalette.Copper.C50 (#A85F1C), the same
+      colour used as `primary` in the light colour scheme.
+    -->
+    <color name="muhabbet_notification_accent">#A85F1C</color>
 </resources>

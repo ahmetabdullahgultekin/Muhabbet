@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon monochrome layer (Android 13+ themed icons).
+
+  Required for a launcher to draw a themed/tinted version of the icon (matching the user's wallpaper
+  palette on Material You home screens); it was entirely absent before this change. The system
+  discards whatever colour this layer paints and substitutes its own tint, so only the silhouette
+  matters — same ring + "M" geometry as ic_launcher_foreground.xml (see that file for the safe-zone
+  and sizing rationale), flattened to a single opaque colour by convention.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ring: annulus via evenOdd fill (outer circle r=31, inner circle r=25 -> 6dp stroke). -->
+    <path
+        android:fillType="evenOdd"
+        android:fillColor="#FF000000"
+        android:pathData="M23,54 A31,31 0 1,1 85,54 A31,31 0 1,1 23,54 Z M29,54 A25,25 0 1,1 79,54 A25,25 0 1,1 29,54 Z" />
+
+    <!-- "M" glyph: same stroked zigzag as the foreground layer. -->
+    <path
+        android:pathData="M39,66 L39,42 L54,56 L69,42 L69,66"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>

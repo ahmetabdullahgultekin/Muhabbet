@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
+import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.muhabbet.app.MainActivity
@@ -41,6 +42,7 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
 
         val notificationId = conversationId.hashCode()
         val groupKey = "$GROUP_KEY_PREFIX$conversationId"
+        val accentColor = ContextCompat.getColor(this, com.muhabbet.app.R.color.muhabbet_notification_accent)
 
         // PendingIntent to open the conversation
         val openIntent = Intent(this, MainActivity::class.java).apply {
@@ -88,7 +90,7 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
         // Build the individual message notification
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(com.muhabbet.app.R.drawable.ic_notification)
-            .setColor(0xFF1B5E20.toInt())
+            .setColor(accentColor)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -105,7 +107,7 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
         // and for the bundled notification on API 24+)
         val summaryNotification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(com.muhabbet.app.R.drawable.ic_notification)
-            .setColor(0xFF1B5E20.toInt())
+            .setColor(accentColor)
             .setContentTitle(senderName)
             .setContentText("Yeni mesajlar")
             .setGroup(groupKey)
@@ -196,7 +198,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
 
         val updatedNotification = NotificationCompat.Builder(context, "muhabbet_dm_messages")
             .setSmallIcon(com.muhabbet.app.R.drawable.ic_notification)
-            .setColor(0xFF1B5E20.toInt())
+            .setColor(ContextCompat.getColor(context, com.muhabbet.app.R.color.muhabbet_notification_accent))
             .setContentText("Yanıt gönderildi")
             .setAutoCancel(true)
             .build()

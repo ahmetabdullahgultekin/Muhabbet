@@ -1,23 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground layer — the Muhabbet brand mark.
+
+  This redraws mobile/designsystem/.../components/MuhabbetBrandMark.kt as vector paths: a copper
+  ring around an "M". It is the SAME mark the app shows on its own login screen, not a second icon —
+  a launcher entry cannot host a live @Composable or the Manrope font, so the ring and the glyph are
+  reproduced as static geometry instead of re-imagined.
+
+  Safe zone: adaptive icons are cropped to a circle / squircle / rounded-square mask depending on
+  the launcher, so content must sit inside the inner 66dp of this 108dp canvas (a 21dp inset on
+  every side, i.e. the box [21,87]x[21,87]) or it gets clipped on some masks. The ring's outer edge
+  (radius 31 about centre 54,54) reaches only to [23,85]; the "M" stroke reaches [39,69]x[42,66].
+  Both stay inside the safe zone with margin to spare.
+
+  Ring colour: MuhabbetGradients.kt `brandRing` — a sweep gradient through Copper C40 -> C70 -> C90
+  -> C60 -> C40 (MuhabbetPalette.kt `Copper` object: #8A4E17, #E08A3C, #F8CFA6, #C9752C, #8A4E17).
+  Same five stops, same order, reproduced here because a vector drawable cannot reference a
+  Composable Brush.
+  "M" colour: MuhabbetPalette.Copper.C50 (#A85F1C) — the exact colour `MaterialTheme.colorScheme
+  .primary` resolves to in the light scheme, which is what colours the "M" text in
+  MuhabbetBrandMark.
+
+  Both strokes are proportionally heavier than the in-app mark: the ring is 6dp on a 62dp mark here
+  versus MuhabbetSizes.BorderActive's 2dp on an 80dp mark there, and the "M" stroke is 8dp. A
+  launcher icon can render as small as 48dp, where a 2/80 stroke ratio disappears; both were
+  thickened for legibility at that size. This was NOT verified on a device or an emulator — none is
+  available on the build host, see the PR description.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Speech bubble body (centered in 108x108 safe zone: 18-90) -->
-    <path
-        android:pathData="M34,32 C34,28 37,25 41,25 L67,25 C71,25 74,28 74,32 L74,56 C74,60 71,63 67,63 L50,63 L40,73 L42,63 L41,63 C37,63 34,60 34,56 Z"
-        android:fillColor="#FFFFFF" />
+    <!-- Ring: annulus via evenOdd fill (outer circle r=31, inner circle r=25 -> 6dp stroke). -->
+    <path android:fillType="evenOdd"
+        android:pathData="M23,54 A31,31 0 1,1 85,54 A31,31 0 1,1 23,54 Z M29,54 A25,25 0 1,1 79,54 A25,25 0 1,1 29,54 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="sweep"
+                android:centerX="54"
+                android:centerY="54">
+                <item android:offset="0" android:color="#8A4E17" />
+                <item android:offset="0.25" android:color="#E08A3C" />
+                <item android:offset="0.5" android:color="#F8CFA6" />
+                <item android:offset="0.75" android:color="#C9752C" />
+                <item android:offset="1" android:color="#8A4E17" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- Three dots inside the bubble (circles as paths) -->
+    <!-- "M" glyph: a single stroked zigzag (bottom-left -> top-left -> valley -> top-right -> bottom-right). -->
     <path
-        android:pathData="M43,44 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z"
-        android:fillColor="#1B5E20" />
-    <path
-        android:pathData="M51,44 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z"
-        android:fillColor="#1B5E20" />
-    <path
-        android:pathData="M59,44 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z"
-        android:fillColor="#1B5E20" />
+        android:pathData="M39,66 L39,42 L54,56 L69,42 L69,66"
+        android:strokeColor="#A85F1C"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
 </vector>
