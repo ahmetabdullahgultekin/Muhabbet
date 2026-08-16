@@ -1,24 +1,74 @@
 package com.muhabbet.designsystem.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import com.muhabbet.designsystem.theme.MuhabbetDepth
 import com.muhabbet.designsystem.theme.MuhabbetIcons
+import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.containerColor
+
+/**
+ * Wraps [content] in a one-shot fade-and-rise on first composition, using the shared enter pair
+ * every other "something just appeared" moment in the app uses.
+ *
+ * A loading, empty or error state is usually the first thing a screen shows — a hard cut into it
+ * reads as unstyled in exactly the way a subtle rise does not. There is no matching exit: the state
+ * leaves because the screen recomposes into real content, not because this component hides itself.
+ */
+@Composable
+private fun AppearingColumn(
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val visibleState = remember { MutableTransitionState(false) }.apply { targetState = true }
+    AnimatedVisibility(visibleState = visibleState, enter = MuhabbetMotion.enterFadeUp, modifier = modifier) {
+        Column(horizontalAlignment = horizontalAlignment, verticalArrangement = verticalArrangement, content = content)
+    }
+}
+
+/**
+ * An icon sitting in a soft circular backdrop rather than floating bare on the page — the same
+ * "icon gets a considered container" move [SettingsRow] makes for its own leading icons, so an
+ * empty inbox and a failed load read as the same family of surface instead of an unrelated icon.
+ */
+@Composable
+private fun StateIconBadge(icon: ImageVector, contentDescription: String?, tint: Color, containerColor: Color) {
+    Box(
+        modifier = Modifier.size(MuhabbetSizes.StateIconBadge).background(containerColor, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(MuhabbetSizes.IconEmptyState),
+            tint = tint
+        )
+    }
+}
 
 /**
  * A screen that is loading its content.
@@ -39,10 +89,7 @@ fun MuhabbetLoadingState(
     label: String? = null
 ) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Large)
-        ) {
+        AppearingColumn(verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Large)) {
             CircularProgressIndicator()
             if (label != null) {
                 Text(
@@ -67,6 +114,10 @@ fun MuhabbetLoadingState(
  * "Broadcast Lists", "Communities" — because there was no obvious place for a real one. Making
  * [title] a required parameter is what forces that mistake out.
  *
+ * The icon's badge takes [MuhabbetDepth.Floating]'s container tone — the same quiet "sits above the
+ * page, does not compete with the copper accent" step a FAB or the reaction bar uses, which is a
+ * better fit for "nothing here yet" than either the old faded icon or a full brand colour would be.
+ *
  * @param action optional call to action. Empty is often a dead end the user could get out of —
  *   "no contacts" wants a sync button — and nothing offered one before.
  */
@@ -80,18 +131,15 @@ fun MuhabbetEmptyState(
     action: (@Composable () -> Unit)? = null
 ) {
     Box(modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
-        ) {
+        AppearingColumn(verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)) {
             if (icon != null) {
-                Icon(
-                    imageVector = icon,
+                StateIconBadge(
+                    icon = icon,
                     // Usually decorative: the title beneath already says what is missing. Callers
                     // pass a description only when the icon carries meaning the text does not.
                     contentDescription = iconContentDescription,
-                    modifier = Modifier.size(MuhabbetSizes.IconEmptyState),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = IconAlpha)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    containerColor = MuhabbetDepth.Floating.containerColor()
                 )
             }
             Text(
@@ -119,6 +167,9 @@ fun MuhabbetEmptyState(
  * The ten inline error `Text`s this replaces were all dead ends: none offered a way to try again,
  * so a failed load left the screen permanently empty with a red sentence on it. [onRetry] is
  * optional only because a few failures genuinely are not retryable.
+ *
+ * The retry action is a [MuhabbetButton] rather than a bare `TextButton` now, so trying again gets
+ * the same press spring and haptic every other confirming tap in the app carries.
  */
 @Composable
 fun MuhabbetErrorState(
@@ -128,15 +179,12 @@ fun MuhabbetErrorState(
     onRetry: (() -> Unit)? = null
 ) {
     Box(modifier.fillMaxSize().padding(MuhabbetSpacing.XLarge), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
-        ) {
-            Icon(
-                imageVector = MuhabbetIcons.Info,
+        AppearingColumn(verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)) {
+            StateIconBadge(
+                icon = MuhabbetIcons.Info,
                 contentDescription = null,
-                modifier = Modifier.size(MuhabbetSizes.IconEmptyState),
-                tint = MaterialTheme.colorScheme.error.copy(alpha = IconAlpha)
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                containerColor = MaterialTheme.colorScheme.errorContainer
             )
             Text(
                 text = message,
@@ -145,11 +193,8 @@ fun MuhabbetErrorState(
                 textAlign = TextAlign.Center
             )
             if (onRetry != null && retryLabel != null) {
-                TextButton(onClick = onRetry) { Text(retryLabel) }
+                MuhabbetButton(text = retryLabel, onClick = onRetry, role = MuhabbetButtonRole.Text)
             }
         }
     }
 }
-
-
-private const val IconAlpha = 0.4f

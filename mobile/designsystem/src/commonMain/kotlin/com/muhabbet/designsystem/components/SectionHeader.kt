@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 
@@ -28,7 +30,9 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
  * Takes an optional leading indicator, in the two forms the app actually uses: a coloured dot (the
  * storage breakdown's legend) or an icon (the privacy dashboard's sections). Whichever is present
  * tints the title too, so the heading reads as one accented unit rather than a stray coloured mark
- * next to unrelated text. With neither, it is a plain bold label.
+ * next to unrelated text. With neither, the title stays neutral but the row still carries a small
+ * copper accent bar — every header gets a mark now, not just the ones a caller happened to pass one
+ * for, which is what made this the one component in the family with no colour or shape of its own.
  *
  * The privacy dashboard had reimplemented the icon variant privately rather than extending this —
  * which is how the app ended up with two section headers that agreed on nothing but the font.
@@ -57,14 +61,24 @@ fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
     ) {
-        if (dotColor != null) {
-            Box(Modifier.size(MuhabbetSizes.IndicatorDot).clip(CircleShape).background(dotColor))
-        } else if (icon != null) {
-            Icon(
+        when {
+            dotColor != null -> Box(Modifier.size(MuhabbetSizes.IndicatorDot).clip(CircleShape).background(dotColor))
+
+            icon != null -> Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
+            )
+
+            // Neither given: a small rounded accent bar instead of nothing, so a plain "Notifications"
+            // or "Storage" heading still carries the brand's own colour and shape rather than reading
+            // as an unstyled bold Text.
+            else -> Box(
+                Modifier
+                    .size(width = MuhabbetSizes.SectionAccentWidth, height = MuhabbetSizes.SectionAccentHeight)
+                    .clip(RoundedCornerShape(MuhabbetCorners.Hairline))
+                    .background(accentColor)
             )
         }
         Text(
