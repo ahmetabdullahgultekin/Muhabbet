@@ -17,6 +17,7 @@ import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.PhoneNumberLookup
+import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
 import org.koin.core.module.Module
@@ -58,6 +59,15 @@ fun appModule(): Module = module {
     }
     single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }, localCache = get(), messageEncryptor = get()) }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
+    // Single source of truth for push token registration — used by both the login/app-start
+    // effect in App.kt and MuhabbetFirebaseMessagingService.onNewToken (androidMain). See #398.
+    single {
+        PushTokenRegistrar(
+            pushTokenProvider = get(),
+            authRepository = get(),
+            tokenStorage = get()
+        )
+    }
     // localCache is resolved as LocalCache explicitly: the parameter's type is now the narrower
     // ConversationCache interface, which nothing registers, and Koin resolves get() by the
     // parameter type. Left implicit this would fail at startup, not at compile time.

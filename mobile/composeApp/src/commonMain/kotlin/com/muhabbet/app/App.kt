@@ -8,34 +8,28 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
-import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.E2ESetupService
-import com.muhabbet.app.di.appModule
+import com.muhabbet.app.di.bootstrapOrReuseKoin
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.platform.CrashReporter
-import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
-import org.koin.core.context.startKoin
-import org.koin.mp.KoinPlatform
 import org.koin.core.module.Module
 
 @Composable
 fun App(componentContext: ComponentContext, platformModule: Module) {
-    val koin = remember {
-        runCatching {
-            startKoin { modules(platformModule, appModule()) }.koin
-        }.getOrElse { KoinPlatform.getKoin() }
-    }
+    val koin = remember { bootstrapOrReuseKoin(platformModule) }
 
     KoinContext(koin = koin) {
         val tokenStorage: TokenStorage = koinInject()
@@ -56,18 +50,23 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         }
 
         MuhabbetTheme(mode = themeMode, hapticsEnabled = hapticsEnabled) {
-            WebSocketLifecycle()
+            WebSocketLifecycle(root)
             RootContent(root)
         }
     }
 }
 
 @Composable
-private fun WebSocketLifecycle() {
+private fun WebSocketLifecycle(root: RootComponent) {
     val wsClient: WsClient = koinInject()
     val tokenStorage: TokenStorage = koinInject()
-    val pushTokenProvider: PushTokenProvider = koinInject()
-    val authRepository: AuthRepository = koinInject()
+    val pushTokenRegistrar: PushTokenRegistrar = koinInject()
+
+    // Reactive login state, unlike tokenStorage.isLoggedIn() below — that is a snapshot read once
+    // when a Unit-keyed effect first runs. This tracks the navigation stack, so it flips the
+    // moment RootComponent.onAuthComplete() swaps Config.Auth -> Config.Main.
+    val stack by root.childStack.subscribeAsState()
+    val loggedIn = stack.active.instance is RootComponent.Child.Main
 
     DisposableEffect(Unit) {
         if (tokenStorage.isLoggedIn()) {
@@ -105,22 +104,18 @@ private fun WebSocketLifecycle() {
         }
     }
 
-    // Register push token after WS connect
-    LaunchedEffect(Unit) {
-        if (tokenStorage.isLoggedIn()) {
-            try {
-                val pushToken = pushTokenProvider.getToken()
-                if (pushToken != null) {
-                    authRepository.registerPushToken(pushToken)
-                    Log.d("App", "Push token registered: ${pushToken.take(10)}...")
-                }
-            } catch (e: Exception) {
-                // Deliberately absorbed. This is startup bootstrap with no screen of its own; a
-                // snackbar on launch, over whatever the user opened the app to do, would say
-                // nothing they can act on. The failure is now real rather than swallowed by
-                // ApiClient, so the log line is the record — push simply will not arrive.
-                Log.e("App", "Push token registration failed: ${e.message}")
-            }
+    // Register the push token whenever the session becomes active (#398). Keyed on `loggedIn`,
+    // not `Unit`: this composable is mounted ABOVE the auth/main navigation switch (see App()),
+    // so a Unit-keyed effect samples tokenStorage.isLoggedIn() once, before the login screen has
+    // even run, and never re-evaluates it. That made push-token registration work only for a user
+    // who force-quit and relaunched an already-authenticated app — a path zero of six production
+    // devices had taken. Keying on `loggedIn` re-fires the moment RootComponent swaps to
+    // Config.Main, so first login registers a token exactly like an app start that was already
+    // logged in. #349 tracks the identical Unit-key defect for WS connect, the E2E effect below
+    // and background sync; this call site is scoped to push token registration only.
+    LaunchedEffect(loggedIn) {
+        if (loggedIn) {
+            pushTokenRegistrar.registerIfLoggedIn()
         }
     }
 
