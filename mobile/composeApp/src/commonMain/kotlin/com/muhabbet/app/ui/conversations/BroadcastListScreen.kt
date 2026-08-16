@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +53,7 @@ import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.MuhabbetFab
 
 private const val TAG = "BroadcastListScreen"
 
@@ -131,13 +131,11 @@ fun BroadcastListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Muhabbet.icons.Add, contentDescription = stringResource(Res.string.broadcast_list_create))
-            }
+            MuhabbetFab(
+                icon = Muhabbet.icons.Add,
+                contentDescription = stringResource(Res.string.broadcast_list_create),
+                onClick = { showCreateDialog = true }
+            )
         },
         snackbarHostState = snackbarHostState
     ) { padding ->

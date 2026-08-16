@@ -226,6 +226,32 @@ object MuhabbetSizes {
     val StepRailSegmentHeight: Dp = 4.dp
 
     /**
+     * The copper mark that rides the top edge of the bottom bar and slides to the selected tab.
+     *
+     * Deliberately the same 28dp width as [StepRailSegmentWidth]: the sign-up rail and the tab rail
+     * are the same idea — a short capsule saying "you are here" — and they should be recognisably
+     * the same mark. One dp thinner than the step rail, because this one sits on a hairline track
+     * rather than alone on the page.
+     */
+    val NavRailWidth: Dp = 28.dp
+    val NavRailHeight: Dp = 3.dp
+
+    /**
+     * Resting height of one bottom-bar item, icon and label included.
+     *
+     * A minimum rather than a fixed height: at 1.3x font scale a fixed bar clips its own labels,
+     * which is the single most common accessibility defect in a bottom navigation.
+     */
+    val NavItemMinHeight: Dp = 56.dp
+
+    /** How far the selected tab's icon rises. Small on purpose — a hint, not a hop. */
+    val NavItemLift: Dp = 2.dp
+
+    /** How far the unread badge is pushed off the icon's top-right corner. */
+    val NavBadgeOffsetX: Dp = 10.dp
+    val NavBadgeOffsetY: Dp = 4.dp
+
+    /**
      * Stroke for a spinner shrunk to icon size. M3's default stroke is proportioned for the default
      * 40dp indicator and reads as a solid disc once the diameter drops to 16–24dp.
      */

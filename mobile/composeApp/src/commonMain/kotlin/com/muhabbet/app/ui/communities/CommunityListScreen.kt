@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -46,6 +45,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
+import com.muhabbet.designsystem.components.MuhabbetFab
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,13 +75,11 @@ fun CommunityListScreen(
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onCreateCommunity,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Muhabbet.icons.Add, contentDescription = stringResource(Res.string.community_create))
-            }
+            MuhabbetFab(
+                icon = Muhabbet.icons.Add,
+                contentDescription = stringResource(Res.string.community_create),
+                onClick = onCreateCommunity
+            )
         }
     ) { padding ->
         if (isLoading) {

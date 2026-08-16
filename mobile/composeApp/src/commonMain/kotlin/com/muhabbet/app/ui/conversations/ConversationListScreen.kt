@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +54,7 @@ import com.muhabbet.designsystem.components.MuhabbetTextField
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetFab
 
 private const val TAG = "ConversationList"
 
@@ -396,17 +396,12 @@ fun ConversationListScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
+            MuhabbetFab(
+                icon = Muhabbet.icons.Add,
+                contentDescription = stringResource(Res.string.new_conversation_title),
                 onClick = onNewConversation,
-                containerColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.testTag("new_chat_fab")
-            ) {
-                Icon(
-                    imageVector = Muhabbet.icons.Add,
-                    contentDescription = stringResource(Res.string.new_conversation_title),
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
-            }
+            )
         },
         snackbarHostState = snackbarHostState
     ) { padding ->
