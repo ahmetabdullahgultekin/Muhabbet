@@ -74,6 +74,10 @@ fun SettingsScreen(
     var displayName by remember { mutableStateOf("") }
     var about by remember { mutableStateOf("") }
     var avatarUrl by remember { mutableStateOf<String?>(null) }
+    // The Account section used to print getUserId() under the label "Telefon", so every user saw a
+    // UUID where their phone number should be. GET /users/me already returns the number — and this
+    // screen already called it — the value was simply dropped on the floor.
+    var phoneNumber by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     var isUploadingPhoto by remember { mutableStateOf(false) }
@@ -88,6 +92,7 @@ fun SettingsScreen(
     val profileUpdatedMsg = stringResource(Res.string.settings_profile_updated)
     val genericErrorMsg = stringResource(Res.string.error_generic)
     val photoUploadFailedMsg = stringResource(Res.string.profile_photo_failed)
+    val privacySaveFailedMsg = stringResource(Res.string.privacy_settings_save_failed)
 
     val imagePickerLauncher: ImagePickerLauncher = rememberImagePickerLauncher { picked: PickedImage? ->
         if (picked == null) return@rememberImagePickerLauncher
@@ -121,6 +126,7 @@ fun SettingsScreen(
             displayName = profile.displayName ?: ""
             about = profile.about ?: ""
             avatarUrl = profile.avatarUrl
+            phoneNumber = profile.phoneNumber ?: ""
         }.exceptionOrNull()
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false
@@ -312,7 +318,11 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                PrivacySection()
+                PrivacySection(
+                    onSaveFailed = {
+                        scope.launch { snackbarHostState.showSnackbar(privacySaveFailedMsg) }
+                    }
+                )
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
@@ -324,7 +334,7 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                AccountSection(phoneNumber = remember { tokenStorage.getUserId() ?: "" })
+                AccountSection(phoneNumber = phoneNumber)
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()

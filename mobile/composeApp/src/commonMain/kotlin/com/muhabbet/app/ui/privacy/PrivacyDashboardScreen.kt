@@ -19,6 +19,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.muhabbet.app.crypto.E2EConfig
+import com.muhabbet.app.data.local.PrivacySettingsController
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.designsystem.components.MuhabbetTopBar
@@ -52,14 +55,18 @@ import com.muhabbet.designsystem.components.MuhabbetChip
 fun PrivacyDashboardScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    authRepository: AuthRepository = koinInject()
+    authRepository: AuthRepository = koinInject(),
+    privacySettings: PrivacySettingsController = koinInject()
 ) {
     var isExporting by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var readReceiptsEnabled by remember { mutableStateOf(true) }
-    var lastSeenVisibility by remember { mutableStateOf("everyone") }
-    var profilePhotoVisibility by remember { mutableStateOf("everyone") }
-    var aboutVisibility by remember { mutableStateOf("contacts") }
+
+    // Server-backed, shared with Settings → Gizlilik. Every control on this screen used to be a
+    // `remember { mutableStateOf(...) }` seeded with the most permissive option: nothing loaded on
+    // open, nothing saved on change, and reopening silently reported "everyone" to a user who may
+    // have chosen "nobody". On the screen that carries the app's KVKK claim, that is the defect.
+    val settings by privacySettings.settings.collectAsState()
+    var loadFailed by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -68,6 +75,24 @@ fun PrivacyDashboardScreen(
     val exportFailedMsg = stringResource(Res.string.privacy_export_failed)
     val deleteSuccessMsg = stringResource(Res.string.privacy_delete_success)
     val errorMsg = stringResource(Res.string.error_generic)
+    val saveFailedMsg = stringResource(Res.string.privacy_settings_save_failed)
+
+    LaunchedEffect(Unit) { loadFailed = privacySettings.load().isFailure }
+
+    fun save(
+        readReceiptsEnabled: Boolean? = null,
+        onlineStatusVisibility: String? = null,
+        aboutVisibility: String? = null
+    ) {
+        scope.launch {
+            val failed = privacySettings.update(
+                readReceiptsEnabled = readReceiptsEnabled,
+                onlineStatusVisibility = onlineStatusVisibility,
+                aboutVisibility = aboutVisibility
+            ).isFailure
+            if (failed) snackbarHostState.showSnackbar(saveFailedMsg)
+        }
+    }
 
     if (showDeleteDialog) {
         ConfirmDialog(
@@ -117,41 +142,58 @@ fun PrivacyDashboardScreen(
                 )
             }
 
-            item {
-                PrivacyVisibilityRow(
-                    label = stringResource(Res.string.privacy_last_seen),
-                    description = stringResource(Res.string.privacy_last_seen_desc),
-                    selectedValue = lastSeenVisibility,
-                    onValueChange = { lastSeenVisibility = it }
-                )
-            }
+            // Three controls, not four. "Profil Fotoğrafı" is gone: there is no
+            // profile_photo_visibility column, the PATCH body has no such field, and avatarUrl is
+            // returned to every caller unconditionally — so the picker had nothing to write to and
+            // nothing to affect. Removed rather than left looking adjustable; it comes back with
+            // the column, the request field and the gate on the avatar, together.
+            //
+            // "Son Görülme" sends onlineStatusVisibility, which is the one field that gates both
+            // presence and last-seen server-side.
+            val current = settings
+            when {
+                current != null -> {
+                    item {
+                        PrivacyVisibilityRow(
+                            label = stringResource(Res.string.privacy_last_seen),
+                            description = stringResource(Res.string.privacy_last_seen_desc),
+                            selectedValue = current.onlineStatusVisibility,
+                            onValueChange = { save(onlineStatusVisibility = it) }
+                        )
+                    }
 
-            item {
-                PrivacyVisibilityRow(
-                    label = stringResource(Res.string.privacy_profile_photo),
-                    description = stringResource(Res.string.privacy_profile_photo_desc),
-                    selectedValue = profilePhotoVisibility,
-                    onValueChange = { profilePhotoVisibility = it }
-                )
-            }
+                    item {
+                        PrivacyVisibilityRow(
+                            label = stringResource(Res.string.privacy_about),
+                            description = stringResource(Res.string.privacy_about_desc),
+                            selectedValue = current.aboutVisibility,
+                            onValueChange = { save(aboutVisibility = it) }
+                        )
+                    }
 
-            item {
-                PrivacyVisibilityRow(
-                    label = stringResource(Res.string.privacy_about),
-                    description = stringResource(Res.string.privacy_about_desc),
-                    selectedValue = aboutVisibility,
-                    onValueChange = { aboutVisibility = it }
-                )
-            }
+                    item {
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_privacy_read_receipts),
+                            subtitle = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
+                            checked = current.readReceiptsEnabled,
+                            onCheckedChange = { save(readReceiptsEnabled = it) }
+                        )
+                        MuhabbetDivider()
+                    }
+                }
 
-            item {
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.settings_privacy_read_receipts),
-                    subtitle = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
-                    checked = readReceiptsEnabled,
-                    onCheckedChange = { readReceiptsEnabled = it }
-                )
-                MuhabbetDivider()
+                loadFailed -> item {
+                    SettingsInfoRow(
+                        title = stringResource(Res.string.privacy_settings_load_failed),
+                        icon = Muhabbet.icons.Info
+                    )
+                    MuhabbetDivider()
+                }
+
+                else -> item {
+                    SettingsInfoRow(title = stringResource(Res.string.privacy_settings_loading))
+                    MuhabbetDivider()
+                }
             }
 
             // Security section

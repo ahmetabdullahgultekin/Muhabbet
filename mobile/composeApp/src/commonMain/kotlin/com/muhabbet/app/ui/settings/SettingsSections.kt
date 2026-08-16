@@ -19,10 +19,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.data.local.PrivacySettingsController
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.designsystem.components.UserAvatar
@@ -42,8 +45,11 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.SettingsInfoRow
 import com.muhabbet.designsystem.components.SettingsSwitchRow
 import com.muhabbet.designsystem.components.SettingsRadioRow
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
@@ -268,36 +274,73 @@ internal fun ThemeSection(themeController: ThemeController) {
     }
 }
 
+/**
+ * The read-receipts switch, backed by the server.
+ *
+ * It was `remember { mutableStateOf(true) }`: it moved when tapped, told nobody, and reset on the
+ * next recomposition. The same control also exists on the privacy dashboard, so the two could show
+ * opposite answers — both now read the one [PrivacySettingsController] flow.
+ *
+ * There is no local default to fall back on. Until the load returns, the row says so rather than
+ * showing a guess, because the guess (on) is the setting that leaks the most.
+ */
 @Composable
-internal fun PrivacySection() {
+internal fun PrivacySection(
+    onSaveFailed: () -> Unit,
+    privacySettings: PrivacySettingsController = koinInject()
+) {
     SettingsSectionTitle(stringResource(Res.string.settings_privacy_section))
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-    var readReceiptsEnabled by remember { mutableStateOf(true) }
-    SettingsSwitchRow(
-        title = stringResource(Res.string.settings_privacy_read_receipts),
-        subtitle = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
-        checked = readReceiptsEnabled,
-        onCheckedChange = { readReceiptsEnabled = it }
-    )
+    val settings by privacySettings.settings.collectAsState()
+    var loadFailed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) { loadFailed = privacySettings.load().isFailure }
+
+    val current = settings
+    when {
+        current != null -> SettingsSwitchRow(
+            title = stringResource(Res.string.settings_privacy_read_receipts),
+            subtitle = stringResource(Res.string.settings_privacy_read_receipts_subtitle),
+            checked = current.readReceiptsEnabled,
+            onCheckedChange = { enabled ->
+                scope.launch {
+                    if (privacySettings.update(readReceiptsEnabled = enabled).isFailure) {
+                        onSaveFailed()
+                    }
+                }
+            }
+        )
+
+        loadFailed -> SettingsInfoRow(title = stringResource(Res.string.privacy_settings_load_failed))
+
+        else -> SettingsInfoRow(title = stringResource(Res.string.privacy_settings_loading))
+    }
 }
 
+/**
+ * Notifications, honestly.
+ *
+ * This section used to hold "Bildirimler açık" and "Titreşim" as local state. Neither had anywhere
+ * to go: push delivery is off in the deploying stack (`FCM_ENABLED: "false"` in the repo-root
+ * `docker-compose.prod.yml`), so the server never sends a push and no preference could change that.
+ *
+ * The switches are gone rather than persisted. Storing a flag would have meant new storage members
+ * on three implementations for a value with no consumer — the same shape as the defect being fixed
+ * elsewhere in this change, and it would have read to the user as "notifications are on" while the
+ * phone stayed silent. A statement of what the app actually does is more use than a switch that
+ * does nothing. Restore the controls together with push, not before it.
+ */
 @Composable
 internal fun NotificationsSection() {
     SettingsSectionTitle(stringResource(Res.string.settings_notifications_section))
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var vibrationEnabled by remember { mutableStateOf(true) }
-    SettingsSwitchRow(
-        title = stringResource(Res.string.settings_notifications_enabled),
-        checked = notificationsEnabled,
-        onCheckedChange = { notificationsEnabled = it }
-    )
-    SettingsSwitchRow(
-        title = stringResource(Res.string.settings_notifications_vibrate),
-        checked = vibrationEnabled,
-        onCheckedChange = { vibrationEnabled = it }
+    SettingsInfoRow(
+        title = stringResource(Res.string.settings_notifications_unavailable),
+        subtitle = stringResource(Res.string.settings_notifications_unavailable_desc),
+        icon = Muhabbet.icons.Info
     )
 }
 
@@ -326,8 +369,12 @@ internal fun AccountSection(phoneNumber: String) {
     SettingsSectionTitle(stringResource(Res.string.settings_account_section))
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
+    // Blank means the profile request failed — say so, rather than printing "Telefon numarası: "
+    // with nothing after it. The caller no longer passes a user id here (it used to, so this line
+    // rendered a UUID under a phone-number label).
+    val value = phoneNumber.ifBlank { stringResource(Res.string.settings_account_phone_unknown) }
     Text(
-        text = "${stringResource(Res.string.settings_account_phone)}: $phoneNumber",
+        text = "${stringResource(Res.string.settings_account_phone)}: $value",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth()
