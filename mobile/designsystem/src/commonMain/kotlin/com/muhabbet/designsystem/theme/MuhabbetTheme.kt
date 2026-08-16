@@ -189,8 +189,17 @@ object MuhabbetSizes {
     /** A resting outline: divider-weight, present but not asking for attention. */
     val BorderHairline: Dp = 1.dp
 
-    /** A focused or errored outline, and the brand mark's ring. Doubled so it reads as a state. */
+    /**
+     * A focused or errored outline, the brand mark's ring, and — since #433 — the width of the
+     * ring [MuhabbetTextField] draws around itself on focus. Doubled so it reads as a state.
+     */
     val BorderActive: Dp = 2.dp
+
+    /** Gap between a text field's own outline and the focus ring drawn around it. */
+    val TextFieldFocusRingSpread: Dp = 3.dp
+
+    /** One cell of the attachment sheet's icon grid — the tinted circle behind each glyph. */
+    val AttachmentSwatch: Dp = 56.dp
 
     /** One digit box in a verification code. Wider than tall would read as a text field. */
     val OtpBoxWidth: Dp = 44.dp

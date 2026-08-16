@@ -1,7 +1,9 @@
 package com.muhabbet.app.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,8 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,8 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res
@@ -51,6 +56,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
+import com.muhabbet.designsystem.components.MuhabbetBottomSheet
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
@@ -173,61 +179,19 @@ fun MessageInputBar(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Attach button with menu
-            Box {
-                IconButton(
-                    onClick = { showAttachMenu = true },
-                    enabled = !isUploading && !isEditing
-                ) {
-                    if (isUploading) {
-                        CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
-                    } else {
-                        Icon(
-                            imageVector = Muhabbet.icons.Attach,
-                            contentDescription = stringResource(Res.string.attach_file),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                DropdownMenu(
-                    expanded = showAttachMenu,
-                    onDismissRequest = { showAttachMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.attach_image)) },
-                        onClick = { showAttachMenu = false; onImagePick() },
-                        leadingIcon = { Icon(Muhabbet.icons.Image, contentDescription = stringResource(Res.string.attach_image), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
+            // Attach button — opens the attachment sheet below, not a menu anchored to this icon.
+            IconButton(
+                onClick = { showAttachMenu = true },
+                enabled = !isUploading && !isEditing
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(modifier = Modifier.size(MuhabbetSizes.IconLarge), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = Muhabbet.icons.Attach,
+                        contentDescription = stringResource(Res.string.attach_file),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.attach_document)) },
-                        onClick = { showAttachMenu = false; onFilePick() },
-                        leadingIcon = { Icon(Muhabbet.icons.Document, contentDescription = stringResource(Res.string.attach_document), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.attach_poll)) },
-                        onClick = { showAttachMenu = false; onPollCreate() },
-                        leadingIcon = { Icon(Muhabbet.icons.Poll, contentDescription = stringResource(Res.string.attach_poll), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.attach_location)) },
-                        onClick = { showAttachMenu = false; onLocationShare() },
-                        leadingIcon = { Icon(Muhabbet.icons.Location, contentDescription = stringResource(Res.string.attach_location), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.attach_gif)) },
-                        onClick = { showAttachMenu = false; onGifPick() },
-                        leadingIcon = { Icon(Muhabbet.icons.Gif, contentDescription = stringResource(Res.string.attach_gif), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.attach_camera)) },
-                        onClick = { showAttachMenu = false; onCameraPick() },
-                        leadingIcon = { Icon(Muhabbet.icons.Camera, contentDescription = stringResource(Res.string.attach_camera), modifier = Modifier.size(MuhabbetSizes.IconMedium)) }
-                    )
-                    // No "video message" entry: there is no video recorder in this app. No caller
-                    // ever passed onVideoRecord, no expect/actual capture exists on either
-                    // platform, and CameraPicker is stills-only — so the item opened the menu,
-                    // closed it, and did nothing. Removed rather than wired, because wiring it
-                    // would mean building a recorder, an encoder and an upload path first.
                 }
             }
 
@@ -310,5 +274,103 @@ fun MessageInputBar(
             }
             }
         }
+    }
+
+    if (showAttachMenu) {
+        AttachmentSheet(
+            onDismiss = { showAttachMenu = false },
+            onImagePick = onImagePick,
+            onFilePick = onFilePick,
+            onPollCreate = onPollCreate,
+            onLocationShare = onLocationShare,
+            onGifPick = onGifPick,
+            onCameraPick = onCameraPick
+        )
+    }
+}
+
+/**
+ * The attachment picker, opened from [MessageInputBar]'s attach button.
+ *
+ * Was a bare `DropdownMenu` floating over the chat with six left-aligned text rows (#433) — the
+ * single most-used surface in the app after the composer itself, rendered as a generic Android
+ * context menu with no relationship to the palette around it. WhatsApp, Telegram and Signal each
+ * treat this as a signature surface: a labelled grid of actions in a sheet, not a text list.
+ *
+ * No "video message" entry: there is no video recorder in this app. No caller ever passed
+ * `onVideoRecord`, no expect/actual capture exists on either platform, and `CameraPicker` is
+ * stills-only — the old menu item opened the menu, closed it, and did nothing. Removed rather than
+ * wired, because wiring it would mean building a recorder, an encoder and an upload path first.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttachmentSheet(
+    onDismiss: () -> Unit,
+    onImagePick: () -> Unit,
+    onFilePick: () -> Unit,
+    onPollCreate: () -> Unit,
+    onLocationShare: () -> Unit,
+    onGifPick: () -> Unit,
+    onCameraPick: () -> Unit
+) {
+    val imageLabel = stringResource(Res.string.attach_image)
+    val documentLabel = stringResource(Res.string.attach_document)
+    val pollLabel = stringResource(Res.string.attach_poll)
+    val locationLabel = stringResource(Res.string.attach_location)
+    val gifLabel = stringResource(Res.string.attach_gif)
+    val cameraLabel = stringResource(Res.string.attach_camera)
+
+    MuhabbetBottomSheet(onDismiss = onDismiss) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            AttachmentGridItem(Muhabbet.icons.Image, imageLabel, Modifier.weight(1f)) { onDismiss(); onImagePick() }
+            AttachmentGridItem(Muhabbet.icons.Document, documentLabel, Modifier.weight(1f)) { onDismiss(); onFilePick() }
+            AttachmentGridItem(Muhabbet.icons.Camera, cameraLabel, Modifier.weight(1f)) { onDismiss(); onCameraPick() }
+        }
+        Spacer(Modifier.height(MuhabbetSpacing.Large))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            AttachmentGridItem(Muhabbet.icons.Poll, pollLabel, Modifier.weight(1f)) { onDismiss(); onPollCreate() }
+            AttachmentGridItem(Muhabbet.icons.Location, locationLabel, Modifier.weight(1f)) { onDismiss(); onLocationShare() }
+            AttachmentGridItem(Muhabbet.icons.Gif, gifLabel, Modifier.weight(1f)) { onDismiss(); onGifPick() }
+        }
+    }
+}
+
+/** One cell of the [AttachmentSheet] grid: a tinted circular swatch with its label underneath. */
+@Composable
+private fun AttachmentGridItem(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(MuhabbetCorners.Medium))
+            .clickable(onClick = onClick)
+            .padding(vertical = MuhabbetSpacing.Small),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(MuhabbetSizes.AttachmentSwatch)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(MuhabbetSizes.IconAttachment)
+                )
+            }
+        }
+        Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
