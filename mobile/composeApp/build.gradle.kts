@@ -88,6 +88,11 @@ kotlin {
             implementation("androidx.security:security-crypto:1.1.0")
             implementation("app.cash.sqldelight:android-driver:2.3.2")
 
+            // Reads the EXIF Orientation tag before we decode+re-encode photos, so compression
+            // doesn't silently discard the rotation a phone recorded (#408). Works below API 24,
+            // unlike android.media.ExifInterface.
+            implementation("androidx.exifinterface:exifinterface:1.4.2")
+
             // WorkManager — background sync
             implementation("androidx.work:work-runtime-ktx:2.11.2")
 
