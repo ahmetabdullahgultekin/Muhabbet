@@ -37,8 +37,10 @@ import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.port.out.NotificationTextPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
@@ -405,5 +407,12 @@ class AppConfig {
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         pinnedMessageRepository = pinnedMessageRepository
+    )
+
+    @Bean
+    fun pushNotificationComposer(
+        notificationTextPort: NotificationTextPort
+    ): PushNotificationComposer = PushNotificationComposer(
+        texts = notificationTextPort
     )
 }
