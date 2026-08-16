@@ -15,6 +15,7 @@ import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -29,7 +30,8 @@ open class MessageService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val messageBroadcaster: MessageBroadcaster,
-    private val userDirectory: UserDirectoryPort
+    private val userDirectory: UserDirectoryPort,
+    private val readReceiptPolicy: ReadReceiptPolicyPort
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -154,10 +156,31 @@ open class MessageService(
         messageRepository.updateDeliveryStatus(messageId, userId, status)
 
         val message = messageRepository.findById(messageId) ?: return
-        messageBroadcaster.broadcastStatusUpdate(messageId, message.conversationId, userId, message.senderId, status)
+        // A reader who has turned read receipts off still gets their own row stored as READ — that
+        // row is what clears their unread badge — but the sender must not be told. We downgrade what
+        // is *published*, never what is stored, because one column serves both concerns.
+        // Only READ can be downgraded, so DELIVERED acks skip the lookup entirely — this runs on
+        // every ack from every client.
+        val published = if (status == DeliveryStatus.READ) {
+            publishableStatus(userId, status, readReceiptPolicy.findReadReceiptsDisabled(listOf(userId)))
+        } else {
+            status
+        }
+        messageBroadcaster.broadcastStatusUpdate(messageId, message.conversationId, userId, message.senderId, published)
 
-        log.debug("Delivery status updated: msg={}, user={}, status={}", messageId, userId, status)
+        log.debug("Delivery status updated: msg={}, user={}, stored={}, published={}", messageId, userId, status, published)
     }
+
+    /**
+     * READ from a reader who has receipts off is published as DELIVERED — the sender learns the
+     * message arrived, never that it was opened. Every other status passes through untouched.
+     */
+    private fun publishableStatus(
+        readerId: UUID,
+        status: DeliveryStatus,
+        receiptsDisabled: Set<UUID>
+    ): DeliveryStatus =
+        if (status == DeliveryStatus.READ && readerId in receiptsDisabled) DeliveryStatus.DELIVERED else status
 
     @Transactional
     override fun markConversationRead(conversationId: UUID, userId: UUID) {
@@ -173,15 +196,23 @@ open class MessageService(
         val messageIds = messages.map { it.id }
         val allStatuses = messageRepository.getDeliveryStatuses(messageIds)
         val statusesByMessageId = allStatuses.groupBy { it.messageId }
+        // One batched lookup for the whole page, and only for rows that are actually READ — the
+        // port short-circuits on an empty collection, so a page nobody has read costs no query.
+        // Without this the live WS downgrade in [updateStatus] would be undone the moment the
+        // sender scrolled or reopened the chat, because the stored row is still READ.
+        val receiptsDisabled = readReceiptPolicy.findReadReceiptsDisabled(
+            allStatuses.filter { it.status == DeliveryStatus.READ }.map { it.userId }
+        )
 
         return messages.associate { message ->
             val statuses = statusesByMessageId[message.id] ?: emptyList()
             val resolved = if (message.senderId == requestingUserId) {
                 // Sender perspective: aggregate across all recipients
                 // all READ → READ, any DELIVERED/READ → DELIVERED, else SENT
-                if (statuses.isEmpty()) DeliveryStatus.SENT
-                else if (statuses.all { it.status == DeliveryStatus.READ }) DeliveryStatus.READ
-                else if (statuses.any { it.status == DeliveryStatus.DELIVERED || it.status == DeliveryStatus.READ }) DeliveryStatus.DELIVERED
+                val visible = statuses.map { publishableStatus(it.userId, it.status, receiptsDisabled) }
+                if (visible.isEmpty()) DeliveryStatus.SENT
+                else if (visible.all { it == DeliveryStatus.READ }) DeliveryStatus.READ
+                else if (visible.any { it == DeliveryStatus.DELIVERED || it == DeliveryStatus.READ }) DeliveryStatus.DELIVERED
                 else DeliveryStatus.SENT
             } else {
                 // Recipient perspective: their own status row

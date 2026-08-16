@@ -4,6 +4,7 @@ import com.muhabbet.messaging.domain.model.*
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
@@ -18,12 +19,15 @@ class DeliveryStatusTest {
     private val messageRepository = mockk<MessageRepository>()
     private val messageBroadcaster = mockk<MessageBroadcaster>(relaxed = true)
     private val userDirectory = mockk<UserDirectoryPort>(relaxed = true)
+    private val readReceiptPolicy = mockk<ReadReceiptPolicyPort>()
 
     private lateinit var service: MessageService
 
     @BeforeEach
     fun setUp() {
-        service = MessageService(conversationRepository, messageRepository, messageBroadcaster, userDirectory)
+        // Default: nobody has opted out, so aggregation behaves exactly as before this port existed.
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
+        service = MessageService(conversationRepository, messageRepository, messageBroadcaster, userDirectory, readReceiptPolicy)
     }
 
     @Test
@@ -70,6 +74,106 @@ class DeliveryStatusTest {
 
         val result = service.resolveDeliveryStatuses(listOf(message), senderId)
         assertEquals(DeliveryStatus.READ, result[messageId])
+    }
+
+    @Test
+    fun `should resolve DELIVERED for sender when the only reader has read receipts disabled`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, recipientId, DeliveryStatus.READ)
+        )
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns setOf(recipientId)
+
+        // The stored row stays READ — that is what clears the reader's own unread badge — but the
+        // sender must never see the blue tick. Without this the WS downgrade would be undone on
+        // the next history load.
+        val result = service.resolveDeliveryStatuses(listOf(message), senderId)
+        assertEquals(DeliveryStatus.DELIVERED, result[messageId])
+    }
+
+    @Test
+    fun `should resolve DELIVERED for sender when one of two readers has read receipts disabled`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val optedOut = UUID.randomUUID()
+        val optedIn = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, optedOut, DeliveryStatus.READ),
+            MessageDeliveryStatus(messageId, optedIn, DeliveryStatus.READ)
+        )
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns setOf(optedOut)
+
+        // "all READ" must not be reachable by ignoring the opt-out.
+        val result = service.resolveDeliveryStatuses(listOf(message), senderId)
+        assertEquals(DeliveryStatus.DELIVERED, result[messageId])
+    }
+
+    @Test
+    fun `should keep own READ status for a recipient who disabled their own read receipts`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, recipientId, DeliveryStatus.READ)
+        )
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns setOf(recipientId)
+
+        // Turning receipts off hides the receipt from the sender; it must not make the reader's own
+        // view of the conversation look unread.
+        val result = service.resolveDeliveryStatuses(listOf(message), recipientId)
+        assertEquals(DeliveryStatus.READ, result[messageId])
+    }
+
+    @Test
+    fun `should broadcast DELIVERED instead of READ when reader has read receipts disabled`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        val conversationId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
+
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
+        every { messageRepository.findById(messageId) } returns message
+        every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns setOf(recipientId)
+
+        service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
+
+        verify {
+            messageBroadcaster.broadcastStatusUpdate(
+                messageId, conversationId, recipientId, senderId, DeliveryStatus.DELIVERED
+            )
+        }
+        // The row itself is still written as READ.
+        verify { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) }
+    }
+
+    @Test
+    fun `should broadcast READ when reader has read receipts enabled`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        val conversationId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
+
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
+        every { messageRepository.findById(messageId) } returns message
+        every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns emptySet()
+
+        service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
+
+        verify {
+            messageBroadcaster.broadcastStatusUpdate(
+                messageId, conversationId, recipientId, senderId, DeliveryStatus.READ
+            )
+        }
     }
 
     @Test
