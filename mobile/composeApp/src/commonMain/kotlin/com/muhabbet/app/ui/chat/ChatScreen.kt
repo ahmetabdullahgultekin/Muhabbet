@@ -40,6 +40,7 @@ import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
@@ -57,6 +58,8 @@ import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlinx.datetime.Instant
@@ -96,7 +99,8 @@ fun ChatScreen(
     groupRepository: GroupRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject(),
     wsClient: WsClient = koinInject(),
-    tokenStorage: TokenStorage = koinInject()
+    tokenStorage: TokenStorage = koinInject(),
+    appVisibility: AppVisibility = koinInject()
 ) {
     // ── Core state ───────────────────────────
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
@@ -111,6 +115,10 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
+    // Which messages this screen has already told the sender about. Keyed on the conversation, so
+    // walking into a different chat starts clean. See AckedMessageIds for why the receipt cannot be
+    // gated on the message list any more (#478).
+    val ackedMessageIds = remember(conversationId) { AckedMessageIds() }
     val snackbarHostState = remember { SnackbarHostState() }
     val uriHandler = LocalUriHandler.current
 
@@ -282,14 +290,32 @@ fun ChatScreen(
             Log.e(TAG, "Failed to load messages", loadFailure)
             scope.launch { snackbarHostState.showSnackbar(errorLoadMsg) }
         }
-        runCatchingCancellable {
-            messages.lastOrNull { it.senderId != currentUserId }?.let {
-                wsClient.send(WsMessage.AckMessage(messageId = it.id, conversationId = conversationId, status = MessageStatus.READ))
-            }
-        }.onFailure { e ->
-            // Read receipt is best-effort; it is re-sent on the next incoming message.
-            Log.w(TAG, "Failed to send READ ack on open: ${e.message}")
+        // One receipt covers the whole conversation: the backend's READ ack bulk-marks every unread
+        // message and moves `last_read_at`, so naming the newest incoming message is enough.
+        messages.lastOrNull { it.senderId != currentUserId }?.let { newest ->
+            sendReadReceipt(ackedMessageIds, conversationId, newest.id, send = wsClient::sendAck)
         }
+    }
+
+    // Re-assert the receipt whenever the app comes back to the front (#478).
+    //
+    // A chat can be open while the phone is locked. Messages arrive, the composition is never torn
+    // down, so the open-handler above does not re-run and nothing else notices the user has come
+    // back — the messages sit there looking read and the sender's ticks never move. `force` is the
+    // point of this effect: the newest message may well be one this screen already acked, and
+    // re-asserting is exactly what a socket that dropped the first attempt needs.
+    LaunchedEffect(conversationId) {
+        appVisibility.isForeground
+            // The current value is replayed on subscribe and is not a transition; the open-handler
+            // above has already covered it. Past that, a StateFlow only emits on change, so every
+            // `true` here is a genuine return to the foreground.
+            .drop(1)
+            .filter { it }
+            .collect {
+                messages.lastOrNull { m -> m.senderId != currentUserId }?.let { newest ->
+                    sendReadReceipt(ackedMessageIds, conversationId, newest.id, force = true, send = wsClient::sendAck)
+                }
+            }
     }
 
     // ── WebSocket listener ───────────────────
@@ -297,17 +323,21 @@ fun ChatScreen(
         wsClient.incoming.collect { ws ->
             when (ws) {
                 is WsMessage.NewMessage -> {
-                    if (ws.conversationId == conversationId && messages.none { it.id == ws.messageId }) {
-                        messages = messages + Message(id = ws.messageId, conversationId = ws.conversationId, senderId = ws.senderId,
-                            contentType = ws.contentType, content = ws.content, replyToId = ws.replyToId, mediaUrl = ws.mediaUrl,
-                            thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
-                            clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom)
+                    if (ws.conversationId == conversationId) {
+                        if (messages.none { it.id == ws.messageId }) {
+                            messages = messages + Message(id = ws.messageId, conversationId = ws.conversationId, senderId = ws.senderId,
+                                contentType = ws.contentType, content = ws.content, replyToId = ws.replyToId, mediaUrl = ws.mediaUrl,
+                                thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
+                                clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom)
+                        }
+                        // Deliberately OUTSIDE the "not already rendered" guard above (#478). That
+                        // guard exists to stop a bubble being drawn twice — it was also deciding
+                        // whether the sender ever learns the message was read, so every path that
+                        // put the message into the list first (a refresh, the SQLDelight cache, a
+                        // pagination fetch) swallowed the frame and no receipt was ever sent. The
+                        // brake against re-sending on every frame is ackedMessageIds, not the list.
                         if (ws.senderId != currentUserId) {
-                            // Must not swallow cancellation (that would keep a dead collector's
-                            // failure path running) but must not rethrow anything else either: a
-                            // throw here kills the collector and the chat stops receiving messages.
-                            runCatchingCancellable { wsClient.send(WsMessage.AckMessage(messageId = ws.messageId, conversationId = ws.conversationId, status = MessageStatus.READ)) }
-                                .onFailure { e -> Log.w(TAG, "Failed to send READ ack for ${ws.messageId}: ${e.message}") }
+                            sendReadReceipt(ackedMessageIds, conversationId, ws.messageId, send = wsClient::sendAck)
                         }
                     }
                 }
