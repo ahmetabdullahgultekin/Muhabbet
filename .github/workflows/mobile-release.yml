@@ -28,6 +28,12 @@ on:
       tag:
         description: 'Existing tag to build and sign, e.g. v0.3.1'
         required: true
+      play_track:
+        description: 'Play track to publish the AAB to. "none" builds and signs without publishing.'
+        required: false
+        default: 'none'
+        type: choice
+        options: ['none', 'internal', 'alpha', 'beta', 'production']
 
 concurrency:
   group: mobile-release-${{ github.event.inputs.tag || github.ref }}
@@ -192,6 +198,111 @@ jobs:
           gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber \
             "muhabbet-$VERSION.apk" $([ -f "muhabbet-$VERSION.aab" ] && echo "muhabbet-$VERSION.aab")
           echo "Attached signed artifacts to $TAG."
+
+      # ── Publish to Google Play ────────────────────────────────────────────────────────────────
+      #
+      # Only runs when a track is explicitly chosen, so a tag push still just builds and signs. The
+      # Play API is called directly with curl rather than through a third-party action: this is the
+      # self-hosted runner that also holds the release keystore, and the fewer things that see the
+      # service-account key there, the better. `google-github-actions/auth` is Google's own action
+      # and only mints a scoped access token.
+      #
+      # Publishing is a four-call transaction: open an edit, upload the bundle, point a track at the
+      # resulting versionCode, commit. Nothing is visible on Play until the commit succeeds, so a
+      # failure part-way through leaves the listing untouched rather than half-updated.
+      - name: Check the Play track request
+        id: play
+        env:
+          TRACK: ${{ github.event.inputs.play_track || 'none' }}
+          HAVE_KEY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        run: |
+          if [ "$TRACK" = "none" ] || [ -z "$TRACK" ]; then
+            echo "requested=false" >> "$GITHUB_OUTPUT"
+            echo "No Play track requested — build and sign only."
+            exit 0
+          fi
+          if [ "$HAVE_KEY" != "true" ]; then
+            echo "::error::play_track=$TRACK was requested but the PLAY_SERVICE_ACCOUNT_JSON secret is not set."
+            echo "Create a service account in Google Cloud, grant it access in Play Console under"
+            echo "Users and permissions, and add its JSON key as that secret. See issue #485."
+            exit 1
+          fi
+          echo "requested=true" >> "$GITHUB_OUTPUT"
+          echo "track=$TRACK" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Play
+        if: steps.play.outputs.requested == 'true'
+        id: gauth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - name: Upload the bundle and roll the track
+        if: steps.play.outputs.requested == 'true'
+        env:
+          TOKEN: ${{ steps.gauth.outputs.access_token }}
+          TRACK: ${{ steps.play.outputs.track }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          PKG: com.muhabbet.app
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          API=https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PKG
+          UPLOAD=https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PKG
+
+          AAB="muhabbet-$VERSION.aab"
+          [ -f "$AAB" ] || { echo "::error::$AAB was not produced; nothing to publish."; exit 1; }
+
+          # Every call is checked. A silent failure here is the worst outcome: the run goes green and
+          # the release simply is not on Play, which is indistinguishable from a slow review.
+          api() {
+            local method=$1 url=$2 out
+            shift 2
+            out=$(curl -sS -w '\n%{http_code}' -X "$method" -H "Authorization: Bearer $TOKEN" "$@" "$url")
+            local code=${out##*$'\n'} body=${out%$'\n'*}
+            if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+              echo "::error::Play API $method $url returned $code"
+              echo "$body"
+              return 1
+            fi
+            printf '%s' "$body"
+          }
+
+          EDIT=$(api POST "$API/edits" -H 'Content-Length: 0' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          echo "Opened edit $EDIT"
+
+          CODE=$(api POST "$UPLOAD/edits/$EDIT/bundles?uploadType=media" \
+                   -H 'Content-Type: application/octet-stream' --data-binary "@$AAB" \
+                 | python3 -c 'import json,sys; print(json.load(sys.stdin)["versionCode"])')
+          echo "Uploaded $AAB as versionCode $CODE"
+
+          # Release notes come from the GitHub release body, trimmed to Play's 500-character limit.
+          # Turkish is the default listing language, so tr-TR is what the note is filed under.
+          NOTES=$(gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null | head -c 500 || true)
+          [ -n "$NOTES" ] || NOTES="Muhabbet $VERSION"
+
+          TRACK_BODY=$(VERSION="$VERSION" CODE="$CODE" TRACK="$TRACK" NOTES="$NOTES" python3 - <<'PY'
+          import json, os
+          print(json.dumps({
+              "track": os.environ["TRACK"],
+              "releases": [{
+                  "name": os.environ["VERSION"],
+                  "versionCodes": [os.environ["CODE"]],
+                  "status": "completed",
+                  "releaseNotes": [{"language": "tr-TR", "text": os.environ["NOTES"]}],
+              }],
+          }))
+          PY
+          )
+
+          api PUT "$API/edits/$EDIT/tracks/$TRACK" \
+            -H 'Content-Type: application/json' --data "$TRACK_BODY" > /dev/null
+          echo "Pointed the $TRACK track at versionCode $CODE"
+
+          api POST "$API/edits/$EDIT:commit" -H 'Content-Length: 0' > /dev/null
+          echo "Committed. Muhabbet $VERSION is on the $TRACK track."
 
       # Runs even when the build fails, so a failed run never leaves the signing key on the runner.
       - name: Shred the keystore
