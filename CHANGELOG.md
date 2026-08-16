@@ -42,6 +42,55 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   groups yet cannot gain a second member until then. No client flow is affected: the app has never
   had a way to add a community member at all. (#375)
 
+## [0.3.2] — 2026-08-16
+
+Mostly things that looked like they worked. Three audits went through the app after 0.3.1 and found
+around twenty controls that were drawn but never wired; this release fixes the ones that were cheap
+to fix and files the rest openly.
+
+### Added
+- **You can now start a chat with a number that is not in your phone's contacts.** Until now the only
+  way to reach anyone was to add them in the phone's address book first and wait for a sync — and
+  nothing in the app said so. If the number is not on Muhabbet you get an invite instead. (#389)
+- **Communities can finally be managed.** See who is in one, add someone, remove a group, rename it,
+  and leave. Before this a community could only be created and looked at, which is why every
+  community in existence had exactly one member. (#376)
+
+### Fixed
+- **Buttons kept spinning for about four seconds after the work was already done.** Reporting the
+  result blocked the spinner from being cleared. Nineteen places, six of them on the *success* path,
+  which is why it happened on ordinary use and not just on errors. (#390)
+- **The app treated server errors as success.** Every request ignored the HTTP status, so a
+  rejection came back looking like an empty answer: "no communities yet" after a server failure, and
+  a cheerful "added" after a request the server refused. This one was hiding the true state of
+  several other features. (#374)
+- **Anyone could read any community**, including the name, avatar and size of every group inside it,
+  and could attach a conversation they were not part of in order to read its details. (#375)
+- **Removing a group from a community always failed** — the query was built as a read, so it threw
+  instead of removing anything. It now has a test that runs against a real database. (#360)
+- **The app was sending placeholder encryption keys to the server on every single launch**, for
+  everyone, while encryption is switched off. Nothing is sent now, and the 2,802 junk records
+  already stored have been deleted. (#379)
+- Opening a group from inside a community no longer shows a blank title bar.
+- Wrong or expired login codes now explain themselves in your own language instead of showing the
+  server's raw text.
+
+### Known issues
+- **Calls do not work and never have.** The app never tells the server a call started, no microphone
+  is ever switched on, and the call server is not configured. Tapping call shows "connecting"
+  forever. (#367–#373)
+- Broadcast lists have always failed — the app asks for an address the server does not answer at.
+  Now that errors are visible, this will show as an error rather than an empty list. (#392)
+- App Lock, HD media quality and wallpaper still do nothing. (#378, #380, #383)
+- The privacy screen's visibility settings still do not save. (#377)
+- Transcribing a voice message crashes on Android 8–11. (#381)
+- Video messages, and links written inside a message, are still not tappable. (#361, #362)
+- Push notifications still do not arrive.
+- End-to-end encryption is still off, and the app still says so.
+- **Nothing here was seen on a screen before release** — the build host has no emulator and no
+  device. Compilation, 92 unit tests and 85 backend tests pass; how it looks and feels does not
+  follow from that.
+
 ## [0.3.1] — 2026-08-15
 
 Everything here came out of driving 0.3.0 on a real phone. The first item is a crash 0.3.0
