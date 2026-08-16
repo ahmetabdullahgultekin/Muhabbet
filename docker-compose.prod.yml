@@ -35,6 +35,11 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID:-}
+      # Comma-separated numbers whose OTP is generated locally and written to this container's log
+      # instead of being sent, so an emulator can sign in at all (#436). Empty here on purpose: the
+      # list is a deployment decision, set in .env.prod, not a property of the repository. The
+      # backend refuses to start unless every entry is in the unallocated +90500 range.
+      MUHABBET_OTP_TESTNUMBERS: ${MUHABBET_OTP_TESTNUMBERS:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       FCM_ENABLED: "false"
       FCM_CREDENTIALS_PATH: /app/firebase-adminsdk.json
