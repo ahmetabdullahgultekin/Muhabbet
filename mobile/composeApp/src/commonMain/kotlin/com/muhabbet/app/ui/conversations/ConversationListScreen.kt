@@ -180,12 +180,13 @@ fun ConversationListScreen(
             when (wsMessage) {
                 is WsMessage.NewMessage -> {
                     if (wsMessage.senderId != currentUserId) {
-                        // Must not rethrow: this collector also drives the list auto-refresh, and
-                        // killing it would freeze the conversation list. The sender's tick just
-                        // stays at one — nothing to show this user. Cancellation still propagates,
-                        // so a collector that is being torn down does not log a phantom failure.
-                        runCatchingCancellable { wsClient.send(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED)) }
-                            .onFailure { e -> Log.w(TAG, "Failed to send DELIVERED ack for ${wsMessage.messageId}: ${e.message}") }
+                        // sendAck() cannot kill this collector — a dropped socket queues the receipt
+                        // for the next connect instead of throwing (#478), and this collector also
+                        // drives the list auto-refresh, so killing it would freeze the whole list.
+                        // Cancellation still propagates, so a collector being torn down does not log
+                        // a phantom failure.
+                        val sentNow = wsClient.sendAck(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED))
+                        if (!sentNow) Log.d(TAG, "DELIVERED receipt for ${wsMessage.messageId} queued for the next reconnect")
                     }
                     loadConversations()
                 }

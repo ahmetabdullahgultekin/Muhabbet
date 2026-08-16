@@ -94,6 +94,11 @@ fun appModule(): Module = module {
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }
     // Singleton on purpose: read receipts appear on two screens and must not disagree.
     single { com.muhabbet.app.data.local.PrivacySettingsController(authRepository = get()) }
+    // Foreground/background state. Written in exactly one place (App.kt, from the lifecycle
+    // RootComponent already carries) and read by any screen that must act when the user comes back
+    // — an open chat re-asserting its read receipt, today. A singleton because a second copy could
+    // report a different answer than the one the writer is updating.
+    single { com.muhabbet.app.platform.AppVisibility() }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
     single { DeviceLinkRepository(apiClient = get()) }
     // E2EKeyManager and EncryptionPort are provided by platform modules.

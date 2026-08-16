@@ -54,6 +54,9 @@ class WsClient(
     private val processedMessageIds = LinkedHashSet<String>()
     private val maxProcessedIds = 500
 
+    // Delivery receipts that missed the wire, replayed by drainPendingAcks() on the next connect.
+    private val pendingAcks = PendingAckQueue()
+
     private var reconnectAttempt = 0
     private var shouldReconnect = true
     private var heartbeatJob: kotlinx.coroutines.Job? = null
@@ -95,6 +98,11 @@ class WsClient(
 
                 // Drain pending messages on successful reconnect
                 drainPendingMessages()
+                // …and the delivery receipts that could not be sent while it was down. Receipts are
+                // drained second on purpose: a queued message may be the very thing a queued receipt
+                // refers to on the other side, and there is no reason to make the server reconcile
+                // them out of order.
+                drainPendingAcks()
 
                 // Start heartbeat
                 val heartbeat = scope.launch {
@@ -192,6 +200,37 @@ class WsClient(
             throw Exception("WebSocket not connected")
         }
         currentSession.outgoing.send(Frame.Text(wsJson.encodeToString(outgoing)))
+    }
+
+    /**
+     * Sends a delivery receipt, queueing it for the next reconnect instead of throwing.
+     *
+     * Returns `true` if it went out now, `false` if it was queued. Callers do not have to handle the
+     * failure: a receipt is not something to tell the user about, and the previous contract — throw,
+     * log "best-effort, re-sent on the next incoming message", and never re-send it if no further
+     * message arrived — is the reason ticks stayed wrong until an app restart (#478).
+     *
+     * Cancellation still propagates. A collector being torn down must not have its own teardown
+     * recorded as a socket failure and replayed on the next connect.
+     */
+    suspend fun sendAck(ack: WsMessage.AckMessage): Boolean {
+        val currentSession = session
+        if (currentSession == null) {
+            pendingAcks.record(ack)
+            return false
+        }
+        return runCatchingCancellable {
+            // Encoded as the sealed base, not the concrete subclass: the `type` discriminator
+            // wsJson relies on is only emitted by the polymorphic serializer.
+            currentSession.outgoing.send(Frame.Text(wsJson.encodeToString<WsMessage>(ack)))
+        }.fold(
+            onSuccess = { true },
+            onFailure = { e ->
+                Log.w(TAG, "Delivery receipt for ${ack.messageId} queued: ${e.message}")
+                pendingAcks.record(ack)
+                false
+            }
+        )
     }
 
     /**
@@ -309,6 +348,25 @@ class WsClient(
                 cache.incrementRetryCount(msg.id)
                 Log.e(TAG, "Failed to send pending message ${msg.id}: ${e.message}")
                 break // Stop draining on first failure
+            }
+        }
+    }
+
+    /**
+     * Replays the receipts that could not be sent while the socket was down.
+     *
+     * Stops at the first failure like [drainPendingMessages] does, and puts everything it has not
+     * attempted back on the queue — [sendAck] has already re-queued the one that failed. Dropping
+     * the tail would lose exactly the receipts a flapping connection produces most of.
+     */
+    private suspend fun drainPendingAcks() {
+        val acks = pendingAcks.takeAll()
+        if (acks.isEmpty()) return
+        Log.d(TAG, "Draining ${acks.size} pending delivery receipts")
+        acks.forEachIndexed { index, ack ->
+            if (!sendAck(ack)) {
+                acks.drop(index + 1).forEach { pendingAcks.record(it) }
+                return
             }
         }
     }

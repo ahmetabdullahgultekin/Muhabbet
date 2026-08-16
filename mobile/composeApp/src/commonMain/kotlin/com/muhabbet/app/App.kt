@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
+import com.arkivanov.essenty.lifecycle.Lifecycle
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
@@ -18,9 +19,9 @@ import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.di.bootstrapOrReuseKoin
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
+import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.CrashReporter
 import com.muhabbet.app.util.Log
-import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import org.koin.compose.KoinContext
@@ -77,27 +78,43 @@ private fun WebSocketLifecycle(root: RootComponent) {
         }
     }
 
+    // Foreground/background, republished from the lifecycle Decompose already owns.
+    //
+    // On Android `defaultComponentContext()` binds RootComponent's Essenty lifecycle to the hosting
+    // Activity, so these are real transitions — the phone locking and unlocking, the app being
+    // switched away from and back to. Nothing in the composition can see that on its own: locking
+    // the screen tears nothing down, so a `LaunchedEffect` keyed on anything stable never re-runs
+    // and an open chat's "mark this read" handler fires once per navigation and never again (#478).
+    val appVisibility: AppVisibility = koinInject()
+    DisposableEffect(root) {
+        val lifecycle = root.lifecycle
+        val callbacks = object : Lifecycle.Callbacks {
+            override fun onResume() = appVisibility.onForeground()
+            override fun onPause() = appVisibility.onBackground()
+        }
+        lifecycle.subscribe(callbacks)
+        onDispose { lifecycle.unsubscribe(callbacks) }
+    }
+
     // Global DELIVERED ack: send DELIVERED for every incoming message regardless of active screen
     LaunchedEffect(Unit) {
         if (tokenStorage.isLoggedIn()) {
             val currentUserId = tokenStorage.getUserId() ?: return@LaunchedEffect
             wsClient.incoming.collect { message ->
                 if (message is WsMessage.NewMessage && message.senderId != currentUserId) {
-                    runCatchingCancellable {
-                        wsClient.send(
-                            WsMessage.AckMessage(
-                                messageId = message.messageId,
-                                conversationId = message.conversationId,
-                                status = MessageStatus.DELIVERED
-                            )
+                    // sendAck() never throws for a send failure — it queues the receipt and replays
+                    // it on the next connect — so this collector, the app-wide delivery-ack pump,
+                    // cannot be killed by a dropped socket. Cancellation still propagates, which is
+                    // correct: it means the pump itself is being torn down.
+                    val sentNow = wsClient.sendAck(
+                        WsMessage.AckMessage(
+                            messageId = message.messageId,
+                            conversationId = message.conversationId,
+                            status = MessageStatus.DELIVERED
                         )
-                    }.onFailure { e ->
-                        // Must not rethrow: this collector is the app-wide delivery-ack pump, and
-                        // letting it die would silently stop every future DELIVERED tick.
-                        // Nothing to show the user — the sender's tick simply stays at one.
-                        // Cancellation is the one exception that still propagates, so tearing the
-                        // pump down does not log a failure that never happened.
-                        Log.w("App", "Failed to send DELIVERED ack for ${message.messageId}: ${e.message}")
+                    )
+                    if (!sentNow) {
+                        Log.d("App", "DELIVERED receipt for ${message.messageId} queued for the next reconnect")
                     }
                 }
             }
