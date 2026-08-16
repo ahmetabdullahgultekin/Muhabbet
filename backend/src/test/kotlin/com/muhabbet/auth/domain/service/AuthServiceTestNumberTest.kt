@@ -54,7 +54,14 @@ class AuthServiceTestNumberTest {
         passwordEncoder = BCryptPasswordEncoder(),
         otpVerifier = otpVerifier,
         testNumbers = testNumbers,
-    )
+    
+            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
+            // Relaxed mocks answer false for Boolean, which would make every test here
+            // fail on the quota rather than on what it is testing. The quota itself is
+            // covered by RedisOtpQuotaAdapterTest against a real Redis.
+            io.mockk.every { it.tryConsume(any()) } returns true
+        }
+        )
 
     @Test
     fun `a test number is never handed to the SMS provider`() {

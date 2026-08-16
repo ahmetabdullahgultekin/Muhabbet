@@ -75,6 +75,13 @@ class AuthServiceTest {
             otpCooldownSeconds = 60,
             otpMaxAttempts = 5,
             refreshTokenExpirySeconds = 2592000
+        ,
+            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
+            // Relaxed mocks answer false for Boolean, which would make every test here
+            // fail on the quota rather than on what it is testing. The quota itself is
+            // covered by RedisOtpQuotaAdapterTest against a real Redis.
+            io.mockk.every { it.tryConsume(any()) } returns true
+        }
         )
     }
 

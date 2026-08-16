@@ -14,6 +14,7 @@ import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
 import com.muhabbet.auth.domain.port.`in`.TokenResult
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.OtpQuotaPort
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
@@ -60,7 +61,13 @@ open class AuthService(
      * See [com.muhabbet.shared.config.OtpProperties.testNumbers] for why this exists and why it is
      * not a fixed code. Empty by default.
      */
-    private val testNumbers: Set<String> = emptySet()
+    private val testNumbers: Set<String> = emptySet(),
+    /**
+     * Budget for verifications *started*, because each one is billed. Required rather than
+     * defaulted: a no-op default would silently remove the only ceiling on the provider bill, which
+     * is the failure #440 is about.
+     */
+    private val otpQuotaPort: OtpQuotaPort
 ) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -122,6 +129,14 @@ open class AuthService(
             if (elapsed.seconds < otpCooldownSeconds) {
                 throw BusinessException(ErrorCode.AUTH_OTP_COOLDOWN)
             }
+        }
+
+        // Checked after the cooldown so a client hammering one number spends its own cooldown
+        // rather than the deployment's hourly budget, and before anything is generated or stored so
+        // a refusal costs nothing. Test numbers are exempt: they never reach the provider, so they
+        // cost nothing and must not be able to exhaust the budget real users share.
+        if (!isTestNumber(phoneNumber) && !otpQuotaPort.tryConsume(phoneNumber)) {
+            throw BusinessException(ErrorCode.AUTH_OTP_RATE_LIMIT)
         }
 
         // With an external verifier the code never exists on this side, so there is nothing to

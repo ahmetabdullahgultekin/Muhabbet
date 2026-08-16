@@ -60,7 +60,16 @@ services:
       - "traefik.http.routers.muhabbet-api.rule=Host(`muhabbet-api.rollingcatsoftware.com`)"
       - "traefik.http.routers.muhabbet-api.entrypoints=websecure"
       - "traefik.http.routers.muhabbet-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.muhabbet-api.middlewares=secure-headers@file"
+      # Rate limiting at the edge as well as in the app. The in-process filter resets on every
+      # deploy, is per-instance, and only covers /api/v1/auth/** — so it smooths bursts against one
+      # endpoint rather than bounding load. Traefik sees the real client address and survives
+      # restarts. Generous on purpose: a chat client legitimately makes many requests, so this is a
+      # ceiling on abuse, not a throttle on use. The cost ceiling that actually protects the Twilio
+      # bill is the per-hour and per-number quota in the backend (#440).
+      - "traefik.http.middlewares.muhabbet-ratelimit.ratelimit.average=60"
+      - "traefik.http.middlewares.muhabbet-ratelimit.ratelimit.burst=120"
+      - "traefik.http.middlewares.muhabbet-ratelimit.ratelimit.period=1m"
+      - "traefik.http.routers.muhabbet-api.middlewares=secure-headers@file,muhabbet-ratelimit"
       - "traefik.http.services.muhabbet-api.loadbalancer.server.port=8080"
     deploy:
       resources:

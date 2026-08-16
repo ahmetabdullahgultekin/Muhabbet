@@ -194,24 +194,26 @@ class RateLimitFilterTest {
         }
 
         @Test
-        fun `should use first IP from X-Forwarded-For chain`() {
-            val clientIp = "6.6.6.6"
-            val proxyChain = "$clientIp, 10.0.0.1, 10.0.0.2"
-
-            // The filter should extract the first IP from the chain
-            repeat(10) {
+        fun `should use last IP from X-Forwarded-For chain`() {
+            // Renamed from "first IP" and inverted deliberately. Keying on the *first* entry was
+            // #270: the leftmost value is whatever the client sent, so varying it bought a fresh
+            // budget per request. The rightmost is appended by the proxy nearest us and cannot be
+            // forged without being that proxy.
+            //
+            // Varying the leading entry on every request is the exploit; the trailing entry is
+            // constant, so all eleven must share one budget.
+            repeat(10) { i ->
                 val request = createRequest(
                     remoteAddr = "127.0.0.1",
-                    xForwardedFor = proxyChain
+                    xForwardedFor = "203.0.113.$i, 10.0.0.1, 10.0.0.2"
                 )
                 val response = MockHttpServletResponse()
                 rateLimitFilter.doFilter(request, response, filterChain)
             }
 
-            // 11th should be rate limited (because first IP in chain is 6.6.6.6)
             val request = createRequest(
                 remoteAddr = "127.0.0.1",
-                xForwardedFor = proxyChain
+                xForwardedFor = "203.0.113.99, 10.0.0.1, 10.0.0.2"
             )
             val response = MockHttpServletResponse()
             rateLimitFilter.doFilter(request, response, filterChain)
@@ -307,4 +309,55 @@ class RateLimitFilterTest {
             verify(atLeast = 11) { filterChain.doFilter(any(), any()) }
         }
     }
+
+    // ─── Proxy trust (#270) ──────────────────────────────
+
+    @Nested
+    inner class ProxyTrust {
+
+        @Test
+        fun `should still give distinct real clients their own budget`() {
+            // The fix must not collapse everyone behind the proxy into one bucket — that would rate
+            // limit the entire user base as though it were a single caller.
+            val filter = RateLimitFilter(maxRequests = 3, windowSeconds = 60)
+
+            repeat(3) {
+                filter.doFilter(
+                    createRequest(xForwardedFor = "203.0.113.1, 198.51.100.7"),
+                    MockHttpServletResponse(),
+                    filterChain
+                )
+            }
+            val blocked = MockHttpServletResponse()
+            filter.doFilter(createRequest(xForwardedFor = "203.0.113.1, 198.51.100.7"), blocked, filterChain)
+            assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), blocked.status)
+
+            val other = MockHttpServletResponse()
+            filter.doFilter(createRequest(xForwardedFor = "203.0.113.1, 198.51.100.8"), other, filterChain)
+            assertEquals(HttpStatus.OK.value(), other.status)
+        }
+
+        @Test
+        fun `should ignore empty entries in the chain`() {
+            // A trailing comma or a blank segment must not become the key, which would put every
+            // such request into one shared bucket.
+            val filter = RateLimitFilter(maxRequests = 2, windowSeconds = 60)
+
+            repeat(2) {
+                filter.doFilter(
+                    createRequest(xForwardedFor = "203.0.113.1, 198.51.100.9, "),
+                    MockHttpServletResponse(),
+                    filterChain
+                )
+            }
+            val blocked = MockHttpServletResponse()
+            filter.doFilter(createRequest(xForwardedFor = "203.0.113.1, 198.51.100.9, "), blocked, filterChain)
+            assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), blocked.status)
+
+            val other = MockHttpServletResponse()
+            filter.doFilter(createRequest(xForwardedFor = "203.0.113.1, 198.51.100.10, "), other, filterChain)
+            assertEquals(HttpStatus.OK.value(), other.status)
+        }
+    }
+
 }
