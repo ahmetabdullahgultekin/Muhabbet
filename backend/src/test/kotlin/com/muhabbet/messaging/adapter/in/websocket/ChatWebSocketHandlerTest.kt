@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.web.socket.CloseStatus
+import org.springframework.web.socket.PongMessage
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
 import java.net.URI
@@ -310,6 +311,28 @@ class ChatWebSocketHandlerTest {
             val sentJson = messageSlot.captured.payload
             assertTrue(sentJson.contains("pong"))
             verify { presencePort.setOnline(userId) }
+        }
+
+        @Test
+        fun `should record liveness for every inbound frame, including ones it rejects`() {
+            // #468: liveness must not depend on the frame being well-formed or wanted — an
+            // unparseable frame still proves the peer is reachable.
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+
+            handler.handleMessage(session, TextMessage("{invalid json"))
+
+            verify { sessionManager.touch(session, any()) }
+        }
+
+        @Test
+        fun `should record liveness when the client answers a server ping`() {
+            // The only proof of life from a backgrounded client that has stopped its own heartbeat.
+            val session = createSession()
+
+            handler.handleMessage(session, PongMessage())
+
+            verify { sessionManager.touch(session, any()) }
         }
 
         @Test
