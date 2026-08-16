@@ -35,31 +35,17 @@ jobs:
     name: Build & Test
     runs-on: [self-hosted, linux, x64]
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: muhabbet_test
-          POSTGRES_USER: muhabbet
-          POSTGRES_PASSWORD: test_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U muhabbet -d muhabbet_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+    # No `services:` block on purpose.
+    #
+    # The runner is the production host, so `shared-postgres` and `shared-redis` already own 5432
+    # and 6379. Service containers bound to those ports never started — "Bind for 127.0.0.1:5432
+    # failed: port is already allocated" — and the tests fell through to the *production* Redis,
+    # which is password-protected and refused them. Every @SpringBootTest then died at context
+    # startup rather than on an assertion.
+    #
+    # Every integration test now brings its own Postgres and Redis via Testcontainers, on random
+    # ports, so nothing here needs a shared instance. Do not reintroduce these while CI runs on the
+    # production host.
     steps:
       - uses: actions/checkout@v4
 
@@ -82,14 +68,13 @@ jobs:
 
       - name: Run tests
         run: ./gradlew :backend:test
+        # DB_HOST / REDIS_HOST are deliberately absent. Every integration test supplies its own
+        # Testcontainers instance through @DynamicPropertySource; pointing these at localhost aimed
+        # them at the production Postgres and Redis running on this same host, which is how the
+        # suite ended up authenticating against production Redis and failing at context startup.
+        # Leaving them set would be a live trap: a test that fell back to the default datasource
+        # would silently reach production.
         env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: muhabbet_test
-          DB_USERNAME: muhabbet
-          DB_PASSWORD: test_password
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
           SPRING_PROFILES_ACTIVE: test
           OTP_MOCK_ENABLED: 'true'
           FCM_ENABLED: 'false'
@@ -109,12 +94,12 @@ jobs:
         continue-on-error: true
 
       - name: Upload test results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
           path: backend/build/reports/tests/
-          retention-days: 14
+          retention-days: 3
 
       - name: Upload JaCoCo coverage report
         if: always()
@@ -122,15 +107,15 @@ jobs:
         with:
           name: jacoco-coverage-report
           path: backend/build/reports/jacoco/
-          retention-days: 14
+          retention-days: 3
 
       - name: Upload detekt report
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: detekt-report
           path: backend/build/reports/detekt/
-          retention-days: 14
+          retention-days: 3
 
       - name: Publish test report
         if: always() && github.event_name == 'pull_request'

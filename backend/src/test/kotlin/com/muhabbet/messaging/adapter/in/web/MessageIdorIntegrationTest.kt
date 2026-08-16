@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.security.JwtProvider
+import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -67,6 +68,10 @@ class MessageIdorIntegrationTest {
             withPassword("muhabbet_test")
         }
 
+        @Container
+        @JvmStatic
+        val redis = RedisContainer("redis:7-alpine")
+
         @DynamicPropertySource
         @JvmStatic
         fun configureProperties(registry: DynamicPropertyRegistry) {
@@ -74,11 +79,8 @@ class MessageIdorIntegrationTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("muhabbet.otp.mock-enabled") { "true" }
-            registry.add("spring.data.redis.host") { "localhost" }
-            registry.add("spring.data.redis.port") { "6379" }
-            registry.add("spring.autoconfigure.exclude") {
-                "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"
-            }
+            registry.add("spring.data.redis.host") { redis.redisHost }
+            registry.add("spring.data.redis.port") { redis.redisPort }
         }
     }
 
