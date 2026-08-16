@@ -19,10 +19,83 @@ data class FormattedSegment(
     val listNumber: Int? = null
 )
 
+/**
+ * A URL found inside a run of message text, as a range so a caller can style exactly that slice and
+ * leave the surrounding sentence alone.
+ */
+data class UrlSpan(
+    val start: Int,
+    val endExclusive: Int,
+    val url: String
+)
+
+/**
+ * Deliberately permissive about what a URL may contain — a Turkish path such as
+ * `https://site.com/ürünler` is ordinary, and an ASCII-only character class silently truncates it
+ * mid-word. Everything the scan over-reaches on is removed afterwards by [trimTrailingProse].
+ */
 private val URL_REGEX = Regex(
-    """(https?://[^\s<>"]+)""",
+    """https?://[^\s<>"]+""",
     RegexOption.IGNORE_CASE
 )
+
+/**
+ * Sentence punctuation that a URL at the end of a sentence swallows and that no author meant as
+ * part of the address. Closing brackets are handled separately, because they can be genuine.
+ */
+private const val TRAILING_PROSE = ".,;:!?…\"“”«»"
+
+/**
+ * The single place this app decides where a URL starts and ends.
+ *
+ * There were two regexes before — one here and one in `LinkPreviewCard` — which is how the preview
+ * card could fetch a different string than the one the message displayed. Both now come through
+ * here, and so does the tappable link range in `MessageBubble` (#362).
+ */
+fun findUrlSpans(text: String): List<UrlSpan> =
+    URL_REGEX.findAll(text).mapNotNull { match ->
+        val trimmed = trimTrailingProse(cutAtTurkishSuffix(match.value))
+        if (trimmed.length <= "https://".length) null
+        else UrlSpan(match.range.first, match.range.first + trimmed.length, trimmed)
+    }.toList()
+
+/** The first URL in [text], or null. Used to decide whether to fetch a link preview. */
+fun firstUrlOrNull(text: String): String? = findUrlSpans(text).firstOrNull()?.url
+
+/**
+ * Cuts a Turkish case suffix off the end of a URL.
+ *
+ * Turkish attaches suffixes to proper nouns with an apostrophe, and a pasted address is a proper
+ * noun: *"https://muhabbet.com'a bak"*, *"https://site.com'dan indirdim"*. The scan above swallows
+ * `'a` and `'dan` because they are not whitespace, and the resulting address 404s. An apostrophe is
+ * legal in a URL but vanishingly rare in a real one, so cutting at the first one is right far more
+ * often than it is wrong — and when it is wrong the user still sees the full text, only the tapped
+ * range is short.
+ */
+private fun cutAtTurkishSuffix(url: String): String =
+    url.indexOfFirst { it == '\'' || it == '’' }.let { if (it < 0) url else url.take(it) }
+
+/**
+ * Removes punctuation the URL picked up from the sentence around it.
+ *
+ * A closing bracket is dropped only when the URL has no matching opener, so
+ * `https://tr.wikipedia.org/wiki/Kedi_(hayvan)` keeps its parenthesis while `(bkz: https://x.com)`
+ * does not gain one.
+ */
+private fun trimTrailingProse(url: String): String {
+    var end = url.length
+    while (end > 0) {
+        val c = url[end - 1]
+        val isUnmatchedCloser = when (c) {
+            ')' -> url.take(end).count { it == '(' } < url.take(end).count { it == ')' }
+            ']' -> url.take(end).count { it == '[' } < url.take(end).count { it == ']' }
+            '}' -> url.take(end).count { it == '{' } < url.take(end).count { it == '}' }
+            else -> false
+        }
+        if (c in TRAILING_PROSE || isUnmatchedCloser) end-- else break
+    }
+    return url.take(end)
+}
 
 fun parseFormattedText(input: String): List<FormattedSegment> {
     val segments = mutableListOf<FormattedSegment>()
@@ -120,12 +193,12 @@ private fun parseInlineFormatting(input: String): List<FormattedSegment> {
 private fun parseLinks(text: String): List<FormattedSegment> {
     val segments = mutableListOf<FormattedSegment>()
     var lastEnd = 0
-    for (match in URL_REGEX.findAll(text)) {
-        if (match.range.first > lastEnd) {
-            segments.add(FormattedSegment(text.substring(lastEnd, match.range.first)))
+    for (span in findUrlSpans(text)) {
+        if (span.start > lastEnd) {
+            segments.add(FormattedSegment(text.substring(lastEnd, span.start)))
         }
-        segments.add(FormattedSegment(match.value, isLink = true, linkUrl = match.value))
-        lastEnd = match.range.last + 1
+        segments.add(FormattedSegment(span.url, isLink = true, linkUrl = span.url))
+        lastEnd = span.endExclusive
     }
     if (lastEnd < text.length) {
         segments.add(FormattedSegment(text.substring(lastEnd)))
