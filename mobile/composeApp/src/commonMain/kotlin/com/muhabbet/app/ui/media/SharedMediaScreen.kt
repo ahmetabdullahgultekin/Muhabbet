@@ -24,8 +24,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +51,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.muhabbet.designsystem.components.MuhabbetMenu
+import com.muhabbet.designsystem.components.MuhabbetMenuItem
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -306,12 +306,12 @@ fun SharedMediaScreen(
                                         }
 
                                         // Long-press context menu
-                                        DropdownMenu(
+                                        MuhabbetMenu(
                                             expanded = contextMenuMessage?.id == message.id,
                                             onDismissRequest = { contextMenuMessage = null }
                                         ) {
-                                            DropdownMenuItem(
-                                                text = { Text(forwardText) },
+                                            MuhabbetMenuItem(
+                                                text = forwardText,
                                                 onClick = {
                                                     val m = message
                                                     contextMenuMessage = null
@@ -320,8 +320,9 @@ fun SharedMediaScreen(
                                                 }
                                             )
                                             if (message.senderId == currentUserId) {
-                                                DropdownMenuItem(
-                                                    text = { Text(deleteText, color = MaterialTheme.colorScheme.error) },
+                                                MuhabbetMenuItem(
+                                                    text = deleteText,
+                                                    destructive = true,
                                                     onClick = {
                                                         val id = message.id
                                                         contextMenuMessage = null
@@ -395,12 +396,12 @@ fun SharedMediaScreen(
                                         )
 
                                         // Long-press context menu for documents
-                                        DropdownMenu(
+                                        MuhabbetMenu(
                                             expanded = contextMenuMessage?.id == message.id,
                                             onDismissRequest = { contextMenuMessage = null }
                                         ) {
-                                            DropdownMenuItem(
-                                                text = { Text(forwardText) },
+                                            MuhabbetMenuItem(
+                                                text = forwardText,
                                                 onClick = {
                                                     val m = message
                                                     contextMenuMessage = null
@@ -409,8 +410,9 @@ fun SharedMediaScreen(
                                                 }
                                             )
                                             if (message.senderId == currentUserId) {
-                                                DropdownMenuItem(
-                                                    text = { Text(deleteText, color = MaterialTheme.colorScheme.error) },
+                                                MuhabbetMenuItem(
+                                                    text = deleteText,
+                                                    destructive = true,
                                                     onClick = {
                                                         val id = message.id
                                                         contextMenuMessage = null

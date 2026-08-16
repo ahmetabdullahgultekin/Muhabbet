@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +41,8 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
+import com.muhabbet.designsystem.components.MuhabbetMenu
+import com.muhabbet.designsystem.components.MuhabbetMenuItem
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.conversations.ConversationListScreen
@@ -219,12 +219,12 @@ fun HomeShellScreen(
                                 onClick = { showMoreMenu = true },
                                 modifier = Modifier.testTag("overflow_menu")
                             )
-                            DropdownMenu(
+                            MuhabbetMenu(
                                 expanded = showMoreMenu,
                                 onDismissRequest = { showMoreMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text(settingsTitle) },
+                                MuhabbetMenuItem(
+                                    text = settingsTitle,
                                     modifier = Modifier.testTag("menu_settings"),
                                     onClick = {
                                         showMoreMenu = false
