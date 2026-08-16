@@ -672,6 +672,7 @@
     <!-- Chat bubbles hand a URL to the platform: a file, a link preview or a map. One wording for
          all three, because the failure is always the same one: nothing here can open it. -->
     <string name="error_open_failed">Bu öğe açılamadı</string>
+    <string name="error_video_unavailable">Bu video artık kullanılamıyor</string>
     <string name="error_disappearing_timer_failed">Kaybolan mesaj ayarı değiştirilemedi</string>
     <string name="call_connection_failed">Arama bağlantısı kurulamadı</string>
     <!-- Shown while the call is ringing, before media actually connects -->

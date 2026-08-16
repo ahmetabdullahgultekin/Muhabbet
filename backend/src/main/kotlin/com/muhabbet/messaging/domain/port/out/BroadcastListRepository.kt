@@ -13,4 +13,13 @@ interface BroadcastListRepository {
     fun addMember(member: BroadcastListMember): BroadcastListMember
     fun removeMember(broadcastListId: UUID, userId: UUID)
     fun findMembers(broadcastListId: UUID): List<BroadcastListMember>
+
+    /**
+     * Recipient counts for a whole page of lists in one query.
+     *
+     * Batched by contract: the list screen shows a count on every row, and resolving them by
+     * calling [findMembers] per list is the N+1 the shape of this signature exists to prevent.
+     * Lists with no recipients are absent from the map rather than present with zero.
+     */
+    fun countMembersByListIds(listIds: List<UUID>): Map<UUID, Int>
 }

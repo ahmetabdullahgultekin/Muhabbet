@@ -29,12 +29,17 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.LinkPreviewResponse
 import io.ktor.http.encodeURLQueryComponent
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.firstUrlOrNull
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 
-private val URL_REGEX = Regex("https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+")
-
-fun extractFirstUrl(text: String): String? = URL_REGEX.find(text)?.value
+/**
+ * Delegates to `util/TextUtils.findUrlSpans`, which is now the one place that decides where a URL
+ * starts and ends. This file used to carry a second, ASCII-only regex, so the preview card could
+ * fetch a different string than the message displayed — and could fetch a Turkish address truncated
+ * at its first non-ASCII character.
+ */
+fun extractFirstUrl(text: String): String? = firstUrlOrNull(text)
 
 @Composable
 fun LinkPreviewCard(

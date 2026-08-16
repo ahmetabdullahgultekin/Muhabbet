@@ -9,7 +9,11 @@ import org.springframework.data.jpa.repository.Query
 import java.util.UUID
 
 interface SpringDataBroadcastListJpaRepository : JpaRepository<BroadcastListJpaEntity, UUID> {
-    fun findByOwnerId(ownerId: UUID): List<BroadcastListJpaEntity>
+    /**
+     * Ordered on purpose. A derived query with no `ORDER BY` leaves the order to the database, so
+     * the list reshuffled between refreshes — the same defect #358 fixed for communities.
+     */
+    fun findByOwnerIdOrderByCreatedAtDesc(ownerId: UUID): List<BroadcastListJpaEntity>
 }
 
 interface SpringDataBroadcastListMemberRepository : JpaRepository<BroadcastListMemberJpaEntity, BroadcastListMemberId> {
@@ -18,4 +22,14 @@ interface SpringDataBroadcastListMemberRepository : JpaRepository<BroadcastListM
     @Modifying
     @Query("DELETE FROM BroadcastListMemberJpaEntity blm WHERE blm.broadcastListId = :broadcastListId AND blm.userId = :userId")
     fun deleteByBroadcastListIdAndUserId(broadcastListId: UUID, userId: UUID)
+
+    @Query(
+        """
+        SELECT blm.broadcastListId, COUNT(blm)
+        FROM BroadcastListMemberJpaEntity blm
+        WHERE blm.broadcastListId IN :listIds
+        GROUP BY blm.broadcastListId
+        """
+    )
+    fun countByBroadcastListIds(listIds: List<UUID>): List<Array<Any>>
 }

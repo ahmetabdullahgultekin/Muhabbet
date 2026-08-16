@@ -672,6 +672,7 @@
     <!-- Chat bubbles hand a URL to the platform: a file, a link preview or a map. One wording for
          all three, because the failure is always the same one: nothing here can open it. -->
     <string name="error_open_failed">Could not open this</string>
+    <string name="error_video_unavailable">This video is no longer available</string>
     <string name="error_disappearing_timer_failed">Could not change the disappearing messages setting</string>
     <string name="call_connection_failed">Could not connect the call</string>
     <!-- Shown while the call is ringing, before media actually connects -->

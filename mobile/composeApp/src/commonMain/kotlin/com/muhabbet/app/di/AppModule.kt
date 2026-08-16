@@ -5,6 +5,7 @@ import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.app.data.repository.ChannelRepository
+import com.muhabbet.app.data.repository.BroadcastListRepository
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.DeviceLinkRepository
@@ -76,6 +77,7 @@ fun appModule(): Module = module {
     single { EncryptionRepository(apiClient = get()) }
     single { E2ESetupService(keyManager = get(), encryptionRepository = get()) }
     single { CommunityRepository(apiClient = get()) }
+    single { BroadcastListRepository(apiClient = get()) }
     single { InviteLinkRepository(apiClient = get()) }
     single { WallpaperRepository(tokenStorage = get()) }
     // Read at the composition root, above MuhabbetTheme — see App.kt.

@@ -30,9 +30,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import com.muhabbet.app.platform.AudioPlayer
+import com.muhabbet.app.util.findUrlSpans
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
@@ -52,6 +60,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
+
+/** Opacity of the disc the play glyph sits on, so it stays legible over any thumbnail. */
+private const val PlayOverlayAlpha = 0.7f
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -76,10 +87,13 @@ fun MessageBubble(
     onInfo: () -> Unit = {},
     onCopy: () -> Unit = {},
     onViewOnce: (String) -> Unit = {},
-    // Documents, link previews and shared locations all end in "hand this URL to the platform".
-    // The bubble does not do it itself: opening can fail (nothing installed that handles the URL),
-    // and the snackbar that has to say so lives on the screen.
-    onOpenUrl: (String) -> Unit = {}
+    // Documents, link previews, shared locations, videos and URLs inside message text all end in
+    // "hand this URL to the platform". The bubble does not do it itself: opening can fail (nothing
+    // installed that handles the URL), and the snackbar that has to say so lives on the screen.
+    onOpenUrl: (String) -> Unit = {},
+    // A video that arrived as a thumbnail with no playable url. Same division of labour: the bubble
+    // knows the media is unreachable, the screen owns telling the user.
+    onMediaUnavailable: () -> Unit = {}
 ) {
     // Dispatch view-once messages to ViewOnceBubble
     if (message.viewOnce && !message.isDeleted) {
@@ -252,30 +266,49 @@ fun MessageBubble(
                         }
                         // Video
                         if (message.contentType == ContentType.VIDEO && (message.mediaUrl != null || message.thumbnailUrl != null)) {
+                            // #357 gave images `(mediaUrl ?: thumbnailUrl)` because for an image the
+                            // two urls are the same picture at two resolutions. For a video they are
+                            // not: the thumbnail is a still frame. So the pair is not interchangeable
+                            // here, and only mediaUrl can be played.
+                            //
+                            // Playback goes to the platform via onOpenUrl, not to onImageClick: that
+                            // opens MediaViewer, a zoomable AsyncImage which cannot decode a video and
+                            // would show an empty frame that looks like a broken player. There is no
+                            // in-app player in this app, and adding one is not a bubble's change.
+                            val playableUrl = message.mediaUrl
                             Box(
                                 modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight)
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable { message.mediaUrl?.let { onImageClick(it) } },
+                                    // The bubble draws whenever EITHER url is present, so every draw
+                                    // has to answer a tap. Thumbnail-only means the video itself is
+                                    // not reachable, and opening the still frame instead would look
+                                    // like playback and be a lie, so it says so.
+                                    .clickable {
+                                        if (playableUrl != null) onOpenUrl(playableUrl) else onMediaUnavailable()
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 AsyncImage(
                                     model = message.thumbnailUrl ?: message.mediaUrl,
-                                    contentDescription = stringResource(Res.string.video_play),
+                                    contentDescription = stringResource(Res.string.chat_video),
                                     modifier = Modifier.fillMaxWidth().heightIn(max = MuhabbetSizes.ImagePreviewMaxHeight),
                                     contentScale = ContentScale.Crop
                                 )
-                                // Play button overlay
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(MuhabbetSizes.MediaControl)
-                                ) {
-                                    Icon(
-                                        Muhabbet.icons.Play,
-                                        contentDescription = stringResource(Res.string.video_play),
-                                        modifier = Modifier.padding(MuhabbetSpacing.Small),
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
+                                // Play button overlay — drawn only when there is something to play,
+                                // because the affordance is the promise.
+                                if (playableUrl != null) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = PlayOverlayAlpha),
+                                        modifier = Modifier.size(MuhabbetSizes.MediaControl)
+                                    ) {
+                                        Icon(
+                                            Muhabbet.icons.Play,
+                                            contentDescription = stringResource(Res.string.video_play),
+                                            modifier = Modifier.padding(MuhabbetSpacing.Small),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
                             Spacer(Modifier.height(MuhabbetSpacing.XSmall))
@@ -285,7 +318,7 @@ fun MessageBubble(
                             (message.contentType == ContentType.IMAGE && message.content != stringResource(Res.string.chat_photo) && message.content.isNotBlank())
                         ) {
                             Text(
-                                text = message.content,
+                                text = linkifiedContent(message.content, semanticColors.linkColor, onOpenUrl),
                                 style = Muhabbet.text.ChatBody,
                                 color = onBubbleColor,
                                 modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)
@@ -423,6 +456,48 @@ fun MessageBubble(
                 }
             }
         }
+    }
+}
+
+/**
+ * The message text, with every URL in it turned into a tappable, underlined link (#362).
+ *
+ * Before this, only the link *preview card* was tappable. The card is decorative enrichment that
+ * renders nothing when the fetch fails or the site serves no metadata, so a message whose only
+ * content was a URL could be completely unreachable — the address was on screen and there was no
+ * way to follow it.
+ *
+ * The link range comes from `findUrlSpans`, the same detector the preview card uses, so the two
+ * cannot disagree about where the URL ends. Ranges are annotated rather than the text rebuilt: the
+ * user's own characters are displayed untouched, and a Turkish suffix like `'a` in
+ * *"https://site.com'a bak"* stays visible as prose outside the tappable range.
+ *
+ * [linkColor] is `MuhabbetSemanticColors.linkColor`, which `SemanticColorContrastTest` already pins
+ * above the WCAG text floor against both bubble colours — it was defined for this and never used.
+ */
+private fun linkifiedContent(
+    content: String,
+    linkColor: Color,
+    onOpenUrl: (String) -> Unit
+): AnnotatedString {
+    val spans = findUrlSpans(content)
+    if (spans.isEmpty()) return AnnotatedString(content)
+
+    val linkStyle = TextLinkStyles(
+        style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+    )
+    return buildAnnotatedString {
+        var lastEnd = 0
+        spans.forEach { span ->
+            append(content.substring(lastEnd, span.start))
+            // Clickable rather than LinkAnnotation.Url: opening has to go through the screen's
+            // openExternally, which reports a failure the platform's default handler swallows.
+            withLink(LinkAnnotation.Clickable(span.url, linkStyle) { onOpenUrl(span.url) }) {
+                append(content.substring(span.start, span.endExclusive))
+            }
+            lastEnd = span.endExclusive
+        }
+        append(content.substring(lastEnd))
     }
 }
 
