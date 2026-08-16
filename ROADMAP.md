@@ -63,6 +63,34 @@ The loop:
 Rule: **the tracker is the memory.** Anything discussed and not filed is lost. This has already
 happened often enough to be a rule rather than advice.
 
+## The order: verify, then schedule, then fix in batches
+
+An issue moves through three stages, and skipping the first is what produced a tracker with 279
+entries where a large share are not work at all.
+
+**1. Verify before it is scheduled.** Check the claim against the code and put the evidence — a
+`file:line`, a log line, a row count — in the issue. An unverified issue is a rumour, and scheduling
+a rumour spends real time on it. Of nineteen claims from the automated review passes that were
+actually checked, two named the wrong file, three were badly miscounted, and the two genuinely
+exploitable bugs were not in the list at all. Verification is also where an issue gets closed with a
+reason, merged into an epic, or reduced from "26 hardcoded radii" to one piece of work.
+
+Verification cuts both ways: it can also *raise* severity, or lower it. #270 was filed as a live
+auth bypass; measuring it against production showed Traefik overwrites the header, so it is real in
+the code and latent in production — still worth fixing, no longer urgent. That is a different plan
+than the title implied.
+
+**2. Then assign it to the version whose exit criteria it blocks.** Not to a theme, not to
+"soon". If it blocks nothing, it is backlog, and that is a legitimate destination.
+
+**3. Then fix in version batches, not one issue per branch.** Issues in the same milestone touching
+the same area ship together: one branch, one PR, one deploy, one verification pass. Seven separate
+PRs for seven token call-sites costs seven reviews and seven CI runs to change the same file.
+
+The batch is also the unit of verification. A backend batch is verified once on CI and once against
+production; a mobile batch is driven once on the emulator. That is affordable per batch and is not
+per issue — which is precisely why issues were being closed unverified before.
+
 ## Definition of done
 
 A change is done when all of these are true. They are here because each was learned by shipping the
