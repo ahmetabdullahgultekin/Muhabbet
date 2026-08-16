@@ -712,4 +712,6 @@
     <string name="contacts_consent_decline">Not now</string>
     <string name="contacts_consent_declined">You have not agreed to contact matching. You can still start a chat by typing a number.</string>
     <string name="contacts_consent_review">Review this permission</string>
+    <!-- Debug builds only: the backend echoed the code back in mock mode (#435) -->
+    <string name="otp_dev_mode_code">Dev mode — Code: %1$s</string>
 </resources>

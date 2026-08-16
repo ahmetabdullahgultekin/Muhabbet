@@ -50,7 +50,12 @@ fun PhoneInputScreen(
     onFirebaseAutoVerified: (isNewUser: Boolean) -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
-    var phoneNumber by remember { mutableStateOf("+90") }
+    // Digits only. The country code is a prefix on the field, not part of the value — seeding the
+    // value with "+90" meant a tap to the left of it put the caret at position 0, so typing gave
+    // 5000000001+90: a nonsense number that still looked plausible because the +90 was visible, and
+    // Continue stayed enabled (#439).
+    var nationalDigits by remember { mutableStateOf("") }
+    val phoneNumber = COUNTRY_CODE + nationalDigits
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -99,11 +104,17 @@ fun PhoneInputScreen(
         Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
         MuhabbetTextField(
-            value = phoneNumber,
-            onValueChange = {
-                if (it.length <= 13) phoneNumber = it
+            value = nationalDigits,
+            onValueChange = { typed ->
+                // Filtering rather than truncating: a paste of "0532 123 45 67" or "+90 532…"
+                // becomes the ten national digits instead of being rejected or silently cut.
+                nationalDigits = typed.filter { it.isDigit() }
+                    .removePrefix("90")
+                    .trimStart('0')
+                    .take(NATIONAL_DIGITS)
                 error = null
             },
+            prefix = COUNTRY_CODE,
             modifier = Modifier.fillMaxWidth().testTag("phone_input"),
             label = stringResource(Res.string.phone_label),
             placeholder = stringResource(Res.string.phone_placeholder),
@@ -181,7 +192,7 @@ fun PhoneInputScreen(
                     }
                 }
             },
-            enabled = !isLoading && phoneNumber.length >= 13,
+            enabled = !isLoading && nationalDigits.length == NATIONAL_DIGITS,
             modifier = Modifier.fillMaxWidth().testTag("phone_continue")
         ) {
             if (isLoading) {
@@ -239,3 +250,9 @@ private fun shouldFallbackForRawMessage(rawMessage: String?): Boolean {
  * a progress indicator that says "2 of 3" on a two-step flow is worse than no indicator.
  */
 internal const val AuthSteps = 3
+
+/** Turkey only for now; a country picker is part of the wider globalisation question (#417). */
+private const val COUNTRY_CODE = "+90"
+
+/** A Turkish mobile number is ten digits after the country code, e.g. 5XX XXX XX XX. */
+private const val NATIONAL_DIGITS = 10

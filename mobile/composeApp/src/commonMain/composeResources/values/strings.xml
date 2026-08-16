@@ -713,4 +713,6 @@
     <string name="contacts_consent_decline">Şimdi değil</string>
     <string name="contacts_consent_declined">Rehber eşleştirmesini onaylamadınız. Numara girerek sohbet başlatabilirsiniz.</string>
     <string name="contacts_consent_review">İzni tekrar gözden geçir</string>
+    <!-- Debug builds only: the backend echoed the code back in mock mode (#435) -->
+    <string name="otp_dev_mode_code">Geliştirici modu — Kod: %1$s</string>
 </resources>

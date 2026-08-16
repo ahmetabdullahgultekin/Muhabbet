@@ -28,6 +28,11 @@ import androidx.compose.ui.text.input.KeyboardType
  *   keyboard options at all, which leaves the return key inserting a newline into a field that
  *   cannot show one. A multi-line field keeps [ImeAction.Default] — there the newline is the point,
  *   and taking it away would be the same mistake in reverse.
+ * @param prefix fixed text shown before the value and **not part of it**. The login screen used to
+ *   seed the field with `"+90"` as ordinary content, so tapping to the left of it put the caret at
+ *   position 0 and typing produced `5000000001+90` — a nonsense number that still looked plausible
+ *   because the `+90` was visibly there (#439). A prefix cannot be selected, deleted or typed
+ *   before.
  */
 @Composable
 fun MuhabbetTextField(
@@ -41,7 +46,8 @@ fun MuhabbetTextField(
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     keyboardType: KeyboardType = KeyboardType.Text,
-    imeAction: ImeAction = if (singleLine) ImeAction.Done else ImeAction.Default
+    imeAction: ImeAction = if (singleLine) ImeAction.Done else ImeAction.Default,
+    prefix: String? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -50,6 +56,7 @@ fun MuhabbetTextField(
         enabled = enabled,
         label = label?.let { { Text(it) } },
         placeholder = placeholder?.let { { Text(it) } },
+        prefix = prefix?.let { { Text(it) } },
         isError = error != null,
         supportingText = error?.let {
             { Text(text = it, color = MaterialTheme.colorScheme.error) }
