@@ -327,10 +327,30 @@ fun ChatScreen(
             val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
             isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
                 myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
+
+            // Seed the header subtitle (#644). `peerOnline`/`peerLastSeen` were previously only
+            // ever written by the WebSocket listener below, reacting to a PresenceUpdate frame —
+            // nothing ever asked for the peer's current status, so a chat opened onto a peer who
+            // was already online (or already offline with a last-seen from an hour ago) showed a
+            // blank subtitle until their presence happened to change while this screen was open.
+            // GET /users/{id} already applies the peer's own onlineStatusVisibility server-side
+            // (UserController.resolveVisibility, #377) — a peer set to "nobody" correctly returns
+            // isOnline=false/lastSeenAt=null here too, so this seeds exactly what that setting
+            // allows and nothing more. Only meaningful for a 1:1 chat: a group has no single peer.
+            if (!isGroup) {
+                val peerId = conv?.participants?.firstOrNull { it.userId != currentUserId }?.userId
+                if (peerId != null) {
+                    val profile = conversationRepository.getUserProfile(peerId)
+                    peerOnline = profile.isOnline
+                    peerLastSeen = profile.lastSeenAt?.toEpochMilliseconds()
+                }
+            }
         }.onFailure { e ->
             // Best-effort enrichment: the chat is fully usable without it, so no snackbar.
-            // The defaults (no disappear timer, not announcement-only, not admin) are permissive;
-            // the backend re-checks all three, so a failure here cannot grant real privileges.
+            // The defaults (no disappear timer, not announcement-only, not admin, blank presence
+            // subtitle) are permissive; the backend re-checks all three privilege flags, so a
+            // failure here cannot grant real privileges, and a missing subtitle is silent, not
+            // wrong.
             Log.w(TAG, "Failed to load conversation settings: ${e.message}")
         }
     }
@@ -415,8 +435,23 @@ fun ChatScreen(
                     else messages.map { m -> if (m.id == ws.messageId) m.copy(status = ws.status) else m }
                 }
                 is WsMessage.PresenceUpdate -> if (ws.userId != currentUserId) {
-                    if (ws.conversationId == conversationId && ws.status == PresenceStatus.TYPING) {
-                        peerTyping = true; typingDismissJob?.cancel(); typingDismissJob = scope.launch { delay(3000); peerTyping = false }
+                    if (ws.conversationId == conversationId) {
+                        if (ws.status == PresenceStatus.TYPING) {
+                            peerTyping = true
+                            typingDismissJob?.cancel()
+                            typingDismissJob = scope.launch {
+                                delay(com.muhabbet.designsystem.theme.MuhabbetDurations.TypingTimeoutMs)
+                                peerTyping = false
+                            }
+                        } else {
+                            // handleTypingIndicator (backend) sends this same conversationId with
+                            // PresenceStatus.ONLINE when the peer's `isTyping` frame was `false` —
+                            // the explicit "stopped typing" signal. Without handling it the bubble
+                            // depended entirely on the fallback timer above and could linger for up
+                            // to TypingTimeoutMs after the peer had already stopped.
+                            typingDismissJob?.cancel()
+                            peerTyping = false
+                        }
                     }
                     if (ws.conversationId == null) when (ws.status) {
                         PresenceStatus.ONLINE -> { peerOnline = true; peerLastSeen = null }
@@ -463,6 +498,23 @@ fun ChatScreen(
             initialScrollDone = true
         } else {
             // New message arrived: animate to bottom
+            listState.animateScrollToItem(messages.lastIndex, scrollOffset = Int.MAX_VALUE)
+        }
+    }
+
+    // The other half of #643. `ChatMessageList` appends the typing bubble as its own trailing
+    // item (`ChatMessageList.kt`, key = "typing"), separate from `messages`, so the effect above —
+    // keyed on `messages.size` — never reruns when `peerTyping` flips. A reader who was already
+    // scrolled to the newest message (the common case: they are looking at the chat because
+    // someone is about to reply) had the bubble land one row below their viewport with nothing to
+    // bring it into view — composed, correct, and never seen, exactly as reported. Scrolling is
+    // gated on already being at (or within two rows of) the bottom: someone reading older history
+    // must not be yanked back down just because the peer started typing.
+    LaunchedEffect(peerTyping) {
+        if (!peerTyping || messages.isEmpty()) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return@LaunchedEffect
+        val totalItems = listState.layoutInfo.totalItemsCount
+        if (lastVisible >= totalItems - 2) {
             listState.animateScrollToItem(messages.lastIndex, scrollOffset = Int.MAX_VALUE)
         }
     }
