@@ -28,6 +28,7 @@
     <string name="voice_transcribe">Yazıya Dönüştür</string>
     <string name="voice_transcribing">Yazıya dönüştürülüyor…</string>
     <string name="voice_transcript_failed">Yazıya dönüştürme başarısız</string>
+    <string name="voice_playback_speed_change">Oynatma hızını değiştir</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
