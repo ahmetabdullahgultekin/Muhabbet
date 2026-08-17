@@ -309,6 +309,7 @@
     <string name="call_coming_soon">Calling feature coming soon</string>
     <string name="video_play">Play video</string>
     <string name="starred_you">You</string>
+    <string name="starred_conversation_unavailable">This conversation is no longer available</string>
     <string name="shared_media_title">Shared Media</string>
     <string name="shared_media_empty">No shared media</string>
     <string name="shared_media_images">Photos</string>
