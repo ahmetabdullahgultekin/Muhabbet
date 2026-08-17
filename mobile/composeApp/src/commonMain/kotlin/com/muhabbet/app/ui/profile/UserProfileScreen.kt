@@ -46,6 +46,7 @@ import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.designsystem.components.ConfirmDialog
 import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.app.ui.chat.MediaViewer
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -77,6 +78,8 @@ fun UserProfileScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var showBlockDialog by remember { mutableStateOf(false) }
     var showReportDialog by remember { mutableStateOf(false) }
+    // Only ever set true when profile.avatarUrl is non-null — see the render site below.
+    var showPhotoViewer by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -128,6 +131,12 @@ fun UserProfileScreen(
         )
     }
 
+    if (showPhotoViewer) {
+        profile?.avatarUrl?.let { url ->
+            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+        }
+    }
+
     MuhabbetScaffold(
         topBar = {
             MuhabbetTopBar(
@@ -158,7 +167,13 @@ fun UserProfileScreen(
                         UserAvatar(
                             avatarUrl = p.avatarUrl,
                             displayName = p.displayName ?: "?",
-                            size = MuhabbetSizes.AvatarHero
+                            size = MuhabbetSizes.AvatarHero,
+                            // No photo means no navigation: a full-screen gradient isn't worth it (#615).
+                            modifier = if (p.avatarUrl != null) {
+                                Modifier.clickable { showPhotoViewer = true }
+                            } else {
+                                Modifier
+                            }
                         )
 
                         Spacer(Modifier.height(MuhabbetSpacing.Large))

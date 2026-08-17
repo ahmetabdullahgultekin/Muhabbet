@@ -602,8 +602,8 @@ fun ChatScreen(
                     // Avatar in the title, not just a name. Every messenger worth comparing against
                     // shows the person you are talking to at the top of the conversation, and its
                     // absence here was the single most "unfinished" thing left on this screen. The
-                    // whole row is the tap target for the profile, so the avatar is not a separate
-                    // affordance to discover.
+                    // row opens the profile; the avatar itself is carved out below to open full-screen
+                    // instead (#615).
                     Row(
                         modifier = Modifier.clickable { onTitleClick() },
                         verticalAlignment = Alignment.CenterVertically
@@ -614,7 +614,21 @@ fun ChatScreen(
                             size = Muhabbet.sizes.AvatarSmall,
                             isGroup = isGroup,
                             contentDescription = if (isGroup) groupAvatarLabel else null,
-                            modifier = Modifier.handoffAvatar(conversationId, isChatSide = true)
+                            // A separate tap zone nested inside the title Row's own onTitleClick: a
+                            // tap on the avatar opens it full-screen (reusing the same viewer and
+                            // dialog state a chat photo uses — #615) and continues the shared-element
+                            // handoff below rather than cutting; a tap anywhere else in the row still
+                            // opens the profile via onTitleClick. No photo means no navigation — the
+                            // name-seeded gradient fallback isn't worth a full-screen view.
+                            modifier = Modifier
+                                .then(
+                                    if (conversationAvatarUrl != null) {
+                                        Modifier.clickable { fullImageUrl = conversationAvatarUrl }
+                                    } else {
+                                        Modifier
+                                    }
+                                )
+                                .handoffAvatar(conversationId, isChatSide = true)
                         )
                         Spacer(Modifier.width(Muhabbet.spacing.Small))
                         Column {
