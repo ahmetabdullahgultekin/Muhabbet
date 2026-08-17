@@ -46,6 +46,7 @@ import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.platform.AppVisibility
+import com.muhabbet.app.platform.RecordedAudio
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
@@ -233,12 +234,55 @@ fun ChatScreen(
     var isAnnouncementOnly by remember { mutableStateOf(false) }
     var isAdminOrOwner by remember { mutableStateOf(false) }
 
-    // Voice recording
+    // Voice recording — see VoiceRecordingPhase for the state machine. Before #601 there were only
+    // two states, recording and not, and the only way out of the first was tapping the same button
+    // again, which stopped the recording AND sent it in one motion — no cancel, no preview, no way
+    // to keep talking past the length of one held press.
     val audioRecorder = rememberAudioRecorder()
     val audioPlayer = rememberAudioPlayer()
-    var isRecording by remember { mutableStateOf(false) }
-    val requestAudioPermission = rememberAudioPermissionRequester { granted ->
-        if (granted) { audioRecorder.startRecording(); isRecording = true }
+    var recordingPhase by remember { mutableStateOf<VoiceRecordingPhase>(VoiceRecordingPhase.Idle) }
+    var recordingSeconds by remember { mutableStateOf(0) }
+    // Held and Locked both keep the recorder running; Preview shows a fixed duration read off the
+    // finished file, not a live counter, so it is deliberately excluded here.
+    val isRecordingLive = recordingPhase is VoiceRecordingPhase.Held || recordingPhase is VoiceRecordingPhase.Locked
+    LaunchedEffect(isRecordingLive) {
+        if (isRecordingLive) {
+            recordingSeconds = 0
+            while (true) { delay(1000); recordingSeconds++ }
+        }
+    }
+    // The permission prompt is fired from onRecordPressStart below when it is still missing; there
+    // is nothing useful to auto-start here once it resolves, because the grant lands well after the
+    // press that triggered it has already ended without recording anything. The next press starts
+    // recording normally.
+    val requestAudioPermission = rememberAudioPermissionRequester { }
+
+    suspend fun sendRecordedAudio(audio: RecordedAudio) {
+        isUploading = true
+        var sendFailed = false
+        try {
+            val upload = mediaUploadHelper.uploadAudio(
+                audio.bytes,
+                "voice_${Clock.System.now().toEpochMilliseconds()}.ogg",
+                audio.mimeType,
+                audio.durationSeconds
+            )
+            val mid = generateMessageId(); val rid = generateMessageId()
+            messages = messages + Message(
+                id = mid,
+                conversationId = conversationId,
+                senderId = currentUserId,
+                contentType = ContentType.VOICE,
+                content = chatVoiceText,
+                mediaUrl = upload.url,
+                status = MessageStatus.SENDING,
+                clientTimestamp = Clock.System.now()
+            )
+            wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
+        } catch (_: Exception) { sendFailed = true }
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isUploading = false
+        if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
     }
 
     // ── Media pickers ────────────────────────
@@ -760,44 +804,48 @@ fun ChatScreen(
             replyingTo?.let { ReplyPreviewBar(it) { replyingTo = null } }
             if (editingMessageId != null) EditModeBar(chatEditMode) { editingMessageId = null; messageText = "" }
 
-            // Voice recording or input bar
-            if (isRecording) {
-                Surface(tonalElevation = MuhabbetElevation.Level2) {
-                    Row(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), verticalAlignment = Alignment.CenterVertically) {
-                        VoiceRecordButton(true, {}, onStopRecording = {
-                            val audio = audioRecorder.stopRecording(); isRecording = false
-                            if (audio != null) scope.launch {
-                                isUploading = true
-                                var sendFailed = false
-                                try {
-                                    val upload = mediaUploadHelper.uploadAudio(
-                                        audio.bytes,
-                                        "voice_${Clock.System.now().toEpochMilliseconds()}.ogg",
-                                        audio.mimeType,
-                                        audio.durationSeconds
-                                    )
-                                    val mid = generateMessageId(); val rid = generateMessageId()
-                                    messages = messages + Message(
-                                        id = mid,
-                                        conversationId = conversationId,
-                                        senderId = currentUserId,
-                                        contentType = ContentType.VOICE,
-                                        content = chatVoiceText,
-                                        mediaUrl = upload.url,
-                                        status = MessageStatus.SENDING,
-                                        clientTimestamp = Clock.System.now()
-                                    )
-                                    wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
-                                } catch (_: Exception) { sendFailed = true }
-                                // Clear the spinner BEFORE reporting — showSnackbar suspends until
-                                // dismissed (~4s).
-                                isUploading = false
-                                if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
-                            }
-                        }, onCancelRecording = { audioRecorder.cancelRecording(); isRecording = false }, modifier = Modifier.weight(1f))
+            // Voice recording or input bar.
+            //
+            // Locked and Preview each get their own bar, swapped in exactly as freely as the old
+            // isRecording flag used to — there is no live gesture to lose once either is reached
+            // (the finger is already up in both). Idle and Held are the case that isn't free to
+            // swap; both go through the same MessageInputBar call so its VoiceRecordGestureButton
+            // stays mounted across that specific transition. See that composable's doc for why.
+            when (val phase = recordingPhase) {
+                is VoiceRecordingPhase.Locked -> LockedRecordingBar(
+                    recordingSeconds = recordingSeconds,
+                    onCancel = {
+                        audioRecorder.cancelRecording()
+                        recordingPhase = VoiceRecordingPhase.Idle
+                    },
+                    onSend = {
+                        val audio = audioRecorder.stopRecording()
+                        recordingPhase = VoiceRecordingPhase.Idle
+                        if (audio != null) scope.launch {
+                            sendRecordedAudio(audio)
+                            audioRecorder.discardPreview()
+                        }
                     }
-                }
-            } else {
+                )
+                is VoiceRecordingPhase.Preview -> VoicePreviewBar(
+                    audio = phase.audio,
+                    audioPlayer = audioPlayer,
+                    onDiscard = {
+                        audioPlayer.stop()
+                        audioRecorder.discardPreview()
+                        recordingPhase = VoiceRecordingPhase.Idle
+                    },
+                    onSend = {
+                        audioPlayer.stop()
+                        val audio = phase.audio
+                        recordingPhase = VoiceRecordingPhase.Idle
+                        scope.launch {
+                            sendRecordedAudio(audio)
+                            audioRecorder.discardPreview()
+                        }
+                    }
+                )
+                else -> {
                 val inputEnabled = !isAnnouncementOnly || isAdminOrOwner
 
                 if (!inputEnabled) {
@@ -852,7 +900,29 @@ fun ChatScreen(
                                 reportSendOutcome(mid, e) } }
                         }
                     },
-                    onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
+                    recordingPhase = phase,
+                    recordingSeconds = recordingSeconds,
+                    onRecordPressStart = {
+                        if (audioRecorder.hasPermission()) {
+                            audioRecorder.startRecording()
+                            recordingPhase = VoiceRecordingPhase.Held(0f, 0f)
+                            true
+                        } else {
+                            requestAudioPermission()
+                            false
+                        }
+                    },
+                    onRecordDragUpdate = { dx, dy -> recordingPhase = VoiceRecordingPhase.Held(dx, dy) },
+                    onRecordLocked = { recordingPhase = VoiceRecordingPhase.Locked },
+                    onRecordReleased = { dx, _ ->
+                        if (isVoiceRecordingCancelledAt(dx)) {
+                            audioRecorder.cancelRecording()
+                            recordingPhase = VoiceRecordingPhase.Idle
+                        } else {
+                            val audio = audioRecorder.stopRecording()
+                            recordingPhase = if (audio != null) VoiceRecordingPhase.Preview(audio) else VoiceRecordingPhase.Idle
+                        }
+                    },
                     onImagePick = { imagePickerLauncher.launch() }, onFilePick = { filePickerLauncher.launch() },
                     onPollCreate = { showPollDialog = true }, onLocationShare = { showLocationDialog = true },
                     onGifPick = { gifPickerTab = GifStickerTab.GIF },
@@ -862,6 +932,7 @@ fun ChatScreen(
                     onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled },
                     onScheduleSend = { if (messageText.isNotBlank()) showScheduleDialog = true }
                 )
+                }
             }
         }
     }

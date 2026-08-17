@@ -23,12 +23,18 @@
     <string name="attach_file_view_once_on">Dosya ekle — bir kez görüntüle açık</string>
     <string name="voice_play">Oynat</string>
     <string name="voice_pause">Duraklat</string>
-    <string name="voice_record">Kaydet</string>
-    <string name="voice_stop">Durdur</string>
     <string name="voice_transcribe">Yazıya Dönüştür</string>
     <string name="voice_transcribing">Yazıya dönüştürülüyor…</string>
     <string name="voice_transcript_failed">Yazıya dönüştürme başarısız</string>
     <string name="voice_playback_speed_change">Oynatma hızını değiştir</string>
+    <!-- Content description while the record button is held down and audio is being captured. -->
+    <string name="voice_recording_in_progress">Ses kaydı yapılıyor</string>
+    <string name="voice_slide_to_cancel">Vazgeçmek için kaydırın</string>
+    <!-- Label on the lock icon once a held recording has been slid up into hands-free mode. -->
+    <string name="voice_locked">Kilitli</string>
+    <!-- Discards a stopped-but-unsent voice recording (preview or locked bar), as opposed to
+         "delete", which removes an already-sent message. -->
+    <string name="voice_discard">Kaydı sil</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
