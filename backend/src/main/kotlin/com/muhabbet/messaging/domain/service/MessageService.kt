@@ -43,7 +43,12 @@ open class MessageService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        private const val EDIT_WINDOW_MINUTES = 15L
+        /**
+         * Moved to [ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES] (#597) so the app can enforce the
+         * same rule in its context menu instead of letting the user discover it by failing. Kept as
+         * an alias rather than inlined at the call site so the name still reads at line 371.
+         */
+        private const val EDIT_WINDOW_MINUTES = ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES
     }
 
     /**
@@ -367,8 +372,13 @@ open class MessageService(
             throw BusinessException(ErrorCode.MSG_ALREADY_DELETED)
         }
 
-        val minutesSinceSent = java.time.Duration.between(message.serverTimestamp, Instant.now()).toMinutes()
-        if (minutesSinceSent > EDIT_WINDOW_MINUTES) {
+        // Through the shared rule rather than a local Duration, so the answer the app computed
+        // before offering "Düzenle" and the answer the server computes here cannot disagree.
+        val withinWindow = ValidationRules.isWithinEditWindow(
+            sentAtEpochMillis = message.serverTimestamp.toEpochMilli(),
+            nowEpochMillis = Instant.now().toEpochMilli()
+        )
+        if (!withinWindow) {
             throw BusinessException(ErrorCode.MSG_EDIT_WINDOW_EXPIRED)
         }
 
