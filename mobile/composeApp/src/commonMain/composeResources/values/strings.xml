@@ -414,7 +414,11 @@
     <string name="settings_privacy_section">Gizlilik</string>
     <string name="settings_privacy_last_seen">Son görülme</string>
     <string name="settings_privacy_read_receipts">Okundu bilgisi</string>
-    <string name="settings_privacy_read_receipts_subtitle">Okundu bilgisini kapatırsanız diğerlerinin bilgisini de göremezsiniz</string>
+    <!-- This used to describe WhatsApp's rule ("kapatırsanız diğerlerinin bilgisini de göremezsiniz")
+         and our behaviour is the opposite: readReceiptsEnabled gates only the *reader's* own
+         published receipt, so turning it off hides yours and changes nothing about what you see
+         (#620). A settings screen that states the wrong rule is worse than one that states none. -->
+    <string name="settings_privacy_read_receipts_subtitle">Kapatırsanız başkaları mesajlarını okuduğunuzu görmez. Siz onların okundu bilgisini görmeye devam edersiniz.</string>
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Bildirimler</string>
