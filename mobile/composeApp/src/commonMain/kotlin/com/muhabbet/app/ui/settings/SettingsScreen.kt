@@ -82,6 +82,7 @@ fun SettingsScreen(
     onTwoStepVerification: () -> Unit = {},
     onAppLock: () -> Unit = {},
     onWallpaper: () -> Unit = {},
+    onAbout: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
@@ -324,6 +325,16 @@ fun SettingsScreen(
                 if (showMediaQualityDialog) {
                     MediaQualityDialog(onDismiss = { showMediaQualityDialog = false })
                 }
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+
+                // The only route into AboutScreen — build info and the three legal documents that,
+                // before #614, existed on the website but were unreachable from inside the app.
+                SettingsNavRow(
+                    title = stringResource(Res.string.about_title),
+                    icon = Muhabbet.icons.Info,
+                    iconContentDescription = stringResource(Res.string.about_title),
+                    onClick = onAbout
+                )
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
