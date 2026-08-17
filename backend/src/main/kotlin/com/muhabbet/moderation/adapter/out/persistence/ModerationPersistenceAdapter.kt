@@ -79,6 +79,14 @@ class BlockPersistenceAdapter(
     override fun exists(blockerId: UUID, blockedId: UUID): Boolean {
         return springDataBlockRepository.existsByBlockerIdAndBlockedId(blockerId, blockedId)
     }
+
+    override fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
+        // An empty IN () is both pointless and invalid on some engines — short-circuit before SQL.
+        if (candidateIds.isEmpty()) return emptySet()
+        return springDataBlockRepository
+            .findByBlockedIdAndBlockerIdIn(userId, candidateIds.distinct())
+            .mapTo(mutableSetOf()) { it.blockerId }
+    }
 }
 
 private fun ReportJpaEntity.toDomain() = UserReport(

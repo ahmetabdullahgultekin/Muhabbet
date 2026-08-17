@@ -10,12 +10,20 @@ import java.util.UUID
  * the one place the two modules meet. Same shape as [UserDirectoryPort] and [ReadReceiptPolicyPort],
  * and for the same reason.
  *
- * Not batched, unlike its two siblings: every caller asks about a single pair. A direct
- * conversation has exactly one other participant, and a group add is refused wholesale on the first
- * block found, so there is no page of ids to resolve and no N+1 to avoid.
+ * Two shapes because there are two shapes of question. The send path asks about a single pair — a
+ * direct conversation has exactly one other participant. Presence asks about a whole page of
+ * conversation participants at once, so it gets a batched form; resolving a 20-row chat list one
+ * participant at a time would be an N+1 on the screen users open first.
  */
 interface BlockPolicyPort {
 
     /** True when [blockerId] has blocked [blockedId]. Directional — blocks are not mutual. */
     fun hasBlocked(blockerId: UUID, blockedId: UUID): Boolean
+
+    /**
+     * Which of [candidateIds] have blocked [userId] — i.e. whose presence must be hidden from
+     * [userId]. Returns an empty set for the common case where nobody has, and costs no query when
+     * [candidateIds] is empty.
+     */
+    fun findBlockedBy(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
 }

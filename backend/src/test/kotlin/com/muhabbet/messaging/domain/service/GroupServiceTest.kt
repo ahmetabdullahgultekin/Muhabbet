@@ -143,9 +143,10 @@ class GroupServiceTest {
             }
 
             // Refused, not silently skipped — an add that appeared to work would leave the
-            // requester believing someone is in the group who is not. The code says the add was
-            // refused and not why, so it cannot be used to test who has blocked you.
-            assertEquals(ErrorCode.GROUP_MEMBER_ADD_REFUSED, ex.errorCode)
+            // requester believing someone is in the group who is not. It shares a code with "no
+            // such user" on purpose: a code unique to blocking would let anyone discover who has
+            // blocked them by trying to add them to a throwaway group.
+            assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)
             verify(exactly = 0) { conversationRepository.saveMember(any()) }
         }
 

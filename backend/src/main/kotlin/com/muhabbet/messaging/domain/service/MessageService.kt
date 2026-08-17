@@ -2,6 +2,7 @@ package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.Conversation
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
@@ -111,11 +112,15 @@ open class MessageService(
             isScheduled = isScheduled
         )
 
+        // Loaded once and reused for both the block test and the delivery rows below — resolving it
+        // twice would put an extra query on the hottest path in the app.
+        val members = conversationRepository.findMembersByConversationId(command.conversationId)
+
         // Dropped *before* the insert, deliberately. Persisting it and filtering on the way out
         // would need the same filter on history, background sync, search, shared media and the
         // push fan-out — five chances to leak, and a leak means the block does not work. With no
         // row there is nothing for any of them to return.
-        if (isBlockedDirectSend(conversation, command.senderId)) {
+        if (isBlockedDirectSend(conversation, members, command.senderId)) {
             log.info(
                 "Message dropped, recipient has blocked the sender: conv={}, sender={}",
                 command.conversationId,
@@ -133,7 +138,6 @@ open class MessageService(
         }
 
         // Create delivery status for all recipients
-        val members = conversationRepository.findMembersByConversationId(command.conversationId)
         val recipientIds = members.map { it.userId }.filter { it != command.senderId }
 
         recipientIds.forEach { recipientId ->
@@ -166,12 +170,13 @@ open class MessageService(
      * messaging a person they themselves blocked is not the case with a victim, and swallowing
      * their own outgoing message would read as a bug rather than a policy.
      */
-    private fun isBlockedDirectSend(conversation: Conversation?, senderId: UUID): Boolean {
+    private fun isBlockedDirectSend(
+        conversation: Conversation?,
+        members: List<ConversationMember>,
+        senderId: UUID
+    ): Boolean {
         if (conversation?.type != ConversationType.DIRECT) return false
-        val recipientId = conversationRepository.findMembersByConversationId(conversation.id)
-            .map { it.userId }
-            .firstOrNull { it != senderId }
-            ?: return false
+        val recipientId = members.map { it.userId }.firstOrNull { it != senderId } ?: return false
         return blockPolicy.hasBlocked(recipientId, senderId)
     }
 
@@ -373,9 +378,21 @@ open class MessageService(
         }
 
         val editedAt = Instant.now()
+
+        // `updateContent` is the *second* way message content reaches a recipient, and guarding only
+        // `sendMessage` left it open: for EDIT_WINDOW_MINUTES after their last pre-block message, a
+        // blocked sender could rewrite it to anything and MessageEdited would push the new text into
+        // the blocker's open chat — repeatedly, on the same message. Same silence as the send path:
+        // the caller is told it worked, nothing is written and nothing is broadcast.
+        val conversation = conversationRepository.findById(message.conversationId)
+        val members = conversationRepository.findMembersByConversationId(message.conversationId)
+        if (isBlockedDirectSend(conversation, members, requesterId)) {
+            log.info("Message edit dropped, recipient has blocked the sender: id={}", messageId)
+            return message.copy(content = newContent, editedAt = editedAt)
+        }
+
         messageRepository.updateContent(messageId, newContent, editedAt)
 
-        val members = conversationRepository.findMembersByConversationId(message.conversationId)
         messageBroadcaster.broadcastToUsers(
             members.map { it.userId },
             WsMessage.MessageEdited(
@@ -443,6 +460,14 @@ open class MessageService(
 
     // ─── Scheduled Messages ──────────────────────────────────
 
+    /**
+     * [markAsDelivered] and [softDelete] are `@Modifying` queries, and Hibernate refuses those
+     * outside a transaction — `ScheduledMessageJob` has none of its own and swallows the failure
+     * into a `log.warn`, which is the same silent shape that stopped `last_seen_at` from ever being
+     * written. Without this annotation the whole loop throws on its first write, every minute,
+     * forever, and the block check below would be unreachable code.
+     */
+    @Transactional
     open fun deliverScheduledMessages() {
         val now = Instant.now()
         val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now)
@@ -450,20 +475,24 @@ open class MessageService(
         for (message in scheduledMessages) {
             messageRepository.markAsDelivered(message.id)
 
-            // A message can be scheduled before a block and come due after it. The row already
-            // exists — it was written when the send was scheduled — so this cannot un-write it,
-            // but it stops the delivery rows, the socket fan-out and the push notification.
             val conversation = conversationRepository.findById(message.conversationId)
-            if (isBlockedDirectSend(conversation, message.senderId)) {
+            val members = conversationRepository.findMembersByConversationId(message.conversationId)
+
+            // A message can be scheduled before a block and come due after it. Withholding the
+            // delivery rows and the fan-out is not enough on its own: the row was written at
+            // schedule time and history filters on `isDeleted`, not on `isScheduled`, so it would
+            // simply appear in the recipient's chat. Soft-deleting restores the invariant the
+            // immediate path gets for free — no readable row, for either party.
+            if (isBlockedDirectSend(conversation, members, message.senderId)) {
+                messageRepository.softDelete(message.id)
                 log.info(
-                    "Scheduled message not delivered, recipient has blocked the sender: id={}, conv={}",
+                    "Scheduled message dropped, recipient has blocked the sender: id={}, conv={}",
                     message.id,
                     message.conversationId
                 )
                 continue
             }
 
-            val members = conversationRepository.findMembersByConversationId(message.conversationId)
             val recipientIds = members.map { it.userId }.filter { it != message.senderId }
 
             recipientIds.forEach { recipientId ->

@@ -63,6 +63,7 @@ class MessagingServiceTest {
         blockPolicy = mockk()
         // Default across the suite: nobody has blocked anybody, so every existing expectation holds.
         every { blockPolicy.hasBlocked(any(), any()) } returns false
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
 
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
@@ -446,9 +447,10 @@ class MessagingServiceTest {
 
     @Test
     fun `should not deliver a scheduled direct message when the recipient has blocked the sender`() {
-        // A send scheduled before the block comes due after it. The row was written when the send
-        // was scheduled and cannot be un-written here, but the delivery rows, the socket fan-out
-        // and the push notification are all still withheld.
+        // A send scheduled before the block comes due after it. Withholding the delivery rows and
+        // the fan-out is not enough on its own — the row was written at schedule time and history
+        // filters on isDeleted, not isScheduled — so it is soft-deleted, restoring the "no readable
+        // row" invariant the immediate send path gets by never writing one.
         val convId = UUID.randomUUID()
         val scheduled = TestData.textMessage(
             id = UUID.randomUUID(),
@@ -467,8 +469,54 @@ class MessagingServiceTest {
 
         messageService.deliverScheduledMessages()
 
+        verify { messageRepository.softDelete(scheduled.id) }
         verify(exactly = 0) { messageRepository.saveDeliveryStatus(any()) }
         verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
+    }
+
+    // ─── editMessage: blocking ───────────────────────────
+
+    private fun stubEditableDirectMessage(convId: UUID, messageId: UUID): Message {
+        val message = TestData.textMessage(id = messageId, conversationId = convId, senderId = userA)
+            .copy(serverTimestamp = Instant.now())
+        every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = userA),
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+        return message
+    }
+
+    @Test
+    fun `should not apply or broadcast an edit when the recipient has blocked the sender`() {
+        // updateContent is the second way message content reaches a recipient. Guarding only
+        // sendMessage left a blocked sender a 15-minute writable channel: rewrite the last
+        // pre-block message and MessageEdited pushes the new text into the blocker's open chat.
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        stubEditableDirectMessage(convId, messageId)
+        every { blockPolicy.hasBlocked(userB, userA) } returns true
+
+        val result = messageService.editMessage(messageId, userA, "something else entirely")
+
+        // Silence, same as the send path — the caller is told it worked.
+        assertEquals("something else entirely", result.content)
+        verify(exactly = 0) { messageRepository.updateContent(any(), any(), any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastToUsers(any(), any()) }
+    }
+
+    @Test
+    fun `should apply an edit normally when there is no block`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        stubEditableDirectMessage(convId, messageId)
+
+        messageService.editMessage(messageId, userA, "fixed a typo")
+
+        verify { messageRepository.updateContent(messageId, "fixed a typo", any()) }
+        verify { messageBroadcaster.broadcastToUsers(any(), any()) }
     }
 
     // ─── getMessages ─────────────────────────────────────

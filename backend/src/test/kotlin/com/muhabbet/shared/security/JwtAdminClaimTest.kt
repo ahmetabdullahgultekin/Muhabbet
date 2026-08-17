@@ -11,8 +11,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.mock.env.MockEnvironment
+import org.springframework.mock.web.MockFilterChain
+import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import java.util.UUID
 
@@ -46,10 +48,10 @@ class JwtAdminClaimTest {
         SecurityContextHolder.clearContext()
     }
 
+    /** Only for the requireAdmin() tests, which read the principal and never the authorities. */
     private fun authenticateWith(claims: JwtClaims) {
-        val authorities = if (claims.isAdmin) listOf(SimpleGrantedAuthority("ROLE_ADMIN")) else emptyList()
         SecurityContextHolder.getContext().authentication =
-            UsernamePasswordAuthenticationToken(claims, null, authorities)
+            UsernamePasswordAuthenticationToken(claims, null, emptyList())
     }
 
     @Test
@@ -103,15 +105,22 @@ class JwtAdminClaimTest {
     fun `should grant ROLE_ADMIN only to an admin token`() {
         // What SecurityConfig's hasRole("ADMIN") on /actuator/metrics and /actuator/prometheus
         // resolves against — the metrics half of #303.
-        val adminClaims = provider.validateToken(provider.generateAccessToken(userId, deviceId, isAdmin = true))
-        checkNotNull(adminClaims)
-        authenticateWith(adminClaims)
-        assertTrue(grantedAuthorities().any { it == "ROLE_ADMIN" })
+        //
+        // This drives the real JwtAuthFilter rather than seeding the SecurityContext by hand. An
+        // earlier version of this test built the SimpleGrantedAuthority itself and then read it
+        // back, so it asserted its own helper and would have stayed green if the filter stopped
+        // granting the role altogether — the exact "it compiles, so it works" trap this whole
+        // issue is about.
+        assertTrue(authoritiesAfterFilter(provider.generateAccessToken(userId, deviceId, isAdmin = true)).contains("ROLE_ADMIN"))
+        assertTrue(authoritiesAfterFilter(provider.generateAccessToken(userId, deviceId)).isEmpty())
+    }
 
-        val plainClaims = provider.validateToken(provider.generateAccessToken(userId, deviceId))
-        checkNotNull(plainClaims)
-        authenticateWith(plainClaims)
-        assertTrue(grantedAuthorities().isEmpty())
+    /** Runs a bearer token through the production filter and reports what it granted. */
+    private fun authoritiesAfterFilter(token: String): List<String> {
+        SecurityContextHolder.clearContext()
+        val request = MockHttpServletRequest().apply { addHeader("Authorization", "Bearer $token") }
+        JwtAuthFilter(provider).doFilter(request, MockHttpServletResponse(), MockFilterChain())
+        return grantedAuthorities()
     }
 
     private fun grantedAuthorities(): List<String> =

@@ -58,17 +58,21 @@ open class GroupService(
 
         // Someone who blocked you does not get pulled into a room with you. Unlike the send path
         // this cannot be silent — an add that appeared to work would leave the requester believing
-        // a person is in the group who is not — so it refuses, with a code that says the add was
-        // refused and not why. GROUP_MEMBER_ADD_REFUSED is deliberately vague: naming the block
-        // would turn "add to group" into a free query for who has blocked you.
+        // a person is in the group who is not.
         //
-        // The whole batch is refused, matching CONV_INVALID_PARTICIPANTS above: addMembers has
-        // always been all-or-nothing, and a partial success is the harder thing for a caller to
-        // notice. Only the *added* user's block counts; a requester adding someone they blocked
-        // themselves is their own business.
+        // It reuses CONV_INVALID_PARTICIPANTS, the code raised three lines above when a user id
+        // does not resolve, rather than getting one of its own. A distinct code would be a reliable
+        // one-bit oracle: create a throwaway group, add the target, read the code, and you know
+        // they blocked you. Sharing a code with "no such user" is what makes the answer ambiguous —
+        // the wording of a message cannot do that, only the code can.
+        //
+        // The whole batch is refused, matching that same check: addMembers has always been
+        // all-or-nothing, and a partial success is the harder thing for a caller to notice. Only
+        // the *added* user's block counts; a requester adding someone they blocked themselves is
+        // their own business.
         if (newUserIds.any { blockPolicy.hasBlocked(it, requesterId) }) {
             log.info("Group add refused, an invitee has blocked the requester: conv={}, requester={}", conversationId, requesterId)
-            throw BusinessException(ErrorCode.GROUP_MEMBER_ADD_REFUSED)
+            throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
         }
 
         val addedMembers = newUserIds.map { uid ->

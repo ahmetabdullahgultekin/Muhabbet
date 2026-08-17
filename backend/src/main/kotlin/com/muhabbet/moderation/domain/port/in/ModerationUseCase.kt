@@ -20,6 +20,13 @@ interface BlockUserUseCase {
     fun unblockUser(blockerId: UUID, blockedId: UUID)
     fun getBlockedUsers(userId: UUID): List<UUID>
     fun isBlocked(blockerId: UUID, blockedId: UUID): Boolean
+
+    /**
+     * Which of [candidateIds] have blocked [userId] — the reverse direction of [getBlockedUsers],
+     * and the question presence has to ask. Batched by contract: a conversation list resolves every
+     * participant on the page in one query, never one call per participant.
+     */
+    fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
 }
 
 interface ReviewReportsUseCase {

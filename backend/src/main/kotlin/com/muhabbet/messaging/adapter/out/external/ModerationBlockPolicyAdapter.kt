@@ -20,4 +20,7 @@ class ModerationBlockPolicyAdapter(
 
     override fun hasBlocked(blockerId: UUID, blockedId: UUID): Boolean =
         blockUserUseCase.isBlocked(blockerId, blockedId)
+
+    override fun findBlockedBy(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> =
+        blockUserUseCase.findBlockersAmong(userId, candidateIds)
 }

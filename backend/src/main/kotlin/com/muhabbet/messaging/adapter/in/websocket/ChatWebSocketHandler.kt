@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.CallBusyException
@@ -42,7 +43,8 @@ class ChatWebSocketHandler(
     private val userRepository: UserRepository,
     private val callSignalingService: CallSignalingService,
     private val callRoomProvider: CallRoomProvider,
-    private val webSocketRateLimiter: WebSocketRateLimiter
+    private val webSocketRateLimiter: WebSocketRateLimiter,
+    private val blockPolicy: BlockPolicyPort
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -414,7 +416,13 @@ class ChatWebSocketHandler(
 
         // Single query to get all unique user IDs across all conversations (replaces N+1 pattern)
         val contactUserIds = conversationRepository.findAllContactUserIds(userId)
-        contactUserIds.forEach { contactId ->
+
+        // Someone who blocked you is still a "contact" — you share a conversation — so without this
+        // they keep receiving your live online/offline stream and the last-seen stamp that rides
+        // the OFFLINE transition. Hiding presence on the profile screen alone would have been
+        // cosmetic: the chat list they already have renders exactly this feed.
+        val blockedBy = blockPolicy.findBlockedBy(userId, contactUserIds)
+        contactUserIds.filterNot { it in blockedBy }.forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {
                 sessionManager.sendToUser(contactId, json)
             }
