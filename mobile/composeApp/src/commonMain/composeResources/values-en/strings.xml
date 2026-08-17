@@ -4,6 +4,8 @@
     <string name="app_name">Muhabbet</string>
     <string name="chat_default_name">Chat</string>
     <string name="unknown">Unknown</string>
+    <!-- Label for a person whose name we genuinely do not have. Never render a user id instead. -->
+    <string name="unknown_person">Unknown contact</string>
     <string name="error_generic">An error occurred</string>
     <string name="error_network">Connection error. Please try again.</string>
     <string name="error_load_conversations">Failed to load conversations</string>

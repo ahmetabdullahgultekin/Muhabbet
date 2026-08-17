@@ -115,6 +115,36 @@ class StatusControllerTest {
             assert(response.statusCode.value() == 200)
             assert(response.body?.data?.size == 1)
         }
+
+        @Test
+        fun `should put the author name and avatar on the wire`() {
+            // #507: the DTO carried only a user id, so the client had nothing to label the row
+            // with and rendered the id's first eight characters.
+            val groups = listOf(
+                StatusGroup(
+                    userId = TestData.USER_ID_2,
+                    statuses = listOf(Status(userId = TestData.USER_ID_2, content = "Hey")),
+                    displayName = "Zümra",
+                    avatarUrl = "https://cdn/a.jpg"
+                )
+            )
+
+            every { manageStatusUseCase.getContactStatusesForUser(userId) } returns groups
+
+            val group = controller.getContactStatuses().body?.data?.single()
+
+            assert(group?.displayName == "Zümra")
+            assert(group?.avatarUrl == "https://cdn/a.jpg")
+        }
+
+        @Test
+        fun `should scope to the caller, never to an arbitrary user`() {
+            every { manageStatusUseCase.getContactStatusesForUser(userId) } returns emptyList()
+
+            controller.getContactStatuses()
+
+            verify(exactly = 1) { manageStatusUseCase.getContactStatusesForUser(userId) }
+        }
     }
 
     @Nested

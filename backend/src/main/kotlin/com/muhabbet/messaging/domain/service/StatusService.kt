@@ -3,13 +3,17 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 open class StatusService(
-    private val statusRepository: StatusRepository
+    private val statusRepository: StatusRepository,
+    private val conversationRepository: ConversationRepository,
+    private val userDirectory: UserDirectoryPort
 ) : ManageStatusUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -53,36 +57,54 @@ open class StatusService(
         return statusRepository.findActiveByUserId(userId)
     }
 
-    @Transactional(readOnly = true)
-    override fun getContactStatuses(): List<StatusGroup> {
-        return statusRepository.findAllActive()
-            .groupBy { it.userId }
-            .map { (userId, statuses) ->
-                StatusGroup(
-                    userId = userId,
-                    statuses = statuses.sortedByDescending { it.createdAt }
-                )
-            }
-    }
-
+    /**
+     * Status is contact-scoped, using the same definition of "contact" as the rest of the app:
+     * a user you share at least one conversation with. `UserController.resolveVisibility` gates
+     * presence, last-seen and about on exactly this set, and `ChatWebSocketHandler.broadcastPresence`
+     * fans presence out to exactly this set. Status was the one contact-scoped surface that did not
+     * — it read every active status on the instance and filtered only on the author's own audience
+     * list, so a viewer with no relationship to anybody was served everybody's status (#507).
+     *
+     * The audience list narrows this set further; it can never widen it. In particular "everyone"
+     * means "everyone among my contacts", not every account on the server — it is the default that
+     * every status carries, so treating it as unbounded is what made the leak the normal case
+     * rather than an edge case.
+     *
+     * Scoping cannot be done on the client's word that it holds contacts permission: permission is
+     * a device-side fact the server cannot verify, and a caller that lies would be served the same
+     * leak. The relationship is the thing the server can actually check, and for the account in
+     * #507 — brand new, no conversations — it yields the empty list the owner expected.
+     */
     @Transactional(readOnly = true)
     override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
-        return statusRepository.findAllActive()
-            .filter { status ->
-                when (status.visibility) {
-                    "everyone" -> viewerUserId !in status.excludedUserIds
-                    "contacts_except" -> viewerUserId !in status.excludedUserIds
-                    "only_share_with" -> viewerUserId in status.includedUserIds
-                    else -> true
-                }
-            }
-            .groupBy { it.userId }
-            .map { (userId, statuses) ->
-                StatusGroup(
-                    userId = userId,
-                    statuses = statuses.sortedByDescending { it.createdAt }
-                )
-            }
+        val contactIds = conversationRepository.findAllContactUserIds(viewerUserId)
+        if (contactIds.isEmpty()) return emptyList()
+
+        val visible = statusRepository.findActiveByUserIds(contactIds)
+            .filter { status -> isVisibleTo(status, viewerUserId) }
+        if (visible.isEmpty()) return emptyList()
+
+        val byUser = visible.groupBy { it.userId }
+        val displayInfo = userDirectory.findDisplayInfo(byUser.keys)
+
+        return byUser.map { (userId, statuses) ->
+            StatusGroup(
+                userId = userId,
+                statuses = statuses.sortedByDescending { it.createdAt },
+                displayName = displayInfo[userId]?.displayName,
+                avatarUrl = displayInfo[userId]?.avatarUrl
+            )
+        }
+    }
+
+    /**
+     * Narrowing only — the caller has already established that the author is a contact.
+     * An unrecognised visibility string still honours the exclusion list rather than opening up,
+     * so a value this build does not know about cannot be a way to reach a wider audience.
+     */
+    private fun isVisibleTo(status: Status, viewerUserId: UUID): Boolean = when (status.visibility) {
+        "only_share_with" -> viewerUserId in status.includedUserIds
+        else -> viewerUserId !in status.excludedUserIds
     }
 
     @Transactional
