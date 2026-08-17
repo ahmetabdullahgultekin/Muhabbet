@@ -3,7 +3,6 @@
      composeResources, and for the escaping rule (\' IS unescaped here). -->
 <resources>
     <string name="notification_new_message">New message</string>
-    <string name="notification_new_messages">New messages</string>
 
     <!-- Inline reply from the notification tray (#510) -->
     <string name="notification_reply_action">Reply</string>

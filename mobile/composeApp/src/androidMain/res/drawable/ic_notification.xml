@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Status-bar icons are drawn from alpha alone — Android discards every colour channel (#595). The
+    previous version was a single filled silhouette, so at 24dp its whole interior read as one solid
+    blob with no negative space. This is a stroked outline of the same bubble instead of a fill, so
+    the inside stays transparent and the shape reads as a bubble rather than a dot.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Simple speech bubble for notification icon (monochrome white) -->
     <path
         android:pathData="M4,4 C4,2.9 4.9,2 6,2 L18,2 C19.1,2 20,2.9 20,4 L20,14 C20,15.1 19.1,16 18,16 L8,16 L4,20 Z"
-        android:fillColor="#FFFFFF" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
 </vector>

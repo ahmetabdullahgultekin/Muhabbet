@@ -211,6 +211,27 @@ class PushNotificationComposerTest {
         assertEquals("GROUP", push.data["conversationType"])
     }
 
+    @Test
+    fun `should carry the message time and the raw group name for MessagingStyle`() {
+        val msg = message()
+
+        val push = composer.compose(msg, "Ayşe", conversation(ConversationType.GROUP, name = "Aile"))
+
+        // A client-side MessagingStyle needs the group name on its own — "Ayşe · Aile" (push.title)
+        // is already locale-formatted and cannot be safely split back apart on the client.
+        assertEquals(msg.serverTimestamp.toEpochMilli().toString(), push.data["sentAt"])
+        assertEquals("Aile", push.data["groupName"])
+    }
+
+    @Test
+    fun `should send an empty, never null, group name for a direct message`() {
+        val push = composer.compose(message(), "Ayşe", conversation(ConversationType.DIRECT))
+
+        // FCM data values must be non-null strings; empty means "no group name" here the same way
+        // it does for the title decision above.
+        assertEquals("", push.data["groupName"])
+    }
+
     // ─── Locale seam ─────────────────────────────────────
 
     @Test

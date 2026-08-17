@@ -14,7 +14,6 @@
 <resources>
     <string name="notification_app_name">Muhabbet</string>
     <string name="notification_new_message">Yeni mesaj</string>
-    <string name="notification_new_messages">Yeni mesajlar</string>
 
     <!-- Inline reply from the notification tray (#510) -->
     <string name="notification_reply_action">Yanıtla</string>
