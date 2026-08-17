@@ -45,6 +45,8 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.conversations.toChatTarget
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.LocationData
@@ -220,9 +222,10 @@ fun ForwardPickerDialog(
     errorSendMsg: String,
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
     onDismiss: () -> Unit,
-    onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null
+    onNavigateToConversation: ((ChatTarget) -> Unit)? = null
 ) {
     val cancelText = stringResource(Res.string.cancel)
+    val defaultChatName = stringResource(Res.string.chat_default_name)
     MuhabbetDialog(
         onDismiss = onDismiss,
         title = stringResource(Res.string.chat_forward_title),
@@ -235,16 +238,21 @@ fun ForwardPickerDialog(
             } else {
                 LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                     items(forwardConversations.filter { it.id != conversationId }, key = { it.id }) { conv ->
-                        val convName = conv.name
-                            ?: conv.participants.firstOrNull { it.userId != currentUserId }?.displayName
-                            ?: conv.participants.firstOrNull { it.userId != currentUserId }?.phoneNumber
-                            ?: ""
+                        // Was a hand-rolled chain ending `?: ""`, so forwarding to someone who has
+                        // set no display name and whose number the server withheld landed the
+                        // sender in a chat with no title — #543, reached from the forward picker.
+                        //
+                        // The whole target is kept, not just its name: taking `.name` and dropping
+                        // the rest is what left the chat you land in after forwarding with no
+                        // avatar and a dead tap on the title (#555).
+                        val convTarget = conv.toChatTarget(currentUserId, defaultChatName)
+                        val convName = convTarget.name
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     val targetConv = conv
-                                    val targetName = convName
+                                    val target = convTarget
                                     onDismiss()
                                     scope.launch {
                                         try {
@@ -262,7 +270,7 @@ fun ForwardPickerDialog(
                                                     forwardedFrom = forwardMessage.id
                                                 )
                                             )
-                                            onNavigateToConversation?.invoke(targetConv.id, targetName)
+                                            onNavigateToConversation?.invoke(target)
                                         } catch (_: Exception) {
                                             snackbarHostState.showSnackbar(errorSendMsg)
                                         }

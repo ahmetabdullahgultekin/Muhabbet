@@ -86,12 +86,21 @@ class MainComponent(
         navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId, avatarUrl))
     }
 
-    fun openChat(target: ChatTarget) {
+    /**
+     * The preferred entry point: [ChatTarget] carries every part of the chat's identity together, so
+     * a caller cannot supply the conversation id and quietly default the rest.
+     *
+     * [scrollToMessageId] stays a separate argument rather than joining [ChatTarget] because it is
+     * not part of who the conversation is — it is where in it to land, and only two screens
+     * (Starred Messages, and #463's forwarded-message jump) ever have one.
+     */
+    fun openChat(target: ChatTarget, scrollToMessageId: String? = null) {
         openChat(
             conversationId = target.conversationId,
             conversationName = target.name,
             otherUserId = target.otherUserId,
             isGroup = target.isGroup,
+            scrollToMessageId = scrollToMessageId,
             avatarUrl = target.avatarUrl
         )
     }
@@ -232,8 +241,25 @@ class MainComponent(
      *
      * CLAUDE.md already warns against pop-then-push; `replaceCurrent` is the fix.
      */
-    fun replaceWithChat(conversationId: String, conversationName: String, isGroup: Boolean = false) {
-        navigation.replaceCurrent(Config.Chat(conversationId, conversationName, isGroup = isGroup))
+    /**
+     * Takes a whole [ChatTarget] for the same reason [openChat] does. It used to take
+     * `(id, name, isGroup)`, and every one of its callers therefore had no way to supply
+     * `otherUserId` or `avatarUrl` — so a chat entered straight after creating it, or right after
+     * forwarding into it, showed the right title over no avatar and a dead tap on the person, while
+     * the same chat opened later from the list was fine (#555). It was #543's symptom arriving from
+     * a different direction, and the cure is the same: one type carrying the whole identity, so a
+     * caller cannot supply half of it.
+     */
+    fun replaceWithChat(target: ChatTarget) {
+        navigation.replaceCurrent(
+            Config.Chat(
+                conversationId = target.conversationId,
+                name = target.name,
+                otherUserId = target.otherUserId,
+                isGroup = target.isGroup,
+                avatarUrl = target.avatarUrl
+            )
+        )
         _refreshTrigger.value++
     }
 
@@ -355,23 +381,25 @@ private fun MainStack(component: MainComponent) {
                         component.openUserProfile(config.otherUserId, config.name, config.conversationId)
                     }
                 },
-                onNavigateToConversation = { convId, convName ->
-                    component.replaceWithChat(convId, convName)
-                },
+                onNavigateToConversation = component::replaceWithChat,
                 onMessageInfo = { messageId -> component.openMessageInfo(messageId) }
             )
             is MainComponent.Config.NewConversation -> NewConversationScreen(
-                onConversationCreated = { id, name ->
-                    component.replaceWithChat(id, name)
-                },
+                onConversationCreated = component::replaceWithChat,
                 onCreateGroup = {
                     component.replaceWithCreateGroup()
                 },
                 onBack = component::goBack
             )
             is MainComponent.Config.CreateGroup -> CreateGroupScreen(
+                // otherUserId and avatarUrl are genuinely absent here, not dropped: a group has no
+                // "other user", and a group created seconds ago has no photo yet. Routed through
+                // ChatTarget anyway so there is one rule for what a chat's identity is, rather than
+                // a fifth path that happens to be right today.
                 onGroupCreated = { id, name ->
-                    component.replaceWithChat(id, name, isGroup = true)
+                    component.replaceWithChat(
+                        ChatTarget(conversationId = id, name = name, isGroup = true)
+                    )
                 },
                 onBack = component::goBack
             )
@@ -409,8 +437,11 @@ private fun MainStack(component: MainComponent) {
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
                 onBack = component::goBack,
-                onNavigateToConversation = { convId, msgId ->
-                    component.openChat(convId, "", scrollToMessageId = msgId)
+                // The screen resolves the conversation before handing it over (#543). It used to
+                // pass the id and `""`, which opened the right conversation with no title, no
+                // avatar and no user id to tap through to.
+                onNavigateToConversation = { target, msgId ->
+                    component.openChat(target, scrollToMessageId = msgId)
                 }
             )
             is MainComponent.Config.SharedMedia -> SharedMediaScreen(
@@ -467,12 +498,10 @@ private fun MainStack(component: MainComponent) {
             is MainComponent.Config.CommunityDetail -> CommunityDetailScreen(
                 communityId = config.communityId,
                 onBack = component::goBack,
-                onGroupClick = { conversationId, name ->
-                    // The name comes from CommunityGroupInfo, which the detail screen already has.
-                    // Passing "" here left the chat opened from a community with a blank title bar,
-                    // because ChatScreen has no fallback of its own.
-                    component.openChat(conversationId, name, isGroup = true)
-                },
+                // The detail screen resolves the group into a ChatTarget. It used to hand over
+                // `group.name.orEmpty()` — the same blank title bar as #543, one screen along —
+                // and dropped the group's picture, which CommunityGroupInfo carries all along.
+                onGroupClick = component::openChat,
                 onMembersClick = component::openCommunityMembers
             )
             is MainComponent.Config.CommunityMembers -> CommunityMembersScreen(
@@ -481,7 +510,7 @@ private fun MainStack(component: MainComponent) {
                 onMemberClick = { userId -> component.openUserProfile(userId) }
             )
             is MainComponent.Config.PickContactForCall -> NewConversationScreen(
-                onConversationCreated = { id, name -> component.replaceWithChat(id, name) },
+                onConversationCreated = component::replaceWithChat,
                 onBack = component::goBack,
                 onContactPicked = { userId, name ->
                     val callId = Clock.System.now().toEpochMilliseconds().toString()

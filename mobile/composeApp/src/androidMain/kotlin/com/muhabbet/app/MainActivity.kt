@@ -34,18 +34,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
 
-        // Apply saved language preference before rendering UI
-        val savedLang = applicationContext
-            .getSharedPreferences("muhabbet_prefs", MODE_PRIVATE)
-            .getString("app_language", null)
-        if (savedLang != null) {
-            val locale = Locale(savedLang)
-            Locale.setDefault(locale)
-            val config = Configuration(resources.configuration)
-            config.setLocale(locale)
-            @Suppress("DEPRECATION")
-            resources.updateConfiguration(config, resources.displayMetrics)
-        }
+        applyStoredLanguage()
 
         val componentContext = defaultComponentContext()
         val platformModule = androidPlatformModule(applicationContext)
@@ -58,5 +47,46 @@ class MainActivity : ComponentActivity() {
                 App(componentContext, platformModule)
             }
         }
+    }
+
+    /**
+     * Re-asserted on the way back to the foreground, not only at start-up (#548).
+     *
+     * The chosen language reaches Compose through exactly one channel: `Locale.getDefault()`, which
+     * `LocaleList.getDefault()` derives from and which compose-resources reads to pick a
+     * `strings.xml`. That global belongs to the platform, and the platform writes it back to the
+     * device's language whenever it applies a configuration to this process — which it can do while
+     * the Activity is merely stopped, so `onCreate` does not run again to put it back. From then on
+     * the preference still says Turkish and every string the next recomposition resolves is English,
+     * which is what #548 reported after a theme change repainted the whole tree at once.
+     *
+     * `onResume` is the hook because there is no other: the Activity declares no `configChanges`, so
+     * `onConfigurationChanged` is never delivered — a real configuration change recreates it and
+     * runs `onCreate`. The gap this closes is the one that leaves no callback behind at all.
+     *
+     * NOT device-verified: there is no emulator on this host.
+     */
+    override fun onResume() {
+        super.onResume()
+        applyStoredLanguage()
+    }
+
+    private fun applyStoredLanguage() {
+        val savedLang = applicationContext
+            .getSharedPreferences("muhabbet_prefs", MODE_PRIVATE)
+            .getString("app_language", null)
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+        // Already in effect. Skipped rather than re-applied because updateConfiguration throws away
+        // the Activity's cached resources, and doing that on every resume would cost every screen a
+        // reload for nothing.
+        if (Locale.getDefault().language == savedLang) return
+
+        val locale = Locale(savedLang)
+        Locale.setDefault(locale)
+        val config = Configuration(resources.configuration)
+        config.setLocale(locale)
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(config, resources.displayMetrics)
     }
 }

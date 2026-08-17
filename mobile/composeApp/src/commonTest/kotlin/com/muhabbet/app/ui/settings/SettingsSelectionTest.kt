@@ -3,6 +3,7 @@ package com.muhabbet.app.ui.settings
 import com.muhabbet.designsystem.theme.MuhabbetThemeMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -35,22 +36,84 @@ class SettingsSelectionTest {
     }
 
     @Test
-    fun should_select_the_stored_preference_when_one_exists() {
+    fun should_select_that_language_when_the_preference_and_the_screen_agree() {
         assertEquals(AppLanguage.Turkish, selectedLanguage(stored = "tr", rendered = "tr"))
         assertEquals(AppLanguage.English, selectedLanguage(stored = "en", rendered = "en"))
     }
 
-    /** The preference is what the next launch applies, so it wins if the two ever disagree. */
+    /**
+     * #548, and the one assertion this file used to make backwards.
+     *
+     * The preference said Turkish, every string on screen was English, and the radio answered with
+     * the preference — so it said Türkçe over English words, which is #505's headline symptom with
+     * the cause moved. What is rendering is what the row must name.
+     */
     @Test
-    fun should_prefer_the_stored_language_over_the_rendered_one() {
-        assertEquals(AppLanguage.Turkish, selectedLanguage(stored = "tr", rendered = "en"))
+    fun should_select_the_language_on_screen_when_it_disagrees_with_the_preference() {
+        assertEquals(AppLanguage.English, selectedLanguage(stored = "tr", rendered = "en"))
+        assertEquals(AppLanguage.Turkish, selectedLanguage(stored = "en", rendered = "tr"))
+    }
+
+    /**
+     * The half that actually frees the user.
+     *
+     * Marking the honest row is not enough on its own: the picker skipped a tap on the row already
+     * filled in, so with the preference winning, Türkçe looked chosen and tapping it did nothing.
+     * Now the row that is NOT rendering is the one offered, and taking it has to restart — the
+     * locale is applied in `MainActivity.onCreate` and nowhere else.
+     */
+    @Test
+    fun should_restart_when_the_stored_language_is_picked_again_because_it_is_not_the_one_rendering() {
+        assertTrue(languageNeedsRestart(AppLanguage.Turkish, rendered = "en"))
+    }
+
+    /** Restarting the app to arrive at the same screen in the same language shows nothing for it. */
+    @Test
+    fun should_not_restart_when_the_picked_language_is_already_the_one_rendering() {
+        AppLanguage.entries.forEach { language ->
+            assertFalse(
+                languageNeedsRestart(language, rendered = language.code),
+                "${language.code} would restart to arrive at itself"
+            )
+        }
+    }
+
+    /**
+     * Totality of the pair: whichever row is filled in never needs a restart, and every other row
+     * always does. That is what makes "one tap always either does nothing visible or fixes it".
+     */
+    @Test
+    fun should_need_a_restart_for_exactly_the_rows_that_are_not_selected() {
+        val stored = listOf(null, "tr", "en", "de", "")
+        stored.forEach { s ->
+            AppLanguage.entries.map { it.code }.forEach { r ->
+                val selected = selectedLanguage(stored = s, rendered = r)
+                AppLanguage.entries.forEach { language ->
+                    assertEquals(
+                        language != selected,
+                        languageNeedsRestart(language, rendered = r),
+                        "stored=$s rendered=$r language=${language.code}"
+                    )
+                }
+            }
+        }
     }
 
     /** User data, so a value the app no longer offers must not leave the group with nothing filled. */
     @Test
-    fun should_fall_back_to_the_rendered_language_when_the_stored_one_is_unknown() {
+    fun should_ignore_a_stored_language_the_app_does_not_offer() {
         assertEquals(AppLanguage.English, selectedLanguage(stored = "de", rendered = "en"))
         assertEquals(AppLanguage.Turkish, selectedLanguage(stored = "", rendered = "tr"))
+    }
+
+    /**
+     * Unreachable while `app_language_code` is declared in both locales, but the function is total
+     * and this is the only input for which the preference is the best answer available.
+     */
+    @Test
+    fun should_fall_back_to_the_preference_when_the_rendered_code_names_no_offered_language() {
+        assertEquals(AppLanguage.English, selectedLanguage(stored = "en", rendered = "de"))
+        assertEquals(AppLanguage.Turkish, selectedLanguage(stored = null, rendered = "de"))
     }
 
     /**

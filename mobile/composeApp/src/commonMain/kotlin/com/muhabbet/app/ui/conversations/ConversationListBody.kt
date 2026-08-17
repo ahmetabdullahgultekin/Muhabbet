@@ -208,38 +208,21 @@ private fun ConversationListItemRow(
     onPin: () -> Unit
 ) {
     val otherParticipant = conv.participants.firstOrNull { it.userId != currentUserId }
-    val isGroup = conv.type == ConversationType.GROUP
-    val contactName = if (!isGroup) {
-        otherParticipant?.phoneNumber?.let { contactNameMap[it] }
-    } else null
-    val resolvedName = conv.name
-        ?: contactName
-        ?: otherParticipant?.displayName
-        ?: otherParticipant?.phoneNumber
-        ?: defaultChatName
+    // One rule, shared with every other screen that opens a chat — the row and the tap can no
+    // longer disagree about who this is, and neither can this screen and Starred Messages (#543).
+    val target = conv.toChatTarget(currentUserId, defaultChatName, contactNameMap)
     val isOtherOnline = otherParticipant?.let {
         onlineUsers[it.userId] ?: it.isOnline
     } ?: false
-    val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
     ConversationItem(
         conversation = conv,
         modifier = modifier,
-        displayName = resolvedName,
-        avatarUrl = avatarUrl,
+        displayName = target.name,
+        avatarUrl = target.avatarUrl,
         isOnline = isOtherOnline,
-        isGroup = isGroup,
+        isGroup = target.isGroup,
         isPinned = isPinned,
-        onClick = {
-            onConversationClick(
-                ChatTarget(
-                    conversationId = conv.id,
-                    name = resolvedName,
-                    otherUserId = otherParticipant?.userId,
-                    isGroup = isGroup,
-                    avatarUrl = avatarUrl
-                )
-            )
-        },
+        onClick = { onConversationClick(target) },
         onLongClick = { onConversationLongClick(conv) },
         onPin = onPin
     )

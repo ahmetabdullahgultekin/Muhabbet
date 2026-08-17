@@ -12,6 +12,7 @@ import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.data.repository.EncryptionRepository
 import com.muhabbet.app.data.repository.GroupRepository
+import com.muhabbet.app.data.repository.ConversationDirectory
 import com.muhabbet.app.data.repository.InviteLinkRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
@@ -20,6 +21,7 @@ import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.data.repository.PhoneNumberLookup
 import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.data.repository.StatusRepository
+import com.muhabbet.app.data.repository.TwoStepRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -85,6 +87,9 @@ fun appModule(): Module = module {
             tokenStorage = get()
         )
     }
+    // How a screen holding only a conversation id gets the name, avatar and participants that go
+    // with it (#543). Narrower than KnownPeopleSource on purpose — see that class's note.
+    single { ConversationDirectory(conversationRepository = get()) }
     // localCache resolved as LocalCache explicitly, for the same reason ConversationRepository is:
     // the parameter's type is the narrower MessageCache interface, which nothing registers, and
     // Koin resolves get() by the parameter type — left implicit this fails at startup, not at
@@ -103,6 +108,7 @@ fun appModule(): Module = module {
     single { CommunityRepository(apiClient = get()) }
     single { BroadcastListRepository(apiClient = get()) }
     single { InviteLinkRepository(apiClient = get()) }
+    single { TwoStepRepository(apiClient = get()) }
     single { WallpaperRepository(tokenStorage = get()) }
     // Read at the composition root, above MuhabbetTheme — see App.kt.
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }

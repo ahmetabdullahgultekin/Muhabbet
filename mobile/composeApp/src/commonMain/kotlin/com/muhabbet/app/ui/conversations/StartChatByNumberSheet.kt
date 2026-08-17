@@ -24,7 +24,7 @@ import org.koin.compose.koinInject
 @Composable
 fun StartChatByNumberSheet(
     onDismiss: () -> Unit,
-    onConversationOpened: (id: String, name: String) -> Unit,
+    onConversationOpened: (ChatTarget) -> Unit,
     phoneNumberLookup: PhoneNumberLookup = koinInject(),
 ) {
     // Resolved here rather than inside the suspend lambda: stringResource is @Composable.
@@ -38,7 +38,15 @@ fun StartChatByNumberSheet(
             phoneNumberLookup.startChatWith(number).also { result ->
                 if (result is PhoneLookupResult.Opened) {
                     onDismiss()
-                    onConversationOpened(result.conversationId, result.displayName ?: defaultChatName)
+                    onConversationOpened(
+                        ChatTarget(
+                            conversationId = result.conversationId,
+                            name = result.displayName?.ifBlank { null } ?: defaultChatName,
+                            otherUserId = result.userId,
+                            isGroup = false,
+                            avatarUrl = result.avatarUrl
+                        )
+                    )
                 }
             }
         },

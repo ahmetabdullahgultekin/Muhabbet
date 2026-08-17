@@ -46,11 +46,11 @@ import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.status.UpdatesTabScreen
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
-import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.action_more_options
 import com.muhabbet.composeapp.generated.resources.app_name
+import com.muhabbet.composeapp.generated.resources.chat_default_name
 import com.muhabbet.composeapp.generated.resources.error_load_conversations
 import com.muhabbet.composeapp.generated.resources.home_search_no_results
 import com.muhabbet.composeapp.generated.resources.home_search_placeholder
@@ -76,6 +76,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.conversations.toChatTarget
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -115,6 +116,7 @@ fun HomeShellScreen(
     val moreOptionsDesc = stringResource(Res.string.action_more_options)
     val searchPlaceholder = stringResource(Res.string.home_search_placeholder)
     val searchNoResults = stringResource(Res.string.home_search_no_results)
+    val defaultChatName = stringResource(Res.string.chat_default_name)
     val communitiesLabel = stringResource(Res.string.home_tab_communities)
     val chatsLabel = stringResource(Res.string.home_tab_chats)
     val updatesLabel = stringResource(Res.string.home_tab_updates)
@@ -278,19 +280,13 @@ fun HomeShellScreen(
                                 conversation = conv,
                                 currentUserId = currentUserId,
                                 onClick = {
-                                    val other = conv.participants.firstOrNull { it.userId != currentUserId }
-                                    val isGroup = conv.type == ConversationType.GROUP
                                     isSearchActive = false
                                     searchQuery = ""
-                                    onConversationClick(
-                                        ChatTarget(
-                                            conversationId = conv.id,
-                                            name = conv.name ?: other?.displayName ?: "",
-                                            otherUserId = if (isGroup) null else other?.userId,
-                                            isGroup = isGroup,
-                                            avatarUrl = if (isGroup) conv.avatarUrl else other?.avatarUrl
-                                        )
-                                    )
+                                    // Was `conv.name ?: other?.displayName ?: ""` — no phone-number
+                                    // fallback and an empty string at the end, so searching for a
+                                    // contact who has set no display name opened a nameless chat
+                                    // (#543, reached from the home search instead).
+                                    onConversationClick(conv.toChatTarget(currentUserId, defaultChatName))
                                 }
                             )
                         }

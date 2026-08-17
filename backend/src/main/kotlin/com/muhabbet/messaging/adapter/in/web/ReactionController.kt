@@ -71,7 +71,8 @@ class ReactionController(
 
     @GetMapping("/{messageId}/reactions")
     fun getReactions(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<List<ReactionResponse>>> {
-        val reactions = manageReactionUseCase.getReactions(messageId)
+        val userId = AuthenticatedUser.currentUserId()
+        val reactions = manageReactionUseCase.getReactions(messageId, userId)
         return ApiResponseBuilder.ok(reactions.map { it.toDto() })
     }
 

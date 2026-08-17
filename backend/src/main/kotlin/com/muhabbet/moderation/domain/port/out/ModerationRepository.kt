@@ -17,4 +17,7 @@ interface BlockRepository {
     fun delete(blockerId: UUID, blockedId: UUID)
     fun findByBlockerId(blockerId: UUID): List<UserBlock>
     fun exists(blockerId: UUID, blockedId: UUID): Boolean
+
+    /** Which of [candidateIds] have blocked [userId]. Batched — presence asks about a whole page. */
+    fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
 }

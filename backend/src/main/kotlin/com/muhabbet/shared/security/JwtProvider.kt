@@ -69,13 +69,26 @@ class JwtProvider(
 
     val accessTokenExpirySeconds: Long = jwtProperties.accessTokenExpiry
 
-    fun generateAccessToken(userId: UUID, deviceId: UUID): String {
+    /**
+     * [validateToken] has always read an `admin` claim; nothing ever wrote one, so `isAdmin` was
+     * false in every token ever issued and `requireAdmin()` could only throw. The claim is written
+     * here now, from `users.is_admin` (V21), which the caller reads.
+     *
+     * Written only when true. A token for an ordinary user carries no `admin` key at all rather
+     * than `admin: false` — the absent case and the explicit-false case must decode identically,
+     * and [validateToken]'s `?: false` already guarantees that, so the shorter token is free.
+     *
+     * [isAdmin] defaults to false so the failure mode of a forgotten call site is a token without
+     * privilege rather than one with it.
+     */
+    fun generateAccessToken(userId: UUID, deviceId: UUID, isAdmin: Boolean = false): String {
         val now = Date()
         val expiry = Date(now.time + jwtProperties.accessTokenExpiry * 1000)
 
         return Jwts.builder()
             .subject(userId.toString())
             .claim("deviceId", deviceId.toString())
+            .apply { if (isAdmin) claim("admin", true) }
             .issuedAt(now)
             .expiration(expiry)
             .issuer(jwtProperties.issuer)

@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.*
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -20,6 +21,7 @@ class DeliveryStatusTest {
     private val messageBroadcaster = mockk<MessageBroadcaster>(relaxed = true)
     private val userDirectory = mockk<UserDirectoryPort>(relaxed = true)
     private val readReceiptPolicy = mockk<ReadReceiptPolicyPort>()
+    private val blockPolicy = mockk<BlockPolicyPort>(relaxed = true)
 
     private lateinit var service: MessageService
 
@@ -27,7 +29,14 @@ class DeliveryStatusTest {
     fun setUp() {
         // Default: nobody has opted out, so aggregation behaves exactly as before this port existed.
         every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
-        service = MessageService(conversationRepository, messageRepository, messageBroadcaster, userDirectory, readReceiptPolicy)
+        service = MessageService(
+            conversationRepository,
+            messageRepository,
+            messageBroadcaster,
+            userDirectory,
+            readReceiptPolicy,
+            blockPolicy
+        )
     }
 
     @Test

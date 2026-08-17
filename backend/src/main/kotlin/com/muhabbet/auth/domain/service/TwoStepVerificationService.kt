@@ -1,9 +1,11 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.auth.domain.model.TwoStepStatus
 import com.muhabbet.auth.domain.port.`in`.TwoStepVerificationUseCase
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.transaction.annotation.Transactional
@@ -18,14 +20,24 @@ open class TwoStepVerificationService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional(readOnly = true)
-    override fun isEnabled(userId: UUID): Boolean {
+    override fun status(userId: UUID): TwoStepStatus {
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
-        return user.twoStepEnabledAt != null && user.twoStepPinHash != null
+        return TwoStepStatus(
+            enabled = user.twoStepEnabledAt != null && user.twoStepPinHash != null,
+            hasRecoveryEmail = user.twoStepEmail != null
+        )
     }
 
     @Transactional
     override fun setupPin(userId: UUID, pin: String, email: String?) {
+        // The server is the authority on what a PIN is. Until now only the Compose screen checked,
+        // so anything that reached this endpoint by another route — a script, an older build, a
+        // future web client — could store an empty string as a second factor (#544).
+        if (!ValidationRules.isValidTwoStepPin(pin)) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 

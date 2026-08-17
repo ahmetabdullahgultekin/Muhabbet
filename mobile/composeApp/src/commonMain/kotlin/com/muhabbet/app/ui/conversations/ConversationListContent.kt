@@ -37,7 +37,6 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.UserStatusGroup
-import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.Message
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
@@ -58,6 +57,9 @@ internal fun MessageSearchResults(
     modifier: Modifier = Modifier,
     onResultClick: (ChatTarget) -> Unit
 ) {
+    // A hit whose conversation is not in the loaded list used to open a chat named `""` — the same
+    // empty header as #543, reached from search instead of from Starred Messages.
+    val defaultChatName = stringResource(Res.string.chat_default_name)
     LazyColumn(modifier = modifier) {
         items(results, key = { it.id }) { msg ->
             Row(
@@ -65,17 +67,9 @@ internal fun MessageSearchResults(
                     .fillMaxWidth()
                     .clickable {
                         val conv = conversations.firstOrNull { it.id == msg.conversationId }
-                        val otherP = conv?.participants?.firstOrNull { it.userId != currentUserId }
-                        val name = conv?.name ?: otherP?.displayName ?: otherP?.phoneNumber ?: ""
-                        val isGroup = conv?.type == ConversationType.GROUP
                         onResultClick(
-                            ChatTarget(
-                                conversationId = msg.conversationId,
-                                name = name,
-                                otherUserId = otherP?.userId,
-                                isGroup = isGroup,
-                                avatarUrl = if (isGroup) conv?.avatarUrl else otherP?.avatarUrl
-                            )
+                            conv?.toChatTarget(currentUserId, defaultChatName)
+                                ?: ChatTarget(conversationId = msg.conversationId, name = defaultChatName)
                         )
                     }
                     .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),

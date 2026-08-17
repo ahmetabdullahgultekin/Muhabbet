@@ -8,6 +8,52 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-08-17
+
+Everything below was already sitting under Unreleased when 0.3.6 was cut, so it is recorded here.
+Some of it shipped in the 0.3.5 build without a heading being cut for it; all of it is in 0.3.6.
+
+### Security
+- **Anyone holding a message id could react into a conversation they were not in**, and the
+  reaction was broadcast live over WebSocket to every member of it. They could also vote in its
+  poll, read who had reacted, and read the poll results. Neither `ReactionService` nor
+  `PollService` checked membership. A message id is not a secret — it travels in WebSocket frames,
+  REST responses and push payloads — so anyone removed from a group kept the ability to react into
+  it. Membership is now required on all five paths, and the emoji, previously free text into a
+  `VARCHAR(16)`, is an allow-list shared with the reaction bar. (#557)
+- **Two-step verification could not be set up at all**, and the bearer token was withheld from every
+  `/api/v1/auth/**` path — including the two-step endpoints, which identify the caller purely from
+  the token. Confirmed against production: `POST /api/v1/auth/two-step` answered `405`, while the
+  path the server actually serves answered `200`. Enabling two-step still does not gate sign-in;
+  that is #566, and the setup screen says so rather than implying protection it does not give. (#544)
+
+### Fixed
+- **Sending a long message disconnected the chat instead of being refused.** Validation allowed
+  10,000 characters; Tomcat's untouched WebSocket buffer closed the socket at 8,192. Measured
+  against production: the last frame accepted carried 7,949 characters, and 9,000 closed the
+  connection with 1009. The limit counts decoded characters, not bytes, so Turkish text was cut off
+  at the same character count as ASCII. Both buffers are now set explicitly. (#493)
+- **The language radio named a language the app was not rendering**, and tapping the language you
+  wanted did nothing because it already looked selected — the way out of the trap was closed. The
+  radio now reports what is on screen and the tap always acts. Switching to OLED also appeared to
+  lose the chat wallpaper: that suppression is deliberate and controlled by a toggle, and is now
+  explained rather than silent. (#548)
+- **A chat opened right after creating it, or right after forwarding into it, had no avatar and a
+  dead tap on the title.** Every one of those paths already held the user id and avatar it was
+  dropping. (#555)
+- **A scheduled message that failed to send said so in one line with no cause in it.** The failure
+  is now logged with its exception, and a run reports how many it delivered — "the job ran and did
+  nothing" and "the job never ran" used to produce identical logs, which is what hid scheduled
+  delivery being dead. (#556)
+- **Notification permission was never requested**, so a fresh install on Android 13+ silently got
+  no notifications; it only ever appeared to work because the permission had been granted by hand
+  over adb. Verified on a device: revoke, launch, the dialog appears; grant, and it is not asked
+  again. (#547, #552)
+
+### Changed
+- `CLAUDE.md` records CI's 429 failure mode, and no longer states a shared-module test count — the
+  written figure had gone stale in exactly the way the neighbouring instruction exists to prevent.
+
 ### Added
 - **`GET /api/v1/users/me/privacy`.** `PATCH` shipped without a read side, so the settings screen
   had no way to fetch the stored values and could only assume them — always the most permissive

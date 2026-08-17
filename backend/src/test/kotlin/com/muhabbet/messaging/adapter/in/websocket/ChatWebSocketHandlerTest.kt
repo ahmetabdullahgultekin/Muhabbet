@@ -48,6 +48,7 @@ class ChatWebSocketHandlerTest {
     private lateinit var callSignalingService: CallSignalingService
     private lateinit var callRoomProvider: CallRoomProvider
     private lateinit var webSocketRateLimiter: WebSocketRateLimiter
+    private lateinit var blockPolicy: com.muhabbet.messaging.domain.port.out.BlockPolicyPort
     private lateinit var handler: ChatWebSocketHandler
 
     private val userId = UUID.randomUUID()
@@ -72,9 +73,12 @@ class ChatWebSocketHandlerTest {
         callSignalingService = mockk(relaxed = true)
         callRoomProvider = mockk(relaxed = true)
         webSocketRateLimiter = mockk(relaxed = true)
+        blockPolicy = mockk(relaxed = true)
 
         // Rate limiter always allows in tests
         every { webSocketRateLimiter.allowMessage(any()) } returns true
+        // Nobody has blocked anybody, so presence fans out to every contact as before.
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
 
         handler = ChatWebSocketHandler(
             jwtProvider = jwtProvider,
@@ -86,7 +90,8 @@ class ChatWebSocketHandlerTest {
             userRepository = userRepository,
             callSignalingService = callSignalingService,
             callRoomProvider = callRoomProvider,
-            webSocketRateLimiter = webSocketRateLimiter
+            webSocketRateLimiter = webSocketRateLimiter,
+            blockPolicy = blockPolicy
         )
     }
 

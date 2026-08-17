@@ -446,7 +446,19 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
   it as a service container, which is why this only bites locally.
-- **Shared KMP tests:** `./gradlew :shared:jvmTest` — **56 tests, 0 failures** at HEAD.
+- **Shared KMP tests:** `./gradlew :shared:jvmTest` — **measure it, do not read it here.** The same
+  rule as the backend suite, for the same reason: this line said "56 tests" while the real figure had
+  moved to 66. A count in a document is a claim about a moment; a suite is a thing you run. Aggregate
+  from `shared/build/test-results/jvmTest/*.xml`. Expect zero failures — unlike the backend, nothing
+  here needs Docker, so any failure is real.
+- **A red check may be GitHub, not the branch** (#563, first seen 2026-08-17). Jobs die in **Set up
+  job** with `429 (Too Many Requests)` downloading `actions/checkout` from `codeload.github.com`.
+  It is the host, not the workflow — `curl` to the same URL from the runner returns 429 on its own —
+  and the runner caches no actions (`_work/_actions` is 8 KB), so every job re-downloads every one of
+  them. Re-running does not help while the limit holds. Confirm before blaming a branch:
+  `gh run view <id> --log-failed | grep 429`. This fails *before* any step of ours, so it reads as a
+  build failure with no log to explain it — the exact shape that teaches people to ignore red checks.
+  Local gates are the real signal on such a day. See also [[ci-red-is-usually-environmental]].
 - **detekt does not run at all** (#279). `:backend:detekt` dies at plugin startup with "detekt was
   compiled with Kotlin 2.0.21 but is currently running with 2.4.10", before analysing a file. CI marks
   the step `continue-on-error: true`, so a total failure of the tool has been indistinguishable from a

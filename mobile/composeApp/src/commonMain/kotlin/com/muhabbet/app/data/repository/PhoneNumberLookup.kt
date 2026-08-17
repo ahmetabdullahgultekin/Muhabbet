@@ -14,8 +14,20 @@ import com.muhabbet.app.util.sha256Hex
  */
 sealed interface PhoneLookupResult {
 
-    /** The number belongs to a Muhabbet user and [conversationId] is the direct chat with them. */
-    data class Opened(val conversationId: String, val displayName: String?) : PhoneLookupResult
+    /**
+     * The number belongs to a Muhabbet user and [conversationId] is the direct chat with them.
+     *
+     * [userId] and [avatarUrl] are carried rather than dropped because the caller navigates
+     * straight into that chat, and a chat opened without them has no avatar and a dead tap on the
+     * title until it is reopened from the list (#555). [Found] already knew both — this case simply
+     * discarded them on the way past.
+     */
+    data class Opened(
+        val conversationId: String,
+        val displayName: String?,
+        val userId: String,
+        val avatarUrl: String?
+    ) : PhoneLookupResult
 
     /**
      * The number belongs to a Muhabbet user and nothing has been done about it yet.
@@ -90,7 +102,12 @@ class PhoneNumberLookup(
         // already exists"). So typing the number of someone already in the list re-opens that chat
         // instead of creating a duplicate, and no client-side de-duplication is needed.
         val conversation = conversationRepository.createDirectConversation(match.userId)
-        return PhoneLookupResult.Opened(conversation.id, match.displayName)
+        return PhoneLookupResult.Opened(
+            conversationId = conversation.id,
+            displayName = match.displayName,
+            userId = match.userId,
+            avatarUrl = match.avatarUrl
+        )
     }
 
     /**
