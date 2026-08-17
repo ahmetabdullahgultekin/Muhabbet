@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,27 +25,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import com.muhabbet.app.data.repository.WallpaperRepository
 import com.muhabbet.app.platform.AudioPlayer
-import com.muhabbet.app.util.hexToColorOrNull
-import com.muhabbet.designsystem.theme.LocalSemanticColors
-import com.muhabbet.designsystem.theme.LocalThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
-import com.muhabbet.designsystem.theme.ResolvedThemeMode
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.model.Message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import androidx.compose.runtime.rememberCoroutineScope
@@ -106,36 +96,10 @@ internal fun ChatMessageList(
         }
     }
 
-    // The reader half of #380: WallpaperPickerScreen persists a selection but nothing used to
-    // consult it here, so the chat always drew the theme default no matter what was picked.
-    // Re-read on every fresh composition of this screen, same as the picker itself does on open.
-    val wallpaperRepository: WallpaperRepository = koinInject()
-    val isDarkTheme = LocalThemeMode.current != ResolvedThemeMode.Light
-    val wallpaper = remember(isDarkTheme) { wallpaperRepository.resolveWallpaper(isDarkTheme) }
-    val defaultWallpaperColor = LocalSemanticColors.current.chatWallpaper
-
+    // The wallpaper is painted by the caller, behind both this list and the loading skeleton that
+    // precedes it — see ChatWallpaper. Drawing it here meant everything shown before the messages
+    // arrived sat on a different colour.
     Box(modifier = modifier.fillMaxWidth()) {
-        when (wallpaper) {
-            is WallpaperRepository.ChatWallpaper.Custom -> AsyncImage(
-                model = "file://${wallpaper.path}",
-                // Decorative background, not content — a screen reader has nothing useful to
-                // announce about a chat's wallpaper.
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                // If the file was removed from under the app (cleared storage, restored backup),
-                // fall back to the same default the DEFAULT branch below paints, rather than a
-                // blank or broken image.
-                error = ColorPainter(defaultWallpaperColor)
-            )
-            is WallpaperRepository.ChatWallpaper.Solid -> Box(
-                modifier = Modifier.fillMaxSize()
-                    .background(wallpaper.hexColor.hexToColorOrNull() ?: defaultWallpaperColor)
-            )
-            WallpaperRepository.ChatWallpaper.Default -> Box(
-                modifier = Modifier.fillMaxSize().background(defaultWallpaperColor)
-            )
-        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,

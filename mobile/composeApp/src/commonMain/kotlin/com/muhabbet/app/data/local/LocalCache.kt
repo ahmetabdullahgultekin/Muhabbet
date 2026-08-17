@@ -13,7 +13,7 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
+class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, MessageCache {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
@@ -102,7 +102,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
         }
     }
 
-    fun getMessagesByPage(conversationId: String, limit: Int): List<Message> {
+    override fun getMessagesByPage(conversationId: String, limit: Int): List<Message> {
         return queries.getMessagesByPage(conversationId, limit.toLong()).executeAsList().map { row ->
             Message(
                 id = row.id,
@@ -129,7 +129,21 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
         }
     }
 
+    /**
+     * Writes a message to the on-device cache, except a view-once one.
+     *
+     * `cachedMessage` has no `viewOnce` column, so a stored view-once message comes back out as an
+     * ordinary one — and since the server withholds its `mediaUrl` (#515), that is a photo bubble
+     * with nothing in it: a broken tile where a seal belongs, and one that would keep offering
+     * itself after the message had been burned somewhere else.
+     *
+     * Skipping it is the right answer regardless of the missing column. A view-once message is the
+     * one kind whose entire purpose is not to persist, and its viewed/unviewed state lives on the
+     * server; a local copy could only ever be a stale second opinion about whether it had been
+     * spent. The chat re-fetches it from the server on open, which is where the truth is.
+     */
     fun upsertMessage(msg: Message) {
+        if (msg.viewOnce) return
         queries.upsertMessage(
             id = msg.id,
             conversationId = msg.conversationId,
@@ -152,7 +166,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
         )
     }
 
-    fun upsertMessages(messages: List<Message>) {
+    override fun upsertMessages(messages: List<Message>) {
         database.transaction {
             messages.forEach { upsertMessage(it) }
         }

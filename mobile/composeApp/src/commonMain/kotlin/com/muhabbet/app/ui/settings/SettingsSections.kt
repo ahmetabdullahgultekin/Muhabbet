@@ -34,6 +34,9 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.PrivacySettingsController
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.platform.AppVisibility
+import com.muhabbet.app.platform.NotificationPermission
+import com.muhabbet.app.platform.NotificationPermissionState
 import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.theme.MuhabbetThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetElevation
@@ -45,6 +48,7 @@ import com.muhabbet.shared.dto.StorageUsageResponse
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.SettingsInfoRow
+import com.muhabbet.designsystem.components.SettingsNavRow
 import com.muhabbet.designsystem.components.SettingsSwitchRow
 import com.muhabbet.designsystem.components.SettingsRadioRow
 import kotlinx.coroutines.launch
@@ -197,32 +201,61 @@ internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageR
     }
 }
 
+/**
+ * Language picker.
+ *
+ * The filled row is derived from what is actually in effect — see [selectedLanguage] — never from a
+ * default-locale constant. Selecting a language persists it, marks the restart so the replacement
+ * process comes back here rather than to the conversation list, and then restarts: on Android the
+ * locale is applied in `MainActivity.onCreate`, so nothing below that point can apply it in place.
+ *
+ * Re-selecting the language already in effect does nothing. Restarting the app to arrive at the
+ * same screen in the same language is a jolt with no result to show for it.
+ */
 @Composable
 internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit) {
-    var selectedLanguage by remember { mutableStateOf(tokenStorage.getLanguage() ?: "tr") }
+    // Read once: the stored value cannot change while this screen is open except through the tap
+    // below, and that ends in a restart.
+    val stored = remember { tokenStorage.getLanguage() }
+    // Deliberately NOT remembered and deliberately a resource lookup: this asks the resource system
+    // which locale it resolved for this very composition, so the filled row cannot disagree with the
+    // language of the text beside it.
+    val rendered = stringResource(Res.string.app_language_code)
+    val selected = selectedLanguage(stored = stored, rendered = rendered)
+
     SettingsSectionTitle(stringResource(Res.string.settings_language))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    val options = listOf(
-        "tr" to stringResource(Res.string.settings_language_turkish),
-        "en" to stringResource(Res.string.settings_language_english)
-    )
-    options.forEach { (key, label) ->
+    AppLanguage.entries.forEach { language ->
         SettingsRadioRow(
-            title = label,
-            selected = selectedLanguage == key,
+            title = languageLabel(language),
+            selected = language == selected,
             onSelect = {
-                selectedLanguage = key
-                tokenStorage.setLanguage(key)
-                restartApp()
+                if (language != selected) {
+                    tokenStorage.setLanguage(language.code)
+                    tokenStorage.setPendingLanguageRestart()
+                    restartApp()
+                }
             }
         )
     }
 }
 
+/** Exhaustive on purpose: a new [AppLanguage] must fail to compile until it has been given a label. */
+@Composable
+private fun languageLabel(language: AppLanguage): String = when (language) {
+    AppLanguage.Turkish -> stringResource(Res.string.settings_language_turkish)
+    AppLanguage.English -> stringResource(Res.string.settings_language_english)
+}
+
 /**
  * Theme picker. Unlike [LanguageSection] this does not restart the app — [ThemeController] is read
  * at the composition root, so a new mode repaints the tree in place.
+ *
+ * The rows come from [MuhabbetThemeMode.entries] rather than a hand-written list. Paired with
+ * `fromStorageKey`, which is total, that makes "every row unselected" structurally impossible: the
+ * controller's mode is always one of these entries. A hand-written list can fall out of step with
+ * the enum, and the way that shows up is a group where nothing is filled in (#505).
  */
 @Composable
 internal fun ThemeSection(themeController: ThemeController) {
@@ -230,19 +263,22 @@ internal fun ThemeSection(themeController: ThemeController) {
     SettingsSectionTitle(stringResource(Res.string.settings_theme))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    val themeOptions = listOf(
-        MuhabbetThemeMode.System to stringResource(Res.string.settings_theme_system),
-        MuhabbetThemeMode.Light to stringResource(Res.string.settings_theme_light),
-        MuhabbetThemeMode.Dark to stringResource(Res.string.settings_theme_dark),
-        MuhabbetThemeMode.Oled to stringResource(Res.string.settings_theme_oled)
-    )
-    themeOptions.forEach { (mode, label) ->
+    MuhabbetThemeMode.entries.forEach { mode ->
         SettingsRadioRow(
-            title = label,
+            title = themeLabel(mode),
             selected = selectedTheme == mode,
             onSelect = { themeController.set(mode) }
         )
     }
+}
+
+/** Exhaustive on purpose, for the same reason as [languageLabel]. */
+@Composable
+private fun themeLabel(mode: MuhabbetThemeMode): String = when (mode) {
+    MuhabbetThemeMode.System -> stringResource(Res.string.settings_theme_system)
+    MuhabbetThemeMode.Light -> stringResource(Res.string.settings_theme_light)
+    MuhabbetThemeMode.Dark -> stringResource(Res.string.settings_theme_dark)
+    MuhabbetThemeMode.Oled -> stringResource(Res.string.settings_theme_oled)
 }
 
 /**
@@ -291,28 +327,61 @@ internal fun PrivacySection(
 }
 
 /**
- * Notifications, honestly.
+ * Notifications, honestly — now reporting the one fact that decides whether any of this works: what
+ * the phone will do with a notification the app posts.
  *
- * This section used to hold "Bildirimler açık" and "Titreşim" as local state. Neither had anywhere
- * to go: push delivery is off in the deploying stack (`FCM_ENABLED: "false"` in the repo-root
- * `docker-compose.prod.yml`), so the server never sends a push and no preference could change that.
+ * This section used to say push was unavailable, which was true when it was written and is not any
+ * more. Push delivery was verified end to end on 2026-08-16; what stopped a real user seeing one was
+ * that `POST_NOTIFICATIONS` was declared in the manifest and never requested, so a fresh install on
+ * Android 13+ was denied by default (#547).
  *
- * The switches are gone rather than persisted. Storing a flag would have meant new storage members
- * on three implementations for a value with no consumer — the same shape as the defect being fixed
- * elsewhere in this change, and it would have read to the user as "notifications are on" while the
- * phone stayed silent. A statement of what the app actually does is more use than a switch that
- * does nothing. Restore the controls together with push, not before it.
+ * The row is a navigation row, not a switch, in both live states. There is no app-side preference
+ * here to store — the switch lives in the OS, and a copy of it in the app would be a second answer
+ * that could disagree with the first, which is the defect this file has already been through twice.
+ * Tapping goes to the system page, which works whether the user is turning notifications on after a
+ * denial or turning them off. It is the only route that still works after two denials, because
+ * Android stops showing the permission dialog at that point.
  */
 @Composable
-internal fun NotificationsSection() {
+internal fun NotificationsSection(
+    notificationPermission: NotificationPermission = koinInject(),
+    appVisibility: AppVisibility = koinInject()
+) {
     SettingsSectionTitle(stringResource(Res.string.settings_notifications_section))
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-    SettingsInfoRow(
-        title = stringResource(Res.string.settings_notifications_unavailable),
-        subtitle = stringResource(Res.string.settings_notifications_unavailable_desc),
-        icon = Muhabbet.icons.Info
-    )
+    // Re-read on every foreground transition, which is the only way this value can change while the
+    // screen is open: the user changes it in the system settings app, off-screen, and comes back.
+    // A plain `remember {}` would keep showing "off" after they had just switched it on, and a read
+    // on every recomposition would never re-run, because nothing here recomposes on the way back.
+    val foreground by appVisibility.isForeground.collectAsState()
+    val state = remember(foreground) { notificationPermission.state() }
+
+    when (state) {
+        NotificationPermissionState.Enabled -> SettingsNavRow(
+            title = stringResource(Res.string.settings_notifications_enabled),
+            subtitle = stringResource(Res.string.settings_notifications_enabled_desc),
+            // Decorative: the title beside it says the same thing in words, so naming the icon as
+            // well would only put a noise word in front of the sentence a screen reader reads out.
+            icon = Muhabbet.icons.Notifications,
+            onClick = { notificationPermission.openSystemSettings() }
+        )
+
+        NotificationPermissionState.Disabled -> SettingsNavRow(
+            title = stringResource(Res.string.settings_notifications_disabled),
+            subtitle = stringResource(Res.string.settings_notifications_disabled_desc),
+            icon = Muhabbet.icons.NotificationsOff,
+            onClick = { notificationPermission.openSystemSettings() }
+        )
+
+        // iOS. Reports rather than navigates: there is no system page worth opening for a feature
+        // the app cannot deliver on this platform at all.
+        NotificationPermissionState.Unsupported -> SettingsInfoRow(
+            title = stringResource(Res.string.settings_notifications_unavailable),
+            subtitle = stringResource(Res.string.settings_notifications_unavailable_desc),
+            icon = Muhabbet.icons.Info
+        )
+    }
 }
 
 /**

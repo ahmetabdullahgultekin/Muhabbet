@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.conversations
 
-import com.muhabbet.app.util.normalizeToE164
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,19 +13,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,24 +28,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.KnownPerson
+import com.muhabbet.app.data.repository.KnownPeopleSource
+import com.muhabbet.app.ui.people.PeoplePickerActionRow
 import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
-import com.muhabbet.app.util.sha256Hex
-import com.muhabbet.shared.dto.MatchedContact
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.designsystem.components.MuhabbetDialog
 import kotlin.time.Clock
-import kotlinx.coroutines.withContext
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -65,6 +54,8 @@ import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetSkeletonList
+import com.muhabbet.designsystem.components.rememberSkeletonVisible
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,10 +71,10 @@ fun NewConversationScreen(
     onContactPicked: ((userId: String, name: String?) -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
+    knownPeopleSource: KnownPeopleSource = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
-    var contacts by remember { mutableStateOf<List<MatchedContact>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
+    var contacts by remember { mutableStateOf<List<KnownPerson>>(emptyList()) }
     var isSyncing by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
     var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
@@ -103,6 +94,11 @@ fun NewConversationScreen(
 
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_generic)
+    val contactsSyncingLabel = stringResource(Res.string.contacts_syncing)
+
+    // The sync is slow enough that the placeholder always earns its place, but it goes through the
+    // same gate as every other screen so there is one answer to "when does a skeleton appear".
+    val showContactsSkeleton = rememberSkeletonVisible(isSyncing)
 
     val requestPermission = rememberContactsPermissionRequester { granted ->
         hasPermission = granted
@@ -119,20 +115,11 @@ fun NewConversationScreen(
         isSyncing = true
         var syncFailed = false
         try {
-            val deviceContacts = withContext(Dispatchers.Default) {
-                contactsProvider.readContacts()
-            }
-            val hashes = deviceContacts.mapNotNull { contact ->
-                val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
-                normalizeToE164(digits)?.let { sha256Hex(it) }
-            }
-            // An empty device address book is a real answer, not a reason to skip the call: it
+            // Hashing and matching live in KnownPeopleSource, so this screen and the member pickers
+            // cannot drift into two different notions of which numbers count as the same person.
+            // An empty device address book is a real answer there, not a reason to skip the call: it
             // clears any stale matches instead of leaving the previous list on screen.
-            contacts = if (hashes.isEmpty()) {
-                emptyList()
-            } else {
-                conversationRepository.syncContacts(hashes).matchedContacts
-            }
+            contacts = knownPeopleSource.peopleFromDeviceContacts()
         } catch (_: Exception) {
             syncFailed = true
         }
@@ -203,13 +190,13 @@ fun NewConversationScreen(
             // so there is no version of this row that belongs on the call surface — the fix is to
             // hide it there, not to pass the lambda through.
             if (onContactPicked == null) {
-                NewConversationActionRow(
+                PeoplePickerActionRow(
                     icon = Muhabbet.icons.GroupOutlined,
                     label = stringResource(Res.string.new_conversation_new_group),
                     onClick = onCreateGroup
                 )
                 HorizontalDivider()
-                NewConversationActionRow(
+                PeoplePickerActionRow(
                     icon = Muhabbet.icons.DialPad,
                     label = stringResource(Res.string.start_by_number_row),
                     onClick = { showStartByNumber = true }
@@ -228,7 +215,7 @@ fun NewConversationScreen(
                             Icon(
                                 imageVector = Muhabbet.icons.Contact,
                                 contentDescription = stringResource(Res.string.cd_contacts),
-                                modifier = Modifier.size(64.dp),
+                                modifier = Modifier.size(MuhabbetSizes.IconEmptyState),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.Large))
@@ -265,7 +252,7 @@ fun NewConversationScreen(
                             Icon(
                                 imageVector = Muhabbet.icons.Contact,
                                 contentDescription = stringResource(Res.string.cd_contacts),
-                                modifier = Modifier.size(64.dp),
+                                modifier = Modifier.size(MuhabbetSizes.IconEmptyState),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.Large))
@@ -281,10 +268,18 @@ fun NewConversationScreen(
                             )
                         }
                     }
-                    // Syncing contacts
-                    isSyncing -> MuhabbetLoadingState(
-                        label = stringResource(Res.string.contacts_syncing)
+                    // Syncing contacts. The slowest wait in the app — a whole address book is
+                    // normalised, hashed and matched server-side — and the one with the most
+                    // predictable result, so it gets contact-shaped rows rather than a spinner.
+                    // The wait keeps its name for a screen reader; on screen the shapes say it.
+                    showContactsSkeleton -> MuhabbetSkeletonList(
+                        modifier = Modifier.fillMaxSize(),
+                        loadingLabel = contactsSyncingLabel
                     )
+                    // Under the skeleton's appear delay. Deliberately blank rather than falling
+                    // through: `contacts` is still the previous (often empty) list, and the branch
+                    // below would render "no contacts found" for a sync that has barely started.
+                    isSyncing -> Unit
                     // No matched contacts
                     contacts.isEmpty() -> {
                         Column(
@@ -294,7 +289,7 @@ fun NewConversationScreen(
                             Icon(
                                 imageVector = Muhabbet.icons.Contact,
                                 contentDescription = stringResource(Res.string.cd_contacts),
-                                modifier = Modifier.size(64.dp),
+                                modifier = Modifier.size(MuhabbetSizes.IconEmptyState),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.Large))
@@ -346,6 +341,9 @@ fun NewConversationScreen(
                     }
                 }
 
+                // Deliberately still a spinner. This is an in-place action the user just started by
+                // tapping a name, not a screen load: there is no shape to promise, and the wait is
+                // owned by the tap rather than by the page. Skeletons are for arriving content.
                 if (isCreating) {
                     MuhabbetLoadingState()
                 }
@@ -361,52 +359,9 @@ fun NewConversationScreen(
     }
 }
 
-/**
- * One tappable "start something new" row — a tinted circular glyph and a label.
- *
- * Extracted because the number entry and "Yeni Grup" are the same row twice, and a second copy of
- * the block was how the two would have drifted into two different circle sizes.
- */
-@Composable
-private fun NewConversationActionRow(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            modifier = Modifier.size(MuhabbetSizes.AvatarSmall).clip(CircleShape),
-            color = MaterialTheme.colorScheme.primary
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = icon,
-                    // Null: the label beside it already names the action, and announcing it twice
-                    // makes the row read as two controls to a screen reader.
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                )
-            }
-        }
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
 @Composable
 private fun ContactItem(
-    contact: MatchedContact,
+    contact: KnownPerson,
     defaultName: String,
     onClick: () -> Unit
 ) {
@@ -417,18 +372,11 @@ private fun ContactItem(
             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(40.dp).clip(CircleShape),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = com.muhabbet.designsystem.util.firstGrapheme(contact.displayName ?: "?"),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
+        UserAvatar(
+            avatarUrl = contact.avatarUrl,
+            displayName = contact.displayName ?: defaultName,
+            size = MuhabbetSizes.AvatarSmall
+        )
 
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
 

@@ -1,123 +1,65 @@
 package com.muhabbet.app.ui.group
 
-import com.muhabbet.app.util.normalizeToE164
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import com.muhabbet.app.data.repository.ConversationRepository
-import com.muhabbet.designsystem.components.MuhabbetTopBar
-import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.repository.GroupRepository
-import com.muhabbet.app.platform.ContactsProvider
-import com.muhabbet.app.platform.rememberContactsPermissionRequester
-import com.muhabbet.app.util.sha256Hex
-import com.muhabbet.shared.dto.MatchedContact
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.muhabbet.app.ui.people.PeoplePicker
+import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
-import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.components.MuhabbetExtendedFab
+import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTextField
-import com.muhabbet.designsystem.components.MuhabbetButtonRole
-import com.muhabbet.designsystem.components.MuhabbetButton
-import com.muhabbet.designsystem.components.MuhabbetLoadingState
-import com.muhabbet.designsystem.components.MuhabbetExtendedFab
+import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 
+/**
+ * Naming a group and choosing who is in it.
+ *
+ * Until #520 this screen rendered a single control when `READ_CONTACTS` was not granted — a button
+ * that uploads your address book — with no list, no search and no way past it. An account with two
+ * open conversations could not put either of those two people into a group. Everything to do with
+ * *who can be picked* now lives in [PeoplePicker], which offers conversations, a typed number and
+ * the address book in that order; this screen is left with the group's name and the create call.
+ *
+ * The create affordance is unconditional. It used to be hidden unless matched contacts existed, so
+ * on the accounts that hit this bug the screen had no primary action at all.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateGroupScreen(
     onGroupCreated: (id: String, name: String) -> Unit,
     onBack: () -> Unit,
-    conversationRepository: ConversationRepository = koinInject(),
-    contactsProvider: ContactsProvider = koinInject(),
     groupRepository: GroupRepository = koinInject()
 ) {
-    var contacts by remember { mutableStateOf<List<MatchedContact>>(emptyList()) }
     var selectedUserIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var groupName by remember { mutableStateOf("") }
-    var isSyncing by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
-    var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
-    var permissionDenied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val errorMsg = stringResource(Res.string.error_generic)
     val groupNameRequiredMsg = stringResource(Res.string.group_name_required)
     val groupSelectMinimumMsg = stringResource(Res.string.group_select_minimum)
-
-    val requestPermission = rememberContactsPermissionRequester { granted ->
-        hasPermission = granted
-        if (!granted) permissionDenied = true
-    }
-
-    // Same shape as NewConversationScreen: keyed on hasPermission, so dropping the
-    // contacts.isEmpty() guard is what lets a re-entry actually re-sync. A contact who joined
-    // after the last sync was otherwise invisible here too.
-    LaunchedEffect(hasPermission) {
-        if (hasPermission) {
-            isSyncing = true
-            var syncFailed = false
-            try {
-                val deviceContacts = withContext(Dispatchers.Default) {
-                    contactsProvider.readContacts()
-                }
-                val hashes = deviceContacts.mapNotNull { contact ->
-                    val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
-                    normalizeToE164(digits)?.let { sha256Hex(it) }
-                }
-                if (hashes.isNotEmpty()) {
-                    val result = conversationRepository.syncContacts(hashes)
-                    contacts = result.matchedContacts
-                }
-            } catch (_: Exception) {
-                syncFailed = true
-            }
-            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
-            isSyncing = false
-            if (syncFailed) snackbarHostState.showSnackbar(errorMsg)
-        }
-    }
 
     MuhabbetScaffold(
         topBar = {
@@ -129,141 +71,77 @@ fun CreateGroupScreen(
         },
         snackbarHostState = snackbarHostState,
         floatingActionButton = {
-            if (contacts.isNotEmpty()) {
-                MuhabbetExtendedFab(
-                    text = stringResource(Res.string.group_create_button),
-                    // Explicitly labelled: the guard clauses below return from this lambda, and an
-                    // implicit label would silently follow whatever the enclosing call is named.
-                    onClick = createGroup@{
-                        if (isCreating) return@createGroup
-                        if (groupName.isBlank()) {
-                            scope.launch { snackbarHostState.showSnackbar(groupNameRequiredMsg) }
-                            return@createGroup
-                        }
-                        if (selectedUserIds.isEmpty()) {
-                            scope.launch { snackbarHostState.showSnackbar(groupSelectMinimumMsg) }
-                            return@createGroup
-                        }
-                        isCreating = true
-                        scope.launch {
-                            try {
-                                val conv = groupRepository.createGroup(
-                                    name = groupName.trim(),
-                                    participantIds = selectedUserIds.toList()
-                                )
-                                onGroupCreated(conv.id, groupName.trim())
-                            } catch (_: Exception) {
-                                // Clear the spinner BEFORE reporting — showSnackbar suspends until
-                                // dismissed (~4s).
-                                isCreating = false
-                                snackbarHostState.showSnackbar(errorMsg)
-                            }
+            MuhabbetExtendedFab(
+                text = stringResource(Res.string.group_create_button),
+                // Explicitly labelled: the guard clauses below return from this lambda, and an
+                // implicit label would silently follow whatever the enclosing call is named.
+                onClick = createGroup@{
+                    if (isCreating) return@createGroup
+                    if (groupName.isBlank()) {
+                        scope.launch { snackbarHostState.showSnackbar(groupNameRequiredMsg) }
+                        return@createGroup
+                    }
+                    if (selectedUserIds.isEmpty()) {
+                        scope.launch { snackbarHostState.showSnackbar(groupSelectMinimumMsg) }
+                        return@createGroup
+                    }
+                    isCreating = true
+                    scope.launch {
+                        try {
+                            val conv = groupRepository.createGroup(
+                                name = groupName.trim(),
+                                participantIds = selectedUserIds.toList()
+                            )
+                            onGroupCreated(conv.id, groupName.trim())
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Group creation failed", e)
+                            // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                            // dismissed (~4s).
+                            isCreating = false
+                            snackbarHostState.showSnackbar(errorMsg)
                         }
                     }
-                )
-            }
+                }
+            )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when {
-                !hasPermission -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Muhabbet.icons.Contact,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.new_conversation_contacts_required),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Small))
-                        Text(
-                            text = if (permissionDenied)
-                                stringResource(Res.string.contacts_permission_denied)
-                            else
-                                stringResource(Res.string.new_conversation_contacts_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        MuhabbetButton(
-                            text = stringResource(Res.string.contacts_grant_access),
-                            onClick = { requestPermission() },
-                            role = MuhabbetButtonRole.Primary
-                        )
-                    }
-                }
-
-                isSyncing -> MuhabbetLoadingState(
-                    label = stringResource(Res.string.contacts_syncing)
+            Column(modifier = Modifier.fillMaxSize()) {
+                MuhabbetTextField(
+                    value = groupName,
+                    onValueChange = { groupName = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
+                    label = stringResource(Res.string.group_name_label),
+                    placeholder = stringResource(Res.string.group_name_placeholder),
+                    singleLine = true
                 )
 
-                contacts.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(MuhabbetSpacing.XLarge),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Muhabbet.icons.Contact,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(MuhabbetSpacing.Large))
-                        Text(
-                            stringResource(Res.string.contacts_none_found),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
+                Text(
+                    text = stringResource(Res.string.group_participants_count, selectedUserIds.size),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(
+                        horizontal = MuhabbetSpacing.Large,
+                        vertical = MuhabbetSpacing.XSmall
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                else -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        MuhabbetTextField(
-                            value = groupName,
-                            onValueChange = { groupName = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
-                            label = stringResource(Res.string.group_name_label),
-                            placeholder = stringResource(Res.string.group_name_placeholder),
-                            singleLine = true
-                        )
+                HorizontalDivider()
 
-                        Text(
-                            text = stringResource(Res.string.group_participants_count, selectedUserIds.size),
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.XSmall),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        HorizontalDivider()
-
-                        LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(contacts, key = { it.userId }) { contact ->
-                                val isSelected = contact.userId in selectedUserIds
-                                SelectableContactItem(
-                                    contact = contact,
-                                    isSelected = isSelected,
-                                    onToggle = {
-                                        selectedUserIds = if (isSelected) {
-                                            selectedUserIds - contact.userId
-                                        } else {
-                                            selectedUserIds + contact.userId
-                                        }
-                                    }
-                                )
-                                HorizontalDivider()
-                            }
+                PeoplePicker(
+                    selectedUserIds = selectedUserIds,
+                    onSelectionChanged = { userId, selected ->
+                        selectedUserIds = if (selected) {
+                            selectedUserIds + userId
+                        } else {
+                            selectedUserIds - userId
                         }
-                    }
-                }
+                    },
+                    emptyLabel = stringResource(Res.string.people_picker_empty_new_group),
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             if (isCreating) {
@@ -273,47 +151,4 @@ fun CreateGroupScreen(
     }
 }
 
-@Composable
-private fun SelectableContactItem(
-    contact: MatchedContact,
-    isSelected: Boolean,
-    onToggle: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(
-            checked = isSelected,
-            onCheckedChange = { onToggle() }
-        )
-
-        Spacer(Modifier.width(MuhabbetSpacing.Small))
-
-        Surface(
-            modifier = Modifier.size(40.dp).clip(CircleShape),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = com.muhabbet.designsystem.util.firstGrapheme(contact.displayName ?: "?"),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-
-        Text(
-            text = contact.displayName ?: contact.userId,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-// normalizeToE164 imported from com.muhabbet.app.util.PhoneNormalization
+private const val TAG = "CreateGroupScreen"

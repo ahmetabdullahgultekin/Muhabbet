@@ -290,6 +290,65 @@ class WsMessageSerializationTest {
         assertEquals("https://cdn.example.com/image.jpg", decoded.mediaUrl)
     }
 
+    // ─── View-once on the wire (#515) ─────────────
+
+    @Test
+    fun should_carry_view_once_on_a_send() {
+        val msg = WsMessage.SendMessage(
+            requestId = "req-1",
+            messageId = "msg-1",
+            conversationId = "conv-1",
+            content = "Photo",
+            contentType = ContentType.IMAGE,
+            mediaUrl = "https://cdn.example.com/image.jpg",
+            viewOnce = true
+        )
+
+        val decoded = wsJson.decodeFromString<WsMessage>(
+            wsJson.encodeToString(WsMessage.serializer(), msg)
+        )
+
+        assertIs<WsMessage.SendMessage>(decoded)
+        assertTrue(decoded.viewOnce)
+    }
+
+    @Test
+    fun should_carry_view_once_on_a_delivery() {
+        // The field the live path did not have. Without it a recipient with the chat open builds an
+        // ordinary photo bubble no matter what the sender chose, because this frame is all they get.
+        val msg = WsMessage.NewMessage(
+            messageId = "msg-1",
+            conversationId = "conv-1",
+            senderId = "user-1",
+            senderName = "Ayşe",
+            content = "Photo",
+            contentType = ContentType.IMAGE,
+            serverTimestamp = 1707840000000L,
+            viewOnce = true
+        )
+
+        val decoded = wsJson.decodeFromString<WsMessage>(
+            wsJson.encodeToString(WsMessage.serializer(), msg)
+        )
+
+        assertIs<WsMessage.NewMessage>(decoded)
+        assertTrue(decoded.viewOnce)
+    }
+
+    @Test
+    fun should_default_view_once_to_false_for_a_frame_that_omits_it() {
+        // An older client, or any of the many frames that are not photos. Defaulting the other way
+        // would seal ordinary messages, which is the mirror-image failure.
+        val json = """{"type":"message.new","messageId":"m1","conversationId":"c1",
+            "senderId":"u1","senderName":null,"content":"Hi","contentType":"TEXT",
+            "serverTimestamp":1707840000000}"""
+
+        val msg = wsJson.decodeFromString<WsMessage>(json)
+
+        assertIs<WsMessage.NewMessage>(msg)
+        assertEquals(false, msg.viewOnce)
+    }
+
     @Test
     fun should_ignore_unknown_fields_gracefully() {
         // Ensure forward compatibility — new fields don't break old clients

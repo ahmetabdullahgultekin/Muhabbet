@@ -6,7 +6,9 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.BackgroundSyncManager
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.IosContactsProvider
+import com.muhabbet.app.platform.IosNotificationPermission
 import com.muhabbet.app.platform.IosPushTokenProvider
+import com.muhabbet.app.platform.NotificationPermission
 import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.shared.port.E2EKeyManager
@@ -23,6 +25,7 @@ fun iosPlatformModule(): Module = module {
     single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { IosContactsProvider() }
     single<PushTokenProvider> { IosPushTokenProvider() }
+    single<NotificationPermission> { IosNotificationPermission() }
     single { BackgroundSyncManager() }
     single { SpeechTranscriber() }
     single<E2EKeyManager> { NoOpKeyManager() }
@@ -57,6 +60,22 @@ class IosTokenStorage : TokenStorage {
 
     override fun setLanguage(lang: String) {
         defaults.setObject(lang, forKey = "app_language")
+    }
+
+    // Synchronised on write, unlike most of its neighbours: the iOS language restart is exit(0), so
+    // an unflushed value would not survive to the launch that has to read it.
+    override fun setPendingLanguageRestart() {
+        defaults.setBool(true, forKey = "pending_language_restart")
+        defaults.synchronize()
+    }
+
+    override fun consumePendingLanguageRestart(): Boolean {
+        val pending = defaults.boolForKey("pending_language_restart")
+        if (pending) {
+            defaults.removeObjectForKey("pending_language_restart")
+            defaults.synchronize()
+        }
+        return pending
     }
 
     override fun getHapticsEnabled(): Boolean =
@@ -122,5 +141,22 @@ class IosTokenStorage : TokenStorage {
 
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         defaults.setBool(enabled, forKey = "wallpaper_dark_mode")
+    }
+
+    override fun getTestBuildNoticeAckVersion(): String? =
+        defaults.stringForKey("test_build_notice_ack_version")
+
+    override fun setTestBuildNoticeAckVersion(version: String) {
+        defaults.setObject(version, forKey = "test_build_notice_ack_version")
+    }
+
+    // Stored, though nothing on iOS reads it yet: IosNotificationPermission reports Unsupported, so
+    // the gate never asks and never writes here. It is a real implementation rather than a no-op so
+    // that wiring APNs later needs no change on this side.
+    override fun getNotificationPermissionAsked(): Boolean =
+        defaults.boolForKey("notification_permission_asked")
+
+    override fun setNotificationPermissionAsked() {
+        defaults.setBool(true, forKey = "notification_permission_asked")
     }
 }

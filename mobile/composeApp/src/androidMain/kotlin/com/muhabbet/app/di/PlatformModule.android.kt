@@ -8,9 +8,11 @@ import com.muhabbet.app.data.local.DatabaseDriverFactory
 import com.muhabbet.app.data.local.LocalCache
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AndroidContactsProvider
+import com.muhabbet.app.platform.AndroidNotificationPermission
 import com.muhabbet.app.platform.AndroidPushTokenProvider
 import com.muhabbet.app.platform.BackgroundSyncManager
 import com.muhabbet.app.platform.ContactsProvider
+import com.muhabbet.app.platform.NotificationPermission
 import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.app.platform.SpeechTranscriber
 import com.muhabbet.shared.port.E2EKeyManager
@@ -27,6 +29,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single { LocalCache(driverFactory = get()) }
     single<ContactsProvider> { AndroidContactsProvider(context) }
     single<PushTokenProvider> { AndroidPushTokenProvider() }
+    single<NotificationPermission> { AndroidNotificationPermission(context) }
     single { BackgroundSyncManager(context) }
     single { SpeechTranscriber(context) }
     // NOTE: The libsignal Signal Protocol implementation (SignalKeyManager / SignalEncryption /
@@ -77,6 +80,20 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
 
     override fun setLanguage(lang: String) {
         plainPrefs.edit().putString("app_language", lang).apply()
+    }
+
+    // Plain prefs, alongside the language it belongs to: the flag is read at the composition root
+    // before anything has unlocked the encrypted store. `apply()` is enough — the language restart
+    // is finish() plus startActivity() in the SAME process, so the in-memory value is already there
+    // when the replacement Activity reads it.
+    override fun setPendingLanguageRestart() {
+        plainPrefs.edit().putBoolean("pending_language_restart", true).apply()
+    }
+
+    override fun consumePendingLanguageRestart(): Boolean {
+        val pending = plainPrefs.getBoolean("pending_language_restart", false)
+        if (pending) plainPrefs.edit().remove("pending_language_restart").apply()
+        return pending
     }
 
     override fun getHapticsEnabled(): Boolean = plainPrefs.getBoolean("haptics_enabled", true)
@@ -137,5 +154,25 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
 
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         plainPrefs.edit().putBoolean("wallpaper_dark_mode", enabled).apply()
+    }
+
+    // Plain prefs, not the encrypted ones: this is read on the first frame after login, and it says
+    // nothing about the user that a stranger with the phone could not learn by opening the app.
+    override fun getTestBuildNoticeAckVersion(): String? =
+        plainPrefs.getString("test_build_notice_ack_version", null)
+
+    override fun setTestBuildNoticeAckVersion(version: String) {
+        plainPrefs.edit().putString("test_build_notice_ack_version", version).apply()
+    }
+
+    // Plain prefs, for the same reason as the notice above: read on the first frame after login,
+    // and it says nothing about the user. `apply()` is enough even though the very next thing that
+    // happens is a system dialog the user could answer by killing the app — showing that dialog
+    // pauses the Activity, and Android flushes pending `apply()` writes on the way through onPause.
+    override fun getNotificationPermissionAsked(): Boolean =
+        plainPrefs.getBoolean("notification_permission_asked", false)
+
+    override fun setNotificationPermissionAsked() {
+        plainPrefs.edit().putBoolean("notification_permission_asked", true).apply()
     }
 }

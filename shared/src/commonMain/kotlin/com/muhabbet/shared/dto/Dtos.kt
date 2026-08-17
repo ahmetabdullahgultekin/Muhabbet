@@ -161,6 +161,23 @@ data class UpdateRoleRequest(
 
 // ─── Message Management DTOs ─────────────────────────────
 
+/**
+ * Sends one text message over REST instead of over the WebSocket.
+ *
+ * The socket remains the normal path: it is already open while a chat is on screen and it carries
+ * the ack back. This exists for the callers that have no socket and cannot afford to open one —
+ * today that is the notification inline-reply `BroadcastReceiver`, which may run in a process that
+ * was started for the broadcast alone and will be torn down as soon as it returns (#510).
+ *
+ * [messageId] is the same client-generated UUID the socket sends, and carries the same meaning: the
+ * server rejects a second message with an id it has already stored, so a retry cannot double-post.
+ */
+@Serializable
+data class SendMessageRequest(
+    val messageId: String,
+    val content: String
+)
+
 @Serializable
 data class EditMessageRequest(
     val content: String
@@ -247,7 +264,14 @@ data class StatusResponse(
 @Serializable
 data class UserStatusGroup(
     val userId: String,
-    val statuses: List<StatusResponse>
+    val statuses: List<StatusResponse>,
+    /**
+     * The author's name and avatar, resolved server-side. Present so the client never has to
+     * invent a label from [userId] — rendering its first eight characters produced the hex string
+     * reported as a phone hash in #507.
+     */
+    val displayName: String? = null,
+    val avatarUrl: String? = null
 )
 
 // ─── Channel DTOs ───────────────────────────────────────
@@ -548,11 +572,23 @@ data class GroupEventResponse(
 data class RsvpRequest(val status: String)  // GOING, NOT_GOING, MAYBE
 
 // ─── View-Once DTOs ─────────────────────────────────────
+
+/**
+ * The one-time release of a view-once message's media.
+ *
+ * Returned by `POST /api/v1/messages/{messageId}/view-once`, which is the **only** response in the
+ * API that carries a view-once blob URL — every list, search, media-grid and socket payload nulls
+ * it. The call burns the message in the same transaction that reads it, so a second caller (or a
+ * second tap) gets `MSG_VIEW_ONCE_ALREADY_VIEWED` and no URL.
+ *
+ * Replaced a `ViewOnceStatusResponse` that had no producer and no consumer.
+ */
 @Serializable
-data class ViewOnceStatusResponse(
+data class ViewOnceRevealResponse(
     val messageId: String,
-    val viewed: Boolean,
-    val viewedAt: Long? = null
+    val mediaUrl: String? = null,
+    val thumbnailUrl: String? = null,
+    val viewedAt: Long
 )
 
 // ─── Wallpaper DTOs ─────────────────────────────────────

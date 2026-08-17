@@ -4,6 +4,8 @@
     <string name="app_name">Muhabbet</string>
     <string name="chat_default_name">Sohbet</string>
     <string name="unknown">Bilinmeyen</string>
+    <!-- Label for a person whose name we genuinely do not have. Never render a user id instead. -->
+    <string name="unknown_person">Bilinmeyen kişi</string>
     <string name="error_generic">Bir hata oluştu</string>
     <string name="error_network">Bağlantı hatası. Lütfen tekrar deneyin.</string>
     <string name="error_load_conversations">Konuşmalar yüklenemedi</string>
@@ -104,6 +106,18 @@
     <string name="start_by_number_invite_text">Muhabbet'te bana ulaşabilirsin. Muhabbet, KVKK uyumlu yerli mesajlaşma uygulamasıdır.</string>
     <string name="start_by_number_own_number">Bu sizin kendi numaranız.</string>
 
+    <!-- Choosing people without handing over the address book (#520) -->
+    <string name="people_picker_by_number_row">Numara ile ekle</string>
+    <string name="people_picker_by_number_title">Numara ile ekle</string>
+    <string name="people_picker_by_number_action">Ekle</string>
+    <string name="people_picker_find_more_contacts">Daha fazla kişi bulmak için rehbere izin ver</string>
+    <string name="people_picker_already_present">Bu kişi zaten listede.</string>
+    <string name="people_picker_empty_new_group">Henüz kimseyle sohbetiniz yok. Numara girerek kişi ekleyebilir veya rehbere izin verebilirsiniz.</string>
+    <string name="people_picker_empty_add_members">Eklenebilecek başka kişi yok. Numara girerek ekleyebilir veya rehbere izin verebilirsiniz.</string>
+    <string name="group_add_members_confirm">Gruba ekle</string>
+    <string name="group_add_members_adding">Ekleniyor…</string>
+    <string name="group_add_members_failed">Üyeler eklenemedi</string>
+
     <!-- Group -->
     <string name="group_create_title">Yeni Grup</string>
     <string name="group_name_label">Grup Adı</string>
@@ -144,12 +158,23 @@
     <string name="settings_about_placeholder">Muhabbet kullanıyorum</string>
     <string name="settings_save">Kaydet</string>
     <string name="settings_app_section">Uygulama</string>
-    <string name="settings_version">Sürüm</string>
+    <!-- Replaced settings_version, which was a bare "Sürüm" label: the number and what that version
+         actually is are one statement now, and printing the version twice on one screen read as an
+         oversight (#519) -->
+    <string name="settings_test_build_title">Sürüm %1$s — test sürümü</string>
+    <string name="settings_test_build_body">Bazı özellikler beklediğiniz gibi çalışmayabilir. Önemli bir konuşma için şimdilik yalnızca Muhabbet'e güvenmeyin; ters giden bir şey olursa bize bildirin.</string>
     <string name="settings_logout">Çıkış Yap</string>
     <string name="settings_profile_updated">Profil güncellendi</string>
     <string name="settings_language">Dil</string>
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
+    <!--
+      Not user-visible: the language code of THIS file, so the app can ask the resource system which
+      locale it actually resolved rather than assuming one. Reading it through stringResource is the
+      only answer that cannot disagree with the text on screen, including the fallback to this file
+      on a device locale the app does not translate. Never translate this value - it names the file.
+    -->
+    <string name="app_language_code">tr</string>
 
     <!-- Delete Conversation -->
     <string name="conv_delete_title">Konuşmayı Sil</string>
@@ -376,8 +401,12 @@
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Bildirimler</string>
+    <string name="settings_notifications_enabled">Bildirimler açık</string>
+    <string name="settings_notifications_enabled_desc">Bu telefon uygulamanın bildirimlerini gösteriyor. Sesini ve görünümünü sistem ayarlarından değiştirebilirsiniz.</string>
+    <string name="settings_notifications_disabled">Bildirimler kapalı</string>
+    <string name="settings_notifications_disabled_desc">Yeni mesajları kaçırmamak için sistem ayarlarından bildirimlere izin verin.</string>
     <string name="settings_notifications_unavailable">Anlık bildirimler henüz kullanılamıyor</string>
-    <string name="settings_notifications_unavailable_desc">Bu sürümde anlık bildirim gönderimi kapalı. Mesajlarınız uygulamayı açtığınızda görünür.</string>
+    <string name="settings_notifications_unavailable_desc">Bu platformda anlık bildirim gönderimi henüz desteklenmiyor. Mesajlarınız uygulamayı açtığınızda görünür.</string>
     <string name="settings_notifications_sound">Bildirim Sesi</string>
 
     <!-- Chat Settings -->
@@ -501,6 +530,10 @@
     <string name="view_once_hint">Fotoğraf bir kez açıldıktan sonra kaybolur</string>
     <string name="view_once_opened">Açıldı</string>
     <string name="view_once_tap_to_view">Görüntülemek için dokunun</string>
+    <string name="view_once_not_opened_yet">Henüz açılmadı</string>
+    <string name="view_once_already_opened">Bu fotoğraf zaten açıldı</string>
+    <string name="view_once_open_failed">Fotoğraf açılamadı</string>
+    <string name="view_once_offline">Bir kez görüntülenecek fotoğraf çevrimdışıyken gönderilemez</string>
     <string name="view_once_photo">Fotoğraf</string>
     <string name="view_once_video">Video</string>
 
@@ -727,4 +760,20 @@
          the wording has to cover a real outage rather than a momentary blip. -->
     <string name="connection_status_label">Bağlantı durumu</string>
     <string name="connection_offline_strip">Bağlantı yok. Mesajlar yeniden bağlanınca gönderilecek.</string>
+
+    <!-- First-run test-build notice, shown once per app version after login (#519) -->
+    <string name="test_build_notice_title">Muhabbet henüz test aşamasında</string>
+    <string name="test_build_notice_body_expectations">Bu, herkese açılmadan önceki bir deneme sürümü. Bazı özellikler beklediğiniz gibi çalışmayabilir: bir mesaj gecikebilir, bir ekran boş açılabilir, bir düğme hiçbir şey yapmayabilir.</string>
+    <string name="test_build_notice_body_reliance">Bu yüzden önemli bir konuşma için şimdilik yalnızca Muhabbet'e güvenmeyin.</string>
+    <string name="test_build_notice_body_report">Ters giden bir şey fark ederseniz bize bildirin. Neyin düzelmesi gerektiğini en çok böyle öğreniyoruz.</string>
+    <string name="test_build_notice_version">Sürüm %1$s</string>
+    <string name="test_build_notice_dismiss">Anladım</string>
+
+    <!-- Skeleton loading (#499). Never drawn on screen: a skeleton hides its own placeholder rows
+         from accessibility and speaks one of these instead, so a screen reader hears the wait once
+         rather than swiping through eight empty rows. -->
+    <string name="chats_loading">Sohbetler yükleniyor</string>
+    <string name="messages_loading">Mesajlar yükleniyor</string>
+    <string name="communities_loading">Topluluklar yükleniyor</string>
+    <string name="channels_loading">Kanallar yükleniyor</string>
 </resources>

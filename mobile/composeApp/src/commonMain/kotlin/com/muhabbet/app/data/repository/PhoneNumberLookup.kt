@@ -17,6 +17,19 @@ sealed interface PhoneLookupResult {
     /** The number belongs to a Muhabbet user and [conversationId] is the direct chat with them. */
     data class Opened(val conversationId: String, val displayName: String?) : PhoneLookupResult
 
+    /**
+     * The number belongs to a Muhabbet user and nothing has been done about it yet.
+     *
+     * Separate from [Opened] because a group picker wants the person, not a chat with them: creating
+     * a direct conversation as a side effect of adding somebody to a group would leave the user with
+     * an empty one-to-one thread they never asked for (#520).
+     */
+    data class Found(
+        val userId: String,
+        val displayName: String?,
+        val avatarUrl: String?,
+    ) : PhoneLookupResult
+
     /** A usable number that no Muhabbet account claims. The caller offers an invite. */
     data object NotOnMuhabbet : PhoneLookupResult
 
@@ -68,6 +81,32 @@ class PhoneNumberLookup(
      * had to remove nineteen times over.
      */
     suspend fun startChatWith(rawNumber: String): PhoneLookupResult {
+        val match = findByNumber(rawNumber)
+        if (match !is PhoneLookupResult.Found) return match
+
+        // Idempotent server-side: ConversationService.createConversation looks up
+        // findDirectConversation(low, high) first and returns the existing row without saving
+        // (MessagingServiceTest "should return existing conversation when direct conversation
+        // already exists"). So typing the number of someone already in the list re-opens that chat
+        // instead of creating a duplicate, and no client-side de-duplication is needed.
+        val conversation = conversationRepository.createDirectConversation(match.userId)
+        return PhoneLookupResult.Opened(conversation.id, match.displayName)
+    }
+
+    /**
+     * Who is behind [rawNumber], and nothing more.
+     *
+     * The half of [startChatWith] that has no side effects, split out for the group and add-member
+     * pickers (#520): they need the person, and creating a direct conversation on the way would hand
+     * the user an empty chat they never asked for. Everything the two share — normalisation,
+     * hashing, matching the hash we actually asked about, and the own-number check — lives here, so
+     * the two paths cannot drift into two different answers for the same number.
+     *
+     * Returns [PhoneLookupResult.Found] on a hit, and otherwise one of the three endings that need
+     * no caller: [PhoneLookupResult.InvalidNumber], [PhoneLookupResult.OwnNumber],
+     * [PhoneLookupResult.NotOnMuhabbet].
+     */
+    suspend fun findByNumber(rawNumber: String): PhoneLookupResult {
         // Reuses the address-book normaliser rather than adding a second one — it already handles
         // 05XX / 5XX / 90XX / +90XX with spaces and dashes, and two normalisers that disagree by one
         // format would silently hash the same person two different ways.
@@ -82,13 +121,7 @@ class PhoneNumberLookup(
             .firstOrNull { it.phoneHash == phoneHash }
             ?: return if (isOwnNumber(e164)) PhoneLookupResult.OwnNumber else PhoneLookupResult.NotOnMuhabbet
 
-        // Idempotent server-side: ConversationService.createConversation looks up
-        // findDirectConversation(low, high) first and returns the existing row without saving
-        // (MessagingServiceTest "should return existing conversation when direct conversation
-        // already exists"). So typing the number of someone already in the list re-opens that chat
-        // instead of creating a duplicate, and no client-side de-duplication is needed.
-        val conversation = conversationRepository.createDirectConversation(match.userId)
-        return PhoneLookupResult.Opened(conversation.id, match.displayName)
+        return PhoneLookupResult.Found(match.userId, match.displayName, match.avatarUrl)
     }
 
     /**

@@ -256,6 +256,23 @@ class WsClient(
         val outgoing = encryptForWire(message)
         val currentSession = session
         if (currentSession == null) {
+            // A view-once message is never queued, because the queue cannot carry the flag.
+            //
+            // `pendingMessage` stores id, messageId, conversationId, contentType, content,
+            // replyToId, mediaUrl and a timestamp — there is no `viewOnce` column, so
+            // drainPendingMessages() rebuilds the frame with `viewOnce` at its default of false.
+            // Queueing a sealed photo therefore delivered it on the next reconnect as an ordinary,
+            // permanent one: #515 all over again, on the path where the user is least likely to be
+            // watching. Failing the send is the honest outcome — the alternative is a promise
+            // silently downgraded minutes later.
+            //
+            // Fixing it properly means a SQLDelight migration adding `viewOnce` (and, while there,
+            // the `thumbnailUrl` and `forwardedFrom` this queue also drops). That is a schema
+            // version bump on an on-device database with no emulator here to verify the upgrade
+            // path against, so it is deliberately not bundled into a privacy fix.
+            if (message is WsMessage.SendMessage && message.viewOnce) {
+                throw ViewOnceNotQueueableException()
+            }
             // Queue message for later delivery if we have a cache.
             // NOTE: the queued body is the already-encrypted `outgoing`; the drain path is
             // idempotent and will not re-wrap it (encryptOutgoing skips existing envelopes).
@@ -531,6 +548,15 @@ class WsClient(
  * the send paths keep compiling and keep behaving; only the ones that care need to look.
  */
 class MessageQueuedException : Exception("WebSocket not connected")
+
+/**
+ * Thrown by [WsClient.send] when a view-once message could not go out and could not be queued.
+ *
+ * The opposite of [MessageQueuedException] in the one way that matters to a caller: nothing was
+ * stored and nothing will be sent later, so the optimistic bubble must be removed and the user
+ * told. See the guard in [WsClient.send] for why the queue is not an option for this one flag.
+ */
+class ViewOnceNotQueueableException : Exception("View-once message cannot be queued offline")
 
 enum class ConnectionState {
     DISCONNECTED,

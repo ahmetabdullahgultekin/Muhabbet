@@ -74,11 +74,15 @@ private fun StateIconBadge(icon: ImageVector, contentDescription: String?, tint:
  * A screen that is loading its content.
  *
  * Covers the 24 sites that were each a centred `CircularProgressIndicator` in a `fillMaxSize` Box,
- * in four slightly different spellings. Prefer [MuhabbetSkeletonList] for anything that resolves
- * into a list — a skeleton tells the user what is coming, a spinner only says "wait" — and keep
- * this for waits with no predictable shape.
+ * in four slightly different spellings. Prefer [MuhabbetSkeletonList] or
+ * [MuhabbetSkeletonConversation] behind a [MuhabbetSkeletonGate] for anything that resolves into a
+ * list — a skeleton tells the user what is coming, a spinner only says "wait" — and keep this for
+ * waits with no predictable shape.
  *
- * Not to be used for a busy button: that stays an inline indicator sized to the button.
+ * Two cases stay a spinner and are not defects: an **in-place action** the user just started (a
+ * send in flight, a photo uploading, a conversation being created from a tapped contact) has no
+ * shape to promise and is owned by the tap rather than by the page; and a busy button, which stays
+ * an inline indicator sized to the button.
  *
  * @param label optional; two screens showed "Syncing contacts…" under the spinner, which is worth
  *   keeping when the wait has a name.

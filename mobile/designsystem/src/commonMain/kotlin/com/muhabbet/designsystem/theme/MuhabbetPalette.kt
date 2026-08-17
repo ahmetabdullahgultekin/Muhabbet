@@ -121,11 +121,17 @@ internal object MuhabbetPalette {
  */
 
 internal val MuhabbetLightColorScheme: ColorScheme = lightColorScheme(
-    primary = MuhabbetPalette.Copper.C50,
+    // C40 rather than C50. `primary` is not only a fill — it is also the accent *text* colour on
+    // cards, sheets and menus, and C50 on `surfaceContainer` (I95) lands at 4.40:1, under the body
+    // floor, falling further to 4.04:1 on `surfaceContainerHigh`. C40 reaches 5.98:1 there and lifts
+    // white-on-primary from 4.86:1 to 6.60:1 at the same time. Same copper hue, one rung darker —
+    // and tone 40 is what M3's own light schemes use for primary.
+    primary = MuhabbetPalette.Copper.C40,
     onPrimary = Color.White,
     primaryContainer = MuhabbetPalette.Copper.C90,
     onPrimaryContainer = MuhabbetPalette.OnCopperContainerLight,
-    secondary = MuhabbetPalette.Copper.C40,
+    // C30 so secondary stays a distinct rung now that primary has taken C40.
+    secondary = MuhabbetPalette.Copper.C30,
     onSecondary = Color.White,
     secondaryContainer = MuhabbetPalette.CopperContainerLight,
     onSecondaryContainer = MuhabbetPalette.OnSecondaryContainerLight,
@@ -143,7 +149,7 @@ internal val MuhabbetLightColorScheme: ColorScheme = lightColorScheme(
     onSurface = MuhabbetPalette.Ink.I10,
     surfaceVariant = MuhabbetPalette.Ink.I95,
     onSurfaceVariant = MuhabbetPalette.Ink.I40,
-    surfaceTint = MuhabbetPalette.Copper.C50,
+    surfaceTint = MuhabbetPalette.Copper.C40,
     surfaceDim = MuhabbetPalette.Ink.I90,
     surfaceBright = Color.White,
     surfaceContainerLowest = Color.White,
@@ -154,7 +160,10 @@ internal val MuhabbetLightColorScheme: ColorScheme = lightColorScheme(
     inverseSurface = MuhabbetPalette.Ink.I20,
     inverseOnSurface = MuhabbetPalette.Ink.I95,
     inversePrimary = MuhabbetPalette.Copper.C80,
-    outline = MuhabbetPalette.Ink.I60,
+    // I50 rather than I60, for the reason the dark scheme already gives: an outline carries
+    // information and needs 3:1 against the surface behind it. I60 on `surfaceContainer` (I95) is
+    // 2.84:1 — a text field on a card had no visible border. I50 reaches 4.42:1.
+    outline = MuhabbetPalette.Ink.I50,
     outlineVariant = MuhabbetPalette.Ink.I80,
     scrim = Color.Black
 )
@@ -180,10 +189,13 @@ internal val MuhabbetDarkColorScheme: ColorScheme = darkColorScheme(
     onBackground = MuhabbetPalette.PaperOnDark,
     surface = MuhabbetPalette.Ink.I10,
     onSurface = MuhabbetPalette.PaperOnDark,
-    // I15 rather than I20: onSurfaceVariant is I60, and against I20 that lands at 4.33:1 — under
-    // the 4.5 body-text floor. One step darker and the same secondary-text colour passes at 5.02.
     surfaceVariant = MuhabbetPalette.Ink.I15,
-    onSurfaceVariant = MuhabbetPalette.Ink.I60,
+    // I70 rather than I60. I60 clears `surfaceVariant` (I15) at 5.02:1 but not
+    // `surfaceContainerHighest` (I20), where it lands at 4.33:1 — under the body floor. Menus,
+    // sheets and the raised cards all sit on that level, so the app's secondary text was failing on
+    // exactly the surfaces that carry the most of it. I70 clears every dark container: 6.43:1 at
+    // the worst of them.
+    onSurfaceVariant = MuhabbetPalette.Ink.I70,
     surfaceTint = MuhabbetPalette.Copper.C70,
     surfaceDim = MuhabbetPalette.Ink.I00,
     surfaceBright = MuhabbetPalette.Ink.I30,
@@ -225,7 +237,8 @@ internal val MuhabbetOledBlackColorScheme: ColorScheme = darkColorScheme(
     surface = MuhabbetPalette.Ink.I00,
     onSurface = MuhabbetPalette.PaperOnDark,
     surfaceVariant = MuhabbetPalette.Ink.I10,
-    onSurfaceVariant = MuhabbetPalette.Ink.I60,
+    // I70 for the same reason as the dark scheme above.
+    onSurfaceVariant = MuhabbetPalette.Ink.I70,
     surfaceTint = MuhabbetPalette.Copper.C70,
     surfaceDim = Color.Black,
     surfaceBright = MuhabbetPalette.Ink.I20,
@@ -238,6 +251,9 @@ internal val MuhabbetOledBlackColorScheme: ColorScheme = darkColorScheme(
     inverseOnSurface = MuhabbetPalette.Ink.I00,
     inversePrimary = MuhabbetPalette.Copper.C40,
     outline = MuhabbetPalette.Ink.I50,
-    outlineVariant = MuhabbetPalette.Ink.I10,
+    // I20, the same as the dark scheme, rather than I10. On a raised OLED container (I05) an I10
+    // rule sits at 1.09:1 — not a quiet divider, an absent one. I20 reaches 1.40:1 there and 1.45:1
+    // on the plain surface: still a whisper, but one that is actually on the screen.
+    outlineVariant = MuhabbetPalette.Ink.I20,
     scrim = Color.Black
 )

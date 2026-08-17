@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.remote.MessageQueuedException
+import com.muhabbet.app.data.remote.ViewOnceNotQueueableException
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.ui.connection.ConnectionStrip
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -73,6 +74,7 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -81,9 +83,19 @@ import com.muhabbet.app.ui.transition.handoffAvatar
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
-import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetSkeletonConversation
+import com.muhabbet.designsystem.components.MuhabbetSkeletonGate
 
 private const val TAG = "ChatScreen"
+
+/**
+ * `ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED` as it arrives in the envelope's `error.code`.
+ *
+ * Matched on the code rather than the message: the message is Turkish prose that a backend deploy
+ * may reword at any time, and the difference being decided here — "someone already opened this" vs
+ * "the request failed" — is the difference between a correct refusal and a bug report.
+ */
+private const val ViewOnceAlreadyViewedCode = "MSG_VIEW_ONCE_ALREADY_VIEWED"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,6 +158,11 @@ fun ChatScreen(
     val errorOpenMsg = stringResource(Res.string.error_open_failed)
     val errorVideoUnavailableMsg = stringResource(Res.string.error_video_unavailable)
     val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
+    val viewOnceOfflineMsg = stringResource(Res.string.view_once_offline)
+    val viewOnceAlreadyOpenedMsg = stringResource(Res.string.view_once_already_opened)
+    val viewOnceOpenFailedMsg = stringResource(Res.string.view_once_open_failed)
+    // Spoken once when the placeholder bubbles appear; the bubbles themselves are silent.
+    val loadingMessagesLabel = stringResource(Res.string.messages_loading)
 
     // One place decides what a send that did not reach the wire looks like.
     //
@@ -244,57 +261,60 @@ fun ChatScreen(
         }
     }
 
+    // Gallery and camera both land here. One handler, because they only ever differed in which
+    // picker produced the bytes, and two copies of a privacy flag is how one of them gets it and the
+    // other does not (#515).
+    suspend fun sendPhoto(bytes: ByteArray, fileName: String) {
+        isUploading = true
+        val armed = viewOnceEnabled
+        var sendError: Throwable? = null
+        val msgId = generateMessageId()
+        try {
+            val upload = mediaUploadHelper.uploadImage(bytes, fileName)
+            val photo = outgoingPhoto(
+                messageId = msgId,
+                requestId = generateMessageId(),
+                conversationId = conversationId,
+                senderId = currentUserId,
+                caption = chatPhotoText,
+                mediaUrl = upload.url,
+                thumbnailUrl = upload.thumbnailUrl,
+                viewOnce = armed,
+                sentAt = Clock.System.now()
+            )
+            messages = messages + photo.optimistic
+            wsClient.send(photo.frame)
+        } catch (e: Exception) { sendError = e }
+        // Disarmed on the way out of the attempt, not inside the `try`: `wsClient.send` throws
+        // when the socket is down, so clearing it there left the flag set after a failure with
+        // the sheet closed — armed, invisible, and applied to whatever photo came next.
+        viewOnceEnabled = false
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isUploading = false
+        when (sendError) {
+            null -> Unit
+            // The one send outcome that is neither "sent" nor "will be sent": a view-once photo is
+            // refused rather than queued, because the offline queue cannot carry the flag and would
+            // deliver it unsealed on the next reconnect. Say so specifically — "could not send"
+            // over a socket that is merely down invites the user to retry immediately and fail
+            // again, and gives no hint that the setting is what made this send different.
+            is ViewOnceNotQueueableException -> {
+                messages = messages.filter { it.id != msgId }
+                snackbarHostState.showSnackbar(viewOnceOfflineMsg)
+            }
+            else -> reportSendOutcome(msgId, sendError)
+        }
+    }
+
     val imagePickerLauncher = rememberImagePickerLauncher { picked ->
         if (picked == null) return@rememberImagePickerLauncher
-        scope.launch {
-            isUploading = true
-            var sendFailed = false
-            try {
-                val upload = mediaUploadHelper.uploadImage(picked.bytes, picked.fileName)
-                val msgId = generateMessageId(); val reqId = generateMessageId()
-                messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
-                    contentType = ContentType.IMAGE, content = chatPhotoText, mediaUrl = upload.url,
-                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now(),
-                    viewOnce = viewOnceEnabled)
-                wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
-                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url,
-                    thumbnailUrl = upload.thumbnailUrl, viewOnce = viewOnceEnabled))
-            } catch (_: Exception) { sendFailed = true }
-            // Disarmed on the way out of the attempt, not inside the `try`: `wsClient.send` throws
-            // when the socket is down, so clearing it there left the flag set after a failure with
-            // the sheet closed — armed, invisible, and applied to whatever photo came next.
-            viewOnceEnabled = false
-            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
-            isUploading = false
-            if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
-        }
+        scope.launch { sendPhoto(picked.bytes, picked.fileName) }
     }
 
     // Camera picker
     val cameraPickerLauncher = rememberCameraPickerLauncher { picked ->
         if (picked == null) return@rememberCameraPickerLauncher
-        scope.launch {
-            isUploading = true
-            var sendFailed = false
-            try {
-                val upload = mediaUploadHelper.uploadImage(picked.bytes, picked.fileName)
-                val msgId = generateMessageId(); val reqId = generateMessageId()
-                messages = messages + Message(id = msgId, conversationId = conversationId, senderId = currentUserId,
-                    contentType = ContentType.IMAGE, content = chatPhotoText, mediaUrl = upload.url,
-                    thumbnailUrl = upload.thumbnailUrl, status = MessageStatus.SENDING, clientTimestamp = Clock.System.now(),
-                    viewOnce = viewOnceEnabled)
-                wsClient.send(WsMessage.SendMessage(requestId = reqId, messageId = msgId, conversationId = conversationId,
-                    content = chatPhotoText, contentType = ContentType.IMAGE, mediaUrl = upload.url,
-                    thumbnailUrl = upload.thumbnailUrl, viewOnce = viewOnceEnabled))
-            } catch (_: Exception) { sendFailed = true }
-            // Disarmed on the way out of the attempt, not inside the `try`: `wsClient.send` throws
-            // when the socket is down, so clearing it there left the flag set after a failure with
-            // the sheet closed — armed, invisible, and applied to whatever photo came next.
-            viewOnceEnabled = false
-            // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
-            isUploading = false
-            if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
-        }
+        scope.launch { sendPhoto(picked.bytes, picked.fileName) }
     }
 
     // ── Data loading effects ─────────────────
@@ -366,7 +386,12 @@ fun ChatScreen(
                             messages = messages + Message(id = ws.messageId, conversationId = ws.conversationId, senderId = ws.senderId,
                                 contentType = ws.contentType, content = ws.content, replyToId = ws.replyToId, mediaUrl = ws.mediaUrl,
                                 thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
-                                clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom)
+                                clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom,
+                                // Without this the live path could not seal anything: the recipient
+                                // builds their bubble from this frame, so a photo that arrives while
+                                // the chat is open rendered in full no matter what the sender chose.
+                                // The reload path was equally blind — see MessageMapper (#515).
+                                viewOnce = ws.viewOnce)
                         }
                         // Deliberately OUTSIDE the "not already rendered" guard above (#478). That
                         // guard exists to stop a bubble being drawn twice — it was also deciding
@@ -618,63 +643,111 @@ fun ChatScreen(
             // user is about to type into. Self-hiding, and silent for the first few seconds of any
             // outage — see ConnectionStrip.
             ConnectionStrip(state = connectionState)
-            if (isLoading) {
-                MuhabbetLoadingState(Modifier.weight(1f).fillMaxWidth())
-            } else {
-                ChatMessageList(
-                    messages = messages,
-                    currentUserId = currentUserId,
-                    starredIds = starredIds.value,
-                    audioPlayer = audioPlayer,
-                    isLoadingMore = isLoadingMore,
-                    peerTyping = peerTyping,
-                    contextMenuMessageId = contextMenuMessageId,
-                    listState = listState,
-                    scope = scope,
-                    modifier = Modifier.weight(1f),
-                    actions = ChatMessageActions(
-                        onSwipeReply = { replyingTo = it },
-                        onLongPress = { contextMenuMessageId = it.id },
-                        onDismissMenu = { contextMenuMessageId = null },
-                        onReply = { contextMenuMessageId = null; replyingTo = it },
-                        // Without feedback the picker just opens empty, reading as "no chats to forward to".
-                        onForward = { msg -> contextMenuMessageId = null
-                            forwardMessage = msg
-                            scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
-                            snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
-                        onStar = { msg, isStarred -> contextMenuMessageId = null
-                            scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
-                            starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
-                            starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
-                            snackbarHostState.showSnackbar(errorActionMsg) } } },
-                        onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
-                        onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
-                        onImageClick = { fullImageUrl = it },
-                        onReactionToggle = { msg, emoji ->
-                            scope.launch {
-                                runCatchingCancellable {
-                                    if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
-                                    else messageRepository.addReaction(msg.id, emoji)
-                                }.onFailure { e ->
-                                    Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
-                                    snackbarHostState.showSnackbar(errorActionMsg)
+            // The wallpaper sits outside the gate, so the skeleton and the messages that replace it
+            // are painted on the same backdrop and the swap is invisible.
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                ChatWallpaper()
+                MuhabbetSkeletonGate(
+                    isLoading = isLoading,
+                    skeleton = {
+                        MuhabbetSkeletonConversation(loadingLabel = loadingMessagesLabel)
+                    }
+                ) {
+                    ChatMessageList(
+                        messages = messages,
+                        currentUserId = currentUserId,
+                        starredIds = starredIds.value,
+                        audioPlayer = audioPlayer,
+                        isLoadingMore = isLoadingMore,
+                        peerTyping = peerTyping,
+                        contextMenuMessageId = contextMenuMessageId,
+                        listState = listState,
+                        scope = scope,
+                        modifier = Modifier.fillMaxSize(),
+                        actions = ChatMessageActions(
+                            onSwipeReply = { replyingTo = it },
+                            onLongPress = { contextMenuMessageId = it.id },
+                            onDismissMenu = { contextMenuMessageId = null },
+                            onReply = { contextMenuMessageId = null; replyingTo = it },
+                            // Without feedback the picker just opens empty, reading as "no chats to forward to".
+                            onForward = { msg -> contextMenuMessageId = null
+                                forwardMessage = msg
+                                scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
+                                snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                            onStar = { msg, isStarred -> contextMenuMessageId = null
+                                scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
+                                starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
+                                starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
+                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                            onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
+                            onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
+                            onImageClick = { fullImageUrl = it },
+                            onReactionToggle = { msg, emoji ->
+                                scope.launch {
+                                    runCatchingCancellable {
+                                        if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
+                                        else messageRepository.addReaction(msg.id, emoji)
+                                    }.onFailure { e ->
+                                        Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
+                                        snackbarHostState.showSnackbar(errorActionMsg)
+                                    }
                                 }
+                            },
+                            onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
+                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                            onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
+                            // Not bookkeeping — this call *is* the view.
+                            //
+                            // It used to be a fire-and-forget POST whose failure was logged and
+                            // swallowed, on the reasoning that "the media is already revealed locally".
+                            // It never was: the sealed bubble had no reveal step at all, so a recipient
+                            // could burn a view-once photo and never see it. And it could not have been,
+                            // because the flag never arrived, so no recipient ever rendered this bubble.
+                            //
+                            // Now the server holds the only copy of the URL and releases it in the same
+                            // transaction that burns the message. A failure therefore matters: it means
+                            // the photo was not shown, and the user has to be told which of the two
+                            // reasons applies — already opened (from another device, or a second tap
+                            // that lost the race) or a genuine failure.
+                            onViewOnce = { id ->
+                                scope.launch {
+                                    // Sealed optimistically, so a second tap during the round trip
+                                    // cannot fire a second reveal at a message that has one.
+                                    messages = messages.map {
+                                        if (it.id == id) it.copy(viewOnceViewed = true) else it
+                                    }
+                                    runCatchingCancellable { messageRepository.revealViewOnce(id) }
+                                        .onSuccess { reveal -> reveal.mediaUrl?.let { fullImageUrl = it } }
+                                        .onFailure { e ->
+                                            Log.w(TAG, "Failed to open view-once $id: ${e.message}")
+                                            val alreadyViewed =
+                                                (e as? ApiException)?.code == ViewOnceAlreadyViewedCode
+                                            // A refusal means it really is spent, so the seal stays.
+                                            // Anything else — the request never landed — must not cost
+                                            // the user their one look; put the seal back so they can
+                                            // open it when the network returns. If the burn did succeed
+                                            // and only the reply was lost, the retry says "already
+                                            // opened", which is the truth and the best available answer.
+                                            if (!alreadyViewed) {
+                                                messages = messages.map {
+                                                    if (it.id == id) it.copy(viewOnceViewed = false) else it
+                                                }
+                                            }
+                                            snackbarHostState.showSnackbar(
+                                                if (alreadyViewed) viewOnceAlreadyOpenedMsg else viewOnceOpenFailedMsg
+                                            )
+                                        }
+                                }
+                            },
+                            onOpenUrl = { url -> openExternally(url) },
+                            // The bubble drew a video it has no playable url for. Saying so is the
+                            // whole point — a tap that does nothing is the defect being fixed.
+                            onMediaUnavailable = {
+                                scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
                             }
-                        },
-                        onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
-                            snackbarHostState.showSnackbar(errorActionMsg) } } },
-                        onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
-                        // Server-side bookkeeping only — the media is already revealed locally, so a
-                        // failure has no user-visible consequence worth interrupting them for.
-                        onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } },
-                        onOpenUrl = { url -> openExternally(url) },
-                        // The bubble drew a video it has no playable url for. Saying so is the
-                        // whole point — a tap that does nothing is the defect being fixed.
-                        onMediaUnavailable = {
-                            scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
-                        }
+                        )
                     )
-                )
+                }
             }
 
             // Pending scheduled messages chip (session-local)

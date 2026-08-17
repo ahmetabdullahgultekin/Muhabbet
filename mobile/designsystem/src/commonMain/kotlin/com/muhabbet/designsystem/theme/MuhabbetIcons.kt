@@ -70,6 +70,7 @@ import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ContactPhone
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -178,6 +179,13 @@ object MuhabbetIcons {
     val Visible: ImageVector get() = Icons.Default.Visibility
     val Hidden: ImageVector get() = Icons.Default.VisibilityOff
     val MuteOff: ImageVector get() = Icons.Outlined.NotificationsOff
+
+    // Whether the phone will show what the app posts at all — the OS-level permission, not the
+    // per-conversation mute that MuteOff above names. NotificationsOff draws the same glyph as
+    // MuteOff on purpose: they are the same picture of two different facts, and a call site that
+    // said "MuteOff" while talking about a system permission would read as the wrong one.
+    val Notifications: ImageVector get() = Icons.Outlined.Notifications
+    val NotificationsOff: ImageVector get() = Icons.Outlined.NotificationsOff
 
     // Disappearing messages
     val Timer: ImageVector get() = Icons.Default.Timer

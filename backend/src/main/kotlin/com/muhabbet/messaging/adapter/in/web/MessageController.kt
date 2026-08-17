@@ -1,8 +1,11 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
+import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.ApiResponse
@@ -10,6 +13,8 @@ import com.muhabbet.shared.dto.EditMessageRequest
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.RecipientDeliveryInfo
+import com.muhabbet.shared.dto.SendMessageRequest
+import com.muhabbet.shared.dto.ViewOnceRevealResponse
 import com.muhabbet.shared.model.Message as SharedMessage
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.security.AuthenticatedUser
@@ -24,13 +29,15 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1")
 class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
-    private val manageMessageUseCase: ManageMessageUseCase
+    private val manageMessageUseCase: ManageMessageUseCase,
+    private val sendMessageUseCase: SendMessageUseCase
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -99,6 +106,37 @@ class MessageController(
         )
     }
 
+    /**
+     * Sends a text message without a WebSocket.
+     *
+     * The same [SendMessageUseCase] the socket handler calls, so membership, announcement mode,
+     * the duplicate-id check, the per-recipient delivery rows and the fan-out to online devices
+     * are all the one implementation — this is a second transport, not a second send path.
+     *
+     * It exists because the Android notification inline reply runs in a `BroadcastReceiver` with
+     * roughly ten seconds to live and, when the app has been swiped away, no socket to reach for
+     * (#510). Nothing else should prefer it: a client holding a socket gets its ack back over the
+     * socket and does not have to pay for a fresh TLS handshake per message.
+     */
+    @PostMapping("/conversations/{conversationId}/messages")
+    fun sendMessage(
+        @PathVariable conversationId: UUID,
+        @RequestBody request: SendMessageRequest
+    ): ResponseEntity<ApiResponse<SharedMessage>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val message = sendMessageUseCase.sendMessage(
+            SendMessageCommand(
+                messageId = UUID.fromString(request.messageId),
+                conversationId = conversationId,
+                senderId = userId,
+                content = request.content,
+                contentType = ContentType.TEXT,
+                clientTimestamp = Instant.now()
+            )
+        )
+        return ApiResponseBuilder.ok(message.toSharedMessage())
+    }
+
     @GetMapping("/messages/{messageId}/info")
     fun getMessageInfo(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<MessageInfoResponse>> {
         val userId = AuthenticatedUser.currentUserId()
@@ -121,8 +159,12 @@ class MessageController(
             content = if (message.isDeleted) "" else message.content,
             contentType = message.contentType.name,
             sentAt = message.serverTimestamp.toString(),
-            mediaUrl = message.mediaUrl,
-            thumbnailUrl = message.thumbnailUrl,
+            // Message info builds its own response rather than going through toSharedMessage, so the
+            // view-once rule has to be repeated here. It is not decoration: "Info" is reachable from
+            // the context menu on any message, and it was returning the full-resolution URL of a
+            // sealed photo to every member of the conversation.
+            mediaUrl = if (message.viewOnce) null else message.mediaUrl,
+            thumbnailUrl = if (message.viewOnce) null else message.thumbnailUrl,
             recipients = recipientInfos
         )
         return ApiResponseBuilder.ok(info)
@@ -145,11 +187,26 @@ class MessageController(
         return ApiResponseBuilder.ok(msg.toSharedMessage())
     }
 
+    /**
+     * Opens a view-once message: burns it and returns its media, once.
+     *
+     * The only endpoint in the API that hands out a view-once blob URL. Every other response nulls
+     * it (see [toSharedMessage]), which is what makes the seal a seal rather than a drawing of one —
+     * before #515 the sealed bubble and a fully working URL for the photo behind it travelled in the
+     * same payload.
+     */
     @PostMapping("/messages/{messageId}/view-once")
-    fun markViewOnceViewed(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
+    fun markViewOnceViewed(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<ViewOnceRevealResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageMessageUseCase.markViewOnceViewed(messageId, userId)
-        return ApiResponseBuilder.ok(Unit)
+        val reveal = manageMessageUseCase.markViewOnceViewed(messageId, userId)
+        return ApiResponseBuilder.ok(
+            ViewOnceRevealResponse(
+                messageId = reveal.messageId.toString(),
+                mediaUrl = reveal.mediaUrl,
+                thumbnailUrl = reveal.thumbnailUrl,
+                viewedAt = reveal.viewedAt.toEpochMilli()
+            )
+        )
     }
 }
 

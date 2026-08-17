@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Turkish is the default locale, matching composeResources/values/strings.xml.
+
+    These live in Android resources rather than in composeResources because the only things that
+    read them are a FirebaseMessagingService and a BroadcastReceiver. Neither is a composition, and
+    the inline-reply receiver in particular can be the only thing alive in the process, so it needs
+    text it can resolve from a Context with no Compose runtime standing.
+
+    Write apostrophes as \' here — this is an Android resource file and the platform DOES unescape
+    it. That is the opposite of the rule for composeResources/**/strings.xml, where a backslash is a
+    build failure (#471). Do not copy strings between the two without re-checking the escaping.
+-->
+<resources>
+    <string name="notification_app_name">Muhabbet</string>
+    <string name="notification_new_message">Yeni mesaj</string>
+    <string name="notification_new_messages">Yeni mesajlar</string>
+
+    <!-- Inline reply from the notification tray (#510) -->
+    <string name="notification_reply_action">Yanıtla</string>
+    <string name="notification_reply_hint">Yanıt yaz</string>
+    <string name="notification_reply_sent">Yanıt gönderildi</string>
+    <string name="notification_reply_failed">Yanıt gönderilemedi. Dokunup tekrar deneyin.</string>
+</resources>

@@ -10,6 +10,20 @@ interface TokenStorage {
     fun isLoggedIn(): Boolean = getAccessToken() != null
     fun getLanguage(): String? = null
     fun setLanguage(lang: String) {}
+
+    /**
+     * Whether the process that is about to start should reopen Settings at the language picker.
+     *
+     * Set immediately before the language restart and consumed exactly once by `RootComponent` on
+     * the way back up, so the user lands where they were instead of on the conversation list — which
+     * is also the only place they can see that the new language took effect (#505).
+     *
+     * Abstract rather than defaulted, for the same reason as the theme below. An implementation that
+     * inherited a no-op would restart the app and drop the user on the home screen every time, which
+     * is precisely the defect this exists to fix, and it would compile.
+     */
+    fun setPendingLanguageRestart()
+    fun consumePendingLanguageRestart(): Boolean
     // Abstract, unlike its neighbours: the theme is read at the composition root on every frame, so
     // an implementation that inherited a null-returning default would pin the whole app to the
     // system theme with nothing to show for it. Better to fail to compile.
@@ -61,4 +75,34 @@ interface TokenStorage {
     fun setCustomWallpaperPath(path: String?)
     fun getDarkModeWallpaperEnabled(): Boolean
     fun setDarkModeWallpaperEnabled(enabled: Boolean)
+
+    /**
+     * The app version whose test-build notice the user has already acknowledged, or null if they
+     * never have. Compared against `BuildInfo.VERSION`, so the notice returns once after an update
+     * and stays away on every launch in between.
+     *
+     * Abstract, for the third time in this file and for the same reason (#380, media quality,
+     * contact consent): a defaulted no-op would read back null on every launch, so the notice would
+     * reappear every single time the app opened — and a warning that shows up that often is one
+     * people learn to dismiss without reading, which is precisely the failure it exists to avoid.
+     */
+    fun getTestBuildNoticeAckVersion(): String?
+    fun setTestBuildNoticeAckVersion(version: String)
+
+    /**
+     * Whether the app has already put the system notification-permission dialog in front of this
+     * user (#547). Written once, before the dialog is shown, and never cleared.
+     *
+     * Abstract, for the fourth time in this file and for the same reason (#380, media quality,
+     * contact consent, the test-build notice): a defaulted no-op would read back false on every
+     * launch, so the app would ask for notification permission every single time it started. Android
+     * stops showing the dialog after two denials, so the visible result would not be a repeated
+     * prompt — it would be a request that silently does nothing, forever, which is far harder to
+     * notice than a broken one.
+     *
+     * Deliberately not cleared by [clear]: the permission belongs to the app, not to the session, so
+     * logging out and back in is not a reason to ask again.
+     */
+    fun getNotificationPermissionAsked(): Boolean
+    fun setNotificationPermissionAsked()
 }

@@ -65,7 +65,8 @@ class UserDataQueryPersistenceAdapter(
                 $TS_EXPR_PREFIX m.client_timestamp $TS_EXPR_SUFFIX,
                 $TS_EXPR_PREFIX m.edited_at $TS_EXPR_SUFFIX,
                 m.is_deleted,
-                su.display_name
+                su.display_name,
+                m.view_once
             FROM messages m
             JOIN users su ON su.id = m.sender_id
             WHERE (m.sender_id = :userId
@@ -96,7 +97,8 @@ class UserDataQueryPersistenceAdapter(
                 clientTimestamp = r.instant(9),
                 editedAt = r.instantOrNull(10),
                 isDeleted = r.bool(11),
-                senderDisplayName = r.strOrNull(12)
+                senderDisplayName = r.strOrNull(12),
+                viewOnce = r.bool(13)
             )
         }
     }
