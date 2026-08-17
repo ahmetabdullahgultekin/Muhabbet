@@ -88,4 +88,21 @@ interface TokenStorage {
      */
     fun getTestBuildNoticeAckVersion(): String?
     fun setTestBuildNoticeAckVersion(version: String)
+
+    /**
+     * Whether the app has already put the system notification-permission dialog in front of this
+     * user (#547). Written once, before the dialog is shown, and never cleared.
+     *
+     * Abstract, for the fourth time in this file and for the same reason (#380, media quality,
+     * contact consent, the test-build notice): a defaulted no-op would read back false on every
+     * launch, so the app would ask for notification permission every single time it started. Android
+     * stops showing the dialog after two denials, so the visible result would not be a repeated
+     * prompt — it would be a request that silently does nothing, forever, which is far harder to
+     * notice than a broken one.
+     *
+     * Deliberately not cleared by [clear]: the permission belongs to the app, not to the session, so
+     * logging out and back in is not a reason to ask again.
+     */
+    fun getNotificationPermissionAsked(): Boolean
+    fun setNotificationPermissionAsked()
 }

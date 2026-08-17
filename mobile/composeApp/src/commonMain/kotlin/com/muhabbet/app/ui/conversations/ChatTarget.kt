@@ -1,5 +1,9 @@
 package com.muhabbet.app.ui.conversations
 
+import com.muhabbet.shared.dto.ConversationResponse
+import com.muhabbet.shared.dto.ParticipantResponse
+import com.muhabbet.shared.model.ConversationType
+
 /**
  * Everything needed to open a chat, resolved by whoever was already displaying the conversation.
  *
@@ -28,3 +32,74 @@ data class ChatTarget(
     val isGroup: Boolean = false,
     val avatarUrl: String? = null
 )
+
+/**
+ * The one rule for what a conversation is called and whose face it wears.
+ *
+ * Four screens each wrote their own version of this, and the versions did not agree. Two of them
+ * ended `?: ""` — the message-search results and the home shell's search results — and one caller
+ * skipped the resolution entirely and passed `""` outright (#543: opening a chat from Starred
+ * Messages landed on a chat with no title, a "?" avatar and a dead tap on the person, because
+ * `ChatScreen` renders [name] verbatim and has no fallback of its own).
+ *
+ * So the empty string is gone from the type's vocabulary. There is always a [fallbackName] — a
+ * localized one, from `composeResources` — and the worst case is a chat titled "Sohbet" rather
+ * than a chat titled nothing.
+ *
+ * @param currentUserId whose participant row to skip. Nullable because [com.muhabbet.app.data.local.TokenStorage]
+ *   can answer null; a null here just means no row is skipped, which for a direct conversation
+ *   picks the caller half the time — recoverable, where crashing or blanking is not.
+ * @param fallbackName shown when nothing else resolves. Never pass `""`.
+ * @param contactNames local address-book names keyed by **phone number**, as the conversation list
+ *   already assembles them. Empty for screens that never loaded contacts, which is why it defaults:
+ *   the address book is a nicety here, not a precondition.
+ */
+fun ConversationResponse.toChatTarget(
+    currentUserId: String?,
+    fallbackName: String,
+    contactNames: Map<String, String> = emptyMap()
+): ChatTarget {
+    val isGroup = type == ConversationType.GROUP
+    val other = participants.firstOrNull { it.userId != currentUserId }
+    return ChatTarget(
+        conversationId = id,
+        // A group falls straight to the fallback rather than to a member's name. Titling a group
+        // with whichever member happened to sort first is the wrong identity, not a shorter one.
+        name = name?.ifBlank { null }
+            ?: (if (isGroup) null else other?.label(contactNames))
+            ?: fallbackName,
+        otherUserId = if (isGroup) null else other?.userId,
+        isGroup = isGroup,
+        avatarUrl = if (isGroup) avatarUrl else other?.avatarUrl
+    )
+}
+
+/**
+ * What to call the person who sent a message in this conversation, or null if they are not a
+ * participant of it.
+ *
+ * Null is a real answer and is deliberately not collapsed to a constant here: a screen showing a
+ * message from someone who has since left needs to say so in its own words, and the caller owns
+ * that string. Returning "Unknown contact" from a resolver is how #543's starred list ended up
+ * labelling *everyone* that way.
+ */
+fun ConversationResponse.senderLabel(
+    senderId: String,
+    contactNames: Map<String, String> = emptyMap()
+): String? = participants.firstOrNull { it.userId == senderId }?.label(contactNames)
+
+/**
+ * Address-book name, then the name they chose, then their number.
+ *
+ * The address book wins because it is what the user themselves wrote down, and a display name is
+ * whatever the other side typed. A bare user id is never a candidate — its first eight characters
+ * read as a hex hash, which is exactly what #507 shipped.
+ *
+ * Blank is treated as absent at every rung. The server validates `displayName` with `isNotBlank()`,
+ * so `""` should never arrive — but "should never arrive" is the assumption this whole change exists
+ * to stop relying on, and a `?:` chain happily carries an empty string all the way to the title bar.
+ */
+private fun ParticipantResponse.label(contactNames: Map<String, String>): String? =
+    phoneNumber?.let { contactNames[it] }?.ifBlank { null }
+        ?: displayName?.ifBlank { null }
+        ?: phoneNumber?.ifBlank { null }

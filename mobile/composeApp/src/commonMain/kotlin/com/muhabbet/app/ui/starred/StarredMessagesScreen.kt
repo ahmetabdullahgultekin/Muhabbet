@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,30 +43,48 @@ import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.app.data.repository.ConversationDirectory
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
+import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.conversations.senderLabel
+import com.muhabbet.app.ui.conversations.toChatTarget
+import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 
+/**
+ * Every message you starred, across every conversation.
+ *
+ * A starred `Message` carries a `conversationId` and a `senderId` and nothing else about either, so
+ * this screen resolves both against the conversation list before it can name anything (#543). Until
+ * it did, it printed "Unknown contact" for every message that was not your own — including people
+ * you actively chat with — and navigated with an empty name, landing the user in a chat with no
+ * title, a "?" avatar and a dead tap where the person should be.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StarredMessagesScreen(
     onBack: () -> Unit,
-    onNavigateToConversation: ((conversationId: String, messageId: String) -> Unit)? = null,
+    onNavigateToConversation: ((target: ChatTarget, messageId: String) -> Unit)? = null,
     messageRepository: MessageRepository = koinInject(),
+    conversationDirectory: ConversationDirectory = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
+    var conversations by remember { mutableStateOf<Map<String, ConversationResponse>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
 
@@ -80,12 +99,23 @@ fun StarredMessagesScreen(
             // Without this the screen shows the "no starred messages" empty state, which is a lie.
             Log.e("StarredMessagesScreen", "Failed to load starred messages", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
+            return@LaunchedEffect
+        }
+        // A second, independent request, and deliberately not folded into the one above: if the
+        // identities cannot be fetched the messages are still worth showing, unnamed. Folding them
+        // together would trade a list with weak labels for no list at all.
+        runCatchingCancellable {
+            conversations = conversationDirectory.lookUp(messages.map { it.conversationId }.toSet())
+        }.exceptionOrNull()?.let { e ->
+            Log.w("StarredMessagesScreen", "Could not resolve the conversations these came from: $e")
         }
     }
 
     val youLabel = stringResource(Res.string.starred_you)
     // A user id is not a name — its first eight characters read as a hex hash (#507).
     val unknownPersonLabel = stringResource(Res.string.unknown_person)
+    val defaultChatName = stringResource(Res.string.chat_default_name)
+    val unavailableMsg = stringResource(Res.string.starred_conversation_unavailable)
 
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
@@ -127,11 +157,26 @@ fun StarredMessagesScreen(
                     modifier = Modifier.fillMaxSize().padding(padding)
                 ) {
                     items(messages, key = { it.id }) { message ->
+                        val conversation = conversations[message.conversationId]
                         val isOwn = message.senderId == currentUserId
                         StarredMessageItem(
                             message = message,
-                            senderLabel = if (isOwn) youLabel else unknownPersonLabel,
-                            onClick = { onNavigateToConversation?.invoke(message.conversationId, message.id) }
+                            senderLabel = when {
+                                isOwn -> youLabel
+                                // Falls back only when the sender really cannot be placed — they
+                                // left the conversation, or the conversation itself is gone.
+                                else -> conversation?.senderLabel(message.senderId) ?: unknownPersonLabel
+                            },
+                            onClick = {
+                                val target = conversation?.toChatTarget(currentUserId, defaultChatName)
+                                if (target != null) {
+                                    onNavigateToConversation?.invoke(target, message.id)
+                                } else {
+                                    // Navigating anyway is what #543 was: the right conversation,
+                                    // opened with nothing to draw it with. Saying so is better.
+                                    scope.launch { snackbarHostState.showSnackbar(unavailableMsg) }
+                                }
+                            }
                         )
                         HorizontalDivider()
                     }

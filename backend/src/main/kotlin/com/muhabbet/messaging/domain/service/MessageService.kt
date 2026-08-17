@@ -1,6 +1,9 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.ContentType
+import com.muhabbet.messaging.domain.model.Conversation
+import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
@@ -13,6 +16,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -32,7 +36,8 @@ open class MessageService(
     private val messageRepository: MessageRepository,
     private val messageBroadcaster: MessageBroadcaster,
     private val userDirectory: UserDirectoryPort,
-    private val readReceiptPolicy: ReadReceiptPolicyPort
+    private val readReceiptPolicy: ReadReceiptPolicyPort,
+    private val blockPolicy: BlockPolicyPort
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -41,6 +46,16 @@ open class MessageService(
         private const val EDIT_WINDOW_MINUTES = 15L
     }
 
+    /**
+     * The one place a message is created, for both transports — the WebSocket handler and the REST
+     * fallback call this same use case — which is why the block is enforced here and nowhere else.
+     *
+     * **The blocked sender is not told.** A dropped message is answered with the same
+     * `ServerAck(OK)` / `200` a delivered one gets, so the sender's client shows a single tick that
+     * never becomes two. That is what every messenger does, and it is a decision rather than an
+     * accident of where the check sits: the alternative — an error the client can see — turns a
+     * block into a probe, telling a harasser exactly who has blocked them and when they unblock.
+     */
     @Transactional
     override fun sendMessage(command: SendMessageCommand): Message {
         // Validate content
@@ -55,9 +70,14 @@ open class MessageService(
         val member = conversationRepository.findMember(command.conversationId, command.senderId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
+        // One lookup, three uses: announcement mode, the disappearing-message window, and the
+        // direct-conversation test the block check needs. It used to be fetched twice.
+        val conversation = conversationRepository.findById(command.conversationId)
+
         // Check announcement mode — only admins/owners can send
-        val conv = conversationRepository.findById(command.conversationId)
-        if (conv != null && conv.announcementOnly && member.role == com.muhabbet.messaging.domain.model.MemberRole.MEMBER) {
+        if (conversation != null && conversation.announcementOnly &&
+            member.role == com.muhabbet.messaging.domain.model.MemberRole.MEMBER
+        ) {
             throw BusinessException(ErrorCode.MSG_ANNOUNCEMENT_ONLY)
         }
 
@@ -67,7 +87,6 @@ open class MessageService(
         }
 
         // Calculate expiresAt for disappearing messages
-        val conversation = conversationRepository.findById(command.conversationId)
         val now = Instant.now()
         val expiresAt = conversation?.disappearAfterSeconds?.let {
             now.plusSeconds(it.toLong())
@@ -75,25 +94,42 @@ open class MessageService(
 
         val isScheduled = command.scheduledAt != null && command.scheduledAt.isAfter(now)
 
-        val message = messageRepository.save(
-            Message(
-                id = command.messageId,
-                conversationId = command.conversationId,
-                senderId = command.senderId,
-                contentType = command.contentType,
-                content = command.content,
-                replyToId = command.replyToId,
-                mediaUrl = command.mediaUrl,
-                thumbnailUrl = command.thumbnailUrl,
-                serverTimestamp = now,
-                clientTimestamp = command.clientTimestamp,
-                expiresAt = expiresAt,
-                forwardedFrom = command.forwardedFrom,
-                viewOnce = command.viewOnce,
-                scheduledAt = command.scheduledAt,
-                isScheduled = isScheduled
-            )
+        val draft = Message(
+            id = command.messageId,
+            conversationId = command.conversationId,
+            senderId = command.senderId,
+            contentType = command.contentType,
+            content = command.content,
+            replyToId = command.replyToId,
+            mediaUrl = command.mediaUrl,
+            thumbnailUrl = command.thumbnailUrl,
+            serverTimestamp = now,
+            clientTimestamp = command.clientTimestamp,
+            expiresAt = expiresAt,
+            forwardedFrom = command.forwardedFrom,
+            viewOnce = command.viewOnce,
+            scheduledAt = command.scheduledAt,
+            isScheduled = isScheduled
         )
+
+        // Loaded once and reused for both the block test and the delivery rows below — resolving it
+        // twice would put an extra query on the hottest path in the app.
+        val members = conversationRepository.findMembersByConversationId(command.conversationId)
+
+        // Dropped *before* the insert, deliberately. Persisting it and filtering on the way out
+        // would need the same filter on history, background sync, search, shared media and the
+        // push fan-out — five chances to leak, and a leak means the block does not work. With no
+        // row there is nothing for any of them to return.
+        if (isBlockedDirectSend(conversation, members, command.senderId)) {
+            log.info(
+                "Message dropped, recipient has blocked the sender: conv={}, sender={}",
+                command.conversationId,
+                command.senderId
+            )
+            return draft
+        }
+
+        val message = messageRepository.save(draft)
 
         // Scheduled messages are not delivered immediately
         if (isScheduled) {
@@ -102,7 +138,6 @@ open class MessageService(
         }
 
         // Create delivery status for all recipients
-        val members = conversationRepository.findMembersByConversationId(command.conversationId)
         val recipientIds = members.map { it.userId }.filter { it != command.senderId }
 
         recipientIds.forEach { recipientId ->
@@ -120,6 +155,29 @@ open class MessageService(
 
         log.info("Message sent: id={}, conv={}, sender={}", message.id, command.conversationId, command.senderId)
         return message
+    }
+
+    /**
+     * Whether this send is a direct message to someone who has blocked the sender.
+     *
+     * **Direct conversations only, and deliberately so.** In a group a block does not stop the
+     * message — WhatsApp behaves the same way — because a group message has one sender and many
+     * readers, and dropping it because one of thirty members has blocked the sender would silently
+     * remove it for the other twenty-nine. What a block owes you in a group is the ability to
+     * leave it, not the power to censor a room.
+     *
+     * **One direction only.** The question is whether the *recipient* blocked the *sender*. Someone
+     * messaging a person they themselves blocked is not the case with a victim, and swallowing
+     * their own outgoing message would read as a bug rather than a policy.
+     */
+    private fun isBlockedDirectSend(
+        conversation: Conversation?,
+        members: List<ConversationMember>,
+        senderId: UUID
+    ): Boolean {
+        if (conversation?.type != ConversationType.DIRECT) return false
+        val recipientId = members.map { it.userId }.firstOrNull { it != senderId } ?: return false
+        return blockPolicy.hasBlocked(recipientId, senderId)
     }
 
     @Transactional(readOnly = true)
@@ -320,9 +378,21 @@ open class MessageService(
         }
 
         val editedAt = Instant.now()
+
+        // `updateContent` is the *second* way message content reaches a recipient, and guarding only
+        // `sendMessage` left it open: for EDIT_WINDOW_MINUTES after their last pre-block message, a
+        // blocked sender could rewrite it to anything and MessageEdited would push the new text into
+        // the blocker's open chat — repeatedly, on the same message. Same silence as the send path:
+        // the caller is told it worked, nothing is written and nothing is broadcast.
+        val conversation = conversationRepository.findById(message.conversationId)
+        val members = conversationRepository.findMembersByConversationId(message.conversationId)
+        if (isBlockedDirectSend(conversation, members, requesterId)) {
+            log.info("Message edit dropped, recipient has blocked the sender: id={}", messageId)
+            return message.copy(content = newContent, editedAt = editedAt)
+        }
+
         messageRepository.updateContent(messageId, newContent, editedAt)
 
-        val members = conversationRepository.findMembersByConversationId(message.conversationId)
         messageBroadcaster.broadcastToUsers(
             members.map { it.userId },
             WsMessage.MessageEdited(
@@ -390,6 +460,14 @@ open class MessageService(
 
     // ─── Scheduled Messages ──────────────────────────────────
 
+    /**
+     * [markAsDelivered] and [softDelete] are `@Modifying` queries, and Hibernate refuses those
+     * outside a transaction — `ScheduledMessageJob` has none of its own and swallows the failure
+     * into a `log.warn`, which is the same silent shape that stopped `last_seen_at` from ever being
+     * written. Without this annotation the whole loop throws on its first write, every minute,
+     * forever, and the block check below would be unreachable code.
+     */
+    @Transactional
     open fun deliverScheduledMessages() {
         val now = Instant.now()
         val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now)
@@ -397,7 +475,24 @@ open class MessageService(
         for (message in scheduledMessages) {
             messageRepository.markAsDelivered(message.id)
 
+            val conversation = conversationRepository.findById(message.conversationId)
             val members = conversationRepository.findMembersByConversationId(message.conversationId)
+
+            // A message can be scheduled before a block and come due after it. Withholding the
+            // delivery rows and the fan-out is not enough on its own: the row was written at
+            // schedule time and history filters on `isDeleted`, not on `isScheduled`, so it would
+            // simply appear in the recipient's chat. Soft-deleting restores the invariant the
+            // immediate path gets for free — no readable row, for either party.
+            if (isBlockedDirectSend(conversation, members, message.senderId)) {
+                messageRepository.softDelete(message.id)
+                log.info(
+                    "Scheduled message dropped, recipient has blocked the sender: id={}, conv={}",
+                    message.id,
+                    message.conversationId
+                )
+                continue
+            }
+
             val recipientIds = members.map { it.userId }.filter { it != message.senderId }
 
             recipientIds.forEach { recipientId ->

@@ -32,6 +32,7 @@ import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
 import org.jetbrains.compose.resources.stringResource
@@ -53,9 +54,12 @@ fun CommunityDetailContent(
     contentPadding: PaddingValues,
     onMembersClick: () -> Unit,
     onAddGroupClick: () -> Unit,
-    onGroupClick: (conversationId: String, name: String) -> Unit,
+    onGroupClick: (ChatTarget) -> Unit,
     onRemoveGroupClick: (CommunityGroupInfo) -> Unit
 ) {
+    // Resolved here rather than in the row's onClick: stringResource is @Composable and a click
+    // handler is not.
+    val defaultChatName = stringResource(Res.string.chat_default_name)
     LazyColumn(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         item {
             CommunityHeader(community)
@@ -132,7 +136,19 @@ fun CommunityDetailContent(
             GroupItem(
                 group = group,
                 canRemove = canManage,
-                onClick = { onGroupClick(group.conversationId, group.name.orEmpty()) },
+                onClick = {
+                    // `group.name.orEmpty()` here was #543 wearing a different hat: an unnamed
+                    // group opened a chat titled "". The group's own picture travels too, so the
+                    // chat header does not fall back to the name-seeded gradient.
+                    onGroupClick(
+                        ChatTarget(
+                            conversationId = group.conversationId,
+                            name = group.name ?: defaultChatName,
+                            isGroup = true,
+                            avatarUrl = group.avatarUrl
+                        )
+                    )
+                },
                 onRemove = { onRemoveGroupClick(group) }
             )
         }

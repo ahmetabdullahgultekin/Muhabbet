@@ -12,6 +12,7 @@ import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.notice.TestBuildNoticeDialog
+import com.muhabbet.app.ui.notification.NotificationPermissionGate
 import kotlinx.serialization.Serializable
 
 class RootComponent(
@@ -90,5 +91,10 @@ fun RootContent(root: RootComponent) {
     val stack by root.childStack.subscribeAsState()
     if (stack.active.instance is RootComponent.Child.Main) {
         TestBuildNoticeDialog()
+
+        // Asks for notification permission once (#547), under the same gate and for the same
+        // reason: it belongs after login, not on the login screen. Draws nothing — see the
+        // composable's own note on why the system dialog is allowed to land over the notice above.
+        NotificationPermissionGate()
     }
 }

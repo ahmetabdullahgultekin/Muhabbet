@@ -26,6 +26,7 @@ import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.designsystem.components.EmptyChatsIllustration
 import com.muhabbet.designsystem.components.MuhabbetSkeletonList
+import com.muhabbet.designsystem.components.rememberSkeletonVisible
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -61,17 +62,27 @@ internal fun ConversationListBody(
     onConversationLongClick: (ConversationResponse) -> Unit,
     onPin: (ConversationResponse) -> Unit
 ) {
+    val showSkeleton = rememberSkeletonVisible(isLoading)
+    val loadingLabel = stringResource(Res.string.chats_loading)
+
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize()
     ) {
-        if (isLoading) {
-            // MuhabbetSkeletonList, not a LazyColumn of hand-rolled rows: it wraps its rows in a
-            // single ShimmerHost. The old version called ConversationSkeletonItem per row, and that
-            // function created its own rememberInfiniteTransition — eight placeholder rows meant
-            // eight independent infinite animations, each waking the frame clock on its own.
-            MuhabbetSkeletonList(modifier = Modifier.fillMaxSize())
+        // MuhabbetSkeletonList, not a LazyColumn of hand-rolled rows: it wraps its rows in a
+        // single ShimmerHost. The old version called ConversationSkeletonItem per row, and that
+        // function created its own rememberInfiniteTransition — eight placeholder rows meant
+        // eight independent infinite animations, each waking the frame clock on its own.
+        //
+        // Behind MuhabbetSkeletonGate since #499: this list is served from the SQLDelight cache on
+        // a warm start, which resolves in a few milliseconds, and the skeleton was appearing and
+        // vanishing inside a single blink.
+        if (showSkeleton) {
+            MuhabbetSkeletonList(modifier = Modifier.fillMaxSize(), loadingLabel = loadingLabel)
+        } else if (isLoading) {
+            // Under the appear delay. Blank rather than falling through to the empty state, which
+            // would tell someone with a full inbox that they have no chats.
         } else if (conversations.isEmpty()) {
             EmptyChatsIllustration(
                 title = stringResource(Res.string.empty_chats_title),
@@ -197,38 +208,21 @@ private fun ConversationListItemRow(
     onPin: () -> Unit
 ) {
     val otherParticipant = conv.participants.firstOrNull { it.userId != currentUserId }
-    val isGroup = conv.type == ConversationType.GROUP
-    val contactName = if (!isGroup) {
-        otherParticipant?.phoneNumber?.let { contactNameMap[it] }
-    } else null
-    val resolvedName = conv.name
-        ?: contactName
-        ?: otherParticipant?.displayName
-        ?: otherParticipant?.phoneNumber
-        ?: defaultChatName
+    // One rule, shared with every other screen that opens a chat — the row and the tap can no
+    // longer disagree about who this is, and neither can this screen and Starred Messages (#543).
+    val target = conv.toChatTarget(currentUserId, defaultChatName, contactNameMap)
     val isOtherOnline = otherParticipant?.let {
         onlineUsers[it.userId] ?: it.isOnline
     } ?: false
-    val avatarUrl = if (isGroup) conv.avatarUrl else otherParticipant?.avatarUrl
     ConversationItem(
         conversation = conv,
         modifier = modifier,
-        displayName = resolvedName,
-        avatarUrl = avatarUrl,
+        displayName = target.name,
+        avatarUrl = target.avatarUrl,
         isOnline = isOtherOnline,
-        isGroup = isGroup,
+        isGroup = target.isGroup,
         isPinned = isPinned,
-        onClick = {
-            onConversationClick(
-                ChatTarget(
-                    conversationId = conv.id,
-                    name = resolvedName,
-                    otherUserId = otherParticipant?.userId,
-                    isGroup = isGroup,
-                    avatarUrl = avatarUrl
-                )
-            )
-        },
+        onClick = { onConversationClick(target) },
         onLongClick = { onConversationLongClick(conv) },
         onPin = onPin
     )

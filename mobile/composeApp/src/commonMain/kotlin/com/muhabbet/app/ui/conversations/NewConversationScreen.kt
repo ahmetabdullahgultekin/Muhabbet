@@ -54,6 +54,8 @@ import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetSkeletonList
+import com.muhabbet.designsystem.components.rememberSkeletonVisible
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +75,6 @@ fun NewConversationScreen(
     tokenStorage: TokenStorage = koinInject()
 ) {
     var contacts by remember { mutableStateOf<List<KnownPerson>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
     var isSyncing by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
     var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
@@ -93,6 +94,11 @@ fun NewConversationScreen(
 
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_generic)
+    val contactsSyncingLabel = stringResource(Res.string.contacts_syncing)
+
+    // The sync is slow enough that the placeholder always earns its place, but it goes through the
+    // same gate as every other screen so there is one answer to "when does a skeleton appear".
+    val showContactsSkeleton = rememberSkeletonVisible(isSyncing)
 
     val requestPermission = rememberContactsPermissionRequester { granted ->
         hasPermission = granted
@@ -262,10 +268,18 @@ fun NewConversationScreen(
                             )
                         }
                     }
-                    // Syncing contacts
-                    isSyncing -> MuhabbetLoadingState(
-                        label = stringResource(Res.string.contacts_syncing)
+                    // Syncing contacts. The slowest wait in the app — a whole address book is
+                    // normalised, hashed and matched server-side — and the one with the most
+                    // predictable result, so it gets contact-shaped rows rather than a spinner.
+                    // The wait keeps its name for a screen reader; on screen the shapes say it.
+                    showContactsSkeleton -> MuhabbetSkeletonList(
+                        modifier = Modifier.fillMaxSize(),
+                        loadingLabel = contactsSyncingLabel
                     )
+                    // Under the skeleton's appear delay. Deliberately blank rather than falling
+                    // through: `contacts` is still the previous (often empty) list, and the branch
+                    // below would render "no contacts found" for a sync that has barely started.
+                    isSyncing -> Unit
                     // No matched contacts
                     contacts.isEmpty() -> {
                         Column(
@@ -327,6 +341,9 @@ fun NewConversationScreen(
                     }
                 }
 
+                // Deliberately still a spinner. This is an in-place action the user just started by
+                // tapping a name, not a screen load: there is no shape to promise, and the wait is
+                // owned by the tap rather than by the page. Skeletons are for arriving content.
                 if (isCreating) {
                     MuhabbetLoadingState()
                 }

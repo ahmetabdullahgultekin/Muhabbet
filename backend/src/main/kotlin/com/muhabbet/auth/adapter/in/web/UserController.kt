@@ -1,6 +1,7 @@
 package com.muhabbet.auth.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.BlockDirectoryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.MutualGroupResponse
@@ -33,7 +34,8 @@ class UserController(
     private val userRepository: UserRepository,
     private val presencePort: PresencePort,
     private val conversationRepository: ConversationRepository,
-    private val messageRepository: MessageRepository
+    private val messageRepository: MessageRepository,
+    private val blockDirectory: BlockDirectoryPort
 ) {
 
     @GetMapping("/{userId}")
@@ -76,8 +78,17 @@ class UserController(
      * `PATCH /me/privacy` and every lookup returned `about` regardless, so the setting was a no-op
      * end to end. Resolved together with presence so the "contacts" case costs one membership
      * query rather than one per field.
+     *
+     * A block short-circuits all of it. Whatever the target chose for everyone else, someone they
+     * blocked sees no presence, no last seen and no about — a blocked harasser watching a green dot
+     * to learn when their target is awake is the concrete harm here. Name and avatar still show,
+     * because a chat the two shared before the block would otherwise become an anonymous row.
      */
     private fun resolveVisibility(user: User, requesterId: UUID): VisibleProfile {
+        if (requesterId != user.id && blockDirectory.hasBlocked(user.id, requesterId)) {
+            return VisibleProfile(isOnline = false, lastSeen = null, about = null)
+        }
+
         val contactIds: Set<UUID> by lazy { conversationRepository.findAllContactUserIds(user.id) }
 
         fun allows(visibility: String): Boolean = when (visibility.lowercase()) {
