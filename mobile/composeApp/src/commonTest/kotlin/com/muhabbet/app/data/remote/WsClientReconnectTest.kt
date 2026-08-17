@@ -199,6 +199,44 @@ class WsClientReconnectTest {
         }
     }
 
+    /**
+     * The Activity-recreation path, from the UI's point of view rather than the socket's.
+     *
+     * The tests above assert the *connection* survives a recreation. This asserts the app is told
+     * the truth about it. On the emulator the socket was verifiably alive — the backend held one
+     * registration with no unregister, and a message sent through it landed in `messages` — while
+     * the app displayed "No connection" for as long as it stayed open (#521).
+     *
+     * The cause is that `connect()` set CONNECTING unconditionally, and `startConnectLoop()` is
+     * single-flighted: on a recreation it returns immediately because the surviving loop is still
+     * running, and that loop is parked in its read and never revisits the line setting CONNECTED.
+     * So the optimistic write was never corrected.
+     */
+    @Test
+    fun should_not_overwrite_the_state_when_a_running_loop_is_reused() = runTest {
+        val ws = wsClient(backgroundScope)
+        ws.connect()
+        runCurrent()
+
+        // The loop is alive and parked awaiting a token. Whatever it has published is the truth;
+        // a second connect() must not contradict it.
+        val stateWhileRunning = ws.connectionState.value
+        assertTrue(
+            ws.connectLoopForTest?.isActive == true,
+            "precondition: the first connect must leave a running loop for the second to reuse"
+        )
+
+        ws.connect()
+        runCurrent()
+
+        assertSame(
+            stateWhileRunning,
+            ws.connectionState.value,
+            "reusing a running loop must leave the connection state alone — claiming CONNECTING " +
+                "here is what made the strip say 'No connection' while messages were going through"
+        )
+    }
+
     private companion object {
         /** The heartbeat interval plus enough slack that the tick has definitely been dispatched. */
         const val HEARTBEAT_PLUS_A_MOMENT = 31_000L
