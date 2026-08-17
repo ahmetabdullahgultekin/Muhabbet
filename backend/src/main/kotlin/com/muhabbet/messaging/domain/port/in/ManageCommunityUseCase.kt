@@ -31,12 +31,20 @@ data class CommunityGroupSummary(
 /**
  * @param myRole the requester's role in this community. Never null: [ManageCommunityUseCase.getDetails]
  * refuses non-members, so a details object only ever describes a community the requester belongs to.
+ * @param announcementGroupId the community's announcement channel — a GROUP conversation every
+ * member is enrolled in, where only admins and owners may post (#584). Practically never null: the
+ * service creates one the moment a community is created, and backfills it lazily on read for any
+ * community that predates that (see `CommunityService.ensureAnnouncementChannel`). Left nullable on
+ * the wire anyway, the same reasoning as [myRole] below applied to a field that used to not exist at
+ * all: a client that has not shipped the "open announcements" affordance yet must still decode this
+ * response.
  */
 data class CommunityDetails(
     val community: Community,
     val groups: List<CommunityGroupSummary>,
     val memberCount: Int,
-    val myRole: MemberRole
+    val myRole: MemberRole,
+    val announcementGroupId: UUID? = null
 )
 
 /**

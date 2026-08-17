@@ -594,6 +594,7 @@
     <string name="community_create">Create Community</string>
     <string name="community_name_hint">Community name</string>
     <string name="community_description_hint">Description (optional)</string>
+    <string name="community_announcements">Announcements</string>
     <string name="community_groups">Groups</string>
     <string name="community_members">Members</string>
     <string name="community_member_count">%1$d members</string>

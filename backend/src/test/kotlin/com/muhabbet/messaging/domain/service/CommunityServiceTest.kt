@@ -16,6 +16,7 @@ import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.Called
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -44,6 +45,21 @@ class CommunityServiceTest {
 
     @Nested
     inner class Create {
+
+        @BeforeEach
+        fun stubAnnouncementChannel() {
+            // Every community gets an announcement channel the instant it exists (#584), so every
+            // test in this class exercises ensureAnnouncementChannel's creation path — a brand-new
+            // community always starts with a null announcementGroupId. Stubbed once here rather than
+            // per test.
+            every { communityRepository.findMembersByCommunityId(any()) } answers {
+                listOf(CommunityMember(communityId = firstArg(), userId = userId, role = MemberRole.OWNER))
+            }
+            every { conversationRepository.save(any()) } answers { firstArg() }
+            every { conversationRepository.saveMember(any()) } answers { firstArg() }
+            every { conversationRepository.updateMemberRole(any(), any(), any()) } returns Unit
+            every { communityRepository.update(any()) } answers { firstArg() }
+        }
 
         @Test
         fun `should report one member and no groups when community is created`() {
@@ -77,6 +93,30 @@ class CommunityServiceTest {
 
             assertEquals(ErrorCode.COMMUNITY_INVALID_NAME, ex.errorCode)
             verify(exactly = 0) { communityRepository.save(any()) }
+        }
+
+        @Test
+        fun `should create an announcement channel that only admins can post to`() {
+            every { communityRepository.save(any()) } answers { firstArg() }
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+            val channelSlot = slot<Conversation>()
+            every { conversationRepository.save(capture(channelSlot)) } answers { firstArg() }
+
+            val summary = service.create("Mahalle", null, userId)
+
+            assertEquals(ConversationType.GROUP, channelSlot.captured.type)
+            assertTrue(channelSlot.captured.announcementOnly)
+            assertEquals(channelSlot.captured.id, summary.community.announcementGroupId)
+        }
+
+        @Test
+        fun `should seat the creator as owner of the announcement channel, not merely admin`() {
+            every { communityRepository.save(any()) } answers { firstArg() }
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+
+            service.create("Mahalle", null, userId)
+
+            verify { conversationRepository.updateMemberRole(any(), userId, MemberRole.OWNER) }
         }
     }
 
@@ -244,6 +284,27 @@ class CommunityServiceTest {
 
             val ex = assertThrows<BusinessException> { service.getDetails(communityId, userId) }
             assertEquals(ErrorCode.COMMUNITY_NOT_FOUND, ex.errorCode)
+        }
+
+        @Test
+        fun `should lazily create the announcement channel for a community that predates it`() {
+            // The exact case production is in: eight communities, none of them with a channel
+            // because they were created before #584. Reading one is what backfills it.
+            val legacy = community(announcementGroupId = null)
+            stubDetails(community = legacy, myRole = MemberRole.OWNER, communityMemberCount = 1)
+            every { communityRepository.findMembersByCommunityId(legacy.id) } returns
+                listOf(CommunityMember(communityId = legacy.id, userId = userId, role = MemberRole.OWNER))
+            val channelSlot = slot<Conversation>()
+            every { conversationRepository.save(capture(channelSlot)) } answers { firstArg() }
+            every { conversationRepository.saveMember(any()) } answers { firstArg() }
+            every { conversationRepository.updateMemberRole(any(), any(), any()) } returns Unit
+            every { communityRepository.update(any()) } answers { firstArg() }
+
+            val details = service.getDetails(legacy.id, userId)
+
+            assertEquals(channelSlot.captured.id, details.announcementGroupId)
+            assertEquals(channelSlot.captured.id, details.community.announcementGroupId)
+            verify { communityRepository.update(match { it.announcementGroupId == channelSlot.captured.id }) }
         }
 
         private fun stubDetails(
@@ -487,6 +548,26 @@ class CommunityServiceTest {
         }
 
         @Test
+        fun `should enrol the new member in the community's announcement channel too`() {
+            // The exact check #584 named: a member added later must land in the channel, not only
+            // whoever was there when it was created.
+            stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = true)
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+            // Overrides stubAddMember's default community with a specific channel id to assert on.
+            val channelId = UUID.randomUUID()
+            every { communityRepository.findById(communityId) } returns
+                community(id = communityId, announcementGroupId = channelId)
+
+            service.addMember(communityId, targetUserId, userId)
+
+            verify {
+                conversationRepository.saveMember(
+                    match { it.conversationId == channelId && it.userId == targetUserId && it.role == MemberRole.MEMBER }
+                )
+            }
+        }
+
+        @Test
         fun `should reject when the user belongs to none of the community's groups`() {
             stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = false)
 
@@ -545,6 +626,9 @@ class CommunityServiceTest {
             every { communityRepository.findGroupsByCommunityId(communityId) } returns
                 groups.map { CommunityGroup(communityId = communityId, conversationId = it) }
             every { conversationRepository.isMemberOfAny(groups, targetUserId) } returns targetIsInAGroup
+            // community()'s default announcementGroupId is non-null, so addMember's channel enrol
+            // always has somewhere to write.
+            every { conversationRepository.saveMember(any()) } answers { firstArg() }
         }
     }
 
@@ -932,6 +1016,37 @@ class CommunityServiceTest {
         }
 
         @Test
+        fun `should remove the leaving member from the announcement channel`() {
+            val channelId = UUID.randomUUID()
+            stubLeave(
+                CommunityMember(communityId, userId, MemberRole.MEMBER),
+                CommunityMember(communityId, adminId, MemberRole.OWNER)
+            )
+            // Overrides stubLeave's default community with a specific channel id to assert on.
+            every { communityRepository.findById(communityId) } returns
+                community(id = communityId, announcementGroupId = channelId)
+
+            service.leave(communityId, userId)
+
+            verify { conversationRepository.removeMember(channelId, userId) }
+        }
+
+        @Test
+        fun `should promote the new community owner to owner of the announcement channel too`() {
+            val channelId = UUID.randomUUID()
+            stubLeave(
+                CommunityMember(communityId, userId, MemberRole.OWNER, Instant.parse("2026-01-01T00:00:00Z")),
+                CommunityMember(communityId, adminId, MemberRole.ADMIN, Instant.parse("2026-01-03T00:00:00Z"))
+            )
+            every { communityRepository.findById(communityId) } returns
+                community(id = communityId, announcementGroupId = channelId)
+
+            service.leave(communityId, userId)
+
+            verify { conversationRepository.updateMemberRole(channelId, adminId, MemberRole.OWNER) }
+        }
+
+        @Test
         fun `should refuse when the caller is the community's only member`() {
             // Leaving would strand rows nothing can reach: there is no invite, no discovery and no
             // delete endpoint. Refusing is the honest answer until one of those exists.
@@ -969,6 +1084,10 @@ class CommunityServiceTest {
             every { communityRepository.findMembersByCommunityId(communityId) } returns members.toList()
             every { communityRepository.saveMember(any()) } answers { firstArg() }
             every { communityRepository.removeMember(communityId, userId) } returns Unit
+            // community()'s default announcementGroupId is non-null, so leave's channel cleanup
+            // always has somewhere to write.
+            every { conversationRepository.removeMember(any(), any()) } returns Unit
+            every { conversationRepository.updateMemberRole(any(), any(), any()) } returns Unit
         }
     }
 
@@ -978,11 +1097,21 @@ class CommunityServiceTest {
             role?.let { CommunityMember(communityId = communityId, userId = userId, role = it) }
     }
 
-    private fun community(name: String = "Mahalle", id: UUID = UUID.randomUUID()) = Community(
+    /**
+     * [announcementGroupId] defaults to an already-existing channel so that tests unrelated to #584
+     * never have to stub [ensureAnnouncementChannel]'s side effects — only the `Create`, `GetDetails`
+     * and `AddMember` cases that specifically exercise the announcement channel pass `null`.
+     */
+    private fun community(
+        name: String = "Mahalle",
+        id: UUID = UUID.randomUUID(),
+        announcementGroupId: UUID? = UUID.randomUUID()
+    ) = Community(
         id = id,
         name = name,
         description = null,
         createdBy = userId,
-        createdAt = Instant.parse("2026-01-01T00:00:00Z")
+        createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+        announcementGroupId = announcementGroupId
     )
 }

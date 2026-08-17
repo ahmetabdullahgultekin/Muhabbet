@@ -44,7 +44,8 @@ data class CommunityDetailResponse(
     val groups: List<CommunityGroupInfoResponse>,
     val memberCount: Int,
     val myRole: String?,
-    val createdAt: String
+    val createdAt: String,
+    val announcementGroupId: String?
 )
 
 /** Field-for-field the client's `CommunityGroupInfo`. */
@@ -148,5 +149,6 @@ private fun CommunityDetails.toResponse() = CommunityDetailResponse(
     // Always present: only members can read a community. The field stays nullable because the
     // client's `CommunityDetailResponse.myRole` is nullable and the wire shape must not change.
     myRole = myRole.name,
-    createdAt = community.createdAt.toString()
+    createdAt = community.createdAt.toString(),
+    announcementGroupId = announcementGroupId?.toString()
 )
