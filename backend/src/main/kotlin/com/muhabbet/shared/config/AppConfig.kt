@@ -38,6 +38,7 @@ import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.NotificationTextPort
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
@@ -161,13 +162,15 @@ class AppConfig {
         messageRepository: MessageRepository,
         messageBroadcaster: MessageBroadcaster,
         userDirectory: UserDirectoryPort,
-        readReceiptPolicy: ReadReceiptPolicyPort
+        readReceiptPolicy: ReadReceiptPolicyPort,
+        blockPolicy: BlockPolicyPort
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         messageBroadcaster = messageBroadcaster,
         userDirectory = userDirectory,
-        readReceiptPolicy = readReceiptPolicy
+        readReceiptPolicy = readReceiptPolicy,
+        blockPolicy = blockPolicy
     )
 
     @Bean
@@ -183,11 +186,13 @@ class AppConfig {
     fun groupService(
         conversationRepository: ConversationRepository,
         userRepository: UserRepository,
-        messageBroadcaster: MessageBroadcaster
+        messageBroadcaster: MessageBroadcaster,
+        blockPolicy: BlockPolicyPort
     ): GroupService = GroupService(
         conversationRepository = conversationRepository,
         userRepository = userRepository,
-        messageBroadcaster = messageBroadcaster
+        messageBroadcaster = messageBroadcaster,
+        blockPolicy = blockPolicy
     )
 
     @Bean

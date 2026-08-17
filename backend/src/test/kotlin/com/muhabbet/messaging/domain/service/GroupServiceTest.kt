@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.shared.exception.BusinessException
@@ -28,6 +29,7 @@ class GroupServiceTest {
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var userRepository: UserRepository
     private lateinit var messageBroadcaster: MessageBroadcaster
+    private lateinit var blockPolicy: BlockPolicyPort
     private lateinit var groupService: GroupService
 
     private val ownerId = UUID.randomUUID()
@@ -67,11 +69,15 @@ class GroupServiceTest {
         conversationRepository = mockk(relaxed = true)
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
+        blockPolicy = mockk()
+        // Default across the suite: nobody has blocked anybody, so every existing expectation holds.
+        every { blockPolicy.hasBlocked(any(), any()) } returns false
 
         groupService = GroupService(
             conversationRepository = conversationRepository,
             userRepository = userRepository,
-            messageBroadcaster = messageBroadcaster
+            messageBroadcaster = messageBroadcaster,
+            blockPolicy = blockPolicy
         )
     }
 
@@ -117,6 +123,47 @@ class GroupServiceTest {
             stubUser(newUserId)
 
             val result = groupService.addMembers(groupId, adminId, listOf(newUserId))
+
+            assertEquals(1, result.size)
+        }
+
+        @Test
+        fun `should refuse the add when an invitee has blocked the requester`() {
+            val group = groupConversation()
+            val existingMembers = listOf(member(groupId, ownerId, MemberRole.OWNER))
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns existingMembers[0]
+            every { conversationRepository.findMembersByConversationId(groupId) } returns existingMembers
+            stubUser(newUserId, "New User")
+            every { blockPolicy.hasBlocked(newUserId, ownerId) } returns true
+
+            val ex = assertThrows<BusinessException> {
+                groupService.addMembers(groupId, ownerId, listOf(newUserId))
+            }
+
+            // Refused, not silently skipped — an add that appeared to work would leave the
+            // requester believing someone is in the group who is not. It shares a code with "no
+            // such user" on purpose: a code unique to blocking would let anyone discover who has
+            // blocked them by trying to add them to a throwaway group.
+            assertEquals(ErrorCode.CONV_INVALID_PARTICIPANTS, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.saveMember(any()) }
+        }
+
+        @Test
+        fun `should still add when the requester is the one who blocked the invitee`() {
+            val group = groupConversation()
+            val existingMembers = listOf(member(groupId, ownerId, MemberRole.OWNER))
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns existingMembers[0]
+            every { conversationRepository.findMembersByConversationId(groupId) } returns existingMembers
+            every { conversationRepository.saveMember(any()) } answers { firstArg() }
+            stubUser(newUserId, "New User")
+            every { blockPolicy.hasBlocked(newUserId, ownerId) } returns false
+            every { blockPolicy.hasBlocked(ownerId, newUserId) } returns true
+
+            val result = groupService.addMembers(groupId, ownerId, listOf(newUserId))
 
             assertEquals(1, result.size)
         }

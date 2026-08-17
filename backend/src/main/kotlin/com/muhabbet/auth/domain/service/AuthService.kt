@@ -275,7 +275,7 @@ open class AuthService(
         }
 
         // Generate tokens
-        val accessToken = jwtProvider.generateAccessToken(user.id, device.id)
+        val accessToken = jwtProvider.generateAccessToken(user.id, device.id, user.isAdmin)
         val refreshToken = jwtProvider.generateRefreshToken()
         val refreshTokenHash = sha256(refreshToken)
 
@@ -317,8 +317,11 @@ open class AuthService(
         // Revoke old refresh token (rotation)
         refreshTokenRepository.revokeByTokenHash(tokenHash)
 
-        // Generate new tokens
-        val newAccessToken = jwtProvider.generateAccessToken(record.userId, record.deviceId)
+        // Generate new tokens. The admin flag is re-read from the user row on every refresh rather
+        // than carried over from the old token, so a grant or a revoke takes effect within one
+        // access-token lifetime instead of persisting until the holder logs out.
+        val isAdmin = userRepository.findById(record.userId)?.isAdmin ?: false
+        val newAccessToken = jwtProvider.generateAccessToken(record.userId, record.deviceId, isAdmin)
         val newRefreshToken = jwtProvider.generateRefreshToken()
         val newRefreshTokenHash = sha256(newRefreshToken)
 

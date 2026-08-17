@@ -12,4 +12,11 @@ interface SpringDataBlockRepository : JpaRepository<BlockJpaEntity, UUID> {
     fun findByBlockerId(blockerId: UUID): List<BlockJpaEntity>
     fun existsByBlockerIdAndBlockedId(blockerId: UUID, blockedId: UUID): Boolean
     fun deleteByBlockerIdAndBlockedId(blockerId: UUID, blockedId: UUID)
+
+    /**
+     * The reverse of [findByBlockerId] and narrowed to a candidate list: which of these people have
+     * blocked me. Presence resolution asks this about a whole page of conversation participants at
+     * once, so it must be one query rather than one per participant.
+     */
+    fun findByBlockedIdAndBlockerIdIn(blockedId: UUID, blockerIds: Collection<UUID>): List<BlockJpaEntity>
 }
