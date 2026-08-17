@@ -442,6 +442,14 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   Three separate agents rediscovered the staleness of the old figure independently on one day, and
   three more did the same the next. If you are about to write a test count into this file, write the
   instruction to measure instead.
+- **"N failures, all Testcontainers" is not a green light — it is N tests that did not run.** On
+  2026-08-17 that habit shipped a regression to production (#598). A `@Bean` added to
+  `WebSocketConfig` for #493 threw in every `@SpringBootTest`, because `webEnvironment = MOCK` has no
+  embedded servlet container to publish `jakarta.websocket.server.ServerContainer`. Locally those ten
+  classes die *earlier*, at Testcontainers init, so the new failure hid behind the documented old
+  one; and CI had not completed a job all day (#563), so nothing else executed it. When CI finally
+  ran: `796 tests completed, 32 failed`. **A change to Spring configuration is exactly the class of
+  change only those ten catch** — start Docker before trusting a run that touches one.
 - **Redis is required for the integration tests**, not just Postgres. `RedisConfig` registers
   `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
