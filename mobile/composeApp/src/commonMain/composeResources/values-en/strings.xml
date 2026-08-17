@@ -518,6 +518,8 @@
     <string name="wallpaper_custom">Gallery</string>
     <string name="wallpaper_remove">Remove wallpaper</string>
     <string name="wallpaper_dark_mode">Dark mode wallpaper</string>
+    <string name="wallpaper_dark_mode_subtitle">When on, the wallpaper you pick is also used in the dark and OLED themes</string>
+    <string name="wallpaper_hidden_in_dark_theme">You are using a dark theme, so the wallpaper you picked is not shown in chats. Turn on the switch above to see it.</string>
 
     <!-- View Once -->
     <string name="view_once_label">View once</string>

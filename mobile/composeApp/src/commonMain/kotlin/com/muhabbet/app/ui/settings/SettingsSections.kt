@@ -204,18 +204,22 @@ internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageR
 /**
  * Language picker.
  *
- * The filled row is derived from what is actually in effect — see [selectedLanguage] — never from a
- * default-locale constant. Selecting a language persists it, marks the restart so the replacement
- * process comes back here rather than to the conversation list, and then restarts: on Android the
- * locale is applied in `MainActivity.onCreate`, so nothing below that point can apply it in place.
+ * The filled row is the language actually rendering — see [selectedLanguage] — never a
+ * default-locale constant and never the stored preference, which is a different question and can
+ * disagree (#548). Selecting a language persists it, and when that language is not the one on
+ * screen it marks the restart so the replacement process comes back here rather than to the
+ * conversation list, then restarts: on Android the locale is applied in `MainActivity.onCreate`, so
+ * nothing below that point can apply it in place.
  *
- * Re-selecting the language already in effect does nothing. Restarting the app to arrive at the
- * same screen in the same language is a jolt with no result to show for it.
+ * The tap is no longer skipped for the row that is already filled in. Persisting is idempotent, and
+ * it is the one case that matters: a user whose preference says Turkish while the app renders
+ * English sees English filled in, and tapping Türkçe now restarts into Turkish instead of being
+ * swallowed as "already selected".
  */
 @Composable
 internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit) {
     // Read once: the stored value cannot change while this screen is open except through the tap
-    // below, and that ends in a restart.
+    // below, and that either ends in a restart or writes back the value already there.
     val stored = remember { tokenStorage.getLanguage() }
     // Deliberately NOT remembered and deliberately a resource lookup: this asks the resource system
     // which locale it resolved for this very composition, so the filled row cannot disagree with the
@@ -231,8 +235,11 @@ internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit)
             title = languageLabel(language),
             selected = language == selected,
             onSelect = {
-                if (language != selected) {
-                    tokenStorage.setLanguage(language.code)
+                // Written every time, including for the row already filled in: on a device whose
+                // locale the app happens to match there is no stored preference at all, and pinning
+                // it is what keeps the app in this language if the device's ever changes.
+                tokenStorage.setLanguage(language.code)
+                if (languageNeedsRestart(language, rendered)) {
                     tokenStorage.setPendingLanguageRestart()
                     restartApp()
                 }

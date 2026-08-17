@@ -525,6 +525,8 @@
     <string name="wallpaper_custom">Galeri</string>
     <string name="wallpaper_remove">Arka planı kaldır</string>
     <string name="wallpaper_dark_mode">Karanlık mod arka planı</string>
+    <string name="wallpaper_dark_mode_subtitle">Açıkken seçtiğiniz arka plan koyu ve OLED temalarda da kullanılır</string>
+    <string name="wallpaper_hidden_in_dark_theme">Şu anda koyu bir tema kullanıyorsunuz, bu yüzden seçtiğiniz arka plan sohbetlerde görünmüyor. Görmek için yukarıdaki anahtarı açın.</string>
 
     <!-- View Once -->
     <string name="view_once_label">Bir kez görüntüle</string>
