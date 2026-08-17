@@ -35,6 +35,7 @@ class PushTokenRegistrarTest {
     private class Backend(private val status: HttpStatusCode = HttpStatusCode.NoContent) {
         val requestedPaths = mutableListOf<String>()
         val requestedTokens = mutableListOf<String>()
+        val requestedLocales = mutableListOf<String?>()
 
         private val json = Json { ignoreUnknownKeys = true }
 
@@ -45,6 +46,7 @@ class PushTokenRegistrarTest {
                     request.body.toByteArray().decodeToString()
                 )
                 requestedTokens += body.pushToken
+                requestedLocales += body.locale
             }
             respond(
                 content = if (status == HttpStatusCode.NoContent) "" else {
@@ -122,6 +124,62 @@ class PushTokenRegistrarTest {
         registrar.registerIfLoggedIn()
 
         assertTrue(backend.requestedPaths.isEmpty())
+    }
+
+    // ─── The language the notification is written in (#469) ───
+    //
+    // Push text is composed on the server, which has no other way to learn what the reader speaks.
+    // Until this field started travelling with the token, every notification went out in Turkish
+    // and notification-messages_en.properties was unreachable.
+
+    @Test
+    fun registerIfLoggedIn_whenGivenTheRenderedLanguage_sendsItWithTheToken() = runTest {
+        val backend = Backend().apply { loggedIn() }
+        val registrar = PushTokenRegistrar(FakePushTokenProvider(), backend.authRepository, backend.tokenStorage)
+
+        registrar.registerIfLoggedIn(languageTag = "en")
+
+        assertEquals(listOf<String?>("en"), backend.requestedLocales)
+    }
+
+    @Test
+    fun registerIfLoggedIn_whenTheCallerHasNoLanguage_fallsBackToTheSavedPreference() = runTest {
+        // onNewToken runs in a service with no composition and possibly before the app has started
+        // in this process, so it has no rendered language to report.
+        val backend = Backend().apply {
+            loggedIn()
+            tokenStorage.setLanguage("en")
+        }
+        val registrar = PushTokenRegistrar(FakePushTokenProvider(), backend.authRepository, backend.tokenStorage)
+
+        registrar.registerIfLoggedIn(knownToken = "rotated-token")
+
+        assertEquals(listOf<String?>("en"), backend.requestedLocales)
+    }
+
+    @Test
+    fun registerIfLoggedIn_whenNoLanguageIsKnownAtAll_sendsNoneRatherThanAGuess() = runTest {
+        // Null means "leave the device on what it registered last" on the server. Guessing a
+        // language here would overwrite a good answer with a fabricated one.
+        val backend = Backend().apply { loggedIn() }
+        val registrar = PushTokenRegistrar(FakePushTokenProvider(), backend.authRepository, backend.tokenStorage)
+
+        registrar.registerIfLoggedIn()
+
+        assertEquals(listOf<String?>(null), backend.requestedLocales)
+    }
+
+    @Test
+    fun registerIfLoggedIn_whenTheRenderedLanguageIsBlank_fallsBackRatherThanSendingBlank() = runTest {
+        val backend = Backend().apply {
+            loggedIn()
+            tokenStorage.setLanguage("tr")
+        }
+        val registrar = PushTokenRegistrar(FakePushTokenProvider(), backend.authRepository, backend.tokenStorage)
+
+        registrar.registerIfLoggedIn(languageTag = "  ")
+
+        assertEquals(listOf<String?>("tr"), backend.requestedLocales)
     }
 
     @Test

@@ -12,6 +12,16 @@ data class Device(
     val lastActiveAt: Instant? = null,
     val createdAt: Instant = Instant.now(),
     val isPrimary: Boolean = false,
+    /**
+     * BCP-47 tag for the language this device wants **server-generated push text** in, or null when
+     * it has never said (V22).
+     *
+     * Not the account's language — the phone's. Push notifications are composed on the server, so
+     * the app's own locale never reaches them; this is the only channel by which the reader's
+     * language is known at compose time. Null falls back to Turkish, which is what every device did
+     * before the column existed. Normalised by [normalizeDeviceLocale] on the way in.
+     */
+    val locale: String? = null,
     // ─── Multi-device (Tier 2, additive — defaults preserve single-device semantics) ───
     /** The primary device that approved this companion, or null for a primary/legacy device. */
     val linkedByDeviceId: UUID? = null,

@@ -22,8 +22,11 @@ import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.CrashReporter
 import com.muhabbet.app.util.Log
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.app_language_code
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.core.module.Module
@@ -141,6 +144,15 @@ private fun WebSocketLifecycle(root: RootComponent) {
         }
     }
 
+    // The language the app is *rendering*, read out of strings.xml itself, so it accounts for the
+    // in-app language picker and — when nothing has been picked — for the phone's own language.
+    // Push text is composed on the server, which has no other way to learn either: every
+    // notification went out in Turkish until this value started travelling with the token (#469).
+    // Deliberately the rendered language rather than the stored preference, for the same reason
+    // `selectedLanguage()` answers with what is on screen (#548): the two can disagree, and the one
+    // the user is actually reading is the one to notify in.
+    val renderedLanguage = stringResource(Res.string.app_language_code)
+
     // Register the push token whenever the session becomes active (#398). Keyed on `loggedIn`,
     // not `Unit`: this composable is mounted ABOVE the auth/main navigation switch (see App()),
     // so a Unit-keyed effect samples tokenStorage.isLoggedIn() once, before the login screen has
@@ -150,9 +162,11 @@ private fun WebSocketLifecycle(root: RootComponent) {
     // Config.Main, so first login registers a token exactly like an app start that was already
     // logged in. #349 tracks the identical Unit-key defect for WS connect, the E2E effect below
     // and background sync; this call site is scoped to push token registration only.
-    LaunchedEffect(loggedIn) {
+    // Also keyed on the rendered language, so switching language re-registers rather than leaving
+    // the server notifying in the language the user just moved away from.
+    LaunchedEffect(loggedIn, renderedLanguage) {
         if (loggedIn) {
-            pushTokenRegistrar.registerIfLoggedIn()
+            pushTokenRegistrar.registerIfLoggedIn(languageTag = renderedLanguage)
         }
     }
 
