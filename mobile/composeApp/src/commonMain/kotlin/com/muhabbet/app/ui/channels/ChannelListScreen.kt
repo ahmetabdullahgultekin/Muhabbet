@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,7 +51,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
-import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetSkeletonGate
+import com.muhabbet.designsystem.components.MuhabbetSkeletonList
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 
@@ -72,6 +72,7 @@ fun ChannelListScreen(
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
     val errorActionMsg = stringResource(Res.string.error_action_failed)
+    val loadingLabel = stringResource(Res.string.channels_loading)
 
     LaunchedEffect(Unit) {
         val failure = runCatchingCancellable { channels = channelRepository.listChannels() }.exceptionOrNull()
@@ -94,51 +95,57 @@ fun ChannelListScreen(
         },
         snackbarHostState = snackbarHostState
     ) { padding ->
-        if (isLoading) {
-            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
-        } else if (channels.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Muhabbet.icons.Channel,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(MuhabbetSpacing.Large))
-                Text(
-                    stringResource(Res.string.channels_empty),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-                items(channels, key = { it.id }) { channel ->
-                    ChannelItem(
-                        channel = channel,
-                        onClick = { onChannelClick(channel.id, channel.name) },
-                        onSubscribe = {
-                            scope.launch {
-                                runCatchingCancellable {
-                                    if (channel.isSubscribed) {
-                                        channelRepository.unsubscribe(channel.id)
-                                    } else {
-                                        channelRepository.subscribe(channel.id)
+        // Same avatar-plus-two-lines row as the conversation and community lists, so the same
+        // skeleton serves it.
+        MuhabbetSkeletonGate(
+            isLoading = isLoading,
+            modifier = Modifier.fillMaxSize().padding(padding),
+            skeleton = { MuhabbetSkeletonList(loadingLabel = loadingLabel) }
+        ) {
+            if (channels.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Muhabbet.icons.Channel,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(MuhabbetSpacing.Large))
+                    Text(
+                        stringResource(Res.string.channels_empty),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(channels, key = { it.id }) { channel ->
+                        ChannelItem(
+                            channel = channel,
+                            onClick = { onChannelClick(channel.id, channel.name) },
+                            onSubscribe = {
+                                scope.launch {
+                                    runCatchingCancellable {
+                                        if (channel.isSubscribed) {
+                                            channelRepository.unsubscribe(channel.id)
+                                        } else {
+                                            channelRepository.subscribe(channel.id)
+                                        }
+                                        channels = channelRepository.listChannels()
+                                    }.onFailure { e ->
+                                        // The subscribe button never flips on failure, so without this
+                                        // the tap looks like it simply did nothing.
+                                        Log.e(TAG, "Failed to toggle subscription for ${channel.id}", e)
+                                        snackbarHostState.showSnackbar(errorActionMsg)
                                     }
-                                    channels = channelRepository.listChannels()
-                                }.onFailure { e ->
-                                    // The subscribe button never flips on failure, so without this
-                                    // the tap looks like it simply did nothing.
-                                    Log.e(TAG, "Failed to toggle subscription for ${channel.id}", e)
-                                    snackbarHostState.showSnackbar(errorActionMsg)
                                 }
                             }
-                        }
-                    )
-                    HorizontalDivider()
+                        )
+                        HorizontalDivider()
+                    }
                 }
             }
         }

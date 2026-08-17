@@ -752,11 +752,18 @@
     <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
 
     <!-- First-run test-build notice, shown once per app version after login (#519) -->
-
     <string name="test_build_notice_title">Muhabbet is still being tested</string>
     <string name="test_build_notice_body_expectations">This is a test build, not the finished app. Some features may not work the way you expect: a message can arrive late, a screen can come up empty, a button can do nothing at all.</string>
     <string name="test_build_notice_body_reliance">So please do not rely on Muhabbet alone for a conversation that matters.</string>
     <string name="test_build_notice_body_report">If you notice something going wrong, tell us. That is how we find out what needs fixing.</string>
     <string name="test_build_notice_version">Version %1$s</string>
     <string name="test_build_notice_dismiss">Got it</string>
+
+    <!-- Skeleton loading (#499). Never drawn on screen: a skeleton hides its own placeholder rows
+         from accessibility and speaks one of these instead, so a screen reader hears the wait once
+         rather than swiping through eight empty rows. -->
+    <string name="chats_loading">Loading chats</string>
+    <string name="messages_loading">Loading messages</string>
+    <string name="communities_loading">Loading communities</string>
+    <string name="channels_loading">Loading channels</string>
 </resources>

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +42,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
-import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetSkeletonGate
+import com.muhabbet.designsystem.components.MuhabbetSkeletonList
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetFab
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -60,6 +60,7 @@ fun CommunityListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
+    val loadingLabel = stringResource(Res.string.communities_loading)
 
     LaunchedEffect(Unit) {
         val failure = runCatchingCancellable { communities = communityRepository.getCommunities() }.exceptionOrNull()
@@ -82,24 +83,31 @@ fun CommunityListScreen(
             )
         }
     ) { padding ->
-        if (isLoading) {
-            MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
-        } else if (communities.isEmpty()) {
-            MuhabbetEmptyState(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                icon = Muhabbet.icons.TabCommunities,
-                title = stringResource(Res.string.communities_empty)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
-            ) {
-                items(communities, key = { it.id }) { community ->
-                    CommunityListItem(
-                        community = community,
-                        onClick = { onCommunityClick(community.id) }
-                    )
+        // A community row is an avatar over a name and a summary line — the same shape the
+        // conversation list uses — so it shares MuhabbetSkeletonList rather than growing a third
+        // near-identical copy of it.
+        MuhabbetSkeletonGate(
+            isLoading = isLoading,
+            modifier = Modifier.fillMaxSize().padding(padding),
+            skeleton = { MuhabbetSkeletonList(loadingLabel = loadingLabel) }
+        ) {
+            if (communities.isEmpty()) {
+                MuhabbetEmptyState(
+                    modifier = Modifier.fillMaxSize(),
+                    icon = Muhabbet.icons.TabCommunities,
+                    title = stringResource(Res.string.communities_empty)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
+                ) {
+                    items(communities, key = { it.id }) { community ->
+                        CommunityListItem(
+                            community = community,
+                            onClick = { onCommunityClick(community.id) }
+                        )
+                    }
                 }
             }
         }

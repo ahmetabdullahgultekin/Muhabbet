@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.platform.SystemBarsEffect
 import kotlin.math.pow
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 // ─── Alpha tokens ───────────────────────────────────────────
 
@@ -369,6 +371,15 @@ object MuhabbetSizes {
     val SkeletonLineSmall: Dp = 12.dp
 
     /**
+     * A one-line placeholder bubble in the chat skeleton: one line of text plus the bubble's own
+     * vertical padding, so the placeholder occupies the height a short message actually will.
+     */
+    val SkeletonBubbleShort: Dp = 40.dp
+
+    /** A two-line placeholder bubble. Most messages are longer than one line, so most are these. */
+    val SkeletonBubbleTall: Dp = 62.dp
+
+    /**
      * How tall a scrolling picker inside a bottom sheet may grow.
      *
      * Capped rather than free: an unbounded `LazyColumn` in a sheet expands to the full screen, so
@@ -422,6 +433,24 @@ object MuhabbetDurations {
     const val StatusProgressTickMs: Long = 50L
     const val CallTimerTickMs: Long = 1000L
     const val ShimmerDurationMs: Int = 1200
+
+    /**
+     * How long a screen may be loading before its skeleton is shown at all.
+     *
+     * A cached list or a warm connection resolves well inside this, and a placeholder that appears
+     * and vanishes inside 80 ms does not read as "content is coming" — it reads as a glitch. Below
+     * this threshold the correct thing to draw is nothing: the screen simply arrives.
+     */
+    val SkeletonAppearAfter: Duration = 180.milliseconds
+
+    /**
+     * Once shown, how long a skeleton stays regardless of when the load finishes.
+     *
+     * Without this the delay alone is not enough: a load that lands at 190 ms would put the skeleton
+     * up for ten milliseconds, which is the same flash the delay exists to prevent, just moved. Held
+     * together the two mean a skeleton is either absent or legible, never a strobe.
+     */
+    val SkeletonMinimumVisible: Duration = 450.milliseconds
 }
 
 // ─── Gesture tokens ─────────────────────────────────────────
