@@ -41,6 +41,7 @@ import com.muhabbet.shared.model.Message
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetChip
+import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 internal enum class ConversationFilter {
     ALL, UNREAD, FAVORITES, GROUPS
@@ -82,7 +83,7 @@ internal fun MessageSearchResults(
                         maxLines = 2
                     )
                     Text(
-                        text = formatTimestamp(msg.serverTimestamp?.toString() ?: ""),
+                        text = formatTimestamp(msg.serverTimestamp?.toString() ?: "", rememberRelativeDayLabels()),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
