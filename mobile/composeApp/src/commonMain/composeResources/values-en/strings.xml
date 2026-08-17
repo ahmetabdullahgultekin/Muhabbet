@@ -104,6 +104,18 @@
     <string name="start_by_number_invite_text">You can reach me on Muhabbet, a KVKK-compliant Turkish messaging app.</string>
     <string name="start_by_number_own_number">That is your own number.</string>
 
+    <!-- Choosing people without handing over the address book (#520) -->
+    <string name="people_picker_by_number_row">Add by phone number</string>
+    <string name="people_picker_by_number_title">Add by phone number</string>
+    <string name="people_picker_by_number_action">Add</string>
+    <string name="people_picker_find_more_contacts">Allow contacts access to find more people</string>
+    <string name="people_picker_already_present">That person is already on the list.</string>
+    <string name="people_picker_empty_new_group">You have no conversations yet. Add someone by typing their number, or allow contacts access.</string>
+    <string name="people_picker_empty_add_members">Nobody else to add. Add someone by typing their number, or allow contacts access.</string>
+    <string name="group_add_members_confirm">Add to group</string>
+    <string name="group_add_members_adding">Adding…</string>
+    <string name="group_add_members_failed">Could not add members</string>
+
     <!-- Group -->
     <string name="group_create_title">New Group</string>
     <string name="group_name_label">Group Name</string>

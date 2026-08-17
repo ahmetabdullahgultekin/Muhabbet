@@ -183,6 +183,48 @@ class PhoneNumberLookupTest {
         assertTrue(CONVERSATIONS !in backend.requestedPaths, "no conversation may be created")
     }
 
+    // ─── findByNumber: the same lookup with no side effects (#520) ───────────────────────────────
+
+    @Test
+    fun findByNumber_whenTheNumberBelongsToAUser_returnsThePersonAndOpensNoChat() = runTest {
+        // What the group and add-member pickers call. Creating a direct conversation on the way to
+        // adding somebody to a group would leave the user with an empty one-to-one thread they never
+        // asked for, so the absence of the second request is the assertion that matters.
+        val backend = Backend(matchRequestedNumber = true)
+
+        val result = backend.lookup.findByNumber("0532 123 45 67")
+
+        assertEquals(PhoneLookupResult.Found("user-2", "Ayşe Yılmaz", null), result)
+        assertEquals(listOf(CONTACTS_SYNC), backend.requestedPaths)
+    }
+
+    @Test
+    fun findByNumber_answersTheSameThreeEndingsAsStartChatWith() = runTest {
+        // The two paths share one implementation precisely so they cannot drift into two different
+        // answers for the same number.
+        assertEquals(
+            PhoneLookupResult.NotOnMuhabbet,
+            Backend(matchRequestedNumber = false).lookup.findByNumber("0532 123 45 67"),
+        )
+        assertEquals(
+            PhoneLookupResult.OwnNumber,
+            Backend(matchRequestedNumber = false, ownPhoneNumber = "0532 123 45 67")
+                .lookup.findByNumber("+90 532 123 45 67"),
+        )
+        val malformed = Backend(matchRequestedNumber = true)
+        assertEquals(PhoneLookupResult.InvalidNumber, malformed.lookup.findByNumber("abc"))
+        assertTrue(malformed.requestedPaths.isEmpty(), "unusable input must cost no request")
+    }
+
+    @Test
+    fun findByNumber_whenTheServerAnswersWithAnUnrelatedContact_findsNobody() = runTest {
+        // Same defence as startChatWith. A row whose hash is not the one asked about is not an
+        // answer, and here it would put a stranger into somebody's group.
+        val backend = Backend(matchedHashOverride = sha256Hex("+905559998877"))
+
+        assertEquals(PhoneLookupResult.NotOnMuhabbet, backend.lookup.findByNumber("0532 123 45 67"))
+    }
+
     @Test
     fun startChatWith_whenTheServerRejectsTheLookup_failsInsteadOfOfferingAnInvite() = runTest {
         // Since #374 a non-2xx throws. Swallowing it into NotOnMuhabbet would invite a user to

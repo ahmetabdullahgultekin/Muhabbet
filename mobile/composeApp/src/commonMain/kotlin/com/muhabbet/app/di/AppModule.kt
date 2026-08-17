@@ -16,6 +16,7 @@ import com.muhabbet.app.data.repository.InviteLinkRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.data.repository.PhoneNumberLookup
 import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.data.repository.StatusRepository
@@ -75,6 +76,15 @@ fun appModule(): Module = module {
     // Reaching someone by typed phone number (#389). Client-only: a one-number lookup is a contact
     // sync with a one-element list, so it needs no endpoint of its own.
     single { PhoneNumberLookup(conversationRepository = get(), authRepository = get()) }
+    // Where every member picker gets its candidates (#520). ContactsProvider comes from the
+    // platform module, which is loaded alongside this one.
+    single {
+        KnownPeopleSource(
+            conversationRepository = get(),
+            contactsProvider = get(),
+            tokenStorage = get()
+        )
+    }
     single { MessageRepository(apiClient = get(), localCache = get()) }
     // Media-blob E2E (Tier 1.4) — flag-gated (E2EConfig.mediaEncryptionActive), default OFF.
     single { com.muhabbet.app.crypto.MediaEncryptor() }

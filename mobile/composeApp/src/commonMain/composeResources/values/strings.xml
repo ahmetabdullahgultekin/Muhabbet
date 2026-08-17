@@ -104,6 +104,18 @@
     <string name="start_by_number_invite_text">Muhabbet'te bana ulaşabilirsin. Muhabbet, KVKK uyumlu yerli mesajlaşma uygulamasıdır.</string>
     <string name="start_by_number_own_number">Bu sizin kendi numaranız.</string>
 
+    <!-- Choosing people without handing over the address book (#520) -->
+    <string name="people_picker_by_number_row">Numara ile ekle</string>
+    <string name="people_picker_by_number_title">Numara ile ekle</string>
+    <string name="people_picker_by_number_action">Ekle</string>
+    <string name="people_picker_find_more_contacts">Daha fazla kişi bulmak için rehbere izin ver</string>
+    <string name="people_picker_already_present">Bu kişi zaten listede.</string>
+    <string name="people_picker_empty_new_group">Henüz kimseyle sohbetiniz yok. Numara girerek kişi ekleyebilir veya rehbere izin verebilirsiniz.</string>
+    <string name="people_picker_empty_add_members">Eklenebilecek başka kişi yok. Numara girerek ekleyebilir veya rehbere izin verebilirsiniz.</string>
+    <string name="group_add_members_confirm">Gruba ekle</string>
+    <string name="group_add_members_adding">Ekleniyor…</string>
+    <string name="group_add_members_failed">Üyeler eklenemedi</string>
+
     <!-- Group -->
     <string name="group_create_title">Yeni Grup</string>
     <string name="group_name_label">Grup Adı</string>
