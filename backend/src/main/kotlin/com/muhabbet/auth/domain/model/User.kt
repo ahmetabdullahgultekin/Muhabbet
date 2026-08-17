@@ -25,5 +25,13 @@ data class User(
     // Privacy Settings
     val readReceiptsEnabled: Boolean = true,
     val onlineStatusVisibility: String = "everyone",
-    val aboutVisibility: String = "everyone"
+    val aboutVisibility: String = "everyone",
+    /**
+     * Grants the moderation review endpoints and the admin-only actuator endpoints. Granted by a
+     * hand-written UPDATE (see V21) — there is no endpoint that sets it, and no request DTO carries
+     * it. It lives on the domain model rather than only on the JPA entity because every profile and
+     * privacy write goes through `userRepository.save(user.copy(...))`; a field the domain model did
+     * not carry would be reset to false the first time an admin changed their own display name.
+     */
+    val isAdmin: Boolean = false
 )

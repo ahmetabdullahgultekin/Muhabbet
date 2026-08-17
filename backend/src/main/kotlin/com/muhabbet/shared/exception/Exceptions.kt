@@ -52,6 +52,11 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     GROUP_OWNER_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "Grup sahibi gruptan ayrılamaz, önce sahipliği devredin"),
     GROUP_CANNOT_MODIFY_DIRECT(HttpStatus.BAD_REQUEST, "Direkt mesajlaşma grupları değiştirilemez"),
 
+    // Raised when someone being added has blocked the requester. The message says the add was
+    // refused, never why — a code that named the block would let anyone test who has blocked them
+    // by trying to add them to a group.
+    GROUP_MEMBER_ADD_REFUSED(HttpStatus.FORBIDDEN, "Bu kullanıcı gruba eklenemiyor"),
+
     // Message management
     MSG_NOT_SENDER(HttpStatus.FORBIDDEN, "Sadece gönderen mesajı düzenleyebilir veya silebilir"),
     MSG_NOT_FOUND(HttpStatus.NOT_FOUND, "Mesaj bulunamadı"),

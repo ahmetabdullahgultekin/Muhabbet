@@ -63,7 +63,12 @@ class UserJpaEntity(
     var onlineStatusVisibility: String = "everyone",
 
     @Column(name = "about_visibility", nullable = false)
-    var aboutVisibility: String = "everyone"
+    var aboutVisibility: String = "everyone",
+
+    // Set by hand in SQL (V21), never by a request. Round-tripped through toDomain/fromDomain
+    // because every profile write rebuilds this entity from the domain model.
+    @Column(name = "is_admin", nullable = false)
+    var isAdmin: Boolean = false
 ) {
     fun toDomain(): User = User(
         id = id,
@@ -81,7 +86,8 @@ class UserJpaEntity(
         twoStepEnabledAt = twoStepEnabledAt,
         readReceiptsEnabled = readReceiptsEnabled,
         onlineStatusVisibility = onlineStatusVisibility,
-        aboutVisibility = aboutVisibility
+        aboutVisibility = aboutVisibility,
+        isAdmin = isAdmin
     )
 
     companion object {
@@ -101,7 +107,8 @@ class UserJpaEntity(
             twoStepEnabledAt = user.twoStepEnabledAt,
             readReceiptsEnabled = user.readReceiptsEnabled,
             onlineStatusVisibility = user.onlineStatusVisibility,
-            aboutVisibility = user.aboutVisibility
+            aboutVisibility = user.aboutVisibility,
+            isAdmin = user.isAdmin
         )
     }
 }

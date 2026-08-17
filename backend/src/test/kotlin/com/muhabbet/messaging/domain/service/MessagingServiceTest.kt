@@ -12,12 +12,14 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
+import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -42,6 +44,7 @@ class MessagingServiceTest {
     private lateinit var messageBroadcaster: MessageBroadcaster
     private lateinit var userDirectory: UserDirectoryPort
     private lateinit var readReceiptPolicy: ReadReceiptPolicyPort
+    private lateinit var blockPolicy: BlockPolicyPort
     private lateinit var conversationService: ConversationService
     private lateinit var messageService: MessageService
 
@@ -57,6 +60,9 @@ class MessagingServiceTest {
         messageBroadcaster = mockk(relaxed = true)
         userDirectory = mockk(relaxed = true)
         readReceiptPolicy = mockk(relaxed = true)
+        blockPolicy = mockk()
+        // Default across the suite: nobody has blocked anybody, so every existing expectation holds.
+        every { blockPolicy.hasBlocked(any(), any()) } returns false
 
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
@@ -69,7 +75,8 @@ class MessagingServiceTest {
             messageRepository = messageRepository,
             messageBroadcaster = messageBroadcaster,
             userDirectory = userDirectory,
-            readReceiptPolicy = readReceiptPolicy
+            readReceiptPolicy = readReceiptPolicy,
+            blockPolicy = blockPolicy
         )
     }
 
@@ -312,6 +319,156 @@ class MessagingServiceTest {
 
         verify(exactly = 2) { messageRepository.saveDeliveryStatus(any()) }
         verify { messageBroadcaster.broadcastMessage(any(), listOf(userB, userC)) }
+    }
+
+    // ─── sendMessage: blocking ───────────────────────────
+    //
+    // Before #551 `blocks` was a table nothing read: `ModerationService.isBlocked` existed and the
+    // messaging module never called it, so blocking a harasser wrote a row and they kept messaging
+    // you. These four pin the enforcement itself rather than the row — what is asserted is that no
+    // message is written, no delivery row is created and nothing is broadcast.
+
+    private fun stubDirectConversation(convId: UUID, first: UUID, second: UUID) {
+        every { conversationRepository.findMember(convId, first) } returns
+            ConversationMember(conversationId = convId, userId = first)
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = first),
+            ConversationMember(conversationId = convId, userId = second)
+        )
+        every { messageRepository.existsById(any()) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+    }
+
+    @Test
+    fun `should not persist or deliver a direct message when the recipient has blocked the sender`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        stubDirectConversation(convId, userA, userB)
+        every { blockPolicy.hasBlocked(userB, userA) } returns true
+
+        messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "let me back in",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        verify(exactly = 0) { messageRepository.save(any()) }
+        verify(exactly = 0) { messageRepository.saveDeliveryStatus(any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
+    }
+
+    @Test
+    fun `should answer a blocked sender as if the message went through`() {
+        // The silence decision, asserted rather than assumed: no exception, and the returned
+        // message is the one the caller sent, so the ServerAck the handler builds from it is
+        // indistinguishable from a delivered send. An error here would turn a block into a probe.
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        stubDirectConversation(convId, userA, userB)
+        every { blockPolicy.hasBlocked(userB, userA) } returns true
+
+        val result = messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "let me back in",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        assertEquals(messageId, result.id)
+        assertEquals("let me back in", result.content)
+        assertNotNull(result.serverTimestamp)
+    }
+
+    @Test
+    fun `should still deliver a direct message when the sender is the one who blocked`() {
+        // Directional: the question is whether the recipient blocked the sender, not the reverse.
+        // Swallowing the blocker's own outgoing message would read as a bug, not as a policy.
+        val convId = UUID.randomUUID()
+        stubDirectConversation(convId, userA, userB)
+        every { blockPolicy.hasBlocked(userB, userA) } returns false
+        every { blockPolicy.hasBlocked(userA, userB) } returns true
+
+        messageService.sendMessage(
+            SendMessageCommand(
+                messageId = UUID.randomUUID(),
+                conversationId = convId,
+                senderId = userA,
+                content = "Hello!",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        verify { messageRepository.save(any()) }
+        verify { messageBroadcaster.broadcastMessage(any(), listOf(userB)) }
+    }
+
+    @Test
+    fun `should still deliver a group message when one member has blocked the sender`() {
+        // A block does not give one member a veto over a room. Dropping the message because userB
+        // blocked userA would silently remove it for userC too.
+        val convId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.GROUP, name = "Test Group")
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            member,
+            ConversationMember(conversationId = convId, userId = userB),
+            ConversationMember(conversationId = convId, userId = userC)
+        )
+        every { messageRepository.existsById(any()) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { blockPolicy.hasBlocked(userB, userA) } returns true
+
+        messageService.sendMessage(
+            SendMessageCommand(
+                messageId = UUID.randomUUID(),
+                conversationId = convId,
+                senderId = userA,
+                content = "Hello group!",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        verify { messageRepository.save(any()) }
+        verify { messageBroadcaster.broadcastMessage(any(), listOf(userB, userC)) }
+    }
+
+    @Test
+    fun `should not deliver a scheduled direct message when the recipient has blocked the sender`() {
+        // A send scheduled before the block comes due after it. The row was written when the send
+        // was scheduled and cannot be un-written here, but the delivery rows, the socket fan-out
+        // and the push notification are all still withheld.
+        val convId = UUID.randomUUID()
+        val scheduled = TestData.textMessage(
+            id = UUID.randomUUID(),
+            conversationId = convId,
+            senderId = userA
+        )
+
+        every { messageRepository.findScheduledMessagesReadyToSend(any()) } returns listOf(scheduled)
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = userA),
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+        every { blockPolicy.hasBlocked(userB, userA) } returns true
+
+        messageService.deliverScheduledMessages()
+
+        verify(exactly = 0) { messageRepository.saveDeliveryStatus(any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
     }
 
     // ─── getMessages ─────────────────────────────────────

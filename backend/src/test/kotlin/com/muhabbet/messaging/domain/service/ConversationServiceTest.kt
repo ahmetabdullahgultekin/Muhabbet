@@ -58,7 +58,8 @@ class ConversationServiceTest {
             messageRepository = messageRepository,
             messageBroadcaster = messageBroadcaster,
             userDirectory = mockk(relaxed = true),
-            readReceiptPolicy = mockk(relaxed = true)
+            readReceiptPolicy = mockk(relaxed = true),
+            blockPolicy = mockk(relaxed = true)
         )
     }
 

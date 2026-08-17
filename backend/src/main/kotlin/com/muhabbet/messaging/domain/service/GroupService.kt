@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.shared.exception.BusinessException
@@ -21,7 +22,8 @@ import java.util.UUID
 open class GroupService(
     private val conversationRepository: ConversationRepository,
     private val userRepository: UserRepository,
-    private val messageBroadcaster: MessageBroadcaster
+    private val messageBroadcaster: MessageBroadcaster,
+    private val blockPolicy: BlockPolicyPort
 ) : ManageGroupUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -53,6 +55,21 @@ open class GroupService(
             throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
         }
         val usersMap = validUsers.associateBy { it.id }
+
+        // Someone who blocked you does not get pulled into a room with you. Unlike the send path
+        // this cannot be silent — an add that appeared to work would leave the requester believing
+        // a person is in the group who is not — so it refuses, with a code that says the add was
+        // refused and not why. GROUP_MEMBER_ADD_REFUSED is deliberately vague: naming the block
+        // would turn "add to group" into a free query for who has blocked you.
+        //
+        // The whole batch is refused, matching CONV_INVALID_PARTICIPANTS above: addMembers has
+        // always been all-or-nothing, and a partial success is the harder thing for a caller to
+        // notice. Only the *added* user's block counts; a requester adding someone they blocked
+        // themselves is their own business.
+        if (newUserIds.any { blockPolicy.hasBlocked(it, requesterId) }) {
+            log.info("Group add refused, an invitee has blocked the requester: conv={}, requester={}", conversationId, requesterId)
+            throw BusinessException(ErrorCode.GROUP_MEMBER_ADD_REFUSED)
+        }
 
         val addedMembers = newUserIds.map { uid ->
             conversationRepository.saveMember(

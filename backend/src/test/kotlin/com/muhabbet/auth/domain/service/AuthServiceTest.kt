@@ -157,6 +157,85 @@ class AuthServiceTest {
         assertEquals(900L, result.expiresIn)
     }
 
+    // ─── admin claim (#551) ─────────────────────────────
+    //
+    // The moderation review endpoints are guarded by requireAdmin(), which reads an "admin" claim
+    // that nothing ever wrote. These two pin the chain from the users.is_admin column (V21) to a
+    // token that actually carries it — at login and again at every refresh.
+
+    private fun stubVerifiableOtp(): OtpRequest {
+        val activeOtp = OtpRequest(
+            phoneNumber = validPhone,
+            otpHash = passwordEncoder.encode(validOtp) ?: "",
+            attempts = 0,
+            expiresAt = Instant.now().plusSeconds(240),
+            verified = false
+        )
+        every { otpRepository.findActiveByPhoneNumber(validPhone) } returns activeOtp
+        every { otpRepository.claimAttempt(activeOtp, any()) } returns true
+        every { otpRepository.markVerified(activeOtp) } returns Unit
+        every { deviceRepository.findByUserIdAndPlatform(any(), any()) } returns null
+        every { deviceRepository.findByUserId(any()) } returns emptyList()
+        every { deviceRepository.save(any()) } answers { firstArg() }
+        every { refreshTokenRepository.save(any()) } answers { firstArg() }
+        return activeOtp
+    }
+
+    @Test
+    fun `should mint an admin token when the user row has is_admin set`() {
+        stubVerifiableOtp()
+        val admin = User(
+            id = UUID.randomUUID(),
+            phoneNumber = validPhone,
+            status = UserStatus.ACTIVE,
+            isAdmin = true
+        )
+        every { userRepository.findByPhoneNumber(validPhone) } returns admin
+
+        val result = authService.verifyOtp(validPhone, validOtp, "Test Device", "android")
+
+        assertTrue(jwtProvider.validateToken(result.accessToken)?.isAdmin == true)
+    }
+
+    @Test
+    fun `should mint an ordinary token when the user row does not have is_admin set`() {
+        stubVerifiableOtp()
+        val plain = User(id = UUID.randomUUID(), phoneNumber = validPhone, status = UserStatus.ACTIVE)
+        every { userRepository.findByPhoneNumber(validPhone) } returns plain
+
+        val result = authService.verifyOtp(validPhone, validOtp, "Test Device", "android")
+
+        assertEquals(false, jwtProvider.validateToken(result.accessToken)?.isAdmin)
+    }
+
+    @Test
+    fun `should re-read is_admin from the user row on refresh`() {
+        // Carried over from the old token instead, a revoke would survive until the holder logged
+        // out. Re-reading bounds it to one access-token lifetime.
+        val userId = UUID.randomUUID()
+        val deviceId = UUID.randomUUID()
+        val refreshToken = "some-refresh-token"
+        every { refreshTokenRepository.findByTokenHash(any()) } returns RefreshTokenRecord(
+            userId = userId,
+            deviceId = deviceId,
+            tokenHash = "hash",
+            expiresAt = Instant.now().plusSeconds(3600)
+        )
+        every { refreshTokenRepository.revokeByTokenHash(any()) } returns Unit
+        every { refreshTokenRepository.save(any()) } answers { firstArg() }
+        every { userRepository.findById(userId) } returns User(
+            id = userId,
+            phoneNumber = validPhone,
+            status = UserStatus.ACTIVE,
+            isAdmin = true
+        )
+
+        val result = authService.refresh(refreshToken)
+
+        assertTrue(jwtProvider.validateToken(result.accessToken)?.isAdmin == true)
+        verify { userRepository.findById(userId) }
+    }
+
     @Test
     fun `should throw AUTH_OTP_EXPIRED when no active OTP`() {
         every { otpRepository.findActiveByPhoneNumber(validPhone) } returns null
@@ -224,6 +303,9 @@ class AuthServiceTest {
         every { refreshTokenRepository.findByTokenHash(tokenHash) } returns record
         every { refreshTokenRepository.revokeByTokenHash(tokenHash) } returns Unit
         every { refreshTokenRepository.save(any()) } answers { firstArg() }
+        // Refresh re-reads the user row for the admin flag (#551), so it needs a row to read.
+        every { userRepository.findById(userId) } returns
+            User(id = userId, phoneNumber = validPhone, status = UserStatus.ACTIVE)
 
         val result = authService.refresh(rawToken)
 
