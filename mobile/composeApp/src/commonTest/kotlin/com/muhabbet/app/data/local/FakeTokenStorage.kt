@@ -75,4 +75,8 @@ class FakeTokenStorage : TokenStorage {
     private var testBuildNoticeAckVersion: String? = null
     override fun getTestBuildNoticeAckVersion(): String? = testBuildNoticeAckVersion
     override fun setTestBuildNoticeAckVersion(version: String) { testBuildNoticeAckVersion = version }
+
+    private var notificationPermissionAsked: Boolean = false
+    override fun getNotificationPermissionAsked(): Boolean = notificationPermissionAsked
+    override fun setNotificationPermissionAsked() { notificationPermissionAsked = true }
 }
