@@ -3,6 +3,49 @@
 
 ---
 
+## 📢 YAYIMLANAN SÜRÜM / PUBLISHED VERSION → `docs/site/`
+
+**Bu klasör artık yayımlanan metin değildir.** Kullanıcıların gördüğü belgeler
+`docs/site/` altındadır ve <https://muhabbet.rollingcatsoftware.com> adresinde yayındadır:
+
+| Yayımlanan | Bu klasördeki karşılığı |
+|---|---|
+| [`docs/site/privacy.html`](../site/privacy.html) | `01-gizlilik-politikasi.md` |
+| [`docs/site/aydinlatma.html`](../site/aydinlatma.html) | `02-aydinlatma-metni.md` |
+| [`docs/site/terms.html`](../site/terms.html) | `04-kullanim-kosullari.md` |
+| *(henüz yayımlanmadı)* | `03-acik-riza-metni.md`, `05-cerez-politikasi.md` |
+
+**Bir çelişki olursa `docs/site/` kazanır** — yayımlanan metin odur.
+
+### Bu setteki, 2026-08-17'de üretime karşı doğrulanan dört olgusal hata
+
+Aşağıdakiler yayımlanan sürümde düzeltildi; bu klasördeki markdown dosyaları **henüz düzeltilmedi**:
+
+1. **SMS sağlayıcısı yanlış.** Set "Netgsm *(veya devreye alınırsa Twilio)*" diyor. Üretimde
+   `SMS_PROVIDER=twilio-verify` — yani **Twilio canlı olan**, Netgsm değil. Bu bir **yurt dışı
+   aktarımdır** (ABD) ve KVKK m.9 kapsamında açıklanması gerekir; set bunu Türkiye'de gösteriyordu.
+2. **Sentry hiç geçmiyor.** Çalışan konteynerde `SENTRY_DSN` tanımlı. Açıklanmamış bir veri işleyen.
+3. **Bildirim gövdesi açıklanmamış.** `PushNotificationComposer` metin mesajlarının **ilk 100
+   karakterini** FCM gövdesine koyuyor (`MAX_BODY_LENGTH = 100`), yani mesaj içeriği Google'ın
+   altyapısından geçiyor. Kullanıcının bilmesi gereken en somut şeylerden biri.
+4. **"Telefon numarası zorunlu değildir" yanlış.** Bugün kayıt yalnızca telefonla yapılıyor;
+   kullanıcı adı ile keşif henüz yok (#417 açık). Yol haritası, mevcut durum gibi anlatılmış.
+
+Ayrıca: eski `docs/privacy-policy.html` **silindi** (bu commit'te). İki maddi yanlış iddiası vardı
+(GCP europe-west1 → gerçekte Hetzner Almanya; "medya şifreli depolamada" → SSE doğrulanamadı) ve
+telefon numarasının hash'lenerek saklandığını söylüyordu — `users.phone_number` açık metindir.
+
+### Hâlâ avukat incelemesi gereken konular
+
+Yayımlama kararı sahibinindir ve alınmıştır. Aşağıdakiler bundan bağımsız olarak açık kalır ve
+`docs/site/` metinleri bunları **iddia etmez**: tüzel kişilik/unvan/adres alanları, VERBİS kaydı,
+5651 kapsamındaki log saklama süresi ve kaldırma SLA'sı, yaş kapısı eşiği, yurt dışı aktarımlar için
+DPA/SCC'ler, ve veri ihlali bildirim süreci.
+
+---
+
+---
+
 # Muhabbet — Hukuki Belgeler / Legal Documents
 
 Bu klasör, Muhabbet için KVKK/GDPR uyumlu **taslak** hukuki belge setini içerir. **Tüm belgeler taslaktır** ve yayımlanmadan önce Türk veri koruma avukatı tarafından incelenmelidir.
