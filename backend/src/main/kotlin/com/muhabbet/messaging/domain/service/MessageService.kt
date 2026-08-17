@@ -143,20 +143,22 @@ open class MessageService(
         }
 
         // Create delivery status for all recipients
-        val recipientIds = members.map { it.userId }.filter { it != command.senderId }
+        val recipients = members.filter { it.userId != command.senderId }
 
-        recipientIds.forEach { recipientId ->
+        recipients.forEach { member ->
             messageRepository.saveDeliveryStatus(
                 MessageDeliveryStatus(
                     messageId = message.id,
-                    userId = recipientId,
+                    userId = member.userId,
                     status = DeliveryStatus.SENT
                 )
             )
         }
 
-        // Broadcast to online recipients
-        messageBroadcaster.broadcastMessage(message, recipientIds)
+        // Broadcast to online recipients. Each recipient's own ConversationMember rides along so
+        // the broadcaster can withhold the offline push from whoever muted this conversation
+        // (#571) without a second query per recipient.
+        messageBroadcaster.broadcastMessage(message, recipients)
 
         log.info("Message sent: id={}, conv={}, sender={}", message.id, command.conversationId, command.senderId)
         return message
@@ -508,19 +510,19 @@ open class MessageService(
                 continue
             }
 
-            val recipientIds = members.map { it.userId }.filter { it != message.senderId }
+            val recipients = members.filter { it.userId != message.senderId }
 
-            recipientIds.forEach { recipientId ->
+            recipients.forEach { member ->
                 messageRepository.saveDeliveryStatus(
                     MessageDeliveryStatus(
                         messageId = message.id,
-                        userId = recipientId,
+                        userId = member.userId,
                         status = DeliveryStatus.SENT
                     )
                 )
             }
 
-            messageBroadcaster.broadcastMessage(message, recipientIds)
+            messageBroadcaster.broadcastMessage(message, recipients)
             delivered++
             log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
         }
