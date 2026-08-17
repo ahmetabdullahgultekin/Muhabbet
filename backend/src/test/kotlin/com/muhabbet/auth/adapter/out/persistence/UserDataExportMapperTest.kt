@@ -41,7 +41,8 @@ class UserDataExportMapperTest {
                 clientTimestamp = now,
                 editedAt = null,
                 isDeleted = false,
-                senderDisplayName = "Me"
+                senderDisplayName = "Me",
+                viewOnce = false
             )
 
             assertEquals(MessageDirection.SENT, result.direction)
@@ -63,7 +64,8 @@ class UserDataExportMapperTest {
                 clientTimestamp = now,
                 editedAt = null,
                 isDeleted = false,
-                senderDisplayName = "Ayşe"
+                senderDisplayName = "Ayşe",
+                viewOnce = false
             )
 
             assertEquals(MessageDirection.RECEIVED, result.direction)
@@ -76,14 +78,16 @@ class UserDataExportMapperTest {
                 requestingUserId = requestingUserId, contentType = "text", content = "hi",
                 mediaUrl = null, replyToId = null, forwardedFromId = null,
                 serverTimestamp = now, clientTimestamp = now, editedAt = null, isDeleted = false,
-                senderDisplayName = "Ayşe"
+                senderDisplayName = "Ayşe",
+                viewOnce = false
             )
             val sent = UserDataExportMapper.toExportedMessage(
                 id = messageId, conversationId = conversationId, senderId = requestingUserId,
                 requestingUserId = requestingUserId, contentType = "text", content = "hi",
                 mediaUrl = null, replyToId = null, forwardedFromId = null,
                 serverTimestamp = now, clientTimestamp = now, editedAt = null, isDeleted = false,
-                senderDisplayName = "Me"
+                senderDisplayName = "Me",
+                viewOnce = false
             )
 
             assertEquals("Ayşe", received.counterpartyDisplayName)
@@ -99,7 +103,8 @@ class UserDataExportMapperTest {
                 mediaUrl = "https://cdn.example/secret.jpg",
                 replyToId = null, forwardedFromId = null,
                 serverTimestamp = now, clientTimestamp = now, editedAt = null, isDeleted = true,
-                senderDisplayName = null
+                senderDisplayName = null,
+                viewOnce = false
             )
 
             assertNull(result.content)
@@ -115,11 +120,31 @@ class UserDataExportMapperTest {
                 mediaUrl = "https://cdn.example/photo.jpg",
                 replyToId = null, forwardedFromId = null,
                 serverTimestamp = now, clientTimestamp = now, editedAt = null, isDeleted = false,
-                senderDisplayName = null
+                senderDisplayName = null,
+                viewOnce = false
             )
 
             assertEquals("hello", result.content)
             assertEquals("https://cdn.example/photo.jpg", result.mediaUrl)
+        }
+
+        @Test
+        fun `should redact the media url of a view-once message`() {
+            val result = UserDataExportMapper.toExportedMessage(
+                id = messageId, conversationId = conversationId, senderId = requestingUserId,
+                requestingUserId = requestingUserId, contentType = "image", content = "Photo",
+                mediaUrl = "https://cdn.example/sealed.jpg?X-Amz-Signature=deadbeef",
+                replyToId = null, forwardedFromId = null,
+                serverTimestamp = now, clientTimestamp = now, editedAt = null, isDeleted = false,
+                senderDisplayName = null,
+                viewOnce = true
+            )
+
+            // A KVKK export is a legitimate way out of the product for anything the product would
+            // still show you. It shows nobody this: the URL is presigned and needs no credential,
+            // so exporting it would hand back in a zip exactly what the seal exists to withhold.
+            assertNull(result.mediaUrl)
+            assertEquals("Photo", result.content)
         }
     }
 

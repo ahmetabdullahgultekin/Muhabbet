@@ -6,51 +6,115 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.platform.SystemBarsEffect
+import kotlin.math.pow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
+// ─── Alpha tokens ───────────────────────────────────────────
+
+object MuhabbetAlphas {
+    /** Opacity of the control bars drawn over the full-screen media viewer's backdrop. */
+    const val ScrimOverlay = 0.5f
+
+    /**
+     * How far the unfilled part of a progress or result bar falls back from the filled part.
+     *
+     * A token rather than a number at each bar because the two that exist — the voice-note scrubber
+     * and the poll result — used 0.3 and 0.2 for the same idea, and both derived the fill from a
+     * colour that was not on the surface behind them. The fill is now the surface's own foreground
+     * and the track is this much of it, so the pair holds wherever the bar is drawn.
+     */
+    const val ProgressTrack = 0.24f
+}
+
 // ─── Semantic colors (beyond M3 colorScheme) ────────────────
 
-/** Opacity of the control bars drawn over the full-screen media viewer's backdrop. */
-private const val ScrimOverlayAlpha = 0.5f
+/**
+ * A ground and the one foreground that is allowed on it.
+ *
+ * The reason this type exists is #517: the selected option in a poll was unreadable in every theme,
+ * because a call site picked a filled container from one place and its text colour from another.
+ * That is not a mistake anyone makes once — the same shape produced `Color.White` on
+ * `colorScheme.primary` in two list rows, and it will produce a third the next time a selected state
+ * is drawn, because nothing about picking a background suggests that a matching foreground exists.
+ *
+ * So the two travel together. `Muhabbet.colors.selected` hands back both; there is no way to reach
+ * the container without the content sitting in the same expression, and
+ * [com.muhabbet.designsystem.theme] has a test that measures every one of these pairs, in all three
+ * themes, against the WCAG floors.
+ */
+@Immutable
+data class MuhabbetColorPair(
+    val container: Color,
+    val content: Color
+)
 
 data class MuhabbetSemanticColors(
+    // ── Marks ───────────────────────────────────────────────
+    // A glyph or a rule drawn ON something else. These are foregrounds, never grounds, so they have
+    // no partner — what they must contrast against is whatever surface they land on, and the test
+    // names those surfaces explicitly.
     val statusOnline: Color,
     val statusRead: Color,
     val statusDelivered: Color,
     val statusSending: Color,
-    val callDecline: Color,
-    val onCallDecline: Color,
-    val callAccept: Color,
-    val onCallAccept: Color,
     val callMissed: Color,
-    val bubbleOwn: Color,
-    val bubbleOther: Color,
-    val onBubbleOwn: Color,
-    val onBubbleOther: Color,
     val linkColor: Color,
-    val chatWallpaper: Color,
-    val inputBarBackground: Color,
-    val inputFieldBackground: Color,
     val dividerColor: Color,
     val secondaryText: Color,
-    val unreadBadge: Color,
-    val onUnreadBadge: Color,
+
+    // ── Grounds ─────────────────────────────────────────────
+    // Every one arrives with its foreground attached. See [MuhabbetColorPair].
+    val callDecline: MuhabbetColorPair,
+    val callAccept: MuhabbetColorPair,
+    val bubbleOwn: MuhabbetColorPair,
+    val bubbleOther: MuhabbetColorPair,
+
+    /**
+     * A panel inset into a bubble — a poll option, a quoted reply — and the same panel once it is
+     * the chosen one.
+     *
+     * Separate from [selected] because a bubble is not a surface. The own bubble is already a copper
+     * wash, so the app-wide selection colour lands on top of a ground it was never measured against;
+     * that is precisely how the poll ended up drawing `onPrimary` over `bubbleOwn`.
+     */
+    val bubbleOwnInset: MuhabbetColorPair,
+    val bubbleOwnInsetSelected: MuhabbetColorPair,
+    val bubbleOtherInset: MuhabbetColorPair,
+    val bubbleOtherInsetSelected: MuhabbetColorPair,
+
+    val unreadBadge: MuhabbetColorPair,
+    val chatWallpaper: MuhabbetColorPair,
+    val inputBar: MuhabbetColorPair,
+    val inputField: MuhabbetColorPair,
+
+    /**
+     * A filled selection on an ordinary surface: the chosen filter chip, the chosen wallpaper tab,
+     * the chosen language row. Loud on purpose — it is the brand fill.
+     */
+    val selected: MuhabbetColorPair,
+
+    /**
+     * A selection that has to stay quiet: a whole row that is merely current, a swatch's backing
+     * plate. Same decision, a tenth of the volume, and still measured.
+     */
+    val selectedSubtle: MuhabbetColorPair,
+
     /**
      * Backdrop of the immersive full-screen media viewer. Deliberately identical in every
      * variant — the viewer is theme-independent so that photos are judged against black.
      */
-    val scrim: Color,
+    val scrim: MuhabbetColorPair,
+
     /** Translucent bar drawn over the [scrim] to carry the viewer's controls. */
-    val scrimOverlay: Color,
-    /** Icons and labels drawn on [scrim] / [scrimOverlay]. */
-    val onScrim: Color
+    val scrimOverlay: MuhabbetColorPair
 )
 
 /*
@@ -67,26 +131,27 @@ val LightSemanticColors = MuhabbetSemanticColors(
     statusRead = MuhabbetPalette.InfoBlue,
     statusDelivered = MuhabbetPalette.Ink.I50,
     statusSending = MuhabbetPalette.Ink.I50,
-    callDecline = MuhabbetPalette.Danger,
-    onCallDecline = Color.White,
-    callAccept = MuhabbetPalette.Success,
-    onCallAccept = Color.White,
     callMissed = MuhabbetPalette.Danger,
-    bubbleOwn = MuhabbetPalette.BubbleOwnLight,
-    bubbleOther = Color.White,
-    onBubbleOwn = MuhabbetPalette.Ink.I10,
-    onBubbleOther = MuhabbetPalette.Ink.I10,
     linkColor = MuhabbetPalette.Copper.C40,
-    chatWallpaper = MuhabbetPalette.WallpaperLight,
-    inputBarBackground = Color.White,
-    inputFieldBackground = MuhabbetPalette.Ink.I95,
     dividerColor = MuhabbetPalette.Ink.I80,
     secondaryText = MuhabbetPalette.Ink.I40,
-    unreadBadge = MuhabbetPalette.Copper.C50,
-    onUnreadBadge = Color.White,
-    scrim = Color.Black,
-    scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
-    onScrim = Color.White
+
+    callDecline = MuhabbetColorPair(MuhabbetPalette.Danger, Color.White),
+    callAccept = MuhabbetColorPair(MuhabbetPalette.Success, Color.White),
+    bubbleOwn = MuhabbetColorPair(MuhabbetPalette.BubbleOwnLight, MuhabbetPalette.Ink.I10),
+    bubbleOther = MuhabbetColorPair(Color.White, MuhabbetPalette.Ink.I10),
+    bubbleOwnInset = MuhabbetColorPair(MuhabbetPalette.CopperContainerLight, MuhabbetPalette.Ink.I10),
+    bubbleOwnInsetSelected = MuhabbetColorPair(MuhabbetPalette.Copper.C80, MuhabbetPalette.OnCopperContainerLight),
+    bubbleOtherInset = MuhabbetColorPair(MuhabbetPalette.Ink.I95, MuhabbetPalette.Ink.I10),
+    bubbleOtherInsetSelected = MuhabbetColorPair(MuhabbetPalette.CopperContainerLight, MuhabbetPalette.OnCopperContainerLight),
+    unreadBadge = MuhabbetColorPair(MuhabbetPalette.Copper.C40, Color.White),
+    chatWallpaper = MuhabbetColorPair(MuhabbetPalette.WallpaperLight, MuhabbetPalette.Ink.I10),
+    inputBar = MuhabbetColorPair(Color.White, MuhabbetPalette.Ink.I10),
+    inputField = MuhabbetColorPair(MuhabbetPalette.Ink.I95, MuhabbetPalette.Ink.I10),
+    selected = MuhabbetColorPair(MuhabbetPalette.Copper.C40, Color.White),
+    selectedSubtle = MuhabbetColorPair(MuhabbetPalette.CopperContainerLight, MuhabbetPalette.OnCopperContainerLight),
+    scrim = MuhabbetColorPair(Color.Black, Color.White),
+    scrimOverlay = MuhabbetColorPair(Color.Black.copy(alpha = MuhabbetAlphas.ScrimOverlay), Color.White)
 )
 
 val DarkSemanticColors = MuhabbetSemanticColors(
@@ -94,37 +159,71 @@ val DarkSemanticColors = MuhabbetSemanticColors(
     statusRead = MuhabbetPalette.InfoBlueOnDark,
     statusDelivered = MuhabbetPalette.Ink.I60,
     statusSending = MuhabbetPalette.Ink.I60,
-    callDecline = MuhabbetPalette.DangerOnDark,
-    onCallDecline = MuhabbetPalette.Ink.I05,
-    callAccept = MuhabbetPalette.SuccessOnDark,
-    onCallAccept = MuhabbetPalette.Ink.I05,
     callMissed = MuhabbetPalette.DangerOnDark,
-    bubbleOwn = MuhabbetPalette.BubbleOwnDark,
-    bubbleOther = MuhabbetPalette.Ink.I15,
-    onBubbleOwn = MuhabbetPalette.PaperOnDark,
-    onBubbleOther = MuhabbetPalette.PaperOnDark,
     linkColor = MuhabbetPalette.Copper.C80,
-    chatWallpaper = MuhabbetPalette.Ink.I00,
-    inputBarBackground = MuhabbetPalette.Ink.I15,
-    inputFieldBackground = MuhabbetPalette.Ink.I20,
     dividerColor = MuhabbetPalette.Ink.I20,
-    secondaryText = MuhabbetPalette.Ink.I60,
-    unreadBadge = MuhabbetPalette.Copper.C70,
-    onUnreadBadge = MuhabbetPalette.Ink.I05,
-    scrim = Color.Black,
-    scrimOverlay = Color.Black.copy(alpha = ScrimOverlayAlpha),
-    onScrim = Color.White
+    // I70, not I60. Every timestamp and every "3 votes" caption under an outgoing message is drawn
+    // in this colour on the copper-brown own bubble, where I60 lands at 3.88:1 — below the body
+    // floor, on the single most repeated piece of text in the app. It also failed on the input
+    // field (4.33:1). I70 clears both at 5.75:1 and 6.43:1.
+    secondaryText = MuhabbetPalette.Ink.I70,
+
+    callDecline = MuhabbetColorPair(MuhabbetPalette.DangerOnDark, MuhabbetPalette.Ink.I05),
+    callAccept = MuhabbetColorPair(MuhabbetPalette.SuccessOnDark, MuhabbetPalette.Ink.I05),
+    bubbleOwn = MuhabbetColorPair(MuhabbetPalette.BubbleOwnDark, MuhabbetPalette.PaperOnDark),
+    bubbleOther = MuhabbetColorPair(MuhabbetPalette.Ink.I15, MuhabbetPalette.PaperOnDark),
+    bubbleOwnInset = MuhabbetColorPair(MuhabbetPalette.CopperContainerDark, MuhabbetPalette.PaperOnDark),
+    bubbleOwnInsetSelected = MuhabbetColorPair(MuhabbetPalette.Copper.C60, MuhabbetPalette.Ink.I05),
+    bubbleOtherInset = MuhabbetColorPair(MuhabbetPalette.Ink.I20, MuhabbetPalette.PaperOnDark),
+    bubbleOtherInsetSelected = MuhabbetColorPair(MuhabbetPalette.CopperContainerDark, MuhabbetPalette.Copper.C90),
+    unreadBadge = MuhabbetColorPair(MuhabbetPalette.Copper.C70, MuhabbetPalette.Ink.I05),
+    chatWallpaper = MuhabbetColorPair(MuhabbetPalette.Ink.I00, MuhabbetPalette.PaperOnDark),
+    inputBar = MuhabbetColorPair(MuhabbetPalette.Ink.I15, MuhabbetPalette.PaperOnDark),
+    inputField = MuhabbetColorPair(MuhabbetPalette.Ink.I20, MuhabbetPalette.PaperOnDark),
+    selected = MuhabbetColorPair(MuhabbetPalette.Copper.C70, MuhabbetPalette.Ink.I05),
+    selectedSubtle = MuhabbetColorPair(MuhabbetPalette.CopperContainerDark, MuhabbetPalette.Copper.C90),
+    scrim = MuhabbetColorPair(Color.Black, Color.White),
+    scrimOverlay = MuhabbetColorPair(Color.Black.copy(alpha = MuhabbetAlphas.ScrimOverlay), Color.White)
 )
 
 val OledSemanticColors = DarkSemanticColors.copy(
-    bubbleOther = MuhabbetPalette.Ink.I00,
-    chatWallpaper = Color.Black,
-    inputBarBackground = MuhabbetPalette.Ink.I00,
-    inputFieldBackground = MuhabbetPalette.Ink.I10,
+    bubbleOther = MuhabbetColorPair(MuhabbetPalette.Ink.I00, MuhabbetPalette.PaperOnDark),
+    bubbleOtherInset = MuhabbetColorPair(MuhabbetPalette.Ink.I10, MuhabbetPalette.PaperOnDark),
+    chatWallpaper = MuhabbetColorPair(Color.Black, MuhabbetPalette.PaperOnDark),
+    inputBar = MuhabbetColorPair(MuhabbetPalette.Ink.I00, MuhabbetPalette.PaperOnDark),
+    inputField = MuhabbetColorPair(MuhabbetPalette.Ink.I10, MuhabbetPalette.PaperOnDark),
     dividerColor = MuhabbetPalette.Ink.I10
 )
 
 val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
+
+/**
+ * Pairs an arbitrary colour with a foreground that is actually legible on it.
+ *
+ * For the colours the palette chose there is always a declared partner. For the ones it did not —
+ * a wallpaper swatch the user picked, twelve of them running from near-white to near-black — there
+ * cannot be. The wallpaper picker drew a hardcoded white tick on all twelve, so on the six pale
+ * swatches the "selected" mark was invisible at roughly 1.1:1, which is the same defect as #517
+ * wearing different clothes.
+ *
+ * Relative luminance, WCAG's own formula, then whichever of ink and paper is further away. Both ends
+ * of the [MuhabbetPalette.Ink] ramp are extreme enough that the loser still clears 4.5:1 on any
+ * midtone, so this cannot return an unreadable answer.
+ */
+fun readableContentOn(container: Color): MuhabbetColorPair {
+    fun linear(channel: Float): Double {
+        val v = channel.toDouble()
+        return if (v <= 0.03928) v / 12.92 else ((v + 0.055) / 1.055).pow(2.4)
+    }
+
+    val luminance = 0.2126 * linear(container.red) +
+        0.7152 * linear(container.green) +
+        0.0722 * linear(container.blue)
+
+    // 0.179 is where black and white contrast equally against a colour; below it, paper wins.
+    val content = if (luminance > 0.179) MuhabbetPalette.Ink.I10 else MuhabbetPalette.PaperOnDark
+    return MuhabbetColorPair(container, content)
+}
 
 // ─── Spacing tokens ─────────────────────────────────────────
 

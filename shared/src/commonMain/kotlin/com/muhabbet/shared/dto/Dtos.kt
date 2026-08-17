@@ -572,11 +572,23 @@ data class GroupEventResponse(
 data class RsvpRequest(val status: String)  // GOING, NOT_GOING, MAYBE
 
 // ─── View-Once DTOs ─────────────────────────────────────
+
+/**
+ * The one-time release of a view-once message's media.
+ *
+ * Returned by `POST /api/v1/messages/{messageId}/view-once`, which is the **only** response in the
+ * API that carries a view-once blob URL — every list, search, media-grid and socket payload nulls
+ * it. The call burns the message in the same transaction that reads it, so a second caller (or a
+ * second tap) gets `MSG_VIEW_ONCE_ALREADY_VIEWED` and no URL.
+ *
+ * Replaced a `ViewOnceStatusResponse` that had no producer and no consumer.
+ */
 @Serializable
-data class ViewOnceStatusResponse(
+data class ViewOnceRevealResponse(
     val messageId: String,
-    val viewed: Boolean,
-    val viewedAt: Long? = null
+    val mediaUrl: String? = null,
+    val thumbnailUrl: String? = null,
+    val viewedAt: Long
 )
 
 // ─── Wallpaper DTOs ─────────────────────────────────────

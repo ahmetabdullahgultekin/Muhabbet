@@ -165,10 +165,10 @@ fun MessageInputBar(
     onScheduleSend: () -> Unit = {}
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
-    val fieldBackground = LocalSemanticColors.current.inputFieldBackground
+    val fieldBackground = LocalSemanticColors.current.inputField.container
 
     Surface(
-        color = LocalSemanticColors.current.inputBarBackground,
+        color = LocalSemanticColors.current.inputBar.container,
         tonalElevation = MuhabbetElevation.None
     ) {
         Row(

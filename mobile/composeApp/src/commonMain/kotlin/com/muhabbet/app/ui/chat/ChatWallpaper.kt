@@ -33,7 +33,9 @@ internal fun ChatWallpaper(modifier: Modifier = Modifier) {
     val wallpaperRepository: WallpaperRepository = koinInject()
     val isDarkTheme = LocalThemeMode.current != ResolvedThemeMode.Light
     val wallpaper = remember(isDarkTheme) { wallpaperRepository.resolveWallpaper(isDarkTheme) }
-    val defaultWallpaperColor = LocalSemanticColors.current.chatWallpaper
+    // `.container` since #536: every semantic ground now ships with the foreground that is legible
+    // on it. Only the ground is wanted here — nothing is drawn *on* the wallpaper by this composable.
+    val defaultWallpaperColor = LocalSemanticColors.current.chatWallpaper.container
 
     when (wallpaper) {
         is WallpaperRepository.ChatWallpaper.Custom -> AsyncImage(

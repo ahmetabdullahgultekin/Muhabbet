@@ -106,20 +106,70 @@ recognisable inherited signature in the product, and restraint is most of what r
 lifts to `surfaceContainer` on scroll — M3's own elevation-by-colour, legible only now that the
 container ramp is filled in.
 
+### Colours ship in pairs
+
+A container and its foreground are one token, `MuhabbetColorPair`, not two fields a call site picks
+separately. This is #517's doing: the selected option in a poll was unreadable in every theme
+because the bubble behind it is `bubbleOwn` — a pale copper wash in light, a deep copper-brown in
+dark — while the text on it was `colorScheme.onPrimary`. Nothing about choosing a background
+suggests that a matching foreground exists, so the same shape had already produced `Color.White` on
+`colorScheme.primary` in two list rows and a hardcoded white tick on twelve wallpaper swatches, six
+of which are near-white.
+
+So `Muhabbet.colors.selected` hands back both halves in one expression, and there is no way to reach
+the container without the content. The pairs that exist:
+
+- `bubbleOwn` / `bubbleOther` — the two message grounds
+- `bubbleOwnInset` / `bubbleOtherInset` and their `…Selected` forms — a panel inset **into** a
+  bubble (poll option, link preview, quoted reply). Separate from `selected` because a bubble is not
+  a surface: the app-wide selection colour was never measured against a copper ground.
+- `selected` / `selectedSubtle` — a filled selection on an ordinary surface, loud and quiet
+- `unreadBadge`, `callAccept`, `callDecline`, `chatWallpaper`, `inputBar`, `inputField`, `scrim`,
+  `scrimOverlay`
+
+For the one ground the palette does **not** choose — a wallpaper swatch the user picked — there is
+`readableContentOn(container)`, which derives the foreground from the swatch's own luminance and
+returns it as a pair.
+
+The eight remaining tokens are **marks**, not grounds: `statusOnline`, `statusRead`,
+`statusDelivered`, `statusSending`, `callMissed`, `linkColor`, `dividerColor`, `secondaryText`.
+A mark has no partner of its own — what it must clear is whichever ground it lands on, and the test
+names those grounds explicitly rather than assuming.
+
 ### Contrast is a merge gate
 
-`SemanticColorContrastTest` measures 16 pairs × 3 schemes against WCAG relative luminance: 4.5:1 for
-text, 3:1 for non-text (ticks, dots, badges), with translucent foregrounds flattened onto their
-background first.
+`SemanticColorContrastTest` measures every declared pair × 3 schemes against WCAG relative
+luminance, plus every Material role pairing (`onPrimary`/`primary`, `onSurface`/`surfaceContainer*`,
+accent text on each surface, outlines) and every mark against the grounds it is drawn on: 4.5:1 for
+text, 3:1 for non-text (ticks, dots, badges, outlines), with translucent foregrounds flattened onto
+their background first.
+
+**One exemption, on the record.** `outlineVariant` is M3's decorative divider role — the hairline
+between two list rows, where separation is already carried by whitespace. WCAG 1.4.11 exempts
+purely decorative graphics, so it is held to a `decorativeFloor` of 1.1:1 instead of 3:1. That floor
+is not a pass: it catches "the divider has become literally invisible", which OLED's did at 1.09:1.
+Nothing else in the file may use it.
 
 Its `knownDebt` set is **empty and stays empty**. It previously held 21 pairs inherited with the
 clone — the unread badge at 1.98:1, the "sending" clock at 1.69:1 on its own bubble. The test fails
 **in both directions**: a pair that regresses fails the build, and a pair that is fixed must be
 removed from the set. Adding an entry back is a deliberate act with a reviewer attached.
 
-Two Material roles were adjusted off the obvious choice to clear the floor, both recorded in
-`MuhabbetPalette.kt`: dark `surfaceVariant` is `I15` not `I20` (`I60` on `I20` is 4.33:1), and
-`outline` is `I50` not `I40` (2.33:1 against its surface — and an outline carries information).
+Material roles adjusted off the obvious choice to clear the floor, each recorded at its line in
+`MuhabbetPalette.kt`:
+
+| Role | Was | Is | Why |
+|---|---|---|---|
+| dark `surfaceVariant` | `I20` | `I15` | secondary text on it was 4.33:1 |
+| dark + OLED `outline` | `I40` | `I50` | 2.33:1 against its surface; an outline carries information |
+| light `outline` | `I60` | `I50` | 2.84:1 on `surfaceContainer` — a field on a card had no border |
+| light `primary` | `C50` | `C40` | accent **text** on `surfaceContainer` was 4.40:1, on `…High` 4.04:1. Also lifts white-on-primary 4.86 → 6.60. Tone 40 is M3's own light primary. |
+| light `secondary` | `C40` | `C30` | keeps a distinct rung now that primary took `C40` |
+| dark + OLED `onSurfaceVariant` | `I60` | `I70` | 4.33:1 on `surfaceContainerHighest` — menus, sheets and raised cards, which carry most of the app's secondary text |
+| dark + OLED `secondaryText` | `I60` | `I70` | 3.88:1 on the own bubble — every outgoing timestamp in the app |
+| OLED `outlineVariant` | `I10` | `I20` | 1.09:1 on a raised container: not a quiet divider, an absent one |
+
+None of these moves a hue. Every one is a different rung of the same Ink or Copper ramp.
 
 ---
 

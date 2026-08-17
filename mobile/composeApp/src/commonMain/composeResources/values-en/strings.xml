@@ -106,6 +106,18 @@
     <string name="start_by_number_invite_text">You can reach me on Muhabbet, a KVKK-compliant Turkish messaging app.</string>
     <string name="start_by_number_own_number">That is your own number.</string>
 
+    <!-- Choosing people without handing over the address book (#520) -->
+    <string name="people_picker_by_number_row">Add by phone number</string>
+    <string name="people_picker_by_number_title">Add by phone number</string>
+    <string name="people_picker_by_number_action">Add</string>
+    <string name="people_picker_find_more_contacts">Allow contacts access to find more people</string>
+    <string name="people_picker_already_present">That person is already on the list.</string>
+    <string name="people_picker_empty_new_group">You have no conversations yet. Add someone by typing their number, or allow contacts access.</string>
+    <string name="people_picker_empty_add_members">Nobody else to add. Add someone by typing their number, or allow contacts access.</string>
+    <string name="group_add_members_confirm">Add to group</string>
+    <string name="group_add_members_adding">Adding…</string>
+    <string name="group_add_members_failed">Could not add members</string>
+
     <!-- Group -->
     <string name="group_create_title">New Group</string>
     <string name="group_name_label">Group Name</string>
@@ -146,12 +158,16 @@
     <string name="settings_about_placeholder">Using Muhabbet</string>
     <string name="settings_save">Save</string>
     <string name="settings_app_section">App</string>
-    <string name="settings_version">Version</string>
+    <!-- Replaced the bare settings_version label: the number and the caveat are one line now (#519) -->
+    <string name="settings_test_build_title">Version %1$s — test build</string>
+    <string name="settings_test_build_body">Some features may not work the way you expect. Please do not rely on Muhabbet alone for anything that matters, and tell us if something goes wrong.</string>
     <string name="settings_logout">Log Out</string>
     <string name="settings_profile_updated">Profile updated</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
+    <!-- See values/strings.xml: this names the file, it is not a translatable phrase. -->
+    <string name="app_language_code">en</string>
 
     <!-- Delete Conversation -->
     <string name="conv_delete_title">Delete Conversation</string>
@@ -503,6 +519,10 @@
     <string name="view_once_hint">The photo disappears after it is opened once</string>
     <string name="view_once_opened">Opened</string>
     <string name="view_once_tap_to_view">Tap to view</string>
+    <string name="view_once_not_opened_yet">Not opened yet</string>
+    <string name="view_once_already_opened">This photo has already been opened</string>
+    <string name="view_once_open_failed">The photo could not be opened</string>
+    <string name="view_once_offline">A view-once photo cannot be sent while offline</string>
     <string name="view_once_photo">Photo</string>
     <string name="view_once_video">Video</string>
 
@@ -730,6 +750,15 @@
          in these files (#471). -->
     <string name="connection_status_label">Connection status</string>
     <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
+
+    <!-- First-run test-build notice, shown once per app version after login (#519) -->
+    <string name="test_build_notice_title">Muhabbet is still being tested</string>
+    <string name="test_build_notice_body_expectations">This is a test build, not the finished app. Some features may not work the way you expect: a message can arrive late, a screen can come up empty, a button can do nothing at all.</string>
+    <string name="test_build_notice_body_reliance">So please do not rely on Muhabbet alone for a conversation that matters.</string>
+    <string name="test_build_notice_body_report">If you notice something going wrong, tell us. That is how we find out what needs fixing.</string>
+    <string name="test_build_notice_version">Version %1$s</string>
+    <string name="test_build_notice_dismiss">Got it</string>
+
     <!-- Skeleton loading (#499). Never drawn on screen: a skeleton hides its own placeholder rows
          from accessibility and speaks one of these instead, so a screen reader hears the wait once
          rather than swiping through eight empty rows. -->

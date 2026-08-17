@@ -247,6 +247,11 @@ fun ActiveCallScreen(
                         Icon(
                             imageVector = if (isMuted) Muhabbet.icons.MicOff else Muhabbet.icons.Mic,
                             contentDescription = if (isMuted) unmuteLabel else muteLabel,
+                            // Named rather than inherited. With no tint the glyph took
+                            // LocalContentColor from the screen, which is the foreground of a
+                            // surface this button is not sitting on.
+                            tint = if (isMuted) MaterialTheme.colorScheme.onErrorContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                     }
@@ -277,12 +282,12 @@ fun ActiveCallScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(LocalSemanticColors.current.callDecline)
+                            .background(LocalSemanticColors.current.callDecline.container)
                     ) {
                         Icon(
                             imageVector = Muhabbet.icons.CallEnd,
                             contentDescription = endLabel,
-                            tint = LocalSemanticColors.current.onCallDecline,
+                            tint = LocalSemanticColors.current.callDecline.content,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -308,6 +313,8 @@ fun ActiveCallScreen(
                         Icon(
                             imageVector = Muhabbet.icons.Speaker,
                             contentDescription = speakerLabel,
+                            tint = if (isSpeaker) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                     }

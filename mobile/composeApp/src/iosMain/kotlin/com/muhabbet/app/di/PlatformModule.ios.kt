@@ -59,6 +59,22 @@ class IosTokenStorage : TokenStorage {
         defaults.setObject(lang, forKey = "app_language")
     }
 
+    // Synchronised on write, unlike most of its neighbours: the iOS language restart is exit(0), so
+    // an unflushed value would not survive to the launch that has to read it.
+    override fun setPendingLanguageRestart() {
+        defaults.setBool(true, forKey = "pending_language_restart")
+        defaults.synchronize()
+    }
+
+    override fun consumePendingLanguageRestart(): Boolean {
+        val pending = defaults.boolForKey("pending_language_restart")
+        if (pending) {
+            defaults.removeObjectForKey("pending_language_restart")
+            defaults.synchronize()
+        }
+        return pending
+    }
+
     override fun getHapticsEnabled(): Boolean =
         if (defaults.objectForKey("haptics_enabled") == null) true
         else defaults.boolForKey("haptics_enabled")
@@ -122,5 +138,12 @@ class IosTokenStorage : TokenStorage {
 
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         defaults.setBool(enabled, forKey = "wallpaper_dark_mode")
+    }
+
+    override fun getTestBuildNoticeAckVersion(): String? =
+        defaults.stringForKey("test_build_notice_ack_version")
+
+    override fun setTestBuildNoticeAckVersion(version: String) {
+        defaults.setObject(version, forKey = "test_build_notice_ack_version")
     }
 }

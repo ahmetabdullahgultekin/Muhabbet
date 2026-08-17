@@ -39,7 +39,8 @@ internal object UserDataExportMapper {
         clientTimestamp: Instant,
         editedAt: Instant?,
         isDeleted: Boolean,
-        senderDisplayName: String?
+        senderDisplayName: String?,
+        viewOnce: Boolean
     ): ExportedMessage {
         val direction = if (senderId == requestingUserId) MessageDirection.SENT else MessageDirection.RECEIVED
         return ExportedMessage(
@@ -49,7 +50,11 @@ internal object UserDataExportMapper {
             counterpartyDisplayName = if (direction == MessageDirection.RECEIVED) senderDisplayName else null,
             contentType = contentType,
             content = if (isDeleted) null else content,
-            mediaUrl = if (isDeleted) null else mediaUrl,
+            // A view-once photo is withheld for the same reason a deleted one is: the export mirrors
+            // what the app is still willing to show. Nothing in the product will render this blob
+            // again — but `media_url` is a presigned URL that needs no credential, so exporting it
+            // would hand back in a zip file exactly what the seal exists to withhold (#515).
+            mediaUrl = if (isDeleted || viewOnce) null else mediaUrl,
             replyToId = replyToId,
             forwardedFromId = forwardedFromId,
             serverTimestamp = serverTimestamp,

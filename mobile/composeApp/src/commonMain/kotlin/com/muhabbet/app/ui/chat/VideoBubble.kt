@@ -71,8 +71,8 @@ fun VideoBubble(
                     modifier = Modifier
                         .size(100.dp)
                         .background(
-                            if (isOwn) semanticColors.bubbleOwn
-                            else semanticColors.bubbleOther,
+                            if (isOwn) semanticColors.bubbleOwn.container
+                            else semanticColors.bubbleOther.container,
                             CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -80,8 +80,8 @@ fun VideoBubble(
                     Icon(
                         Muhabbet.icons.Video,
                         contentDescription = stringResource(Res.string.video_message),
-                        tint = if (isOwn) semanticColors.onBubbleOwn
-                        else semanticColors.onBubbleOther,
+                        tint = if (isOwn) semanticColors.bubbleOwn.content
+                        else semanticColors.bubbleOther.content,
                         modifier = Modifier.size(32.dp)
                     )
                 }

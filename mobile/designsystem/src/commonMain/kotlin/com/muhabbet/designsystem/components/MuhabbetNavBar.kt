@@ -289,8 +289,8 @@ private fun NavItemIcon(
         )
         if (item.badgeCount > 0) {
             Badge(
-                containerColor = LocalSemanticColors.current.unreadBadge,
-                contentColor = LocalSemanticColors.current.onUnreadBadge,
+                containerColor = LocalSemanticColors.current.unreadBadge.container,
+                contentColor = LocalSemanticColors.current.unreadBadge.content,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = MuhabbetSizes.NavBadgeOffsetX, y = -MuhabbetSizes.NavBadgeOffsetY)

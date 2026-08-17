@@ -12,6 +12,7 @@ import com.muhabbet.shared.dto.PollVoteRequest
 import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
 import com.muhabbet.shared.dto.SendMessageRequest
+import com.muhabbet.shared.dto.ViewOnceRevealResponse
 import com.muhabbet.shared.model.Message
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -149,8 +150,17 @@ class MessageRepository(
      * Used by background sync to catch up on missed messages.
      * Returns the list of synced messages and caches them locally.
      */
-    suspend fun markViewOnce(messageId: String) {
-        apiClient.post<Unit>("/api/v1/messages/$messageId/view-once", Unit)
+    /**
+     * Opens a view-once message: burns it server-side and returns the media it released.
+     *
+     * The URL arrives only here. Every list, search and socket payload nulls `mediaUrl` for a
+     * view-once message, so this call is the one moment the photo exists on the recipient's device —
+     * which is what makes "once" enforceable rather than a label on a bubble. A second call, from
+     * this device or another, fails with `MSG_VIEW_ONCE_ALREADY_VIEWED` and releases nothing.
+     */
+    suspend fun revealViewOnce(messageId: String): ViewOnceRevealResponse {
+        val response = apiClient.post<ViewOnceRevealResponse>("/api/v1/messages/$messageId/view-once", Unit)
+        return response.data ?: throw Exception("VIEW_ONCE_REVEAL_FAILED")
     }
 
     suspend fun syncMessagesSince(timestamp: String): List<Message> {

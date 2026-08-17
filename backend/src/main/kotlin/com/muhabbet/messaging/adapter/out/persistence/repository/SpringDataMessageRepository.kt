@@ -115,11 +115,22 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun countMediaInConversation(conversationId: UUID): Int
 
+    /**
+     * Backs the shared-media grid, which is why view-once messages are excluded rather than merely
+     * stripped.
+     *
+     * They used to be listed like any other photo, with a working presigned URL, so the whole seal
+     * could be walked around by leaving the chat and opening the gallery — for a message the
+     * recipient had already burned as much as for one they had never opened. Stripping the URL alone
+     * would have swapped that for a grid of broken tiles: a view-once photo has nothing a gallery can
+     * legitimately show.
+     */
     @Query(
         """
         SELECT m FROM MessageJpaEntity m
         WHERE m.conversationId = :conversationId
           AND m.isDeleted = false
+          AND m.viewOnce = false
           AND m.contentType IN :contentTypes
         ORDER BY m.serverTimestamp DESC
         """
@@ -139,9 +150,10 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun findMessagesSince(userId: UUID, since: Instant, pageable: Pageable): List<MessageJpaEntity>
 
+    /** Returns the rows updated — 0 means someone else burned it first. See `MessageRepository`. */
     @Modifying
     @Query("UPDATE MessageJpaEntity m SET m.viewedAt = :viewedAt, m.viewedBy = :viewedBy WHERE m.id = :messageId AND m.viewOnce = true AND m.viewedAt IS NULL")
-    fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant)
+    fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int
 
     @Query(
         """
