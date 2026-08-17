@@ -36,6 +36,7 @@ import com.muhabbet.app.ui.conversations.BroadcastDetailScreen
 import com.muhabbet.app.ui.conversations.BroadcastListScreen
 import com.muhabbet.app.ui.group.GroupEventScreen
 import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
+import com.muhabbet.app.ui.settings.AboutScreen
 import com.muhabbet.app.ui.settings.AppLockScreen
 import com.muhabbet.app.ui.settings.TwoStepSetupScreen
 import com.muhabbet.app.ui.settings.WallpaperPickerScreen
@@ -221,6 +222,11 @@ class MainComponent(
     }
 
     @OptIn(DelicateDecomposeApi::class)
+    fun openAbout() {
+        navigation.push(Config.About)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
     fun openCommunityDetail(communityId: String) {
         navigation.push(Config.CommunityDetail(communityId))
     }
@@ -331,6 +337,7 @@ class MainComponent(
         @Serializable data object TwoStepVerification : Config
         @Serializable data object AppLock : Config
         @Serializable data object Wallpaper : Config
+        @Serializable data object About : Config
         @Serializable data class CommunityDetail(val communityId: String) : Config
         @Serializable data class CommunityMembers(val communityId: String) : Config
         @Serializable data object CreateCommunity : Config
@@ -520,7 +527,8 @@ private fun MainStack(component: MainComponent) {
                 onPrivacyDashboard = component::openPrivacyDashboard,
                 onTwoStepVerification = component::openTwoStepVerification,
                 onAppLock = component::openAppLock,
-                onWallpaper = component::openWallpaper
+                onWallpaper = component::openWallpaper,
+                onAbout = component::openAbout
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
                 onBack = component::goBack,
@@ -580,6 +588,9 @@ private fun MainStack(component: MainComponent) {
                 onBack = component::goBack
             )
             is MainComponent.Config.Wallpaper -> WallpaperPickerScreen(
+                onBack = component::goBack
+            )
+            is MainComponent.Config.About -> AboutScreen(
                 onBack = component::goBack
             )
             is MainComponent.Config.CommunityDetail -> CommunityDetailScreen(
