@@ -401,8 +401,12 @@
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Bildirimler</string>
+    <string name="settings_notifications_enabled">Bildirimler açık</string>
+    <string name="settings_notifications_enabled_desc">Bu telefon uygulamanın bildirimlerini gösteriyor. Sesini ve görünümünü sistem ayarlarından değiştirebilirsiniz.</string>
+    <string name="settings_notifications_disabled">Bildirimler kapalı</string>
+    <string name="settings_notifications_disabled_desc">Yeni mesajları kaçırmamak için sistem ayarlarından bildirimlere izin verin.</string>
     <string name="settings_notifications_unavailable">Anlık bildirimler henüz kullanılamıyor</string>
-    <string name="settings_notifications_unavailable_desc">Bu sürümde anlık bildirim gönderimi kapalı. Mesajlarınız uygulamayı açtığınızda görünür.</string>
+    <string name="settings_notifications_unavailable_desc">Bu platformda anlık bildirim gönderimi henüz desteklenmiyor. Mesajlarınız uygulamayı açtığınızda görünür.</string>
     <string name="settings_notifications_sound">Bildirim Sesi</string>
 
     <!-- Chat Settings -->

@@ -394,8 +394,12 @@
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Notifications</string>
+    <string name="settings_notifications_enabled">Notifications are on</string>
+    <string name="settings_notifications_enabled_desc">This phone will show the app notifications. Change their sound and appearance in system settings.</string>
+    <string name="settings_notifications_disabled">Notifications are off</string>
+    <string name="settings_notifications_disabled_desc">Allow notifications in system settings so you do not miss new messages.</string>
     <string name="settings_notifications_unavailable">Push notifications are not available yet</string>
-    <string name="settings_notifications_unavailable_desc">Push delivery is switched off in this build. Your messages appear when you open the app.</string>
+    <string name="settings_notifications_unavailable_desc">Push delivery is not supported on this platform yet. Your messages appear when you open the app.</string>
     <string name="settings_notifications_sound">Notification Sound</string>
 
     <!-- Chat Settings -->
