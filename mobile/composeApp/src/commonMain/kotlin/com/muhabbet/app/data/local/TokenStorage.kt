@@ -36,10 +36,20 @@ interface TokenStorage {
     fun setHapticsEnabled(enabled: Boolean)
     fun getLastSyncTimestamp(): String? = null
     fun setLastSyncTimestamp(timestamp: String) {}
-    fun getAppLockEnabled(): Boolean = false
-    fun setAppLockEnabled(enabled: Boolean) {}
-    fun getAppLockTimeout(): String? = null
-    fun setAppLockTimeout(timeout: String) {}
+
+    // Abstract, unlike most of this file's neighbours and for the reason #378 exists: these two
+    // were defaulted no-ops, no implementation overrode either, so the App Lock toggle in Settings
+    // wrote to nothing and always read back `false`/`null` — a security setting that silently did
+    // not persist, in a privacy-first messenger. A default that compiles is exactly the failure this
+    // file already guards against for the theme, haptics, media quality and wallpaper fields below.
+    // Stored in the *encrypted* store on Android (see AndroidTokenStorage) — this is a security
+    // setting, not a cosmetic preference, even though the value itself is not secret material.
+    fun getAppLockEnabled(): Boolean
+    fun setAppLockEnabled(enabled: Boolean)
+
+    /** One of [com.muhabbet.app.config.AppLockTimeout]'s option keys, or null if never chosen. */
+    fun getAppLockTimeout(): String?
+    fun setAppLockTimeout(timeout: String)
 
     // Abstract for the same reason as the theme and haptics above. These two were defaulted, no
     // implementation overrode either, and so the HD option in Settings wrote to an empty body and

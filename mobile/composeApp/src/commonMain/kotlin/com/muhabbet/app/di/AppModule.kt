@@ -134,6 +134,9 @@ fun appModule(): Module = module {
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }
     // Singleton on purpose: read receipts appear on two screens and must not disagree.
     single { com.muhabbet.app.data.local.PrivacySettingsController(authRepository = get()) }
+    // App Lock (#378) — singleton for the same reason: AppLockScreen writes it, AppLockGate
+    // (mounted once, above the whole authenticated app) reads it, and a second copy could disagree.
+    single { com.muhabbet.app.data.local.AppLockController(tokenStorage = get()) }
     // Foreground/background state. Written in exactly one place (App.kt, from the lifecycle
     // RootComponent already carries) and read by any screen that must act when the user comes back
     // — an open chat re-asserting its read receipt, today. A singleton because a second copy could
