@@ -13,7 +13,8 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, MessageCache {
+class LocalCache(driverFactory: DatabaseDriverFactory) :
+    ConversationCache, MessageCache, PendingMessageCache {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
@@ -186,7 +187,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, Mess
 
     // --- Pending Messages (offline queue) ---
 
-    fun getPendingMessages(): List<PendingMessageData> {
+    override fun getPendingMessages(): List<PendingMessageData> {
         return queries.getPendingMessages().executeAsList().map { row ->
             PendingMessageData(
                 id = row.id,
@@ -202,7 +203,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, Mess
         }
     }
 
-    fun insertPendingMessage(msg: PendingMessageData) {
+    override fun insertPendingMessage(msg: PendingMessageData) {
         queries.insertPendingMessage(
             id = msg.id,
             messageId = msg.messageId,
@@ -217,7 +218,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, Mess
         )
     }
 
-    fun deletePendingMessage(id: String) {
+    override fun deletePendingMessage(id: String) {
         queries.deletePendingMessage(id)
     }
 
@@ -225,7 +226,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, Mess
         queries.clearPendingMessages()
     }
 
-    fun incrementRetryCount(id: String) {
+    override fun incrementRetryCount(id: String) {
         queries.incrementRetryCount(id)
     }
 

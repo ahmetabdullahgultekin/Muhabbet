@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.remote
 
+import com.muhabbet.app.data.local.FakePendingMessageCache
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.protocol.WsMessage
@@ -14,6 +15,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
@@ -43,7 +45,8 @@ class WsClientReconnectTest {
      */
     private fun wsClient(
         scope: CoroutineScope,
-        tokenProvider: () -> String? = { null }
+        tokenProvider: () -> String? = { null },
+        cache: com.muhabbet.app.data.local.PendingMessageCache? = null
     ): WsClient = WsClient(
         apiClient = ApiClient(
             FakeTokenStorage(),
@@ -56,6 +59,7 @@ class WsClientReconnectTest {
             }
         ),
         tokenProvider = tokenProvider,
+        localCache = cache,
         scope = scope
     )
 
@@ -181,7 +185,8 @@ class WsClientReconnectTest {
 
     @Test
     fun should_report_a_message_it_queued_as_queued_rather_than_as_a_failure() = runTest {
-        val ws = wsClient(backgroundScope)
+        val cache = FakePendingMessageCache()
+        val ws = wsClient(backgroundScope, cache = cache)
 
         // Never connected, so there is no session and the body goes to the offline queue. The
         // distinct type is what lets ChatScreen leave the bubble on screen as a pending clock
@@ -194,6 +199,74 @@ class WsClientReconnectTest {
                     conversationId = "conv-1",
                     content = "ttl-testi",
                     contentType = ContentType.TEXT
+                )
+            )
+        }
+
+        // The half this test used to be missing. It ran with no cache at all and still asserted
+        // "queued", so it passed while the message was being dropped — the fixture could not queue
+        // anything. Naming the row is what makes the claim real.
+        assertEquals(1, cache.queued.size, "the message should actually be in the queue")
+        assertEquals("msg-1", cache.queued.single().messageId)
+    }
+
+    @Test
+    fun should_not_claim_a_message_is_queued_when_there_is_nowhere_to_queue_it() = runTest {
+        // No cache — the state a client is in before the local database is attached, and the state
+        // every test here used to run in. `queuePendingMessage` returned silently and `send` threw
+        // MessageQueuedException anyway, so ChatScreen left a pending clock on a message that had
+        // been stored nowhere and would never be sent. It has to fail, and distinguishably.
+        val ws = wsClient(backgroundScope, cache = null)
+
+        assertFailsWith<MessageCouldNotBeQueuedException> {
+            ws.send(
+                WsMessage.SendMessage(
+                    requestId = "req-nocache",
+                    messageId = "msg-nocache",
+                    conversationId = "conv-1",
+                    content = "kuyruk yok",
+                    contentType = ContentType.TEXT
+                )
+            )
+        }
+    }
+
+    @Test
+    fun should_not_claim_a_message_is_queued_when_the_queue_write_fails() = runTest {
+        val ws = wsClient(backgroundScope, cache = FakePendingMessageCache(failOnInsert = true))
+
+        // The third way it can fail, and the one that survives a working install: the insert
+        // throws. It was caught, logged, and reported to the user as queued.
+        assertFailsWith<MessageCouldNotBeQueuedException> {
+            ws.send(
+                WsMessage.SendMessage(
+                    requestId = "req-fail",
+                    messageId = "msg-fail",
+                    conversationId = "conv-1",
+                    content = "disk dolu",
+                    contentType = ContentType.TEXT
+                )
+            )
+        }
+    }
+
+    @Test
+    fun should_still_let_a_caller_catch_the_view_once_refusal_by_its_general_type() = runTest {
+        // ViewOnceNotQueueableException is now a MessageNotQueuedException. ChatScreen catches the
+        // specific one to give the specific message; anything that only cares about the category
+        // must keep working.
+        val ws = wsClient(backgroundScope, cache = FakePendingMessageCache())
+
+        assertFailsWith<MessageNotQueuedException> {
+            ws.send(
+                WsMessage.SendMessage(
+                    requestId = "req-vo2",
+                    messageId = "msg-vo2",
+                    conversationId = "conv-1",
+                    content = "Photo",
+                    contentType = ContentType.IMAGE,
+                    mediaUrl = "https://cdn.example/blob.jpg",
+                    viewOnce = true
                 )
             )
         }
