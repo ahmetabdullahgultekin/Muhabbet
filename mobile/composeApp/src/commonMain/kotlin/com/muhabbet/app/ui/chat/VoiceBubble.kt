@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,10 +52,22 @@ fun VoiceBubble(
     modifier: Modifier = Modifier,
     speechTranscriber: SpeechTranscriber = koinInject()
 ) {
-    val isPlaying by audioPlayer.isPlaying.collectAsState()
-    val currentPosition by audioPlayer.currentPositionMs.collectAsState()
-    val duration by audioPlayer.durationMs.collectAsState()
+    val globalIsPlaying by audioPlayer.isPlaying.collectAsState()
+    val globalPosition by audioPlayer.currentPositionMs.collectAsState()
+    val globalDuration by audioPlayer.durationMs.collectAsState()
+    val currentUrl by audioPlayer.currentUrl.collectAsState()
+    val playbackSpeed by audioPlayer.playbackSpeed.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // One AudioPlayer is shared across every voice bubble in the chat (`rememberAudioPlayer()` is
+    // called once per screen), so its position/duration/isPlaying belong to whichever message is
+    // actually loaded — not necessarily this one. Without this check, every OTHER bubble in the
+    // list showed the currently-playing message's progress and duration instead of its own, and
+    // its Play button would silently pause the wrong message.
+    val isActive = currentUrl == mediaUrl
+    val isPlaying = isActive && globalIsPlaying
+    val currentPosition = if (isActive) globalPosition else 0L
+    val liveDuration = if (isActive) globalDuration else 0L
 
     var transcript by remember { mutableStateOf<String?>(null) }
     var isTranscribing by remember { mutableStateOf(false) }
@@ -62,9 +76,33 @@ fun VoiceBubble(
     val transcribeText = stringResource(Res.string.voice_transcribe)
     val transcribingText = stringResource(Res.string.voice_transcribing)
     val transcriptFailedText = stringResource(Res.string.voice_transcript_failed)
+    val playbackSpeedLabel = stringResource(Res.string.voice_playback_speed_change)
 
-    val totalDuration = durationSeconds?.let { it * 1000L } ?: duration
-    val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
+    // `durationSeconds` is what the server knows about this message; it is null for every message
+    // today (the shared Message model has no duration field yet — see PR notes), so this falls
+    // back to the player's own decoder-reported duration, which becomes available the moment this
+    // bubble's audio has been loaded even once.
+    val totalDuration = durationSeconds?.let { it * 1000L } ?: liveDuration
+
+    var isDragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableStateOf(0f) }
+    // A seek the user released before the player had finished preparing (e.g. dragging a message
+    // that was never played) — applied once a real duration shows up, below.
+    var pendingSeekFraction by remember { mutableStateOf<Float?>(null) }
+
+    val sliderPosition = when {
+        isDragging -> dragFraction
+        totalDuration > 0 -> (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+        else -> 0f
+    }
+
+    LaunchedEffect(mediaUrl, isActive, liveDuration) {
+        val fraction = pendingSeekFraction
+        if (fraction != null && isActive && liveDuration > 0) {
+            audioPlayer.seekTo((fraction * liveDuration).toLong())
+            pendingSeekFraction = null
+        }
+    }
 
     // #517, same shape as the poll: the ground behind this row is the bubble, not `primary`, so the
     // foreground has to come off the bubble's own pair.
@@ -92,11 +130,37 @@ fun VoiceBubble(
                 tint = textColor
             )
 
-            LinearProgressIndicator(
-                progress = { progress },
+            Slider(
+                value = sliderPosition,
+                onValueChange = { value ->
+                    isDragging = true
+                    dragFraction = value
+                    if (!isActive) {
+                        // Nothing of this message is loaded yet — start it so the real duration
+                        // (and something to seek within) becomes available. seekTo below applies
+                        // once it does.
+                        audioPlayer.play(mediaUrl)
+                    }
+                },
+                onValueChangeFinished = {
+                    isDragging = false
+                    // Read the player directly (StateFlow.value) rather than the values collected
+                    // above: play() just triggered on this same gesture may not have flowed through
+                    // a recomposition yet by the time the finger lifts.
+                    val activeNow = audioPlayer.currentUrl.value == mediaUrl
+                    val totalNow = audioPlayer.durationMs.value
+                    if (activeNow && totalNow > 0) {
+                        audioPlayer.seekTo((dragFraction * totalNow).toLong())
+                    } else {
+                        pendingSeekFraction = dragFraction
+                    }
+                },
                 modifier = Modifier.weight(1f),
-                color = textColor,
-                trackColor = textColor.copy(alpha = MuhabbetAlphas.ProgressTrack)
+                colors = SliderDefaults.colors(
+                    thumbColor = textColor,
+                    activeTrackColor = textColor,
+                    inactiveTrackColor = textColor.copy(alpha = MuhabbetAlphas.ProgressTrack)
+                )
             )
 
             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
@@ -112,6 +176,17 @@ fun VoiceBubble(
                 color = captionColor
             )
         }
+
+        // Playback speed — sticky on the shared player, so picking 1.5x here carries to the next
+        // voice message played too, same as the platform players it wraps.
+        Text(
+            text = formatSpeed(playbackSpeed),
+            style = MaterialTheme.typography.labelSmall,
+            color = captionColor,
+            modifier = Modifier.clickable(onClickLabel = playbackSpeedLabel) {
+                audioPlayer.setPlaybackSpeed(nextSpeed(playbackSpeed))
+            }
+        )
 
         // Transcribe button
         if (speechTranscriber.isAvailable() && transcript == null && !isTranscribing) {
@@ -170,3 +245,20 @@ fun VoiceBubble(
 
 private fun formatDuration(seconds: Int): String =
     DateTimeFormatter.formatDuration(seconds)
+
+/** 1x / 1.5x / 2x — the standard voice-message cycle. Not a translated phrase (a formatted
+ *  multiplier reads the same in every locale), so this stays out of strings.xml, matching how
+ *  [formatDuration] already formats "0:32" without a string resource. */
+private val PlaybackSpeeds = listOf(1.0f, 1.5f, 2.0f)
+
+private fun nextSpeed(current: Float): Float {
+    val index = PlaybackSpeeds.indexOf(current)
+    return PlaybackSpeeds[(index + 1).mod(PlaybackSpeeds.size)]
+}
+
+private fun formatSpeed(speed: Float): String {
+    val rounded = (speed * 10).toInt()
+    val whole = rounded / 10
+    val tenth = rounded % 10
+    return if (tenth == 0) "${whole}x" else "${whole}.${tenth}x"
+}
