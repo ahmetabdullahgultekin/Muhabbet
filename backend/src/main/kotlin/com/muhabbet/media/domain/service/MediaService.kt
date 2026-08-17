@@ -136,6 +136,19 @@ open class MediaService(
     }
 
     override fun uploadDocument(command: UploadDocumentCommand): MediaFile {
+        // Checked before the size, and before a single byte is read: the type is the cheaper test
+        // and the one that matters. Until #287 this method checked size and nothing else, while
+        // every other upload kind had an allowlist — so `text/html` was accepted, stored, and then
+        // served over a presigned URL from the media host with that content type, which is stored
+        // XSS against anyone who opens the link.
+        if (!ValidationRules.isAllowedDocumentType(command.contentType)) {
+            log.warn(
+                "Document upload refused, unsupported content type: uploader={}, type={}",
+                command.uploaderId,
+                command.contentType
+            )
+            throw BusinessException(ErrorCode.MEDIA_UNSUPPORTED_TYPE)
+        }
         if (command.sizeBytes > ValidationRules.MAX_DOCUMENT_SIZE_BYTES) {
             throw BusinessException(ErrorCode.MEDIA_TOO_LARGE)
         }

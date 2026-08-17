@@ -2,6 +2,7 @@ package com.muhabbet.media.domain.service
 
 import com.muhabbet.media.domain.model.MediaFile
 import com.muhabbet.media.domain.port.`in`.UploadAudioCommand
+import com.muhabbet.media.domain.port.`in`.UploadDocumentCommand
 import com.muhabbet.media.domain.port.`in`.UploadImageCommand
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
@@ -9,6 +10,7 @@ import com.muhabbet.media.domain.port.out.ThumbnailPort
 import com.muhabbet.media.domain.port.out.ThumbnailResult
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.validation.ValidationRules
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -497,6 +499,87 @@ class MediaServiceTest {
                 mediaService.getPresignedUrl(mediaId, uploaderId)
             }
             assertEquals(ErrorCode.MEDIA_NOT_FOUND, ex.errorCode)
+        }
+    }
+
+    // ─── uploadDocument ───────────────────────────────────
+
+    @Nested
+    inner class UploadDocument {
+
+        private fun command(contentType: String, size: Long = 1_024L) = UploadDocumentCommand(
+            uploaderId = uploaderId,
+            inputStream = ByteArrayInputStream(ByteArray(8)),
+            contentType = contentType,
+            sizeBytes = size,
+            originalFilename = "belge.pdf"
+        )
+
+        @Test
+        fun `should refuse HTML, which would be served as a page from the media host`() {
+            // The whole point of the allowlist. Media is served over a presigned URL with the
+            // content type the uploader supplied, so a stored text/html opens as a page on that
+            // origin -- stored XSS against anyone who follows the link (#287).
+            val e = assertThrows<BusinessException> {
+                mediaService.uploadDocument(command("text/html"))
+            }
+
+            assertEquals(ErrorCode.MEDIA_UNSUPPORTED_TYPE, e.errorCode)
+            verify(exactly = 0) { mediaStoragePort.putObject(any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `should refuse SVG, which is markup that can carry script`() {
+            val e = assertThrows<BusinessException> {
+                mediaService.uploadDocument(command("image/svg+xml"))
+            }
+
+            assertEquals(ErrorCode.MEDIA_UNSUPPORTED_TYPE, e.errorCode)
+            verify(exactly = 0) { mediaStoragePort.putObject(any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `should accept a PDF`() {
+            every { mediaFileRepository.save(any()) } answers { firstArg() }
+
+            val result = mediaService.uploadDocument(command("application/pdf"))
+
+            assertNotNull(result)
+            verify(exactly = 1) { mediaStoragePort.putObject(any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `should accept a content type that carries a charset parameter`() {
+            // What a real client actually sends. Matching the raw string would reject this.
+            every { mediaFileRepository.save(any()) } answers { firstArg() }
+
+            val result = mediaService.uploadDocument(command("text/plain; charset=utf-8"))
+
+            assertNotNull(result)
+        }
+
+        @Test
+        fun `should accept octet-stream, because Android sends it for anything it cannot identify`() {
+            // The "needs client changes" half of #287, answered without changing the client.
+            // contentResolver.getType() returns this whenever the system cannot identify a file, so
+            // refusing it would reject ordinary documents. It is safe because it is the type a
+            // browser downloads rather than renders -- it cannot be the XSS vector.
+            every { mediaFileRepository.save(any()) } answers { firstArg() }
+
+            val result = mediaService.uploadDocument(command("application/octet-stream"))
+
+            assertNotNull(result)
+        }
+
+        @Test
+        fun `should check the type before the size, so an oversized script is refused as a type`() {
+            val e = assertThrows<BusinessException> {
+                mediaService.uploadDocument(
+                    command("text/html", size = ValidationRules.MAX_DOCUMENT_SIZE_BYTES + 1)
+                )
+            }
+
+            assertEquals(ErrorCode.MEDIA_UNSUPPORTED_TYPE, e.errorCode)
         }
     }
 }
