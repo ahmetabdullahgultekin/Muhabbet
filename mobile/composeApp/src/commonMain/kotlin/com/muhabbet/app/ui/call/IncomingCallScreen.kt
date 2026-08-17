@@ -140,12 +140,12 @@ fun IncomingCallScreen(
                         modifier = Modifier
                             .size(MuhabbetSizes.CallActionButton)
                             .clip(CircleShape)
-                            .background(LocalSemanticColors.current.callDecline)
+                            .background(LocalSemanticColors.current.callDecline.container)
                     ) {
                         Icon(
                             imageVector = Muhabbet.icons.CallEnd,
                             contentDescription = declineLabel,
-                            tint = LocalSemanticColors.current.onCallDecline,
+                            tint = LocalSemanticColors.current.callDecline.content,
                             modifier = Modifier.size(MuhabbetSizes.IconHero)
                         )
                     }
@@ -173,12 +173,12 @@ fun IncomingCallScreen(
                         modifier = Modifier
                             .size(MuhabbetSizes.CallActionButton)
                             .clip(CircleShape)
-                            .background(LocalSemanticColors.current.callAccept)
+                            .background(LocalSemanticColors.current.callAccept.container)
                     ) {
                         Icon(
                             imageVector = if (callType == CallType.VIDEO) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
                             contentDescription = acceptLabel,
-                            tint = LocalSemanticColors.current.onCallAccept,
+                            tint = LocalSemanticColors.current.callAccept.content,
                             modifier = Modifier.size(MuhabbetSizes.IconHero)
                         )
                     }

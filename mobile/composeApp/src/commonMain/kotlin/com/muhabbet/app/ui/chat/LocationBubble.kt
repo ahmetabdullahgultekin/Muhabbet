@@ -20,6 +20,7 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.attach_location
 import com.muhabbet.composeapp.generated.resources.location_open_in_maps
+import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.LocationData
 import kotlinx.serialization.json.Json
@@ -63,6 +64,12 @@ fun LocationBubble(
 
     val openInMapsLabel = stringResource(Res.string.location_open_in_maps)
 
+    // #517: the ground here is the bubble, so the foreground comes off the bubble's pair. The pin
+    // used to be `onPrimary` on an outgoing message — white on a pale copper wash — and
+    // `colorScheme.error` on an incoming one, which is a warning colour on a map pin.
+    val semanticColors = LocalSemanticColors.current
+    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
+
     Row(
         modifier = modifier
             .clickable(onClickLabel = openInMapsLabel) { onOpenUrl(mapsUrlFor(locationData)) }
@@ -75,8 +82,7 @@ fun LocationBubble(
             // bare numbers and "double tap to activate", which says nothing about what this is.
             contentDescription = stringResource(Res.string.attach_location),
             modifier = Modifier.size(32.dp),
-            tint = if (isOwn) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.error
+            tint = bubble.content
         )
         Spacer(Modifier.width(MuhabbetSpacing.Small))
         Column {
@@ -85,15 +91,13 @@ fun LocationBubble(
                     text = labelText,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = bubble.content
                 )
             }
             Text(
                 text = "${formatCoord(locationData.latitude)}, ${formatCoord(locationData.longitude)}",
                 style = MaterialTheme.typography.bodySmall,
-                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                color = semanticColors.secondaryText
             )
         }
     }

@@ -112,7 +112,7 @@ internal fun ChatMessageList(
     val wallpaperRepository: WallpaperRepository = koinInject()
     val isDarkTheme = LocalThemeMode.current != ResolvedThemeMode.Light
     val wallpaper = remember(isDarkTheme) { wallpaperRepository.resolveWallpaper(isDarkTheme) }
-    val defaultWallpaperColor = LocalSemanticColors.current.chatWallpaper
+    val defaultWallpaperColor = LocalSemanticColors.current.chatWallpaper.container
 
     Box(modifier = modifier.fillMaxWidth()) {
         when (wallpaper) {
