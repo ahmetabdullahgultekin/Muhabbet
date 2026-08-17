@@ -1,6 +1,6 @@
 package com.muhabbet.app.data.remote
 
-import com.muhabbet.app.data.local.LocalCache
+import com.muhabbet.app.data.local.PendingMessageCache
 import com.muhabbet.app.data.local.PendingMessageData
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
@@ -32,7 +32,11 @@ import kotlin.random.Random
 class WsClient(
     private val apiClient: ApiClient,
     private val tokenProvider: () -> String?,
-    private val localCache: LocalCache? = null,
+    // The interface, not LocalCache: the concrete class needs a SQLDelight driver and an Android
+    // Context, so naming it here meant the queue path could only be tested with `null` — which
+    // is exactly how a test came to assert that a message had been queued by a client that had
+    // nowhere to queue it. Production still passes LocalCache, which implements this.
+    private val localCache: PendingMessageCache? = null,
     // E2E encrypt-on-send / decrypt-on-receive. Null = no encryption layer (legacy pass-through).
     // Even when non-null, behavior is gated internally by E2EConfig.ENABLED (default OFF).
     private val messageEncryptor: com.muhabbet.app.crypto.MessageEncryptor? = null,
@@ -139,7 +143,13 @@ class WsClient(
      * immediately cannot run its completion handler before `connectJob` has been assigned.
      */
     private fun startConnectLoop() {
-        if (connectJob?.isActive == true) return
+        // `isCompleted == false`, not `isActive == true`. The job below is created LAZY, and a lazy
+        // job that has not been started yet reports `isActive == false` while being very much
+        // alive — so between `connectJob = job` and `job.start()` the old guard waved a second
+        // caller straight through, and two connect loops then overwrote each other's `session` and
+        // `heartbeatJob`. Exactly the failure this guard exists to prevent, in the one window it
+        // could not see. A New job has `isCompleted == false`, so this covers it.
+        if (connectJob?.isCompleted == false) return
         val job = scope.launch(start = CoroutineStart.LAZY) { connectInternal() }
         connectJob = job
         // Clear by identity, never by field: a later start may already have installed its own.
@@ -276,7 +286,11 @@ class WsClient(
             // Queue message for later delivery if we have a cache.
             // NOTE: the queued body is the already-encrypted `outgoing`; the drain path is
             // idempotent and will not re-wrap it (encryptOutgoing skips existing envelopes).
-            queuePendingMessage(outgoing)
+            //
+            // The result is checked. Throwing MessageQueuedException unconditionally is what made a
+            // message that was never stored look, to the user, exactly like one that was waiting to
+            // go — a pending clock that would never resolve, on a message that no longer existed.
+            if (!queuePendingMessage(outgoing)) throw MessageCouldNotBeQueuedException()
             throw MessageQueuedException()
         }
         currentSession.outgoing.send(Frame.Text(wsJson.encodeToString(outgoing)))
@@ -426,9 +440,26 @@ class WsClient(
 
     // --- Offline Queue ---
 
-    private fun queuePendingMessage(message: WsMessage) {
-        val cache = localCache ?: return
-        val sendMessage = message as? WsMessage.SendMessage ?: return
+    /**
+     * Returns whether the message was actually written to the queue.
+     *
+     * It used to return `Unit` and had three ways to do nothing — no local cache, a frame that is
+     * not a [WsMessage.SendMessage], or an insert that threw — and [send] threw
+     * `MessageQueuedException` regardless. So a message that was never stored anywhere was reported
+     * to the user as waiting to be sent, and it was simply gone. The caller has to be able to tell
+     * the difference, which means this has to say.
+     */
+    private fun queuePendingMessage(message: WsMessage): Boolean {
+        val cache = localCache ?: run {
+            Log.w(TAG, "No local cache: message not queued and will not be sent later")
+            return false
+        }
+        val sendMessage = message as? WsMessage.SendMessage ?: run {
+            // Not a failure worth alarming about — receipts and typing frames are not queueable and
+            // are not meant to be. Only send() treats a false here as something the user must know.
+            Log.d(TAG, "Not a SendMessage; nothing queued")
+            return false
+        }
         try {
             cache.insertPendingMessage(
                 PendingMessageData(
@@ -443,8 +474,10 @@ class WsClient(
                 )
             )
             Log.d(TAG, "Queued pending message: ${sendMessage.requestId}")
+            return true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to queue pending message: ${e.message}")
+            Log.e(TAG, "Failed to queue pending message: ${sendMessage.requestId}", e)
+            return false
         }
     }
 
@@ -550,13 +583,36 @@ class WsClient(
 class MessageQueuedException : Exception("WebSocket not connected")
 
 /**
- * Thrown by [WsClient.send] when a view-once message could not go out and could not be queued.
+ * Thrown by [WsClient.send] when a message could not go out **and** could not be queued.
  *
  * The opposite of [MessageQueuedException] in the one way that matters to a caller: nothing was
  * stored and nothing will be sent later, so the optimistic bubble must be removed and the user
- * told. See the guard in [WsClient.send] for why the queue is not an option for this one flag.
+ * told.
+ *
+ * Open, with [ViewOnceNotQueueableException] as its one named subclass, so a caller can either
+ * handle the specific reason or catch the whole category. Until now only the view-once case
+ * existed, and every *other* way queueing could fail threw [MessageQueuedException] anyway — the
+ * message vanished and the user was told it was waiting to be sent.
  */
-class ViewOnceNotQueueableException : Exception("View-once message cannot be queued offline")
+open class MessageNotQueuedException(message: String) : Exception(message)
+
+/**
+ * The queue could not accept the message and there is no more specific reason to give.
+ *
+ * Reached when there is no local cache at all, when the frame is not a [WsMessage.SendMessage], or
+ * when the insert itself fails. Each of those used to end in [MessageQueuedException].
+ */
+class MessageCouldNotBeQueuedException : MessageNotQueuedException("Message could not be queued")
+
+/**
+ * Thrown by [WsClient.send] when a view-once message could not go out and could not be queued.
+ *
+ * Separate from its parent because the reason is worth saying out loud: the queue cannot carry the
+ * view-once flag, so a queued one would arrive unsealed on the next reconnect. See the guard in
+ * [WsClient.send].
+ */
+class ViewOnceNotQueueableException :
+    MessageNotQueuedException("View-once message cannot be queued offline")
 
 enum class ConnectionState {
     DISCONNECTED,
