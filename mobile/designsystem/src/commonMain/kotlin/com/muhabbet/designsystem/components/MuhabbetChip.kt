@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import com.muhabbet.designsystem.theme.LocalHaptics
+import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetMotion
@@ -55,6 +56,7 @@ fun MuhabbetChip(
         animationSpec = MuhabbetMotion.spatialFast(),
         label = "chipPress"
     )
+    val selectedColors = LocalSemanticColors.current.selected
     FilterChip(
         selected = selected,
         onClick = {
@@ -67,10 +69,12 @@ fun MuhabbetChip(
         leadingIcon = leadingIcon,
         shape = RoundedCornerShape(MuhabbetCorners.Pill),
         interactionSource = interactionSource,
+        // One pair, read once. Naming the container and the two foregrounds separately is how
+        // three lines that must agree end up disagreeing.
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+            selectedContainerColor = selectedColors.container,
+            selectedLabelColor = selectedColors.content,
+            selectedLeadingIconColor = selectedColors.content
         )
     )
 }

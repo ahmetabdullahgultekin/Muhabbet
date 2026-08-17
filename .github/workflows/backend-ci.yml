@@ -12,7 +12,13 @@ on:
       - 'gradle/**'
       - '.github/workflows/backend-ci.yml'
   pull_request:
-    branches: [main, develop]
+    # `dev` is the working branch: every feature branch is merged here first and only
+    # batched to `main` at release time. Until this was added, NO CI ran on any pull
+    # request into `dev` (#487) — `develop` does not exist in this repo, so the filter
+    # matched nothing. Two PRs that were each green in isolation were merged and broke
+    # each other, and it was only caught at release. The backend suite is the cheap,
+    # high-value gate, so it runs here.
+    branches: [main, dev, develop]
     paths:
       - 'backend/**'
       - 'shared/**'

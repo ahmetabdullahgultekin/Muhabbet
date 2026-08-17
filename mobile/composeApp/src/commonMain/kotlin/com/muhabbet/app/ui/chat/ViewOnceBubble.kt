@@ -53,12 +53,15 @@ fun ViewOnceBubble(
     modifier: Modifier = Modifier
 ) {
     val semanticColors = LocalSemanticColors.current
-    val bubbleColor = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
-    val onBubbleColor = if (isOwn) semanticColors.onBubbleOwn else semanticColors.onBubbleOther
-    // Entirely server-resolved. The caller seals the message optimistically on the tap and puts the
-    // seal back if the reveal never reached the server, which it cannot do if the bubble keeps its
-    // own copy of the answer — and a bubble that latches locally is how the previous version
-    // refused a second view for exactly as long as the composition lived.
+    // Colour pair from #536: a container can no longer be taken without the one foreground that is
+    // legible on it — this bubble drew onPrimary over a copper wash before that landed.
+    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
+    val bubbleColor = bubble.container
+    val onBubbleColor = bubble.content
+    // Entirely server-resolved (#539). The caller seals the message optimistically on the tap and
+    // puts the seal back if the reveal never reached the server, which it cannot do if the bubble
+    // keeps its own copy of the answer — and a bubble that latches locally is how the previous
+    // version refused a second view for exactly as long as the composition lived.
     val hasBeenViewed = message.viewOnceViewed
 
     val typeLabel = when (message.contentType) {

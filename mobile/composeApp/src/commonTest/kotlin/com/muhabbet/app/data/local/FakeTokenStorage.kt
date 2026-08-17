@@ -31,6 +31,15 @@ class FakeTokenStorage : TokenStorage {
 
     override fun getLanguage(): String? = language
     override fun setLanguage(lang: String) { language = lang }
+
+    private var pendingLanguageRestart: Boolean = false
+    override fun setPendingLanguageRestart() { pendingLanguageRestart = true }
+    override fun consumePendingLanguageRestart(): Boolean {
+        val pending = pendingLanguageRestart
+        pendingLanguageRestart = false
+        return pending
+    }
+
     private var hapticsEnabled: Boolean = true
     override fun getHapticsEnabled(): Boolean = hapticsEnabled
     override fun setHapticsEnabled(enabled: Boolean) { hapticsEnabled = enabled }
@@ -62,4 +71,8 @@ class FakeTokenStorage : TokenStorage {
     private var darkModeWallpaperEnabled: Boolean = false
     override fun getDarkModeWallpaperEnabled(): Boolean = darkModeWallpaperEnabled
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) { darkModeWallpaperEnabled = enabled }
+
+    private var testBuildNoticeAckVersion: String? = null
+    override fun getTestBuildNoticeAckVersion(): String? = testBuildNoticeAckVersion
+    override fun setTestBuildNoticeAckVersion(version: String) { testBuildNoticeAckVersion = version }
 }

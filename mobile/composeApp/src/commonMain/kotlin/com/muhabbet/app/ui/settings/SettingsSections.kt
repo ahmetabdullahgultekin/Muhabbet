@@ -197,32 +197,61 @@ internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageR
     }
 }
 
+/**
+ * Language picker.
+ *
+ * The filled row is derived from what is actually in effect — see [selectedLanguage] — never from a
+ * default-locale constant. Selecting a language persists it, marks the restart so the replacement
+ * process comes back here rather than to the conversation list, and then restarts: on Android the
+ * locale is applied in `MainActivity.onCreate`, so nothing below that point can apply it in place.
+ *
+ * Re-selecting the language already in effect does nothing. Restarting the app to arrive at the
+ * same screen in the same language is a jolt with no result to show for it.
+ */
 @Composable
 internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit) {
-    var selectedLanguage by remember { mutableStateOf(tokenStorage.getLanguage() ?: "tr") }
+    // Read once: the stored value cannot change while this screen is open except through the tap
+    // below, and that ends in a restart.
+    val stored = remember { tokenStorage.getLanguage() }
+    // Deliberately NOT remembered and deliberately a resource lookup: this asks the resource system
+    // which locale it resolved for this very composition, so the filled row cannot disagree with the
+    // language of the text beside it.
+    val rendered = stringResource(Res.string.app_language_code)
+    val selected = selectedLanguage(stored = stored, rendered = rendered)
+
     SettingsSectionTitle(stringResource(Res.string.settings_language))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    val options = listOf(
-        "tr" to stringResource(Res.string.settings_language_turkish),
-        "en" to stringResource(Res.string.settings_language_english)
-    )
-    options.forEach { (key, label) ->
+    AppLanguage.entries.forEach { language ->
         SettingsRadioRow(
-            title = label,
-            selected = selectedLanguage == key,
+            title = languageLabel(language),
+            selected = language == selected,
             onSelect = {
-                selectedLanguage = key
-                tokenStorage.setLanguage(key)
-                restartApp()
+                if (language != selected) {
+                    tokenStorage.setLanguage(language.code)
+                    tokenStorage.setPendingLanguageRestart()
+                    restartApp()
+                }
             }
         )
     }
 }
 
+/** Exhaustive on purpose: a new [AppLanguage] must fail to compile until it has been given a label. */
+@Composable
+private fun languageLabel(language: AppLanguage): String = when (language) {
+    AppLanguage.Turkish -> stringResource(Res.string.settings_language_turkish)
+    AppLanguage.English -> stringResource(Res.string.settings_language_english)
+}
+
 /**
  * Theme picker. Unlike [LanguageSection] this does not restart the app — [ThemeController] is read
  * at the composition root, so a new mode repaints the tree in place.
+ *
+ * The rows come from [MuhabbetThemeMode.entries] rather than a hand-written list. Paired with
+ * `fromStorageKey`, which is total, that makes "every row unselected" structurally impossible: the
+ * controller's mode is always one of these entries. A hand-written list can fall out of step with
+ * the enum, and the way that shows up is a group where nothing is filled in (#505).
  */
 @Composable
 internal fun ThemeSection(themeController: ThemeController) {
@@ -230,19 +259,22 @@ internal fun ThemeSection(themeController: ThemeController) {
     SettingsSectionTitle(stringResource(Res.string.settings_theme))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    val themeOptions = listOf(
-        MuhabbetThemeMode.System to stringResource(Res.string.settings_theme_system),
-        MuhabbetThemeMode.Light to stringResource(Res.string.settings_theme_light),
-        MuhabbetThemeMode.Dark to stringResource(Res.string.settings_theme_dark),
-        MuhabbetThemeMode.Oled to stringResource(Res.string.settings_theme_oled)
-    )
-    themeOptions.forEach { (mode, label) ->
+    MuhabbetThemeMode.entries.forEach { mode ->
         SettingsRadioRow(
-            title = label,
+            title = themeLabel(mode),
             selected = selectedTheme == mode,
             onSelect = { themeController.set(mode) }
         )
     }
+}
+
+/** Exhaustive on purpose, for the same reason as [languageLabel]. */
+@Composable
+private fun themeLabel(mode: MuhabbetThemeMode): String = when (mode) {
+    MuhabbetThemeMode.System -> stringResource(Res.string.settings_theme_system)
+    MuhabbetThemeMode.Light -> stringResource(Res.string.settings_theme_light)
+    MuhabbetThemeMode.Dark -> stringResource(Res.string.settings_theme_dark)
+    MuhabbetThemeMode.Oled -> stringResource(Res.string.settings_theme_oled)
 }
 
 /**

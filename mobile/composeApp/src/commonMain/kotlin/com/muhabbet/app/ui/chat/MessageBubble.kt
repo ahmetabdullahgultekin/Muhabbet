@@ -110,10 +110,10 @@ fun MessageBubble(
 
     val clipboardManager = LocalClipboardManager.current
     val semanticColors = LocalSemanticColors.current
+    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
     val bubbleColor = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        else if (isOwn) semanticColors.bubbleOwn
-        else semanticColors.bubbleOther
-    val onBubbleColor = if (isOwn) semanticColors.onBubbleOwn else semanticColors.onBubbleOther
+        else bubble.container
+    val onBubbleColor = bubble.content
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start

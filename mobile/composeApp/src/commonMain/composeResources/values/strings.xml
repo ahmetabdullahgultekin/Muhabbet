@@ -146,12 +146,23 @@
     <string name="settings_about_placeholder">Muhabbet kullanıyorum</string>
     <string name="settings_save">Kaydet</string>
     <string name="settings_app_section">Uygulama</string>
-    <string name="settings_version">Sürüm</string>
+    <!-- Replaced settings_version, which was a bare "Sürüm" label: the number and what that version
+         actually is are one statement now, and printing the version twice on one screen read as an
+         oversight (#519) -->
+    <string name="settings_test_build_title">Sürüm %1$s — test sürümü</string>
+    <string name="settings_test_build_body">Bazı özellikler beklediğiniz gibi çalışmayabilir. Önemli bir konuşma için şimdilik yalnızca Muhabbet'e güvenmeyin; ters giden bir şey olursa bize bildirin.</string>
     <string name="settings_logout">Çıkış Yap</string>
     <string name="settings_profile_updated">Profil güncellendi</string>
     <string name="settings_language">Dil</string>
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
+    <!--
+      Not user-visible: the language code of THIS file, so the app can ask the resource system which
+      locale it actually resolved rather than assuming one. Reading it through stringResource is the
+      only answer that cannot disagree with the text on screen, including the fallback to this file
+      on a device locale the app does not translate. Never translate this value - it names the file.
+    -->
+    <string name="app_language_code">tr</string>
 
     <!-- Delete Conversation -->
     <string name="conv_delete_title">Konuşmayı Sil</string>
@@ -733,4 +744,12 @@
          the wording has to cover a real outage rather than a momentary blip. -->
     <string name="connection_status_label">Bağlantı durumu</string>
     <string name="connection_offline_strip">Bağlantı yok. Mesajlar yeniden bağlanınca gönderilecek.</string>
+
+    <!-- First-run test-build notice, shown once per app version after login (#519) -->
+    <string name="test_build_notice_title">Muhabbet henüz test aşamasında</string>
+    <string name="test_build_notice_body_expectations">Bu, herkese açılmadan önceki bir deneme sürümü. Bazı özellikler beklediğiniz gibi çalışmayabilir: bir mesaj gecikebilir, bir ekran boş açılabilir, bir düğme hiçbir şey yapmayabilir.</string>
+    <string name="test_build_notice_body_reliance">Bu yüzden önemli bir konuşma için şimdilik yalnızca Muhabbet'e güvenmeyin.</string>
+    <string name="test_build_notice_body_report">Ters giden bir şey fark ederseniz bize bildirin. Neyin düzelmesi gerektiğini en çok böyle öğreniyoruz.</string>
+    <string name="test_build_notice_version">Sürüm %1$s</string>
+    <string name="test_build_notice_dismiss">Anladım</string>
 </resources>
