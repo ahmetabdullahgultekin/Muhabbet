@@ -194,7 +194,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Testing | JUnit 5 + MockK + Testcontainers + ArchUnit |
 | Code quality | JaCoCo (coverage) + detekt (static analysis) |
 | Load testing | k6 |
-| CI/CD | GitHub Actions on self-hosted runner `hetzner-cx43` |
+| CI/CD | GitHub Actions on self-hosted runner `muhabbet-cx43` (ONE runner, one job at a time) |
 
 ## Key Files
 - `settings.gradle.kts` — Root, includes all subprojects
@@ -430,16 +430,18 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
 - **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.7.0**, Kotlin 2.4.10, Spring Boot
   4.0.6. Run `./gradlew` from repo root.
 - **Backend tests:** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers + ArchUnit.
-  **Without Docker the baseline is 539 tests / 10 failures** at `dev` (2026-08-16). The ten are
+  **Without Docker the baseline was 672 / 10 at `dev` on 2026-08-17** — and it was 539 the day
+  before, and 416 for months before that. It moves every day. **Measure it, do not read it here.**
+  Run the suite on the unmodified base commit first, then on your branch, and compare the two
+  runs. The ten are
   `@Testcontainers` classes failing at class-init on "Could not find a valid Docker environment"
   rather than running — they are not skipped, so ten integration tests are silently unexecuted.
   Start Docker before trusting a run; with it, expect one pre-existing failure,
   `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when target visibility is
   nobody` (#269). Aggregate counts from `backend/build/test-results/test/*.xml`.
-  **Do not trust a written baseline — measure it.** The figure here was "416 / 6" for months while
-  the real number had moved to 539 / 10; three separate agents each rediscovered that independently
-  on the same day. Run the suite on the unmodified base commit first, then on your branch, and
-  compare the two runs rather than a number in a document.
+  Three separate agents rediscovered the staleness of the old figure independently on one day, and
+  three more did the same the next. If you are about to write a test count into this file, write the
+  instruction to measure instead.
 - **Redis is required for the integration tests**, not just Postgres. `RedisConfig` registers
   `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
@@ -678,6 +680,25 @@ is not evidence that it works.
 > ```
 
 - **Server**: Hetzner CX43 (8 vCPU / 16 GB), IP 116.203.222.213, `deploy` user, `/opt/projects/Muhabbet/`
+- **SSH is `ssh hetzner`** — `~/.ssh/config` already aliases it to `User deploy`, the right host and
+  the right key, so no `-i` and no user are needed. **Root login is disabled** and refuses with
+  `Permission denied (publickey)`; the global preferences still say `root@` and are wrong. `deploy`
+  is in the docker group, so `docker logs|inspect|exec` work without sudo.
+- **Disk sits at ~92%** (12 GB free of 150 GB) and there is **no large safe reclaim**: 34 images are
+  all in use by 36 running containers, there are no dangling or `rollback-*` images, and the space
+  is genuinely spoken for by five projects. Check `df -h /` before any build, and do not add a
+  second runner here without solving this first.
+- **The self-hosted runner is `muhabbet-cx43` and runs ONE job at a time.** A queue of CI jobs
+  therefore delays deploys and releases — cancel superseded runs rather than waiting. It is the
+  production host, so anything heavy competes with the running backend.
+- **JVM flags are set in `docker-compose.prod.yml` via `JAVA_TOOL_OPTIONS`** (#489). Without them
+  the JVM took 25% of the container limit as heap and chose SerialGC. Verify a change took effect
+  with `docker exec muhabbet-backend java -XX:+PrintFlagsFinal -version`, not by reading the file.
+- **Play publishing is automated** (#488, #497): `gh workflow run "Mobile Release" -f tag=vX.Y.Z -f
+  play_track=internal`. A tag push alone builds and signs but deliberately does **not** publish.
+  The token is minted from the service-account key with the OAuth2 JWT-bearer flow rather than
+  `google-github-actions/auth`, because that action calls `iamcredentials.googleapis.com`, which is
+  disabled on the project and made the first real run fail.
 - **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.116.203.222.213.nip.io`
   (Traefik file-provider route → `shared-minio:9000`, `passHostHeader: false` so presigned SigV4
   validates). Both are temporary nip.io/subdomain names pending a real domain.
