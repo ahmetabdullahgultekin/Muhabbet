@@ -12,9 +12,25 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Queue, never cancel. `cancel-in-progress: true` cost a whole release on 2026-08-17 and left no
+# failure behind to notice:
+#
+#   14:19  workflow_dispatch  starts deploying 0.3.6
+#   14:20  Backend CI on main finishes (it had failed, on #563's 429) and fires `workflow_run`
+#          -> that run enters this group and CANCELS the deploy that is halfway through
+#   14:20  the new run's `if:` sees conclusion != 'success' -> SKIPPED
+#
+# Net: nothing deployed, and neither run reported a failure — one "cancelled", one "skipped".
+# Production sat on the previous build while `/actuator/health` answered 200, which is exactly the
+# trap CLAUDE.md warns about: a healthy container is not evidence that your code is on it.
+#
+# GitHub evaluates concurrency BEFORE the job-level `if:`, so a run that is about to be skipped can
+# still cancel a running one. That makes `cancel-in-progress` unusable here regardless of the gate.
+# Queuing is also simply the right behaviour for a deploy: killing one mid-flight can leave a
+# half-built image or a stopped container, which cancelling a test run never does.
 concurrency:
   group: deploy-muhabbet
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
