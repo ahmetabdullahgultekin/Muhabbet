@@ -469,7 +469,17 @@ fun ChatScreen(
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
-            if (first <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
+            // initialScrollDone, not just !isLoading: the very first layout pass of a freshly
+            // mounted LazyColumn can report firstVisibleItemIndex = 0 for a frame before the
+            // jump-to-bottom effect above has actually applied its scroll — isLoading is already
+            // false by then, since both flip in the same state batch. Reading that transient 0 as
+            // "the user scrolled to the top" fired pagination on a conversation the user had not
+            // even looked at yet, prepending an older page while the initial jump was still
+            // in flight and turning "open at the bottom" into "open in the middle" (#590), and only
+            // for conversations long enough to have a nextCursor at all. initialScrollDone flips
+            // true in the same effect that issues the jump, so this gate cannot open before that
+            // jump has at least been requested.
+            if (first <= 1 && initialScrollDone && nextCursor != null && !isLoadingMore && !isLoading) {
                 isLoadingMore = true
                 // Without feedback a failed page load is indistinguishable from "no older messages".
                 val failure = runCatchingCancellable {
