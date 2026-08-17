@@ -23,12 +23,18 @@
     <string name="attach_file_view_once_on">Attach file — view once is on</string>
     <string name="voice_play">Play</string>
     <string name="voice_pause">Pause</string>
-    <string name="voice_record">Record</string>
-    <string name="voice_stop">Stop</string>
     <string name="voice_transcribe">Transcribe</string>
     <string name="voice_transcribing">Transcribing…</string>
     <string name="voice_transcript_failed">Transcription failed</string>
     <string name="voice_playback_speed_change">Change playback speed</string>
+    <!-- Content description while the record button is held down and audio is being captured. -->
+    <string name="voice_recording_in_progress">Recording voice message</string>
+    <string name="voice_slide_to_cancel">Slide to cancel</string>
+    <!-- Label on the lock icon once a held recording has been slid up into hands-free mode. -->
+    <string name="voice_locked">Locked</string>
+    <!-- Discards a stopped-but-unsent voice recording (preview or locked bar), as opposed to
+         "delete", which removes an already-sent message. -->
+    <string name="voice_discard">Discard recording</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -393,10 +399,20 @@
     <string name="profile_report">Report</string>
     <string name="profile_block_confirm">Are you sure you want to block this user?</string>
     <string name="profile_block_success">User blocked</string>
+    <string name="profile_block_failed">Could not block user</string>
+    <string name="profile_unblock_confirm">Are you sure you want to unblock this user?</string>
     <string name="profile_unblock_success">User unblocked</string>
+    <string name="profile_unblock_failed">Could not unblock user</string>
     <string name="profile_report_confirm">Are you sure you want to report this user?</string>
     <string name="profile_report_success">Report submitted</string>
+    <string name="profile_report_failed">Could not submit report</string>
     <string name="profile_report_reason_placeholder">Report reason (optional)</string>
+
+    <!-- Blocked Users -->
+    <string name="blocked_users_empty">You haven't blocked anyone</string>
+    <string name="blocked_users_empty_desc">People you block will show up here</string>
+    <string name="blocked_users_load_failed">Could not load blocked users</string>
+    <string name="blocked_users_since">Blocked on %1$s</string>
 
     <!-- Privacy Settings -->
     <string name="settings_privacy_section">Privacy</string>
@@ -560,6 +576,11 @@
     <string name="app_lock_immediately">Immediately</string>
     <string name="app_lock_1_minute">After 1 minute</string>
     <string name="app_lock_30_minutes">After 30 minutes</string>
+    <string name="app_lock_unavailable">To use App Lock, your device needs a fingerprint, face unlock, or screen lock (PIN/pattern/password) set up.</string>
+    <string name="app_lock_locked_title">Muhabbet is Locked</string>
+    <string name="app_lock_locked_subtitle">Verify your identity to see your chats</string>
+    <string name="app_lock_unlock_action">Unlock</string>
+    <string name="app_lock_auth_failed">Authentication failed. Try again.</string>
     <string name="chat_lock">Lock chat</string>
     <string name="chat_unlock">Unlock chat</string>
     <string name="locked_chats">Locked Chats</string>
@@ -570,6 +591,15 @@
     <string name="media_quality_hd">HD</string>
     <string name="media_quality_description">HD photos and videos use more data</string>
 
+    <!-- About screen (#614): app identity, build info, and the legal documents KVKK Md. 10 and
+         Google Play both require to be reachable from inside the app. -->
+    <string name="about_title">About</string>
+    <string name="about_version_build">Version %1$s (build %2$d)</string>
+    <string name="about_legal_section">Legal</string>
+    <string name="about_privacy_policy">Privacy Policy</string>
+    <string name="about_kvkk_notice">KVKK Disclosure Notice</string>
+    <string name="about_terms">Terms of Service</string>
+
     <!-- Video Messages -->
     <string name="video_message">Video message</string>
     <string name="video_message_hold">Hold to record video</string>
@@ -579,6 +609,7 @@
     <string name="community_create">Create Community</string>
     <string name="community_name_hint">Community name</string>
     <string name="community_description_hint">Description (optional)</string>
+    <string name="community_announcements">Announcements</string>
     <string name="community_groups">Groups</string>
     <string name="community_members">Members</string>
     <string name="community_member_count">%1$d members</string>
@@ -751,6 +782,7 @@
     <string name="a11y_message_media_preview">Message media preview</string>
     <string name="a11y_image_full_screen">Full-screen image</string>
     <string name="a11y_conversation_pinned">Pinned chat</string>
+    <string name="a11y_conversation_muted">Muted chat</string>
     <string name="a11y_selected">Selected</string>
     <string name="group_remove_member">Remove member from group</string>
     <string name="group_event_empty">No events yet</string>

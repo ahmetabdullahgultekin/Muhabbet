@@ -88,6 +88,27 @@ class WsMessageSerializationTest {
         assertTrue(json.contains(""""type":"ping""""))
     }
 
+    // ─── Conversation focus (#618) ────────────────
+
+    @Test
+    fun should_serialize_ConversationFocus_with_a_conversation() {
+        val msg = WsMessage.ConversationFocus(conversationId = "conv-1")
+        val json = wsJson.encodeToString(WsMessage.serializer(), msg)
+        assertTrue(json.contains(""""type":"presence.conversation_focus""""))
+        assertTrue(json.contains(""""conversationId":"conv-1""""))
+    }
+
+    @Test
+    fun should_roundtrip_ConversationFocus_cleared_to_null() {
+        // The background/no-chat-open case, which is what makes this distinct from every other
+        // client->server frame that always names a conversation.
+        val original = WsMessage.ConversationFocus(conversationId = null)
+        val json = wsJson.encodeToString(WsMessage.serializer(), original)
+        val decoded = wsJson.decodeFromString<WsMessage>(json)
+        assertIs<WsMessage.ConversationFocus>(decoded)
+        assertEquals(null, decoded.conversationId)
+    }
+
     // ─── Call Signaling ───────────────────────────
 
     @Test

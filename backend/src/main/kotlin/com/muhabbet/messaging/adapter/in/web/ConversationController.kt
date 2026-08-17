@@ -134,7 +134,10 @@ class ConversationController(
                 unreadCount = summary.unreadCount,
                 createdAt = "",
                 disappearAfterSeconds = summary.disappearAfterSeconds,
-                isPinned = summary.isPinned
+                isPinned = summary.isPinned,
+                isMuted = summary.isMuted,
+                isArchived = summary.isArchived,
+                isLocked = summary.isLocked
             )
         }
 

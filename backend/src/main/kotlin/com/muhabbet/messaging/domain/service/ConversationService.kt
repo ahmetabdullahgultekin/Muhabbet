@@ -135,7 +135,12 @@ open class ConversationService(
                 unreadCount = unreadCountMap[conv.id] ?: 0,
                 participantIds = members.map { it.userId },
                 disappearAfterSeconds = conv.disappearAfterSeconds,
-                isPinned = myMember?.pinned ?: false
+                isPinned = myMember?.pinned ?: false,
+                // The caller's own row, same as pinned above — mute/archive/lock are per-user-per-
+                // conversation, never derived from anyone else's membership row.
+                isMuted = myMember?.isMuted() ?: false,
+                isArchived = myMember?.archived ?: false,
+                isLocked = myMember?.locked ?: false
             )
         }
             .sortedByDescending { it.lastMessageAt ?: "" }

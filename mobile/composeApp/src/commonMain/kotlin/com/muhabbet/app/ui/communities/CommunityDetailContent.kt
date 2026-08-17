@@ -66,6 +66,49 @@ fun CommunityDetailContent(
             HorizontalDivider()
         }
 
+        // The announcement channel (#584) — every member is in it, only admins/owners can post,
+        // and it is the one place a community is actually a place to talk rather than a container
+        // of groups. Null only for a community read by a server that predates this field; the
+        // service backfills it on the very next read, so this is a decode-safety fallback, not a
+        // state a real community stays in.
+        community.announcementGroupId?.let { announcementGroupId ->
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClick = {
+                                onGroupClick(
+                                    ChatTarget(
+                                        conversationId = announcementGroupId,
+                                        name = community.name,
+                                        isGroup = true,
+                                        avatarUrl = community.avatarUrl
+                                    )
+                                )
+                            }
+                        )
+                        .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Muhabbet.icons.Channel,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                    )
+                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                    Text(
+                        text = stringResource(Res.string.community_announcements),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+            }
+        }
+
         // Members row — the only route to the member list, and so the only place from which a
         // person can be added to a community at all.
         item {

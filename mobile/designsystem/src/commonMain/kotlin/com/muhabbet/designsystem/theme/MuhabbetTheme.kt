@@ -297,6 +297,16 @@ object MuhabbetSizes {
     /** The delivery tick beside a bubble's timestamp — smaller than an icon, it is punctuation. */
     val IconStatusTick: Dp = 14.dp
 
+    /**
+     * The muted / pinned marks beside a conversation's title.
+     *
+     * Same 14.dp as [IconStatusTick] and deliberately its own name: these are row state, not
+     * punctuation on a bubble, and the two should be free to diverge without one silently dragging
+     * the other. Both call sites hardcoded the number until #655 added a third and the guardrail
+     * refused it — which is the ratchet working exactly as intended.
+     */
+    val IconRowIndicator: Dp = 14.dp
+
     /** Accept and decline on the incoming-call screen — the largest touch targets in the app. */
     val CallActionButton: Dp = 64.dp
 
@@ -458,6 +468,21 @@ object MuhabbetDurations {
 object MuhabbetGestures {
     const val SwipeReplyThreshold: Float = 80f
     const val SwipeReplyMax: Float = 120f
+
+    /**
+     * How far left the record button must be dragged, in px, before releasing discards the
+     * recording instead of stopping it. Evaluated only at release — dragging past it and back is a
+     * deliberate "undo", matching [MuhabbetHapticIntent.SwipeArmed]/[MuhabbetHapticIntent.SwipeCommitted]
+     * firing once each rather than on every frame past the line.
+     */
+    const val VoiceCancelThresholdPx: Float = 140f
+
+    /**
+     * How far up the record button must be dragged, in px, before the recording locks hands-free.
+     * Unlike the cancel threshold this fires the instant it is crossed, not at release — the whole
+     * point of locking is that the finger can then be lifted without ending the recording.
+     */
+    const val VoiceLockThresholdPx: Float = 100f
 }
 
 // ─── Elevation tokens ──────────────────────────────────────

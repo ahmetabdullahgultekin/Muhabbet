@@ -3,15 +3,22 @@ package com.muhabbet.app.platform
 /**
  * Platform-specific speech-to-text transcription for voice messages.
  *
- * Android: Uses Android SpeechRecognizer or MediaCodec + on-device ML.
- * iOS: Uses Apple SFSpeechRecognizer (Speech framework).
+ * Android: on-device SpeechRecognizer, gated to API 33+ — see `SpeechTranscriber.android.kt`
+ * for why (issue #381).
+ * iOS: Apple SFSpeechRecognizer (Speech framework), file-based ([transcribe] never opens the
+ * live microphone on either platform).
  *
  * Primary language: Turkish (tr-TR).
- * Falls back to server-side transcription if on-device fails.
+ *
+ * There is no server-side transcription fallback — none exists in the backend. [isAvailable]
+ * returning `false` (or [transcribe] returning `null`) is the end of the story for that message;
+ * the caller (`VoiceBubble.kt`) shows a failure string, not a second attempt elsewhere.
  */
 expect class SpeechTranscriber {
     /**
-     * Check if on-device transcription is available.
+     * Whether on-device transcription can be offered right now, without opening the
+     * microphone, on this device. Callers should hide the transcribe control when this is
+     * `false` rather than show one that can only fail.
      */
     fun isAvailable(): Boolean
 

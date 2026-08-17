@@ -180,4 +180,80 @@ class WebSocketSessionManagerTest {
             assertNull(manager.getUserId(session))
         }
     }
+
+    /**
+     * #618: a push must be withheld only for the exact chat a user is looking at, which is a finer
+     * question than [WebSocketSessionManager.isOnline] can answer.
+     */
+    @Nested
+    inner class ActiveConversation {
+
+        private val conversationId = UUID.randomUUID()
+        private val otherConversationId = UUID.randomUUID()
+
+        @Test
+        fun `should report viewing after the conversation is set active`() {
+            manager.setActiveConversation(userId, conversationId)
+
+            assertTrue(manager.isViewingConversation(userId, conversationId))
+        }
+
+        @Test
+        fun `should not consider a user viewing a conversation it never reported`() {
+            manager.setActiveConversation(userId, conversationId)
+
+            assertFalse(manager.isViewingConversation(userId, otherConversationId))
+        }
+
+        @Test
+        fun `should report not viewing anything before any focus is ever reported`() {
+            assertFalse(manager.isViewingConversation(userId, conversationId))
+        }
+
+        @Test
+        fun `should clear the active conversation when null is reported`() {
+            manager.setActiveConversation(userId, conversationId)
+
+            manager.setActiveConversation(userId, null)
+
+            assertFalse(manager.isViewingConversation(userId, conversationId))
+        }
+
+        @Test
+        fun `should switch the active conversation on a later report`() {
+            manager.setActiveConversation(userId, conversationId)
+
+            manager.setActiveConversation(userId, otherConversationId)
+
+            assertFalse(manager.isViewingConversation(userId, conversationId))
+            assertTrue(manager.isViewingConversation(userId, otherConversationId))
+        }
+
+        @Test
+        fun `should clear the active conversation once the users last session disconnects`() {
+            val session = openSession()
+            manager.register(userId, session)
+            manager.setActiveConversation(userId, conversationId)
+
+            manager.unregister(session)
+
+            assertFalse(
+                manager.isViewingConversation(userId, conversationId),
+                "a disconnected user cannot still be viewing anything, or every push to them would be suppressed forever"
+            )
+        }
+
+        @Test
+        fun `should keep the active conversation while another session for the same user remains`() {
+            val phone = openSession()
+            val tablet = openSession()
+            manager.register(userId, phone)
+            manager.register(userId, tablet)
+            manager.setActiveConversation(userId, conversationId)
+
+            manager.unregister(phone)
+
+            assertTrue(manager.isViewingConversation(userId, conversationId))
+        }
+    }
 }

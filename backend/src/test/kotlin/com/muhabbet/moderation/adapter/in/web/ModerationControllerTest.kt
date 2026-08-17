@@ -2,19 +2,26 @@ package com.muhabbet.moderation.adapter.`in`.web
 
 import com.muhabbet.moderation.domain.model.ReportReason
 import com.muhabbet.moderation.domain.model.ReportStatus
+import com.muhabbet.moderation.domain.model.UserBlock
 import com.muhabbet.moderation.domain.model.UserReport
 import com.muhabbet.moderation.domain.port.`in`.BlockUserUseCase
 import com.muhabbet.moderation.domain.port.`in`.ReportUserUseCase
 import com.muhabbet.moderation.domain.port.`in`.ReviewReportsUseCase
+import com.muhabbet.moderation.domain.port.out.UserDirectoryPort
+import com.muhabbet.moderation.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.TestData
+import com.muhabbet.shared.dto.BlockedUserResponse
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.context.SecurityContextHolder
 import java.time.Instant
 import java.util.UUID
 
@@ -23,12 +30,17 @@ import java.util.UUID
  * ModerationController uses @AuthenticationPrincipal which complicates direct
  * controller instantiation in unit tests. These tests verify the use case
  * behavior that the controller delegates to.
+ *
+ * [GetBlockedUsers] is the exception: it instantiates the real controller (SecurityContextHolder
+ * set directly, following `ContactControllerTest`'s pattern) because the enrichment and sort order
+ * live in the controller itself, not in a use case a mock can stand in for.
  */
 class ModerationControllerTest {
 
     private lateinit var reportUserUseCase: ReportUserUseCase
     private lateinit var blockUserUseCase: BlockUserUseCase
     private lateinit var reviewReportsUseCase: ReviewReportsUseCase
+    private lateinit var userDirectoryPort: UserDirectoryPort
 
     private val userId = TestData.USER_ID_1
     private val targetUserId = TestData.USER_ID_2
@@ -38,6 +50,7 @@ class ModerationControllerTest {
         reportUserUseCase = mockk()
         blockUserUseCase = mockk()
         reviewReportsUseCase = mockk()
+        userDirectoryPort = mockk()
     }
 
     // ─── Report ──────────────────────────────────────────
@@ -196,15 +209,18 @@ class ModerationControllerTest {
 
         @Test
         fun `should return list of blocked users`() {
-            val blockedIds = listOf(targetUserId, TestData.USER_ID_3)
+            val blocks = listOf(
+                UserBlock(blockerId = userId, blockedId = targetUserId),
+                UserBlock(blockerId = userId, blockedId = TestData.USER_ID_3)
+            )
 
-            every { blockUserUseCase.getBlockedUsers(userId) } returns blockedIds
+            every { blockUserUseCase.getBlockedUsers(userId) } returns blocks
 
             val result = blockUserUseCase.getBlockedUsers(userId)
 
             assert(result.size == 2)
-            assert(result.contains(targetUserId))
-            assert(result.contains(TestData.USER_ID_3))
+            assert(result.any { it.blockedId == targetUserId })
+            assert(result.any { it.blockedId == TestData.USER_ID_3 })
         }
 
         @Test
@@ -223,6 +239,75 @@ class ModerationControllerTest {
             val result = blockUserUseCase.getBlockedUsers(userId)
 
             assert(result.isEmpty())
+        }
+    }
+
+    // ─── GET /blocks: the controller's own enrichment ────
+
+    @Nested
+    inner class GetBlockedUsers {
+
+        private lateinit var controller: ModerationController
+
+        @BeforeEach
+        fun setUpController() {
+            controller = ModerationController(reportUserUseCase, blockUserUseCase, reviewReportsUseCase, userDirectoryPort)
+            val claims = JwtClaims(userId = userId, deviceId = TestData.DEVICE_ID_1)
+            SecurityContextHolder.getContext().authentication =
+                UsernamePasswordAuthenticationToken(claims, null, emptyList())
+        }
+
+        @Test
+        fun `should resolve names in one batched call and sort newest block first`() {
+            val older = UserBlock(blockerId = userId, blockedId = targetUserId, createdAt = Instant.now().minusSeconds(60))
+            val newer = UserBlock(blockerId = userId, blockedId = TestData.USER_ID_3, createdAt = Instant.now())
+
+            every { blockUserUseCase.getBlockedUsers(userId) } returns listOf(older, newer)
+            // The controller sorts newest-first BEFORE resolving names, so the ids reach the
+            // directory port in that order: USER_ID_3 (newer), then targetUserId (older).
+            every { userDirectoryPort.findDisplayInfo(listOf(TestData.USER_ID_3, targetUserId)) } returns mapOf(
+                targetUserId to UserDisplayInfo(targetUserId, "Old Block", null),
+                TestData.USER_ID_3 to UserDisplayInfo(TestData.USER_ID_3, "New Block", "https://cdn/avatar.jpg")
+            )
+
+            val response = controller.getBlockedUsers()
+
+            val body = response.body!!.data!!
+            assert(body.size == 2)
+            // Newest first, regardless of the order the use case returned them in.
+            assert(body[0].userId == TestData.USER_ID_3.toString())
+            assert(body[0].displayName == "New Block")
+            assert(body[0].avatarUrl == "https://cdn/avatar.jpg")
+            assert(body[1].userId == targetUserId.toString())
+            assert(body[1].displayName == "Old Block")
+        }
+
+        @Test
+        fun `should return an empty list rather than call the directory port for nobody`() {
+            every { blockUserUseCase.getBlockedUsers(userId) } returns emptyList()
+            every { userDirectoryPort.findDisplayInfo(emptyList()) } returns emptyMap()
+
+            val response = controller.getBlockedUsers()
+
+            val body = response.body!!.data!!
+            assert(body.isEmpty())
+        }
+
+        @Test
+        fun `should still render a row when the directory has no display info`() {
+            // A deleted account, or a race with account deletion: the row must not vanish just
+            // because the name lookup came back empty for it.
+            val block = UserBlock(blockerId = userId, blockedId = targetUserId)
+
+            every { blockUserUseCase.getBlockedUsers(userId) } returns listOf(block)
+            every { userDirectoryPort.findDisplayInfo(listOf(targetUserId)) } returns emptyMap()
+
+            val response = controller.getBlockedUsers()
+
+            val body = response.body!!.data!!
+            assert(body.size == 1)
+            assert(body[0].userId == targetUserId.toString())
+            assert(body[0].displayName == null)
         }
     }
 

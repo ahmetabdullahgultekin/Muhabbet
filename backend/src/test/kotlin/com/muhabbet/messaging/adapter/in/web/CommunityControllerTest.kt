@@ -142,6 +142,7 @@ class CommunityControllerTest {
 
         @Test
         fun `should serve a flat detail shape the client can decode`() {
+            val announcementGroupId = UUID.randomUUID()
             every { manageCommunityUseCase.getDetails(communityId, userId) } returns CommunityDetails(
                 community = community(),
                 groups = listOf(
@@ -153,7 +154,8 @@ class CommunityControllerTest {
                     )
                 ),
                 memberCount = 128,
-                myRole = MemberRole.OWNER
+                myRole = MemberRole.OWNER,
+                announcementGroupId = announcementGroupId
             )
 
             val decoded = decodeDetail(controller.getDetails(communityId).body?.data)
@@ -168,6 +170,8 @@ class CommunityControllerTest {
             assertEquals("Bahçe Katı", decoded.groups[0].name)
             assertEquals("https://cdn.example/g.jpg", decoded.groups[0].avatarUrl)
             assertEquals(12, decoded.groups[0].memberCount)
+            // #584: the announcement channel a member opens to actually talk in the community.
+            assertEquals(announcementGroupId.toString(), decoded.announcementGroupId)
         }
 
         @Test

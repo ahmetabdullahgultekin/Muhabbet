@@ -16,6 +16,7 @@ import platform.AVFAudio.AVAudioSessionCategoryRecord
 import platform.AVFAudio.AVAudioSessionRecordPermissionGranted
 import platform.Foundation.NSData
 import platform.Foundation.NSError
+import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.dataWithContentsOfFile
@@ -78,10 +79,13 @@ actual class AudioRecorder {
         val data = NSData.dataWithContentsOfFile(path) ?: return null
         val bytes = data.toByteArray()
 
+        // Left on disk (not deleted here) so the caller can preview it before sending — see
+        // RecordedAudio.localFilePath. discardPreview() is the cleanup, mirroring Android.
         return RecordedAudio(
             bytes = bytes,
             mimeType = "audio/mp4",
-            durationSeconds = durationSecs
+            durationSeconds = durationSecs,
+            localFilePath = path
         )
     }
 
@@ -102,6 +106,17 @@ actual class AudioRecorder {
         recorder?.deleteRecording()
         recorder = null
         recording = false
+        outputPath = null
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    actual fun discardPreview() {
+        val path = outputPath ?: return
+        memScoped {
+            val err = alloc<ObjCObjectVar<NSError?>>()
+            NSFileManager.defaultManager.removeItemAtPath(path, error = err.ptr)
+        }
+        outputPath = null
     }
 
     actual fun isRecording(): Boolean = recording

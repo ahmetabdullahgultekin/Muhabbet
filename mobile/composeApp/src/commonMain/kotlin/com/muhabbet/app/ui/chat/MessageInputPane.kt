@@ -152,7 +152,12 @@ fun MessageInputBar(
     isEditing: Boolean,
     isUploading: Boolean,
     onSend: () -> Unit,
-    onMicClick: () -> Unit,
+    recordingPhase: VoiceRecordingPhase,
+    recordingSeconds: Int,
+    onRecordPressStart: () -> Boolean,
+    onRecordDragUpdate: (dragX: Float, dragY: Float) -> Unit,
+    onRecordLocked: () -> Unit,
+    onRecordReleased: (dragX: Float, dragY: Float) -> Unit,
     onImagePick: () -> Unit,
     onFilePick: () -> Unit,
     onPollCreate: () -> Unit,
@@ -166,6 +171,9 @@ fun MessageInputBar(
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
     val fieldBackground = LocalSemanticColors.current.inputField.container
+    // Only Idle and Held ever reach this composable — see the doc on VoiceRecordGestureButton for
+    // why Locked/Preview are rendered by an entirely different composable one level up instead.
+    val isHeldForRecording = recordingPhase is VoiceRecordingPhase.Held
 
     Surface(
         color = LocalSemanticColors.current.inputBar.container,
@@ -188,28 +196,41 @@ fun MessageInputBar(
             // setting with a privacy consequence — a state that can only be seen by reopening the
             // sheet that sets it is not a state the user can be held to. This costs no width: the
             // entrance to the setting is the natural place to show it is on.
-            IconButton(
-                onClick = { showAttachMenu = true },
-                enabled = !isUploading && !isEditing
-            ) {
-                if (isUploading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(MuhabbetSizes.IconLarge),
-                        strokeWidth = MuhabbetSizes.ProgressStrokeThin
-                    )
-                } else {
-                    Icon(
-                        imageVector = Muhabbet.icons.Attach,
-                        contentDescription = stringResource(
-                            if (viewOnceEnabled) Res.string.attach_file_view_once_on
-                            else Res.string.attach_file
-                        ),
-                        tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            //
+            // Hidden rather than merely disabled while a recording is held: WhatsApp/Telegram both
+            // give the "slide to cancel" hint the full width the field just gave up, and there is
+            // nothing this button could usefully do mid-recording anyway.
+            if (!isHeldForRecording) {
+                IconButton(
+                    onClick = { showAttachMenu = true },
+                    enabled = !isUploading && !isEditing
+                ) {
+                    if (isUploading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge),
+                            strokeWidth = MuhabbetSizes.ProgressStrokeThin
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Muhabbet.icons.Attach,
+                            contentDescription = stringResource(
+                                if (viewOnceEnabled) Res.string.attach_file_view_once_on
+                                else Res.string.attach_file
+                            ),
+                            tint = if (viewOnceEnabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
+            if (isHeldForRecording) {
+                RecordingHintRow(
+                    recordingSeconds = recordingSeconds,
+                    dragX = recordingPhase.dragX,
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
             OutlinedTextField(
                 value = messageText,
                 onValueChange = onTextChange,
@@ -254,12 +275,19 @@ fun MessageInputBar(
                     cursorColor = MaterialTheme.colorScheme.primary
                 )
             )
+            }
 
             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
 
             // The mic and the send button occupy the same spot and swap as soon as the field has
             // text, which was an instant cut. A scale crossfade makes it read as one control
             // changing what it does, which is what it is. Spatial: it is a size change.
+            //
+            // This target never actually changes value across Idle -> Held (messageText is
+            // untouched while the field is hidden for recording), so AnimatedContent never runs a
+            // transition for that step and keeps rendering the same VoiceRecordGestureButton
+            // instance rather than creating a new one — see that composable's doc for why that
+            // matters more than it looks.
             AnimatedContent(
                 targetState = messageText.isBlank() && !isEditing,
                 transitionSpec = {
@@ -271,17 +299,13 @@ fun MessageInputBar(
                 label = "micSendMorph"
             ) { showMic ->
             if (showMic) {
-                FilledIconButton(
-                    onClick = onMicClick,
-                    modifier = Modifier.size(MuhabbetSizes.MinTouchTarget),
-                    shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(Muhabbet.icons.Mic, contentDescription = stringResource(Res.string.chat_voice_message), modifier = Modifier.size(MuhabbetSizes.IconMedium))
-                }
+                VoiceRecordGestureButton(
+                    phase = recordingPhase,
+                    onPressStart = onRecordPressStart,
+                    onDragUpdate = onRecordDragUpdate,
+                    onLocked = onRecordLocked,
+                    onReleased = onRecordReleased
+                )
             } else {
                 // Tap = send now; long-press (text messages only) = schedule for later.
                 val sendDescription = stringResource(if (isEditing) Res.string.action_save else Res.string.action_send)

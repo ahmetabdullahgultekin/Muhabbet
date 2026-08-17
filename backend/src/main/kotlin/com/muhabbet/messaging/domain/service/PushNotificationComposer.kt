@@ -48,6 +48,23 @@ class PushNotificationComposer(
         const val KEY_SENDER_ID = "senderId"
         const val KEY_SENDER_NAME = "senderName"
         const val KEY_CONVERSATION_TYPE = "conversationType"
+
+        /**
+         * Epoch millis of [Message.serverTimestamp]. The client needs this for `setWhen` on a
+         * `MessagingStyle` notification — without it, the tray can only show *delivery* time, which
+         * is close but wrong for a message that queued while the recipient was offline (#595).
+         */
+        const val KEY_SENT_AT = "sentAt"
+
+        /**
+         * The raw group name, separate from the already-composed "Sender · Group" that [compose]
+         * puts in [PushNotification.title]. A `MessagingStyle` conversation title wants the group
+         * name alone, not the combined string — and that combined string is locale-formatted
+         * (`push.title.group`), so the client cannot safely split it back apart. Empty, never null:
+         * FCM data values must be non-null strings, and empty already means "no group name" the same
+         * way it does for the title's own blank check.
+         */
+        const val KEY_GROUP_NAME = "groupName"
     }
 
     /**
@@ -83,7 +100,9 @@ class PushNotificationComposer(
                 KEY_MESSAGE_ID to message.id.toString(),
                 KEY_SENDER_ID to message.senderId.toString(),
                 KEY_SENDER_NAME to sender,
-                KEY_CONVERSATION_TYPE to (conversation?.type ?: ConversationType.DIRECT).name
+                KEY_CONVERSATION_TYPE to (conversation?.type ?: ConversationType.DIRECT).name,
+                KEY_SENT_AT to message.serverTimestamp.toEpochMilli().toString(),
+                KEY_GROUP_NAME to (groupName ?: "")
             )
         )
     }

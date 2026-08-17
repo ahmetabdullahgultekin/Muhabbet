@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.out
 
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.adapter.out.external.OfflinePushSender
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -25,7 +26,7 @@ class WebSocketMessageBroadcaster(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun broadcastMessage(message: Message, recipientIds: List<UUID>) {
+    override fun broadcastMessage(message: Message, recipients: List<ConversationMember>) {
         // Resolved once for the whole recipient list. This used to run per offline recipient inside
         // sendPushToOfflineUser, so a group re-read the same sender row for every member.
         val senderDisplayName = userDirectory.findDisplayInfo(listOf(message.senderId))[message.senderId]?.displayName
@@ -50,12 +51,23 @@ class WebSocketMessageBroadcaster(
 
         val json = wsJson.encodeToString<WsMessage>(wsMessage)
 
-        recipientIds.forEach { recipientId ->
+        recipients.forEach { member ->
+            val recipientId = member.userId
             if (sessionManager.isOnline(recipientId)) {
                 sessionManager.sendToUser(recipientId, json)
                 log.debug("Message {} delivered to online user {}", message.id, recipientId)
             } else {
                 log.debug("User {} offline, message {} queued in DB", recipientId, message.id)
+            }
+
+            // A push is withheld for two independent reasons: this member has muted the
+            // conversation (#571), or is foregrounded on it right now (#618) — a live socket
+            // elsewhere, screen off, or the app merely backgrounded all still get one. Checked
+            // outside the isOnline branch above, not inside its `else`: an online recipient reading
+            // a different chat needs exactly the same push an offline one does. Kept in step with
+            // RedisMessageBroadcaster's identical check by hand — #469 was this same pair of
+            // broadcasters drifting apart once already.
+            if (!member.isMuted() && !sessionManager.isViewingConversation(recipientId, message.conversationId)) {
                 offlinePushSender.sendTo(recipientId, message, senderDisplayName, conversation)
             }
         }

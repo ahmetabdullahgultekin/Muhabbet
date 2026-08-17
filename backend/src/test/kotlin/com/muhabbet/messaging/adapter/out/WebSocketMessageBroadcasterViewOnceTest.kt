@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.out
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.adapter.out.external.OfflinePushSender
 import com.muhabbet.messaging.domain.model.ContentType
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -59,7 +60,8 @@ class WebSocketMessageBroadcasterViewOnceTest {
         val payload = slot<String>()
         every { sessionManager.sendToUser(recipient, capture(payload)) } returns Unit
 
-        broadcaster.broadcastMessage(message, listOf(recipient))
+        val member = ConversationMember(conversationId = message.conversationId, userId = recipient)
+        broadcaster.broadcastMessage(message, listOf(member))
 
         verify { sessionManager.sendToUser(recipient, any()) }
         return wsJson.decodeFromString<WsMessage>(payload.captured) as WsMessage.NewMessage

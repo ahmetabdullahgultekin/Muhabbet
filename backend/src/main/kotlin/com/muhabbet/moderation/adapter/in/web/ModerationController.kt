@@ -4,6 +4,10 @@ import com.muhabbet.moderation.domain.model.ReportReason
 import com.muhabbet.moderation.domain.port.`in`.BlockUserUseCase
 import com.muhabbet.moderation.domain.port.`in`.ReportUserUseCase
 import com.muhabbet.moderation.domain.port.`in`.ReviewReportsUseCase
+import com.muhabbet.moderation.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.shared.dto.BlockedUserResponse
+import com.muhabbet.shared.dto.CreateReportRequest
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.AuthenticatedUser
@@ -17,7 +21,8 @@ import java.util.UUID
 class ModerationController(
     private val reportUserUseCase: ReportUserUseCase,
     private val blockUserUseCase: BlockUserUseCase,
-    private val reviewReportsUseCase: ReviewReportsUseCase
+    private val reviewReportsUseCase: ReviewReportsUseCase,
+    private val userDirectoryPort: UserDirectoryPort
 ) {
 
     // ─── Report ──────────────────────────────────────────
@@ -84,11 +89,33 @@ class ModerationController(
         return ApiResponseBuilder.ok(mapOf("blocked" to false))
     }
 
+    /**
+     * The caller's own block list, with enough to actually render a row: a name and a face, not
+     * just a UUID. Was `{ "blockedUserIds": [...] }` — bare ids nothing on the client could turn
+     * into a name, since `GET /users/{id}` withholds a foreign user's phone number and there is no
+     * local contact-book entry for someone the user has never messaged from this device. Resolving
+     * [displayName]/[avatarUrl] here, in one batched call via [userDirectoryPort], is strictly
+     * better than pushing that N-request problem onto every client that ever wants this list.
+     *
+     * Newest block first: the person you just blocked is the one most likely to be why this screen
+     * was opened.
+     */
     @GetMapping("/blocks")
-    fun getBlockedUsers(): ResponseEntity<*> {
+    fun getBlockedUsers(): ResponseEntity<ApiResponse<List<BlockedUserResponse>>> {
         val currentUserId = AuthenticatedUser.currentUserId()
-        val blockedIds = blockUserUseCase.getBlockedUsers(currentUserId)
-        return ApiResponseBuilder.ok(mapOf("blockedUserIds" to blockedIds.map { it.toString() }))
+        val blocks = blockUserUseCase.getBlockedUsers(currentUserId)
+            .sortedByDescending { it.createdAt }
+        val displayInfo = userDirectoryPort.findDisplayInfo(blocks.map { it.blockedId })
+        val response = blocks.map { block ->
+            val info = displayInfo[block.blockedId]
+            BlockedUserResponse(
+                userId = block.blockedId.toString(),
+                displayName = info?.displayName,
+                avatarUrl = info?.avatarUrl,
+                blockedAt = block.createdAt.toString()
+            )
+        }
+        return ApiResponseBuilder.ok(response)
     }
 
     @GetMapping("/blocks/{userId}")
@@ -129,11 +156,3 @@ class ModerationController(
         return ApiResponseBuilder.ok(mapOf("resolved" to true))
     }
 }
-
-data class CreateReportRequest(
-    val reportedUserId: String? = null,
-    val reportedMessageId: String? = null,
-    val reportedConversationId: String? = null,
-    val reason: String,
-    val description: String? = null
-)

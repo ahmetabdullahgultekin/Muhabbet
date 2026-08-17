@@ -70,6 +70,7 @@ internal fun ProfileEditorSection(
     isUploadingPhoto: Boolean,
     isSaving: Boolean,
     onPickPhoto: () -> Unit,
+    onViewPhoto: () -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onAboutChange: (String) -> Unit,
     onSave: () -> Unit
@@ -80,7 +81,8 @@ internal fun ProfileEditorSection(
         size = MuhabbetSizes.AvatarXXLarge,
         changePhotoContentDescription = stringResource(Res.string.profile_change_photo),
         onPickPhoto = onPickPhoto,
-        isUploading = isUploadingPhoto
+        isUploading = isUploadingPhoto,
+        onViewPhoto = onViewPhoto
     )
 
     Spacer(Modifier.height(MuhabbetSpacing.XLarge))

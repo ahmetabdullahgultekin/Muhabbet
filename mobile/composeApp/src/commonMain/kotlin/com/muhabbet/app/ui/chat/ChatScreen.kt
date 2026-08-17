@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.platform.AppVisibility
+import com.muhabbet.app.platform.RecordedAudio
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.platform.rememberAudioPermissionRequester
 import com.muhabbet.app.platform.rememberAudioRecorder
@@ -233,12 +235,55 @@ fun ChatScreen(
     var isAnnouncementOnly by remember { mutableStateOf(false) }
     var isAdminOrOwner by remember { mutableStateOf(false) }
 
-    // Voice recording
+    // Voice recording — see VoiceRecordingPhase for the state machine. Before #601 there were only
+    // two states, recording and not, and the only way out of the first was tapping the same button
+    // again, which stopped the recording AND sent it in one motion — no cancel, no preview, no way
+    // to keep talking past the length of one held press.
     val audioRecorder = rememberAudioRecorder()
     val audioPlayer = rememberAudioPlayer()
-    var isRecording by remember { mutableStateOf(false) }
-    val requestAudioPermission = rememberAudioPermissionRequester { granted ->
-        if (granted) { audioRecorder.startRecording(); isRecording = true }
+    var recordingPhase by remember { mutableStateOf<VoiceRecordingPhase>(VoiceRecordingPhase.Idle) }
+    var recordingSeconds by remember { mutableStateOf(0) }
+    // Held and Locked both keep the recorder running; Preview shows a fixed duration read off the
+    // finished file, not a live counter, so it is deliberately excluded here.
+    val isRecordingLive = recordingPhase is VoiceRecordingPhase.Held || recordingPhase is VoiceRecordingPhase.Locked
+    LaunchedEffect(isRecordingLive) {
+        if (isRecordingLive) {
+            recordingSeconds = 0
+            while (true) { delay(1000); recordingSeconds++ }
+        }
+    }
+    // The permission prompt is fired from onRecordPressStart below when it is still missing; there
+    // is nothing useful to auto-start here once it resolves, because the grant lands well after the
+    // press that triggered it has already ended without recording anything. The next press starts
+    // recording normally.
+    val requestAudioPermission = rememberAudioPermissionRequester { }
+
+    suspend fun sendRecordedAudio(audio: RecordedAudio) {
+        isUploading = true
+        var sendFailed = false
+        try {
+            val upload = mediaUploadHelper.uploadAudio(
+                audio.bytes,
+                "voice_${Clock.System.now().toEpochMilliseconds()}.ogg",
+                audio.mimeType,
+                audio.durationSeconds
+            )
+            val mid = generateMessageId(); val rid = generateMessageId()
+            messages = messages + Message(
+                id = mid,
+                conversationId = conversationId,
+                senderId = currentUserId,
+                contentType = ContentType.VOICE,
+                content = chatVoiceText,
+                mediaUrl = upload.url,
+                status = MessageStatus.SENDING,
+                clientTimestamp = Clock.System.now()
+            )
+            wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
+        } catch (_: Exception) { sendFailed = true }
+        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
+        isUploading = false
+        if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
     }
 
     // ── Media pickers ────────────────────────
@@ -327,10 +372,30 @@ fun ChatScreen(
             val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
             isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
                 myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
+
+            // Seed the header subtitle (#644). `peerOnline`/`peerLastSeen` were previously only
+            // ever written by the WebSocket listener below, reacting to a PresenceUpdate frame —
+            // nothing ever asked for the peer's current status, so a chat opened onto a peer who
+            // was already online (or already offline with a last-seen from an hour ago) showed a
+            // blank subtitle until their presence happened to change while this screen was open.
+            // GET /users/{id} already applies the peer's own onlineStatusVisibility server-side
+            // (UserController.resolveVisibility, #377) — a peer set to "nobody" correctly returns
+            // isOnline=false/lastSeenAt=null here too, so this seeds exactly what that setting
+            // allows and nothing more. Only meaningful for a 1:1 chat: a group has no single peer.
+            if (!isGroup) {
+                val peerId = conv?.participants?.firstOrNull { it.userId != currentUserId }?.userId
+                if (peerId != null) {
+                    val profile = conversationRepository.getUserProfile(peerId)
+                    peerOnline = profile.isOnline
+                    peerLastSeen = profile.lastSeenAt?.toEpochMilliseconds()
+                }
+            }
         }.onFailure { e ->
             // Best-effort enrichment: the chat is fully usable without it, so no snackbar.
-            // The defaults (no disappear timer, not announcement-only, not admin) are permissive;
-            // the backend re-checks all three, so a failure here cannot grant real privileges.
+            // The defaults (no disappear timer, not announcement-only, not admin, blank presence
+            // subtitle) are permissive; the backend re-checks all three privilege flags, so a
+            // failure here cannot grant real privileges, and a missing subtitle is silent, not
+            // wrong.
             Log.w(TAG, "Failed to load conversation settings: ${e.message}")
         }
     }
@@ -377,6 +442,28 @@ fun ChatScreen(
             }
     }
 
+    // Tells the server which conversation, if any, is on screen right now — the signal push
+    // suppression needs to withhold a notification only for THIS exact chat (#618). A socket being
+    // open said nothing about which chat, or whether any chat, was actually being looked at: a user
+    // reading a different conversation, or with the screen off, has a live socket exactly like one
+    // staring at this one does. Best-effort — `sendOrQueue` never throws, and a frame lost to a
+    // reconnect window means one message gets pushed that strictly did not need to be, never a
+    // missed live update.
+    LaunchedEffect(conversationId) {
+        appVisibility.isForeground.collect { foreground ->
+            wsClient.sendOrQueue(WsMessage.ConversationFocus(if (foreground) conversationId else null))
+        }
+    }
+    DisposableEffect(conversationId) {
+        onDispose {
+            // Leaving the chat (back press, navigating elsewhere) is not a background transition,
+            // so it fires none of the events above and needs its own clear — otherwise the server
+            // keeps believing this chat is still on screen until some other screen happens to
+            // overwrite it.
+            scope.launch { wsClient.sendOrQueue(WsMessage.ConversationFocus(conversationId = null)) }
+        }
+    }
+
     // ── WebSocket listener ───────────────────
     LaunchedEffect(conversationId) {
         wsClient.incoming.collect { ws ->
@@ -415,8 +502,23 @@ fun ChatScreen(
                     else messages.map { m -> if (m.id == ws.messageId) m.copy(status = ws.status) else m }
                 }
                 is WsMessage.PresenceUpdate -> if (ws.userId != currentUserId) {
-                    if (ws.conversationId == conversationId && ws.status == PresenceStatus.TYPING) {
-                        peerTyping = true; typingDismissJob?.cancel(); typingDismissJob = scope.launch { delay(3000); peerTyping = false }
+                    if (ws.conversationId == conversationId) {
+                        if (ws.status == PresenceStatus.TYPING) {
+                            peerTyping = true
+                            typingDismissJob?.cancel()
+                            typingDismissJob = scope.launch {
+                                delay(com.muhabbet.designsystem.theme.MuhabbetDurations.TypingTimeoutMs)
+                                peerTyping = false
+                            }
+                        } else {
+                            // handleTypingIndicator (backend) sends this same conversationId with
+                            // PresenceStatus.ONLINE when the peer's `isTyping` frame was `false` —
+                            // the explicit "stopped typing" signal. Without handling it the bubble
+                            // depended entirely on the fallback timer above and could linger for up
+                            // to TypingTimeoutMs after the peer had already stopped.
+                            typingDismissJob?.cancel()
+                            peerTyping = false
+                        }
                     }
                     if (ws.conversationId == null) when (ws.status) {
                         PresenceStatus.ONLINE -> { peerOnline = true; peerLastSeen = null }
@@ -467,9 +569,36 @@ fun ChatScreen(
         }
     }
 
+    // The other half of #643. `ChatMessageList` appends the typing bubble as its own trailing
+    // item (`ChatMessageList.kt`, key = "typing"), separate from `messages`, so the effect above —
+    // keyed on `messages.size` — never reruns when `peerTyping` flips. A reader who was already
+    // scrolled to the newest message (the common case: they are looking at the chat because
+    // someone is about to reply) had the bubble land one row below their viewport with nothing to
+    // bring it into view — composed, correct, and never seen, exactly as reported. Scrolling is
+    // gated on already being at (or within two rows of) the bottom: someone reading older history
+    // must not be yanked back down just because the peer started typing.
+    LaunchedEffect(peerTyping) {
+        if (!peerTyping || messages.isEmpty()) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return@LaunchedEffect
+        val totalItems = listState.layoutInfo.totalItemsCount
+        if (lastVisible >= totalItems - 2) {
+            listState.animateScrollToItem(messages.lastIndex, scrollOffset = Int.MAX_VALUE)
+        }
+    }
+
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
-            if (first <= 1 && nextCursor != null && !isLoadingMore && !isLoading) {
+            // initialScrollDone, not just !isLoading: the very first layout pass of a freshly
+            // mounted LazyColumn can report firstVisibleItemIndex = 0 for a frame before the
+            // jump-to-bottom effect above has actually applied its scroll — isLoading is already
+            // false by then, since both flip in the same state batch. Reading that transient 0 as
+            // "the user scrolled to the top" fired pagination on a conversation the user had not
+            // even looked at yet, prepending an older page while the initial jump was still
+            // in flight and turning "open at the bottom" into "open in the middle" (#590), and only
+            // for conversations long enough to have a nextCursor at all. initialScrollDone flips
+            // true in the same effect that issues the jump, so this gate cannot open before that
+            // jump has at least been requested.
+            if (first <= 1 && initialScrollDone && nextCursor != null && !isLoadingMore && !isLoading) {
                 isLoadingMore = true
                 // Without feedback a failed page load is indistinguishable from "no older messages".
                 val failure = runCatchingCancellable {
@@ -602,8 +731,8 @@ fun ChatScreen(
                     // Avatar in the title, not just a name. Every messenger worth comparing against
                     // shows the person you are talking to at the top of the conversation, and its
                     // absence here was the single most "unfinished" thing left on this screen. The
-                    // whole row is the tap target for the profile, so the avatar is not a separate
-                    // affordance to discover.
+                    // row opens the profile; the avatar itself is carved out below to open full-screen
+                    // instead (#615).
                     Row(
                         modifier = Modifier.clickable { onTitleClick() },
                         verticalAlignment = Alignment.CenterVertically
@@ -614,7 +743,21 @@ fun ChatScreen(
                             size = Muhabbet.sizes.AvatarSmall,
                             isGroup = isGroup,
                             contentDescription = if (isGroup) groupAvatarLabel else null,
-                            modifier = Modifier.handoffAvatar(conversationId, isChatSide = true)
+                            // A separate tap zone nested inside the title Row's own onTitleClick: a
+                            // tap on the avatar opens it full-screen (reusing the same viewer and
+                            // dialog state a chat photo uses — #615) and continues the shared-element
+                            // handoff below rather than cutting; a tap anywhere else in the row still
+                            // opens the profile via onTitleClick. No photo means no navigation — the
+                            // name-seeded gradient fallback isn't worth a full-screen view.
+                            modifier = Modifier
+                                .then(
+                                    if (conversationAvatarUrl != null) {
+                                        Modifier.clickable { fullImageUrl = conversationAvatarUrl }
+                                    } else {
+                                        Modifier
+                                    }
+                                )
+                                .handoffAvatar(conversationId, isChatSide = true)
                         )
                         Spacer(Modifier.width(Muhabbet.spacing.Small))
                         Column {
@@ -760,44 +903,48 @@ fun ChatScreen(
             replyingTo?.let { ReplyPreviewBar(it) { replyingTo = null } }
             if (editingMessageId != null) EditModeBar(chatEditMode) { editingMessageId = null; messageText = "" }
 
-            // Voice recording or input bar
-            if (isRecording) {
-                Surface(tonalElevation = MuhabbetElevation.Level2) {
-                    Row(Modifier.fillMaxWidth().padding(MuhabbetSpacing.Small), verticalAlignment = Alignment.CenterVertically) {
-                        VoiceRecordButton(true, {}, onStopRecording = {
-                            val audio = audioRecorder.stopRecording(); isRecording = false
-                            if (audio != null) scope.launch {
-                                isUploading = true
-                                var sendFailed = false
-                                try {
-                                    val upload = mediaUploadHelper.uploadAudio(
-                                        audio.bytes,
-                                        "voice_${Clock.System.now().toEpochMilliseconds()}.ogg",
-                                        audio.mimeType,
-                                        audio.durationSeconds
-                                    )
-                                    val mid = generateMessageId(); val rid = generateMessageId()
-                                    messages = messages + Message(
-                                        id = mid,
-                                        conversationId = conversationId,
-                                        senderId = currentUserId,
-                                        contentType = ContentType.VOICE,
-                                        content = chatVoiceText,
-                                        mediaUrl = upload.url,
-                                        status = MessageStatus.SENDING,
-                                        clientTimestamp = Clock.System.now()
-                                    )
-                                    wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
-                                } catch (_: Exception) { sendFailed = true }
-                                // Clear the spinner BEFORE reporting — showSnackbar suspends until
-                                // dismissed (~4s).
-                                isUploading = false
-                                if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
-                            }
-                        }, onCancelRecording = { audioRecorder.cancelRecording(); isRecording = false }, modifier = Modifier.weight(1f))
+            // Voice recording or input bar.
+            //
+            // Locked and Preview each get their own bar, swapped in exactly as freely as the old
+            // isRecording flag used to — there is no live gesture to lose once either is reached
+            // (the finger is already up in both). Idle and Held are the case that isn't free to
+            // swap; both go through the same MessageInputBar call so its VoiceRecordGestureButton
+            // stays mounted across that specific transition. See that composable's doc for why.
+            when (val phase = recordingPhase) {
+                is VoiceRecordingPhase.Locked -> LockedRecordingBar(
+                    recordingSeconds = recordingSeconds,
+                    onCancel = {
+                        audioRecorder.cancelRecording()
+                        recordingPhase = VoiceRecordingPhase.Idle
+                    },
+                    onSend = {
+                        val audio = audioRecorder.stopRecording()
+                        recordingPhase = VoiceRecordingPhase.Idle
+                        if (audio != null) scope.launch {
+                            sendRecordedAudio(audio)
+                            audioRecorder.discardPreview()
+                        }
                     }
-                }
-            } else {
+                )
+                is VoiceRecordingPhase.Preview -> VoicePreviewBar(
+                    audio = phase.audio,
+                    audioPlayer = audioPlayer,
+                    onDiscard = {
+                        audioPlayer.stop()
+                        audioRecorder.discardPreview()
+                        recordingPhase = VoiceRecordingPhase.Idle
+                    },
+                    onSend = {
+                        audioPlayer.stop()
+                        val audio = phase.audio
+                        recordingPhase = VoiceRecordingPhase.Idle
+                        scope.launch {
+                            sendRecordedAudio(audio)
+                            audioRecorder.discardPreview()
+                        }
+                    }
+                )
+                else -> {
                 val inputEnabled = !isAnnouncementOnly || isAdminOrOwner
 
                 if (!inputEnabled) {
@@ -852,7 +999,29 @@ fun ChatScreen(
                                 reportSendOutcome(mid, e) } }
                         }
                     },
-                    onMicClick = { if (audioRecorder.hasPermission()) { audioRecorder.startRecording(); isRecording = true } else requestAudioPermission() },
+                    recordingPhase = phase,
+                    recordingSeconds = recordingSeconds,
+                    onRecordPressStart = {
+                        if (audioRecorder.hasPermission()) {
+                            audioRecorder.startRecording()
+                            recordingPhase = VoiceRecordingPhase.Held(0f, 0f)
+                            true
+                        } else {
+                            requestAudioPermission()
+                            false
+                        }
+                    },
+                    onRecordDragUpdate = { dx, dy -> recordingPhase = VoiceRecordingPhase.Held(dx, dy) },
+                    onRecordLocked = { recordingPhase = VoiceRecordingPhase.Locked },
+                    onRecordReleased = { dx, _ ->
+                        if (isVoiceRecordingCancelledAt(dx)) {
+                            audioRecorder.cancelRecording()
+                            recordingPhase = VoiceRecordingPhase.Idle
+                        } else {
+                            val audio = audioRecorder.stopRecording()
+                            recordingPhase = if (audio != null) VoiceRecordingPhase.Preview(audio) else VoiceRecordingPhase.Idle
+                        }
+                    },
                     onImagePick = { imagePickerLauncher.launch() }, onFilePick = { filePickerLauncher.launch() },
                     onPollCreate = { showPollDialog = true }, onLocationShare = { showLocationDialog = true },
                     onGifPick = { gifPickerTab = GifStickerTab.GIF },
@@ -862,6 +1031,7 @@ fun ChatScreen(
                     onViewOnceToggle = { viewOnceEnabled = !viewOnceEnabled },
                     onScheduleSend = { if (messageText.isNotBlank()) showScheduleDialog = true }
                 )
+                }
             }
         }
     }

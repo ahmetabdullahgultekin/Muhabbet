@@ -130,6 +130,23 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putString("last_sync_timestamp", timestamp).apply()
     }
 
+    // The *encrypted* prefs, not plainPrefs: unlike theme/haptics/wallpaper, this is a security
+    // setting (#378), so it belongs where AndroidTokenStorage already keeps tokens rather than
+    // alongside cosmetic preferences. It is also why these two are cleared on logout along with the
+    // tokens (see clear() above) rather than surviving it — a shared device signing a new account
+    // in should not inherit the previous account's lock choice.
+    override fun getAppLockEnabled(): Boolean = prefs.getBoolean("app_lock_enabled", false)
+
+    override fun setAppLockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("app_lock_enabled", enabled).apply()
+    }
+
+    override fun getAppLockTimeout(): String? = prefs.getString("app_lock_timeout", null)
+
+    override fun setAppLockTimeout(timeout: String) {
+        prefs.edit().putString("app_lock_timeout", timeout).apply()
+    }
+
     override fun getWallpaperType(): String? = plainPrefs.getString("wallpaper_type", null)
 
     override fun setWallpaperType(type: String) {

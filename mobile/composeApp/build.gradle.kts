@@ -86,6 +86,13 @@ kotlin {
             implementation("io.ktor:ktor-client-okhttp:$ktor")
             implementation("androidx.activity:activity-compose:1.13.0")
             implementation("androidx.security:security-crypto:1.1.0")
+
+            // App Lock (#378) — BiometricPrompt for fingerprint/face, falling back to the device's
+            // own screen-lock PIN/pattern/password when no biometric is enrolled. 1.1.0 is the
+            // latest STABLE release; every version after it (up to 1.4.0-alpha07) is still alpha.
+            // Pulls in androidx.fragment transitively — BiometricPrompt hosts a headless Fragment
+            // internally, which is also why MainActivity now extends FragmentActivity.
+            implementation("androidx.biometric:biometric:1.1.0")
             implementation("app.cash.sqldelight:android-driver:2.3.2")
 
             // Reads the EXIF Orientation tag before we decode+re-encode photos, so compression
@@ -141,8 +148,8 @@ android {
         applicationId = "com.muhabbet.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.3.9"
+        versionCode = 15
+        versionName = "0.3.10"
 
         // Sentry DSN — set via environment variable or local.properties
         manifestPlaceholders["SENTRY_DSN"] = System.getenv("SENTRY_DSN") ?: ""

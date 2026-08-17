@@ -23,6 +23,12 @@ actual class AudioRecorder(private val context: android.content.Context) {
     }
 
     actual fun startRecording() {
+        // Defensive: a previous recording that was stopped (for preview) but never sent or
+        // discarded should not leak. Normal usage always goes through discardPreview() first —
+        // the composer cannot show the mic again while a preview is on screen — but a fresh
+        // recording must never inherit a stale handle either way.
+        outputFile?.takeIf { it.exists() }?.delete()
+
         val file = File(context.cacheDir, "voice_${System.currentTimeMillis()}.ogg")
         outputFile = file
 
@@ -56,13 +62,15 @@ actual class AudioRecorder(private val context: android.content.Context) {
             val durationMs = System.currentTimeMillis() - startTimeMs
             val durationSecs = (durationMs / 1000).toInt().coerceAtLeast(1)
 
+            // The file is kept on disk (not deleted here) so a caller can preview it before
+            // deciding to send — see RecordedAudio.localFilePath. discardPreview() is the cleanup.
             outputFile?.let { file ->
                 val bytes = file.readBytes()
-                file.delete()
                 RecordedAudio(
                     bytes = bytes,
                     mimeType = "audio/ogg",
-                    durationSeconds = durationSecs
+                    durationSeconds = durationSecs,
+                    localFilePath = file.absolutePath
                 )
             }
         } catch (e: Exception) {
@@ -70,6 +78,7 @@ actual class AudioRecorder(private val context: android.content.Context) {
             recorder = null
             recording = false
             outputFile?.delete()
+            outputFile = null
             null
         }
     }
@@ -82,6 +91,12 @@ actual class AudioRecorder(private val context: android.content.Context) {
         recorder = null
         recording = false
         outputFile?.delete()
+        outputFile = null
+    }
+
+    actual fun discardPreview() {
+        outputFile?.delete()
+        outputFile = null
     }
 
     actual fun isRecording(): Boolean = recording

@@ -405,6 +405,46 @@ class ChatWebSocketHandlerTest {
         }
     }
 
+    // ─── Conversation Focus (#618) ──────────────────────────
+
+    @Nested
+    inner class ConversationFocus {
+
+        @Test
+        fun `should record the reported conversation as this user's active one`() {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+            val convId = UUID.randomUUID()
+
+            val json = wsJson.encodeToString<WsMessage>(WsMessage.ConversationFocus(convId.toString()))
+            handler.handleMessage(session, TextMessage(json))
+
+            verify { sessionManager.setActiveConversation(userId, convId) }
+        }
+
+        @Test
+        fun `should clear the active conversation when the client reports null`() {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+
+            val json = wsJson.encodeToString<WsMessage>(WsMessage.ConversationFocus(conversationId = null))
+            handler.handleMessage(session, TextMessage(json))
+
+            verify { sessionManager.setActiveConversation(userId, null) }
+        }
+
+        @Test
+        fun `should degrade to null rather than error on a malformed conversation id`() {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+
+            val json = wsJson.encodeToString<WsMessage>(WsMessage.ConversationFocus("not-a-uuid"))
+            handler.handleMessage(session, TextMessage(json))
+
+            verify { sessionManager.setActiveConversation(userId, null) }
+        }
+    }
+
     // ─── Connection Closed ──────────────────────────────────
 
     @Nested

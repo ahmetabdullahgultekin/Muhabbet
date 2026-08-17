@@ -63,8 +63,8 @@ open class ModerationService(
     }
 
     @Transactional(readOnly = true)
-    override fun getBlockedUsers(userId: UUID): List<UUID> {
-        return blockRepository.findByBlockerId(userId).map { it.blockedId }
+    override fun getBlockedUsers(userId: UUID): List<UserBlock> {
+        return blockRepository.findByBlockerId(userId)
     }
 
     @Transactional(readOnly = true)

@@ -20,9 +20,16 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
  * An avatar that is also the control for replacing it: a camera badge over the bottom-right corner
  * that turns into a spinner while the new photo uploads.
  *
- * The click sits on the whole Box, not just the badge. A tap that landed on the badge — the part
- * that looks like the button, and the node carrying the description a screen reader is told to
- * activate — otherwise hits the Surface and does nothing at all.
+ * When [onViewPhoto] is given, the avatar itself becomes a second, independent tap zone that opens
+ * the photo full-screen (the same `MediaViewer` a chat photo gets — #615) instead of the picker. The
+ * badge can no longer share the whole box the way it used to: two actions on one region can only
+ * resolve arbitrarily, so the badge is carved out into its own bounded hit area first, sized to
+ * [MuhabbetSizes.MinTouchTarget] even though the glyph inside it is smaller — the earlier "whole box"
+ * design existed because a bare, unsized badge tap was landing on the plain Surface beneath it and
+ * doing nothing; giving the badge an explicit, correctly-sized region fixes that same failure mode
+ * without needing to keep the rest of the circle wired to the same handler. [onViewPhoto] is left
+ * null, not called, when there is no photo — a full-screen view of the name-seeded gradient fallback
+ * is not worth a navigation.
  *
  * Used by both the user's own profile and a group's, which is why it lives here: the two had drifted
  * into byte-identical copies of this layout.
@@ -32,6 +39,8 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
  *   your photo" and "change the group photo" are not the same sentence.
  * @param isUploading swaps the badge for a spinner and disables the tap, so a second pick cannot
  *   race the first.
+ * @param onViewPhoto opens the current photo full-screen. Null keeps this component exactly as it
+ *   was before #615 — pure "tap anywhere to change" — for any caller not yet wired to a viewer.
  */
 @Composable
 fun EditableAvatar(
@@ -43,40 +52,49 @@ fun EditableAvatar(
     modifier: Modifier = Modifier,
     isUploading: Boolean = false,
     isGroup: Boolean = false,
-    avatarContentDescription: String? = null
+    avatarContentDescription: String? = null,
+    onViewPhoto: (() -> Unit)? = null
 ) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier.clickable(enabled = !isUploading) { onPickPhoto() }
-    ) {
+    Box(contentAlignment = Alignment.Center, modifier = modifier) {
         UserAvatar(
             avatarUrl = avatarUrl,
             displayName = displayName,
             size = size,
             isGroup = isGroup,
-            contentDescription = avatarContentDescription
+            contentDescription = avatarContentDescription,
+            modifier = if (onViewPhoto != null && avatarUrl != null) {
+                Modifier.clickable(onClick = onViewPhoto)
+            } else {
+                Modifier
+            }
         )
-        Surface(
+        Box(
             modifier = Modifier
-                .size(MuhabbetSizes.IconAttachment)
-                .align(Alignment.BottomEnd),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary
+                .size(MuhabbetSizes.MinTouchTarget)
+                .align(Alignment.BottomEnd)
+                .clickable(enabled = !isUploading) { onPickPhoto() },
+            contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (isUploading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
-                        strokeWidth = MuhabbetSizes.ProgressStrokeInline,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = changePhotoContentDescription,
-                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
+            Surface(
+                modifier = Modifier.size(MuhabbetSizes.IconAttachment),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isUploading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(MuhabbetSizes.IconSmall),
+                            strokeWidth = MuhabbetSizes.ProgressStrokeInline,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = changePhotoContentDescription,
+                            modifier = Modifier.size(MuhabbetSizes.IconSmall),
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }
