@@ -75,7 +75,7 @@ class PhoneNumberLookupTest {
                     requestedHashes += body.phoneHashes
                     val hash = matchedHashOverride ?: body.phoneHashes.first()
                     val matches = if (matchRequestedNumber || matchedHashOverride != null) {
-                        """[{"userId":"user-2","phoneHash":"$hash","displayName":"Ayşe Yılmaz"}]"""
+                        """[{"userId":"user-2","phoneHash":"$hash","displayName":"Ayşe Yılmaz","avatarUrl":"https://cdn.example/ayse.jpg"}]"""
                     } else {
                         "[]"
                     }
@@ -119,7 +119,18 @@ class PhoneNumberLookupTest {
 
         val result = backend.lookup.startChatWith("0532 123 45 67")
 
-        assertEquals(PhoneLookupResult.Opened("conv-9", "Ayşe Yılmaz"), result)
+        // The whole identity, not just the id and the name. Opened used to carry those two only,
+        // so the caller navigated into a chat with no avatar and a dead tap on the title (#555) —
+        // and Found, one line earlier in the same function, already had both.
+        assertEquals(
+            PhoneLookupResult.Opened(
+                conversationId = "conv-9",
+                displayName = "Ayşe Yılmaz",
+                userId = "user-2",
+                avatarUrl = "https://cdn.example/ayse.jpg"
+            ),
+            result
+        )
         assertEquals(listOf(CONTACTS_SYNC, CONVERSATIONS), backend.requestedPaths)
     }
 
@@ -194,7 +205,10 @@ class PhoneNumberLookupTest {
 
         val result = backend.lookup.findByNumber("0532 123 45 67")
 
-        assertEquals(PhoneLookupResult.Found("user-2", "Ayşe Yılmaz", null), result)
+        assertEquals(
+            PhoneLookupResult.Found("user-2", "Ayşe Yılmaz", "https://cdn.example/ayse.jpg"),
+            result
+        )
         assertEquals(listOf(CONTACTS_SYNC), backend.requestedPaths)
     }
 

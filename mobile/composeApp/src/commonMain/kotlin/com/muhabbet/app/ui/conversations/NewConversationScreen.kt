@@ -60,7 +60,7 @@ import com.muhabbet.designsystem.components.rememberSkeletonVisible
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewConversationScreen(
-    onConversationCreated: (id: String, name: String) -> Unit,
+    onConversationCreated: (ChatTarget) -> Unit,
     onCreateGroup: () -> Unit = {},
     onBack: () -> Unit,
     /**
@@ -324,7 +324,20 @@ fun NewConversationScreen(
                                             scope.launch {
                                                 try {
                                                     val conv = conversationRepository.createDirectConversation(contact.userId)
-                                                    onConversationCreated(conv.id, contact.displayName ?: defaultChatName)
+                                                    // The picked contact is the whole identity of
+                                                    // the new chat, so it is handed over intact.
+                                                    // Passing only id and name left the chat with
+                                                    // no avatar and a dead tap on the title until
+                                                    // it was reopened from the list (#555).
+                                                    onConversationCreated(
+                                                        ChatTarget(
+                                                            conversationId = conv.id,
+                                                            name = contact.displayName?.ifBlank { null } ?: defaultChatName,
+                                                            otherUserId = contact.userId,
+                                                            isGroup = false,
+                                                            avatarUrl = contact.avatarUrl
+                                                        )
+                                                    )
                                                 } catch (_: Exception) {
                                                     // Clear the spinner BEFORE reporting —
                                                     // showSnackbar suspends until dismissed (~4s).
