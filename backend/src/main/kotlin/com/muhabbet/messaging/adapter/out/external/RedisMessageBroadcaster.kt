@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.adapter.out.external
 
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -45,7 +46,7 @@ class RedisMessageBroadcaster(
         const val WS_CHANNEL_PREFIX = "ws:broadcast:"
     }
 
-    override fun broadcastMessage(message: Message, recipientIds: List<UUID>) {
+    override fun broadcastMessage(message: Message, recipients: List<ConversationMember>) {
         val contentType = try {
             com.muhabbet.shared.model.ContentType.valueOf(message.contentType.name)
         } catch (e: Exception) {
@@ -78,7 +79,8 @@ class RedisMessageBroadcaster(
         )
         val json = wsJson.encodeToString<WsMessage>(newMessage)
 
-        recipientIds.forEach { recipientId ->
+        recipients.forEach { member ->
+            val recipientId = member.userId
             if (sessionManager.isOnline(recipientId)) {
                 // Local delivery (recipient is on this instance)
                 sessionManager.sendToUser(recipientId, json)
@@ -91,8 +93,12 @@ class RedisMessageBroadcaster(
                 }
 
                 // Also send push notification for offline users, in the language each of their
-                // devices asked for.
-                offlinePushSender.sendTo(recipientId, message, senderName, conversation)
+                // devices asked for — unless this member has muted the conversation (#571). The
+                // message still travelled: it is delivered above, still counted unread, still in
+                // the chat. Only the notification is withheld, and only for this member's own row.
+                if (!member.isMuted()) {
+                    offlinePushSender.sendTo(recipientId, message, senderName, conversation)
+                }
             }
         }
     }

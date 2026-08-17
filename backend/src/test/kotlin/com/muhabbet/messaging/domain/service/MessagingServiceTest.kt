@@ -199,6 +199,17 @@ class MessagingServiceTest {
         assertEquals(ErrorCode.VALIDATION_ERROR, ex.errorCode)
     }
 
+    /**
+     * `broadcastMessage` now takes each recipient's own [ConversationMember] row, not a bare id
+     * list (#571 — the broadcaster needs `mutedUntil` at the fan-out point). These tests only care
+     * which users were addressed, not the rest of their member row (`joinedAt` defaults to
+     * construction time and would never compare equal), so match on the id set. An extension on
+     * [io.mockk.MockKMatcherScope] because `match {}` is only callable with that receiver, which
+     * `every {}`/`verify {}` provide and a plain private function does not.
+     */
+    private fun io.mockk.MockKMatcherScope.recipientIdsMatch(vararg ids: UUID): List<ConversationMember> =
+        match { it.map(ConversationMember::userId).toSet() == ids.toSet() }
+
     // ─── sendMessage ─────────────────────────────────────
 
     @Test
@@ -229,7 +240,7 @@ class MessagingServiceTest {
         assertEquals(messageId, result.id)
         assertEquals("Hello!", result.content)
         verify { messageRepository.save(any()) }
-        verify { messageBroadcaster.broadcastMessage(any(), listOf(userB)) }
+        verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
     }
 
     @Test
@@ -319,7 +330,46 @@ class MessagingServiceTest {
         )
 
         verify(exactly = 2) { messageRepository.saveDeliveryStatus(any()) }
-        verify { messageBroadcaster.broadcastMessage(any(), listOf(userB, userC)) }
+        verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB, userC)) }
+    }
+
+    @Test
+    fun `should hand the broadcaster each recipient's own mute state, not just their id`() {
+        // #571: muting was persisted and displayed but never consulted before a push went out.
+        // The fix threads mutedUntil from the already-loaded member row through to the
+        // broadcaster, which is the one place that decides whether to push. If sendMessage
+        // dropped the field here — e.g. reverted to mapping to bare UUIDs — the broadcaster would
+        // have nothing to check and #571 would be back regardless of what the broadcaster itself
+        // does with it.
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA)
+        val mutedUntil = Instant.now().plusSeconds(3600)
+        val mutedMember = ConversationMember(conversationId = convId, userId = userB, mutedUntil = mutedUntil)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(member, mutedMember)
+
+        messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "Hello!",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        verify {
+            messageBroadcaster.broadcastMessage(
+                any(),
+                match<List<ConversationMember>> { recipients ->
+                    recipients.singleOrNull { it.userId == userB }?.mutedUntil == mutedUntil
+                }
+            )
+        }
     }
 
     // ─── sendMessage: blocking ───────────────────────────
@@ -409,7 +459,7 @@ class MessagingServiceTest {
         )
 
         verify { messageRepository.save(any()) }
-        verify { messageBroadcaster.broadcastMessage(any(), listOf(userB)) }
+        verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
     }
 
     @Test
@@ -442,7 +492,7 @@ class MessagingServiceTest {
         )
 
         verify { messageRepository.save(any()) }
-        verify { messageBroadcaster.broadcastMessage(any(), listOf(userB, userC)) }
+        verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB, userC)) }
     }
 
     @Test
@@ -497,7 +547,7 @@ class MessagingServiceTest {
         val delivered = messageService.deliverScheduledMessages()
 
         assertEquals(2, delivered)
-        verify(exactly = 2) { messageBroadcaster.broadcastMessage(any(), listOf(userB)) }
+        verify(exactly = 2) { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
     }
 
     @Test
