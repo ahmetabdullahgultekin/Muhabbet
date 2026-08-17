@@ -75,7 +75,11 @@ fun appModule(): Module = module {
     // Reaching someone by typed phone number (#389). Client-only: a one-number lookup is a contact
     // sync with a one-element list, so it needs no endpoint of its own.
     single { PhoneNumberLookup(conversationRepository = get(), authRepository = get()) }
-    single { MessageRepository(apiClient = get(), localCache = get()) }
+    // localCache resolved as LocalCache explicitly, for the same reason ConversationRepository is:
+    // the parameter's type is the narrower MessageCache interface, which nothing registers, and
+    // Koin resolves get() by the parameter type — left implicit this fails at startup, not at
+    // compile time.
+    single { MessageRepository(apiClient = get(), localCache = get<com.muhabbet.app.data.local.LocalCache>()) }
     // Media-blob E2E (Tier 1.4) — flag-gated (E2EConfig.mediaEncryptionActive), default OFF.
     single { com.muhabbet.app.crypto.MediaEncryptor() }
     single { MediaRepository(apiClient = get(), mediaEncryptor = get()) }

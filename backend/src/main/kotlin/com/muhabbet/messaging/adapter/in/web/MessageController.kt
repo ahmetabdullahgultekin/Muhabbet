@@ -1,8 +1,11 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
+import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.ApiResponse
@@ -10,6 +13,7 @@ import com.muhabbet.shared.dto.EditMessageRequest
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.RecipientDeliveryInfo
+import com.muhabbet.shared.dto.SendMessageRequest
 import com.muhabbet.shared.model.Message as SharedMessage
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.security.AuthenticatedUser
@@ -24,13 +28,15 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1")
 class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
-    private val manageMessageUseCase: ManageMessageUseCase
+    private val manageMessageUseCase: ManageMessageUseCase,
+    private val sendMessageUseCase: SendMessageUseCase
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -97,6 +103,37 @@ class MessageController(
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = null, hasMore = false)
         )
+    }
+
+    /**
+     * Sends a text message without a WebSocket.
+     *
+     * The same [SendMessageUseCase] the socket handler calls, so membership, announcement mode,
+     * the duplicate-id check, the per-recipient delivery rows and the fan-out to online devices
+     * are all the one implementation — this is a second transport, not a second send path.
+     *
+     * It exists because the Android notification inline reply runs in a `BroadcastReceiver` with
+     * roughly ten seconds to live and, when the app has been swiped away, no socket to reach for
+     * (#510). Nothing else should prefer it: a client holding a socket gets its ack back over the
+     * socket and does not have to pay for a fresh TLS handshake per message.
+     */
+    @PostMapping("/conversations/{conversationId}/messages")
+    fun sendMessage(
+        @PathVariable conversationId: UUID,
+        @RequestBody request: SendMessageRequest
+    ): ResponseEntity<ApiResponse<SharedMessage>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val message = sendMessageUseCase.sendMessage(
+            SendMessageCommand(
+                messageId = UUID.fromString(request.messageId),
+                conversationId = conversationId,
+                senderId = userId,
+                content = request.content,
+                contentType = ContentType.TEXT,
+                clientTimestamp = Instant.now()
+            )
+        )
+        return ApiResponseBuilder.ok(message.toSharedMessage())
     }
 
     @GetMapping("/messages/{messageId}/info")

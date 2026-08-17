@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English translations of res/values/strings.xml. See that file for why these are not in
+     composeResources, and for the escaping rule (\' IS unescaped here). -->
+<resources>
+    <string name="notification_new_message">New message</string>
+    <string name="notification_new_messages">New messages</string>
+
+    <!-- Inline reply from the notification tray (#510) -->
+    <string name="notification_reply_action">Reply</string>
+    <string name="notification_reply_hint">Write a reply</string>
+    <string name="notification_reply_sent">Reply sent</string>
+    <string name="notification_reply_failed">Reply not sent. Tap to try again.</string>
+</resources>

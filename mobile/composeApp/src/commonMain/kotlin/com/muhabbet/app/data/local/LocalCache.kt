@@ -13,7 +13,7 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
+class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache, MessageCache {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
@@ -102,7 +102,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
         }
     }
 
-    fun getMessagesByPage(conversationId: String, limit: Int): List<Message> {
+    override fun getMessagesByPage(conversationId: String, limit: Int): List<Message> {
         return queries.getMessagesByPage(conversationId, limit.toLong()).executeAsList().map { row ->
             Message(
                 id = row.id,
@@ -152,7 +152,7 @@ class LocalCache(driverFactory: DatabaseDriverFactory) : ConversationCache {
         )
     }
 
-    fun upsertMessages(messages: List<Message>) {
+    override fun upsertMessages(messages: List<Message>) {
         database.transaction {
             messages.forEach { upsertMessage(it) }
         }

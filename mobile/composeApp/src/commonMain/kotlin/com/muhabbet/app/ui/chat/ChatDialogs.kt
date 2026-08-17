@@ -45,6 +45,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.LocationData
 import com.muhabbet.shared.dto.PollData

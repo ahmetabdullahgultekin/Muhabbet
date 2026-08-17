@@ -73,6 +73,7 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet

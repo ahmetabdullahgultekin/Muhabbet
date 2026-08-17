@@ -341,6 +341,41 @@ Get message history.
 
 ---
 
+### POST /api/v1/conversations/{conversationId}/messages
+Send one text message without a WebSocket.
+
+The WebSocket (`message.send`) remains the normal path and the only one that returns a `ServerAck`.
+This exists for clients that have no socket and cannot afford to open one — today that is the
+Android notification inline reply, which runs in a `BroadcastReceiver` with roughly ten seconds to
+live and, when the app has been swiped away, no connection to reuse.
+
+Behind both transports is the same use case, so membership, announcement-only mode, the duplicate
+check, the per-recipient delivery rows and the fan-out to online devices are identical.
+
+**Request:**
+```json
+{
+  "messageId": "018d8f3a-...",
+  "content": "Merhaba!"
+}
+```
+`messageId` is client-generated and is the idempotency key: a repeat of an id the server has already
+stored is rejected with `MSG_DUPLICATE`, so a retried POST cannot post the message twice.
+
+**Response (200):** the stored message, in the same shape as an item of the history response above.
+
+**Errors:**
+| Code | HTTP | Description |
+|------|------|-------------|
+| `VALIDATION_ERROR` | 400 | `messageId` is not a UUID |
+| `MSG_EMPTY_CONTENT` | 400 | Content is blank |
+| `MSG_CONTENT_TOO_LONG` | 400 | Content exceeds the limit |
+| `MSG_NOT_MEMBER` | 403 | Caller is not a member of the conversation |
+| `MSG_ANNOUNCEMENT_ONLY` | 403 | Group accepts messages from admins only |
+| `MSG_DUPLICATE` | 409 | A message with this id has already been stored |
+
+---
+
 ## 4. Media Endpoints
 
 ### POST /api/v1/media/upload
