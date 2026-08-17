@@ -89,9 +89,28 @@ class MainComponent(
         childFactory = { config, _ -> config }
     )
 
-    @OptIn(DelicateDecomposeApi::class)
+    /**
+     * Opens a conversation, returning to it if it is already on the stack rather than stacking a
+     * second copy of it (#642).
+     *
+     * This used to be an unconditional `push`. A notification tapped while that same chat was
+     * already open therefore put a second chat screen on top of the first: the top one did not
+     * respond, and back dropped it to reveal the real one underneath — which is what the owner
+     * reported on 0.3.8. The same happened arriving from Starred Messages.
+     *
+     * The idiom is the one [openGroupInfo], [openUserProfile], [openSharedMedia] and
+     * [openStatusViewer] already use, and `CLAUDE.md` records under "Navigation stack pop-then-push
+     * anti-pattern". `openChat` was the one entry point that did not.
+     *
+     * Equality is `Config.Chat`'s, which is a data class over every field — so re-opening the same
+     * conversation with a *different* [scrollToMessageId] (jumping to a starred message, then to
+     * another in the same chat) is correctly a new destination rather than a no-op.
+     */
     fun openChat(conversationId: String, conversationName: String, otherUserId: String? = null, isGroup: Boolean = false, scrollToMessageId: String? = null, avatarUrl: String? = null) {
-        navigation.push(Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId, avatarUrl))
+        val target = Config.Chat(conversationId, conversationName, otherUserId, isGroup, scrollToMessageId, avatarUrl)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
     }
 
     /**
@@ -376,29 +395,29 @@ private fun OpenChatFromOutside(component: MainComponent) {
     LaunchedEffect(pending) {
         val request = pending ?: return@LaunchedEffect
 
-        val target = if (request.displayName != null) {
-            ChatTarget(
-                conversationId = request.conversationId,
-                name = request.displayName,
-                isGroup = request.isGroup
-            )
-        } else {
-            // Cache-first, so the common case costs no network. `null` means the conversation is
-            // not on this device — deleted, left, or past the pages the directory will walk — and
-            // the fallback name is the honest answer rather than a blank bar.
-            val conversation = runCatching {
-                conversationDirectory.lookUp(setOf(request.conversationId))[request.conversationId]
-            }.getOrNull()
+        // Resolved locally FIRST, and the notification's name used only if that fails (#642).
+        //
+        // It used to be the other way round. The server knows the account's display name — "Zümra"
+        // — and the phone knows what this user called them in their address book — "Elif Zümra".
+        // Every other screen in the app shows the second, so preferring the payload made the
+        // notification path the only one that disagreed with itself: the pushed chat said one name
+        // and the chat underneath said another.
+        //
+        // Cache-first, so the common case costs no network. A `null` means the conversation is not
+        // on this device — deleted, left, or past the pages the directory will walk — and only then
+        // is the notification's name better than nothing.
+        val conversation = runCatching {
+            conversationDirectory.lookUp(setOf(request.conversationId))[request.conversationId]
+        }.getOrNull()
 
-            conversation?.toChatTarget(
-                currentUserId = runCatching { tokenStorage.getUserId() }.getOrNull(),
-                fallbackName = defaultChatName
-            ) ?: ChatTarget(
-                conversationId = request.conversationId,
-                name = defaultChatName,
-                isGroup = request.isGroup
-            )
-        }
+        val target = conversation?.toChatTarget(
+            currentUserId = runCatching { tokenStorage.getUserId() }.getOrNull(),
+            fallbackName = request.displayName ?: defaultChatName
+        ) ?: ChatTarget(
+            conversationId = request.conversationId,
+            name = request.displayName ?: defaultChatName,
+            isGroup = request.isGroup
+        )
 
         // Cleared before navigating, and conditionally: a second notification tapped while the
         // lookup above was suspended must not be thrown away with the one it replaced.
