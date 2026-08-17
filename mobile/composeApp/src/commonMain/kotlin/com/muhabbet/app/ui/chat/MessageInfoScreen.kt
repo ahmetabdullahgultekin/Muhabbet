@@ -152,14 +152,28 @@ fun MessageInfoScreen(
                                                 contentScale = ContentScale.Crop
                                             )
                                             if (data.contentType == "VIDEO") {
-                                                Icon(
-                                                    Muhabbet.icons.Image, // play overlay
-                                                    // Decorative: the preview above is described and
-                                                    // the badge below names the content type.
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(40.dp),
-                                                    tint = Color.White.copy(alpha = 0.8f)
-                                                )
+                                                // On its own scrim, not bare on the frame. A
+                                                // hardcoded white glyph vanished against a pale
+                                                // thumbnail, and against the surfaceVariant card
+                                                // showing through while the image loads. The scrim
+                                                // pair carries a ground the glyph is measured on.
+                                                val overlay = LocalSemanticColors.current.scrimOverlay
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(MuhabbetSizes.MediaControl)
+                                                        .clip(CircleShape)
+                                                        .background(overlay.container),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        Muhabbet.icons.Image, // play overlay
+                                                        // Decorative: the preview above is described
+                                                        // and the badge below names the content type.
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(MuhabbetSizes.IconLarge),
+                                                        tint = overlay.content
+                                                    )
+                                                }
                                             }
                                         }
                                         Spacer(Modifier.height(MuhabbetSpacing.Medium))
@@ -285,6 +299,8 @@ fun MessageInfoScreen(
 
 @Composable
 private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
+    // A user id is not a name — its first eight characters read as a hex hash (#507).
+    val recipientName = recipient.displayName ?: stringResource(Res.string.unknown_person)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -303,7 +319,7 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
         // Avatar
         UserAvatar(
             avatarUrl = recipient.avatarUrl,
-            displayName = recipient.displayName ?: recipient.userId.take(8),
+            displayName = recipientName,
             size = MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
@@ -311,7 +327,7 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
         // Name and time
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = recipient.displayName ?: recipient.userId.take(8),
+                text = recipientName,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )

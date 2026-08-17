@@ -79,6 +79,20 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putString("app_language", lang).apply()
     }
 
+    // Plain prefs, alongside the language it belongs to: the flag is read at the composition root
+    // before anything has unlocked the encrypted store. `apply()` is enough — the language restart
+    // is finish() plus startActivity() in the SAME process, so the in-memory value is already there
+    // when the replacement Activity reads it.
+    override fun setPendingLanguageRestart() {
+        plainPrefs.edit().putBoolean("pending_language_restart", true).apply()
+    }
+
+    override fun consumePendingLanguageRestart(): Boolean {
+        val pending = plainPrefs.getBoolean("pending_language_restart", false)
+        if (pending) plainPrefs.edit().remove("pending_language_restart").apply()
+        return pending
+    }
+
     override fun getHapticsEnabled(): Boolean = plainPrefs.getBoolean("haptics_enabled", true)
 
     override fun setHapticsEnabled(enabled: Boolean) {
@@ -137,5 +151,14 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
 
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         plainPrefs.edit().putBoolean("wallpaper_dark_mode", enabled).apply()
+    }
+
+    // Plain prefs, not the encrypted ones: this is read on the first frame after login, and it says
+    // nothing about the user that a stranger with the phone could not learn by opening the app.
+    override fun getTestBuildNoticeAckVersion(): String? =
+        plainPrefs.getString("test_build_notice_ack_version", null)
+
+    override fun setTestBuildNoticeAckVersion(version: String) {
+        plainPrefs.edit().putString("test_build_notice_ack_version", version).apply()
     }
 }

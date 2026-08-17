@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetAlphas
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.dto.PollResultResponse
@@ -49,6 +51,21 @@ fun PollBubble(
     messageRepository: MessageRepository = koinInject()
 ) {
     val scope = rememberCoroutineScope()
+
+    // #517. This used to draw `colorScheme.onPrimary` on everything when `isOwn` — but the bubble
+    // behind it is not `primary`, it is `bubbleOwn`, a pale copper wash in light and a deep
+    // copper-brown in dark. So the question, the options and the selected option were all white on
+    // near-white, or near-black on dark brown: unreadable in both, exactly as reported.
+    //
+    // The option rows are a panel inset into a bubble, which is what `bubbleOwnInset` is. Container
+    // and content arrive together and both are measured, so the selected row cannot drift from its
+    // own foreground again.
+    val semanticColors = LocalSemanticColors.current
+    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
+    val option = if (isOwn) semanticColors.bubbleOwnInset else semanticColors.bubbleOtherInset
+    val optionChosen =
+        if (isOwn) semanticColors.bubbleOwnInsetSelected else semanticColors.bubbleOtherInsetSelected
+
     var pollResult by remember { mutableStateOf<PollResultResponse?>(null) }
     // A bubble has no snackbar host, so a failed vote is reported inline under the poll.
     var voteFailed by remember(messageId) { mutableStateOf(false) }
@@ -77,8 +94,7 @@ fun PollBubble(
             text = pollData.question,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = bubble.content,
             modifier = Modifier.padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.XSmall)
         )
 
@@ -89,16 +105,11 @@ fun PollBubble(
             val totalVotes = pollResult?.totalVotes ?: 0
             val fraction = if (totalVotes > 0) voteCount.toFloat() / totalVotes else 0f
             val isMyVote = pollResult?.myVote == index
+            val row = if (isMyVote) optionChosen else option
 
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = if (isMyVote) {
-                    if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
-                    else MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                    else MaterialTheme.colorScheme.surfaceVariant
-                },
+                color = row.container,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
@@ -127,8 +138,7 @@ fun PollBubble(
                         Text(
                             text = optionText,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = row.content,
                             fontWeight = if (isMyVote) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.weight(1f)
                         )
@@ -140,8 +150,10 @@ fun PollBubble(
                             Text(
                                 text = "$voteCount",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                // No alpha. A tally is a number the user reads, and the smaller
+                                // style already carries the hierarchy; fading it was costing
+                                // contrast the pair had just been chosen to guarantee.
+                                color = row.content
                             )
                         }
                     }
@@ -150,10 +162,11 @@ fun PollBubble(
                         LinearProgressIndicator(
                             progress = { fraction },
                             modifier = Modifier.fillMaxWidth().height(4.dp),
-                            color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
-                            else MaterialTheme.colorScheme.primary,
-                            trackColor = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.surfaceVariant
+                            // The bar reads against its own track, and both are drawn on the row it
+                            // sits in — so both come off that row's pair rather than off `primary`,
+                            // which is not the colour behind them.
+                            color = row.content,
+                            trackColor = row.content.copy(alpha = MuhabbetAlphas.ProgressTrack)
                         )
                     }
                 }
@@ -174,8 +187,10 @@ fun PollBubble(
             Text(
                 text = pluralStringResource(Res.plurals.poll_vote_count, totalVoteCount, totalVoteCount),
                 style = MaterialTheme.typography.labelSmall,
-                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                // Drawn on the bubble itself, not on an option row, so it takes the bubble's
+                // secondary mark — the same one every timestamp uses, and measured against both
+                // bubble colours.
+                color = semanticColors.secondaryText,
                 modifier = Modifier.padding(start = MuhabbetSpacing.XSmall, top = 2.dp)
             )
         }

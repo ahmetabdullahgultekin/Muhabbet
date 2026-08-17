@@ -84,6 +84,8 @@ fun StarredMessagesScreen(
     }
 
     val youLabel = stringResource(Res.string.starred_you)
+    // A user id is not a name — its first eight characters read as a hex hash (#507).
+    val unknownPersonLabel = stringResource(Res.string.unknown_person)
 
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
@@ -128,7 +130,7 @@ fun StarredMessagesScreen(
                         val isOwn = message.senderId == currentUserId
                         StarredMessageItem(
                             message = message,
-                            senderLabel = if (isOwn) youLabel else message.senderId.take(8),
+                            senderLabel = if (isOwn) youLabel else unknownPersonLabel,
                             onClick = { onNavigateToConversation?.invoke(message.conversationId, message.id) }
                         )
                         HorizontalDivider()
@@ -213,15 +215,23 @@ private fun contentTypeIcon(contentType: ContentType): ImageVector? = when (cont
     else -> null
 }
 
+/**
+ * What a starred message reads as in the list.
+ *
+ * Composable, and every fallback comes from `composeResources`. These six were English literals —
+ * "Photo", "Video", "Voice message" and so on — rendered untranslated inside a Turkish-default app.
+ */
+@Composable
 private fun contentPreview(message: Message): String {
     if (message.isDeleted) return ""
-    return when (message.contentType) {
-        ContentType.IMAGE -> message.content.ifBlank { "Photo" }
-        ContentType.VIDEO -> message.content.ifBlank { "Video" }
-        ContentType.VOICE -> message.content.ifBlank { "Voice message" }
-        ContentType.DOCUMENT -> message.content.ifBlank { "Document" }
-        ContentType.LOCATION -> message.content.ifBlank { "Location" }
-        ContentType.POLL -> message.content.ifBlank { "Poll" }
-        else -> message.content
-    }.take(100)
+    val fallback = when (message.contentType) {
+        ContentType.IMAGE -> stringResource(Res.string.chat_photo)
+        ContentType.VIDEO -> stringResource(Res.string.chat_video)
+        ContentType.VOICE -> stringResource(Res.string.chat_voice_message)
+        ContentType.DOCUMENT -> stringResource(Res.string.attach_document)
+        ContentType.LOCATION -> stringResource(Res.string.attach_location)
+        ContentType.POLL -> stringResource(Res.string.attach_poll)
+        else -> ""
+    }
+    return message.content.ifBlank { fallback }.take(100)
 }

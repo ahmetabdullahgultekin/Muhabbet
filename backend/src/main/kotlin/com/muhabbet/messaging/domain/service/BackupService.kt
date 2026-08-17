@@ -144,8 +144,11 @@ open class BackupService(
         contentType = contentType.name,
         content = content,
         replyToId = replyToId?.toString(),
-        mediaUrl = mediaUrl,
-        thumbnailUrl = thumbnailUrl,
+        // A backup restores what the app is still willing to show, and it will never show this
+        // again. `media_url` is a presigned URL that needs no credential, so archiving it would make
+        // the backup a way of keeping a view-once photo indefinitely (#515).
+        mediaUrl = if (viewOnce) null else mediaUrl,
+        thumbnailUrl = if (viewOnce) null else thumbnailUrl,
         serverTimestamp = serverTimestamp.toString(),
         editedAt = editedAt?.toString(),
         isDeleted = isDeleted,

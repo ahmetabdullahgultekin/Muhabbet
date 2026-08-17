@@ -45,7 +45,17 @@ interface MessageRepository {
     fun searchGlobal(userId: UUID, query: String, limit: Int, offset: Int): List<Message>
 
     // View-Once
-    fun markViewOnceViewed(messageId: UUID, viewedBy: UUID)
+
+    /**
+     * Burns a view-once message, returning the number of rows it actually changed.
+     *
+     * The count is the concurrency control and the only reason this is not a `Unit`. The underlying
+     * statement is conditional on `view_once = true AND viewed_at IS NULL`, so two taps arriving
+     * together both pass the service's read-side checks and exactly one of them updates a row. The
+     * loser gets 0 back and is refused — without the count both would be told they had won and the
+     * media would be released twice.
+     */
+    fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int
 
     // Scheduled messages
     fun findScheduledMessagesReadyToSend(now: Instant): List<Message>

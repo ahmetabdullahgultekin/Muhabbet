@@ -110,10 +110,10 @@ fun MessageBubble(
 
     val clipboardManager = LocalClipboardManager.current
     val semanticColors = LocalSemanticColors.current
+    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
     val bubbleColor = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        else if (isOwn) semanticColors.bubbleOwn
-        else semanticColors.bubbleOther
-    val onBubbleColor = if (isOwn) semanticColors.onBubbleOwn else semanticColors.onBubbleOther
+        else bubble.container
+    val onBubbleColor = bubble.content
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
@@ -499,15 +499,3 @@ private fun linkifiedContent(
 
 internal fun formatMessageTime(instant: kotlinx.datetime.Instant): String =
     DateTimeFormatter.formatTime(instant)
-
-internal fun generateMessageId(): String {
-    val chars = "0123456789abcdef"
-    return buildString {
-        repeat(8) { append(chars.random()) }; append('-')
-        repeat(4) { append(chars.random()) }; append('-'); append('4')
-        repeat(3) { append(chars.random()) }; append('-')
-        append(listOf('8', '9', 'a', 'b').random())
-        repeat(3) { append(chars.random()) }; append('-')
-        repeat(12) { append(chars.random()) }
-    }
-}

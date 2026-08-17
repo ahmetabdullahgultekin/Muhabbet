@@ -83,6 +83,8 @@ class StatusController(
 
     private fun StatusGroup.toDto() = UserStatusGroup(
         userId = userId.toString(),
-        statuses = statuses.map { it.toResponse() }
+        statuses = statuses.map { it.toResponse() },
+        displayName = displayName,
+        avatarUrl = avatarUrl
     )
 }

@@ -45,6 +45,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.LocationData
 import com.muhabbet.shared.dto.PollData
@@ -101,7 +102,7 @@ fun MediaViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(semanticColors.scrim)
+                .background(semanticColors.scrim.container)
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { showOverlay = !showOverlay },
@@ -142,14 +143,14 @@ fun MediaViewer(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(semanticColors.scrimOverlay)
+                        .background(semanticColors.scrimOverlay.container)
                         .padding(horizontal = MuhabbetSpacing.XSmall, vertical = MuhabbetSpacing.Small)
                 ) {
                     MuhabbetIconButton(
                         icon = Muhabbet.icons.Close,
                         contentDescription = stringResource(Res.string.action_close),
                         onClick = onDismiss,
-                        tint = semanticColors.onScrim
+                        tint = semanticColors.scrimOverlay.content
                     )
                 }
             }
@@ -164,7 +165,7 @@ fun MediaViewer(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(semanticColors.scrimOverlay)
+                        .background(semanticColors.scrimOverlay.container)
                         .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
@@ -177,8 +178,8 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onForward() }
                         ) {
-                            Icon(Muhabbet.icons.Forward, contentDescription = forwardText, tint = semanticColors.onScrim)
-                            Text(forwardText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
+                            Icon(Muhabbet.icons.Forward, contentDescription = forwardText, tint = semanticColors.scrimOverlay.content)
+                            Text(forwardText, color = semanticColors.scrimOverlay.content, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     if (onDelete != null) {
@@ -189,8 +190,8 @@ fun MediaViewer(
                                 interactionSource = remember { MutableInteractionSource() }
                             ) { onDelete() }
                         ) {
-                            Icon(Muhabbet.icons.Delete, contentDescription = deleteText, tint = semanticColors.onScrim)
-                            Text(deleteText, color = semanticColors.onScrim, style = MaterialTheme.typography.labelSmall)
+                            Icon(Muhabbet.icons.Delete, contentDescription = deleteText, tint = semanticColors.scrimOverlay.content)
+                            Text(deleteText, color = semanticColors.scrimOverlay.content, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }

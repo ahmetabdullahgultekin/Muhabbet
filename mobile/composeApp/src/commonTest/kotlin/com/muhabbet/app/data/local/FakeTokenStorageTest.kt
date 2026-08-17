@@ -56,6 +56,20 @@ class FakeTokenStorageTest {
         assertEquals("tr", storage.getLanguage())
     }
 
+    /**
+     * The language-restart flag is consume-once. It has to be: the flag survives in storage across
+     * the Activity restart, and a read that did not clear it would put the user back into Settings
+     * on every launch from then on (#505).
+     */
+    @Test
+    fun should_report_the_pending_language_restart_once_and_then_forget_it() {
+        val storage = FakeTokenStorage()
+        assertFalse(storage.consumePendingLanguageRestart())
+        storage.setPendingLanguageRestart()
+        assertTrue(storage.consumePendingLanguageRestart())
+        assertFalse(storage.consumePendingLanguageRestart())
+    }
+
     @Test
     fun should_store_theme_preference() {
         val storage = FakeTokenStorage()

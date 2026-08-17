@@ -22,11 +22,9 @@ class StatusPersistenceAdapter(
     override fun findActiveByUserId(userId: UUID): List<Status> =
         statusRepo.findActiveByUserId(userId, Instant.now()).map { it.toDomain() }
 
-    override fun findAllActive(): List<Status> {
-        val now = Instant.now()
-        return statusRepo.findAll()
-            .filter { it.expiresAt.isAfter(now) }
-            .map { it.toDomain() }
+    override fun findActiveByUserIds(userIds: Collection<UUID>): List<Status> {
+        if (userIds.isEmpty()) return emptyList()
+        return statusRepo.findActiveByUserIds(userIds.distinct(), Instant.now()).map { it.toDomain() }
     }
 
     override fun delete(id: UUID) {

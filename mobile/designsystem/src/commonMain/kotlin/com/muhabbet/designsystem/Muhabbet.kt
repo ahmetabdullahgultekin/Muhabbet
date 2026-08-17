@@ -22,7 +22,7 @@ import com.muhabbet.designsystem.theme.ResolvedThemeMode
 /**
  * One import for the whole design system.
  *
- * `import com.muhabbet.designsystem.Muhabbet` then `Muhabbet.colors.bubbleOwn`,
+ * `import com.muhabbet.designsystem.Muhabbet` then `Muhabbet.colors.bubbleOwn.container`,
  * `Muhabbet.spacing.Large`, `Muhabbet.motion.spatialDefault()`, `Muhabbet.icons.Back`.
  *
  * Screens previously needed a separate import per token object — 178 import lines across 61 files

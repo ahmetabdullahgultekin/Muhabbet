@@ -35,6 +35,10 @@ fun EmptyChatsIllustration(
     modifier: Modifier = Modifier
 ) {
     val primary = MaterialTheme.colorScheme.primary
+    // The mock "text" lines inside the drawn bubble. `onPrimary` because the bubble under them is
+    // `primary` — as a hardcoded white they were invisible on the light theme's white-ish variants
+    // and stayed white in dark, where the partner is near-black.
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
     val secondary = MaterialTheme.colorScheme.secondary
     val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
@@ -94,13 +98,13 @@ fun EmptyChatsIllustration(
 
             // Lines inside bubble 2
             drawLine(
-                color = Color.White.copy(alpha = 0.6f),
+                color = onPrimary.copy(alpha = 0.85f),
                 start = Offset(cx - 2, bubble2Y - 4),
                 end = Offset(cx + 30, bubble2Y - 4),
                 strokeWidth = 2.5f
             )
             drawLine(
-                color = Color.White.copy(alpha = 0.4f),
+                color = onPrimary.copy(alpha = 0.6f),
                 start = Offset(cx - 2, bubble2Y + 4),
                 end = Offset(cx + 20, bubble2Y + 4),
                 strokeWidth = 2.5f

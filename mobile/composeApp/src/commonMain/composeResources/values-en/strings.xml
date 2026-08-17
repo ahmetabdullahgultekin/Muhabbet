@@ -4,6 +4,8 @@
     <string name="app_name">Muhabbet</string>
     <string name="chat_default_name">Chat</string>
     <string name="unknown">Unknown</string>
+    <!-- Label for a person whose name we genuinely do not have. Never render a user id instead. -->
+    <string name="unknown_person">Unknown contact</string>
     <string name="error_generic">An error occurred</string>
     <string name="error_network">Connection error. Please try again.</string>
     <string name="error_load_conversations">Failed to load conversations</string>
@@ -156,12 +158,16 @@
     <string name="settings_about_placeholder">Using Muhabbet</string>
     <string name="settings_save">Save</string>
     <string name="settings_app_section">App</string>
-    <string name="settings_version">Version</string>
+    <!-- Replaced the bare settings_version label: the number and the caveat are one line now (#519) -->
+    <string name="settings_test_build_title">Version %1$s — test build</string>
+    <string name="settings_test_build_body">Some features may not work the way you expect. Please do not rely on Muhabbet alone for anything that matters, and tell us if something goes wrong.</string>
     <string name="settings_logout">Log Out</string>
     <string name="settings_profile_updated">Profile updated</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
+    <!-- See values/strings.xml: this names the file, it is not a translatable phrase. -->
+    <string name="app_language_code">en</string>
 
     <!-- Delete Conversation -->
     <string name="conv_delete_title">Delete Conversation</string>
@@ -513,6 +519,10 @@
     <string name="view_once_hint">The photo disappears after it is opened once</string>
     <string name="view_once_opened">Opened</string>
     <string name="view_once_tap_to_view">Tap to view</string>
+    <string name="view_once_not_opened_yet">Not opened yet</string>
+    <string name="view_once_already_opened">This photo has already been opened</string>
+    <string name="view_once_open_failed">The photo could not be opened</string>
+    <string name="view_once_offline">A view-once photo cannot be sent while offline</string>
     <string name="view_once_photo">Photo</string>
     <string name="view_once_video">Video</string>
 
@@ -740,4 +750,13 @@
          in these files (#471). -->
     <string name="connection_status_label">Connection status</string>
     <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
+
+    <!-- First-run test-build notice, shown once per app version after login (#519) -->
+
+    <string name="test_build_notice_title">Muhabbet is still being tested</string>
+    <string name="test_build_notice_body_expectations">This is a test build, not the finished app. Some features may not work the way you expect: a message can arrive late, a screen can come up empty, a button can do nothing at all.</string>
+    <string name="test_build_notice_body_reliance">So please do not rely on Muhabbet alone for a conversation that matters.</string>
+    <string name="test_build_notice_body_report">If you notice something going wrong, tell us. That is how we find out what needs fixing.</string>
+    <string name="test_build_notice_version">Version %1$s</string>
+    <string name="test_build_notice_dismiss">Got it</string>
 </resources>

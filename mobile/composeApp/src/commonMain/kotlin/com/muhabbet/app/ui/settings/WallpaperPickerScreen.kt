@@ -44,6 +44,7 @@ import com.muhabbet.app.platform.rememberWallpaperImageSaver
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.readableContentOn
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -154,6 +155,10 @@ fun WallpaperPickerScreen(
                     ) {
                         items(solidColors) { color ->
                             val colorHex = colorToHex(color)
+                            // The swatch is the one ground the palette does not choose, so the tick
+                            // is derived from it rather than fixed. It used to be a hardcoded white
+                            // one, which on the six pale swatches was a white tick on near-white.
+                            val swatch = readableContentOn(color)
                             Box(
                                 modifier = Modifier
                                     .aspectRatio(1f)
@@ -176,7 +181,7 @@ fun WallpaperPickerScreen(
                                     Icon(
                                         Muhabbet.icons.Sent,
                                         contentDescription = stringResource(Res.string.a11y_selected),
-                                        tint = Color.White,
+                                        tint = swatch.content,
                                         modifier = Modifier.size(MuhabbetSizes.IconLarge)
                                     )
                                 }
