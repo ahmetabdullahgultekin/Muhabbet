@@ -29,6 +29,11 @@ off here.
   threw "queued, will retry" even when the insert into the pending table had failed, so the UI showed
   a clock over a message that was gone. Also: the reconnect guard tested `isActive` on a
   `CoroutineStart.LAZY` job, which is `false` while New, so every call started another connect loop.
+- **An `&` in a search silently truncated it** (#622). The query was interpolated into the URL, so
+  `kahve & çay` reached the server as `kahve` and `c++` as `c  `. Worth recording that the first
+  report of this was wider than the truth: spaces and Turkish characters were never affected, and
+  measuring is what showed so. `cursor` and `timestamp` were encoded at the same time — a base64
+  cursor containing `+` would have silently reset pagination to the first page.
 - **The WebSocket buffer bean failed every integration test context** (#598). Introduced with the
   #493 fix and invisible until CI could run again; production was never affected, since Tomcat is
   real there.

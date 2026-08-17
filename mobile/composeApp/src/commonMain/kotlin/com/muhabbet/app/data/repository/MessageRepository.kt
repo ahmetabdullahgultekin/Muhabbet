@@ -15,6 +15,7 @@ import com.muhabbet.shared.dto.SendMessageRequest
 import com.muhabbet.shared.dto.ViewOnceRevealResponse
 import com.muhabbet.shared.model.Message
 import kotlin.coroutines.cancellation.CancellationException
+import io.ktor.http.encodeURLParameter
 
 class MessageRepository(
     private val apiClient: ApiClient,
@@ -33,7 +34,10 @@ class MessageRepository(
         return try {
             val path = buildString {
                 append("/api/v1/conversations/$conversationId/messages?limit=$limit")
-                if (cursor != null) append("&cursor=$cursor")
+                // The cursor is opaque and server-minted. Encoded for exactly that reason: we
+                // do not get to assume it stays URL-safe, and a base64 one containing "+" would
+                // arrive as a space and silently reset pagination to the first page.
+                if (cursor != null) append("&cursor=${cursor.encodeURLParameter()}")
             }
             val response = apiClient.get<PaginatedResponse<Message>>(path)
             val result = response.data ?: PaginatedResponse(emptyList(), null, false)
@@ -102,8 +106,12 @@ class MessageRepository(
 
     suspend fun searchMessages(query: String, conversationId: String? = null, limit: Int = 30): PaginatedResponse<Message> {
         val path = buildString {
-            append("/api/v1/search/messages?q=$query&limit=$limit")
-            if (conversationId != null) append("&conversationId=$conversationId")
+            // encodeURLParameter, not interpolation. A search is the one query string built
+            // from text the user typed, and this app's users type Turkish: a space, an "&" or a
+            // "#" each broke the request in a different way, and the "#" broke it silently —
+            // everything after it never left the phone (#622).
+            append("/api/v1/search/messages?q=${query.encodeURLParameter()}&limit=$limit")
+            if (conversationId != null) append("&conversationId=${conversationId.encodeURLParameter()}")
         }
         val response = apiClient.get<PaginatedResponse<Message>>(path)
         return response.data ?: PaginatedResponse(emptyList(), null, false)
@@ -165,7 +173,10 @@ class MessageRepository(
 
     suspend fun syncMessagesSince(timestamp: String): List<Message> {
         val response = apiClient.get<PaginatedResponse<Message>>(
-            "/api/v1/messages/since?timestamp=$timestamp"
+            // An ISO timestamp with a numeric offset carries a "+", which is a space in a
+            // query string. Background sync would then ask for messages since an unparseable
+            // instant, on a path nobody watches.
+            "/api/v1/messages/since?timestamp=${timestamp.encodeURLParameter()}"
         )
         val messages = response.data?.items ?: emptyList()
         if (messages.isNotEmpty()) {
