@@ -596,6 +596,7 @@
     <string name="community_create">Topluluk Oluştur</string>
     <string name="community_name_hint">Topluluk adı</string>
     <string name="community_description_hint">Açıklama (isteğe bağlı)</string>
+    <string name="community_announcements">Duyurular</string>
     <string name="community_groups">Gruplar</string>
     <string name="community_members">Üyeler</string>
     <string name="community_member_count">%1$d üye</string>

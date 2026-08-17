@@ -3,6 +3,8 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.Community
 import com.muhabbet.messaging.domain.model.CommunityGroup
 import com.muhabbet.messaging.domain.model.CommunityMember
+import com.muhabbet.messaging.domain.model.Conversation
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
@@ -46,9 +48,19 @@ open class CommunityService(
             CommunityMember(communityId = saved.id, userId = creatorId, role = MemberRole.OWNER)
         )
 
+        // Every community carries an announcement channel from the moment it exists (#584) — the
+        // one place a member can always speak, or read from admins, rather than a community being
+        // nothing but a row in a list. The creator was just saved above, so the bulk-enrol inside
+        // ensureAnnouncementChannel picks them up and seats them as its owner.
+        val channelId = ensureAnnouncementChannel(saved)
+
         log.info("Community created: id={}, name={}, creator={}", saved.id, name, creatorId)
         // A community starts with no groups and exactly one member: the creator just added above.
-        return CommunitySummary(community = saved, groupCount = 0, memberCount = 1)
+        return CommunitySummary(
+            community = saved.copy(announcementGroupId = channelId),
+            groupCount = 0,
+            memberCount = 1
+        )
     }
 
     @Transactional
@@ -126,7 +138,7 @@ open class CommunityService(
 
     @Transactional
     override fun addMember(communityId: UUID, userId: UUID, requesterId: UUID): CommunityMember {
-        communityRepository.findById(communityId)
+        val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
 
         requireAdminOrOwner(communityId, requesterId)
@@ -148,6 +160,17 @@ open class CommunityService(
 
         val member = CommunityMember(communityId = communityId, userId = userId, role = MemberRole.MEMBER)
         val saved = communityRepository.saveMember(member)
+
+        // A member added later is a member the announcement channel must also carry (#584, the exact
+        // check the issue named) — `saveMember` upserts, so this is safe whether the channel already
+        // existed or was only just created above (in which case the bulk-enrol inside
+        // ensureAnnouncementChannel already saw this user, since it re-reads membership after the
+        // line above).
+        val channelId = ensureAnnouncementChannel(community)
+        conversationRepository.saveMember(
+            ConversationMember(conversationId = channelId, userId = userId, role = MemberRole.MEMBER)
+        )
+
         log.info("Member added to community: community={}, user={}", communityId, userId)
         return saved
     }
@@ -211,7 +234,7 @@ open class CommunityService(
 
     @Transactional
     override fun leave(communityId: UUID, userId: UUID) {
-        communityRepository.findById(communityId)
+        val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
 
         val member = requireMember(communityId, userId)
@@ -232,13 +255,32 @@ open class CommunityService(
             val successor = bySeniority.firstOrNull { it.role == MemberRole.ADMIN } ?: bySeniority.first()
             communityRepository.saveMember(successor.copy(role = MemberRole.OWNER))
             log.info("Community ownership transferred: community={}, to={}", communityId, successor.userId)
+
+            // The announcement channel must always have an owner too, for the same reason a group
+            // does — GroupService's own leave/role flows assume exactly one. Promoted before the
+            // leaving owner is removed from the channel below, never left ownerless in between.
+            community.announcementGroupId?.let { channelId ->
+                conversationRepository.updateMemberRole(channelId, successor.userId, MemberRole.OWNER)
+            }
         }
 
         communityRepository.removeMember(communityId, userId)
+
+        // Leaving the community means leaving its announcement channel too — otherwise a former
+        // member keeps reading (and, if they were an admin, posting to) a channel their community
+        // membership no longer explains. `null` here only for a community nobody has read or changed
+        // since #584 shipped; ensureAnnouncementChannel backfills it on the next getDetails/addMember.
+        community.announcementGroupId?.let { channelId ->
+            conversationRepository.removeMember(channelId, userId)
+        }
+
         log.info("Member left community: community={}, user={}", communityId, userId)
     }
 
-    @Transactional(readOnly = true)
+    // Deliberately not `readOnly = true`: ensureAnnouncementChannel below writes for any community
+    // that predates #584, and a read-only Postgres transaction refuses an INSERT outright rather
+    // than silently no-op-ing it.
+    @Transactional
     override fun getDetails(communityId: UUID, userId: UUID): CommunityDetails {
         val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
@@ -249,6 +291,12 @@ open class CommunityService(
         // linked conversation's name, avatar and size.
         val membership = requireMember(communityId, userId)
 
+        // Self-healing backfill for the communities that existed before #584: the eight rows already
+        // in production, each with one member and nowhere to speak. No SQL migration reaches into
+        // `conversations` to fabricate a channel for them; the first read after this ships does it
+        // instead, with the same code path a brand-new community goes through in `create`.
+        val channelId = ensureAnnouncementChannel(community)
+
         val groups = communityRepository.findGroupsByCommunityId(communityId)
         val conversationIds = groups.map { it.conversationId }
         // Two batched lookups instead of two queries per group.
@@ -256,7 +304,10 @@ open class CommunityService(
         val groupMemberCounts = conversationRepository.countMembersByConversationIds(conversationIds)
 
         return CommunityDetails(
-            community = community,
+            // `community` alone would still show the pre-backfill null here when ensureAnnouncementChannel
+            // just created the channel above — copy it in so this field and the dedicated
+            // announcementGroupId below never disagree.
+            community = community.copy(announcementGroupId = channelId),
             groups = groups.map { group ->
                 val conversation = conversations[group.conversationId]
                 CommunityGroupSummary(
@@ -267,7 +318,8 @@ open class CommunityService(
                 )
             },
             memberCount = communityRepository.countMembersByCommunityIds(listOf(communityId))[communityId] ?: 0,
-            myRole = membership.role
+            myRole = membership.role,
+            announcementGroupId = channelId
         )
     }
 
@@ -288,6 +340,58 @@ open class CommunityService(
                 memberCount = memberCounts[community.id] ?: 0
             )
         }
+    }
+
+    /**
+     * Returns [community]'s announcement channel, creating it first if this is the first time
+     * anything has asked (#584). The channel is a GROUP conversation, `announcementOnly = true`, that
+     * carries every current community member — owners and admins seated as conversation ADMIN (one
+     * of them, the community's own OWNER, as conversation OWNER too), everyone else as a plain
+     * MEMBER. `MessageService.sendMessage` already refuses a plain MEMBER on an `announcementOnly`
+     * conversation (`MSG_ANNOUNCEMENT_ONLY`), and a message that does get through fans out over the
+     * same `MessageBroadcaster` path every other conversation uses — nothing new was needed on
+     * either side of the send path for this to work.
+     *
+     * Idempotent by the `announcementGroupId` check, which is also what makes this the backfill for
+     * communities created before this existed: called from `create` (freshly, for the member just
+     * added) and from `getDetails`/`addMember` (lazily, for a community that predates it), never a
+     * SQL migration reaching into `conversations`.
+     *
+     * Not safe against two concurrent first-calls on the same community racing each other into two
+     * channels — there is no row lock here. Accepted for now: this app has no concurrent-access
+     * volume that makes it likely, and the loser's channel is merely orphaned, not destructive.
+     */
+    private fun ensureAnnouncementChannel(community: Community): UUID {
+        community.announcementGroupId?.let { return it }
+
+        val members = communityRepository.findMembersByCommunityId(community.id)
+        val channel = conversationRepository.save(
+            Conversation(
+                type = ConversationType.GROUP,
+                name = community.name.take(ValidationRules.GROUP_NAME_MAX),
+                createdBy = community.createdBy,
+                announcementOnly = true
+            )
+        )
+        members.forEach { member ->
+            conversationRepository.saveMember(
+                ConversationMember(
+                    conversationId = channel.id,
+                    userId = member.userId,
+                    role = if (member.administers()) MemberRole.ADMIN else MemberRole.MEMBER
+                )
+            )
+        }
+        // Exactly one OWNER, matching what GroupService's own role/succession logic expects of any
+        // GROUP conversation — administers() alone would leave the community's OWNER seated as only
+        // an ADMIN of their own channel.
+        members.firstOrNull { it.role == MemberRole.OWNER }?.let { owner ->
+            conversationRepository.updateMemberRole(channel.id, owner.userId, MemberRole.OWNER)
+        }
+
+        communityRepository.update(community.copy(announcementGroupId = channel.id))
+        log.info("Announcement channel created for community: community={}, channel={}", community.id, channel.id)
+        return channel.id
     }
 
     private fun requireMember(communityId: UUID, userId: UUID): CommunityMember =
