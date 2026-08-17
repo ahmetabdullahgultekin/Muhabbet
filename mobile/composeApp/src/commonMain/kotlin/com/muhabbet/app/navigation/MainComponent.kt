@@ -241,8 +241,25 @@ class MainComponent(
      *
      * CLAUDE.md already warns against pop-then-push; `replaceCurrent` is the fix.
      */
-    fun replaceWithChat(conversationId: String, conversationName: String, isGroup: Boolean = false) {
-        navigation.replaceCurrent(Config.Chat(conversationId, conversationName, isGroup = isGroup))
+    /**
+     * Takes a whole [ChatTarget] for the same reason [openChat] does. It used to take
+     * `(id, name, isGroup)`, and every one of its callers therefore had no way to supply
+     * `otherUserId` or `avatarUrl` — so a chat entered straight after creating it, or right after
+     * forwarding into it, showed the right title over no avatar and a dead tap on the person, while
+     * the same chat opened later from the list was fine (#555). It was #543's symptom arriving from
+     * a different direction, and the cure is the same: one type carrying the whole identity, so a
+     * caller cannot supply half of it.
+     */
+    fun replaceWithChat(target: ChatTarget) {
+        navigation.replaceCurrent(
+            Config.Chat(
+                conversationId = target.conversationId,
+                name = target.name,
+                otherUserId = target.otherUserId,
+                isGroup = target.isGroup,
+                avatarUrl = target.avatarUrl
+            )
+        )
         _refreshTrigger.value++
     }
 
@@ -364,23 +381,25 @@ private fun MainStack(component: MainComponent) {
                         component.openUserProfile(config.otherUserId, config.name, config.conversationId)
                     }
                 },
-                onNavigateToConversation = { convId, convName ->
-                    component.replaceWithChat(convId, convName)
-                },
+                onNavigateToConversation = component::replaceWithChat,
                 onMessageInfo = { messageId -> component.openMessageInfo(messageId) }
             )
             is MainComponent.Config.NewConversation -> NewConversationScreen(
-                onConversationCreated = { id, name ->
-                    component.replaceWithChat(id, name)
-                },
+                onConversationCreated = component::replaceWithChat,
                 onCreateGroup = {
                     component.replaceWithCreateGroup()
                 },
                 onBack = component::goBack
             )
             is MainComponent.Config.CreateGroup -> CreateGroupScreen(
+                // otherUserId and avatarUrl are genuinely absent here, not dropped: a group has no
+                // "other user", and a group created seconds ago has no photo yet. Routed through
+                // ChatTarget anyway so there is one rule for what a chat's identity is, rather than
+                // a fifth path that happens to be right today.
                 onGroupCreated = { id, name ->
-                    component.replaceWithChat(id, name, isGroup = true)
+                    component.replaceWithChat(
+                        ChatTarget(conversationId = id, name = name, isGroup = true)
+                    )
                 },
                 onBack = component::goBack
             )
@@ -491,7 +510,7 @@ private fun MainStack(component: MainComponent) {
                 onMemberClick = { userId -> component.openUserProfile(userId) }
             )
             is MainComponent.Config.PickContactForCall -> NewConversationScreen(
-                onConversationCreated = { id, name -> component.replaceWithChat(id, name) },
+                onConversationCreated = component::replaceWithChat,
                 onBack = component::goBack,
                 onContactPicked = { userId, name ->
                     val callId = Clock.System.now().toEpochMilliseconds().toString()

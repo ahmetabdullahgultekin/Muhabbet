@@ -40,6 +40,7 @@ import com.muhabbet.app.data.remote.MessageQueuedException
 import com.muhabbet.app.data.remote.ViewOnceNotQueueableException
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.ui.connection.ConnectionStrip
+import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
@@ -107,7 +108,7 @@ fun ChatScreen(
     scrollToMessageId: String? = null,
     onBack: () -> Unit,
     onTitleClick: () -> Unit = {},
-    onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null,
+    onNavigateToConversation: ((ChatTarget) -> Unit)? = null,
     onMessageInfo: ((messageId: String) -> Unit)? = null,
     messageRepository: MessageRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
