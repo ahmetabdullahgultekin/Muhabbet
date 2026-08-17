@@ -148,8 +148,8 @@ android {
         applicationId = "com.muhabbet.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.3.9"
+        versionCode = 15
+        versionName = "0.3.10"
 
         // Sentry DSN — set via environment variable or local.properties
         manifestPlaceholders["SENTRY_DSN"] = System.getenv("SENTRY_DSN") ?: ""

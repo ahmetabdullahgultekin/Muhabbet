@@ -8,6 +8,53 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+## [0.3.10] — 2026-08-18
+
+Thirteen merged changes, most of them the same shape: a feature whose code was written and whose last
+connection was never made. That pattern is what the `0.4 — the app tells the truth` milestone exists
+to remove, and this is the release where most of it goes.
+
+### Fixed — things that were written and never wired
+- **Blocking someone did nothing.** The Block and Report buttons showed a success message and called
+  no endpoint — grep for `blockUser` in `composeApp` returned zero hits. They now block, and there is
+  a **Blocked Contacts** screen to review and undo it (#613).
+- **Archiving a chat changed nothing** (#612, #655). `conversation_members.archived` was written and
+  never read back: `isArchived` rode its `false` default to the client, so the *Arşivlenmiş Sohbetler*
+  section could never render. `isMuted` and `isLocked` had the same defect.
+- **Muting silenced nothing** (#571). The push path never consulted `muted_until`. It does now,
+  server-side, where it still works with the app closed — and an expired mute lets pushes resume.
+- **A community had nowhere to talk** (#584). `communities.announcement_group_id` existed in the
+  schema, on the domain model and in the JPA entity, and **no code path ever wrote it**. Every
+  community now has an announcement channel; members are enrolled, including ones added later.
+- **App Lock locked nothing** (#378). No persistence, no reader, no mechanism. Now: biometric or
+  device credential, a re-arming lifecycle gate, `FLAG_SECURE` so the recent-apps thumbnail does not
+  leak the chat list, and a stated grace period.
+- **Voice transcription crashed or opened the microphone** (#381). `EXTRA_AUDIO_SOURCE` is API 33 and
+  wants a `ParcelFileDescriptor` of raw PCM; the old code passed a file path string to an API-31 call
+  with no version guard. Audio is now decoded and streamed properly, and the control is hidden where
+  the platform cannot do it.
+
+### Fixed — reported from a real phone
+- **A push arrived and the sender still saw one tick**, and separately **two ticks appeared with no
+  notification** (#596, #618). Delivery is now acknowledged over HTTP from the push path, and a push
+  is suppressed only for the conversation the recipient is actually looking at.
+- **A second message replaced the first notification instead of stacking** (#623, #595). Now
+  `MessagingStyle`, with the history read back from the system's own notification so it survives the
+  FCM service restarting.
+- **The full-screen photo viewer was not full-screen** (#651) — every photo ever opened had the chat
+  showing down both sides.
+
+### Added
+- **About** screen with the version and the three legal documents (#614).
+- **Profile photos open full-screen** from the chat title, the profile, group info and Settings (#615).
+- **Voice recordings can be cancelled, locked or previewed** instead of sending the moment you let go
+  (#601).
+
+### Not fixed, and not claimed
+- **#590** — a chat opening mid-history could not be reproduced with a 93-message conversation, on
+  open or across a pagination boundary. #657's scroll-anchor fix is real and merged as hygiene, but
+  it is not evidence that #590 is gone. The issue stays open.
+
 ## [0.3.9] — 2026-08-17
 
 Everything here was found by the owner using 0.3.8 on a real phone, and every fix was reproduced and
