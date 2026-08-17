@@ -662,6 +662,44 @@ data class PrivacySettingsResponse(
     val aboutVisibility: String
 )
 
+// ─── Moderation DTOs ────────────────────────────────────
+/**
+ * `reason` is a raw string rather than a shared enum, deliberately: it must decode against the
+ * backend domain's `ReportReason` names (`SPAM`, `HARASSMENT`, `ILLEGAL_CONTENT`, `HATE_SPEECH`,
+ * `OTHER`), and a mismatch there is a `VALIDATION_ERROR` the server already returns — duplicating
+ * that enum here would just be a second place for the two to drift apart, the same trade already
+ * made for `MemberRole`/`ContentType`/`ConversationType`.
+ *
+ * Exactly one of [reportedUserId], [reportedMessageId] and [reportedConversationId] is normally
+ * set; the server does not require it, but a report with none of the three has nothing to review.
+ */
+@Serializable
+data class CreateReportRequest(
+    val reportedUserId: String? = null,
+    val reportedMessageId: String? = null,
+    val reportedConversationId: String? = null,
+    val reason: String,
+    val description: String? = null
+)
+
+/**
+ * One row of the caller's own block list.
+ *
+ * `GET /api/v1/moderation/blocks` used to answer with bare `blockedUserIds` — a list of UUIDs and
+ * nothing else — which is why no blocked-list screen was ever built: a UUID is not a name, and
+ * `GET /users/{id}` strips a foreign user's phone number, so the client had no way to resolve one
+ * even with N extra requests. [displayName] and [avatarUrl] are resolved server-side in one batched
+ * query via the moderation module's own `UserDirectoryPort`, the same shape messaging already uses
+ * to put a name on a message sender.
+ */
+@Serializable
+data class BlockedUserResponse(
+    val userId: String,
+    val displayName: String? = null,
+    val avatarUrl: String? = null,
+    val blockedAt: String
+)
+
 // ─── Broadcast List DTOs ────────────────────────────────
 @Serializable
 data class CreateBroadcastListRequest(

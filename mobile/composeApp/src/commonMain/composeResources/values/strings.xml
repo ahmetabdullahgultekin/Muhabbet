@@ -412,10 +412,20 @@
     <string name="profile_report">Şikayet Et</string>
     <string name="profile_block_confirm">Bu kişiyi engellemek istediğinize emin misiniz?</string>
     <string name="profile_block_success">Kullanıcı engellendi</string>
+    <string name="profile_block_failed">Kullanıcı engellenemedi</string>
+    <string name="profile_unblock_confirm">Bu kişinin engelini kaldırmak istediğinize emin misiniz?</string>
     <string name="profile_unblock_success">Engel kaldırıldı</string>
+    <string name="profile_unblock_failed">Engel kaldırılamadı</string>
     <string name="profile_report_confirm">Bu kişiyi şikayet etmek istediğinize emin misiniz?</string>
     <string name="profile_report_success">Şikayet gönderildi</string>
+    <string name="profile_report_failed">Şikayet gönderilemedi</string>
     <string name="profile_report_reason_placeholder">Şikayet nedeni (isteğe bağlı)</string>
+
+    <!-- Blocked Users -->
+    <string name="blocked_users_empty">Kimseyi engellemediniz</string>
+    <string name="blocked_users_empty_desc">Engellediğiniz kişiler burada görünür</string>
+    <string name="blocked_users_load_failed">Engellenen kişiler yüklenemedi</string>
+    <string name="blocked_users_since">%1$s tarihinde engellendi</string>
 
     <!-- Privacy Settings -->
     <string name="settings_privacy_section">Gizlilik</string>

@@ -1,6 +1,7 @@
 package com.muhabbet.moderation.domain.port.`in`
 
 import com.muhabbet.moderation.domain.model.ReportReason
+import com.muhabbet.moderation.domain.model.UserBlock
 import com.muhabbet.moderation.domain.model.UserReport
 import java.util.UUID
 
@@ -18,7 +19,17 @@ interface ReportUserUseCase {
 interface BlockUserUseCase {
     fun blockUser(blockerId: UUID, blockedId: UUID)
     fun unblockUser(blockerId: UUID, blockedId: UUID)
-    fun getBlockedUsers(userId: UUID): List<UUID>
+
+    /**
+     * Every block [userId] has placed, newest first at the repository layer's discretion — the
+     * caller (currently `ModerationController`) is the one that owns display ordering.
+     *
+     * Returns the domain model rather than a bare `List<UUID>` deliberately: `createdAt` is what
+     * lets a blocked-list screen say *when*, and there was previously nowhere for that to survive
+     * past this call — the old signature threw it away here and the controller had nothing to
+     * re-derive it from.
+     */
+    fun getBlockedUsers(userId: UUID): List<UserBlock>
     fun isBlocked(blockerId: UUID, blockedId: UUID): Boolean
 
     /**

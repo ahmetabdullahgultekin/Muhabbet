@@ -98,8 +98,8 @@ class ModerationServiceTest {
 
         val blocked = service.getBlockedUsers(userId)
         assertEquals(2, blocked.size)
-        assertTrue(blocked.contains(blockedId1))
-        assertTrue(blocked.contains(blockedId2))
+        assertTrue(blocked.any { it.blockedId == blockedId1 })
+        assertTrue(blocked.any { it.blockedId == blockedId2 })
     }
 
     @Test

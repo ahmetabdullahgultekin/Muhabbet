@@ -36,6 +36,7 @@ import com.muhabbet.app.ui.conversations.BroadcastDetailScreen
 import com.muhabbet.app.ui.conversations.BroadcastListScreen
 import com.muhabbet.app.ui.group.GroupEventScreen
 import com.muhabbet.app.ui.privacy.PrivacyDashboardScreen
+import com.muhabbet.app.ui.privacy.BlockedUsersScreen
 import com.muhabbet.app.ui.settings.AboutScreen
 import com.muhabbet.app.ui.settings.AppLockScreen
 import com.muhabbet.app.ui.settings.TwoStepSetupScreen
@@ -207,6 +208,11 @@ class MainComponent(
     }
 
     @OptIn(DelicateDecomposeApi::class)
+    fun openBlockedUsers() {
+        navigation.push(Config.BlockedUsers)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
     fun openTwoStepVerification() {
         navigation.push(Config.TwoStepVerification)
     }
@@ -334,6 +340,7 @@ class MainComponent(
         @Serializable data class ActiveCall(val callId: String, val otherUserId: String, val otherUserName: String? = null, val callType: String = "VOICE") : Config
         @Serializable data object CallHistory : Config
         @Serializable data object PrivacyDashboard : Config
+        @Serializable data object BlockedUsers : Config
         @Serializable data object TwoStepVerification : Config
         @Serializable data object AppLock : Config
         @Serializable data object Wallpaper : Config
@@ -572,7 +579,11 @@ private fun MainStack(component: MainComponent) {
             }
             is MainComponent.Config.PrivacyDashboard -> PrivacyDashboardScreen(
                 onBack = component::goBack,
-                onLogout = component.onLogout
+                onLogout = component.onLogout,
+                onBlockedUsers = component::openBlockedUsers
+            )
+            is MainComponent.Config.BlockedUsers -> BlockedUsersScreen(
+                onBack = component::goBack
             )
             is MainComponent.Config.CallHistory -> CallHistoryScreen(
                 onBack = component::goBack,

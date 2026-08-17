@@ -44,6 +44,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import androidx.compose.material3.SnackbarHostState
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.data.repository.ModerationRepository
 import com.muhabbet.designsystem.components.ConfirmDialog
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.chat.MediaViewer
@@ -71,12 +72,17 @@ fun UserProfileScreen(
     onMessageClick: (() -> Unit)? = null,
     onGroupClick: ((conversationId: String, name: String) -> Unit)? = null,
     onSharedMediaClick: ((conversationId: String) -> Unit)? = null,
-    conversationRepository: ConversationRepository = koinInject()
+    conversationRepository: ConversationRepository = koinInject(),
+    moderationRepository: ModerationRepository = koinInject()
 ) {
     var profile by remember { mutableStateOf<UserProfileDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Null until the block-status check resolves, so the row does not flash "Block" for someone
+    // already blocked while the request is in flight.
+    var isBlocked by remember { mutableStateOf<Boolean?>(null) }
     var showBlockDialog by remember { mutableStateOf(false) }
+    var showUnblockDialog by remember { mutableStateOf(false) }
     var showReportDialog by remember { mutableStateOf(false) }
     // Only ever set true when profile.avatarUrl is non-null — see the render site below.
     var showPhotoViewer by remember { mutableStateOf(false) }
@@ -86,7 +92,11 @@ fun UserProfileScreen(
     val errorMsg = stringResource(Res.string.profile_load_failed)
     val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
     val blockSuccessMsg = stringResource(Res.string.profile_block_success)
+    val blockFailedMsg = stringResource(Res.string.profile_block_failed)
+    val unblockSuccessMsg = stringResource(Res.string.profile_unblock_success)
+    val unblockFailedMsg = stringResource(Res.string.profile_unblock_failed)
     val reportSuccessMsg = stringResource(Res.string.profile_report_success)
+    val reportFailedMsg = stringResource(Res.string.profile_report_failed)
 
     LaunchedEffect(userId) {
         runCatchingCancellable { profile = conversationRepository.getUserProfileDetail(userId) }
@@ -95,6 +105,10 @@ fun UserProfileScreen(
                 error = errorMsg
             }
         isLoading = false
+        // Independent of the profile load: a failure here should not block the rest of the
+        // screen, it should just leave the Block/Report row at its safe default (offer "Block").
+        runCatchingCancellable { isBlocked = moderationRepository.isBlocked(userId) }
+            .onFailure { e -> Log.w(TAG, "Could not check block status for $userId: ${e.message}") }
     }
 
     if (showBlockDialog) {
@@ -104,13 +118,45 @@ fun UserProfileScreen(
             confirmLabel = stringResource(Res.string.profile_block),
             dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
-                scope.launch {
-                    snackbarHostState.showSnackbar(blockSuccessMsg)
-                }
                 showBlockDialog = false
+                scope.launch {
+                    runCatchingCancellable { moderationRepository.blockUser(userId) }
+                        .onSuccess {
+                            isBlocked = true
+                            snackbarHostState.showSnackbar(blockSuccessMsg)
+                        }
+                        .onFailure { e ->
+                            Log.e(TAG, "Failed to block $userId", e)
+                            snackbarHostState.showSnackbar(blockFailedMsg)
+                        }
+                }
             },
             onDismiss = { showBlockDialog = false },
             isDestructive = true
+        )
+    }
+
+    if (showUnblockDialog) {
+        ConfirmDialog(
+            title = stringResource(Res.string.profile_unblock),
+            message = stringResource(Res.string.profile_unblock_confirm),
+            confirmLabel = stringResource(Res.string.profile_unblock),
+            dismissLabel = stringResource(Res.string.cancel),
+            onConfirm = {
+                showUnblockDialog = false
+                scope.launch {
+                    runCatchingCancellable { moderationRepository.unblockUser(userId) }
+                        .onSuccess {
+                            isBlocked = false
+                            snackbarHostState.showSnackbar(unblockSuccessMsg)
+                        }
+                        .onFailure { e ->
+                            Log.e(TAG, "Failed to unblock $userId", e)
+                            snackbarHostState.showSnackbar(unblockFailedMsg)
+                        }
+                }
+            },
+            onDismiss = { showUnblockDialog = false }
         )
     }
 
@@ -121,10 +167,17 @@ fun UserProfileScreen(
             confirmLabel = stringResource(Res.string.profile_report),
             dismissLabel = stringResource(Res.string.cancel),
             onConfirm = {
-                scope.launch {
-                    snackbarHostState.showSnackbar(reportSuccessMsg)
-                }
                 showReportDialog = false
+                scope.launch {
+                    runCatchingCancellable {
+                        moderationRepository.reportUser(reportedUserId = userId)
+                    }
+                        .onSuccess { snackbarHostState.showSnackbar(reportSuccessMsg) }
+                        .onFailure { e ->
+                            Log.e(TAG, "Failed to report $userId", e)
+                            snackbarHostState.showSnackbar(reportFailedMsg)
+                        }
+                }
             },
             onDismiss = { showReportDialog = false },
             isDestructive = true
@@ -354,24 +407,39 @@ fun UserProfileScreen(
                 // Block & Report section
                 item {
                     Spacer(Modifier.height(MuhabbetSpacing.Small))
+                    // isBlocked == null while the check is still in flight (or failed): the safe
+                    // default is offering "Block" rather than guessing "already blocked".
+                    val userIsBlocked = isBlocked == true
+                    val blockRowTint = if (userIsBlocked) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
+                    val blockRowLabel = if (userIsBlocked) {
+                        stringResource(Res.string.profile_unblock)
+                    } else {
+                        stringResource(Res.string.profile_block)
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showBlockDialog = true }
+                            .clickable {
+                                if (userIsBlocked) showUnblockDialog = true else showBlockDialog = true
+                            }
                             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Muhabbet.icons.Block,
-                            contentDescription = stringResource(Res.string.profile_block),
-                            tint = MaterialTheme.colorScheme.error,
+                            contentDescription = blockRowLabel,
+                            tint = blockRowTint,
                             modifier = Modifier.size(MuhabbetSizes.IconLarge)
                         )
                         Spacer(Modifier.width(MuhabbetSpacing.Medium))
                         Text(
-                            text = stringResource(Res.string.profile_block),
+                            text = blockRowLabel,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
+                            color = blockRowTint
                         )
                     }
                     Row(
