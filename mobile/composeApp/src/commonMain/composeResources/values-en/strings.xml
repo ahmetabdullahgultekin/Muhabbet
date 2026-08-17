@@ -722,4 +722,10 @@
     <string name="contacts_consent_review">Review this permission</string>
     <!-- Debug builds only: the backend echoed the code back in mock mode (#435) -->
     <string name="otp_dev_mode_code">Dev mode — Code: %1$s</string>
+    <!-- Connection strip (#511). Shown only after the socket has been down for a few seconds, so
+         the wording has to cover a real outage rather than a momentary blip. Phrased without an
+         apostrophe on purpose: CMP does not unescape an escaped one, and CI rejects any backslash
+         in these files (#471). -->
+    <string name="connection_status_label">Connection status</string>
+    <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
 </resources>

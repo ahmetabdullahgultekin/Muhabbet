@@ -69,12 +69,18 @@ private fun WebSocketLifecycle(root: RootComponent) {
     val stack by root.childStack.subscribeAsState()
     val loggedIn = stack.active.instance is RootComponent.Child.Main
 
+    // The generation this composition connected as, handed straight back to disconnect().
+    //
+    // `onDispose` belongs to a composition that is already gone, but it still runs whenever Android
+    // gets round to it — which, on an Activity recreation, is *after* the replacement Activity has
+    // composed and connected. An unguarded disconnect() at that point tore down the connection the
+    // new composition had just opened, and the app then sat disconnected with no reconnect loop
+    // running for as long as it stayed open (#511). The language switch recreates the Activity on
+    // purpose, so this was reachable by ordinary use, not just by rotation.
     DisposableEffect(Unit) {
-        if (tokenStorage.isLoggedIn()) {
-            wsClient.connect()
-        }
+        val generation = if (tokenStorage.isLoggedIn()) wsClient.connect() else null
         onDispose {
-            wsClient.disconnect()
+            generation?.let { wsClient.disconnect(it) }
         }
     }
 

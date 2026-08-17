@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.ui.connection.ConnectionStrip
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
@@ -85,6 +87,8 @@ fun ConversationListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val scope = rememberCoroutineScope()
+    // Rendered by the ConnectionStrip below. Nothing had ever read this flow before #511.
+    val connectionState by wsClient.connectionState.collectAsState()
 
     // Track online status by userId (updated by PresenceUpdate messages)
     val onlineUsers = remember { mutableStateMapOf<String, Boolean>() }
@@ -406,6 +410,9 @@ fun ConversationListScreen(
         snackbarHostState = snackbarHostState
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Above the search field and the list, outside the pull-to-refresh area so it cannot
+            // scroll away or fight the refresh gesture. Self-hiding — see ConnectionStrip.
+            ConnectionStrip(state = connectionState)
             // Search bar
             if (showTopBar && isSearching) {
                 MuhabbetTextField(
