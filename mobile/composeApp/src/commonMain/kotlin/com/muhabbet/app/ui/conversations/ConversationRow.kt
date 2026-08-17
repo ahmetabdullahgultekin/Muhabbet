@@ -130,7 +130,7 @@ internal fun ConversationItem(
                     Icon(
                         Muhabbet.icons.MuteOff,
                         contentDescription = stringResource(Res.string.a11y_conversation_muted),
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(MuhabbetSizes.IconRowIndicator),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -141,7 +141,7 @@ internal fun ConversationItem(
                     Icon(
                         Muhabbet.icons.Pin,
                         contentDescription = stringResource(Res.string.a11y_conversation_pinned),
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(MuhabbetSizes.IconRowIndicator),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
