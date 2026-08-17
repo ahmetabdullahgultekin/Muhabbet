@@ -667,6 +667,12 @@
 
     <!-- Search -->
     <string name="home_search_title">Ara</string>
+    <!-- Section headers when the home search returns both kinds of hit, plus the failure the
+         search screen has to be able to say out loud: an empty list must not be what a network
+         error looks like (#638). -->
+    <string name="home_search_section_chats">Sohbetler</string>
+    <string name="home_search_section_messages">Mesajlar</string>
+    <string name="home_search_failed">Arama yapılamadı</string>
     <string name="home_search_placeholder">Konuşma veya kişi ara…</string>
     <string name="home_search_no_results">Sonuç bulunamadı</string>
 
