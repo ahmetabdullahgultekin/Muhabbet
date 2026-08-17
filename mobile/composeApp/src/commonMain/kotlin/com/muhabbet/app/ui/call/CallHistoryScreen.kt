@@ -20,7 +20,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -60,6 +59,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.designsystem.components.MuhabbetFab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,16 +123,11 @@ fun CallHistoryScreen(
         },
         floatingActionButton = {
             if (onNewCall != null) {
-                FloatingActionButton(
-                    onClick = onNewCall,
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(
-                        imageVector = Muhabbet.icons.CallStart,
-                        contentDescription = stringResource(Res.string.calls_new_call),
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
+                MuhabbetFab(
+                    icon = Muhabbet.icons.CallStart,
+                    contentDescription = stringResource(Res.string.calls_new_call),
+                    onClick = onNewCall
+                )
             }
         },
         snackbarHostState = snackbarHostState

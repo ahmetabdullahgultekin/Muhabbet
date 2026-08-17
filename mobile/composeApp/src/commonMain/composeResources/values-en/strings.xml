@@ -18,6 +18,7 @@
     <string name="action_send">Send</string>
     <string name="action_save">Save</string>
     <string name="attach_file">Attach file</string>
+    <string name="attach_file_view_once_on">Attach file — view once is on</string>
     <string name="voice_play">Play</string>
     <string name="voice_pause">Pause</string>
     <string name="voice_record">Record</string>
@@ -497,6 +498,7 @@
 
     <!-- View Once -->
     <string name="view_once_label">View once</string>
+    <string name="view_once_hint">The photo disappears after it is opened once</string>
     <string name="view_once_opened">Opened</string>
     <string name="view_once_tap_to_view">Tap to view</string>
     <string name="view_once_photo">Photo</string>
@@ -720,4 +722,10 @@
     <string name="contacts_consent_review">Review this permission</string>
     <!-- Debug builds only: the backend echoed the code back in mock mode (#435) -->
     <string name="otp_dev_mode_code">Dev mode — Code: %1$s</string>
+    <!-- Connection strip (#511). Shown only after the socket has been down for a few seconds, so
+         the wording has to cover a real outage rather than a momentary blip. Phrased without an
+         apostrophe on purpose: CMP does not unescape an escaped one, and CI rejects any backslash
+         in these files (#471). -->
+    <string name="connection_status_label">Connection status</string>
+    <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
 </resources>

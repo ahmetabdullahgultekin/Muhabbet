@@ -17,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,6 +62,7 @@ import com.muhabbet.designsystem.components.MuhabbetDialog
 import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.components.MuhabbetFab
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
@@ -136,13 +136,11 @@ fun GroupEventScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Muhabbet.icons.Add, contentDescription = stringResource(Res.string.group_event_create))
-            }
+            MuhabbetFab(
+                icon = Muhabbet.icons.Add,
+                contentDescription = stringResource(Res.string.group_event_create),
+                onClick = { showCreateDialog = true }
+            )
         },
         snackbarHostState = snackbarHostState
     ) { padding ->

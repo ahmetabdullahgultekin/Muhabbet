@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardActionScope
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -17,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.muhabbet.designsystem.theme.MuhabbetCorners
@@ -42,6 +45,21 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
  *   keyboard options at all, which leaves the return key inserting a newline into a field that
  *   cannot show one. A multi-line field keeps [ImeAction.Default] — there the newline is the point,
  *   and taking it away would be the same mistake in reverse.
+ * @param onImeAction what the keyboard's action key does. One callback rather than Compose's
+ *   `KeyboardActions`, which is six nullable lambdas the caller has to match against the
+ *   [imeAction] they just declared — exactly the half-a-pairing shape the [error] parameter exists
+ *   to avoid. This component already knows which action it asked for, so it routes.
+ *
+ *   Leaving it null is safe. Compose's own default already handles three of the six actions —
+ *   `Next` and `Previous` move focus, `Done` hides the keyboard — but it does **nothing at all**
+ *   for `Search`, `Send` and `Go`, so declaring one of those without a handler produces a keyboard
+ *   key that visibly exists and is inert. That is what made the chat composer's send key insert
+ *   nothing and send nothing (#479). Those three therefore fall back to dismissing the keyboard,
+ *   so a declared action is never dead; pass [onImeAction] whenever there is a real action to run.
+ *
+ *   Passing it never *costs* you the default either — a `Done` that submits still hides the
+ *   keyboard afterwards. Compose replaces the default with your handler rather than adding to it,
+ *   which would otherwise leave a submitted form's snackbar behind the keyboard.
  * @param prefix fixed text shown before the value and **not part of it**. The login screen used to
  *   seed the field with `"+90"` as ordinary content, so tapping to the left of it put the caret at
  *   position 0 and typing produced `5000000001+90` — a nonsense number that still looked plausible
@@ -79,12 +97,14 @@ fun MuhabbetTextField(
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     keyboardType: KeyboardType = KeyboardType.Text,
     imeAction: ImeAction = if (singleLine) ImeAction.Done else ImeAction.Default,
+    onImeAction: (() -> Unit)? = null,
     prefix: String? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val isError = error != null
     val accentColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val keyboardActions = keyboardActionsFor(imeAction, onImeAction)
 
     val ringAlpha by animateFloatAsState(
         targetValue = if (enabled && (focused || isError)) FocusRingAlpha else 0f,
@@ -116,6 +136,7 @@ fun MuhabbetTextField(
             singleLine = singleLine,
             maxLines = maxLines,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+            keyboardActions = keyboardActions,
             shape = RoundedCornerShape(MuhabbetCorners.Small),
             interactionSource = interactionSource,
             colors = OutlinedTextFieldDefaults.colors(
@@ -125,6 +146,52 @@ fun MuhabbetTextField(
                 errorCursorColor = MaterialTheme.colorScheme.error
             )
         )
+    }
+}
+
+/**
+ * The [KeyboardActions] that go with a declared [imeAction], so that no keyboard action key is ever
+ * inert.
+ *
+ * `onKeyEvent` appears zero times across the app's UI files, and until #479 so did
+ * `KeyboardActions` — not one of the thirty text fields supplied a handler for the IME action it
+ * declared. Compose covers for that in three of the six cases (`Next`/`Previous` move focus, `Done`
+ * hides the keyboard) and silently does nothing in the other three, which is why the chat composer
+ * drew a send key that did not send.
+ *
+ * Public because the fields that legitimately do **not** go through [MuhabbetTextField] — the chat
+ * composer and the GIF/sticker search, which each need a shape and a layout of their own — need the
+ * same routing, and a second copy of this `when` is how the two would drift apart.
+ *
+ * @param action the real thing to run. When null, `Search`/`Send`/`Go` dismiss the keyboard rather
+ *   than doing nothing, and the other three keep Compose's default.
+ */
+@Composable
+fun keyboardActionsFor(imeAction: ImeAction, action: (() -> Unit)?): KeyboardActions {
+    // Composable but deliberately not `remember`ed, and so deliberately not named `remember…`:
+    // `action` is a lambda most call sites recreate on every recomposition, and a handler cached
+    // against a stale capture is a worse bug than the allocation it would save.
+    val keyboard = LocalSoftwareKeyboardController.current
+    val dismiss: KeyboardActionScope.() -> Unit = { keyboard?.hide() }
+
+    // Compose dispatches `keyboardAction?.invoke(this) ?: defaultKeyboardAction(imeAction)`, so
+    // supplying a handler *replaces* the default rather than adding to it. For Search/Send/Go there
+    // is nothing to lose — the default is a no-op, which is the bug. For Done/Next/Previous there
+    // very much is: wiring Done to a form submit would otherwise leave the keyboard standing over
+    // the snackbar the submit just raised. So the handler runs and then the default still runs.
+    fun compose(action: (() -> Unit)?): (KeyboardActionScope.() -> Unit)? =
+        action?.let { run -> { run(); defaultKeyboardAction(imeAction) } }
+
+    val plain: (KeyboardActionScope.() -> Unit)? = action?.let { run -> { run() } }
+    return when (imeAction) {
+        ImeAction.Send -> KeyboardActions(onSend = plain ?: dismiss)
+        ImeAction.Search -> KeyboardActions(onSearch = plain ?: dismiss)
+        ImeAction.Go -> KeyboardActions(onGo = plain ?: dismiss)
+        // A null handler here is not a gap: Compose already hides the keyboard / moves focus.
+        ImeAction.Done -> KeyboardActions(onDone = compose(action))
+        ImeAction.Next -> KeyboardActions(onNext = compose(action))
+        ImeAction.Previous -> KeyboardActions(onPrevious = compose(action))
+        else -> KeyboardActions.Default
     }
 }
 

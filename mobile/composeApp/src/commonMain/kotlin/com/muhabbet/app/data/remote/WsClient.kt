@@ -13,7 +13,9 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,16 +35,25 @@ class WsClient(
     private val localCache: LocalCache? = null,
     // E2E encrypt-on-send / decrypt-on-receive. Null = no encryption layer (legacy pass-through).
     // Even when non-null, behavior is gated internally by E2EConfig.ENABLED (default OFF).
-    private val messageEncryptor: com.muhabbet.app.crypto.MessageEncryptor? = null
+    private val messageEncryptor: com.muhabbet.app.crypto.MessageEncryptor? = null,
+    // Supplied only by tests, so the reconnect loop, the heartbeat and the watchdog can be driven
+    // on virtual time instead of waiting 30 real seconds per tick. Production passes nothing.
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 ) {
 
     companion object {
         private const val TAG = "WsClient"
         private const val MAX_RETRY_COUNT = 5
+
+        /**
+         * How often the heartbeat pings, and therefore how long the watchdog can take to notice
+         * that the client is down with nothing running. Both jobs are the same coroutine on
+         * purpose — see [startHeartbeat].
+         */
+        private const val HEARTBEAT_INTERVAL_MS = 30_000L
     }
 
     private var session: WebSocketSession? = null
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _incoming = MutableSharedFlow<WsMessage>(extraBufferCapacity = 64)
     val incoming: SharedFlow<WsMessage> = _incoming
@@ -58,15 +69,82 @@ class WsClient(
     private val pendingAcks = PendingAckQueue()
 
     private var reconnectAttempt = 0
-    private var shouldReconnect = true
-    private var heartbeatJob: kotlinx.coroutines.Job? = null
+    private var shouldReconnect = false
+    private var heartbeatJob: Job? = null
 
-    fun connect() {
-        scope.launch {
-            shouldReconnect = true
+    /** The one connect loop, held so a second [connect] or the watchdog cannot start a rival. */
+    private var connectJob: Job? = null
+
+    /**
+     * Which [connect] the client is currently serving.
+     *
+     * Handed out by [connect] and handed back to [disconnect], so a teardown can tell whether it
+     * belongs to the live connection or to one that has already been replaced. This is the same
+     * identity discipline the connect loop's `finally` applies to `session` and `heartbeatJob`,
+     * lifted to cover the whole teardown — see [disconnect] for why the loop-local checks are not
+     * enough on their own.
+     */
+    private var generation = 0L
+
+    /**
+     * Brings the socket up and keeps it up until the returned generation is passed to [disconnect].
+     *
+     * `shouldReconnect` is set **here, synchronously**, not inside the coroutine it used to live in.
+     * `WebSocketLifecycle` calls disconnect()+connect() on every composition swap, and an Activity
+     * recreation — which the language switch performs deliberately — interleaved them so that the
+     * old Activity's `onDispose` wrote `false` after the new loop had already read `true`. The new
+     * loop fell out of its own `while (shouldReconnect)`, nothing was left running, and the socket
+     * stayed down for as long as the app stayed open while messages queued silently (#511).
+     */
+    fun connect(): Long {
+        val myGeneration = ++generation
+        shouldReconnect = true
+        reconnectAttempt = 0
+        // Only claim CONNECTING when a loop actually has to be started. This looks redundant and
+        // is not: [startConnectLoop] is single-flighted, so on an Activity recreation — the common
+        // case, and the one the generation guard exists to make survivable — it returns immediately
+        // because a healthy loop is already running. That loop is parked in its `incoming` read and
+        // will never revisit the line that sets CONNECTED, so overwriting the state here left the
+        // app showing "No connection" for as long as it stayed open, while the socket kept
+        // delivering messages normally (#521).
+        //
+        // The invariant this restores: the connect loop is the only writer of [connectionState],
+        // apart from [disconnect].
+        if (connectJob?.isActive != true) {
             _connectionState.value = ConnectionState.CONNECTING
-            connectInternal()
         }
+        startConnectLoop()
+        startHeartbeat(myGeneration)
+        return myGeneration
+    }
+
+    /**
+     * Visible for tests only: the reconnect loop, so a test can end it the way a crash would and
+     * assert that the watchdog notices. Nothing in production reads this.
+     */
+    internal val connectLoopForTest: Job? get() = connectJob
+
+    /** Visible for tests only: whether the client still intends to hold a connection open. */
+    internal val shouldReconnectForTest: Boolean get() = shouldReconnect
+
+    /**
+     * Starts the reconnect loop, unless one is already running.
+     *
+     * Single-flighted on purpose. `connect()` has historically had no re-entry guard, which is what
+     * the connect loop's `finally` comment is defending against, and the watchdog in
+     * [startHeartbeat] would otherwise start a fresh loop every 30 seconds forever. Two live loops
+     * overwrite each other's `session` and `heartbeatJob`, so the cheapest fix is to never have two.
+     *
+     * Started lazily and only then handed to `invokeOnCompletion`, so a loop that finishes
+     * immediately cannot run its completion handler before `connectJob` has been assigned.
+     */
+    private fun startConnectLoop() {
+        if (connectJob?.isActive == true) return
+        val job = scope.launch(start = CoroutineStart.LAZY) { connectInternal() }
+        connectJob = job
+        // Clear by identity, never by field: a later start may already have installed its own.
+        job.invokeOnCompletion { if (connectJob === job) connectJob = null }
+        job.start()
     }
 
     private suspend fun connectInternal() {
@@ -79,11 +157,10 @@ class WsClient(
                 continue
             }
             // Everything this iteration owns is held in locals as well as in the shared fields.
-            // `connect()` has no re-entry guard and `disconnect()` closes asynchronously, so a
-            // second loop can already be running by the time this one's socket finally closes —
-            // the cleanup below must only ever touch what *this* iteration created.
+            // `startConnectLoop()` single-flights the loop now, but `disconnect()` still closes
+            // asynchronously, so the cleanup below must only ever touch what *this* iteration
+            // created.
             var mySession: WebSocketSession? = null
-            var myHeartbeat: kotlinx.coroutines.Job? = null
             try {
                 _connectionState.value = ConnectionState.CONNECTING
                 Log.d(TAG, "Connecting...")
@@ -104,20 +181,13 @@ class WsClient(
                 // them out of order.
                 drainPendingAcks()
 
-                // Start heartbeat
-                val heartbeat = scope.launch {
-                    while (isActive) {
-                        delay(30_000L)
-                        // Deliberately does not break the loop or surface to the UI: recovery is
-                        // owned by the reconnect path below. Logged so a heartbeat that keeps
-                        // failing (e.g. a session that outlived its socket) is visible. Cancellation
-                        // is the exception: it must end the loop, not be logged as a failed ping.
-                        runCatchingCancellable { send(WsMessage.Ping) }
-                            .onFailure { e -> Log.w(TAG, "Heartbeat ping failed: ${e.message}") }
-                    }
-                }
-                myHeartbeat = heartbeat
-                heartbeatJob = heartbeat
+                // No heartbeat is started here any more. It used to be created per iteration and
+                // cancelled in the `finally` below, which meant every path that skipped the cancel
+                // orphaned a coroutine that went on pinging the *next* session — and, once the
+                // reconnect loop died, went on pinging nothing at all, which is the "ping every 30s
+                // with no loop behind it" in #511. There is now exactly one heartbeat per
+                // `connect()`, owned by the client rather than by an iteration; see
+                // [startHeartbeat].
 
                 for (frame in ws.incoming) {
                     if (frame is Frame.Text) {
@@ -151,19 +221,12 @@ class WsClient(
                 _connectionState.value = ConnectionState.DISCONNECTED
                 Log.e(TAG, "Connection error: ${e.message}")
             } finally {
-                // Stop heartbeat on BOTH exit paths. This used to run only on the normal path, so a
-                // session that ended by exception orphaned its heartbeat coroutine — and because
-                // send() reads the current `session` field, the orphans kept pinging the *next*
-                // session every 30s, one extra ping per reconnect, forever.
-                //
-                // Cancel by identity, not by field. `WsClient` is a Koin single and
+                // Clear by identity, not by field. `WsClient` is a Koin single and
                 // `WebSocketLifecycle` calls disconnect()+connect() on every composition swap (every
-                // Activity recreation, including the deliberate language switch), so loop B may
-                // already have overwritten `heartbeatJob`/`session` by the time loop A's socket
-                // closes. Cancelling the field would kill B's live heartbeat and null B's live
-                // session; the field is only cleared when it still holds *this* iteration's object.
-                myHeartbeat?.cancel()
-                if (heartbeatJob === myHeartbeat) heartbeatJob = null
+                // Activity recreation, including the deliberate language switch), so a later
+                // iteration may already have overwritten `session` by the time this one's socket
+                // closes. Nulling the field blindly would drop a live session on the floor; it is
+                // only cleared while it still holds *this* iteration's object.
                 if (session === mySession) session = null
             }
 
@@ -197,7 +260,7 @@ class WsClient(
             // NOTE: the queued body is the already-encrypted `outgoing`; the drain path is
             // idempotent and will not re-wrap it (encryptOutgoing skips existing envelopes).
             queuePendingMessage(outgoing)
-            throw Exception("WebSocket not connected")
+            throw MessageQueuedException()
         }
         currentSession.outgoing.send(Frame.Text(wsJson.encodeToString(outgoing)))
     }
@@ -268,13 +331,72 @@ class WsClient(
             message
         }
 
-    fun disconnect() {
+    /**
+     * The client's single heartbeat, and its watchdog.
+     *
+     * One coroutine per [connect], not one per connection attempt, for two reasons. It cannot be
+     * orphaned by an iteration that exits without cancelling it, which is half of #511. And it
+     * outlives the connect loop, which is what lets it act as a watchdog: if the loop dies for a
+     * reason the loop itself cannot catch — a `Throwable` that is not an `Exception`, or a
+     * `connect()` that arrived while the previous loop was already on its way out and so declined
+     * to start a new one — something has to notice that the client wants a connection and has
+     * nothing running. Every 30 seconds, this does.
+     *
+     * The restart goes through [startConnectLoop], which single-flights, so the watchdog cannot
+     * spawn rival loops however often it fires.
+     */
+    private fun startHeartbeat(myGeneration: Long) {
+        // Any heartbeat still in the field belongs to a generation this call has just superseded,
+        // because `connect()` bumps the generation immediately before calling us.
+        heartbeatJob?.cancel()
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            while (isActive) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                // A newer connect() owns the client now, or it has been torn down. Either way this
+                // generation is done; leave without touching anything the new one installed.
+                if (generation != myGeneration || !shouldReconnect) return@launch
+                val live = session
+                if (live != null) {
+                    // Deliberately does not break the loop or surface to the UI: recovery is owned
+                    // by the reconnect path. Logged so a heartbeat that keeps failing is visible.
+                    // Cancellation is the exception: it must end the loop, not be logged as a
+                    // failed ping.
+                    runCatchingCancellable { send(WsMessage.Ping) }
+                        .onFailure { e -> Log.w(TAG, "Heartbeat ping failed: ${e.message}") }
+                } else if (connectJob?.isActive != true) {
+                    Log.w(TAG, "Watchdog: disconnected with no connect loop running, restarting it")
+                    startConnectLoop()
+                }
+            }
+        }
+        heartbeatJob = job
+        job.invokeOnCompletion { if (heartbeatJob === job) heartbeatJob = null }
+        job.start()
+    }
+
+    /**
+     * Tears down the generation named by [generation], and does nothing if it is not the live one.
+     *
+     * The guard is the other half of the #511 fix, and setting `shouldReconnect` synchronously in
+     * [connect] does not remove the need for it. `WebSocketLifecycle`'s `onDispose` belongs to a
+     * composition that is already gone, but it still runs on the calling thread whenever Android
+     * gets round to it — after the replacement Activity has composed and called `connect()`. An
+     * unguarded `disconnect()` at that point sets `shouldReconnect = false` and closes the socket
+     * that the *new* composition just opened, which is precisely how the app ended up connected to
+     * nothing with no loop running. Passing the generation back makes the teardown idempotent in
+     * both interleavings: whichever of the two runs second, only the live generation is torn down.
+     *
+     * Fields are captured synchronously for the same reason the connect loop's `finally` does it.
+     * Only `close()` has to happen off-thread; reading the fields inside the coroutine would mean
+     * reading them after a following `connect()` had installed a new session.
+     */
+    fun disconnect(generation: Long) {
+        if (generation != this.generation) {
+            Log.d(TAG, "Ignoring stale disconnect for #$generation (live is #${this.generation})")
+            return
+        }
         shouldReconnect = false
         _connectionState.value = ConnectionState.DISCONNECTED
-        // Capture synchronously, for the same reason the connect loop's finally does. Only
-        // `close()` has to happen off-thread; reading the fields inside the coroutine would mean
-        // reading them *after* a following connect() has installed a new session and heartbeat,
-        // and closing whatever is in the field at that point would tear down the new connection.
         val staleSession = session
         val staleHeartbeat = heartbeatJob
         staleHeartbeat?.cancel()
@@ -395,6 +517,20 @@ class WsClient(
         }
     }
 }
+
+/**
+ * Thrown by [WsClient.send] when the socket was down and the message went onto the offline queue.
+ *
+ * Distinct from a genuine send failure because the two outcomes are opposite. A queued message
+ * *will* go out on the next connect, so a caller that deletes the bubble and reports "could not
+ * send" is telling the user something untrue and inviting them to type it again — and then it
+ * arrives twice. Callers should leave a queued message on screen as `MessageStatus.SENDING`, which
+ * already renders as a pending clock, and let the connection strip explain why it is still waiting.
+ *
+ * Subclasses [Exception] rather than replacing it so the many `catch (_: Exception)` sites around
+ * the send paths keep compiling and keep behaving; only the ones that care need to look.
+ */
+class MessageQueuedException : Exception("WebSocket not connected")
 
 enum class ConnectionState {
     DISCONNECTED,

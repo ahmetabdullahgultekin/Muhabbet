@@ -78,6 +78,43 @@ fun TwoStepSetupScreen(
     val pinLengthMsg = stringResource(Res.string.two_step_pin_length)
     val enabledMsg = stringResource(Res.string.two_step_enabled)
 
+    // Named rather than inlined into the button, so the keyboard's Done key on the last field can
+    // reach the same action. Guarded on exactly what the button's `enabled` is guarded on — a
+    // keyboard route into a disabled action is how a form gets submitted blank (#479).
+    val setUpTwoStep: () -> Unit = {
+        if (!isSaving && pin.isNotBlank() && confirmPin.isNotBlank()) {
+            scope.launch {
+                when {
+                    pin.length != 6 -> snackbarHostState.showSnackbar(pinLengthMsg)
+                    pin != confirmPin -> snackbarHostState.showSnackbar(pinMismatchMsg)
+                    else -> {
+                        isSaving = true
+                        var setupFailed = false
+                        try {
+                            apiClient.post<Unit>(
+                                "/api/v1/auth/two-step",
+                                SetupTwoStepRequest(
+                                    pin = pin,
+                                    email = email.ifBlank { null }
+                                )
+                            )
+                            isEnabled = true
+                        } catch (_: Exception) {
+                            setupFailed = true
+                        }
+                        // Clear the spinner BEFORE reporting — showSnackbar suspends until
+                        // dismissed (~4s). This is the success path too: the button spun for
+                        // the whole time the "two-step enabled" confirmation was on screen.
+                        isSaving = false
+                        snackbarHostState.showSnackbar(
+                            if (setupFailed) genericErrorMsg else enabledMsg
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         val failure = runCatchingCancellable {
             val response = apiClient.get<TwoStepStatusResponse>("/api/v1/auth/two-step/status")
@@ -209,44 +246,14 @@ fun TwoStepSetupScreen(
                         label = stringResource(Res.string.two_step_email_hint),
                         singleLine = true,
                         keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Done
+                        imeAction = ImeAction.Done,
+                        onImeAction = setUpTwoStep
                     )
 
                     Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
                     Button(
-                        onClick = {
-                            scope.launch {
-                                when {
-                                    pin.length != 6 -> snackbarHostState.showSnackbar(pinLengthMsg)
-                                    pin != confirmPin -> snackbarHostState.showSnackbar(pinMismatchMsg)
-                                    else -> {
-                                        isSaving = true
-                                        var setupFailed = false
-                                        try {
-                                            apiClient.post<Unit>(
-                                                "/api/v1/auth/two-step",
-                                                SetupTwoStepRequest(
-                                                    pin = pin,
-                                                    email = email.ifBlank { null }
-                                                )
-                                            )
-                                            isEnabled = true
-                                        } catch (_: Exception) {
-                                            setupFailed = true
-                                        }
-                                        // Clear the spinner BEFORE reporting — showSnackbar
-                                        // suspends until dismissed (~4s). This is the success
-                                        // path too: the button spun for the whole time the
-                                        // "two-step enabled" confirmation was on screen.
-                                        isSaving = false
-                                        snackbarHostState.showSnackbar(
-                                            if (setupFailed) genericErrorMsg else enabledMsg
-                                        )
-                                    }
-                                }
-                            }
-                        },
+                        onClick = setUpTwoStep,
                         enabled = !isSaving && pin.isNotBlank() && confirmPin.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
