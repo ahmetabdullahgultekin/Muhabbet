@@ -1,5 +1,6 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
@@ -17,9 +18,11 @@ import com.muhabbet.shared.security.JwtProvider
 import org.springframework.mock.env.MockEnvironment
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -327,5 +330,77 @@ class AuthServiceTest {
             authService.refresh("invalid-token")
         }
         assertEquals(ErrorCode.AUTH_TOKEN_INVALID, ex.errorCode)
+    }
+
+    // ─── registerPushToken ──────────────────────────────
+    //
+    // The language half of #469. Push text is composed on the server, so the device row is the only
+    // place the reader's language can come from; before V22 there was no column and every
+    // notification went out in Turkish.
+
+    private fun registerPushToken(existing: Device, locale: String?): Device {
+        every { deviceRepository.findByUserId(existing.userId) } returns listOf(existing)
+        val saved = slot<Device>()
+        every { deviceRepository.save(capture(saved)) } answers { firstArg() }
+
+        authService.registerPushToken(existing.userId, existing.id, "fcm-token", locale)
+
+        return saved.captured
+    }
+
+    private fun device(locale: String? = null) = Device(
+        userId = UUID.randomUUID(),
+        platform = "android",
+        locale = locale
+    )
+
+    @Test
+    fun `should store the language the device registered with its push token`() {
+        val saved = registerPushToken(device(), locale = "en")
+
+        assertEquals("en", saved.locale)
+        assertEquals("fcm-token", saved.pushToken)
+    }
+
+    @Test
+    fun `should normalise the language before storing it`() {
+        val saved = registerPushToken(device(), locale = "  EN-gb ")
+
+        assertEquals("en-GB", saved.locale)
+    }
+
+    @Test
+    fun `should keep the previous language when the caller sends none`() {
+        // onNewToken fires in a system callback with no UI and nothing to report. Clearing the
+        // language every time Firebase rotates a token would put the device back on the fallback.
+        val saved = registerPushToken(device(locale = "en"), locale = null)
+
+        assertEquals("en", saved.locale)
+    }
+
+    @Test
+    fun `should keep the previous language when the caller sends nonsense`() {
+        val saved = registerPushToken(device(locale = "en"), locale = "!!!")
+
+        assertEquals("en", saved.locale)
+    }
+
+    @Test
+    fun `should leave the language unknown when nothing has ever been registered`() {
+        val saved = registerPushToken(device(locale = null), locale = null)
+
+        assertNull(saved.locale)
+    }
+
+    @Test
+    fun `should reject a push token for a device that is not the callers`() {
+        val owner = UUID.randomUUID()
+        every { deviceRepository.findByUserId(owner) } returns emptyList()
+
+        val ex = assertThrows<BusinessException> {
+            authService.registerPushToken(owner, UUID.randomUUID(), "fcm-token", "en")
+        }
+
+        assertEquals(ErrorCode.AUTH_UNAUTHORIZED, ex.errorCode)
     }
 }

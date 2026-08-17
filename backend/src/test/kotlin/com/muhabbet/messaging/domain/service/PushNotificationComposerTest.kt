@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -231,5 +232,33 @@ class PushNotificationComposerTest {
         )
 
         io.mockk.verify { texts.contentSummary(ContentType.VOICE, english) }
+    }
+
+    @Test
+    fun `should read a stored device language tag as a locale`() {
+        // The tag comes off devices.locale (V22) and both broadcasters make this translation, which
+        // is why it lives on the composer rather than in each of them.
+        assertEquals(Locale.forLanguageTag("en"), PushNotificationComposer.localeOf("en"))
+        assertEquals(Locale.forLanguageTag("en-GB"), PushNotificationComposer.localeOf("en-GB"))
+    }
+
+    @Test
+    fun `should read an absent device language as no locale at all`() {
+        // Null, not FALLBACK_LOCALE: compose already decides what unknown means, and two places
+        // deciding it is how the fallback drifts.
+        assertNull(PushNotificationComposer.localeOf(null))
+        assertNull(PushNotificationComposer.localeOf("   "))
+    }
+
+    @Test
+    fun `should use the Turkish fallback for a device with no stored language`() {
+        composer.compose(
+            message(contentType = ContentType.VOICE),
+            "Ayşe",
+            conversation(ConversationType.DIRECT),
+            recipientLocale = PushNotificationComposer.localeOf(null)
+        )
+
+        io.mockk.verify { texts.contentSummary(ContentType.VOICE, PushNotificationComposer.FALLBACK_LOCALE) }
     }
 }

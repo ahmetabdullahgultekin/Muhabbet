@@ -94,7 +94,16 @@ data class MatchedContact(
 
 @Serializable
 data class RegisterPushTokenRequest(
-    val pushToken: String
+    val pushToken: String,
+    /**
+     * BCP-47 tag for the language this device wants **push notifications** in, e.g. "tr", "en".
+     *
+     * Push text is composed on the server, so the app's own locale never reaches it — this field is
+     * the only way the reader's language is known when the notification is written (#469). Defaults
+     * to null so an older build keeps registering exactly as before; the server then leaves the
+     * device on whatever it last reported, and on Turkish if it never reported anything.
+     */
+    val locale: String? = null
 )
 
 // ─── Conversation DTOs ───────────────────────────────────

@@ -35,6 +35,10 @@ class DeviceJpaEntity(
     @Column(name = "is_primary", nullable = false)
     var isPrimary: Boolean = false,
 
+    /** BCP-47 tag for server-generated push text; null = unknown (V22). */
+    @Column(name = "locale", length = 16)
+    var locale: String? = null,
+
     // ─── Multi-device (Tier 2, additive nullable columns from V18) ───
     @Column(name = "linked_by_device_id")
     var linkedByDeviceId: UUID? = null,
@@ -54,6 +58,7 @@ class DeviceJpaEntity(
         lastActiveAt = lastActiveAt,
         createdAt = createdAt,
         isPrimary = isPrimary,
+        locale = locale,
         linkedByDeviceId = linkedByDeviceId,
         displayName = displayName,
         revokedAt = revokedAt
@@ -69,6 +74,7 @@ class DeviceJpaEntity(
             lastActiveAt = device.lastActiveAt,
             createdAt = device.createdAt,
             isPrimary = device.isPrimary,
+            locale = device.locale,
             linkedByDeviceId = device.linkedByDeviceId,
             displayName = device.displayName,
             revokedAt = device.revokedAt

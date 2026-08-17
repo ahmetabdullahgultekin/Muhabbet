@@ -424,15 +424,20 @@ Get media download URL (pre-signed, 1 hour expiry).
 ## 5. Device Endpoints
 
 ### PUT /api/v1/devices/push-token
-Register or update push notification token.
+Register or update push notification token. The device is taken from the access token, not the body.
 
 **Request:**
 ```json
 {
-  "token": "fcm_token_here",
-  "platform": "android"
+  "pushToken": "fcm_token_here",
+  "locale": "tr"
 }
 ```
+
+`locale` is a BCP-47 language tag and is optional. Push text is composed on the server, so it is the
+only way the server learns what language this device's owner reads (#469); omitting it leaves the
+device on whatever it registered last, and on Turkish if it has never registered one. Anything that
+is not a language tag is ignored rather than stored.
 
 ---
 

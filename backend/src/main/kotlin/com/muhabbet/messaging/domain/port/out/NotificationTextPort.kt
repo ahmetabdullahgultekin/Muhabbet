@@ -12,8 +12,9 @@ import java.util.Locale
  * adapter behind it owns the resource bundles.
  *
  * The [Locale] is a parameter rather than ambient state because the right locale is the
- * *recipient's*, not the server's and not the sender's. Today no device row carries one, so every
- * caller passes null and gets the fallback; when the column lands, only the call sites change.
+ * *recipient's*, not the server's and not the sender's. It comes from `devices.locale` (V22), which
+ * the app registers alongside its push token — one answer per device, because a user with a Turkish
+ * phone and an English tablet is two devices and two languages.
  */
 interface NotificationTextPort {
 

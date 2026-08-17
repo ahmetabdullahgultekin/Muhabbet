@@ -1,14 +1,11 @@
 package com.muhabbet.messaging.adapter.out.external
 
-import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
-import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
-import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
@@ -36,12 +33,10 @@ import java.util.UUID
 @Component
 class RedisMessageBroadcaster(
     private val sessionManager: WebSocketSessionManager,
-    private val pushNotificationPort: PushNotificationPort,
-    private val deviceRepository: DeviceRepository,
     private val redisTemplate: StringRedisTemplate,
     private val userDirectory: UserDirectoryPort,
     private val conversationRepository: ConversationRepository,
-    private val pushComposer: PushNotificationComposer
+    private val offlinePushSender: OfflinePushSender
 ) : MessageBroadcaster {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -95,18 +90,9 @@ class RedisMessageBroadcaster(
                     log.warn("Redis pub/sub publish failed for userId={}: {}", recipientId, e.message)
                 }
 
-                // Also send push notification for offline users
-                try {
-                    // recipientLocale is omitted because no device row carries one yet; the
-                    // composer falls back to Turkish and says so. Follow-up on #469.
-                    val push = pushComposer.compose(message, senderName, conversation)
-                    val devices = deviceRepository.findByUserId(recipientId)
-                    devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
-                        device.pushToken?.let { token -> pushNotificationPort.sendPush(token, push) }
-                    }
-                } catch (e: Exception) {
-                    log.warn("Push notification failed for userId={}: {}", recipientId, e.message)
-                }
+                // Also send push notification for offline users, in the language each of their
+                // devices asked for.
+                offlinePushSender.sendTo(recipientId, message, senderName, conversation)
             }
         }
     }

@@ -1,14 +1,12 @@
 package com.muhabbet.messaging.adapter.out
 
-import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.adapter.out.external.OfflinePushSender
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
-import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
-import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
@@ -20,11 +18,9 @@ import java.util.UUID
 @Component
 class WebSocketMessageBroadcaster(
     private val sessionManager: WebSocketSessionManager,
-    private val deviceRepository: DeviceRepository,
-    private val pushNotificationPort: PushNotificationPort,
     private val userDirectory: UserDirectoryPort,
     private val conversationRepository: ConversationRepository,
-    private val pushComposer: PushNotificationComposer
+    private val offlinePushSender: OfflinePushSender
 ) : MessageBroadcaster {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -60,12 +56,7 @@ class WebSocketMessageBroadcaster(
                 log.debug("Message {} delivered to online user {}", message.id, recipientId)
             } else {
                 log.debug("User {} offline, message {} queued in DB", recipientId, message.id)
-                // recipientLocale is omitted: no device row carries one yet (#469 follow-up).
-                val push = pushComposer.compose(message, senderDisplayName, conversation)
-                val devices = deviceRepository.findByUserId(recipientId)
-                devices.filter { !it.pushToken.isNullOrBlank() }.forEach { device ->
-                    device.pushToken?.let { token -> pushNotificationPort.sendPush(token, push) }
-                }
+                offlinePushSender.sendTo(recipientId, message, senderDisplayName, conversation)
             }
         }
     }
