@@ -730,4 +730,11 @@
          in these files (#471). -->
     <string name="connection_status_label">Connection status</string>
     <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
+    <!-- Skeleton loading (#499). Never drawn on screen: a skeleton hides its own placeholder rows
+         from accessibility and speaks one of these instead, so a screen reader hears the wait once
+         rather than swiping through eight empty rows. -->
+    <string name="chats_loading">Loading chats</string>
+    <string name="messages_loading">Loading messages</string>
+    <string name="communities_loading">Loading communities</string>
+    <string name="channels_loading">Loading channels</string>
 </resources>

@@ -729,4 +729,11 @@
          the wording has to cover a real outage rather than a momentary blip. -->
     <string name="connection_status_label">Bağlantı durumu</string>
     <string name="connection_offline_strip">Bağlantı yok. Mesajlar yeniden bağlanınca gönderilecek.</string>
+    <!-- Skeleton loading (#499). Never drawn on screen: a skeleton hides its own placeholder rows
+         from accessibility and speaks one of these instead, so a screen reader hears the wait once
+         rather than swiping through eight empty rows. -->
+    <string name="chats_loading">Sohbetler yükleniyor</string>
+    <string name="messages_loading">Mesajlar yükleniyor</string>
+    <string name="communities_loading">Topluluklar yükleniyor</string>
+    <string name="channels_loading">Kanallar yükleniyor</string>
 </resources>

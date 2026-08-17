@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,7 +81,8 @@ import com.muhabbet.app.ui.transition.handoffAvatar
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
-import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetSkeletonConversation
+import com.muhabbet.designsystem.components.MuhabbetSkeletonGate
 
 private const val TAG = "ChatScreen"
 
@@ -147,6 +147,8 @@ fun ChatScreen(
     val errorOpenMsg = stringResource(Res.string.error_open_failed)
     val errorVideoUnavailableMsg = stringResource(Res.string.error_video_unavailable)
     val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
+    // Spoken once when the placeholder bubbles appear; the bubbles themselves are silent.
+    val loadingMessagesLabel = stringResource(Res.string.messages_loading)
 
     // One place decides what a send that did not reach the wire looks like.
     //
@@ -619,63 +621,71 @@ fun ChatScreen(
             // user is about to type into. Self-hiding, and silent for the first few seconds of any
             // outage — see ConnectionStrip.
             ConnectionStrip(state = connectionState)
-            if (isLoading) {
-                MuhabbetLoadingState(Modifier.weight(1f).fillMaxWidth())
-            } else {
-                ChatMessageList(
-                    messages = messages,
-                    currentUserId = currentUserId,
-                    starredIds = starredIds.value,
-                    audioPlayer = audioPlayer,
-                    isLoadingMore = isLoadingMore,
-                    peerTyping = peerTyping,
-                    contextMenuMessageId = contextMenuMessageId,
-                    listState = listState,
-                    scope = scope,
-                    modifier = Modifier.weight(1f),
-                    actions = ChatMessageActions(
-                        onSwipeReply = { replyingTo = it },
-                        onLongPress = { contextMenuMessageId = it.id },
-                        onDismissMenu = { contextMenuMessageId = null },
-                        onReply = { contextMenuMessageId = null; replyingTo = it },
-                        // Without feedback the picker just opens empty, reading as "no chats to forward to".
-                        onForward = { msg -> contextMenuMessageId = null
-                            forwardMessage = msg
-                            scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
-                            snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
-                        onStar = { msg, isStarred -> contextMenuMessageId = null
-                            scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
-                            starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
-                            starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
-                            snackbarHostState.showSnackbar(errorActionMsg) } } },
-                        onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
-                        onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
-                        onImageClick = { fullImageUrl = it },
-                        onReactionToggle = { msg, emoji ->
-                            scope.launch {
-                                runCatchingCancellable {
-                                    if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
-                                    else messageRepository.addReaction(msg.id, emoji)
-                                }.onFailure { e ->
-                                    Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
-                                    snackbarHostState.showSnackbar(errorActionMsg)
+            // The wallpaper sits outside the gate, so the skeleton and the messages that replace it
+            // are painted on the same backdrop and the swap is invisible.
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                ChatWallpaper()
+                MuhabbetSkeletonGate(
+                    isLoading = isLoading,
+                    skeleton = {
+                        MuhabbetSkeletonConversation(loadingLabel = loadingMessagesLabel)
+                    }
+                ) {
+                    ChatMessageList(
+                        messages = messages,
+                        currentUserId = currentUserId,
+                        starredIds = starredIds.value,
+                        audioPlayer = audioPlayer,
+                        isLoadingMore = isLoadingMore,
+                        peerTyping = peerTyping,
+                        contextMenuMessageId = contextMenuMessageId,
+                        listState = listState,
+                        scope = scope,
+                        modifier = Modifier.fillMaxSize(),
+                        actions = ChatMessageActions(
+                            onSwipeReply = { replyingTo = it },
+                            onLongPress = { contextMenuMessageId = it.id },
+                            onDismissMenu = { contextMenuMessageId = null },
+                            onReply = { contextMenuMessageId = null; replyingTo = it },
+                            // Without feedback the picker just opens empty, reading as "no chats to forward to".
+                            onForward = { msg -> contextMenuMessageId = null
+                                forwardMessage = msg
+                                scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
+                                snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                            onStar = { msg, isStarred -> contextMenuMessageId = null
+                                scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
+                                starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
+                                starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
+                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                            onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
+                            onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
+                            onImageClick = { fullImageUrl = it },
+                            onReactionToggle = { msg, emoji ->
+                                scope.launch {
+                                    runCatchingCancellable {
+                                        if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
+                                        else messageRepository.addReaction(msg.id, emoji)
+                                    }.onFailure { e ->
+                                        Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
+                                        snackbarHostState.showSnackbar(errorActionMsg)
+                                    }
                                 }
+                            },
+                            onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
+                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                            onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
+                            // Server-side bookkeeping only — the media is already revealed locally, so a
+                            // failure has no user-visible consequence worth interrupting them for.
+                            onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } },
+                            onOpenUrl = { url -> openExternally(url) },
+                            // The bubble drew a video it has no playable url for. Saying so is the
+                            // whole point — a tap that does nothing is the defect being fixed.
+                            onMediaUnavailable = {
+                                scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
                             }
-                        },
-                        onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
-                            snackbarHostState.showSnackbar(errorActionMsg) } } },
-                        onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
-                        // Server-side bookkeeping only — the media is already revealed locally, so a
-                        // failure has no user-visible consequence worth interrupting them for.
-                        onViewOnce = { id -> scope.launch { runCatchingCancellable { messageRepository.markViewOnce(id) }.onFailure { e -> Log.w(TAG, "Failed to mark view-once $id as viewed: ${e.message}") } } },
-                        onOpenUrl = { url -> openExternally(url) },
-                        // The bubble drew a video it has no playable url for. Saying so is the
-                        // whole point — a tap that does nothing is the defect being fixed.
-                        onMediaUnavailable = {
-                            scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
-                        }
+                        )
                     )
-                )
+                }
             }
 
             // Pending scheduled messages chip (session-local)
