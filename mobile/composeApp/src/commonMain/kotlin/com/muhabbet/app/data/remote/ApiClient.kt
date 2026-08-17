@@ -53,6 +53,23 @@ class ApiClient(
         // handshake instead of 404-ing.
         const val BASE_URL = "https://muhabbet-api.rollingcatsoftware.com"
         @PublishedApi internal const val TAG = "ApiClient"
+
+        /**
+         * The only endpoints that run before there is a signed-in user, and so the only ones the
+         * bearer token is withheld from.
+         *
+         * Listed exactly, not by prefix. `/api/v1/auth/` is not a synonym for "unauthenticated" —
+         * `two-step` and `login-approvals` live under it and identify the caller from the token
+         * alone. Matching a prefix is what broke two-step verification (#544), and the failure
+         * direction of an exact list is the safe one: a token sent to an endpoint that ignores it
+         * costs nothing, while a token withheld from one that needs it is a 401.
+         */
+        internal val PRE_LOGIN_PATHS = setOf(
+            "/api/v1/auth/otp/request",
+            "/api/v1/auth/otp/verify",
+            "/api/v1/auth/firebase-verify",
+            "/api/v1/auth/token/refresh",
+        )
     }
 
     val json = Json {
@@ -124,11 +141,14 @@ class ApiClient(
                         null
                     }
                 }
-                sendWithoutRequest { request ->
-                    request.url.pathSegments.let { path ->
-                        !path.containsAll(listOf("auth"))
-                    }
-                }
+                // Attach the bearer token up front unless the endpoint is one of the four that runs
+                // before anyone is signed in. It used to skip **any** path with an `auth` segment,
+                // which swept in `/api/v1/auth/two-step/**` — endpoints that identify the caller
+                // purely from the token — so the two-step screen was the one caller in the app
+                // whose requests went out anonymously (#544). `/api/v1/auth/**` is `permitAll` on
+                // the server, so nothing stopped them at the filter chain either: they reached the
+                // controller with an empty SecurityContext and came back 401 AUTH_UNAUTHORIZED.
+                sendWithoutRequest { request -> request.url.build().encodedPath !in PRE_LOGIN_PATHS }
             }
         }
 

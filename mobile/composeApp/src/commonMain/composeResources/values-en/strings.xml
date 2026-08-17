@@ -504,6 +504,14 @@
     <string name="two_step_enabled">Two-step verification is enabled</string>
     <string name="two_step_pin_mismatch">PINs do not match</string>
     <string name="two_step_pin_length">PIN must be 6 digits</string>
+    <string name="two_step_disabled">Two-step verification turned off</string>
+    <string name="two_step_current_pin">Current PIN</string>
+    <string name="two_step_status_unavailable">Could not find out whether two-step verification is on</string>
+    <string name="two_step_not_enforced_note">Note: for now the PIN is only saved, it is not asked for at sign-in yet.</string>
+    <string name="two_step_error_already_enabled">Two-step verification is already on</string>
+    <string name="two_step_error_pin_invalid">That PIN is not correct</string>
+    <string name="two_step_error_not_enabled">Two-step verification is not on</string>
+    <string name="two_step_error_session_expired">Your session has expired. Sign out and back in.</string>
 
     <!-- Mute Duration -->
     <string name="mute_8_hours">8 hours</string>
