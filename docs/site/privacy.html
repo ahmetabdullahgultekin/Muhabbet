@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gizlilik Politikası — Muhabbet</title>
+<meta name="description" content="Muhabbet'in hangi verileri işlediği, neden işlediği, kimlerle paylaştığı ve ne kadar süre sakladığı. KVKK ve GDPR kapsamındaki haklarınız.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#icerik">İçeriğe geç</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>Muhabbet</a>
+    <nav>
+      <a href="index.html">Ana sayfa</a>
+      <a href="privacy.html" aria-current="page">Gizlilik</a>
+      <a href="terms.html">Kullanım Koşulları</a>
+      <a href="#english">English</a>
+    </nav>
+  </div>
+</header>
+
+<main id="icerik">
+<div class="wrap">
+
+<h1>Gizlilik Politikası</h1>
+<p class="updated">Yürürlük tarihi: 17 Ağustos 2026 · Sürüm 2.0</p>
+
+<div class="lang-bar">
+  <a href="#turkce" aria-current="true">Türkçe</a>
+  <a href="#english">English</a>
+</div>
+
+<div id="turkce"></div>
+
+<div class="note">
+<p><strong>Önce en önemli şey.</strong> Muhabbet şu anda <strong>uçtan uca şifreli değildir</strong>. Mesajlarınız cihazınız ile sunucumuz arasında TLS ile şifrelenir, ancak sunucuda <strong>şifresiz olarak saklanır</strong>. Bu, sunucuyu işleten kişinin teknik olarak mesajlarınızı okuyabileceği anlamına gelir.</p>
+<p>Bunu ilk paragrafta yazıyoruz çünkü aksini ima eden bir uygulama, hiç şifreleme olmamasından daha kötüdür. Uygulamanın içindeki sohbet ekranı da aynı şeyi söyler: <em>"Aktarım sırasında şifreli (TLS) — uçtan uca şifreleme yakında."</em> Uçtan uca şifreleme devreye girdiğinde bu politika güncellenecek ve uygulamada açıkça belirtilecektir. O gün gelene kadar, okunmasını istemediğiniz bir şeyi buradan göndermeyin.</p>
+</div>
+
+<h2>1. Veri sorumlusu</h2>
+<p>6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) uyarınca veri sorumlusu:</p>
+<div class="card">
+<p><strong>Rollingcat Software</strong><br>
+Muhabbet uygulamasının geliştiricisi ve işletmecisi<br>
+E-posta: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a></p>
+<p class="small muted">Ticari unvan, açık adres ve varsa MERSİS/VKN bilgileri, tüzel kişilik kuruluşu tamamlandığında bu bölüme eklenecektir. Şu anda uygulama, tek bir geliştirici tarafından yürütülen bir test aşaması ürünüdür.</p>
+</div>
+
+<h2>2. İşlenen kişisel veriler</h2>
+<p>Aşağıdaki tablo, sunucuda fiilen tutulan verileri gösterir. Uygulamanın kaynak koduna ve çalışan veritabanına karşı doğrulanmıştır.</p>
+
+<div class="scroll-x">
+<table>
+<thead><tr><th>Veri</th><th>Nasıl saklanır</th><th>Neden</th></tr></thead>
+<tbody>
+<tr><td>Telefon numarası</td><td><strong>Açık metin</strong> (şifrelenmemiş, hash'lenmemiş)</td><td>Hesabınızın kimliği ve giriş yönteminiz budur</td></tr>
+<tr><td>Telefon numarası özeti (SHA-256)</td><td>Ayrı bir tabloda, hash olarak</td><td>Rehberinizdeki kişilerin Muhabbet'te olup olmadığını, numaraları sunucuya göndermeden bulmak için</td></tr>
+<tr><td>Görünen ad, profil fotoğrafı, hakkımda metni</td><td>Açık metin / dosya</td><td>Sizi tanıyanların sizi tanıması için. Üçü de isteğe bağlıdır</td></tr>
+<tr><td>Mesajlar (metin)</td><td><strong>Açık metin</strong></td><td>Mesajı iletmek ve siz silene kadar geçmişinizde tutmak için</td></tr>
+<tr><td>Medya (fotoğraf, ses, video, belge)</td><td>Nesne depolamada, dosya olarak</td><td>Aynı</td></tr>
+<tr><td>Cihaz kaydı: cihaz kimliği, platform, push jetonu, dil</td><td>Açık metin</td><td>Bildirim gönderebilmek ve bildirimi okuduğunuz dilde yazabilmek için</td></tr>
+<tr><td>Çevrimiçi durumu ve son görülme zamanı</td><td>Önbellekte (geçici) ve veritabanında</td><td>Görünürlüğünü Gizlilik ayarlarından siz belirlersiniz</td></tr>
+<tr><td>Teslim ve okundu bilgisi</td><td>Mesaj başına satır</td><td>Tik göstergeleri. Okundu bilgisini kapatabilirsiniz</td></tr>
+<tr><td>Doğrulama kaydı</td><td>Kod saklanmaz; harici doğrulayıcı kullanıldığı için yalnızca doğrulandığı işaretlenir</td><td>Hesabın numaraya ait olduğunu doğrulamak için</td></tr>
+<tr><td>Sunucu günlükleri</td><td>Kullanıcı kimliği, cihaz kimliği, IP, zaman damgası</td><td>Hata ayıklama ve kötüye kullanımı tespit etmek için</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Rehberiniz sunucuya yüklenmez</h3>
+<p>Rehber eşleştirmesi yalnızca <strong>açık rızanızla</strong> ve yalnızca numaraların SHA-256 özetleri gönderilerek yapılır. İsimler, e-posta adresleri veya diğer rehber alanları hiçbir zaman gönderilmez. Sunucu, gönderdiğiniz özetlerden yalnızca Muhabbet'te karşılığı olanları döndürür; eşleşmeyen özetler saklanmaz.</p>
+
+<h3>Toplamadığımız veriler</h3>
+<ul>
+<li><strong>Konum</strong> — yalnızca siz bir konum mesajı gönderirseniz, o mesajın içeriği olarak iletilir. Arka planda konum takibi yoktur.</li>
+<li><strong>Reklam kimliği, izleyici, analitik SDK'sı</strong> — hiçbiri yoktur. Uygulama sizi reklam için profillemez.</li>
+<li><strong>Rehberinizin kendisi</strong> — yukarıda açıklandığı gibi yalnızca özetler gönderilir.</li>
+</ul>
+
+<h2>3. İşleme amaçları ve hukuki sebepler</h2>
+<div class="scroll-x">
+<table>
+<thead><tr><th>Amaç</th><th>Hukuki sebep (KVKK m.5)</th></tr></thead>
+<tbody>
+<tr><td>Hesap oluşturma, telefon doğrulama, oturum yönetimi</td><td>Sözleşmenin kurulması ve ifası (m.5/2-c)</td></tr>
+<tr><td>Mesaj ve medyanın iletilmesi, saklanması</td><td>Sözleşmenin ifası (m.5/2-c)</td></tr>
+<tr><td>Rehber eşleştirmesi</td><td><strong>Açık rıza</strong> (m.5/1) — uygulama içinde ayrıca sorulur, reddedebilirsiniz</td></tr>
+<tr><td>Push bildirimi gönderme</td><td>Sözleşmenin ifası (m.5/2-c)</td></tr>
+<tr><td>Kötüye kullanım, spam ve yasa dışı içerikle mücadele; şikayet ve engelleme</td><td>Meşru menfaat (m.5/2-f) ve hukuki yükümlülük (m.5/2-ç), 5651 sayılı Kanun kapsamında</td></tr>
+<tr><td>Hata ayıklama, çökme raporu, hizmet sürekliliği</td><td>Meşru menfaat (m.5/2-f)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>4. Kimlerle paylaşıyoruz</h2>
+<p>Verilerinizi <strong>satmıyoruz</strong> ve reklam amacıyla kimseyle paylaşmıyoruz. Hizmetin çalışması için zorunlu olan aşağıdaki sağlayıcılar kullanılmaktadır:</p>
+
+<div class="scroll-x">
+<table>
+<thead><tr><th>Sağlayıcı</th><th>Ne görüyor</th><th>Nerede</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>Twilio</strong> (doğrulama SMS'i)</td>
+  <td>Telefon numaranız ve doğrulama kodu</td>
+  <td>ABD — <em>yurt dışına aktarım</em></td>
+</tr>
+<tr>
+  <td><strong>Google Firebase Cloud Messaging</strong> (bildirimler)</td>
+  <td>Cihaz push jetonu, gönderenin adı ve <strong>metin mesajlarının ilk 100 karakteri</strong></td>
+  <td>ABD/AB — <em>yurt dışına aktarım</em></td>
+</tr>
+<tr>
+  <td><strong>Sentry</strong> (hata izleme)</td>
+  <td>Çökme ve hata kayıtları; teknik bağlam ve kullanıcı kimliği içerebilir</td>
+  <td>ABD/AB — <em>yurt dışına aktarım</em></td>
+</tr>
+<tr>
+  <td><strong>Hetzner Online GmbH</strong> (sunucu barındırma)</td>
+  <td>Tüm veriler bu sağlayıcının makinesinde durur</td>
+  <td>Nürnberg, <strong>Almanya</strong></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<p><strong>Bildirimler hakkında dürüst olmak gerekirse:</strong> bir metin mesajı size ulaştığında, bildirim satırında görünmesi için mesajın ilk 100 karakteri Google'ın bildirim altyapısından geçer. Bu, bildirimlerin çalıştığı her uygulamada böyledir; Muhabbet'i farklı kılmaz. Bunu ortadan kaldırmak için bildirimlerin sunucudan boş gönderilip içeriğin cihazda doldurulması gerekir — bu, üzerinde çalıştığımız bir değişikliktir ve tamamlandığında burada belirtilecektir.</p>
+</div>
+
+<h2>5. Saklama süreleri</h2>
+<ul>
+<li><strong>Mesajlar ve medya:</strong> Siz silene veya hesabınızı kapatana kadar. Kaybolan mesaj süresi ayarladıysanız, süre dolduğunda otomatik olarak silinir.</li>
+<li><strong>Durum paylaşımları:</strong> 24 saat sonra otomatik silinir.</li>
+<li><strong>Doğrulama kayıtları:</strong> Kod saklanmaz; doğrulama kaydı kısa süre sonra geçersizleşir.</li>
+<li><strong>Sunucu günlükleri:</strong> Konteyner günlük döngüsü boyunca, tipik olarak günler mertebesinde.</li>
+<li><strong>Şikayet ve engelleme kayıtları:</strong> 5651 sayılı Kanun kapsamındaki yükümlülükler süresince.</li>
+</ul>
+
+<h2>6. Hesabınızı sildiğinizde ne oluyor</h2>
+<p>Uygulama içinden hesabınızı sildiğinizde şunlar <strong>gerçekten silinir</strong>: telefon numaranız (yerine geri döndürülemez bir yer tutucu yazılır), görünen adınız, profil fotoğrafınız, hakkımda metniniz, son görülme bilginiz, iki adımlı doğrulama bilgileriniz, cihazlarınız, push jetonlarınız, şifreleme anahtarlarınız, rehber eşleştirme özetiniz ve tüm oturumlarınız. Tüm sohbetlerden çıkarılırsınız.</p>
+
+<div class="note">
+<p><strong>Gönderdiğiniz mesajlar silinmez.</strong> Bir mesaj, gönderildiği anda karşı tarafın da sohbetinin parçası olur; onu tek taraflı silmek, başka birinin yazışma geçmişinden bir parçayı çıkarmak anlamına gelir. Bu mesajlar kimliksizleştirilmiş bir gönderene bağlı kalır. Bu, KVKK m.7 kapsamında sizin verinizin silinmesi yükümlülüğünü karşılar; başkasının verisi olan yazışmayı yok etmeyi gerektirmez. Belirli mesajları kaldırmak isterseniz, hesabınızı silmeden önce sohbet ekranından tek tek silebilirsiniz.</p>
+</div>
+
+<h2>7. Güvenlik</h2>
+<ul>
+<li>Cihaz ile sunucu arasındaki tüm trafik <strong>TLS</strong> ile şifrelenir. Uygulama, şifresiz bağlantıyı reddeder.</li>
+<li>Oturum jetonları HMAC-SHA256 ile imzalanır ve sınırlı ömürlüdür.</li>
+<li>Uygulama içinde saklanan hassas veriler cihazda şifrelenir (Android'de EncryptedSharedPreferences, iOS'te Keychain).</li>
+<li>Medya bağlantıları süreli ve imzalıdır; bağlantıyı bilen herkes değil, yalnızca yetkili kullanıcı erişebilir.</li>
+<li>Sunucu tarafında yetkilendirme her istekte kontrol edilir: bir sohbetin üyesi olmayan kişi o sohbetin mesajlarına, tepkilerine veya anketlerine erişemez.</li>
+</ul>
+<p class="muted">Sunucuda saklanan mesaj içeriği <strong>şifrelenmemiştir</strong> — bkz. sayfanın başındaki uyarı. Uçtan uca şifreleme tamamlandığında bu bölüm değişecektir.</p>
+
+<h2>8. Haklarınız</h2>
+<p>KVKK m.11 ve GDPR uyarınca şu haklara sahipsiniz:</p>
+<ul>
+<li>Kişisel verilerinizin işlenip işlenmediğini öğrenme ve işlenmişse bilgi talep etme</li>
+<li>İşlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenme</li>
+<li>Yurt içinde veya yurt dışında verilerin aktarıldığı üçüncü kişileri bilme</li>
+<li>Eksik veya yanlış işlenmiş verilerin düzeltilmesini isteme</li>
+<li>Silinmesini veya yok edilmesini isteme</li>
+<li>İşlemenin yalnızca otomatik sistemlerle analizi sonucu aleyhinize bir sonuç doğmasına itiraz etme</li>
+<li>Hukuka aykırı işleme sebebiyle zarara uğramanız hâlinde zararın giderilmesini talep etme</li>
+</ul>
+<p>Bu hakların ikisi uygulamanın içinden anında kullanılabilir: <strong>Ayarlar → Gizlilik</strong> ekranından verilerinizin tamamını dışa aktarabilir veya hesabınızı silebilirsiniz.</p>
+<p>Diğer talepleriniz için <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a> adresine yazabilirsiniz. Başvurunuz <strong>en geç 30 gün</strong> içinde sonuçlandırılır. Yanıttan memnun kalmazsanız Kişisel Verileri Koruma Kurumu'na şikâyette bulunma hakkınız saklıdır.</p>
+
+<h2>9. Çocuklar</h2>
+<p>Muhabbet 13 yaşın altındaki çocuklara yönelik değildir ve bilerek bu yaş grubundan veri toplamaz. 18 yaşından küçük kullanıcıların hizmeti veli veya vasi gözetiminde kullanması beklenir. Bu yaş grubuna ait bir hesabı fark ettiğimizde kapatırız.</p>
+
+<h2>10. Bu politikadaki değişiklikler</h2>
+<p>Politika değiştiğinde bu sayfadaki yürürlük tarihi ve sürüm numarası güncellenir. Sizi doğrudan etkileyen bir değişiklik olursa — özellikle uçtan uca şifrelemenin devreye girmesi — uygulama içinde ayrıca bildirilir.</p>
+
+<p class="small muted">Bu politika, uygulamanın kaynak koduna ve çalışan sistemine karşı doğrulanarak yazılmıştır. Bir maddesinin gerçeği yansıtmadığını düşünüyorsanız lütfen yazın; düzeltiriz.</p>
+
+<hr class="section">
+
+<div id="english"></div>
+<h1>Privacy Policy</h1>
+<p class="updated">Effective: 17 August 2026 · Version 2.0</p>
+
+<div class="note">
+<p><strong>The most important thing first.</strong> Muhabbet is <strong>not end-to-end encrypted</strong> today. Your messages are encrypted in transit with TLS between your device and our server, but they are <strong>stored unencrypted</strong> on that server. That means whoever operates the server can technically read them.</p>
+<p>This is the first paragraph because an app that implies otherwise is worse than one with no encryption at all. The app itself says the same thing on its chat screen: <em>"Encrypted in transit (TLS) — end-to-end encryption coming soon."</em> When end-to-end encryption is switched on, this policy will be updated and the app will say so plainly. Until then, do not send anything here you would mind being read.</p>
+</div>
+
+<h2>1. Data controller</h2>
+<div class="card">
+<p><strong>Rollingcat Software</strong><br>
+Developer and operator of the Muhabbet application<br>
+Email: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a></p>
+<p class="small muted">Registered trade name, address and company registration details will be added here once the legal entity is formed. Muhabbet is currently a test-phase product run by a single developer.</p>
+</div>
+
+<h2>2. What we process</h2>
+<p>The table below reflects what is actually stored, verified against the source code and the running database.</p>
+<div class="scroll-x">
+<table>
+<thead><tr><th>Data</th><th>How it is stored</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Phone number</td><td><strong>Plaintext</strong> (not encrypted, not hashed)</td><td>It is your account identity and how you sign in</td></tr>
+<tr><td>Phone number digest (SHA-256)</td><td>Separate table, as a hash</td><td>To find which of your contacts are on Muhabbet without sending their numbers</td></tr>
+<tr><td>Display name, profile photo, about text</td><td>Plaintext / file</td><td>So people recognise you. All three are optional</td></tr>
+<tr><td>Messages (text)</td><td><strong>Plaintext</strong></td><td>To deliver them and keep your history until you delete it</td></tr>
+<tr><td>Media (photo, audio, video, document)</td><td>Object storage, as files</td><td>Same</td></tr>
+<tr><td>Device record: device id, platform, push token, language</td><td>Plaintext</td><td>To send notifications, in the language you read the app in</td></tr>
+<tr><td>Online status and last seen</td><td>Cache (transient) and database</td><td>You control who sees it in Privacy settings</td></tr>
+<tr><td>Delivery and read status</td><td>One row per message</td><td>The tick indicators. Read receipts can be turned off</td></tr>
+<tr><td>Verification record</td><td>The code is not stored; with an external verifier only the fact of verification is</td><td>To confirm the account belongs to the number</td></tr>
+<tr><td>Server logs</td><td>User id, device id, IP, timestamp</td><td>Debugging and abuse detection</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Your address book is never uploaded</h3>
+<p>Contact matching happens only with your <strong>explicit consent</strong>, and only SHA-256 digests of numbers are sent. Names, email addresses and other address-book fields are never transmitted. The server returns only the digests that correspond to Muhabbet users; digests with no match are not retained.</p>
+
+<h3>What we do not collect</h3>
+<ul>
+<li><strong>Location</strong> — only if you choose to send a location message, as that message's content. There is no background tracking.</li>
+<li><strong>Advertising identifiers, trackers, analytics SDKs</strong> — none. The app does not profile you for advertising.</li>
+<li><strong>Your address book itself</strong> — only digests, as above.</li>
+</ul>
+
+<h2>3. Purposes and legal bases</h2>
+<div class="scroll-x">
+<table>
+<thead><tr><th>Purpose</th><th>Legal basis</th></tr></thead>
+<tbody>
+<tr><td>Account creation, phone verification, session management</td><td>Performance of a contract (KVKK 5/2-c; GDPR Art. 6(1)(b))</td></tr>
+<tr><td>Delivering and storing messages and media</td><td>Performance of a contract</td></tr>
+<tr><td>Contact matching</td><td><strong>Explicit consent</strong> (KVKK 5/1; GDPR Art. 6(1)(a)) — asked separately in the app and refusable</td></tr>
+<tr><td>Push notifications</td><td>Performance of a contract</td></tr>
+<tr><td>Abuse, spam and unlawful content; reports and blocking</td><td>Legitimate interest and legal obligation (Turkish Law No. 5651)</td></tr>
+<tr><td>Debugging, crash reporting, service continuity</td><td>Legitimate interest</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>4. Who we share with</h2>
+<p>We do <strong>not sell</strong> your data and share none of it for advertising. These providers are required for the service to function:</p>
+<div class="scroll-x">
+<table>
+<thead><tr><th>Provider</th><th>What it sees</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td><strong>Twilio</strong> (verification SMS)</td><td>Your phone number and the verification code</td><td>USA — <em>international transfer</em></td></tr>
+<tr><td><strong>Google Firebase Cloud Messaging</strong> (notifications)</td><td>Device push token, sender name, and <strong>the first 100 characters of text messages</strong></td><td>USA/EU — <em>international transfer</em></td></tr>
+<tr><td><strong>Sentry</strong> (error monitoring)</td><td>Crash and error reports; may include technical context and a user id</td><td>USA/EU — <em>international transfer</em></td></tr>
+<tr><td><strong>Hetzner Online GmbH</strong> (hosting)</td><td>All data resides on this provider's machine</td><td>Nuremberg, <strong>Germany</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<p><strong>Being honest about notifications:</strong> when a text message arrives, its first 100 characters pass through Google's notification infrastructure so they can appear in your notification tray. This is true of every app with working notifications and does not make Muhabbet unusual. Removing it requires the server to send an empty notification and the device to fill in the content locally — a change we are working on, and one this page will record when it lands.</p>
+</div>
+
+<h2>5. Retention</h2>
+<ul>
+<li><strong>Messages and media:</strong> until you delete them or close your account. If you set a disappearing-message timer, they are deleted automatically when it expires.</li>
+<li><strong>Status updates:</strong> deleted automatically after 24 hours.</li>
+<li><strong>Verification records:</strong> the code is not stored; the record expires shortly after use.</li>
+<li><strong>Server logs:</strong> for the container's log rotation window, typically days.</li>
+<li><strong>Reports and blocks:</strong> for as long as obligations under Law No. 5651 require.</li>
+</ul>
+
+<h2>6. What happens when you delete your account</h2>
+<p>Deleting your account from within the app <strong>genuinely erases</strong>: your phone number (replaced with an irreversible placeholder), display name, profile photo, about text, last seen, two-step verification details, devices, push tokens, encryption keys, contact-matching digest, and all sessions. You are removed from every conversation.</p>
+<div class="note">
+<p><strong>Messages you sent are not deleted.</strong> A message becomes part of the other person's conversation the moment it is sent; deleting it unilaterally would remove a piece of somebody else's correspondence. Those messages remain attached to an anonymised sender. This satisfies erasure of <em>your</em> personal data under KVKK Art. 7 and GDPR Art. 17; it does not extend to destroying correspondence that is also someone else's data. If you want specific messages gone, delete them from the chat before closing your account.</p>
+</div>
+
+<h2>7. Security</h2>
+<ul>
+<li>All traffic between device and server is encrypted with <strong>TLS</strong>. The app refuses cleartext connections.</li>
+<li>Session tokens are signed with HMAC-SHA256 and are short-lived.</li>
+<li>Sensitive values held by the app are encrypted on the device (EncryptedSharedPreferences on Android, Keychain on iOS).</li>
+<li>Media links are signed and time-limited, so possession of a URL is not access.</li>
+<li>Authorisation is checked server-side on every request: someone who is not a member of a conversation cannot reach its messages, reactions or polls.</li>
+</ul>
+<p class="muted">Message content stored on the server is <strong>not encrypted</strong> — see the notice at the top of this page. This section will change when end-to-end encryption ships.</p>
+
+<h2>8. Your rights</h2>
+<p>Under KVKK Art. 11 and the GDPR you may request access, rectification, erasure, information about recipients including international transfers, object to automated decisions, and seek compensation for unlawful processing.</p>
+<p>Two of these work instantly inside the app: <strong>Settings → Privacy</strong> lets you export all of your data or delete your account.</p>
+<p>For anything else, write to <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a>. Requests are answered <strong>within 30 days</strong>. If you are not satisfied you may complain to the Turkish Personal Data Protection Authority (KVKK) or your local supervisory authority.</p>
+
+<h2>9. Children</h2>
+<p>Muhabbet is not directed at children under 13 and does not knowingly collect their data. Users under 18 are expected to use the service with a parent or guardian's supervision. Accounts we identify as belonging to this age group are closed.</p>
+
+<h2>10. Changes</h2>
+<p>When this policy changes, the effective date and version at the top are updated. Changes that affect you directly — above all, end-to-end encryption being switched on — are also announced inside the app.</p>
+
+<p class="small muted">This policy was written by checking each claim against the application's source code and running system. If you believe a statement here is not true, please write to us and we will correct it.</p>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="index.html">Ana sayfa</a>
+      <a href="privacy.html">Gizlilik Politikası</a>
+      <a href="aydinlatma.html">Aydınlatma</a>
+      <a href="terms.html">Kullanım Koşulları</a>
+      <a href="https://github.com/ahmetabdullahgultekin/Muhabbet">GitHub</a>
+      <a href="mailto:rollingcat.help@gmail.com">İletişim</a>
+    </div>
+    <p>Muhabbet — Rollingcat Software. Test aşamasındadır.</p>
+  </div>
+</footer>
+
+</body>
+</html>

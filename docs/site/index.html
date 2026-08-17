@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muhabbet — yerli mesajlaşma uygulaması</title>
+<meta name="description" content="Muhabbet, Türkiye için geliştirilen bir mesajlaşma uygulaması. Reklamsız, izleyicisiz, açık kaynak. Şu anda test aşamasında.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+<meta property="og:title" content="Muhabbet — yerli mesajlaşma uygulaması">
+<meta property="og:description" content="Reklamsız, izleyicisiz, açık kaynak. Şu anda test aşamasında.">
+<meta property="og:type" content="website">
+</head>
+<body>
+<a class="skip" href="#icerik">İçeriğe geç</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>Muhabbet</a>
+    <nav>
+      <a href="index.html" aria-current="page">Ana sayfa</a>
+      <a href="privacy.html">Gizlilik</a>
+      <a href="aydinlatma.html">Aydınlatma</a>
+      <a href="terms.html">Kullanım Koşulları</a>
+      <a href="https://github.com/ahmetabdullahgultekin/Muhabbet">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="icerik">
+<div class="wrap">
+
+  <section class="hero">
+    <h1>Mesajlaşmanın yerlisi.</h1>
+    <p class="lede">Muhabbet, Türkiye için yazılmış bir mesajlaşma uygulaması. Reklam yok, izleyici yok, veri satışı yok. Kaynak kodu açık — söylediklerimizi kontrol edebilirsiniz.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/ahmetabdullahgultekin/Muhabbet">Kaynak kodu</a>
+      <a class="btn btn-quiet" href="privacy.html">Gizlilik Politikası</a>
+    </div>
+  </section>
+
+  <div class="note">
+    <p><strong>Muhabbet şu anda test aşamasındadır.</strong> Kapalı bir grupla deneniyor, Play Store'da henüz herkese açık değil ve zaman zaman kırılabilir. Bunu burada yazıyoruz çünkü bir uygulamanın hazır olmadan hazırmış gibi davranması, geç çıkmasından daha kötüdür.</p>
+  </div>
+
+  <h2>Ne yapar</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Mesajlaşma</h3>
+      <p class="muted">Bire bir ve grup sohbetleri, yanıtlama, iletme, düzenleme, silme, yıldızlama, arama. Yazıyor göstergesi, tik göstergeleri, çevrimiçi bilgisi.</p>
+    </div>
+    <div class="card">
+      <h3>Medya ve ses</h3>
+      <p class="muted">Fotoğraf, video, belge ve sesli mesaj. Görüntülemelik fotoğraf, kaybolan mesajlar, konum paylaşımı, anketler.</p>
+    </div>
+    <div class="card">
+      <h3>Topluluklar</h3>
+      <p class="muted">Gruplar, kanallar, yayın listeleri ve toplulukları bir arada tutan üst yapı.</p>
+    </div>
+    <div class="card">
+      <h3>Türkçe, önce</h3>
+      <p class="muted">Arayüzün tamamı Türkçe yazıldı, İngilizceye çevrildi — tersi değil. Sesli mesaj çözümlemesi de Türkçe çalışır.</p>
+    </div>
+  </div>
+
+  <h2>Neye söz veriyoruz, neye vermiyoruz</h2>
+
+  <div class="card">
+    <h3>Söz verdiklerimiz</h3>
+    <ul>
+      <li><strong>Reklam yok, izleyici yok.</strong> Uygulamada tek bir analitik SDK'sı veya reklam kimliği yoktur.</li>
+      <li><strong>Rehberiniz sunucuya çıkmaz.</strong> Kişi eşleştirmesi yalnızca numaraların özetleriyle ve yalnızca siz izin verirseniz yapılır.</li>
+      <li><strong>Verileriniz Almanya'da.</strong> Sunucu Nürnberg'de, Avrupa veri koruma rejimi altında.</li>
+      <li><strong>Verinizi indirebilir, hesabınızı silebilirsiniz.</strong> İkisi de uygulamanın içinde, birer dokunuş.</li>
+      <li><strong>Kaynak kodu açık.</strong> Bu sayfadaki her iddia koda karşı doğrulanabilir.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Henüz veremediğimiz söz</h3>
+    <p><strong>Uçtan uca şifreleme henüz açık değil.</strong> Mesajlarınız yolda TLS ile şifrelenir, ama sunucuda şifresiz durur — yani sunucuyu işleten kişi teknik olarak okuyabilir.</p>
+    <p>Altyapısı yazıldı ve uygulamanın içinde duruyor; ancak kriptografi, "çalışıyor gibi görünüyor" ile yetinilebilecek bir alan değil. Bağımsız olarak incelenmeden ve iki gerçek cihaz arasında doğrulanmadan açmayacağız. Açtığımız gün uygulamada ve <a href="privacy.html">Gizlilik Politikası</a>'nda açıkça yazacak.</p>
+    <p class="muted small">Uygulamanın kendisi de bu konuda dürüsttür: sohbet ekranında sahte bir kilit simgesi yoktur, "aktarım sırasında şifreli (TLS)" yazar.</p>
+  </div>
+
+  <h2>Sıkça sorulanlar</h2>
+
+  <h3>Mesajlarımı okuyabiliyor musunuz?</h3>
+  <p>Bugün, teknik olarak evet — uçtan uca şifreleme açık olmadığı için mesajlar sunucuda şifresiz duruyor. Okumuyoruz, ama "okumuyoruz" bir söz, "okuyamıyoruz" ise bir garanti; ikincisini verebildiğimizde bunu burada değiştireceğiz. Bu arada okunmasını istemediğiniz bir şeyi buradan göndermemenizi öneririz. Ayrıntı için <a href="privacy.html">Gizlilik Politikası</a>.</p>
+
+  <h3>WhatsApp'tan farkı ne?</h3>
+  <p>Bugün için dürüst cevap: özellik olarak daha az şey yapıyor ve şifreleme konusunda geride. Farkı, sunucunun Türkiye için çalışan bir ekipte olması, reklam ve profilleme iş modelinin hiç kurulmamış olması ve kodun açık olması. Bunlar bir uygulamayı iyi yapmaya yetmez; bir uygulamanın kime çalıştığını belirler.</p>
+
+  <h3>Numaramı nasıl saklıyorsunuz?</h3>
+  <p>Açık metin olarak — çünkü hesabınızın kimliği o. Rehber eşleştirmesinde kullanılan özet ayrı bir kayıttır. Bunu açıkça yazıyoruz çünkü politikamızın eski sürümü "hash'lenerek saklanır" diyordu ve bu doğru değildi.</p>
+
+  <h3>Açık kaynak mı?</h3>
+  <p>Evet. Sunucu, mobil uygulama ve paylaşılan modüller <a href="https://github.com/ahmetabdullahgultekin/Muhabbet">GitHub'da</a>.</p>
+
+  <h2>İletişim</h2>
+  <p>Soru, hata bildirimi veya KVKK talepleri için: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a></p>
+  <p class="muted small">Güvenlik açığı bildirimi için lütfen önce <a href="https://github.com/ahmetabdullahgultekin/Muhabbet/blob/main/SECURITY.md">SECURITY.md</a> dosyasına bakın.</p>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="index.html">Ana sayfa</a>
+      <a href="privacy.html">Gizlilik Politikası</a>
+      <a href="aydinlatma.html">Aydınlatma</a>
+      <a href="terms.html">Kullanım Koşulları</a>
+      <a href="https://github.com/ahmetabdullahgultekin/Muhabbet">GitHub</a>
+      <a href="mailto:rollingcat.help@gmail.com">İletişim</a>
+    </div>
+    <p>Muhabbet — Rollingcat Software. Test aşamasındadır.</p>
+  </div>
+</footer>
+
+</body>
+</html>
