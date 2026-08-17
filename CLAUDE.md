@@ -442,6 +442,14 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   Three separate agents rediscovered the staleness of the old figure independently on one day, and
   three more did the same the next. If you are about to write a test count into this file, write the
   instruction to measure instead.
+- **"N failures, all Testcontainers" is not a green light — it is N tests that did not run.** On
+  2026-08-17 that habit shipped a regression to production (#598). A `@Bean` added to
+  `WebSocketConfig` for #493 threw in every `@SpringBootTest`, because `webEnvironment = MOCK` has no
+  embedded servlet container to publish `jakarta.websocket.server.ServerContainer`. Locally those ten
+  classes die *earlier*, at Testcontainers init, so the new failure hid behind the documented old
+  one; and CI had not completed a job all day (#563), so nothing else executed it. When CI finally
+  ran: `796 tests completed, 32 failed`. **A change to Spring configuration is exactly the class of
+  change only those ten catch** — start Docker before trusting a run that touches one.
 - **Redis is required for the integration tests**, not just Postgres. `RedisConfig` registers
   `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
@@ -480,12 +488,30 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   variants. Cheap gate for commonMain changes, but it does **not** catch androidMain breakage.
 - **The Android app assembles on this host**: `./gradlew :mobile:composeApp:assembleDebug` succeeds
   and produces an ~82 MB debug APK (re-verified 2026-08-15).
-- **There is NO emulator on this host, and there cannot be one** (checked 2026-08-15, correcting the
-  previous note that claimed AVD `openscale_tr` boots here). `/dev/kvm` does not exist, `/proc/cpuinfo`
-  reports **zero** `vmx`/`svm` flags — this Hetzner VM has no nested virtualisation — and there are
-  neither AVDs (`emulator -list-avds` is empty) nor any `system-images/` in the SDK. Anything that is
-  only true when a human looks at it — motion, layout, gesture, colour on a real panel — **cannot be
-  signed off here**. Build the APK, hand it to the owner, and say plainly what was not seen.
+- **"This host" is TWO machines, and the emulator question has opposite answers on them.** Read this
+  before repeating either half.
+  - **The Windows dev machine has a working emulator.** `adb` lives at
+    `~/AppData/Local/Android/Sdk/platform-tools/adb.exe` and `adb devices` lists `emulator-5554`.
+    You can install a release APK on it and launch it. **Do this before every release.**
+  - **The Hetzner CI host has none, and cannot** (checked 2026-08-15): `/dev/kvm` does not exist,
+    `/proc/cpuinfo` reports **zero** `vmx`/`svm` flags, `emulator -list-avds` is empty and the SDK
+    has no `system-images/`. That is the machine the "no emulator" note has always been about.
+
+  **This distinction is not pedantic — collapsing it shipped 0.3.7, which crashed on launch for
+  every user (#633).** The claim "there is no emulator on this host" was repeated all through that
+  session while an emulator sat running on the machine giving the answer, so an unlaunched release
+  went to Play. One `adb install` and one `am start` would have caught it in ten seconds.
+
+  **Hard rule: no Play release without installing the built APK on `emulator-5554` and launching
+  it.** Download it from the GitHub release (`gh release download vX.Y.Z -p "*.apk"`), `adb install`,
+  `adb shell am start -n com.muhabbet.app/.MainActivity`, then `adb logcat -d | grep FATAL` and a
+  screenshot. A green CI build proves the app compiles; it proves nothing about whether it starts.
+  Note the release APK is signed with the release key, so `adb install` over a debug build fails with
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — uninstall first.
+  (Git Bash mangles device paths: use `MSYS_NO_PATHCONV=1` for `adb shell screencap -p /sdcard/x.png`.)
+
+  What still cannot be signed off on the emulator: colour on a real panel, haptics, and anything
+  about a physical device's camera or microphone. Say plainly what was not seen.
 - **Module layout:** `backend/` (Spring Boot, hexagonal modules: auth · messaging · media ·
   moderation · presence · notification + `shared/` config/security/web), `shared/` (KMP: model ·
   dto · protocol/WsMessage · validation · port), `mobile/composeApp/` (CMP; androidMain full, iosMain

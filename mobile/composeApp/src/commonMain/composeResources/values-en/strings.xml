@@ -79,6 +79,7 @@
     <string name="chat_context_star">Star</string>
     <string name="chat_context_unstar">Unstar</string>
     <string name="chat_context_edit">Edit</string>
+    <string name="chat_context_edit_expired">Edit (time expired)</string>
     <string name="chat_context_delete">Delete</string>
     <string name="chat_replying_to">Replying to</string>
     <string name="chat_forward_title">Forward to</string>
@@ -400,7 +401,7 @@
     <string name="settings_privacy_section">Privacy</string>
     <string name="settings_privacy_last_seen">Last seen</string>
     <string name="settings_privacy_read_receipts">Read receipts</string>
-    <string name="settings_privacy_read_receipts_subtitle">If you turn off read receipts, you won't be able to see others' either</string>
+    <string name="settings_privacy_read_receipts_subtitle">If you turn this off, others won't see when you read their messages. You'll still see theirs.</string>
 
     <!-- Notification Settings -->
     <string name="settings_notifications_section">Notifications</string>
