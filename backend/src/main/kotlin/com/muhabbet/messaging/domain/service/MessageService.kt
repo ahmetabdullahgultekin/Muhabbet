@@ -462,15 +462,20 @@ open class MessageService(
 
     /**
      * [markAsDelivered] and [softDelete] are `@Modifying` queries, and Hibernate refuses those
-     * outside a transaction — `ScheduledMessageJob` has none of its own and swallows the failure
-     * into a `log.warn`, which is the same silent shape that stopped `last_seen_at` from ever being
-     * written. Without this annotation the whole loop throws on its first write, every minute,
-     * forever, and the block check below would be unreachable code.
+     * outside a transaction. Without this annotation the whole loop throws on its first write,
+     * every minute, forever, and the block check below would be unreachable code — which is what
+     * had been happening, the same silent shape that stopped `last_seen_at` from ever being
+     * written.
+     *
+     * Returns the number of messages actually delivered, so the caller can distinguish a run that
+     * had nothing to do from a run that did nothing. Messages dropped for a block are not counted:
+     * from the sender's side they were not delivered.
      */
     @Transactional
-    open fun deliverScheduledMessages() {
+    open fun deliverScheduledMessages(): Int {
         val now = Instant.now()
         val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now)
+        var delivered = 0
 
         for (message in scheduledMessages) {
             messageRepository.markAsDelivered(message.id)
@@ -506,7 +511,10 @@ open class MessageService(
             }
 
             messageBroadcaster.broadcastMessage(message, recipientIds)
+            delivered++
             log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
         }
+
+        return delivered
     }
 }

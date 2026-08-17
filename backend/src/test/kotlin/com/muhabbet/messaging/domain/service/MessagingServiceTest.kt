@@ -467,10 +467,45 @@ class MessagingServiceTest {
         )
         every { blockPolicy.hasBlocked(userB, userA) } returns true
 
-        messageService.deliverScheduledMessages()
+        val delivered = messageService.deliverScheduledMessages()
 
         verify { messageRepository.softDelete(scheduled.id) }
         verify(exactly = 0) { messageRepository.saveDeliveryStatus(any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
+        // Not counted. The run had work and delivered none of it, which must not read as a quiet run.
+        assertEquals(0, delivered)
+    }
+
+    @Test
+    fun `should report how many scheduled messages it actually delivered`() {
+        // The count is what makes "the job ran and did nothing" distinguishable from "the job never
+        // ran" in the log. Delivery was silent for so long precisely because those two look alike
+        // (#556).
+        val convId = UUID.randomUUID()
+        val first = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA)
+        val second = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA)
+
+        every { messageRepository.findScheduledMessagesReadyToSend(any()) } returns listOf(first, second)
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = userA),
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+        every { blockPolicy.hasBlocked(userB, userA) } returns false
+
+        val delivered = messageService.deliverScheduledMessages()
+
+        assertEquals(2, delivered)
+        verify(exactly = 2) { messageBroadcaster.broadcastMessage(any(), listOf(userB)) }
+    }
+
+    @Test
+    fun `should report zero when nothing was due`() {
+        every { messageRepository.findScheduledMessagesReadyToSend(any()) } returns emptyList()
+
+        assertEquals(0, messageService.deliverScheduledMessages())
+
         verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
     }
 
