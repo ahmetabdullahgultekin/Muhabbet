@@ -62,4 +62,8 @@ class FakeTokenStorage : TokenStorage {
     private var darkModeWallpaperEnabled: Boolean = false
     override fun getDarkModeWallpaperEnabled(): Boolean = darkModeWallpaperEnabled
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) { darkModeWallpaperEnabled = enabled }
+
+    private var testBuildNoticeAckVersion: String? = null
+    override fun getTestBuildNoticeAckVersion(): String? = testBuildNoticeAckVersion
+    override fun setTestBuildNoticeAckVersion(version: String) { testBuildNoticeAckVersion = version }
 }

@@ -138,4 +138,13 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         plainPrefs.edit().putBoolean("wallpaper_dark_mode", enabled).apply()
     }
+
+    // Plain prefs, not the encrypted ones: this is read on the first frame after login, and it says
+    // nothing about the user that a stranger with the phone could not learn by opening the app.
+    override fun getTestBuildNoticeAckVersion(): String? =
+        plainPrefs.getString("test_build_notice_ack_version", null)
+
+    override fun setTestBuildNoticeAckVersion(version: String) {
+        plainPrefs.edit().putString("test_build_notice_ack_version", version).apply()
+    }
 }
