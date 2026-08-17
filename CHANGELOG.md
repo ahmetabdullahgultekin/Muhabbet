@@ -8,6 +8,43 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+## [0.3.7] — 2026-08-17
+
+A release driven almost entirely by one afternoon of the owner using the app on a real phone. Every
+item below has an issue behind it with the evidence; the fixes that are **not** device-verified say
+so, because there is no emulator on the build host and colour, motion and gesture cannot be signed
+off here.
+
+### Fixed
+- **Tapping a notification opened the chat list instead of the chat** (#594). The notification wrote
+  the conversation id onto its intent and nothing ever read it: `MainActivity` had no `onNewIntent`
+  and never called `getStringExtra`. The same hole swallowed deep links — `muhabbet://chat/{id}` is
+  declared in the manifest, which is why it opened the app, and nothing then looked at the URL.
+  Handled now on both the cold-start and already-running paths; the second is the common one and is
+  what a lazier fix would have missed. `launchMode` is `singleTask`, previously unset.
+- **The conversation list said `16.08` for yesterday, next to times it looked identical to** (#585).
+  Yesterday is *Dün*, the last week is weekday names, and older dates carry the full year so
+  `16.08` can no longer be read as `16:08`.
+- **A message that could not be queued was reported to the user as queued** (#578). `WsClient.send()`
+  threw "queued, will retry" even when the insert into the pending table had failed, so the UI showed
+  a clock over a message that was gone. Also: the reconnect guard tested `isActive` on a
+  `CoroutineStart.LAZY` job, which is `false` while New, so every call started another connect loop.
+- **The WebSocket buffer bean failed every integration test context** (#598). Introduced with the
+  #493 fix and invisible until CI could run again; production was never affected, since Tomcat is
+  real there.
+
+### Security
+- **A document upload accepted any MIME type, `text/html` included** (#287). `uploadImage` and
+  `uploadAudio` both had allow-lists; `uploadDocument` checked only size, so script could be stored
+  and served from the media host. Verified against production: `text/html`, `text/html; charset=utf-8`
+  and `image/svg+xml` all refused with `MEDIA_UNSUPPORTED_TYPE`; `application/pdf` still accepted.
+
+### Infrastructure
+- **Every CI job had been failing before it started** (#563), rate-limited by `codeload.github.com`
+  while downloading `actions/checkout`. `infra/scripts/seed-runner-action-cache.sh` seeds the
+  runner's action cache from github.com instead. The trade is stated in the script: a seeded action
+  is pinned until the script is re-run with `--force`.
+
 ## [0.3.6] — 2026-08-17
 
 Everything below was already sitting under Unreleased when 0.3.6 was cut, so it is recorded here.
