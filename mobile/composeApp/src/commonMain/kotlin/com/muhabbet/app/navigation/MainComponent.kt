@@ -1,6 +1,7 @@
 package com.muhabbet.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -44,6 +45,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.conversations.toChatTarget
+import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.repository.ConversationDirectory
+import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.chat_default_name
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import com.muhabbet.app.ui.transition.AvatarHandoff
 import com.muhabbet.app.ui.transition.LocalAvatarHandoff
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -327,6 +335,7 @@ class MainComponent(
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun MainContent(component: MainComponent) {
+    OpenChatFromOutside(component)
     SharedTransitionLayout {
         val stack by component.childStack.subscribeAsState()
         val handoff = AvatarHandoff(
@@ -336,6 +345,65 @@ fun MainContent(component: MainComponent) {
         CompositionLocalProvider(LocalAvatarHandoff provides handoff) {
             MainStack(component)
         }
+    }
+}
+
+/**
+ * Acts on a [ChatOpenRequest] parked by the platform — a tapped notification, or a
+ * `muhabbet://chat/{id}` link.
+ *
+ * Mounted inside `MainContent`, so it only ever runs for a signed-in user with a navigation stack
+ * to push onto. A request that arrives at the login screen simply waits here until it does.
+ *
+ * The name is the fiddly part. A notification carries the sender's name and needs no lookup; a bare
+ * deep link carries only an id, and [ChatScreen] renders the title verbatim with no fallback of its
+ * own — which is how #543 produced a chat with no title. So an unnamed request is resolved through
+ * [ConversationDirectory] and [toChatTarget], the one place that decides what a conversation is
+ * called, and falls back to the same localized default every list uses rather than to `""`.
+ *
+ * Navigating with an unresolved name is deliberate in the failure case: the user asked for *this*
+ * conversation, and opening it titled "Sohbet" serves them better than refusing to move.
+ */
+@Composable
+private fun OpenChatFromOutside(component: MainComponent) {
+    val pendingChatOpen: PendingChatOpen = koinInject()
+    val conversationDirectory: ConversationDirectory = koinInject()
+    val tokenStorage: TokenStorage = koinInject()
+    val defaultChatName = stringResource(Res.string.chat_default_name)
+
+    val pending by pendingChatOpen.pending.collectAsState()
+
+    LaunchedEffect(pending) {
+        val request = pending ?: return@LaunchedEffect
+
+        val target = if (request.displayName != null) {
+            ChatTarget(
+                conversationId = request.conversationId,
+                name = request.displayName,
+                isGroup = request.isGroup
+            )
+        } else {
+            // Cache-first, so the common case costs no network. `null` means the conversation is
+            // not on this device — deleted, left, or past the pages the directory will walk — and
+            // the fallback name is the honest answer rather than a blank bar.
+            val conversation = runCatching {
+                conversationDirectory.lookUp(setOf(request.conversationId))[request.conversationId]
+            }.getOrNull()
+
+            conversation?.toChatTarget(
+                currentUserId = runCatching { tokenStorage.getUserId() }.getOrNull(),
+                fallbackName = defaultChatName
+            ) ?: ChatTarget(
+                conversationId = request.conversationId,
+                name = defaultChatName,
+                isGroup = request.isGroup
+            )
+        }
+
+        // Cleared before navigating, and conditionally: a second notification tapped while the
+        // lookup above was suspended must not be thrown away with the one it replaced.
+        pendingChatOpen.consume(request)
+        component.openChat(target)
     }
 }
 

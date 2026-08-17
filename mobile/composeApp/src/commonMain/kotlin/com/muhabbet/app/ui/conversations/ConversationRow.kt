@@ -47,6 +47,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedVisibility
+import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -145,7 +146,7 @@ internal fun ConversationItem(
             val lastAt = conversation.lastMessageAt
             if (lastAt != null) {
                 Text(
-                    text = formatTimestamp(lastAt),
+                    text = formatTimestamp(lastAt, rememberRelativeDayLabels()),
                     style = Muhabbet.text.ConversationTimestamp,
                     color = if (hasUnread) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -173,5 +174,7 @@ internal fun ConversationItem(
     }
 }
 
-internal fun formatTimestamp(timestamp: String): String =
-    DateTimeFormatter.formatConversationTimestamp(timestamp)
+internal fun formatTimestamp(
+    timestamp: String,
+    labels: DateTimeFormatter.RelativeDayLabels
+): String = DateTimeFormatter.formatConversationTimestamp(timestamp, labels)

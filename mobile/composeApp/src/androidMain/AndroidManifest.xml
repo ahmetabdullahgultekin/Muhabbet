@@ -20,9 +20,17 @@
         android:theme="@style/Theme.Muhabbet.Splash"
         android:usesCleartextTraffic="false">
 
+        <!--
+            launchMode=singleTask so a tapped notification or a muhabbet:// link is delivered to the
+            running Activity through onNewIntent instead of stacking a second copy of the app on top
+            of the first. Left unset (i.e. `standard`) the FLAG_ACTIVITY_CLEAR_TOP the notification
+            intent carries does not behave as intended, and the user can end up with two chat
+            screens in one task (#594).
+        -->
         <activity
             android:name="com.muhabbet.app.MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

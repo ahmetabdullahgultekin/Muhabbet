@@ -15,6 +15,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import com.arkivanov.decompose.defaultComponentContext
 import com.muhabbet.app.di.androidPlatformModule
+import com.muhabbet.app.di.bootstrapOrReuseKoin
+import com.muhabbet.app.navigation.ChatOpenRequest
+import com.muhabbet.app.navigation.PendingChatOpen
+import com.muhabbet.app.platform.MuhabbetNotifications
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -38,6 +42,11 @@ class MainActivity : ComponentActivity() {
 
         val componentContext = defaultComponentContext()
         val platformModule = androidPlatformModule(applicationContext)
+
+        // Before setContent, so a notification that started the process has already parked its
+        // request by the time the composition first reads it.
+        handleChatIntent(intent, platformModule)
+
         setContent {
             // Publish every Modifier.testTag as the Android view resource-id that uiautomator
             // reads. Without this the tags exist only inside Compose's semantics tree, so
@@ -66,6 +75,64 @@ class MainActivity : ComponentActivity() {
      *
      * NOT device-verified: there is no emulator on this host.
      */
+    /**
+     * The half that was missing entirely (#594).
+     *
+     * `MainActivity` is `singleTask`, so an intent that arrives while the app is already running
+     * — which is the ordinary case for a tapped notification — is delivered here and **never**
+     * through `onCreate`. Handling only `onCreate` fixes the rarer path and leaves the common one
+     * broken, which is indistinguishable from not fixing it.
+     *
+     * `setIntent` so that `getIntent()` afterwards returns the new one rather than the stale
+     * launch intent; the platform does not do this for us.
+     */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleChatIntent(intent, androidPlatformModule(applicationContext))
+    }
+
+    /**
+     * Parks a request to open a conversation, from either source that can carry one.
+     *
+     * Until #594 the conversation id was written onto the notification's intent and read by nobody
+     * — `MainActivity` never called `getStringExtra`, so every tap landed on the conversation list.
+     * The `muhabbet://chat/{id}` intent-filter in the manifest had the same shape of problem: it
+     * was declared, so the link opened the app, and nothing then looked at the URL.
+     *
+     * Deliberately tolerant: a malformed link or an intent with nothing on it parks nothing and the
+     * app opens where it always does. There is no user-visible failure mode worth inventing here.
+     */
+    private fun handleChatIntent(intent: android.content.Intent?, platformModule: org.koin.core.module.Module) {
+        val intent = intent ?: return
+
+        val fromNotification = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
+        val fromDeepLink = intent.data
+            ?.takeIf { it.host == DEEP_LINK_CHAT_HOST || it.pathSegments.firstOrNull() == DEEP_LINK_CHAT_HOST }
+            ?.pathSegments
+            ?.lastOrNull()
+
+        val conversationId = (fromNotification ?: fromDeepLink)?.takeIf { it.isNotBlank() } ?: return
+
+        // Consumed on the way in so a configuration change — or the language switch, which recreates
+        // this Activity on purpose — cannot replay the same navigation a second time.
+        intent.removeExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
+
+        val isGroup = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_TYPE) ==
+            MuhabbetNotifications.CONVERSATION_TYPE_GROUP
+
+        bootstrapOrReuseKoin(platformModule)
+            .get<PendingChatOpen>()
+            .request(
+                ChatOpenRequest(
+                    conversationId = conversationId,
+                    // Present for a notification, absent for a deep link — the consumer resolves it.
+                    displayName = intent.getStringExtra(MuhabbetNotifications.EXTRA_SENDER_NAME),
+                    isGroup = isGroup
+                )
+            )
+    }
+
     override fun onResume() {
         super.onResume()
         applyStoredLanguage()
@@ -88,5 +155,13 @@ class MainActivity : ComponentActivity() {
         config.setLocale(locale)
         @Suppress("DEPRECATION")
         resources.updateConfiguration(config, resources.displayMetrics)
+    }
+
+    private companion object {
+        /**
+         * `muhabbet://chat/{id}` puts `chat` in the host; the `https://` app link puts it in the
+         * first path segment. Both filters are in the manifest, so both are checked.
+         */
+        const val DEEP_LINK_CHAT_HOST = "chat"
     }
 }

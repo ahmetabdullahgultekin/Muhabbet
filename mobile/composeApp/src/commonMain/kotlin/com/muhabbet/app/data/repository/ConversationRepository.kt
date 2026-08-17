@@ -13,6 +13,7 @@ import com.muhabbet.shared.dto.UserProfileDetailResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.UserProfile
 import kotlin.coroutines.cancellation.CancellationException
+import io.ktor.http.encodeURLParameter
 
 class ConversationRepository(
     private val apiClient: ApiClient,
@@ -27,7 +28,8 @@ class ConversationRepository(
         return try {
             val path = buildString {
                 append("/api/v1/conversations?limit=$limit")
-                if (cursor != null) append("&cursor=$cursor")
+                // Opaque and server-minted, so encoded rather than trusted — see MessageRepository.
+                if (cursor != null) append("&cursor=${cursor.encodeURLParameter()}")
             }
             val response = apiClient.get<PaginatedResponse<ConversationResponse>>(path)
             val result = response.data ?: PaginatedResponse(emptyList(), null, false)

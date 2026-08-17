@@ -451,14 +451,25 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   moved to 66. A count in a document is a claim about a moment; a suite is a thing you run. Aggregate
   from `shared/build/test-results/jvmTest/*.xml`. Expect zero failures — unlike the backend, nothing
   here needs Docker, so any failure is real.
-- **A red check may be GitHub, not the branch** (#563, first seen 2026-08-17). Jobs die in **Set up
+- **A red check may be GitHub, not the branch** (#563, first seen 2026-08-17). Jobs died in **Set up
   job** with `429 (Too Many Requests)` downloading `actions/checkout` from `codeload.github.com`.
-  It is the host, not the workflow — `curl` to the same URL from the runner returns 429 on its own —
-  and the runner caches no actions (`_work/_actions` is 8 KB), so every job re-downloads every one of
-  them. Re-running does not help while the limit holds. Confirm before blaming a branch:
-  `gh run view <id> --log-failed | grep 429`. This fails *before* any step of ours, so it reads as a
-  build failure with no log to explain it — the exact shape that teaches people to ignore red checks.
-  Local gates are the real signal on such a day. See also [[ci-red-is-usually-environmental]].
+  It was the host and the hostname, not the workflow — `curl` to the same URL from the runner
+  returned 429 on its own — and it fails *before* any step of ours, so it reads as a build failure
+  with no log to explain it. Confirm before blaming a branch:
+  `gh run view <id> --log-failed | grep 429`. Local gates are the real signal on such a day.
+  See also [[ci-red-is-usually-environmental]].
+
+  **Mitigated by `infra/scripts/seed-runner-action-cache.sh`.** The runner skips the download when
+  `_work/_actions/<owner>/<repo>/<ref>.completed` exists, so the script clones each action the
+  workflows use from **github.com** (a different host, not throttled) into that layout and writes
+  the watermark. Runner 2.336.0 has no `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` knob — checked, the
+  string is in none of its assemblies — so the watermark is the mechanism available. Stop the
+  runner service before seeding; a job in *Set up job* writes to the same paths.
+
+  **A seeded action is pinned**: the runner will never re-download it, so a moved `v4` — including
+  for a security fix — will not arrive until the cache is refreshed. Re-run with `--force` after a
+  runner reinstall and on whatever schedule you are willing to defend. This is a trade, not a
+  free win.
 - **detekt does not run at all** (#279). `:backend:detekt` dies at plugin startup with "detekt was
   compiled with Kotlin 2.0.21 but is currently running with 2.4.10", before analysing a file. CI marks
   the step `continue-on-error: true`, so a total failure of the tool has been indistinguishable from a

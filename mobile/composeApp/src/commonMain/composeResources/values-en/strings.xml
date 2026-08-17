@@ -290,6 +290,15 @@
     <string name="date_today">Today</string>
     <string name="date_yesterday">Yesterday</string>
 
+    <!-- Monday first, matching DayOfWeek.ordinal. See the note in values/strings.xml. -->
+    <string name="date_weekday_monday">Monday</string>
+    <string name="date_weekday_tuesday">Tuesday</string>
+    <string name="date_weekday_wednesday">Wednesday</string>
+    <string name="date_weekday_thursday">Thursday</string>
+    <string name="date_weekday_friday">Friday</string>
+    <string name="date_weekday_saturday">Saturday</string>
+    <string name="date_weekday_sunday">Sunday</string>
+
     <!-- Scroll to bottom -->
     <string name="scroll_to_bottom">Scroll to bottom</string>
 
