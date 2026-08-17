@@ -230,14 +230,58 @@ jobs:
           echo "requested=true" >> "$GITHUB_OUTPUT"
           echo "track=$TRACK" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate to Google Play
+      # Mints the access token from the service-account key directly, with the standard
+      # OAuth2 JWT-bearer flow that Google documents for server-to-server access.
+      #
+      # This replaces `google-github-actions/auth`, which failed the first real run:
+      # asking it for an access token makes it call `iamcredentials.googleapis.com`
+      # (generateAccessToken), and that API is disabled on the project —
+      # "IAM Service Account Credentials API has not been used in project 365129894393
+      # before or it is disabled". The JWT-bearer flow needs no such API: the key signs
+      # its own assertion and exchanges it at oauth2.googleapis.com/token. So this is
+      # one fewer Google API to keep enabled, and one fewer third-party action holding
+      # a publishing credential on a runner that is also the production host.
+      #
+      # openssl and python3 only — both already on the runner, nothing installed.
+      - name: Mint a Play access token
         if: steps.play.outputs.requested == 'true'
         id: gauth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+        env:
+          SA_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEYDIR="$RUNNER_TEMP/play"
+          mkdir -p "$KEYDIR"
+          printf '%s' "$SA_JSON" > "$KEYDIR/sa.json"
+
+          CLIENT_EMAIL=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["client_email"])' "$KEYDIR/sa.json")
+          python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["private_key"])' "$KEYDIR/sa.json" "$KEYDIR/key.pem"
+
+          b64url() { base64 -w0 | tr '+/' '-_' | tr -d '='; }
+
+          NOW=$(date +%s)
+          HEADER=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
+          CLAIMS=$(printf '{"iss":"%s","scope":"https://www.googleapis.com/auth/androidpublisher","aud":"https://oauth2.googleapis.com/token","exp":%s,"iat":%s}' \
+                     "$CLIENT_EMAIL" "$((NOW + 3600))" "$NOW" | b64url)
+          SIG=$(printf '%s.%s' "$HEADER" "$CLAIMS" | openssl dgst -sha256 -sign "$KEYDIR/key.pem" -binary | b64url)
+
+          RESP=$(curl -sS -X POST https://oauth2.googleapis.com/token \
+                   --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer' \
+                   --data-urlencode "assertion=${HEADER}.${CLAIMS}.${SIG}")
+
+          TOKEN=$(printf '%s' "$RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))')
+          if [ -z "$TOKEN" ]; then
+            # The response carries the reason (invalid_grant, unauthorized_client, …) and no
+            # secret, so printing it is what makes the next failure diagnosable in one look.
+            echo "::error::Could not mint a Play access token."
+            printf '%s\n' "$RESP"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "access_token=$TOKEN" >> "$GITHUB_OUTPUT"
+          rm -f "$KEYDIR/key.pem" "$KEYDIR/sa.json"
+          echo "Access token minted for $CLIENT_EMAIL"
 
       - name: Upload the bundle and roll the track
         if: steps.play.outputs.requested == 'true'
