@@ -316,6 +316,7 @@
     <string name="call_coming_soon">Arama özelliği yakında</string>
     <string name="video_play">Videoyu oynat</string>
     <string name="starred_you">Sen</string>
+    <string name="starred_conversation_unavailable">Bu sohbet artık açılamıyor</string>
     <string name="shared_media_title">Paylaşılan Medya</string>
     <string name="shared_media_empty">Paylaşılan medya yok</string>
     <string name="shared_media_images">Fotoğraflar</string>

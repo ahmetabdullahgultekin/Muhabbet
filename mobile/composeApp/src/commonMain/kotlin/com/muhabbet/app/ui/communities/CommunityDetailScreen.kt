@@ -24,6 +24,7 @@ import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
 import kotlinx.coroutines.launch
@@ -35,7 +36,7 @@ import org.koin.compose.koinInject
 fun CommunityDetailScreen(
     communityId: String,
     onBack: () -> Unit,
-    onGroupClick: (conversationId: String, name: String) -> Unit,
+    onGroupClick: (ChatTarget) -> Unit,
     onMembersClick: (String) -> Unit,
     communityRepository: CommunityRepository = koinInject()
 ) {

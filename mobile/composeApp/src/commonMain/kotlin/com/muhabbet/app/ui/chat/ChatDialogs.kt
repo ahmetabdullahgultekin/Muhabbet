@@ -45,6 +45,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.ui.conversations.toChatTarget
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.LocationData
@@ -223,6 +224,7 @@ fun ForwardPickerDialog(
     onNavigateToConversation: ((conversationId: String, name: String) -> Unit)? = null
 ) {
     val cancelText = stringResource(Res.string.cancel)
+    val defaultChatName = stringResource(Res.string.chat_default_name)
     MuhabbetDialog(
         onDismiss = onDismiss,
         title = stringResource(Res.string.chat_forward_title),
@@ -235,10 +237,10 @@ fun ForwardPickerDialog(
             } else {
                 LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                     items(forwardConversations.filter { it.id != conversationId }, key = { it.id }) { conv ->
-                        val convName = conv.name
-                            ?: conv.participants.firstOrNull { it.userId != currentUserId }?.displayName
-                            ?: conv.participants.firstOrNull { it.userId != currentUserId }?.phoneNumber
-                            ?: ""
+                        // Was a hand-rolled chain ending `?: ""`, so forwarding to someone who has
+                        // set no display name and whose number the server withheld landed the
+                        // sender in a chat with no title — #543, reached from the forward picker.
+                        val convName = conv.toChatTarget(currentUserId, defaultChatName).name
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
