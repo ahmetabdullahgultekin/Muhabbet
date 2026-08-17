@@ -102,6 +102,7 @@ class ChatWebSocketHandler(
                 presencePort.setOnline(userId)
                 log.debug("User {} went online", userId)
             }
+            is WsMessage.ConversationFocus -> handleConversationFocus(userId, wsMessage)
             is WsMessage.Ping -> {
                 presencePort.setOnline(userId)
                 sendPong(session)
@@ -219,6 +220,23 @@ class ChatWebSocketHandler(
         }
         // Always broadcast StatusUpdate for the specific message to the sender
         updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
+    }
+
+    /**
+     * Records which conversation, if any, [userId] is foregrounded on — the signal
+     * [com.muhabbet.messaging.adapter.out.external.RedisMessageBroadcaster] needs to suppress a push
+     * only for the exact chat being looked at (#618). A malformed or absent id degrades to "none"
+     * rather than erroring: this is a best-effort presence hint, not a request that can fail.
+     */
+    private fun handleConversationFocus(userId: UUID, msg: WsMessage.ConversationFocus) {
+        val conversationId = msg.conversationId?.let { raw ->
+            try {
+                UUID.fromString(raw)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        sessionManager.setActiveConversation(userId, conversationId)
     }
 
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {

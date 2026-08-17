@@ -10,7 +10,14 @@ import org.springframework.stereotype.Component
 import java.util.UUID
 
 /**
- * Pushes one message to every device of one recipient who is not connected.
+ * Pushes one message to every device of one recipient who is not currently looking at that
+ * conversation.
+ *
+ * The name is a holdover from when this only ran for a recipient with no open socket at all; #618
+ * moved the decision from "connected or not" to "viewing this chat or not" (see
+ * [com.muhabbet.messaging.adapter.out.external.RedisMessageBroadcaster.broadcastMessage]), so this
+ * is now also reached for a recipient who is online and reading a different conversation. What it
+ * does here is unchanged — only when its caller decides to call it has moved.
  *
  * Both broadcasters do this and neither should own it. #469 was one bug written twice — the same
  * push block existed in `RedisMessageBroadcaster` and `WebSocketMessageBroadcaster` and had already

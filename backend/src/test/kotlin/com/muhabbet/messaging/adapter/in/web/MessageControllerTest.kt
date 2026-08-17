@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.dto.SendMessageRequest
@@ -32,6 +33,7 @@ class MessageControllerTest {
     private lateinit var getMessageHistoryUseCase: GetMessageHistoryUseCase
     private lateinit var manageMessageUseCase: ManageMessageUseCase
     private lateinit var sendMessageUseCase: SendMessageUseCase
+    private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
     private lateinit var controller: MessageController
 
     private val userId = TestData.USER_ID_1
@@ -44,10 +46,12 @@ class MessageControllerTest {
         getMessageHistoryUseCase = mockk()
         manageMessageUseCase = mockk()
         sendMessageUseCase = mockk()
+        updateDeliveryStatusUseCase = mockk(relaxed = true)
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             manageMessageUseCase = manageMessageUseCase,
-            sendMessageUseCase = sendMessageUseCase
+            sendMessageUseCase = sendMessageUseCase,
+            updateDeliveryStatusUseCase = updateDeliveryStatusUseCase
         )
         setAuthenticatedUser(userId, deviceId)
     }
@@ -306,6 +310,32 @@ class MessageControllerTest {
                 assert(ex.message != null)
             }
             verify(exactly = 0) { sendMessageUseCase.sendMessage(any()) }
+        }
+    }
+
+    /**
+     * The REST delivery-ack transport added for #596: FCM hands the push to a background service
+     * with no socket and seconds to live, so it cannot send `AckMessage(DELIVERED)` the way an open
+     * chat does.
+     */
+    @Nested
+    inner class MarkDelivered {
+
+        @Test
+        fun `should forward to the same use case the WebSocket ack handler calls`() {
+            val response = controller.markDelivered(messageId)
+
+            assert(response.statusCode.value() == 200)
+            verify { updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.DELIVERED) }
+        }
+
+        @Test
+        fun `should identify the recipient from the token, never from the request`() {
+            // There is no request body at all — the only identity in play is the caller's own JWT,
+            // so this cannot be used to ack delivery on someone else's behalf.
+            controller.markDelivered(messageId)
+
+            verify { updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.DELIVERED) }
         }
     }
 

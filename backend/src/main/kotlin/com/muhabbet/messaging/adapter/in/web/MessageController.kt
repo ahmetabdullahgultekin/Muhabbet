@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.ApiResponse
@@ -37,7 +38,8 @@ import java.util.UUID
 class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val manageMessageUseCase: ManageMessageUseCase,
-    private val sendMessageUseCase: SendMessageUseCase
+    private val sendMessageUseCase: SendMessageUseCase,
+    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -135,6 +137,26 @@ class MessageController(
             )
         )
         return ApiResponseBuilder.ok(message.toSharedMessage())
+    }
+
+    /**
+     * Records that this message reached the device, without a WebSocket.
+     *
+     * Exists for `MuhabbetFirebaseMessagingService.onMessageReceived` (#596): FCM hands a background
+     * service the push and a few seconds to run, no open socket, and opening one just to send a
+     * single [WsMessage.AckMessage] is exactly what battery optimisation kills first. Same use case
+     * [ChatWebSocketHandler] calls for the WebSocket `DELIVERED` ack — this is a second transport
+     * for an existing decision, same shape as [sendMessage] above, not a new one.
+     *
+     * Silently a no-op for a `messageId` this caller has no delivery row for (already read, blocked,
+     * someone else's message) — [UpdateDeliveryStatusUseCase.updateStatus] already behaves this way
+     * for the WebSocket ack, so a client cannot use this to probe whether an arbitrary id exists.
+     */
+    @PostMapping("/messages/{messageId}/delivered")
+    fun markDelivered(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.DELIVERED)
+        return ApiResponseBuilder.ok(Unit)
     }
 
     @GetMapping("/messages/{messageId}/info")

@@ -41,6 +41,9 @@ internal object MuhabbetNotifications {
     const val EXTRA_SENDER_NAME = "senderName"
     const val EXTRA_CONVERSATION_TYPE = "conversationType"
 
+    /** The `messageId` push-data key. See `PushNotificationComposer.KEY_MESSAGE_ID` on the server. */
+    const val EXTRA_MESSAGE_ID = "messageId"
+
     fun channelId(conversationType: String?): String =
         if (conversationType == CONVERSATION_TYPE_GROUP) CHANNEL_ID_GROUP else CHANNEL_ID_DM
 

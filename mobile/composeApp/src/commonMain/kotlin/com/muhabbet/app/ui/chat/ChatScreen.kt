@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -375,6 +376,28 @@ fun ChatScreen(
                     sendReadReceipt(ackedMessageIds, conversationId, newest.id, force = true, send = wsClient::sendAck)
                 }
             }
+    }
+
+    // Tells the server which conversation, if any, is on screen right now — the signal push
+    // suppression needs to withhold a notification only for THIS exact chat (#618). A socket being
+    // open said nothing about which chat, or whether any chat, was actually being looked at: a user
+    // reading a different conversation, or with the screen off, has a live socket exactly like one
+    // staring at this one does. Best-effort — `sendOrQueue` never throws, and a frame lost to a
+    // reconnect window means one message gets pushed that strictly did not need to be, never a
+    // missed live update.
+    LaunchedEffect(conversationId) {
+        appVisibility.isForeground.collect { foreground ->
+            wsClient.sendOrQueue(WsMessage.ConversationFocus(if (foreground) conversationId else null))
+        }
+    }
+    DisposableEffect(conversationId) {
+        onDispose {
+            // Leaving the chat (back press, navigating elsewhere) is not a background transition,
+            // so it fires none of the events above and needs its own clear — otherwise the server
+            // keeps believing this chat is still on screen until some other screen happens to
+            // overwrite it.
+            scope.launch { wsClient.sendOrQueue(WsMessage.ConversationFocus(conversationId = null)) }
+        }
     }
 
     // ── WebSocket listener ───────────────────

@@ -89,9 +89,15 @@ class RedisMessageBroadcaster(
                 } catch (e: Exception) {
                     log.warn("Redis pub/sub publish failed for userId={}: {}", recipientId, e.message)
                 }
+            }
 
-                // Also send push notification for offline users, in the language each of their
-                // devices asked for.
+            // A push is withheld only when the recipient is foregrounded on THIS conversation right
+            // now (#618) — not merely "has a socket open," which is also true with the screen off,
+            // the app backgrounded, or a different chat on screen. Every one of those cases used to
+            // fall into the branch above and never reach here, so a message that had genuinely
+            // arrived on the device sat there with no tray entry to say so. Offline recipients are
+            // never "viewing" anything, so this still fires for them exactly as before.
+            if (!sessionManager.isViewingConversation(recipientId, message.conversationId)) {
                 offlinePushSender.sendTo(recipientId, message, senderName, conversation)
             }
         }
