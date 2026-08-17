@@ -23,12 +23,18 @@
     <string name="attach_file_view_once_on">Attach file — view once is on</string>
     <string name="voice_play">Play</string>
     <string name="voice_pause">Pause</string>
-    <string name="voice_record">Record</string>
-    <string name="voice_stop">Stop</string>
     <string name="voice_transcribe">Transcribe</string>
     <string name="voice_transcribing">Transcribing…</string>
     <string name="voice_transcript_failed">Transcription failed</string>
     <string name="voice_playback_speed_change">Change playback speed</string>
+    <!-- Content description while the record button is held down and audio is being captured. -->
+    <string name="voice_recording_in_progress">Recording voice message</string>
+    <string name="voice_slide_to_cancel">Slide to cancel</string>
+    <!-- Label on the lock icon once a held recording has been slid up into hands-free mode. -->
+    <string name="voice_locked">Locked</string>
+    <!-- Discards a stopped-but-unsent voice recording (preview or locked bar), as opposed to
+         "delete", which removes an already-sent message. -->
+    <string name="voice_discard">Discard recording</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
