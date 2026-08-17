@@ -59,6 +59,22 @@ class IosTokenStorage : TokenStorage {
         defaults.setObject(lang, forKey = "app_language")
     }
 
+    // Synchronised on write, unlike most of its neighbours: the iOS language restart is exit(0), so
+    // an unflushed value would not survive to the launch that has to read it.
+    override fun setPendingLanguageRestart() {
+        defaults.setBool(true, forKey = "pending_language_restart")
+        defaults.synchronize()
+    }
+
+    override fun consumePendingLanguageRestart(): Boolean {
+        val pending = defaults.boolForKey("pending_language_restart")
+        if (pending) {
+            defaults.removeObjectForKey("pending_language_restart")
+            defaults.synchronize()
+        }
+        return pending
+    }
+
     override fun getHapticsEnabled(): Boolean =
         if (defaults.objectForKey("haptics_enabled") == null) true
         else defaults.boolForKey("haptics_enabled")

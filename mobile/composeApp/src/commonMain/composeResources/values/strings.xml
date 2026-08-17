@@ -156,6 +156,13 @@
     <string name="settings_language">Dil</string>
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
+    <!--
+      Not user-visible: the language code of THIS file, so the app can ask the resource system which
+      locale it actually resolved rather than assuming one. Reading it through stringResource is the
+      only answer that cannot disagree with the text on screen, including the fallback to this file
+      on a device locale the app does not translate. Never translate this value - it names the file.
+    -->
+    <string name="app_language_code">tr</string>
 
     <!-- Delete Conversation -->
     <string name="conv_delete_title">Konuşmayı Sil</string>

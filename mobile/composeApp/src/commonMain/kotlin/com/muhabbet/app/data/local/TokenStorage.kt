@@ -10,6 +10,20 @@ interface TokenStorage {
     fun isLoggedIn(): Boolean = getAccessToken() != null
     fun getLanguage(): String? = null
     fun setLanguage(lang: String) {}
+
+    /**
+     * Whether the process that is about to start should reopen Settings at the language picker.
+     *
+     * Set immediately before the language restart and consumed exactly once by `RootComponent` on
+     * the way back up, so the user lands where they were instead of on the conversation list — which
+     * is also the only place they can see that the new language took effect (#505).
+     *
+     * Abstract rather than defaulted, for the same reason as the theme below. An implementation that
+     * inherited a no-op would restart the app and drop the user on the home screen every time, which
+     * is precisely the defect this exists to fix, and it would compile.
+     */
+    fun setPendingLanguageRestart()
+    fun consumePendingLanguageRestart(): Boolean
     // Abstract, unlike its neighbours: the theme is read at the composition root on every frame, so
     // an implementation that inherited a null-returning default would pin the whole app to the
     // system theme with nothing to show for it. Better to fail to compile.

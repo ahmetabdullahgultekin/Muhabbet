@@ -54,7 +54,8 @@ import com.arkivanov.decompose.extensions.compose.subscribeAsState
 
 class MainComponent(
     componentContext: ComponentContext,
-    val onLogout: () -> Unit
+    val onLogout: () -> Unit,
+    openAtLanguageSettings: Boolean = false
 ) : ComponentContext by componentContext {
 
     private val navigation = StackNavigation<Config>()
@@ -65,7 +66,17 @@ class MainComponent(
     val childStack: Value<ChildStack<Config, Config>> = childStack(
         source = navigation,
         serializer = Config.serializer(),
-        initialConfiguration = Config.HomeShell,
+        // A whole stack rather than one configuration, so the language restart lands on Settings
+        // with the conversation list still underneath it. Pushing Settings after the fact would be
+        // a visible navigation on launch, and starting with Settings alone would leave back with
+        // nowhere to go. Everything else starts, as always, on the home shell.
+        initialStack = {
+            if (openAtLanguageSettings) {
+                listOf(Config.HomeShell, Config.Settings(focusLanguage = true))
+            } else {
+                listOf(Config.HomeShell)
+            }
+        },
         handleBackButton = true,
         childFactory = { config, _ -> config }
     )
@@ -92,7 +103,7 @@ class MainComponent(
 
     @OptIn(DelicateDecomposeApi::class)
     fun openSettings() {
-        navigation.push(Config.Settings)
+        navigation.push(Config.Settings())
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -249,7 +260,10 @@ class MainComponent(
         @Serializable data object ConversationList : Config
         @Serializable data class Chat(val conversationId: String, val name: String, val otherUserId: String? = null, val isGroup: Boolean = false, val scrollToMessageId: String? = null, val avatarUrl: String? = null) : Config
         @Serializable data object NewConversation : Config
-        @Serializable data object Settings : Config
+        // [focusLanguage] is set only by the launch that follows a language change, and scrolls the
+        // screen to the Language section rather than leaving the user at the top of a long page
+        // wondering whether anything happened.
+        @Serializable data class Settings(val focusLanguage: Boolean = false) : Config
         @Serializable data object CreateGroup : Config
         @Serializable data class GroupInfo(val conversationId: String, val name: String) : Config
         @Serializable data class UserProfile(val userId: String, val contactName: String? = null, val conversationId: String? = null) : Config
@@ -384,6 +398,7 @@ private fun MainStack(component: MainComponent) {
                 onBack = component::goBack
             )
             is MainComponent.Config.Settings -> SettingsScreen(
+                focusLanguageSection = config.focusLanguage,
                 onBack = component::goBack,
                 onLogout = component.onLogout,
                 onStarredMessages = component::openStarredMessages,
