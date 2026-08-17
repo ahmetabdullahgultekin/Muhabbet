@@ -48,6 +48,54 @@ internal enum class ConversationFilter {
 }
 
 /**
+ * One message-search hit. Tapping it opens the conversation the message is in.
+ *
+ * Extracted from [MessageSearchResults] so the home shell can put the same rows inside its own
+ * LazyColumn (#638) — a nested LazyColumn is not an option, and two hand-written versions of "what a
+ * search hit looks like" is how the two search screens came to disagree in the first place.
+ */
+@Composable
+internal fun MessageSearchResultRow(
+    message: Message,
+    conversations: List<ConversationResponse>,
+    currentUserId: String,
+    fallbackName: String,
+    onClick: (ChatTarget) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                // A hit whose conversation is not in the loaded list used to open a chat named `""`
+                // — the same empty header as #543, reached from search instead of Starred Messages.
+                val conv = conversations.firstOrNull { it.id == message.conversationId }
+                onClick(
+                    conv?.toChatTarget(currentUserId, fallbackName)
+                        ?: ChatTarget(conversationId = message.conversationId, name = fallbackName)
+                )
+            }
+            .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = message.content.take(MESSAGE_SNIPPET_CHARS),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2
+            )
+            Text(
+                text = formatTimestamp(message.serverTimestamp?.toString() ?: "", rememberRelativeDayLabels()),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Enough of the message to recognise it, short enough that every hit fits on two lines. */
+private const val MESSAGE_SNIPPET_CHARS = 80
+
+/**
  * Flat list of message-search hits. Tapping a hit opens its conversation.
  */
 @Composable
@@ -58,37 +106,16 @@ internal fun MessageSearchResults(
     modifier: Modifier = Modifier,
     onResultClick: (ChatTarget) -> Unit
 ) {
-    // A hit whose conversation is not in the loaded list used to open a chat named `""` — the same
-    // empty header as #543, reached from search instead of from Starred Messages.
     val defaultChatName = stringResource(Res.string.chat_default_name)
     LazyColumn(modifier = modifier) {
         items(results, key = { it.id }) { msg ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val conv = conversations.firstOrNull { it.id == msg.conversationId }
-                        onResultClick(
-                            conv?.toChatTarget(currentUserId, defaultChatName)
-                                ?: ChatTarget(conversationId = msg.conversationId, name = defaultChatName)
-                        )
-                    }
-                    .padding(horizontal = MuhabbetSpacing.Large, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = msg.content.take(80),
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2
-                    )
-                    Text(
-                        text = formatTimestamp(msg.serverTimestamp?.toString() ?: "", rememberRelativeDayLabels()),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            MessageSearchResultRow(
+                message = msg,
+                conversations = conversations,
+                currentUserId = currentUserId,
+                fallbackName = defaultChatName,
+                onClick = onResultClick
+            )
             HorizontalDivider()
         }
     }

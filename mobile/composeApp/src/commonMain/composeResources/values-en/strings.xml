@@ -649,6 +649,9 @@
 
     <!-- Search -->
     <string name="home_search_title">Search</string>
+    <string name="home_search_section_chats">Chats</string>
+    <string name="home_search_section_messages">Messages</string>
+    <string name="home_search_failed">Search failed</string>
     <string name="home_search_placeholder">Search conversations or contacts…</string>
     <string name="home_search_no_results">No results found</string>
 

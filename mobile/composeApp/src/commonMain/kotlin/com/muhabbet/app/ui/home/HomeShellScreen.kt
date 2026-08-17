@@ -77,6 +77,17 @@ import androidx.compose.animation.AnimatedContent
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.ui.conversations.toChatTarget
+import com.muhabbet.composeapp.generated.resources.home_search_failed
+import com.muhabbet.composeapp.generated.resources.home_search_section_messages
+import com.muhabbet.composeapp.generated.resources.home_search_section_chats
+import com.muhabbet.app.ui.conversations.MessageSearchResultRow
+import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.shared.model.Message
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.muhabbet.designsystem.components.SectionHeader
 
 private enum class HomeTab {
     COMMUNITIES,
@@ -98,14 +109,26 @@ fun HomeShellScreen(
     onCreateCommunity: () -> Unit = {},
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
+    messageRepository: MessageRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.CHATS) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    // Message hits, separate from the conversation filter below. Until #638 this screen had no such
+    // state at all: it filtered the loaded conversation list by name and never asked the server, so
+    // searching for a word you had typed in a chat returned "No results found" while the message sat
+    // two screens away. `MessageRepository.searchMessages` existed, worked, and had exactly one
+    // caller — a screen the bottom nav does not reach.
+    var messageResults by remember { mutableStateOf<List<Message>>(emptyList()) }
     var allConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
+    // The field takes focus when search opens, and brings the keyboard with it. Without this the
+    // user taps the magnifier, types, and nothing happens — no keyboard, no text, no request — which
+    // is indistinguishable from search being broken and is how #638 was reported.
+    val searchFocus = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
 
@@ -116,6 +139,11 @@ fun HomeShellScreen(
     val moreOptionsDesc = stringResource(Res.string.action_more_options)
     val searchPlaceholder = stringResource(Res.string.home_search_placeholder)
     val searchNoResults = stringResource(Res.string.home_search_no_results)
+    val searchSectionChats = stringResource(Res.string.home_search_section_chats)
+    val searchSectionMessages = stringResource(Res.string.home_search_section_messages)
+    // Resolved here, not inside the coroutine: stringResource is @Composable and cannot be called
+    // from scope.launch.
+    val searchFailedMsg = stringResource(Res.string.home_search_failed)
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val communitiesLabel = stringResource(Res.string.home_tab_communities)
     val chatsLabel = stringResource(Res.string.home_tab_chats)
@@ -185,12 +213,41 @@ fun HomeShellScreen(
                     title = {
                         OutlinedTextField(
                             value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                            onValueChange = { newQuery ->
+                                searchQuery = newQuery
+                                // Two characters before asking the server. One character matches
+                                // most of a person's history and the request is wasted; zero
+                                // characters is the user clearing the field, which must clear the
+                                // results rather than search for "".
+                                if (newQuery.trim().length >= MIN_MESSAGE_SEARCH_LENGTH) {
+                                    scope.launch {
+                                        runCatchingCancellable {
+                                            messageResults = messageRepository
+                                                .searchMessages(newQuery.trim())
+                                                .items
+                                        }.onFailure { e ->
+                                            // An empty list is how "no matches" renders, so a failed
+                                            // search that only cleared the list would read as a
+                                            // confident "nothing you have said contains that".
+                                            Log.e("HomeShell", "Message search failed", e)
+                                            messageResults = emptyList()
+                                            snackbarHostState.showSnackbar(searchFailedMsg)
+                                        }
+                                    }
+                                } else {
+                                    messageResults = emptyList()
+                                }
+                            },
                             placeholder = { Text(searchPlaceholder, style = MaterialTheme.typography.bodyMedium) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
                             textStyle = MaterialTheme.typography.bodyMedium
                         )
+                        // Keyed on isSearchActive so it fires when the bar opens, not on every
+                        // recomposition the query causes.
+                        LaunchedEffect(isSearchActive) {
+                            if (isSearchActive) searchFocus.requestFocus()
+                        }
                     },
                     navigationIcon = {
                         MuhabbetIconButton(
@@ -261,8 +318,15 @@ fun HomeShellScreen(
                 .padding(padding)
         ) {
             if (isSearchActive) {
-                // Search results overlay
-                if (filteredConversations.isEmpty()) {
+                // Search results overlay.
+                //
+                // Two kinds of hit, and they are not interchangeable: conversations and contacts
+                // match on a name and are filtered locally, messages match on their text and come
+                // from the server. Showing only the first is what made search look broken (#638).
+                // Messages sit below the conversations because a person searching a name usually
+                // wants the chat, and a person searching a phrase usually knows there is no chat by
+                // that name.
+                if (filteredConversations.isEmpty() && messageResults.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -275,6 +339,11 @@ fun HomeShellScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        if (filteredConversations.isNotEmpty() && messageResults.isNotEmpty()) {
+                            item(key = "header_conversations") {
+                                SectionHeader(title = searchSectionChats)
+                            }
+                        }
                         items(filteredConversations, key = { it.id }) { conv ->
                             ConversationSearchResultItem(
                                 conversation = conv,
@@ -289,6 +358,26 @@ fun HomeShellScreen(
                                     onConversationClick(conv.toChatTarget(currentUserId, defaultChatName))
                                 }
                             )
+                        }
+
+                        if (messageResults.isNotEmpty()) {
+                            item(key = "header_messages") {
+                                SectionHeader(title = searchSectionMessages)
+                            }
+                            items(messageResults, key = { "msg_" + it.id }) { msg ->
+                                MessageSearchResultRow(
+                                    message = msg,
+                                    conversations = allConversations,
+                                    currentUserId = currentUserId,
+                                    fallbackName = defaultChatName,
+                                    onClick = { target ->
+                                        isSearchActive = false
+                                        searchQuery = ""
+                                        messageResults = emptyList()
+                                        onConversationClick(target)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -392,3 +481,12 @@ private fun ConversationSearchResultItem(
  * width slide between sibling tabs reads as navigating away rather than switching.
  */
 private const val TabSlideFraction = 6
+
+/**
+ * Characters typed before the home search asks the server for message hits.
+ *
+ * One character matches most of a person's history, so the request is wasted and the result is
+ * noise; zero characters is the user clearing the field, which must clear the results rather than
+ * search for the empty string.
+ */
+private const val MIN_MESSAGE_SEARCH_LENGTH = 2
