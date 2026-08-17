@@ -123,4 +123,11 @@ class IosTokenStorage : TokenStorage {
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) {
         defaults.setBool(enabled, forKey = "wallpaper_dark_mode")
     }
+
+    override fun getTestBuildNoticeAckVersion(): String? =
+        defaults.stringForKey("test_build_notice_ack_version")
+
+    override fun setTestBuildNoticeAckVersion(version: String) {
+        defaults.setObject(version, forKey = "test_build_notice_ack_version")
+    }
 }

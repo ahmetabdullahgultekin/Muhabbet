@@ -42,6 +42,7 @@ import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
+import com.muhabbet.app.ui.notice.TestBuildNoticeCard
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -223,12 +224,12 @@ fun SettingsScreen(
                 SettingsSectionTitle(stringResource(Res.string.settings_app_section))
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-                Text(
-                    text = "${stringResource(Res.string.settings_version)}: ${com.muhabbet.app.BuildInfo.VERSION}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Carries the version, and says in one breath what that version is (#519). This
+                // replaced a bare "Sürüm: 0.3.4" line: the number and the caveat are one fact, and
+                // a screen that printed the version twice would read as an oversight.
+                TestBuildNoticeCard()
+
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
 
                 // The OFL is satisfied by bundling the licence (mobile/designsystem/licenses/), but
                 // naming the typeface is the decent thing to do and costs one line.

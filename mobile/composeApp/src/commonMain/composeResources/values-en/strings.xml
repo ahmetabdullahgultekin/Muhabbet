@@ -144,7 +144,9 @@
     <string name="settings_about_placeholder">Using Muhabbet</string>
     <string name="settings_save">Save</string>
     <string name="settings_app_section">App</string>
-    <string name="settings_version">Version</string>
+    <!-- Replaced the bare settings_version label: the number and the caveat are one line now (#519) -->
+    <string name="settings_test_build_title">Version %1$s — test build</string>
+    <string name="settings_test_build_body">Muhabbet is still being tested. Some features may not work the way you expect, so please do not rely on it alone for anything that matters. If something goes wrong, tell us.</string>
     <string name="settings_logout">Log Out</string>
     <string name="settings_profile_updated">Profile updated</string>
     <string name="settings_language">Language</string>
@@ -722,4 +724,12 @@
     <string name="contacts_consent_review">Review this permission</string>
     <!-- Debug builds only: the backend echoed the code back in mock mode (#435) -->
     <string name="otp_dev_mode_code">Dev mode — Code: %1$s</string>
+
+    <!-- First-run test-build notice, shown once per app version after login (#519) -->
+    <string name="test_build_notice_title">Muhabbet is still being tested</string>
+    <string name="test_build_notice_body_expectations">This is a test build, not the finished app. Some features may not work the way you expect: a message can arrive late, a screen can come up empty, a button can do nothing at all.</string>
+    <string name="test_build_notice_body_reliance">So please do not rely on Muhabbet alone for a conversation that matters.</string>
+    <string name="test_build_notice_body_report">If you notice something going wrong, tell us. That is how we find out what needs fixing.</string>
+    <string name="test_build_notice_version">Version %1$s</string>
+    <string name="test_build_notice_dismiss">Got it</string>
 </resources>

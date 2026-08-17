@@ -61,4 +61,17 @@ interface TokenStorage {
     fun setCustomWallpaperPath(path: String?)
     fun getDarkModeWallpaperEnabled(): Boolean
     fun setDarkModeWallpaperEnabled(enabled: Boolean)
+
+    /**
+     * The app version whose test-build notice the user has already acknowledged, or null if they
+     * never have. Compared against `BuildInfo.VERSION`, so the notice returns once after an update
+     * and stays away on every launch in between.
+     *
+     * Abstract, for the third time in this file and for the same reason (#380, media quality,
+     * contact consent): a defaulted no-op would read back null on every launch, so the notice would
+     * reappear every single time the app opened — and a warning that shows up that often is one
+     * people learn to dismiss without reading, which is precisely the failure it exists to avoid.
+     */
+    fun getTestBuildNoticeAckVersion(): String?
+    fun setTestBuildNoticeAckVersion(version: String)
 }
