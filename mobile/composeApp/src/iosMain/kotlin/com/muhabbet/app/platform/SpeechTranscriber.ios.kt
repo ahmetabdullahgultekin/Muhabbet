@@ -20,8 +20,13 @@ import kotlin.coroutines.suspendCoroutine
  *
  * Uses on-device speech recognition when available (iOS 13+).
  * Turkish (tr-TR) is supported on most iOS devices.
- * Requires NSMicrophoneUsageDescription and NSSpeechRecognitionUsageDescription
- * in Info.plist.
+ *
+ * Unlike the Android side of this class (see #381), this never opens the live microphone:
+ * [transcribe] writes the message's audio to a temp file and hands the recognizer a
+ * [SFSpeechURLRecognitionRequest] over that file's URL, not a `SFSpeechAudioBufferRecognitionRequest`
+ * over live input. Only `NSSpeechRecognitionUsageDescription` is required in Info.plist for that —
+ * `NSMicrophoneUsageDescription` is for live-audio requests this class does not make, and is not
+ * required here.
  */
 actual class SpeechTranscriber {
 
