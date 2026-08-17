@@ -46,6 +46,7 @@ import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
+import com.muhabbet.app.ui.chat.MediaViewer
 import com.muhabbet.app.ui.notice.TestBuildNoticeCard
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
@@ -99,6 +100,9 @@ fun SettingsScreen(
     var isSaving by remember { mutableStateOf(false) }
     var isUploadingPhoto by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    // The gradient fallback has no URL to show, so this only ever opens when avatarUrl is non-null
+    // (enforced where it is set below) — a full-screen view of initials is not worth a screen (#615).
+    var showPhotoViewer by remember { mutableStateOf(false) }
     var storageUsage by remember { mutableStateOf<StorageUsageResponse?>(null) }
     var storageLoading by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -188,6 +192,15 @@ fun SettingsScreen(
         storageLoading = false
     }
 
+    // Guarded on avatarUrl rather than trusting the flag alone: avatarUrl can turn null out from
+    // under an already-open viewer if a slow profile load lands after the tap (rare, but cheaper to
+    // guard than to explain a crash).
+    if (showPhotoViewer) {
+        avatarUrl?.let { url ->
+            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+        }
+    }
+
     if (showLogoutDialog) {
         ConfirmDialog(
             title = stringResource(Res.string.logout_confirm_title),
@@ -233,6 +246,7 @@ fun SettingsScreen(
                     isUploadingPhoto = isUploadingPhoto,
                     isSaving = isSaving,
                     onPickPhoto = { imagePickerLauncher.launch() },
+                    onViewPhoto = { showPhotoViewer = true },
                     onDisplayNameChange = { displayName = it },
                     onAboutChange = { about = it },
                     onSave = {
