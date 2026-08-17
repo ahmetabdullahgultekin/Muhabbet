@@ -11,6 +11,19 @@ services:
     # is clean and @PreDestroy actually runs — the WebSocket session cleanup depends on it.
     init: true
     environment:
+      # The image's ENTRYPOINT is a bare `java -jar`, so without this the JVM took every
+      # default: 25% of the container limit as max heap (192 MB of 768 MB) and SerialGC.
+      # Measured at 93.7 MiB live in a 128 MiB old gen — 73% full with six users and no
+      # load at all. #489 has the numbers.
+      #
+      # MaxRAMPercentage over -Xmx so the heap follows the limit above if it is ever
+      # changed again. G1 is stated explicitly rather than left to the server-class
+      # heuristic, so a future limit change cannot silently drop back to SerialGC.
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=70
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -XX:+ExitOnOutOfMemoryError
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: shared-postgres
       DB_PORT: 5432
@@ -82,7 +95,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          # Was 768M, which the container sat at 81% of while idle with six users
+          # (623 MiB measured). More importantly it put the JVM below the 1792 MB
+          # threshold at which HotSpot classes a machine as "server", so it picked
+          # SerialGC — single-threaded and stop-the-world over the whole old gen,
+          # which on a WebSocket server means every connected socket freezes at once.
+          # See #489 for the measurements.
+          #
+          # The host has ~10 GB available and every other service here is well under
+          # its own limit, so this is headroom that already exists rather than a bet.
+          memory: 2G
 
   # Initialize MinIO bucket for Muhabbet media
   minio-init:
