@@ -151,7 +151,9 @@ class NotificationReplyReceiver : BroadcastReceiver() {
             .setColor(MuhabbetNotifications.accentColor(context))
             .setContentTitle(title)
             .setContentText(statusText)
-            .setGroup(MuhabbetNotifications.groupKey(conversationId))
+            // No setGroup: see MuhabbetFirebaseMessagingService for why the per-conversation group
+            // was retired. It applied here too — this always replaces the conversation's own single
+            // tray entry, never a sibling, so grouping it changed nothing.
             .setAutoCancel(true)
             .setContentIntent(
                 MuhabbetNotifications.openConversationIntent(context, conversationId, senderName)
