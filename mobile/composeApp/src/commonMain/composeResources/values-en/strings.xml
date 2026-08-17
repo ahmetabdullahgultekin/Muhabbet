@@ -507,6 +507,10 @@
     <string name="view_once_hint">The photo disappears after it is opened once</string>
     <string name="view_once_opened">Opened</string>
     <string name="view_once_tap_to_view">Tap to view</string>
+    <string name="view_once_not_opened_yet">Not opened yet</string>
+    <string name="view_once_already_opened">This photo has already been opened</string>
+    <string name="view_once_open_failed">The photo could not be opened</string>
+    <string name="view_once_offline">A view-once photo cannot be sent while offline</string>
     <string name="view_once_photo">Photo</string>
     <string name="view_once_video">Video</string>
 

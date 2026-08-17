@@ -43,10 +43,13 @@ class WebSocketMessageBroadcaster(
             content = message.content,
             contentType = com.muhabbet.shared.model.ContentType.valueOf(message.contentType.name),
             replyToId = message.replyToId?.toString(),
-            mediaUrl = message.mediaUrl,
-            thumbnailUrl = message.thumbnailUrl,
+            // Sealed on the wire, not in the UI: a view-once frame names the flag and withholds the
+            // blob URL, which is released once by POST /messages/{id}/view-once. See MessageMapper.
+            mediaUrl = if (message.viewOnce) null else message.mediaUrl,
+            thumbnailUrl = if (message.viewOnce) null else message.thumbnailUrl,
             serverTimestamp = message.serverTimestamp.toEpochMilli(),
-            forwardedFrom = message.forwardedFrom?.toString()
+            forwardedFrom = message.forwardedFrom?.toString(),
+            viewOnce = message.viewOnce
         )
 
         val json = wsJson.encodeToString<WsMessage>(wsMessage)

@@ -101,6 +101,36 @@ class BackupServiceTest {
     }
 
     @Test
+    fun `should archive a view-once message without its media url`() {
+        val conv = Conversation(type = ConversationType.DIRECT)
+        val sealed = message(conv.id, "Photo").copy(
+            mediaUrl = "https://cdn.example/sealed.jpg?X-Amz-Signature=deadbeef",
+            thumbnailUrl = "https://cdn.example/sealed-thumb.jpg?X-Amz-Signature=deadbeef",
+            viewOnce = true
+        )
+        every { conversationRepository.findConversationsByUserId(userId) } returns listOf(conv)
+        every { messageRepository.findByConversationId(conv.id, null, any()) } returns listOf(sealed)
+        every { messageRepository.findByConversationId(conv.id, match { it != null }, any()) } returns emptyList()
+
+        val bytesSlot = slot<ByteArray>()
+        every { archivePort.upload(eq(userId), any(), capture(bytesSlot), any(), any()) } answers {
+            BackupArchivePort.StoredArchive("backups/k", "https://minio.example/presigned")
+        }
+
+        service.createBackup(userId)
+
+        // The row still appears — a backup that silently loses messages is its own bug — but the
+        // presigned URL does not. It needs no credential, so archiving it would turn a backup into
+        // a way of keeping a view-once photo forever (#515).
+        val archiveJson = bytesSlot.captured.decodeToString()
+        assertTrue(archiveJson.contains("Photo"), "the message itself should still be archived")
+        assertTrue(
+            !archiveJson.contains("deadbeef"),
+            "a view-once blob url must not reach the archive"
+        )
+    }
+
+    @Test
     fun `should produce an empty archive when user has no conversations`() {
         every { conversationRepository.findConversationsByUserId(userId) } returns emptyList()
 

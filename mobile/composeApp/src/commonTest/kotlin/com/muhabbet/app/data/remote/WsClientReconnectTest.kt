@@ -199,6 +199,30 @@ class WsClientReconnectTest {
         }
     }
 
+    @Test
+    fun should_refuse_a_view_once_photo_rather_than_queue_it_unsealed() = runTest {
+        val ws = wsClient(backgroundScope)
+
+        // The offline queue has no `viewOnce` column, so `drainPendingMessages` rebuilds the frame
+        // with the flag at its default of false. Queueing a sealed photo therefore delivered it as
+        // an ordinary, permanent one on the next reconnect — #515 again, on the path where the user
+        // is least likely to be watching. It must fail instead, with a type distinct from
+        // MessageQueuedException so the caller removes the bubble and says so.
+        assertFailsWith<ViewOnceNotQueueableException> {
+            ws.send(
+                WsMessage.SendMessage(
+                    requestId = "req-vo",
+                    messageId = "msg-vo",
+                    conversationId = "conv-1",
+                    content = "Photo",
+                    contentType = ContentType.IMAGE,
+                    mediaUrl = "https://cdn.example/blob.jpg",
+                    viewOnce = true
+                )
+            )
+        }
+    }
+
     /**
      * The Activity-recreation path, from the UI's point of view rather than the socket's.
      *
