@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.dto.SendMessageRequest
 import com.muhabbet.shared.exception.BusinessException
@@ -166,6 +167,28 @@ class MessageControllerTest {
                 response.body?.data?.recipients?.first()?.displayName ==
                     TestData.USER_ID_2.toString().take(8)
             )
+        }
+
+        @Test
+        fun `should withhold the media url of a view-once message`() {
+            // "Info" is reachable from the context menu on any message, and it builds its response
+            // by hand rather than through toSharedMessage — so it was handing the full-resolution
+            // presigned URL of a sealed photo to every member of the conversation (#515).
+            val message = TestData.textMessage().copy(
+                contentType = ContentType.IMAGE,
+                mediaUrl = "https://cdn.example/blob?sig=abc",
+                thumbnailUrl = "https://cdn.example/thumb?sig=abc",
+                viewOnce = true
+            )
+
+            every {
+                getMessageHistoryUseCase.getMessageInfo(message.id, userId)
+            } returns MessageInfo(message = message, recipients = emptyList())
+
+            val response = controller.getMessageInfo(message.id)
+
+            assert(response.body?.data?.mediaUrl == null)
+            assert(response.body?.data?.thumbnailUrl == null)
         }
 
         @Test
@@ -353,12 +376,20 @@ class MessageControllerTest {
     inner class MarkViewOnceViewed {
 
         @Test
-        fun `should burn a view-once message through the use case port`() {
-            every { manageMessageUseCase.markViewOnceViewed(messageId, userId) } returns Unit
+        fun `should burn a view-once message through the use case port and return its media`() {
+            every { manageMessageUseCase.markViewOnceViewed(messageId, userId) } returns ViewOnceReveal(
+                messageId = messageId,
+                mediaUrl = "https://cdn.example/blob?sig=abc",
+                thumbnailUrl = "https://cdn.example/thumb?sig=abc",
+                viewedAt = java.time.Instant.ofEpochMilli(1_700_000_000_000)
+            )
 
             val response = controller.markViewOnceViewed(messageId)
 
             assert(response.statusCode.value() == 200)
+            val body = response.body?.data
+            assert(body?.mediaUrl == "https://cdn.example/blob?sig=abc")
+            assert(body?.viewedAt == 1_700_000_000_000)
             verify { manageMessageUseCase.markViewOnceViewed(messageId, userId) }
         }
 

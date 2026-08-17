@@ -503,6 +503,10 @@
     <string name="view_once_hint">Fotoğraf bir kez açıldıktan sonra kaybolur</string>
     <string name="view_once_opened">Açıldı</string>
     <string name="view_once_tap_to_view">Görüntülemek için dokunun</string>
+    <string name="view_once_not_opened_yet">Henüz açılmadı</string>
+    <string name="view_once_already_opened">Bu fotoğraf zaten açıldı</string>
+    <string name="view_once_open_failed">Fotoğraf açılamadı</string>
+    <string name="view_once_offline">Bir kez görüntülenecek fotoğraf çevrimdışıyken gönderilemez</string>
     <string name="view_once_photo">Fotoğraf</string>
     <string name="view_once_video">Video</string>
 

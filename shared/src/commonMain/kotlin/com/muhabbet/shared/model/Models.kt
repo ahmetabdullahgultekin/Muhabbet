@@ -95,7 +95,17 @@ data class Message(
     val forwardedFrom: String? = null,
     val reactions: Map<String, Int> = emptyMap(),
     val myReactions: Set<String> = emptySet(),
-    val viewOnce: Boolean = false
+    val viewOnce: Boolean = false,
+    /**
+     * Whether this view-once message has already been burned.
+     *
+     * Server-resolved, so "already opened" survives a scroll, a process death and a reinstall. The
+     * bubble used to keep this in a `remember`, which meant the refusal lasted exactly as long as
+     * the composition did — every way back into the chat offered the seal again.
+     *
+     * Meaningless unless [viewOnce] is true.
+     */
+    val viewOnceViewed: Boolean = false
 )
 
 @Serializable

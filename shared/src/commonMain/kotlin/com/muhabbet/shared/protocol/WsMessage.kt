@@ -124,7 +124,17 @@ sealed class WsMessage {
 
     // ─── Server → Client ─────────────────────────────────
 
-    /** Server delivers a new message to recipient */
+    /**
+     * Server delivers a new message to recipient.
+     *
+     * [viewOnce] exists because without it the live path could not seal anything: the recipient
+     * builds their bubble from this frame, and a frame that does not mention view-once produces an
+     * ordinary photo bubble. The flag reached the database and stopped there (#515).
+     *
+     * For a view-once message [mediaUrl] and [thumbnailUrl] are **null on purpose**. The blob URL is
+     * released once, by `POST /api/v1/messages/{id}/view-once`, to the member who opens it. Shipping
+     * it here would mean the seal only ever hid a URL the recipient already held.
+     */
     @Serializable
     @SerialName("message.new")
     data class NewMessage(
@@ -138,7 +148,8 @@ sealed class WsMessage {
         val mediaUrl: String? = null,
         val thumbnailUrl: String? = null,
         val serverTimestamp: Long,           // epoch millis
-        val forwardedFrom: String? = null
+        val forwardedFrom: String? = null,
+        val viewOnce: Boolean = false
     ) : WsMessage()
 
     /** Server notifies sender about delivery status change */
