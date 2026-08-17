@@ -206,9 +206,13 @@ class AppConfig {
 
     @Bean
     fun statusService(
-        statusRepository: StatusRepository
+        statusRepository: StatusRepository,
+        conversationRepository: ConversationRepository,
+        userDirectory: UserDirectoryPort
     ): StatusService = StatusService(
-        statusRepository = statusRepository
+        statusRepository = statusRepository,
+        conversationRepository = conversationRepository,
+        userDirectory = userDirectory
     )
 
     @Bean

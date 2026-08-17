@@ -4,6 +4,8 @@
     <string name="app_name">Muhabbet</string>
     <string name="chat_default_name">Sohbet</string>
     <string name="unknown">Bilinmeyen</string>
+    <!-- Label for a person whose name we genuinely do not have. Never render a user id instead. -->
+    <string name="unknown_person">Bilinmeyen kişi</string>
     <string name="error_generic">Bir hata oluştu</string>
     <string name="error_network">Bağlantı hatası. Lütfen tekrar deneyin.</string>
     <string name="error_load_conversations">Konuşmalar yüklenemedi</string>

@@ -67,6 +67,7 @@ import com.muhabbet.composeapp.generated.resources.status_no_statuses
 import com.muhabbet.composeapp.generated.resources.status_placeholder
 import com.muhabbet.composeapp.generated.resources.status_post
 import com.muhabbet.composeapp.generated.resources.status_post_failed
+import com.muhabbet.composeapp.generated.resources.unknown_person
 import com.muhabbet.composeapp.generated.resources.updates_recent
 import com.muhabbet.composeapp.generated.resources.updates_status_meta
 import com.muhabbet.composeapp.generated.resources.updates_title
@@ -128,6 +129,7 @@ fun UpdatesTabScreen(
     val statusPostFailed = stringResource(Res.string.status_post_failed)
     val retryLabel = stringResource(Res.string.action_retry)
     val settingsTitle = stringResource(Res.string.settings_title)
+    val unknownPersonLabel = stringResource(Res.string.unknown_person)
 
     suspend fun loadUpdates() {
         isLoading = true
@@ -143,18 +145,21 @@ fun UpdatesTabScreen(
             errorMessage = loadFailed
         }
 
-        // Separate from the load above, and deliberately absorbed. This call only supplies names and
+        // Separate from the load above, and deliberately absorbed. This call only refines names and
         // avatars for statuses that have already arrived; sharing one catch meant a failure here
         // replaced a perfectly good Updates tab with a full-screen "statuses could not be loaded".
-        // Without it the rows fall back to a truncated user id, which is a cosmetic loss.
+        // Since #507 the server sends the author's name on the group itself, so a failure here
+        // costs nothing at all — it only means a locally-known name does not override it.
         runCatchingCancellable {
             val participants = conversationRepository.getConversations().items
                 .flatMap { it.participants }
                 .associateBy { it.userId }
 
-            displayNameByUserId = participants.mapValues { (_, participant) ->
-                participant.displayName ?: participant.phoneNumber ?: participant.userId.take(8)
-            }
+            // No user-id fallback: a participant we cannot name contributes no entry, so the
+            // caller falls through to the server's name and then to a plain "unknown contact".
+            displayNameByUserId = participants.mapNotNull { (id, participant) ->
+                (participant.displayName ?: participant.phoneNumber)?.let { id to it }
+            }.toMap()
             avatarByUserId = participants.mapValues { (_, participant) -> participant.avatarUrl }
         }.onFailure { e -> Log.w(TAG, "Status author names unavailable: ${e.message}") }
         isLoading = false
@@ -367,8 +372,14 @@ fun UpdatesTabScreen(
                         }
 
                         items(statusGroups, key = { it.userId }) { group ->
-                            val displayName = displayNameByUserId[group.userId] ?: group.userId.take(8)
-                            val avatarUrl = avatarByUserId[group.userId]
+                            // A locally-known name wins (it may be the address-book name), then the
+                            // name the server resolved, and finally a plain label. Never the user
+                            // id: its first eight characters read as a hex hash, which is what #507
+                            // reported as a leaked phone hash.
+                            val displayName = displayNameByUserId[group.userId]
+                                ?: group.displayName
+                                ?: unknownPersonLabel
+                            val avatarUrl = avatarByUserId[group.userId] ?: group.avatarUrl
                             val latestStatusTime = group.statuses.maxOfOrNull { it.createdAt } ?: 0L
                             val meta = stringResource(
                                 Res.string.updates_status_meta,

@@ -247,7 +247,14 @@ data class StatusResponse(
 @Serializable
 data class UserStatusGroup(
     val userId: String,
-    val statuses: List<StatusResponse>
+    val statuses: List<StatusResponse>,
+    /**
+     * The author's name and avatar, resolved server-side. Present so the client never has to
+     * invent a label from [userId] — rendering its first eight characters produced the hex string
+     * reported as a phone hash in #507.
+     */
+    val displayName: String? = null,
+    val avatarUrl: String? = null
 )
 
 // ─── Channel DTOs ───────────────────────────────────────

@@ -109,6 +109,7 @@ internal fun ConversationStatusRow(
     onAddStatus: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit
 ) {
+    val unknownPersonLabel = stringResource(Res.string.unknown_person)
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
@@ -149,7 +150,12 @@ internal fun ConversationStatusRow(
             val group = statusGroups[index]
             val participant = conversations.flatMap { it.participants }
                 .firstOrNull { it.userId == group.userId }
-            val displayName = participant?.displayName ?: participant?.phoneNumber ?: group.userId.take(8)
+            // Same order as the Updates tab, and the same prohibition: never the user id, whose
+            // first eight characters read as a hex hash (#507).
+            val displayName = participant?.displayName
+                ?: participant?.phoneNumber
+                ?: group.displayName
+                ?: unknownPersonLabel
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.width(64.dp).clickable { onStatusClick(group.userId, displayName) }

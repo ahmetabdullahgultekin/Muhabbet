@@ -84,6 +84,8 @@ fun StarredMessagesScreen(
     }
 
     val youLabel = stringResource(Res.string.starred_you)
+    // A user id is not a name — its first eight characters read as a hex hash (#507).
+    val unknownPersonLabel = stringResource(Res.string.unknown_person)
 
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
@@ -128,7 +130,7 @@ fun StarredMessagesScreen(
                         val isOwn = message.senderId == currentUserId
                         StarredMessageItem(
                             message = message,
-                            senderLabel = if (isOwn) youLabel else message.senderId.take(8),
+                            senderLabel = if (isOwn) youLabel else unknownPersonLabel,
                             onClick = { onNavigateToConversation?.invoke(message.conversationId, message.id) }
                         )
                         HorizontalDivider()
