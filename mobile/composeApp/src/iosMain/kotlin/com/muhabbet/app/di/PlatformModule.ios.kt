@@ -115,6 +115,26 @@ class IosTokenStorage : TokenStorage {
         defaults.setObject(timestamp, forKey = "last_sync_timestamp")
     }
 
+    // Keychain, not NSUserDefaults: same reasoning as AndroidTokenStorage's encrypted prefs — App
+    // Lock (#378) is a security setting, so it belongs alongside the tokens rather than the
+    // cosmetic prefs below. `clear()` already deletes every key this instance ever saved
+    // (`listOf("access_token", ...).forEach { keychain.delete(it) }` above does NOT cover these two
+    // keys, so unlike Android they intentionally survive logout here — there is no capability check
+    // wired on iOS yet (see AppLockAuthenticator.ios.kt), so `getAppLockEnabled()` cannot currently
+    // be turned on from `AppLockScreen` in the first place; these accessors exist so persistence is
+    // ready the day the iOS mechanism lands, not because anything can set them to `true` today.
+    override fun getAppLockEnabled(): Boolean = keychain.load("app_lock_enabled") == "true"
+
+    override fun setAppLockEnabled(enabled: Boolean) {
+        keychain.save("app_lock_enabled", if (enabled) "true" else "false")
+    }
+
+    override fun getAppLockTimeout(): String? = keychain.load("app_lock_timeout")
+
+    override fun setAppLockTimeout(timeout: String) {
+        keychain.save("app_lock_timeout", timeout)
+    }
+
     override fun getWallpaperType(): String? = defaults.stringForKey("wallpaper_type")
 
     override fun setWallpaperType(type: String) {

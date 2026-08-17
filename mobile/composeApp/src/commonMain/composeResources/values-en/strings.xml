@@ -576,6 +576,11 @@
     <string name="app_lock_immediately">Immediately</string>
     <string name="app_lock_1_minute">After 1 minute</string>
     <string name="app_lock_30_minutes">After 30 minutes</string>
+    <string name="app_lock_unavailable">To use App Lock, your device needs a fingerprint, face unlock, or screen lock (PIN/pattern/password) set up.</string>
+    <string name="app_lock_locked_title">Muhabbet is Locked</string>
+    <string name="app_lock_locked_subtitle">Verify your identity to see your chats</string>
+    <string name="app_lock_unlock_action">Unlock</string>
+    <string name="app_lock_auth_failed">Authentication failed. Try again.</string>
     <string name="chat_lock">Lock chat</string>
     <string name="chat_unlock">Unlock chat</string>
     <string name="locked_chats">Locked Chats</string>

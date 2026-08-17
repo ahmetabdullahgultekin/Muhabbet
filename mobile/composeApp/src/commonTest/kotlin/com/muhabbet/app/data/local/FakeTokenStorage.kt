@@ -79,4 +79,12 @@ class FakeTokenStorage : TokenStorage {
     private var notificationPermissionAsked: Boolean = false
     override fun getNotificationPermissionAsked(): Boolean = notificationPermissionAsked
     override fun setNotificationPermissionAsked() { notificationPermissionAsked = true }
+
+    private var appLockEnabled: Boolean = false
+    override fun getAppLockEnabled(): Boolean = appLockEnabled
+    override fun setAppLockEnabled(enabled: Boolean) { appLockEnabled = enabled }
+
+    private var appLockTimeout: String? = null
+    override fun getAppLockTimeout(): String? = appLockTimeout
+    override fun setAppLockTimeout(timeout: String) { appLockTimeout = timeout }
 }

@@ -3,7 +3,6 @@ package com.muhabbet.app
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,6 +12,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.fragment.app.FragmentActivity
 import com.arkivanov.decompose.defaultComponentContext
 import com.muhabbet.app.di.androidPlatformModule
 import com.muhabbet.app.di.bootstrapOrReuseKoin
@@ -21,7 +21,14 @@ import com.muhabbet.app.navigation.PendingChatOpen
 import com.muhabbet.app.platform.MuhabbetNotifications
 import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+/**
+ * `FragmentActivity`, not the bare `ComponentActivity` this was before App Lock (#378):
+ * `androidx.biometric.BiometricPrompt` hosts a headless Fragment internally to survive
+ * configuration changes, and requires a `FragmentActivity` (or `Fragment`) host to attach it to —
+ * see `AppLockAuthenticator.android.kt`. `FragmentActivity` extends `ComponentActivity`, so
+ * `setContent`, `enableEdgeToEdge`, `defaultComponentContext()` and everything below are unaffected.
+ */
+class MainActivity : FragmentActivity() {
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         // Fully transparent bars, with the framework's own contrast scrim disabled, so the app

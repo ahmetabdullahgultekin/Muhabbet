@@ -593,6 +593,11 @@
     <string name="app_lock_immediately">Hemen</string>
     <string name="app_lock_1_minute">1 dakika sonra</string>
     <string name="app_lock_30_minutes">30 dakika sonra</string>
+    <string name="app_lock_unavailable">Uygulama kilidini kullanmak için cihazınızda parmak izi, yüz tanıma veya ekran kilidi (PIN/desen/şifre) kurulu olmalı.</string>
+    <string name="app_lock_locked_title">Muhabbet Kilitli</string>
+    <string name="app_lock_locked_subtitle">Sohbetlerinizi görmek için kimliğinizi doğrulayın</string>
+    <string name="app_lock_unlock_action">Kilidi Aç</string>
+    <string name="app_lock_auth_failed">Doğrulama başarısız oldu. Tekrar deneyin.</string>
     <string name="chat_lock">Sohbeti kilitle</string>
     <string name="chat_unlock">Sohbet kilidini aç</string>
     <string name="locked_chats">Kilitli Sohbetler</string>
