@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -42,8 +43,10 @@ import com.muhabbet.app.data.repository.WallpaperRepository
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberWallpaperImageSaver
 import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.theme.LocalThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.ResolvedThemeMode
 import com.muhabbet.designsystem.theme.readableContentOn
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -71,6 +74,11 @@ fun WallpaperPickerScreen(
     var selectedColor by remember { mutableStateOf(wallpaperRepository.getSolidColor()) }
     var darkModeEnabled by remember { mutableStateOf(wallpaperRepository.getDarkModeWallpaperEnabled()) }
     var customWallpaperSet by remember { mutableStateOf(wallpaperRepository.getCustomPath() != null) }
+
+    // The same question ChatWallpaper asks, asked the same way: OLED is a dark theme, not a third
+    // thing. Both sides of the wallpaper feature must agree on that or the picker would explain a
+    // suppression the chat is not doing, or stay silent about one it is.
+    val isDarkTheme = LocalThemeMode.current != ResolvedThemeMode.Light
 
     // Gallery picker: on result, copy the bytes into app-private storage and persist THAT path —
     // img.fileName alone is just a label the picker made up, not a location the chat screen could
@@ -226,22 +234,53 @@ fun WallpaperPickerScreen(
 
             Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-            // Dark mode wallpaper toggle
+            // Dark mode wallpaper toggle.
+            //
+            // Off means the chosen wallpaper is not painted in the dark or OLED themes at all — see
+            // WallpaperRepository.resolveWallpaper. That is the switch's actual effect and the row
+            // never said it, so a user who picked a wallpaper and then switched to OLED watched it
+            // vanish with nothing on any screen to connect the two (#548). The subtitle states it,
+            // and the notice below fires when it is happening right now.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = stringResource(Res.string.wallpaper_dark_mode),
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(Res.string.wallpaper_dark_mode),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = stringResource(Res.string.wallpaper_dark_mode_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(MuhabbetSpacing.Medium))
                 MuhabbetSwitch(
                     checked = darkModeEnabled,
                     onCheckedChange = {
                         darkModeEnabled = it
                         wallpaperRepository.setDarkModeWallpaperEnabled(it)
                     }
+                )
+            }
+
+            // Keyed on every piece of state the answer depends on, including the ones the pickers
+            // above write straight through to storage: without them the notice would go on claiming
+            // the wallpaper is hidden after the user had removed it.
+            val selectionHidden = remember(
+                isDarkTheme, darkModeEnabled, selectedType, selectedColor, customWallpaperSet
+            ) {
+                wallpaperRepository.isSelectionHiddenByDarkTheme(isDarkTheme)
+            }
+            if (selectionHidden) {
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+                Text(
+                    text = stringResource(Res.string.wallpaper_hidden_in_dark_theme),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
 

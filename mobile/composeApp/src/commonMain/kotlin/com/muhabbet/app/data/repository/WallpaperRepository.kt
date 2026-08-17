@@ -78,4 +78,21 @@ class WallpaperRepository(
             else -> ChatWallpaper.Default
         }
     }
+
+    /**
+     * Whether there is a chosen wallpaper that [resolveWallpaper] is currently refusing to paint.
+     *
+     * The suppression above is deliberate and, since #548, is the whole of the "the wallpaper
+     * disappeared when I switched to OLED" report: OLED is a dark theme, the dark-mode toggle
+     * defaults to off, so the selection is dropped. Nothing said so. The picker went on showing the
+     * chosen swatch as chosen while the chat painted the theme default, which is the same shape of
+     * defect as a language radio naming a language the app is not rendering.
+     *
+     * Derived from [resolveWallpaper] rather than re-reading the three fields, so the answer here
+     * and the pixels on the chat cannot drift: this is true exactly when a selection exists and the
+     * dark-theme branch is what removed it.
+     */
+    fun isSelectionHiddenByDarkTheme(isDarkTheme: Boolean): Boolean =
+        resolveWallpaper(isDarkTheme) == ChatWallpaper.Default &&
+            resolveWallpaper(isDarkTheme = false) != ChatWallpaper.Default
 }
