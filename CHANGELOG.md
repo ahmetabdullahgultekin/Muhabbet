@@ -8,7 +8,34 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+## [0.3.8] — 2026-08-17
+
+**0.3.7 crashed on launch for every user. Do not install it.** This release exists to undo that, and
+carries the two fixes that were already queued behind it.
+
+### Fixed
+- **The app would not start** (#633). `WsClient`'s `localCache` parameter was narrowed to the
+  `PendingMessageCache` interface in #578/#579 and `AppModule` still resolved it with a bare `get()`
+  — Koin resolves by the parameter's declared type, nothing registers that interface, so the app
+  threw `NoDefinitionFoundException` the first time it injected `WsClient`, which is at launch. The
+  same hazard was already documented two definitions below, for `ConversationRepository`.
+- **The 15-minute edit window was invisible in the app** (#597), so the only way to learn it was to
+  retype a message and be told "mesaj gönderilemedi" — which was wrong twice over, since nothing was
+  being sent and that was not the reason. The rule now lives in `ValidationRules` and both halves
+  read it; past the window the menu item is disabled and says why.
+- **The read-receipts switch described WhatsApp's rule, and ours is the opposite** (#620). It said
+  turning receipts off costs you the ability to see others'. It does not: the setting gates only
+  your own published receipt. The app had been talking users out of a setting by inventing a cost.
+
+### Process
+- `CLAUDE.md` now separates the **Windows dev machine** (which has a working emulator) from the
+  **Hetzner CI host** (which cannot have one), and states the rule that would have stopped 0.3.7:
+  no Play release without installing the built APK on the emulator and launching it. A green CI
+  build proves the app compiles; it proves nothing about whether it starts.
+
 ## [0.3.7] — 2026-08-17
+
+> **Withdrawn — crashes on launch (#633).** Superseded by 0.3.8.
 
 A release driven almost entirely by one afternoon of the owner using the app on a real phone. Every
 item below has an issue behind it with the evidence; the fixes that are **not** device-verified say
