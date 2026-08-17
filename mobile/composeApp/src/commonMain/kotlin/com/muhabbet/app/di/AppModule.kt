@@ -90,6 +90,10 @@ fun appModule(): Module = module {
     // How a screen holding only a conversation id gets the name, avatar and participants that go
     // with it (#543). Narrower than KnownPeopleSource on purpose — see that class's note.
     single { ConversationDirectory(conversationRepository = get()) }
+    // The parking space between a tapped notification and the navigation that can act on it. A
+    // singleton because the two ends are in different worlds: the Activity writes into it, a
+    // composable that may not exist yet reads out of it (#594).
+    single { com.muhabbet.app.navigation.PendingChatOpen() }
     // localCache resolved as LocalCache explicitly, for the same reason ConversationRepository is:
     // the parameter's type is the narrower MessageCache interface, which nothing registers, and
     // Koin resolves get() by the parameter type — left implicit this fails at startup, not at
