@@ -422,11 +422,23 @@ data class PaginatedResponse<T>(
 )
 
 // ─── Two-Step Verification DTOs ─────────────────────────
+// Both sides use these. The backend used to declare its own private copies in
+// TwoStepVerificationController, which is how the client came to POST a body the server never
+// served (#544) — two declarations cannot disagree if there is only one.
 @Serializable
 data class SetupTwoStepRequest(val pin: String, val email: String? = null)
 
 @Serializable
 data class VerifyTwoStepRequest(val pin: String)
+
+/**
+ * Turning two-step verification off requires the PIN that turned it on.
+ *
+ * The client sent no body at all, so `DELETE /api/v1/auth/two-step` answered 400 for every caller
+ * and two-step could never be switched off once on (#544).
+ */
+@Serializable
+data class DisableTwoStepRequest(val currentPin: String)
 
 @Serializable
 data class TwoStepStatusResponse(val enabled: Boolean, val hasEmail: Boolean = false)

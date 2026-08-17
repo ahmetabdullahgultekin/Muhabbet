@@ -21,6 +21,7 @@ import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.data.repository.PhoneNumberLookup
 import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.data.repository.StatusRepository
+import com.muhabbet.app.data.repository.TwoStepRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -107,6 +108,7 @@ fun appModule(): Module = module {
     single { CommunityRepository(apiClient = get()) }
     single { BroadcastListRepository(apiClient = get()) }
     single { InviteLinkRepository(apiClient = get()) }
+    single { TwoStepRepository(apiClient = get()) }
     single { WallpaperRepository(tokenStorage = get()) }
     // Read at the composition root, above MuhabbetTheme — see App.kt.
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }

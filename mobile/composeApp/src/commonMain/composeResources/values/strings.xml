@@ -511,6 +511,14 @@
     <string name="two_step_enabled">İki adımlı doğrulama etkin</string>
     <string name="two_step_pin_mismatch">PIN'ler eşleşmiyor</string>
     <string name="two_step_pin_length">PIN 6 haneli olmalıdır</string>
+    <string name="two_step_disabled">İki adımlı doğrulama kapatıldı</string>
+    <string name="two_step_current_pin">Mevcut PIN</string>
+    <string name="two_step_status_unavailable">İki adımlı doğrulamanın açık mı kapalı mı olduğu öğrenilemedi</string>
+    <string name="two_step_not_enforced_note">Not: PIN şimdilik yalnızca kaydediliyor, girişte henüz sorulmuyor.</string>
+    <string name="two_step_error_already_enabled">İki adımlı doğrulama zaten açık</string>
+    <string name="two_step_error_pin_invalid">PIN doğru değil</string>
+    <string name="two_step_error_not_enabled">İki adımlı doğrulama açık değil</string>
+    <string name="two_step_error_session_expired">Oturumunuzun süresi dolmuş. Çıkıp yeniden girin.</string>
 
     <!-- Mute Duration -->
     <string name="mute_8_hours">8 saat</string>
