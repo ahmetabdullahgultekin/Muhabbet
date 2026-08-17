@@ -1,13 +1,11 @@
 package com.muhabbet.messaging.adapter.out
 
-import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.adapter.out.external.OfflinePushSender
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
-import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
-import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import io.mockk.every
@@ -31,19 +29,15 @@ import java.util.UUID
 class WebSocketMessageBroadcasterViewOnceTest {
 
     private val sessionManager: WebSocketSessionManager = mockk(relaxed = true)
-    private val deviceRepository: DeviceRepository = mockk(relaxed = true)
-    private val pushNotificationPort: PushNotificationPort = mockk(relaxed = true)
     private val userDirectory: UserDirectoryPort = mockk(relaxed = true)
     private val conversationRepository: ConversationRepository = mockk(relaxed = true)
-    private val pushComposer: PushNotificationComposer = mockk(relaxed = true)
+    private val offlinePushSender: OfflinePushSender = mockk(relaxed = true)
 
     private val broadcaster = WebSocketMessageBroadcaster(
         sessionManager = sessionManager,
-        deviceRepository = deviceRepository,
-        pushNotificationPort = pushNotificationPort,
         userDirectory = userDirectory,
         conversationRepository = conversationRepository,
-        pushComposer = pushComposer
+        offlinePushSender = offlinePushSender
     )
 
     private fun photo(viewOnce: Boolean) = Message(

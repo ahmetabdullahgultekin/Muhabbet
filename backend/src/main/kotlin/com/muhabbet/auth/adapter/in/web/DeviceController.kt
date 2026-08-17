@@ -21,7 +21,7 @@ class DeviceController(
     fun registerPushToken(@RequestBody request: RegisterPushTokenRequest): ResponseEntity<ApiResponse<Nothing>> {
         val userId = AuthenticatedUser.currentUserId()
         val deviceId = AuthenticatedUser.currentDeviceId()
-        registerPushTokenUseCase.registerPushToken(userId, deviceId, request.pushToken)
+        registerPushTokenUseCase.registerPushToken(userId, deviceId, request.pushToken, request.locale)
         return ApiResponseBuilder.noContent()
     }
 }

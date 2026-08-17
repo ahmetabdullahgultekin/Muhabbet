@@ -1,0 +1,249 @@
+/*
+ * Muhabbet — web
+ *
+ * The palette is the app's, taken from mobile/designsystem/.../MuhabbetPalette.kt: the Ink ramp for
+ * surfaces and text, Copper for the accent. Kept in sync by hand rather than generated, because the
+ * site uses six of the app's forty-odd tokens and a generator would be more machinery than the
+ * problem deserves. If the app's copper changes, change it here.
+ *
+ * No web fonts. Manrope is the app's typeface, but a font file is a request to a third party or a
+ * megabyte of self-hosted binary, and this is a site whose whole point is that it does not watch
+ * you. The system stack is honest and instant.
+ */
+
+:root {
+  --ink-05: #12100e;
+  --ink-10: #1c1917;
+  --ink-20: #322d2a;
+  --ink-40: #5c534e;
+  --ink-50: #7a6f68;
+  --ink-80: #dad1c9;
+  --ink-90: #efe9e3;
+  --ink-95: #f7f3ef;
+  --ink-99: #fdfbf9;
+
+  --copper-30: #6b3b10;
+  --copper-40: #8a4e17;
+  --copper-60: #c9752c;
+  --copper-70: #e08a3c;
+  --copper-90: #f8cfa6;
+
+  --bg: var(--ink-99);
+  --surface: #ffffff;
+  --surface-alt: var(--ink-95);
+  --text: var(--ink-10);
+  --text-muted: var(--ink-40);
+  --accent: var(--copper-40);
+  --accent-quiet: var(--copper-30);
+  --border: var(--ink-80);
+  --note-bg: #fdf6ee;
+  --note-border: var(--copper-60);
+
+  --measure: 68ch;
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--ink-05);
+    --surface: var(--ink-10);
+    --surface-alt: var(--ink-15, #262220);
+    --text: #f5f1ec;
+    --text-muted: #bdb0a6;
+    --accent: var(--copper-70);
+    --accent-quiet: var(--copper-90);
+    --border: var(--ink-20);
+    --note-bg: #241a10;
+    --note-border: var(--copper-60);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 0 20px; }
+
+/* ── header ─────────────────────────────────────────────────────────── */
+
+header.site {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+header.site .wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 60px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.brand .mark {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(140deg, var(--copper-70), var(--copper-30));
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+header.site nav { margin-inline-start: auto; display: flex; gap: 18px; flex-wrap: wrap; }
+header.site nav a { color: var(--text-muted); text-decoration: none; font-size: 0.94rem; }
+header.site nav a:hover, header.site nav a:focus-visible { color: var(--accent); }
+header.site nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+/* ── hero ───────────────────────────────────────────────────────────── */
+
+.hero { padding: 72px 0 56px; }
+.hero h1 {
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  margin: 0 0 18px;
+}
+.hero .lede { font-size: 1.15rem; color: var(--text-muted); margin: 0 0 28px; }
+
+.cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+.btn {
+  display: inline-block;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.98rem;
+  border: 1px solid transparent;
+  min-height: 44px;           /* the app's touch-target floor, and the WCAG one */
+  line-height: 1.5;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover, .btn-primary:focus-visible { background: var(--accent-quiet); color: #fff; }
+@media (prefers-color-scheme: dark) { .btn-primary { color: var(--ink-05); } .btn-primary:hover { color: var(--ink-05); } }
+.btn-quiet { border-color: var(--border); color: var(--text); }
+.btn-quiet:hover, .btn-quiet:focus-visible { border-color: var(--accent); color: var(--accent); }
+
+/* ── content ────────────────────────────────────────────────────────── */
+
+main { padding-bottom: 72px; }
+
+h2 {
+  font-size: 1.45rem;
+  letter-spacing: -0.015em;
+  margin: 44px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+h3 { font-size: 1.1rem; margin: 30px 0 10px; }
+
+p, li { max-width: var(--measure); }
+a { color: var(--accent); }
+a:hover, a:focus-visible { color: var(--accent-quiet); }
+
+ul, ol { padding-inline-start: 22px; }
+li { margin: 7px 0; }
+
+.muted { color: var(--text-muted); }
+.small { font-size: 0.92rem; }
+
+/* A claim the reader should not skim past. Used for the honest bits, not for decoration. */
+.note {
+  background: var(--note-bg);
+  border-inline-start: 4px solid var(--note-border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 16px 20px;
+  margin: 22px 0;
+}
+.note strong { color: var(--accent-quiet); }
+@media (prefers-color-scheme: dark) { .note strong { color: var(--copper-90); } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin: 16px 0;
+}
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.grid .card { margin: 0; }
+.card h3 { margin-top: 0; }
+
+/* Wide content scrolls inside its own box; the page never scrolls sideways. */
+.scroll-x { overflow-x: auto; margin: 18px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-weight: 600; white-space: nowrap; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--surface-alt);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+hr.section { border: none; border-top: 1px solid var(--border); margin: 56px 0; }
+
+.lang-bar { display: flex; gap: 10px; margin: 24px 0 0; }
+.lang-bar a {
+  font-size: 0.9rem;
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+.lang-bar a:hover { border-color: var(--accent); color: var(--accent); }
+
+.updated { color: var(--text-muted); font-size: 0.93rem; margin-top: 4px; }
+
+/* ── footer ─────────────────────────────────────────────────────────── */
+
+footer.site {
+  border-top: 1px solid var(--border);
+  padding: 32px 0 48px;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+footer.site a { color: var(--text-muted); }
+footer.site a:hover { color: var(--accent); }
+footer.site .links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* Skip link — the first thing in the tab order, invisible until focused. */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 0 0 var(--radius) 0;
+  z-index: 100;
+}
+.skip:focus { left: 0; }
+
+:focus-visible { outline: 3px solid var(--copper-60); outline-offset: 2px; border-radius: 4px; }

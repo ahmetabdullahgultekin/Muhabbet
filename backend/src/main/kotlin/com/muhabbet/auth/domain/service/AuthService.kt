@@ -1,6 +1,7 @@
 package com.muhabbet.auth.domain.service
 
 import com.muhabbet.auth.domain.model.Device
+import com.muhabbet.auth.domain.model.normalizeDeviceLocale
 import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
@@ -346,12 +347,16 @@ open class AuthService(
     }
 
     @Transactional
-    override fun registerPushToken(userId: UUID, deviceId: UUID, pushToken: String) {
+    override fun registerPushToken(userId: UUID, deviceId: UUID, pushToken: String, locale: String?) {
         val devices = deviceRepository.findByUserId(userId)
         val device = devices.find { it.id == deviceId }
             ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Cihaz bulunamadı")
-        deviceRepository.save(device.copy(pushToken = pushToken))
-        log.info("Push token registered: userId={}, deviceId={}", userId, deviceId)
+        // An unusable or absent tag keeps what the device registered last rather than clearing it:
+        // the token rotation callback on the client has no language to report, and losing the
+        // language every time Firebase rotates a token would put the device back on the fallback.
+        val resolvedLocale = normalizeDeviceLocale(locale) ?: device.locale
+        deviceRepository.save(device.copy(pushToken = pushToken, locale = resolvedLocale))
+        log.info("Push token registered: userId={}, deviceId={}, locale={}", userId, deviceId, resolvedLocale)
     }
 
     @Transactional

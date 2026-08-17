@@ -106,6 +106,49 @@ services:
           # its own limit, so this is headroom that already exists rather than a bet.
           memory: 2G
 
+  # The public site: landing page, privacy policy, terms.
+  #
+  # This host had no Traefik router at all, so `muhabbet.rollingcatsoftware.com` resolved to this
+  # box, presented Traefik's self-signed DEFAULT CERT, and answered 404 behind it (#340). Anyone
+  # tapping "Gizlilik Politikası" met a browser security warning — the worst possible first
+  # impression for an app whose selling point is privacy, and a hard blocker for a public Play
+  # release, which requires a reachable privacy policy URL.
+  #
+  # A router is all it takes: with one declared, Traefik requests a real Let's Encrypt certificate
+  # for the name on first hit.
+  #
+  # nginx:alpine serving a read-only bind mount. No build step, nothing to keep in sync — the files
+  # under docs/site/ are the site, and a `git pull` on this box updates it.
+  muhabbet-site:
+    image: nginx:1.29-alpine
+    container_name: muhabbet-site
+    restart: unless-stopped
+    volumes:
+      - ./docs/site:/usr/share/nginx/html:ro
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/index.html || exit 1"]
+      interval: 60s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.muhabbet-site.rule=Host(`muhabbet.rollingcatsoftware.com`)"
+      - "traefik.http.routers.muhabbet-site.entrypoints=websecure"
+      - "traefik.http.routers.muhabbet-site.tls.certresolver=letsencrypt"
+      # Same middleware the API uses: HSTS, X-Frame-Options, CSP and friends. A static site is
+      # exactly where those are cheapest to get right, and the policy page is a document people are
+      # asked to trust.
+      - "traefik.http.routers.muhabbet-site.middlewares=secure-headers@file"
+      - "traefik.http.services.muhabbet-site.loadbalancer.server.port=80"
+    deploy:
+      resources:
+        limits:
+          # It serves four files. 64M is already generous for nginx with no upstream.
+          memory: 64M
+
   # Initialize MinIO bucket for Muhabbet media
   minio-init:
     image: minio/mc:latest

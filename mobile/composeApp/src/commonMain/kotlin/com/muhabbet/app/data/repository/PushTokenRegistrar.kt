@@ -29,8 +29,14 @@ class PushTokenRegistrar(
      * @param knownToken the token if the caller already has it (`onNewToken` receives one
      * directly), which skips a redundant round trip through [PushTokenProvider]. Left null to
      * fetch the current token instead.
+     * @param languageTag the language the app is **rendering**, which App.kt reads out of
+     * `strings.xml` itself. Notification text is composed on the server, so without this the server
+     * has no way to know it and falls back to Turkish for everyone (#469). Left null by
+     * `onNewToken`, which runs in a service with no composition and possibly before the app has
+     * ever started in this process; the saved preference then answers, and if there is none the
+     * server keeps whatever this device last registered.
      */
-    suspend fun registerIfLoggedIn(knownToken: String? = null) {
+    suspend fun registerIfLoggedIn(knownToken: String? = null, languageTag: String? = null) {
         if (!tokenStorage.isLoggedIn()) return
         try {
             val token = knownToken ?: pushTokenProvider.getToken()
@@ -38,8 +44,10 @@ class PushTokenRegistrar(
                 Log.w(TAG, "Push token unavailable: FCM returned null")
                 return
             }
-            authRepository.registerPushToken(token)
-            Log.d(TAG, "Push token registered: ${token.take(10)}...")
+            val language = languageTag?.takeIf { it.isNotBlank() }
+                ?: tokenStorage.getLanguage()?.takeIf { it.isNotBlank() }
+            authRepository.registerPushToken(token, language)
+            Log.d(TAG, "Push token registered: ${token.take(10)}..., language=$language")
         } catch (e: Exception) {
             Log.e(TAG, "Push token registration failed: ${e.message}")
         }

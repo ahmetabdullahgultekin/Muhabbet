@@ -34,26 +34,41 @@ class DeviceControllerTest {
         @Test
         fun `should register FCM push token`() {
             val token = "fcm-token-abc123xyz"
-            every { registerPushTokenUseCase.registerPushToken(userId, deviceId, token) } returns Unit
+            every { registerPushTokenUseCase.registerPushToken(userId, deviceId, token, null) } returns Unit
 
             val response = controller.registerPushToken(
                 com.muhabbet.shared.dto.RegisterPushTokenRequest(pushToken = token)
             )
 
             assert(response.statusCode.value() == 200)
-            verify { registerPushTokenUseCase.registerPushToken(userId, deviceId, token) }
+            verify { registerPushTokenUseCase.registerPushToken(userId, deviceId, token, null) }
         }
 
         @Test
         fun `should handle token update for same device`() {
             val newToken = "fcm-new-token-456"
-            every { registerPushTokenUseCase.registerPushToken(userId, deviceId, newToken) } returns Unit
+            every { registerPushTokenUseCase.registerPushToken(userId, deviceId, newToken, null) } returns Unit
 
             val response = controller.registerPushToken(
                 com.muhabbet.shared.dto.RegisterPushTokenRequest(pushToken = newToken)
             )
 
             assert(response.statusCode.value() == 200)
+        }
+
+        @Test
+        fun `should pass the language the device asked for through to the use case`() {
+            // Push text is composed on the server, so this field is the only thing that tells it
+            // which language to write in (#469). A controller that drops it leaves every device on
+            // the Turkish fallback while the request said otherwise.
+            val token = "fcm-token-en"
+            every { registerPushTokenUseCase.registerPushToken(userId, deviceId, token, "en") } returns Unit
+
+            controller.registerPushToken(
+                com.muhabbet.shared.dto.RegisterPushTokenRequest(pushToken = token, locale = "en")
+            )
+
+            verify { registerPushTokenUseCase.registerPushToken(userId, deviceId, token, "en") }
         }
     }
 

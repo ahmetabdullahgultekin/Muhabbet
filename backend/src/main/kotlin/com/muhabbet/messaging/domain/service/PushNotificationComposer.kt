@@ -23,12 +23,22 @@ class PushNotificationComposer(
 
     companion object {
         /**
-         * Used when the recipient's locale is unknown, which today is always: no device row carries
-         * one. Turkish because Turkey is the launch market and the app's own default locale is
-         * Turkish. Adding the column is the follow-up on #469 — this constant is the seam it plugs
-         * into, and it exists so the next change is one parameter rather than a string hunt.
+         * Used when the recipient's locale is unknown — a device that has not registered one since
+         * V22, which is every device that has not yet updated. Turkish because Turkey is the launch
+         * market and the app's own default locale is Turkish.
          */
         val FALLBACK_LOCALE: Locale = Locale.forLanguageTag("tr")
+
+        /**
+         * Turns the tag stored on a device row into the [Locale] [compose] wants.
+         *
+         * Null for null or blank, so the caller does not have to decide what "unknown" means twice —
+         * [compose] already answers that with [FALLBACK_LOCALE]. Lives here rather than in each
+         * broadcaster because both of them make this same translation on the push path, and one of
+         * them drifting is exactly how #469 happened the first time.
+         */
+        fun localeOf(tag: String?): Locale? =
+            tag?.takeIf { it.isNotBlank() }?.let { Locale.forLanguageTag(it) }
 
         /** A tray line is truncated by the OS anyway; this only bounds what leaves the server. */
         const val MAX_BODY_LENGTH = 100

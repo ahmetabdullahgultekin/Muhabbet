@@ -102,8 +102,16 @@ class AuthRepository(
         return response.data ?: throw Exception(response.error?.message ?: "PRIVACY_UPDATE_FAILED")
     }
 
-    suspend fun registerPushToken(token: String) {
-        apiClient.put<Unit>("/api/v1/devices/push-token", RegisterPushTokenRequest(pushToken = token))
+    /**
+     * @param languageTag BCP-47 tag for the language this device wants **push notifications** in.
+     *   Push text is written on the server, so this is the only channel by which it learns what the
+     *   reader speaks (#469). Null leaves whatever the device registered last untouched.
+     */
+    suspend fun registerPushToken(token: String, languageTag: String? = null) {
+        apiClient.put<Unit>(
+            "/api/v1/devices/push-token",
+            RegisterPushTokenRequest(pushToken = token, locale = languageTag)
+        )
     }
 
     suspend fun exportData() {
