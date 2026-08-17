@@ -80,6 +80,48 @@ object ValidationRules {
     val ALLOWED_VIDEO_TYPES = setOf("video/mp4", "video/quicktime")
     val ALLOWED_VOICE_TYPES = setOf("audio/ogg", "audio/opus", "audio/mp4")
 
+    /**
+     * Document uploads are an allowlist, like every other media kind. `uploadDocument` checked size
+     * and nothing else (#287).
+     *
+     * **What this is actually defending against.** Media is served over presigned URLs from the
+     * media host, with the content type the uploader supplied. So a stored `text/html` opens as a
+     * *page* on that origin, and `image/svg+xml` is markup that can carry script — stored XSS
+     * against anyone who follows the link. Both are deliberately absent, and so is anything else
+     * a browser will execute.
+     *
+     * **`application/octet-stream` is on the list on purpose, and it is not a hole.** Android's
+     * `contentResolver.getType()` returns it whenever the system cannot identify a file, so
+     * refusing it would reject perfectly ordinary documents — that is the "needs client changes"
+     * half of #287. It is safe to accept precisely because it is the type browsers *download*
+     * rather than render: it cannot be the XSS vector this list exists to close.
+     *
+     * Deliberately not exhaustive. A type nobody has asked for yet is one line to add; a type that
+     * renders is a vulnerability, so the default has to be "no".
+     */
+    val ALLOWED_DOCUMENT_TYPES = setOf(
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "application/vnd.oasis.opendocument.presentation",
+        "application/rtf",
+        "application/zip",
+        "application/octet-stream",
+        "text/plain",
+        "text/csv"
+    )
+
+    fun isAllowedDocumentType(contentType: String): Boolean =
+        // Split on ';' so "text/plain; charset=utf-8" — which is what a real client sends — is
+        // matched on its type rather than rejected for carrying a parameter.
+        contentType.substringBefore(';').trim().lowercase() in ALLOWED_DOCUMENT_TYPES
+
     // Reactions
     //
     // An allow-list rather than a length or grapheme rule, because the client has no free-emoji
