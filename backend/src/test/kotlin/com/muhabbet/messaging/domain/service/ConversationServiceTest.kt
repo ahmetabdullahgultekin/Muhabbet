@@ -477,6 +477,134 @@ class ConversationServiceTest {
 
             assertEquals("direct", page.items[0].type)
         }
+
+        // ─── mute / archive / lock flag resolution (#655) ──────
+
+        @Test
+        fun `should report isMuted true for a mute that has not yet expired`() {
+            val convId = UUID.randomUUID()
+            val now = Instant.now()
+            val conv = Conversation(id = convId, type = ConversationType.DIRECT)
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    ConversationMember(
+                        conversationId = convId, userId = userA,
+                        mutedUntil = now.plusSeconds(3600)
+                    )
+                )
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertTrue(page.items[0].isMuted)
+        }
+
+        @Test
+        fun `should report isMuted false once the mute has expired`() {
+            val convId = UUID.randomUUID()
+            val now = Instant.now()
+            val conv = Conversation(id = convId, type = ConversationType.DIRECT)
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    ConversationMember(
+                        conversationId = convId, userId = userA,
+                        mutedUntil = now.minusSeconds(60)
+                    )
+                )
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertFalse(page.items[0].isMuted)
+        }
+
+        @Test
+        fun `should report isArchived and isLocked from the caller's own member row`() {
+            val convId = UUID.randomUUID()
+            val conv = Conversation(id = convId, type = ConversationType.DIRECT)
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    ConversationMember(
+                        conversationId = convId, userId = userA,
+                        archived = true, locked = true
+                    )
+                )
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertTrue(page.items[0].isArchived)
+            assertTrue(page.items[0].isLocked)
+        }
+
+        @Test
+        fun `should not leak another member's mute, archive or lock into the caller's own summary`() {
+            val convId = UUID.randomUUID()
+            val now = Instant.now()
+            val conv = Conversation(id = convId, type = ConversationType.GROUP, name = "Group")
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    // userA never touched pin/mute/archive/lock on their own row.
+                    ConversationMember(conversationId = convId, userId = userA),
+                    // userB muted, archived and locked their own copy of the same conversation.
+                    ConversationMember(
+                        conversationId = convId, userId = userB,
+                        mutedUntil = now.plusSeconds(3600), archived = true, locked = true, pinned = true
+                    )
+                )
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertFalse(page.items[0].isPinned)
+            assertFalse(page.items[0].isMuted)
+            assertFalse(page.items[0].isArchived)
+            assertFalse(page.items[0].isLocked)
+        }
+
+        @Test
+        fun `should default every flag false when the caller has no member row at all`() {
+            // Defensive: getConversations only visits conversations the caller was already loaded
+            // as a member of, but myMember is nullable — the mapping must not throw, and must not
+            // fall back to a stale true from a stray row that happens to sit at index 0.
+            val convId = UUID.randomUUID()
+            val conv = Conversation(id = convId, type = ConversationType.DIRECT)
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(
+                    ConversationMember(
+                        conversationId = convId, userId = userB,
+                        mutedUntil = Instant.now().plusSeconds(3600), archived = true, locked = true, pinned = true
+                    )
+                )
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertFalse(page.items[0].isPinned)
+            assertFalse(page.items[0].isMuted)
+            assertFalse(page.items[0].isArchived)
+            assertFalse(page.items[0].isLocked)
+        }
     }
 
     // ─── deleteMessage ──────────────────────────────────────

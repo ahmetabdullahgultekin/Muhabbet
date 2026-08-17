@@ -36,6 +36,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
+import com.muhabbet.composeapp.generated.resources.a11y_conversation_muted
 import com.muhabbet.composeapp.generated.resources.a11y_conversation_pinned
 import com.muhabbet.composeapp.generated.resources.cd_group_avatar
 import com.muhabbet.shared.dto.ConversationResponse
@@ -64,6 +65,12 @@ internal fun ConversationItem(
     onPin: () -> Unit = {}
 ) {
     val hasUnread = conversation.unreadCount > 0
+    // conversation.isMuted, not a separate parameter: unlike isPinned (which the archived section
+    // forces false), mute is never contextually overridden — a muted archived chat still mutes.
+    val isMuted = conversation.isMuted
+    // A muted conversation still has unread messages, but the loud badge colour is exactly the
+    // notification this member asked to withhold — showing it here would contradict the mute.
+    val shoutUnread = hasUnread && !isMuted
     val haptics = Muhabbet.haptics
 
     Row(
@@ -116,6 +123,17 @@ internal fun ConversationItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
+                if (isMuted) {
+                    Spacer(Modifier.width(MuhabbetSpacing.XSmall))
+                    // Same reasoning as the pinned icon below: mute is state this row carries with
+                    // no other visual cue, so a null description would drop it for a screen reader.
+                    Icon(
+                        Muhabbet.icons.MuteOff,
+                        contentDescription = stringResource(Res.string.a11y_conversation_muted),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (isPinned) {
                     Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                     // "Pinned" is state carried by this icon alone — nothing in the row's text
@@ -162,9 +180,13 @@ internal fun ConversationItem(
             ) {
                 Column {
                     Spacer(Modifier.height(MuhabbetSpacing.XSmall))
+                    // A muted chat still counts its unread messages — the badge just cannot use the
+                    // loud copper colour reserved for a chat that can actually notify you.
                     Badge(
-                        containerColor = LocalSemanticColors.current.unreadBadge.container,
-                        contentColor = LocalSemanticColors.current.unreadBadge.content
+                        containerColor = if (shoutUnread) LocalSemanticColors.current.unreadBadge.container
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (shoutUnread) LocalSemanticColors.current.unreadBadge.content
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     ) {
                         Text(conversation.unreadCount.toString())
                     }

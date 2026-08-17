@@ -16,7 +16,10 @@ data class ConversationSummary(
     val unreadCount: Int,
     val participantIds: List<UUID>,
     val disappearAfterSeconds: Int? = null,
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val isMuted: Boolean = false,
+    val isArchived: Boolean = false,
+    val isLocked: Boolean = false
 )
 
 data class ConversationPage(
