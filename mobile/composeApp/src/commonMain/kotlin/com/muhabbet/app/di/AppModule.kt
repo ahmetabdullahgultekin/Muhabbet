@@ -60,7 +60,21 @@ fun appModule(): Module = module {
             selfDeviceId = { tokenStorage.getDeviceId() }
         )
     }
-    single { WsClient(apiClient = get(), tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() }, localCache = get(), messageEncryptor = get()) }
+    // localCache resolved as LocalCache **explicitly**. WsClient's parameter is the narrower
+    // PendingMessageCache interface, which nothing registers, and Koin resolves get() by the
+    // parameter type — so a bare get() here compiles and then throws NoDefinitionFoundException the
+    // first time anything injects WsClient, which is at launch. That shipped as 0.3.7 and crashed
+    // the app on start for every user (#633). The same note already sat two definitions below this
+    // one, for ConversationRepository, and the parameter type was narrowed in #579 without anyone
+    // coming back here.
+    single {
+        WsClient(
+            apiClient = get(),
+            tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() },
+            localCache = get<com.muhabbet.app.data.local.LocalCache>(),
+            messageEncryptor = get()
+        )
+    }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
     // Single source of truth for push token registration — used by both the login/app-start
     // effect in App.kt and MuhabbetFirebaseMessagingService.onNewToken (androidMain). See #398.
