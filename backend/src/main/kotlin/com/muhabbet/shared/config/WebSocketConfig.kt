@@ -3,6 +3,7 @@ package com.muhabbet.shared.config
 import com.muhabbet.messaging.adapter.`in`.websocket.ChatWebSocketHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Profile
 import org.springframework.web.socket.config.annotation.EnableWebSocket
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
@@ -50,8 +51,32 @@ class WebSocketConfig(
     /**
      * Both limits are set explicitly. Setting only the text one would leave binary frames on the
      * inherited 8192 — a default nobody chose, which is precisely how this bug arrived.
+     *
+     * **Not registered under the `test` profile**, and that is not a convenience.
+     * `ServletServerContainerFactoryBean` reaches into the running servlet container for
+     * `jakarta.websocket.server.ServerContainer`, which only an *embedded* one publishes. Every
+     * integration test here is a plain `@SpringBootTest` — `webEnvironment = MOCK` — so there is no
+     * embedded container and the bean fails the whole application context with
+     *
+     *     Attribute 'jakarta.websocket.server.ServerContainer' not found in ServletContext
+     *
+     * That took out all 32 tests in the ten `@Testcontainers` classes the first time CI managed to
+     * run them (#563 had been failing every job in *Set up job* before any step, so the regression
+     * shipped unseen). It never affected production: Tomcat is real there, which is why the
+     * deployed fix verified — a 9,999-character message was acked over a live socket.
+     *
+     * A profile check rather than `@ConditionalOnBean(ServletWebServerFactory::class)`, which reads
+     * better and would be wrong: `@ConditionalOnBean` is only dependable inside auto-configuration,
+     * and in a user `@Configuration` it is evaluated before `ServletWebServerFactoryAutoConfiguration`
+     * has registered anything — so it would silently answer "no" in production too, which is the
+     * failure mode that cannot be seen from a green test run.
+     *
+     * What it costs: the buffer size is not exercised under the `test` profile. Nothing is lost
+     * today — no test opens a real WebSocket — but a future test that wants to prove the 64 K limit
+     * must ask for a real server (`webEnvironment = RANDOM_PORT`) and its own profile.
      */
     @Bean
+    @Profile("!test")
     fun webSocketContainer(): ServletServerContainerFactoryBean =
         ServletServerContainerFactoryBean().apply {
             setMaxTextMessageBufferSize(MAX_MESSAGE_BUFFER)
