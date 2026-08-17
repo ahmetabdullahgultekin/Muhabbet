@@ -100,7 +100,16 @@ fun MediaViewer(
         } else Offset.Zero
     }
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    // usePlatformDefaultWidth = false, or this is not a full-screen viewer (#651).
+    //
+    // Compose's default constrains a Dialog to the platform's standard dialog width, so the
+    // fillMaxSize() below filled a box that had already been inset — leaving the chat visible down
+    // both sides of every photo anyone has ever opened in this app. It read as an unfinished app and
+    // it was one argument away from being right.
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

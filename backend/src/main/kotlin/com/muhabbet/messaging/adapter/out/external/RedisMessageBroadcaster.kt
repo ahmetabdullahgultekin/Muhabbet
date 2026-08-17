@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.adapter.out.external
 
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -45,7 +46,7 @@ class RedisMessageBroadcaster(
         const val WS_CHANNEL_PREFIX = "ws:broadcast:"
     }
 
-    override fun broadcastMessage(message: Message, recipientIds: List<UUID>) {
+    override fun broadcastMessage(message: Message, recipients: List<ConversationMember>) {
         val contentType = try {
             com.muhabbet.shared.model.ContentType.valueOf(message.contentType.name)
         } catch (e: Exception) {
@@ -78,7 +79,8 @@ class RedisMessageBroadcaster(
         )
         val json = wsJson.encodeToString<WsMessage>(newMessage)
 
-        recipientIds.forEach { recipientId ->
+        recipients.forEach { member ->
+            val recipientId = member.userId
             if (sessionManager.isOnline(recipientId)) {
                 // Local delivery (recipient is on this instance)
                 sessionManager.sendToUser(recipientId, json)
@@ -91,13 +93,19 @@ class RedisMessageBroadcaster(
                 }
             }
 
-            // A push is withheld only when the recipient is foregrounded on THIS conversation right
-            // now (#618) — not merely "has a socket open," which is also true with the screen off,
-            // the app backgrounded, or a different chat on screen. Every one of those cases used to
-            // fall into the branch above and never reach here, so a message that had genuinely
-            // arrived on the device sat there with no tray entry to say so. Offline recipients are
-            // never "viewing" anything, so this still fires for them exactly as before.
-            if (!sessionManager.isViewingConversation(recipientId, message.conversationId)) {
+            // A push is withheld for two independent reasons, checked together rather than one
+            // short-circuiting the other: this member has muted the conversation (#571), or this
+            // member is foregrounded on it right now (#618). Neither implies the other — a muted
+            // chat can still be the one on screen, and an unmuted one is usually not — so both are
+            // evaluated on every send. `isOnline` alone used to gate this whole branch, which is
+            // exactly what #618 was: a live socket elsewhere, screen off, or the app merely
+            // backgrounded all fell into the branch above and never reached here, so a message that
+            // had genuinely arrived on the device sat there with no tray entry to say so. The
+            // message itself is unaffected by either reason — it is delivered above, still counted
+            // unread, still in the chat. Only the notification is withheld, and only for this
+            // member's own row.
+            val viewingThisConversation = sessionManager.isViewingConversation(recipientId, message.conversationId)
+            if (!member.isMuted() && !viewingThisConversation) {
                 offlinePushSender.sendTo(recipientId, message, senderName, conversation)
             }
         }

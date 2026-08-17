@@ -67,6 +67,7 @@ import com.muhabbet.designsystem.components.MuhabbetSwitch
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.app.ui.chat.MediaViewer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +93,8 @@ fun GroupInfoScreen(
     var announcementOnly by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var isUploadingPhoto by remember { mutableStateOf(false) }
+    // Only ever set true when conversation?.avatarUrl is non-null — see the render sites below.
+    var showPhotoViewer by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
@@ -228,6 +231,12 @@ fun GroupInfoScreen(
         )
     }
 
+    if (showPhotoViewer) {
+        conversation?.avatarUrl?.let { url ->
+            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+        }
+    }
+
     MuhabbetScaffold(
         topBar = {
             MuhabbetTopBar(
@@ -269,24 +278,32 @@ fun GroupInfoScreen(
                     ) {
                         // Only admins and owners may change the photo, so only they are given the
                         // control — everyone else sees the plain avatar.
+                        val groupAvatarUrl = conversation?.avatarUrl
                         if (isAdminOrOwner) {
                             EditableAvatar(
-                                avatarUrl = conversation?.avatarUrl,
+                                avatarUrl = groupAvatarUrl,
                                 displayName = conversation?.name ?: "G",
                                 size = MuhabbetSizes.AvatarXLarge,
                                 changePhotoContentDescription = stringResource(Res.string.group_change_photo),
                                 onPickPhoto = { photoPickerLauncher.launch() },
                                 isUploading = isUploadingPhoto,
                                 isGroup = true,
-                                avatarContentDescription = stringResource(Res.string.cd_group_avatar)
+                                avatarContentDescription = stringResource(Res.string.cd_group_avatar),
+                                onViewPhoto = { showPhotoViewer = true }
                             )
                         } else {
                             UserAvatar(
-                                avatarUrl = conversation?.avatarUrl,
+                                avatarUrl = groupAvatarUrl,
                                 displayName = conversation?.name ?: "G",
                                 size = MuhabbetSizes.AvatarXLarge,
                                 isGroup = true,
-                                contentDescription = stringResource(Res.string.cd_group_avatar)
+                                contentDescription = stringResource(Res.string.cd_group_avatar),
+                                // No photo means no navigation: a full-screen gradient isn't worth it (#615).
+                                modifier = if (groupAvatarUrl != null) {
+                                    Modifier.clickable { showPhotoViewer = true }
+                                } else {
+                                    Modifier
+                                }
                             )
                         }
                         Spacer(Modifier.height(MuhabbetSpacing.Medium))

@@ -519,7 +519,15 @@ data class CommunityDetailResponse(
     val groups: List<CommunityGroupInfo>,
     val memberCount: Int = 0,
     val myRole: String? = null,
-    val createdAt: String
+    val createdAt: String,
+    /**
+     * The community's announcement channel (#584) — a GROUP conversation every member is enrolled
+     * in, where only admins/owners may post. Open it the same way a [CommunityGroupInfo] is opened:
+     * `ChatTarget(conversationId = announcementGroupId, isGroup = true)`. Nullable on the wire for
+     * an old server that predates this field, not because a real community lacks one — the server
+     * creates it the moment a community exists and backfills it lazily for any that predate that.
+     */
+    val announcementGroupId: String? = null
 )
 
 @Serializable

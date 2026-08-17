@@ -23,11 +23,18 @@
     <string name="attach_file_view_once_on">Attach file — view once is on</string>
     <string name="voice_play">Play</string>
     <string name="voice_pause">Pause</string>
-    <string name="voice_record">Record</string>
-    <string name="voice_stop">Stop</string>
     <string name="voice_transcribe">Transcribe</string>
     <string name="voice_transcribing">Transcribing…</string>
     <string name="voice_transcript_failed">Transcription failed</string>
+    <string name="voice_playback_speed_change">Change playback speed</string>
+    <!-- Content description while the record button is held down and audio is being captured. -->
+    <string name="voice_recording_in_progress">Recording voice message</string>
+    <string name="voice_slide_to_cancel">Slide to cancel</string>
+    <!-- Label on the lock icon once a held recording has been slid up into hands-free mode. -->
+    <string name="voice_locked">Locked</string>
+    <!-- Discards a stopped-but-unsent voice recording (preview or locked bar), as opposed to
+         "delete", which removes an already-sent message. -->
+    <string name="voice_discard">Discard recording</string>
 
     <!-- PhoneInputScreen -->
     <string name="phone_title">Muhabbet</string>
@@ -569,6 +576,15 @@
     <string name="media_quality_hd">HD</string>
     <string name="media_quality_description">HD photos and videos use more data</string>
 
+    <!-- About screen (#614): app identity, build info, and the legal documents KVKK Md. 10 and
+         Google Play both require to be reachable from inside the app. -->
+    <string name="about_title">About</string>
+    <string name="about_version_build">Version %1$s (build %2$d)</string>
+    <string name="about_legal_section">Legal</string>
+    <string name="about_privacy_policy">Privacy Policy</string>
+    <string name="about_kvkk_notice">KVKK Disclosure Notice</string>
+    <string name="about_terms">Terms of Service</string>
+
     <!-- Video Messages -->
     <string name="video_message">Video message</string>
     <string name="video_message_hold">Hold to record video</string>
@@ -578,6 +594,7 @@
     <string name="community_create">Create Community</string>
     <string name="community_name_hint">Community name</string>
     <string name="community_description_hint">Description (optional)</string>
+    <string name="community_announcements">Announcements</string>
     <string name="community_groups">Groups</string>
     <string name="community_members">Members</string>
     <string name="community_member_count">%1$d members</string>
@@ -649,6 +666,9 @@
 
     <!-- Search -->
     <string name="home_search_title">Search</string>
+    <string name="home_search_section_chats">Chats</string>
+    <string name="home_search_section_messages">Messages</string>
+    <string name="home_search_failed">Search failed</string>
     <string name="home_search_placeholder">Search conversations or contacts…</string>
     <string name="home_search_no_results">No results found</string>
 
@@ -747,6 +767,7 @@
     <string name="a11y_message_media_preview">Message media preview</string>
     <string name="a11y_image_full_screen">Full-screen image</string>
     <string name="a11y_conversation_pinned">Pinned chat</string>
+    <string name="a11y_conversation_muted">Muted chat</string>
     <string name="a11y_selected">Selected</string>
     <string name="group_remove_member">Remove member from group</string>
     <string name="group_event_empty">No events yet</string>

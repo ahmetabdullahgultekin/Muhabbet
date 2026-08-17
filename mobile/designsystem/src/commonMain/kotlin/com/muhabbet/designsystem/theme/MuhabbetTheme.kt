@@ -458,6 +458,21 @@ object MuhabbetDurations {
 object MuhabbetGestures {
     const val SwipeReplyThreshold: Float = 80f
     const val SwipeReplyMax: Float = 120f
+
+    /**
+     * How far left the record button must be dragged, in px, before releasing discards the
+     * recording instead of stopping it. Evaluated only at release — dragging past it and back is a
+     * deliberate "undo", matching [MuhabbetHapticIntent.SwipeArmed]/[MuhabbetHapticIntent.SwipeCommitted]
+     * firing once each rather than on every frame past the line.
+     */
+    const val VoiceCancelThresholdPx: Float = 140f
+
+    /**
+     * How far up the record button must be dragged, in px, before the recording locks hands-free.
+     * Unlike the cancel threshold this fires the instant it is crossed, not at release — the whole
+     * point of locking is that the finger can then be lifted without ending the recording.
+     */
+    const val VoiceLockThresholdPx: Float = 100f
 }
 
 // ─── Elevation tokens ──────────────────────────────────────

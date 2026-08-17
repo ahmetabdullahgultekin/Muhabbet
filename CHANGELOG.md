@@ -8,6 +8,33 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+## [0.3.9] — 2026-08-17
+
+Everything here was found by the owner using 0.3.8 on a real phone, and every fix was reproduced and
+then re-checked on the emulator before this was cut. That order is the change: 0.3.7 and 0.3.8 both
+shipped defects that one launch and two taps would have caught.
+
+### Fixed
+- **Playing one voice message moved every voice bubble in the chat** (#641). A single `AudioPlayer`
+  is shared across the conversation and no bubble asked whether the loaded audio was its own, so all
+  of them rendered whatever it was doing. Reproduced on 0.3.8 — two bubbles, both showing ⏸ 0:01 —
+  and re-checked after the fix, where the untouched bubble stays at ▶ 0:00.
+- **A tapped notification stacked a second chat over the one already open, titled with the wrong
+  name** (#642). `openChat` pushed unconditionally instead of returning to a conversation already on
+  the stack — the idiom four functions away in the same file — so back revealed a duplicate. And the
+  title preferred the name the server put in the push payload over the one in the phone's address
+  book, which is why it changed when the duplicate was popped.
+- **The search you can reach never searched messages, and its field never took focus** (#638).
+  Typing did nothing because the keyboard never came up; and with text in the field the screen
+  filtered the loaded conversation list without ever calling `/api/v1/search/messages`. Message
+  search had exactly one caller in the app, on a screen the bottom navigation does not open.
+- **Voice playback had no speed control, no seek, and restarted from zero after a pause** (#602).
+
+### Added
+- Playback speed (1×/1.5×/2×) and a draggable position slider on voice messages.
+- Message hits in the home search, in their own section under conversations, with a failure that says
+  so rather than rendering as "no results".
+
 ## [0.3.8] — 2026-08-17
 
 **0.3.7 crashed on launch for every user. Do not install it.** This release exists to undo that, and
