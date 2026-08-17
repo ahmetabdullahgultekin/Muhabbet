@@ -13,7 +13,12 @@ on:
       - 'gradle/**'
       - '.github/workflows/mobile-ci.yml'
   pull_request:
-    branches: [main, develop]
+    # `dev` added: it is the working branch, and until this landed NO CI ran on any pull
+    # request into it (#487) — `develop` does not exist here, so the filter matched nothing.
+    # The android-build job is gated to skip the expensive APK assembly on a dev PR and run
+    # only the compile and unit-test gates; see its `if:` conditions. The full APK still
+    # builds on `main`, and `Mobile Release` builds and signs it for a tag regardless.
+    branches: [main, dev, develop]
     paths:
       - 'mobile/**'
       - 'shared/**'
@@ -158,10 +163,17 @@ jobs:
             mobile/designsystem/build/reports/tests/
           retention-days: 7
 
+      # Skipped on a pull request into `dev`. There is ONE self-hosted runner and it is the
+      # production host, so a full APK assembly plus lint on every dev PR would queue behind
+      # itself and delay deploys. The compile, guardrail and unit-test steps above are what
+      # actually catch breakage and they still run; the APK is built in full on `main` and by
+      # `Mobile Release` for a tag. github.base_ref is empty on a push, so pushes are unaffected.
       - name: Build Android debug APK
+        if: github.base_ref != 'dev'
         run: ./gradlew :mobile:composeApp:assembleDebug
 
       - name: Print APK signing certificate SHA-1 (register this in Firebase Console)
+        if: github.base_ref != 'dev'
         run: |
           APK=$(find mobile/composeApp/build/outputs/apk/debug -name "*.apk" | head -1)
           if [ -n "$APK" ]; then
@@ -184,11 +196,12 @@ jobs:
         continue-on-error: true
 
       - name: Run Android lint
+        if: github.base_ref != 'dev'
         run: ./gradlew :mobile:composeApp:lintDebug
         continue-on-error: true
 
       - name: Upload lint results
-        if: always()
+        if: always() && github.base_ref != 'dev'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -201,7 +214,7 @@ jobs:
       # and started failing this job. Retention is what keeps that from recurring; continue-on-error
       # is what keeps it from failing the build if it does.
       - name: Upload debug APK
-        if: success()
+        if: success() && github.base_ref != 'dev'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
