@@ -77,8 +77,19 @@ private fun WebSocketLifecycle(root: RootComponent) {
     // new composition had just opened, and the app then sat disconnected with no reconnect loop
     // running for as long as it stayed open (#511). The language switch recreates the Activity on
     // purpose, so this was reachable by ordinary use, not just by rotation.
-    DisposableEffect(Unit) {
-        val generation = if (tokenStorage.isLoggedIn()) wsClient.connect() else null
+    // Keyed on `loggedIn`, not `Unit` — see the push-token effect below for the same reasoning and
+    // the same history. A Unit-keyed effect samples isLoggedIn() once, at the first composition,
+    // which on a fresh install is the auth screen; it never re-evaluates, so a user who signs in
+    // during the session gets no socket at all until they force-quit and relaunch (#349). Verified
+    // on the emulator: after login, zero WsClient lines in logcat and the connection strip stuck on
+    // "no connection"; after a restart, Connecting -> Connected one second apart.
+    //
+    // Re-keying is only safe because of #511's generation guard: disconnect() now refuses a
+    // teardown that does not belong to the live connection, so the outgoing composition's onDispose
+    // cannot close a socket the incoming one has just opened. It also means logout now disconnects,
+    // which it never did.
+    DisposableEffect(loggedIn) {
+        val generation = if (loggedIn) wsClient.connect() else null
         onDispose {
             generation?.let { wsClient.disconnect(it) }
         }
@@ -102,9 +113,12 @@ private fun WebSocketLifecycle(root: RootComponent) {
         onDispose { lifecycle.unsubscribe(callbacks) }
     }
 
-    // Global DELIVERED ack: send DELIVERED for every incoming message regardless of active screen
-    LaunchedEffect(Unit) {
-        if (tokenStorage.isLoggedIn()) {
+    // Global DELIVERED ack: send DELIVERED for every incoming message regardless of active screen.
+    // Keyed on `loggedIn` for the same reason as the socket above (#349) — on a Unit key this pump
+    // never started for a user who signed in during the session, so their first session delivered
+    // no receipts at all and the sender's ticks never moved.
+    LaunchedEffect(loggedIn) {
+        if (loggedIn) {
             val currentUserId = tokenStorage.getUserId() ?: return@LaunchedEffect
             wsClient.incoming.collect { message ->
                 if (message is WsMessage.NewMessage && message.senderId != currentUserId) {
@@ -149,8 +163,8 @@ private fun WebSocketLifecycle(root: RootComponent) {
     // production backend each time the process started. A feature that is switched off should put
     // nothing on the server.
     val e2eSetupService: E2ESetupService = koinInject()
-    LaunchedEffect(Unit) {
-        if (E2EConfig.ENABLED && tokenStorage.isLoggedIn()) {
+    LaunchedEffect(loggedIn) {
+        if (E2EConfig.ENABLED && loggedIn) {
             try {
                 e2eSetupService.registerKeys()
                 Log.d("App", "E2E encryption keys registered")
@@ -165,8 +179,8 @@ private fun WebSocketLifecycle(root: RootComponent) {
 
     // Schedule background message sync
     val syncManager: com.muhabbet.app.platform.BackgroundSyncManager = koinInject()
-    LaunchedEffect(Unit) {
-        if (tokenStorage.isLoggedIn()) {
+    LaunchedEffect(loggedIn) {
+        if (loggedIn) {
             syncManager.schedulePeriodicSync()
         }
     }
