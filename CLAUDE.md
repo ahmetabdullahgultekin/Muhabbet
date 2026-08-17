@@ -769,15 +769,35 @@ is not evidence that it works.
 - **Before deploying**, tag the current image so `latest` being overwritten does not strand you:
   `docker tag <image-id> muhabbet-muhabbet-backend:rollback-$(date +%F)`
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
-- **You CANNOT read an OTP out of the prod log** (verified 2026-08-15, correcting an earlier note
-  that said the code is logged). `.env.prod` sets `SMS_PROVIDER=twilio-verify`, so the active
-  verifier is `TwilioVerifyOtpVerifier` and the code goes to Twilio, never to stdout. The log line
-  is `Verification started: phone=0001, status=pending` — last four digits only, no code. The test
-  numbers above are unallocated, so an OTP sent to them reaches nobody and **you cannot log in as a
-  test user against prod**. To exercise an authenticated endpoint, either mint a JWT with
-  `JWT_SECRET` from `.env.prod` (must carry `iss: "muhabbet"` — see "JWT for scripts/bots"), or use
-  a real phone you control. Do not "verify" a deployment by asserting the container is healthy and
-  calling that an end-to-end check.
+- **You CAN log in as a test number, and the OTP is in the prod log** (re-verified 2026-08-17,
+  correcting the note that said you cannot — which had already cost several agents a session each).
+  `.env.prod` sets `MUHABBET_OTP_TESTNUMBERS=+905000000001..5`, and `AuthService.requestOtp` takes
+  the **local** path for those numbers whichever provider is configured: the code is generated,
+  hashed and checked here, never sent anywhere. It is logged in full:
+
+  ```
+  WARN c.m.auth.domain.service.AuthService : TEST NUMBER +905000000001 — OTP not sent, code is 342156
+  ```
+
+  So to sign in on the emulator against production:
+
+  ```bash
+  # in the app: enter 5000000001, tap Continue, then read the code
+  ssh hetzner 'docker logs --since 30s muhabbet-backend 2>&1 | grep -oE "code is [0-9]{6}" | tail -1'
+  ```
+
+  Two things that will still catch you out. There is a **60-second cooldown** per number
+  (`AUTH_OTP_COOLDOWN`), so do not request one by `curl` and then press Continue in the app — the
+  app's request is refused and the screen reports it as a Firebase failure, which is misleading.
+  And the app first tries **Firebase** phone auth, fails on the emulator, and falls back to the
+  backend OTP; that failure in the log is expected, not the problem.
+
+  For a **non**-test number the original note holds: `SMS_PROVIDER=twilio-verify` means the code goes
+  to Twilio and the log shows only `Verification started: phone=0001, status=pending`.
+
+  To exercise an authenticated endpoint without the UI, mint a JWT with `JWT_SECRET` from `.env.prod`
+  (must carry `iss: "muhabbet"` — see "JWT for scripts/bots"). Do not "verify" a deployment by
+  asserting the container is healthy and calling that an end-to-end check.
 
 ## Lessons Learned / Known Gotchas
 - **Windows Gradle**: Use `cmd //c ".\\gradlew.bat <task>"` from bash shell (not `gradlew.bat` directly).
