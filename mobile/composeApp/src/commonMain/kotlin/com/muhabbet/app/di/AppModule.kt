@@ -17,6 +17,7 @@ import com.muhabbet.app.data.repository.InviteLinkRepository
 import com.muhabbet.app.data.repository.MediaRepository
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.data.repository.MessageRepository
+import com.muhabbet.app.data.repository.ModerationRepository
 import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.data.repository.PhoneNumberLookup
 import com.muhabbet.app.data.repository.PushTokenRegistrar
@@ -127,6 +128,7 @@ fun appModule(): Module = module {
     single { BroadcastListRepository(apiClient = get()) }
     single { InviteLinkRepository(apiClient = get()) }
     single { TwoStepRepository(apiClient = get()) }
+    single { ModerationRepository(apiClient = get()) }
     single { WallpaperRepository(tokenStorage = get()) }
     // Read at the composition root, above MuhabbetTheme — see App.kt.
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }

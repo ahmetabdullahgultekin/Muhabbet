@@ -393,10 +393,20 @@
     <string name="profile_report">Report</string>
     <string name="profile_block_confirm">Are you sure you want to block this user?</string>
     <string name="profile_block_success">User blocked</string>
+    <string name="profile_block_failed">Could not block user</string>
+    <string name="profile_unblock_confirm">Are you sure you want to unblock this user?</string>
     <string name="profile_unblock_success">User unblocked</string>
+    <string name="profile_unblock_failed">Could not unblock user</string>
     <string name="profile_report_confirm">Are you sure you want to report this user?</string>
     <string name="profile_report_success">Report submitted</string>
+    <string name="profile_report_failed">Could not submit report</string>
     <string name="profile_report_reason_placeholder">Report reason (optional)</string>
+
+    <!-- Blocked Users -->
+    <string name="blocked_users_empty">You haven't blocked anyone</string>
+    <string name="blocked_users_empty_desc">People you block will show up here</string>
+    <string name="blocked_users_load_failed">Could not load blocked users</string>
+    <string name="blocked_users_since">Blocked on %1$s</string>
 
     <!-- Privacy Settings -->
     <string name="settings_privacy_section">Privacy</string>

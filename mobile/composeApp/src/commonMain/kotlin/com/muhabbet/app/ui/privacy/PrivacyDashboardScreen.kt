@@ -55,6 +55,7 @@ import com.muhabbet.designsystem.components.MuhabbetChip
 fun PrivacyDashboardScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onBlockedUsers: () -> Unit,
     authRepository: AuthRepository = koinInject(),
     privacySettings: PrivacySettingsController = koinInject()
 ) {
@@ -240,16 +241,16 @@ fun PrivacyDashboardScreen(
                 }
             }
 
-            // Informational, not a link: there is no blocked-contacts screen to open. This row used
-            // to carry `.clickable { }` with an empty body, so it looked tappable and did nothing.
-            // Blocking and unblocking happen from a person's profile; listing them centrally needs a
-            // screen plus a repository (the backend's GET /moderation/blocks returns bare IDs, with
-            // no way to resolve them to names), which is a feature, not a restyle.
+            // #613: was `SettingsInfoRow` with `.clickable { }` and an empty body — it looked
+            // tappable and did nothing, because there was nowhere to send the tap. There is now:
+            // `ModerationController.getBlockedUsers()` resolves a name and a face per block
+            // server-side, so `BlockedUsersScreen` has something to render besides bare UUIDs.
             item {
-                SettingsInfoRow(
+                SettingsNavRow(
                     title = stringResource(Res.string.privacy_blocked_contacts),
                     subtitle = stringResource(Res.string.privacy_blocked_contacts_desc),
-                    icon = Muhabbet.icons.Block
+                    icon = Muhabbet.icons.Block,
+                    onClick = onBlockedUsers
                 )
                 MuhabbetDivider()
             }
