@@ -79,6 +79,7 @@
     <string name="chat_context_star">Star</string>
     <string name="chat_context_unstar">Unstar</string>
     <string name="chat_context_edit">Edit</string>
+    <string name="chat_context_edit_expired">Edit (time expired)</string>
     <string name="chat_context_delete">Delete</string>
     <string name="chat_replying_to">Replying to</string>
     <string name="chat_forward_title">Forward to</string>

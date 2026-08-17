@@ -60,6 +60,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
+import kotlin.time.Clock
+import com.muhabbet.composeapp.generated.resources.chat_context_edit_expired
+import com.muhabbet.shared.validation.ValidationRules
 
 /** Opacity of the disc the play glyph sits on, so it stays legible over any thumbnail. */
 private const val PlayOverlayAlpha = 0.7f
@@ -437,9 +440,30 @@ fun MessageBubble(
                 )
                 if (isOwn) {
                     if (message.contentType == ContentType.TEXT) {
+                        // The server has always refused an edit after fifteen minutes; the app used
+                        // to offer it anyway, let the user retype the message, and only then fail
+                        // with "mesaj gönderilemedi" — wrong twice over, since nothing was being
+                        // sent and that was not the reason (#597).
+                        //
+                        // Disabled with the reason in the label, not hidden: a menu item that
+                        // disappears reads as broken, where a greyed one teaches the rule. And the
+                        // window comes from ValidationRules, the same constant the server checks,
+                        // so the two cannot drift apart.
+                        //
+                        // A message with no serverTimestamp has not been acknowledged yet — it is
+                        // still in flight — so it counts as editable rather than expired.
+                        val editable = message.serverTimestamp?.let { sentAt ->
+                            ValidationRules.isWithinEditWindow(
+                                sentAtEpochMillis = sentAt.toEpochMilliseconds(),
+                                nowEpochMillis = Clock.System.now().toEpochMilliseconds()
+                            )
+                        } ?: true
+
                         MuhabbetMenuItem(
-                            text = stringResource(Res.string.chat_context_edit),
+                            text = if (editable) stringResource(Res.string.chat_context_edit)
+                            else stringResource(Res.string.chat_context_edit_expired),
                             icon = Muhabbet.icons.Edit,
+                            enabled = editable,
                             onClick = onEdit
                         )
                     }

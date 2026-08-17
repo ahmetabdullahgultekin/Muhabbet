@@ -49,6 +49,31 @@ object ValidationRules {
     fun isValidMessageContent(content: String): Boolean =
         content.isNotBlank() && content.length <= MESSAGE_MAX_LENGTH
 
+    // How long after sending a message may still be edited.
+    //
+    // Here rather than in `MessageService` because both halves need it and only one had it (#597).
+    // The server has always enforced fifteen minutes; the app knew nothing about it, so it offered
+    // "Düzenle" on a message from last week, let the user retype it, and only then failed — with
+    // "mesaj gönderilemedi", which is wrong twice over: nothing was being sent, and the reason was
+    // not a send failure. A limit the user discovers by failing is a limit stated in the wrong place.
+    //
+    // A number copied into the app would be a second source of truth that drifts the first time this
+    // one changes, which is the same reason the reaction allow-list moved here in #557.
+    const val MESSAGE_EDIT_WINDOW_MINUTES = 15L
+
+    /**
+     * Both arguments are epoch milliseconds, so this stays free of any date-time library and can be
+     * called from the backend's `java.time` and the app's `kotlinx.datetime` alike.
+     *
+     * A message from the future — a clock skewed forward on the sending device — is treated as
+     * editable rather than as an error. Refusing it would block a legitimate edit for the sake of a
+     * condition the user cannot see or fix.
+     */
+    fun isWithinEditWindow(sentAtEpochMillis: Long, nowEpochMillis: Long): Boolean {
+        val minutesElapsed = (nowEpochMillis - sentAtEpochMillis) / 60_000
+        return minutesElapsed <= MESSAGE_EDIT_WINDOW_MINUTES
+    }
+
     // Group name
     const val GROUP_NAME_MIN = 1
     const val GROUP_NAME_MAX = 128

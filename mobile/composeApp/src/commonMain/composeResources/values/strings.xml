@@ -79,6 +79,10 @@
     <string name="chat_context_star">Yıldızla</string>
     <string name="chat_context_unstar">Yıldızı Kaldır</string>
     <string name="chat_context_edit">Düzenle</string>
+    <!-- Shown in place of "Düzenle" once the 15-minute window has passed, so the limit is read
+         rather than discovered by failing (#597). Disabled-with-a-reason beats a missing item:
+         a menu entry that vanishes just looks broken. -->
+    <string name="chat_context_edit_expired">Düzenle (süresi doldu)</string>
     <string name="chat_context_delete">Sil</string>
     <string name="chat_replying_to">Yanıtlanan mesaj</string>
     <string name="chat_forward_title">İlet</string>
