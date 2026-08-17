@@ -50,6 +50,12 @@ class WebSocketSessionManager {
     // network. Only a frame we actually received proves liveness, so we record when one arrived.
     private val lastSeenAt = ConcurrentHashMap<String, Long>()
 
+    // userId -> the conversation currently on screen and foregrounded, per WsMessage.ConversationFocus.
+    // Absent means "none" — background, no chat open, or never reported (an old client build).
+    // Keyed per-user, not per-session: multi-device linked sessions (MultiDeviceConfig) is default
+    // OFF, so a second concurrent device for one user is not a case this needs to get right yet.
+    private val activeConversation = ConcurrentHashMap<UUID, UUID>()
+
     // Periodic reaping of sessions that are closed, silent, or unwritable
     private val cleanupExecutor = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "ws-session-cleanup").apply { isDaemon = true }
@@ -100,6 +106,23 @@ class WebSocketSessionManager {
     fun getUserId(session: WebSocketSession): UUID? = sessionToUser[session.id]
 
     fun isOnline(userId: UUID): Boolean = sessions[userId]?.isNotEmpty() == true
+
+    /**
+     * Records — or clears, for a `null` [conversationId] — which conversation [userId] is currently
+     * looking at. Never throws on a bad frame; the caller decodes the id before calling this.
+     */
+    fun setActiveConversation(userId: UUID, conversationId: UUID?) {
+        if (conversationId == null) activeConversation.remove(userId) else activeConversation[userId] = conversationId
+    }
+
+    /**
+     * Whether [userId] is foregrounded on [conversationId] right now, per the last
+     * `WsMessage.ConversationFocus` it sent. This is the check a push send must consult instead of
+     * [isOnline] (#618) — a live socket says a device is reachable, not that this particular
+     * conversation is the one on screen.
+     */
+    fun isViewingConversation(userId: UUID, conversationId: UUID): Boolean =
+        activeConversation[userId] == conversationId
 
     fun sendToUser(userId: UUID, message: String) {
         val userSessions = sessions[userId] ?: return
@@ -172,6 +195,10 @@ class WebSocketSessionManager {
             set.remove(session)
             if (set.isEmpty()) null else set
         }
+        // Only once every session for this user is gone — a second device may still be looking at
+        // something. Not "the socket that just closed happened to be the one that last reported
+        // focus," because with one entry per user there is no way to tell whose report it was.
+        if (!isOnline(userId)) activeConversation.remove(userId)
     }
 
     /** @return false if the ping could not be written, which means the session is dead. */

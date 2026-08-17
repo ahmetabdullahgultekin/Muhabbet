@@ -53,6 +53,9 @@ internal object MuhabbetNotifications {
     /** Matches `PushNotificationComposer.KEY_GROUP_NAME` — the raw name, not the composed title. */
     const val EXTRA_GROUP_NAME = "groupName"
 
+    /** The `messageId` push-data key. See `PushNotificationComposer.KEY_MESSAGE_ID` on the server. */
+    const val EXTRA_MESSAGE_ID = "messageId"
+
     private const val TAG = "MuhabbetNotifications"
 
     fun channelId(conversationType: String?): String =

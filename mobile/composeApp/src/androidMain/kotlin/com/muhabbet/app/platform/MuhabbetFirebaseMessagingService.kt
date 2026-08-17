@@ -11,6 +11,7 @@ import androidx.core.content.LocusIdCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.muhabbet.app.R
+import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.di.androidPlatformModule
 import com.muhabbet.app.di.bootstrapOrReuseKoin
@@ -69,6 +70,20 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
         // — not exact for one that queued, but no worse than the single-line notification it replaces.
         val sentAtMillis = message.data[MuhabbetNotifications.EXTRA_SENT_AT]?.toLongOrNull()
             ?: System.currentTimeMillis()
+        val messageId = message.data[MuhabbetNotifications.EXTRA_MESSAGE_ID]
+
+        // #596: this is the one case where delivery is certain — the notification is about to be
+        // posted below — and, before this, the one case that never told the sender so. No socket to
+        // reach for here (that is why FCM was involved), so this is the REST ack #596 added
+        // (`POST /messages/{id}/delivered`), same shape as onNewToken's bootstrapOrReuseKoin below:
+        // this callback can run before MainActivity ever has in this process.
+        if (messageId != null) {
+            serviceScope.launch {
+                bootstrapOrReuseKoin(androidPlatformModule(applicationContext))
+                    .get<MessageRepository>()
+                    .markDelivered(messageId)
+            }
+        }
 
         createNotificationChannels()
 

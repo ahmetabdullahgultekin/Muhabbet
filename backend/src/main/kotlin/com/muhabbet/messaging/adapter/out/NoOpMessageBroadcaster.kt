@@ -58,11 +58,17 @@ class WebSocketMessageBroadcaster(
                 log.debug("Message {} delivered to online user {}", message.id, recipientId)
             } else {
                 log.debug("User {} offline, message {} queued in DB", recipientId, message.id)
-                // Muted (#571): the message is still stored and will still be there on reconnect —
-                // only the courtesy push is skipped, and only for this member's own mute.
-                if (!member.isMuted()) {
-                    offlinePushSender.sendTo(recipientId, message, senderDisplayName, conversation)
-                }
+            }
+
+            // A push is withheld for two independent reasons: this member has muted the
+            // conversation (#571), or is foregrounded on it right now (#618) — a live socket
+            // elsewhere, screen off, or the app merely backgrounded all still get one. Checked
+            // outside the isOnline branch above, not inside its `else`: an online recipient reading
+            // a different chat needs exactly the same push an offline one does. Kept in step with
+            // RedisMessageBroadcaster's identical check by hand — #469 was this same pair of
+            // broadcasters drifting apart once already.
+            if (!member.isMuted() && !sessionManager.isViewingConversation(recipientId, message.conversationId)) {
+                offlinePushSender.sendTo(recipientId, message, senderDisplayName, conversation)
             }
         }
     }

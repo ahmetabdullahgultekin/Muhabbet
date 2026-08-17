@@ -91,6 +91,25 @@ class MessageRepository(
         return sent
     }
 
+    /**
+     * Acks that this message reached the device, without a WebSocket (#596).
+     *
+     * `MuhabbetFirebaseMessagingService.onMessageReceived` runs in a background service with no open
+     * socket and only seconds to live — opening one just to send `AckMessage(DELIVERED)` is exactly
+     * what battery optimisation kills first. This is the same decision the socket ack makes, over a
+     * transport that survives that constraint. Never throws: a failed courtesy ack must not crash a
+     * push handler that has already done its job by posting the notification.
+     */
+    suspend fun markDelivered(messageId: String) {
+        try {
+            apiClient.post<Unit>("/api/v1/messages/$messageId/delivered", Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Delivery ack failed for $messageId: $e")
+        }
+    }
+
     suspend fun starMessage(messageId: String) {
         apiClient.post<Unit>("/api/v1/starred/$messageId", Unit)
     }

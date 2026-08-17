@@ -58,6 +58,24 @@ sealed class WsMessage {
     @SerialName("presence.online")
     data object GoOnline : WsMessage()
 
+    /**
+     * Client reports which conversation, if any, is on screen and foregrounded right now.
+     *
+     * The signal a socket alone cannot give: [WebSocketSessionManager.isOnline] only ever meant "a
+     * socket is open," which is true for a phone with the screen off or reading a different chat,
+     * not just for one looking at this exact conversation. #618 shipped a double tick with no
+     * notification precisely because push suppression had nothing finer than that to consult.
+     *
+     * [conversationId] is `null` when the app is backgrounded or no chat screen is open — clearing
+     * it explicitly rather than relying on disconnect, because the socket usually stays up while the
+     * app is merely backgrounded (see the reap threshold in `WebSocketSessionManager`).
+     */
+    @Serializable
+    @SerialName("presence.conversation_focus")
+    data class ConversationFocus(
+        val conversationId: String? = null
+    ) : WsMessage()
+
     /** Client heartbeat / ping */
     @Serializable
     @SerialName("ping")
