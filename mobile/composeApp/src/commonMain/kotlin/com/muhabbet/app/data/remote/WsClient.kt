@@ -100,7 +100,19 @@ class WsClient(
         val myGeneration = ++generation
         shouldReconnect = true
         reconnectAttempt = 0
-        _connectionState.value = ConnectionState.CONNECTING
+        // Only claim CONNECTING when a loop actually has to be started. This looks redundant and
+        // is not: [startConnectLoop] is single-flighted, so on an Activity recreation — the common
+        // case, and the one the generation guard exists to make survivable — it returns immediately
+        // because a healthy loop is already running. That loop is parked in its `incoming` read and
+        // will never revisit the line that sets CONNECTED, so overwriting the state here left the
+        // app showing "No connection" for as long as it stayed open, while the socket kept
+        // delivering messages normally (#521).
+        //
+        // The invariant this restores: the connect loop is the only writer of [connectionState],
+        // apart from [disconnect].
+        if (connectJob?.isActive != true) {
+            _connectionState.value = ConnectionState.CONNECTING
+        }
         startConnectLoop()
         startHeartbeat(myGeneration)
         return myGeneration
