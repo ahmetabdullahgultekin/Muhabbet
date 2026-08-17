@@ -1,21 +1,23 @@
 package com.muhabbet.app.data.repository
 
-import com.muhabbet.app.data.local.LocalCache
+import com.muhabbet.app.data.local.MessageCache
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.PollResultResponse
 import com.muhabbet.shared.dto.PollVoteRequest
 import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
+import com.muhabbet.shared.dto.SendMessageRequest
 import com.muhabbet.shared.model.Message
 import kotlin.coroutines.cancellation.CancellationException
 
 class MessageRepository(
     private val apiClient: ApiClient,
-    private val localCache: LocalCache
+    private val localCache: MessageCache
 ) {
 
     private companion object {
@@ -55,6 +57,33 @@ class MessageRepository(
                 } else throw e
             } else throw e
         }
+    }
+
+    /**
+     * Sends one text message over REST, for callers with no WebSocket to reach for.
+     *
+     * The socket stays the normal path — it is already open while a chat is on screen, and it is
+     * the only path that gets a `ServerAck` back. This exists for the notification inline reply
+     * (#510), which runs in a `BroadcastReceiver` that may be the only thing alive in the process
+     * and has about ten seconds before the system reclaims it; bringing a socket up, authenticating
+     * it and tearing it down again inside that budget is a worse bet than one POST.
+     *
+     * Throws — [ApiException] when the server rejected it, anything else when it never arrived — so
+     * that a caller cannot mistake a failure for a send. That is the whole point of the issue this
+     * came from: the notification used to report success unconditionally.
+     */
+    suspend fun sendMessage(conversationId: String, content: String): Message {
+        val response = apiClient.post<Message>(
+            "/api/v1/conversations/$conversationId/messages",
+            // Generated here, once per send: the server rejects a repeat of an id it has already
+            // stored, so this is what stops a retried POST from posting the message twice.
+            SendMessageRequest(messageId = generateMessageId(), content = content)
+        )
+        val sent = response.data ?: throw Exception("MSG_SEND_FAILED")
+        // Cached so the message is on screen the moment the app is opened, rather than only after
+        // the first history fetch comes back.
+        localCache.upsertMessages(listOf(sent))
+        return sent
     }
 
     suspend fun starMessage(messageId: String) {

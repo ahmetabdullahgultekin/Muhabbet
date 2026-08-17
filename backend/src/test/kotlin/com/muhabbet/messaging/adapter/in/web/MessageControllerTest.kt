@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
@@ -7,12 +8,16 @@ import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.MessageInfo
 import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
+import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
+import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.shared.TestData
+import com.muhabbet.shared.dto.SendMessageRequest
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -25,6 +30,7 @@ class MessageControllerTest {
 
     private lateinit var getMessageHistoryUseCase: GetMessageHistoryUseCase
     private lateinit var manageMessageUseCase: ManageMessageUseCase
+    private lateinit var sendMessageUseCase: SendMessageUseCase
     private lateinit var controller: MessageController
 
     private val userId = TestData.USER_ID_1
@@ -36,9 +42,11 @@ class MessageControllerTest {
     fun setUp() {
         getMessageHistoryUseCase = mockk()
         manageMessageUseCase = mockk()
+        sendMessageUseCase = mockk()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
-            manageMessageUseCase = manageMessageUseCase
+            manageMessageUseCase = manageMessageUseCase,
+            sendMessageUseCase = sendMessageUseCase
         )
         setAuthenticatedUser(userId, deviceId)
     }
@@ -199,6 +207,82 @@ class MessageControllerTest {
             val response = controller.getMessageInfo(messageId)
 
             assert(response.body?.data?.content == "")
+        }
+    }
+
+    /**
+     * The REST send transport added for the notification inline reply (#510).
+     *
+     * A `BroadcastReceiver` has no socket to reach for and about ten seconds to live, so it posts
+     * instead. What these pin is that the controller is only a transport: it forwards to the same
+     * [SendMessageUseCase] the socket handler calls, and it lets that use case's rejections through
+     * rather than turning any of them into a response a caller could read as a send.
+     */
+    @Nested
+    inner class SendMessage {
+
+        private val newMessageId = UUID.fromString("22222222-2222-4222-8222-222222222222")
+
+        private fun request(messageId: String = newMessageId.toString(), content: String = "merhaba") =
+            SendMessageRequest(messageId = messageId, content = content)
+
+        @Test
+        fun `should forward the send to the use case the socket handler also uses`() {
+            val command = slot<SendMessageCommand>()
+            every { sendMessageUseCase.sendMessage(capture(command)) } returns
+                TestData.textMessage(id = newMessageId, content = "merhaba")
+
+            val response = controller.sendMessage(conversationId, request())
+
+            assert(response.statusCode.value() == 200)
+            assert(response.body?.data?.content == "merhaba")
+            assert(command.captured.messageId == newMessageId)
+            assert(command.captured.conversationId == conversationId)
+            // The sender comes from the token, never from the body — otherwise anyone holding a
+            // valid token could post as anyone else.
+            assert(command.captured.senderId == userId)
+            assert(command.captured.contentType == ContentType.TEXT)
+        }
+
+        @Test
+        fun `should propagate MSG_NOT_MEMBER rather than answering as though it had sent`() {
+            every {
+                sendMessageUseCase.sendMessage(any())
+            } throws BusinessException(ErrorCode.MSG_NOT_MEMBER)
+
+            try {
+                controller.sendMessage(conversationId, request())
+                assert(false) { "Expected BusinessException" }
+            } catch (ex: BusinessException) {
+                assert(ex.errorCode == ErrorCode.MSG_NOT_MEMBER)
+            }
+        }
+
+        @Test
+        fun `should propagate MSG_DUPLICATE so a resend cannot post the message twice`() {
+            every {
+                sendMessageUseCase.sendMessage(any())
+            } throws BusinessException(ErrorCode.MSG_DUPLICATE)
+
+            try {
+                controller.sendMessage(conversationId, request())
+                assert(false) { "Expected BusinessException" }
+            } catch (ex: BusinessException) {
+                assert(ex.errorCode == ErrorCode.MSG_DUPLICATE)
+            }
+        }
+
+        @Test
+        fun `should reject a message id that is not a UUID before reaching the use case`() {
+            // GlobalExceptionHandler maps IllegalArgumentException to 400. What matters here is
+            // that nothing is sent on the way to that answer.
+            try {
+                controller.sendMessage(conversationId, request(messageId = "not-a-uuid"))
+                assert(false) { "Expected IllegalArgumentException" }
+            } catch (ex: IllegalArgumentException) {
+                assert(ex.message != null)
+            }
+            verify(exactly = 0) { sendMessageUseCase.sendMessage(any()) }
         }
     }
 

@@ -64,7 +64,7 @@ import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.platform.rememberAudioPlayer
 import com.muhabbet.app.ui.chat.ForwardPickerDialog
 import com.muhabbet.app.ui.chat.MediaViewer
-import com.muhabbet.app.ui.chat.generateMessageId
+import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.composeapp.generated.resources.Res

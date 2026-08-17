@@ -161,6 +161,23 @@ data class UpdateRoleRequest(
 
 // ─── Message Management DTOs ─────────────────────────────
 
+/**
+ * Sends one text message over REST instead of over the WebSocket.
+ *
+ * The socket remains the normal path: it is already open while a chat is on screen and it carries
+ * the ack back. This exists for the callers that have no socket and cannot afford to open one —
+ * today that is the notification inline-reply `BroadcastReceiver`, which may run in a process that
+ * was started for the broadcast alone and will be torn down as soon as it returns (#510).
+ *
+ * [messageId] is the same client-generated UUID the socket sends, and carries the same meaning: the
+ * server rejects a second message with an id it has already stored, so a retry cannot double-post.
+ */
+@Serializable
+data class SendMessageRequest(
+    val messageId: String,
+    val content: String
+)
+
 @Serializable
 data class EditMessageRequest(
     val content: String
