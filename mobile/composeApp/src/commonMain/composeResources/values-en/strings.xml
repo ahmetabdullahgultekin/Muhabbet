@@ -152,6 +152,8 @@
     <string name="settings_language">Language</string>
     <string name="settings_language_turkish">Türkçe</string>
     <string name="settings_language_english">English</string>
+    <!-- See values/strings.xml: this names the file, it is not a translatable phrase. -->
+    <string name="app_language_code">en</string>
 
     <!-- Delete Conversation -->
     <string name="conv_delete_title">Delete Conversation</string>

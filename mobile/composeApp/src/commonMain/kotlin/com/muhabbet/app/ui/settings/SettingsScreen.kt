@@ -30,9 +30,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
@@ -48,6 +52,8 @@ import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -61,6 +67,15 @@ import com.muhabbet.designsystem.components.MuhabbetLoadingState
 fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    /**
+     * Scroll straight to the Language section once, on open.
+     *
+     * True only for the launch that follows a language change: applying a locale on Android means
+     * recreating the Activity, which used to return the user to the top of the conversation list
+     * from wherever they were in Settings (#505). They now come back to the control they just used,
+     * which is also where the change is visible.
+     */
+    focusLanguageSection: Boolean = false,
     onStarredMessages: () -> Unit = {},
     onPrivacyDashboard: () -> Unit = {},
     onTwoStepVerification: () -> Unit = {},
@@ -88,6 +103,31 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val restartApp = rememberRestartApp()
     val themeController: ThemeController = koinInject()
+
+    // Scroll plumbing for [focusLanguageSection].
+    //
+    // Both positions are read in WINDOW coordinates, so the sum below needs no knowledge of the
+    // heights above the Language section — only of how far below the top of the viewport it
+    // currently sits. The screen always opens at scroll 0, so that distance is the scroll offset.
+    val scrollState = rememberScrollState()
+    var viewportTop by remember { mutableStateOf<Float?>(null) }
+    var languageSectionTop by remember { mutableStateOf<Float?>(null) }
+
+    // Keyed on Unit and awaiting the measurements through a snapshot flow, rather than keying the
+    // effect on the measurements themselves: scrolling MOVES the Language section, so a
+    // measurement-keyed effect would cancel and relaunch itself in the middle of its own scroll.
+    LaunchedEffect(Unit) {
+        if (!focusLanguageSection) return@LaunchedEffect
+        val (top, language) = snapshotFlow {
+            val viewport = viewportTop
+            val section = languageSectionTop
+            if (viewport != null && section != null) viewport to section else null
+        }.filterNotNull().first()
+        // Instant, not animated. The user has just come back from a full process restart; arriving
+        // already at the control they used reads as the app keeping their place, whereas the page
+        // scrolling itself on the first frame reads as the app doing something else again.
+        scrollState.scrollTo((scrollState.value + (language - top)).roundToInt().coerceAtLeast(0))
+    }
 
     val profileUpdatedMsg = stringResource(Res.string.settings_profile_updated)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -178,7 +218,9 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
+                    // Before verticalScroll on purpose — see the scroll plumbing above.
+                    .onGloballyPositioned { viewportTop = it.positionInWindow().y }
+                    .verticalScroll(scrollState)
                     .padding(MuhabbetSpacing.XLarge),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -290,7 +332,15 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
-                LanguageSection(tokenStorage = tokenStorage, restartApp = restartApp)
+                // A Column, not a Box: LanguageSection emits a title, a spacer and two rows, and a
+                // Box would stack them on top of each other.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { languageSectionTop = it.positionInWindow().y }
+                ) {
+                    LanguageSection(tokenStorage = tokenStorage, restartApp = restartApp)
+                }
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()

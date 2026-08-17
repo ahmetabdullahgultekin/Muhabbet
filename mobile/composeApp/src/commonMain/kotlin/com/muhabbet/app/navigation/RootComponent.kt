@@ -18,6 +18,16 @@ class RootComponent(
 
     private val navigation = StackNavigation<Config>()
 
+    /**
+     * Whether this process was started by the language switch, and so owes the user Settings rather
+     * than the conversation list (#505).
+     *
+     * Read here, before [childStack] builds the first child, because that is the one moment it is
+     * true. It is cleared as soon as it is handed over: [createChild] also runs on logout followed
+     * by login, and a flag that survived that would drop a returning user into Settings.
+     */
+    private var pendingLanguageSettings = tokenStorage.consumePendingLanguageRestart()
+
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
         serializer = Config.serializer(),
@@ -29,7 +39,11 @@ class RootComponent(
     private fun createChild(config: Config, componentContext: ComponentContext): Child =
         when (config) {
             Config.Auth -> Child.Auth(AuthComponent(componentContext, ::onAuthComplete))
-            Config.Main -> Child.Main(MainComponent(componentContext, ::onLogout))
+            Config.Main -> {
+                val openAtLanguageSettings = pendingLanguageSettings
+                pendingLanguageSettings = false
+                Child.Main(MainComponent(componentContext, ::onLogout, openAtLanguageSettings))
+            }
         }
 
     private fun onAuthComplete() {
