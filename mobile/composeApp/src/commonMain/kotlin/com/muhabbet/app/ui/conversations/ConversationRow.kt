@@ -162,8 +162,8 @@ internal fun ConversationItem(
                 Column {
                     Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                     Badge(
-                        containerColor = LocalSemanticColors.current.unreadBadge,
-                        contentColor = LocalSemanticColors.current.onUnreadBadge
+                        containerColor = LocalSemanticColors.current.unreadBadge.container,
+                        contentColor = LocalSemanticColors.current.unreadBadge.content
                     ) {
                         Text(conversation.unreadCount.toString())
                     }

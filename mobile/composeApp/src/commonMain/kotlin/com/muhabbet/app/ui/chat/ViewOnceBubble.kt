@@ -38,8 +38,9 @@ fun ViewOnceBubble(
     modifier: Modifier = Modifier
 ) {
     val semanticColors = LocalSemanticColors.current
-    val bubbleColor = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
-    val onBubbleColor = if (isOwn) semanticColors.onBubbleOwn else semanticColors.onBubbleOther
+    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
+    val bubbleColor = bubble.container
+    val onBubbleColor = bubble.content
     var hasBeenViewed by remember { mutableStateOf(false) }
 
     val typeLabel = when (message.contentType) {

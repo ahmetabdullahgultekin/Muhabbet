@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.platform.AudioPlayer
 import com.muhabbet.app.platform.SpeechTranscriber
+import com.muhabbet.designsystem.theme.LocalSemanticColors
+import com.muhabbet.designsystem.theme.MuhabbetAlphas
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.composeapp.generated.resources.Res
@@ -64,8 +66,15 @@ fun VoiceBubble(
     val totalDuration = durationSeconds?.let { it * 1000L } ?: duration
     val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
 
-    val textColor = if (isOwn) MaterialTheme.colorScheme.onPrimary
-        else MaterialTheme.colorScheme.onSurfaceVariant
+    // #517, same shape as the poll: the ground behind this row is the bubble, not `primary`, so the
+    // foreground has to come off the bubble's own pair.
+    val bubble = if (isOwn) LocalSemanticColors.current.bubbleOwn
+        else LocalSemanticColors.current.bubbleOther
+    val textColor = bubble.content
+    // The captions under the scrubber are the same secondary mark every timestamp uses. They were
+    // `textColor` at 0.6-0.7 alpha, which is an unmeasured colour by construction: nothing knows
+    // what a faded foreground lands at over a given bubble, so nothing could check it.
+    val captionColor = LocalSemanticColors.current.secondaryText
 
     Column(modifier = modifier) {
         Row(
@@ -86,10 +95,8 @@ fun VoiceBubble(
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.weight(1f),
-                color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                else MaterialTheme.colorScheme.primary,
-                trackColor = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f)
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                color = textColor,
+                trackColor = textColor.copy(alpha = MuhabbetAlphas.ProgressTrack)
             )
 
             Spacer(Modifier.width(MuhabbetSpacing.XSmall))
@@ -102,7 +109,7 @@ fun VoiceBubble(
             Text(
                 text = displayTime,
                 style = MaterialTheme.typography.labelSmall,
-                color = textColor.copy(alpha = 0.7f)
+                color = captionColor
             )
         }
 
@@ -111,7 +118,7 @@ fun VoiceBubble(
             Text(
                 text = transcribeText,
                 style = MaterialTheme.typography.labelSmall,
-                color = textColor.copy(alpha = 0.6f),
+                color = captionColor,
                 modifier = Modifier.clickable {
                     isTranscribing = true
                     scope.launch {
@@ -139,13 +146,13 @@ fun VoiceBubble(
                 CircularProgressIndicator(
                     modifier = Modifier.size(12.dp),
                     strokeWidth = 1.5.dp,
-                    color = textColor.copy(alpha = 0.6f)
+                    color = captionColor
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                 Text(
                     text = transcribingText,
                     style = MaterialTheme.typography.labelSmall,
-                    color = textColor.copy(alpha = 0.6f)
+                    color = captionColor
                 )
             }
         }
@@ -155,7 +162,7 @@ fun VoiceBubble(
             Text(
                 text = transcript ?: "",
                 style = MaterialTheme.typography.bodySmall,
-                color = textColor.copy(alpha = 0.85f)
+                color = textColor
             )
         }
     }

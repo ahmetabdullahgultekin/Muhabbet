@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.LinkPreviewResponse
@@ -61,13 +62,18 @@ fun LinkPreviewCard(
         }
     }
 
+    // #517: a preview card is a panel inset into a bubble, so it takes the bubble's inset pair.
+    // It used to build its own — a 20%-alpha `primary` ground with `onPrimary` text on top, neither
+    // of which had any relationship to the bubble behind them.
+    val semanticColors = LocalSemanticColors.current
+    val card = if (isOwn) semanticColors.bubbleOwnInset else semanticColors.bubbleOtherInset
+
     val p = preview ?: return
     if (p.title == null && p.description == null && p.imageUrl == null) return
 
     Surface(
         shape = MaterialTheme.shapes.small,
-        color = if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = card.container,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
@@ -90,8 +96,7 @@ fun LinkPreviewCard(
                 Text(
                     text = siteName,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    color = semanticColors.secondaryText,
                     maxLines = 1
                 )
             }
@@ -99,8 +104,7 @@ fun LinkPreviewCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = card.content,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -110,8 +114,7 @@ fun LinkPreviewCard(
                 Text(
                     text = description,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = card.content,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
