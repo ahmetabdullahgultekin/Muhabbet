@@ -88,7 +88,7 @@ class ReactionControllerTest {
                 ReactionGroup(emoji = "\u2764\uFE0F", count = 1, userIds = listOf(userId))
             )
 
-            every { manageReactionUseCase.getReactions(messageId) } returns reactions
+            every { manageReactionUseCase.getReactions(messageId, userId) } returns reactions
 
             val response = controller.getReactions(messageId)
 
@@ -99,7 +99,7 @@ class ReactionControllerTest {
 
         @Test
         fun `should return empty list when no reactions`() {
-            every { manageReactionUseCase.getReactions(messageId) } returns emptyList()
+            every { manageReactionUseCase.getReactions(messageId, userId) } returns emptyList()
 
             val response = controller.getReactions(messageId)
 

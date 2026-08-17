@@ -225,17 +225,23 @@ class AppConfig {
     @Bean
     fun pollService(
         messageRepository: MessageRepository,
-        pollVoteRepository: PollVoteRepository
+        pollVoteRepository: PollVoteRepository,
+        conversationRepository: ConversationRepository
     ): PollService = PollService(
         messageRepository = messageRepository,
-        pollVoteRepository = pollVoteRepository
+        pollVoteRepository = pollVoteRepository,
+        conversationRepository = conversationRepository
     )
 
     @Bean
     fun reactionService(
-        reactionRepository: ReactionRepository
+        reactionRepository: ReactionRepository,
+        messageRepository: MessageRepository,
+        conversationRepository: ConversationRepository
     ): ReactionService = ReactionService(
-        reactionRepository = reactionRepository
+        reactionRepository = reactionRepository,
+        messageRepository = messageRepository,
+        conversationRepository = conversationRepository
     )
 
     @Bean

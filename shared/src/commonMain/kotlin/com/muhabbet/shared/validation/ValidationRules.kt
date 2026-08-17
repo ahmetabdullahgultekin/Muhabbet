@@ -68,4 +68,27 @@ object ValidationRules {
     val ALLOWED_IMAGE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
     val ALLOWED_VIDEO_TYPES = setOf("video/mp4", "video/quicktime")
     val ALLOWED_VOICE_TYPES = setOf("audio/ogg", "audio/opus", "audio/mp4")
+
+    // Reactions
+    //
+    // An allow-list rather than a length or grapheme rule, because the client has no free-emoji
+    // picker: the reaction bar offers exactly these six and there is no other route to reacting.
+    // So the server can enforce precisely what the UI is able to produce — neither narrower nor
+    // wider. Until #557 it enforced nothing at all, and `reactions.emoji` is VARCHAR(16), so any
+    // sixteen characters could be pushed over WebSocket into a conversation.
+    //
+    // This is the single source of truth; the reaction bar reads it, so adding a seventh reaction
+    // is one edit rather than two that can drift apart. The exact code points are asserted in
+    // ValidationRulesTest — the heart is U+2764 U+FE0F and that variation selector is invisible
+    // here, so a test rather than a comment is what keeps it from being lost in an edit.
+    val ALLOWED_REACTIONS: Set<String> = setOf(
+        "❤️",
+        "👍",
+        "😂",
+        "😮",
+        "😢",
+        "🙏"
+    )
+
+    fun isValidReaction(emoji: String): Boolean = emoji in ALLOWED_REACTIONS
 }

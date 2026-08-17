@@ -27,8 +27,14 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
+import com.muhabbet.shared.validation.ValidationRules
 
-val QUICK_REACTIONS = listOf("\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
+/**
+ * The six the bar offers. Sourced from the shared module rather than declared here, because the
+ * backend now rejects anything outside that set (#557) \u2014 two lists would mean a button that sends
+ * a reaction the server refuses. Ordered here, a set there: the order is a UI concern.
+ */
+val QUICK_REACTIONS: List<String> = ValidationRules.ALLOWED_REACTIONS.toList()
 
 @Composable
 fun QuickReactionBar(
