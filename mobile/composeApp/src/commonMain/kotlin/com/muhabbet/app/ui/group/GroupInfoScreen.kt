@@ -88,6 +88,7 @@ fun GroupInfoScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showInviteLinkSheet by remember { mutableStateOf(false) }
+    var showAddMembersSheet by remember { mutableStateOf(false) }
     var announcementOnly by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var isUploadingPhoto by remember { mutableStateOf(false) }
@@ -184,6 +185,24 @@ fun GroupInfoScreen(
             conversationId = conversationId,
             onDismiss = { showInviteLinkSheet = false },
             snackbarHostState = snackbarHostState
+        )
+    }
+
+    if (showAddMembersSheet) {
+        AddGroupMembersSheet(
+            conversationId = conversationId,
+            existingMemberIds = (conversation?.participants ?: emptyList())
+                .map { it.userId }
+                .toSet(),
+            onDismiss = { showAddMembersSheet = false },
+            // Appended locally rather than refetched: the server has already accepted them, and a
+            // second round trip to learn what we just sent would leave the list stale for as long as
+            // it took.
+            onMembersAdded = { added ->
+                conversation = conversation?.let { current ->
+                    current.copy(participants = current.participants + added)
+                }
+            }
         )
     }
 
@@ -404,6 +423,37 @@ fun GroupInfoScreen(
                                         }
                                     }
                                 }
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+
+                // Add-member row. Only admins and owners: the server refuses anyone else
+                // (GroupService.requireAdminOrOwner), and a row that always fails is worse than no
+                // row. Sits directly above the member list because that is what it changes.
+                if (isAdminOrOwner) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAddMembersSheet = true }
+                                .padding(
+                                    horizontal = MuhabbetSpacing.Large,
+                                    vertical = MuhabbetSpacing.Medium
+                                ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Muhabbet.icons.Add,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                            )
+                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                            Text(
+                                text = stringResource(Res.string.group_add_members),
+                                style = MaterialTheme.typography.bodyLarge
                             )
                         }
                         HorizontalDivider()
