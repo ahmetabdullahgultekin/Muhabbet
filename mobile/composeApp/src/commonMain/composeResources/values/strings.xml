@@ -297,6 +297,18 @@
     <string name="date_today">Bugün</string>
     <string name="date_yesterday">Dün</string>
 
+    <!-- Weekday names for the conversation list's "when" column (#585). Monday first, matching
+         DayOfWeek.ordinal. Translated rather than taken from platform locale data on purpose: the
+         app's language is chosen in Settings and can differ from the device's, so the platform's
+         names would print Turkish days in an English build. -->
+    <string name="date_weekday_monday">Pazartesi</string>
+    <string name="date_weekday_tuesday">Salı</string>
+    <string name="date_weekday_wednesday">Çarşamba</string>
+    <string name="date_weekday_thursday">Perşembe</string>
+    <string name="date_weekday_friday">Cuma</string>
+    <string name="date_weekday_saturday">Cumartesi</string>
+    <string name="date_weekday_sunday">Pazar</string>
+
     <!-- Scroll to bottom -->
     <string name="scroll_to_bottom">Aşağı kaydır</string>
 
