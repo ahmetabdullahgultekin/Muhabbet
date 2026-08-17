@@ -65,7 +65,9 @@ fun ConversationResponse.toChatTarget(
         conversationId = id,
         // A group falls straight to the fallback rather than to a member's name. Titling a group
         // with whichever member happened to sort first is the wrong identity, not a shorter one.
-        name = name ?: (if (isGroup) null else other?.label(contactNames)) ?: fallbackName,
+        name = name?.ifBlank { null }
+            ?: (if (isGroup) null else other?.label(contactNames))
+            ?: fallbackName,
         otherUserId = if (isGroup) null else other?.userId,
         isGroup = isGroup,
         avatarUrl = if (isGroup) avatarUrl else other?.avatarUrl
@@ -92,6 +94,12 @@ fun ConversationResponse.senderLabel(
  * The address book wins because it is what the user themselves wrote down, and a display name is
  * whatever the other side typed. A bare user id is never a candidate — its first eight characters
  * read as a hex hash, which is exactly what #507 shipped.
+ *
+ * Blank is treated as absent at every rung. The server validates `displayName` with `isNotBlank()`,
+ * so `""` should never arrive — but "should never arrive" is the assumption this whole change exists
+ * to stop relying on, and a `?:` chain happily carries an empty string all the way to the title bar.
  */
 private fun ParticipantResponse.label(contactNames: Map<String, String>): String? =
-    phoneNumber?.let { contactNames[it] } ?: displayName ?: phoneNumber
+    phoneNumber?.let { contactNames[it] }?.ifBlank { null }
+        ?: displayName?.ifBlank { null }
+        ?: phoneNumber?.ifBlank { null }

@@ -73,6 +73,19 @@ class ChatTargetTest {
     }
 
     @Test
+    fun toChatTarget_treatsABlankNameAsNoNameAtAll() {
+        // A `?:` chain carries "" all the way to the title bar, which looks exactly like the bug
+        // this change removes. The server validates displayName with isNotBlank(), but "the server
+        // would never send that" is precisely the assumption being retired here.
+        val target = conversation(
+            name = "   ",
+            participants = listOf(participant(ME, "Ben"), participant("u2", displayName = "")),
+        ).toChatTarget(currentUserId = ME, fallbackName = FALLBACK)
+
+        assertEquals(FALLBACK, target.name)
+    }
+
+    @Test
     fun toChatTarget_carriesTheIdentityTheChatScreenNeedsToDrawItself() {
         // Name, avatar and the user id behind the title tap all travel together, because the chat
         // screen has no way to fetch any of them from a conversation id alone.
