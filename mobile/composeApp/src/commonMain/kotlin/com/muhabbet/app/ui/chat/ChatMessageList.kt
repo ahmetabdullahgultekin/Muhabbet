@@ -112,9 +112,17 @@ internal fun ChatMessageList(
                 }
             }
             var lastDateStr = ""
-            messages.forEachIndexed { index, message ->
+            messages.forEach { message ->
                 val dateStr = formatDateForSeparator(message.serverTimestamp ?: message.clientTimestamp)
-                if (dateStr != lastDateStr) { lastDateStr = dateStr; val d = dateStr; item(key = "date_$index") { DateSeparatorPill(d) } }
+                // Keyed on the date string itself, not the list position: an older page prepended
+                // ahead of this separator during pagination shifts every index below it, so an
+                // index-based key made every separator "disappear" and "reappear" as a different
+                // item on each load-more, which is exactly what LazyColumn's key-based scroll-anchor
+                // preservation cannot follow through — the viewport visibly jumped away from
+                // wherever the user was reading (#590). The date string is unique per calendar day
+                // within one conversation's history (DateTimeFormatter.formatDateSeparator includes
+                // the year once the message is over a year old), so it survives a prepend unchanged.
+                if (dateStr != lastDateStr) { lastDateStr = dateStr; val d = dateStr; item(key = "date_$d") { DateSeparatorPill(d) } }
                 item(key = message.id) {
                     val isOwn = message.senderId == currentUserId
                     val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
