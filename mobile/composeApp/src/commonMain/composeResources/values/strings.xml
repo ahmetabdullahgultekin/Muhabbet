@@ -788,6 +788,7 @@
     <string name="a11y_message_media_preview">Mesaj medyası önizlemesi</string>
     <string name="a11y_image_full_screen">Tam ekran görüntü</string>
     <string name="a11y_conversation_pinned">Sabitlenmiş sohbet</string>
+    <string name="a11y_conversation_muted">Sessize alınmış sohbet</string>
     <string name="a11y_selected">Seçili</string>
     <string name="group_remove_member">Üyeyi gruptan çıkar</string>
     <string name="group_event_empty">Henüz etkinlik yok</string>
