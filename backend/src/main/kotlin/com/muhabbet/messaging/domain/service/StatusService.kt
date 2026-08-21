@@ -3,6 +3,7 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -13,7 +14,8 @@ import java.util.UUID
 open class StatusService(
     private val statusRepository: StatusRepository,
     private val conversationRepository: ConversationRepository,
-    private val userDirectory: UserDirectoryPort
+    private val userDirectory: UserDirectoryPort,
+    private val blockPolicy: BlockPolicyPort
 ) : ManageStatusUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -74,13 +76,32 @@ open class StatusService(
      * a device-side fact the server cannot verify, and a caller that lies would be served the same
      * leak. The relationship is the thing the server can actually check, and for the account in
      * #507 — brand new, no conversations — it yields the empty list the owner expected.
+     *
+     * **A block narrows it again (#294).** Blocking someone does not delete the conversation the
+     * two share, so the blocked person remains a "contact" by the only definition this app has and
+     * kept receiving every status the blocker posted afterwards. Of the six surfaces a block has to
+     * close, this was the one #554 left open — the send path, presence, about and the group-add all
+     * grew a guard there and status did not.
+     *
+     * The audience list is not a substitute for this. It is the author's own per-status allow/deny
+     * list, chosen in the composer; nobody goes back and edits it when they block someone, and a
+     * block that required them to would be a two-step control that silently half-works.
+     *
+     * Applied to the contact set rather than to the statuses it returns, so a blocker's rows are
+     * never read at all: nothing loaded is nothing to leak through a later change to the mapping
+     * below, and it makes the query smaller rather than larger. One batched question for the whole
+     * set — the Updates tab resolves every contact the moment it opens, so asking per author would
+     * be an N+1 on a screen that is opened constantly.
      */
     @Transactional(readOnly = true)
     override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
         val contactIds = conversationRepository.findAllContactUserIds(viewerUserId)
         if (contactIds.isEmpty()) return emptyList()
 
-        val visible = statusRepository.findActiveByUserIds(contactIds)
+        val authorIds = contactIds - blockPolicy.findBlockedBy(viewerUserId, contactIds)
+        if (authorIds.isEmpty()) return emptyList()
+
+        val visible = statusRepository.findActiveByUserIds(authorIds)
             .filter { status -> isVisibleTo(status, viewerUserId) }
         if (visible.isEmpty()) return emptyList()
 

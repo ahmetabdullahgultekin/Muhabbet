@@ -8,6 +8,30 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — blocking someone now stops two more things it did not stop
+
+- **The person you blocked could still watch your stories** (#294). Status is scoped to your
+  contacts, and blocking someone does not delete the conversation the two of you share — so by the
+  only definition of "contact" this app has, they stayed one, and every status you posted afterwards
+  went to them. The per-status audience list was no defence: it is chosen in the composer, and
+  nobody goes back to edit it when they block someone.
+- **The person you blocked could still add you to their community** (#294). Adding someone to a
+  group has refused this since #554; adding them to a *community* did not, and that path ends by
+  enrolling them in the announcement channel — a group conversation the owner can post to. The
+  existing "must already be in one of the community's groups" rule narrowed it without closing it,
+  because a shared group is exactly what two people still have after one blocks the other. The
+  member picker no longer offers someone the add would refuse, either.
+
+Both refusals reuse the error code the ordinary "cannot add this person" case already returns. A
+code of their own would be a reliable way to test who has blocked you.
+
+**The other four ways a blocked person could reach you were already closed** — direct messages,
+presence and last-seen, push notifications, and your profile and about text — but only three of
+them had any test that said so. They do now, including one that wires the real push chain and
+asserts that nothing reaches FCM. That one was never a guard at all: push lives two hops from the
+send path and is correct today only as a consequence of the message never being stored, which is
+exactly the kind of correctness a refactor removes without noticing.
+
 ### Fixed — failures that were invisible, or reported as the wrong thing
 
 - **One scheduled message that could not be sent silently stopped all of them** (#560). Every due
