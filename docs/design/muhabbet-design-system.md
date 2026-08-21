@@ -138,6 +138,19 @@ deep member each) plus **8 gradients**, after the owner reported the original tw
 limited". Chroma stays low because this ground sits behind copper bubbles; the breadth is in hue, not
 in saturation.
 
+That swatch has a **second** contrast relationship, and measuring only the first is how the picker
+shipped with a square nobody could see (#697). `readableContentOn` answers "what can be drawn *on*
+this swatch"; it says nothing about whether the swatch is visible *on the page offering it*. On the
+OLED theme the deepest ink swatch against a black page is **1.06:1** — an invisible square the user
+could still tap — and it was never only OLED: in the light theme all twelve pale swatches sit between
+1.07:1 and 1.31:1 against the near-white page. Half the palette was invisible in every theme.
+`swatchOutlineOn(swatch)` is the fix and the picker draws it on **every** swatch, not only the
+selected one. A fixed outline colour could not work — it would have to be light around the deep
+swatches and dark around the pale ones — so it is derived from the swatch, which makes it correct
+against any page: the derivation flips at the same luminance where the swatch itself starts to
+disappear. Floor is **3:1**, WCAG 1.4.11 for graphical objects, not the 4.5:1 that applies to text;
+measured worst case is 14.07:1.
+
 The eight remaining tokens are **marks**, not grounds: `statusOnline`, `statusRead`,
 `statusDelivered`, `statusSending`, `callMissed`, `linkColor`, `dividerColor`, `secondaryText`.
 A mark has no partner of its own — what it must clear is whichever ground it lands on, and the test
@@ -263,6 +276,11 @@ bottomed out at 3.88:1, so the pill was already failing on ordinary picks before
 Two things follow. Any *new* surface painted straight onto the wallpaper takes that token instead of
 a number of its own. And `WallpaperContrastTest` is the merge gate for both — widening a gradient
 stop or adding a swatch is a change you re-measure, not one you eyeball.
+
+It is not the only gate a new swatch has to clear. `WallpaperSwatchContrastTest` measures the other
+relationship — the swatch against the picker's own page, at the 3:1 object floor — because #697 was
+exactly a swatch that passed the first file and was invisible on screen. Text-on-wallpaper and
+swatch-on-page are two different pairings and passing one says nothing about the other.
 
 ### Blur
 
