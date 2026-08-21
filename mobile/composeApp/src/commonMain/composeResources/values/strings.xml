@@ -652,6 +652,7 @@
     <string name="invite_link_revoke">Bağlantıyı iptal et</string>
     <string name="invite_link_require_approval">Yönetici onayı gereksin</string>
     <string name="invite_link_copied">Bağlantı kopyalandı</string>
+    <string name="invite_link_none_yet">Bu grubun henüz bir davet bağlantısı yok. Yalnızca yöneticiler oluşturabilir.</string>
 
     <!-- Group Events -->
     <string name="group_event_title">Etkinlik</string>

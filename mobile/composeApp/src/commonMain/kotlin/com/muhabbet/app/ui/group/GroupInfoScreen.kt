@@ -186,6 +186,7 @@ fun GroupInfoScreen(
     if (showInviteLinkSheet) {
         InviteLinkSheet(
             conversationId = conversationId,
+            canManage = isAdminOrOwner,
             onDismiss = { showInviteLinkSheet = false },
             snackbarHostState = snackbarHostState
         )
@@ -347,30 +348,32 @@ fun GroupInfoScreen(
                     }
                 }
 
-                // Invite link row
-                if (isAdminOrOwner) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showInviteLinkSheet = true }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Muhabbet.icons.Link,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                            )
-                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                            Text(
-                                text = stringResource(Res.string.invite_link_title),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                        HorizontalDivider()
+                // Invite link row — open to every member, not just admins.
+                // The link exists to be handed out, and a member who cannot see it cannot hand it
+                // to anyone; gating the row made the feature a slower spelling of "an admin adds
+                // you". Creating and revoking are still admin-only, in the sheet and on the
+                // server — what a member gets here is Copy and Share.
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showInviteLinkSheet = true }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Muhabbet.icons.Link,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                        )
+                        Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                        Text(
+                            text = stringResource(Res.string.invite_link_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
+                    HorizontalDivider()
                 }
 
                 // Events row

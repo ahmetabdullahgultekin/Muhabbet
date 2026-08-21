@@ -60,6 +60,25 @@ class InviteLinkController(
         return ApiResponseBuilder.created(link.toResponse())
     }
 
+    /**
+     * The GET the app has always called and this controller never had (#705).
+     *
+     * Its absence was not a 404 — the URL matched the `@PostMapping` above under a different verb,
+     * so Spring raised `HttpRequestMethodNotSupportedException` and the client got **405**. The
+     * repository absorbs only 404, so opening the invite sheet on a group that already had a link
+     * could never show it; it showed the generic error instead.
+     *
+     * Answering 404 when the group has no link yet is therefore load-bearing, not incidental: it
+     * is what reaches the client's "offer to create one" branch. `INVITE_LINK_NOT_FOUND` carries
+     * that status, so the service throwing is enough and this method needs no null handling.
+     */
+    @GetMapping
+    fun getActiveLink(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<InviteLinkResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val link = manageInviteLinkUseCase.getActiveLink(conversationId, userId)
+        return ApiResponseBuilder.ok(link.toResponse())
+    }
+
     @DeleteMapping("/{linkId}")
     fun revokeLink(
         @PathVariable conversationId: UUID,

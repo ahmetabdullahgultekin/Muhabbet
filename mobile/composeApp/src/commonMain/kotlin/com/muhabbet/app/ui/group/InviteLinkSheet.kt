@@ -57,10 +57,17 @@ import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 
+/**
+ * @param canManage whether the viewer may create or revoke the link — admins and owners only.
+ * Every member may *read* it, because a member who cannot see the link cannot invite anyone with
+ * it. The two controls a member does not get are hidden rather than shown and refused: the server
+ * answers 403 for both, and a button that always fails is worse than no button.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InviteLinkSheet(
     conversationId: String,
+    canManage: Boolean,
     onDismiss: () -> Unit,
     snackbarHostState: SnackbarHostState,
     inviteLinkRepository: InviteLinkRepository = koinInject()
@@ -167,30 +174,40 @@ fun InviteLinkSheet(
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
-                    // Revoke
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MuhabbetIconButton(
-                            icon = Muhabbet.icons.Delete,
-                            contentDescription = stringResource(Res.string.invite_link_revoke),
-                            onClick = {
-                            scope.launch {
-                                try {
-                                    inviteLinkRepository.revokeInviteLink(conversationId, link.id)
-                                    inviteLink = null
-                                } catch (_: Exception) {
-                                    snackbarHostState.showSnackbar(genericErrorMsg)
-                                }
-                            }
-                        },
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            text = stringResource(Res.string.invite_link_revoke),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                    // Revoke — admins and owners only; the server answers 403 for anyone else.
+                    if (canManage) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            MuhabbetIconButton(
+                                icon = Muhabbet.icons.Delete,
+                                contentDescription = stringResource(Res.string.invite_link_revoke),
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            inviteLinkRepository.revokeInviteLink(conversationId, link.id)
+                                            inviteLink = null
+                                        } catch (_: Exception) {
+                                            snackbarHostState.showSnackbar(genericErrorMsg)
+                                        }
+                                    }
+                                },
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = stringResource(Res.string.invite_link_revoke),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
+            } else if (!canManage) {
+                // A member on a group whose admins have not made a link. Saying so is the honest
+                // end of the road — offering Create here would only produce a 403.
+                Text(
+                    text = stringResource(Res.string.invite_link_none_yet),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             } else {
                 // No link yet - create one
                 Row(
