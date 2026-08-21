@@ -154,10 +154,15 @@ open class CommunityService(
         }
 
         // Community membership derives from group membership, as it does in WhatsApp: an owner may
-        // enrol someone who is already in one of the community's own groups, and nobody else. This
-        // is a restriction, not a feature — the real answer is an invite the recipient accepts, and
-        // that is #387. Without it, an owner could attach any user id they could guess or read, and
-        // the community would appear in that person's Communities tab unannounced.
+        // enrol someone already in one of the community's own groups, and nobody else. Without it an
+        // owner could attach any user id they could guess or read, and the community would appear in
+        // that person's Communities tab unannounced — the defect #375 closed.
+        //
+        // This stays as strict as it was now that invites exist (#387). The consented path is
+        // `CommunityInviteService.accept`, where the person joining performs the action; this one is
+        // the *owner* acting on someone else, so "already in one of our groups" remains the only
+        // adjacency that substitutes for consent. Relaxing it here would reopen #375 through the
+        // door the invite was built to replace.
         val conversationIds = communityRepository.findGroupsByCommunityId(communityId).map { it.conversationId }
         if (!conversationRepository.isMemberOfAny(conversationIds, userId)) {
             throw BusinessException(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP)
@@ -244,8 +249,11 @@ open class CommunityService(
             .filter { it.userId != userId }
 
         if (others.isEmpty()) {
-            // Removing the only member would leave rows nothing can reach: there is no discovery,
-            // no invite (#387) and no delete endpoint. Refuse instead of orphaning the community.
+            // A community whose last member walks out is not reachable by anyone: it appears in no
+            // list, and while an invite link (#387) can now admit a stranger, only an admin can mint
+            // one and there would be no admin left to do it. Refuse, and let the owner use the
+            // explicit delete (#407) — an auditable removal rather than an implicit one on the way
+            // out.
             throw BusinessException(ErrorCode.COMMUNITY_LAST_MEMBER_CANNOT_LEAVE)
         }
 
@@ -287,10 +295,15 @@ open class CommunityService(
         val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
 
-        // Members only. There is no discovery, search or invite path in this app, so a community is
-        // only ever opened from the caller's own list or straight after creating it — nothing
-        // legitimate reads a community the caller does not belong to, and reading one exposes every
-        // linked conversation's name, avatar and size.
+        // Members only, and deliberately still so after invites shipped (#387). Reading a community
+        // exposes every linked conversation's name, avatar and size, and nothing legitimate needs
+        // that from outside: a community is opened from the caller's own list, or straight after
+        // creating or joining it.
+        //
+        // Someone holding an invite token is served by `CommunityInviteService.preview`, a separate
+        // endpoint returning name, avatar, member count and inviter — no group list. That split is
+        // the point. Widening this method to serve non-members instead is exactly the IDOR #375
+        // fixed, and #416 says so explicitly: do not implement discovery by loosening this check.
         val membership = requireMember(communityId, userId)
 
         // Self-healing backfill for the communities that existed before #584: the eight rows already
