@@ -103,24 +103,49 @@ object DateTimeFormatter {
     }
 
     /**
-     * Format ISO string to last seen display:
-     * - Today → "HH:mm"
-     * - Other days → "dd.MM HH:mm"
+     * When someone was last seen, said the way a person would say it.
+     *
+     * | Age | Shows |
+     * |---|---|
+     * | today | `17:35` |
+     * | yesterday | *Dün 17:35* |
+     * | 2–6 days | *Salı 17:35* |
+     * | older | `16.08.2026 17:35` |
+     *
+     * The day half is bucketed exactly as [formatConversationTimestamp] buckets it, and for the
+     * same reason (#585): a bare `16.08` is not how anyone says "yesterday", and at subtitle size a
+     * dot between two two-digit numbers is the same shape as a clock, so `16.08` and `16:08` were
+     * being read as each other. The time is always appended — unlike the conversation list, where
+     * the column answers "when did this happen"; here it answers "how long ago did they leave", and
+     * a day without a time does not answer it.
+     *
+     * The date is never dropped for anything but today. That is the whole of #702: the chat header
+     * used a time-only formatter, so someone last seen two days ago read as someone last seen this
+     * afternoon. Both the header and the profile screen call this, so the two cannot disagree again.
      */
-    fun formatLastSeen(isoString: String): String {
-        return try {
-            val instant = Instant.parse(isoString)
-            val tz = TimeZone.currentSystemDefault()
-            val dt = instant.toLocalDateTime(tz)
-            val now = Clock.System.now().toLocalDateTime(tz)
-            if (dt.date == now.date) {
-                formatTime(instant)
-            } else {
-                "${dt.dayOfMonth.toString().padStart(2, '0')}.${dt.monthNumber.toString().padStart(2, '0')} " +
-                    "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-            }
+    fun formatLastSeen(isoString: String, labels: RelativeDayLabels): String =
+        try {
+            formatLastSeen(Instant.parse(isoString), labels)
         } catch (_: Exception) {
             ""
+        }
+
+    /** [formatLastSeen] for a presence update, which arrives as epoch millis rather than ISO. */
+    fun formatLastSeen(instant: Instant, labels: RelativeDayLabels): String {
+        val tz = TimeZone.currentSystemDefault()
+        val dt = instant.toLocalDateTime(tz)
+        val now = Clock.System.now().toLocalDateTime(tz)
+        val time = formatTime(instant)
+
+        // Calendar days apart, not elapsed hours — see formatConversationTimestamp.
+        val daysAgo = (now.date.toEpochDays() - dt.date.toEpochDays()).toLong()
+
+        return when {
+            daysAgo == 0L -> time
+            daysAgo == 1L -> "${labels.yesterday} $time"
+            daysAgo in 2L..6L ->
+                "${labels.weekdays.getOrNull(dt.date.dayOfWeek.ordinal) ?: numericDate(dt)} $time"
+            else -> "${numericDate(dt)} $time"
         }
     }
 
