@@ -63,6 +63,7 @@ import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.theme.MuhabbetWallpaperGradients
 import com.muhabbet.designsystem.theme.MuhabbetWallpapers
+import com.muhabbet.designsystem.modifier.pressable
 
 // The swatches live in the design system with every other colour, so a screen still cannot name a
 // hex. The old set was a navy-and-purple palette from before the rebrand; a cool violet behind
@@ -393,12 +394,12 @@ private fun WallpaperTypeButton(
 ) {
     Box(
         modifier = modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant
+            .pressable(
+                shape = MaterialTheme.shapes.small,
+                background = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant,
+                onClick = onClick
             )
-            .clickable(onClick = onClick)
             .padding(vertical = MuhabbetSpacing.Medium),
         contentAlignment = Alignment.Center
     ) {

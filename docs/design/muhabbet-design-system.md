@@ -406,6 +406,7 @@ justified in the commit message.
 | `hardcodedColor` | 4 | 0 |
 | `modifierBlur` | 0 | 0 |
 | `rawStackAnimation` | 0 | 0 (added in Phase 7) |
+| `rawCombinedClickable` | 0 | 0 (added with #703) |
 | `rawTopAppBar` | 27 | 2 (ChatScreen + HomeShell, deliberate) |
 | `unlocaledCase` | 12 | 2 (both legitimate, named in the rule's comment) |
 | `spLiteral` | 5 | 4 |
@@ -418,7 +419,21 @@ moved into it — counts would fall, the ratchet would look like it was improvin
 would be unpoliced. `navigation/` joined in Phase 7 for `rawStackAnimation`, and was checked to
 contribute zero hits to every other rule first so no baseline moved silently. Exemptions are narrow:
 raw colours, `dp` and `sp` are permitted **only** under `designsystem/theme/`, not in its
-components; `stackAnimation(` only in `navigation/MuhabbetStackAnimations.kt`.
+components; `stackAnimation(` only in `navigation/MuhabbetStackAnimations.kt`; `combinedClickable(`
+only in `designsystem/modifier/Pressable.kt`.
+
+`rawCombinedClickable` is the one rule about *ordering* rather than about which API is called.
+A ripple is drawn to the `clickable` node's rectangular bounds, so it only follows a rounded
+element if a `clip` sits above it — and 26 of the 27 `clickable`s in the app had it the other
+way round, flashing a hard rectangle over the corners of bubbles, cards and circular avatars
+(#703). `Modifier.longPressable` takes the shape as a **required** argument and lays down
+`shadow → clip → background → combinedClickable`; the shadow has to be outside the clip, or the
+clip removes it. Long press is the half enforced at 0 because the artefact stays on screen for
+the whole gesture and there are only five call sites, so "all of them" is reachable.
+`RectangleShape` is a fine answer — two of the five pass it — the rule is *say which*, not
+*be rounded*. Plain `clickable` is deliberately **not** ratcheted: ~50 of those remain, mostly
+full-bleed list rows whose rectangular ripple is already correct, and a rule that fires on
+correct code gets its baseline bumped instead of the code fixed.
 
 `verifyStringResourceSync` checks `values/` ↔ `values-en/` in both directions plus every
 `Res.string.X` referenced from Kotlin.

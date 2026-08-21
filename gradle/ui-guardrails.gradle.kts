@@ -66,6 +66,9 @@ val inTextUtils: (File) -> Boolean = { it.unixPath().contains("/designsystem/") 
 /** The one file allowed to build a `StackAnimation`, for the same reason `MuhabbetTopBar` exists. */
 val inStackAnimations: (File) -> Boolean = { it.unixPath().endsWith("/navigation/MuhabbetStackAnimations.kt") }
 
+/** The one file allowed to call `combinedClickable` — it is where the clip/shadow order lives. */
+val inPressableModifier: (File) -> Boolean = { it.unixPath().endsWith("/designsystem/modifier/Pressable.kt") }
+
 val uiRules = listOf(
     UiRule(
         "hardcodedColor",
@@ -138,6 +141,28 @@ val uiRules = listOf(
         "rawStackAnimation",
         "Navigation motion comes from sharedAxisX()/rootFade() in MuhabbetStackAnimations.kt, so it uses the same springs as everything else.",
         Regex("""stackAnimation\("""), inStackAnimations
+    ),
+    UiRule(
+        // Starts at 0 and stays there. A ripple is drawn to the `clickable` node's rectangular
+        // bounds, so it only follows a rounded element if a `clip` sits above it — and 26 of the 27
+        // clickables in the app had it the other way round (#703), flashing a hard rectangle over
+        // the corners of bubbles, cards and circular avatars. `Modifier.longPressable` takes the
+        // shape as a REQUIRED argument and orders shadow → clip → background → combinedClickable.
+        //
+        // Long press is the half enforced at 0 because the artefact is on screen longest there — a
+        // bubble held down for its context menu shows it for the whole gesture — and because there
+        // are only five call sites, so "all of them" is reachable rather than aspirational.
+        //
+        // RectangleShape is a perfectly good answer for a full-bleed row; two of the five pass it.
+        // The rule is not "must be rounded", it is "must say". Refusing to answer is what made a
+        // deliberate rectangle and a forgotten clip look identical in the source.
+        //
+        // Deliberately NOT extended to plain `clickable`: there are ~60 of those, most on full-bleed
+        // list rows whose rectangular ripple is already correct, so a ratchet there would fire on
+        // correct code and get its baseline bumped instead of the code fixed.
+        "rawCombinedClickable",
+        "Long-press comes from Modifier.longPressable, which takes the shape the ripple must follow — RectangleShape included.",
+        Regex("""combinedClickable\("""), inPressableModifier
     )
 )
 

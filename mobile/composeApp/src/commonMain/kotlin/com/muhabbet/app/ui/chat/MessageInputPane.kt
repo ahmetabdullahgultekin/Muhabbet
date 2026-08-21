@@ -1,8 +1,6 @@
 package com.muhabbet.app.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -50,6 +48,8 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import com.muhabbet.designsystem.modifier.longPressable
+import com.muhabbet.designsystem.modifier.pressable
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetElevation
@@ -317,7 +317,8 @@ fun MessageInputBar(
                     modifier = Modifier
                         .size(MuhabbetSizes.MinTouchTarget)
                         .testTag("send_button")
-                        .combinedClickable(
+                        .longPressable(
+                            shape = CircleShape,
                             enabled = messageText.isNotBlank(),
                             onClickLabel = sendDescription,
                             onLongClickLabel = scheduleDescription,
@@ -480,8 +481,7 @@ private fun AttachmentGridItem(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(MuhabbetCorners.Medium))
-            .clickable(onClick = onClick)
+            .pressable(shape = RoundedCornerShape(MuhabbetCorners.Medium), onClick = onClick)
             .padding(vertical = MuhabbetSpacing.Small),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
