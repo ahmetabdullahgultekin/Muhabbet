@@ -3,8 +3,8 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
-import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.CreateConversationRequest
@@ -35,22 +35,23 @@ class ConversationController(
     private val conversationRepository: com.muhabbet.messaging.domain.port.out.ConversationRepository,
     private val userRepository: UserRepository,
     private val presencePort: PresencePort,
-    private val blockPolicy: BlockPolicyPort
+    private val presenceVisibility: PresenceVisibility
 ) {
 
     /**
-     * The set of participants whose online dot must be withheld from [viewerId] — those who have
-     * blocked them.
+     * The set of participants whose online dot must be withheld from [viewerId] — anyone a block
+     * stands between, whichever of the two placed it. [PresenceVisibility] owns that rule; this
+     * only decides who to ask about.
      *
      * This endpoint, not the profile screen, is where a blocked person actually watches you: the
      * mobile chat list seeds its dot straight from `ParticipantResponse.isOnline`. A guard on
      * `GET /users/{id}` alone would have left the live indicator on the screen users open first.
      *
-     * One batched query for the whole page — asking per participant would be an N+1 on the app's
-     * busiest call.
+     * The viewer is filtered out before the question is asked: whether you have blocked yourself is
+     * meaningless, and leaving yourself in would hide your own dot from your own chat list.
      */
     private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> =
-        blockPolicy.findBlockedBy(viewerId, participantIds.filter { it != viewerId })
+        presenceVisibility.hiddenFrom(viewerId, participantIds.filter { it != viewerId })
 
     @PostMapping
     fun createConversation(@RequestBody request: CreateConversationRequest): ResponseEntity<ApiResponse<ConversationResponse>> {

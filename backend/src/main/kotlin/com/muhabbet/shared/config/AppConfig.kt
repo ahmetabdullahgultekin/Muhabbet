@@ -60,6 +60,7 @@ import com.muhabbet.messaging.domain.service.InviteLinkService
 import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.messaging.domain.service.PollService
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.messaging.domain.service.ReactionService
 import com.muhabbet.messaging.domain.service.SearchService
 import com.muhabbet.messaging.domain.service.StatusService
@@ -225,6 +226,16 @@ class AppConfig {
         userDirectory = userDirectory,
         blockPolicy = blockPolicy
     )
+
+    /**
+     * The one place a block's effect on presence is decided (#711). Injected into every surface
+     * that shows an online dot, a last seen or a typing indicator, so none of them has to work out
+     * the direction for itself — four of them did, and got four different answers.
+     */
+    @Bean
+    fun presenceVisibility(
+        blockPolicy: BlockPolicyPort
+    ): PresenceVisibility = PresenceVisibility(blockPolicy = blockPolicy)
 
     @Bean
     fun channelService(

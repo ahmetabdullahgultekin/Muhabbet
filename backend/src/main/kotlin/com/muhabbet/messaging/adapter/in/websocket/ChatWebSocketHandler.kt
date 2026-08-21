@@ -7,12 +7,12 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
-import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.CallBusyException
 import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.service.CallSignalingService
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.PresenceStatus
@@ -46,7 +46,7 @@ class ChatWebSocketHandler(
     private val callSignalingService: CallSignalingService,
     private val callRoomProvider: CallRoomProvider,
     private val webSocketRateLimiter: WebSocketRateLimiter,
-    private val blockPolicy: BlockPolicyPort
+    private val presenceVisibility: PresenceVisibility
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -268,10 +268,34 @@ class ChatWebSocketHandler(
         sessionManager.setActiveConversation(userId, conversationId)
     }
 
+    /**
+     * "Typing…" is presence, and it had no block check in either direction (#711) — so in a chat
+     * where one of the two had blocked the other it flowed both ways. It says the person is holding
+     * their phone *right now*, which is the same thing the green dot leaks and a more immediate one,
+     * so it is filtered on exactly the rule the dot uses and cannot drift away from it again.
+     *
+     * The order of the three steps is what keeps this cheap, and it is deliberate. Offline
+     * recipients are dropped first, with an in-process map lookup and no query; if that leaves
+     * nobody, the frame reaches no one and the method returns before asking about blocks or even
+     * encoding the JSON — which is strictly less work than this did before. Only when a frame is
+     * actually about to be delivered do we ask, and then in one batched question per direction over
+     * just the online recipients, so a fifty-member group with three people online costs a query
+     * about three. Nothing here opens a transaction, so no connection is held across the fan-out.
+     *
+     * Deliberately not cached. A cache would put a staleness window on a privacy control, which is
+     * the class of half-fix #711 is about; and the client debounces these to roughly two frames per
+     * composed message (`ChatScreen` guards on `isTypingSent`), not one per keystroke, so there is
+     * no per-keystroke query here to avoid.
+     */
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
         val conversationId = UUID.fromString(msg.conversationId)
-        val members = conversationRepository.findMembersByConversationId(conversationId)
-        val recipientIds = members.map { it.userId }.filter { it != userId }
+        val online = conversationRepository.findMembersByConversationId(conversationId)
+            .map { it.userId }
+            .filter { it != userId && sessionManager.isOnline(it) }
+        if (online.isEmpty()) return
+
+        val recipientIds = online - presenceVisibility.hiddenFrom(userId, online)
+        if (recipientIds.isEmpty()) return
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
         val presenceUpdate = WsMessage.PresenceUpdate(
@@ -281,11 +305,7 @@ class ChatWebSocketHandler(
         )
         val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
 
-        recipientIds.forEach { recipientId ->
-            if (sessionManager.isOnline(recipientId)) {
-                sessionManager.sendToUser(recipientId, json)
-            }
-        }
+        recipientIds.forEach { recipientId -> sessionManager.sendToUser(recipientId, json) }
     }
 
     // ─── Call Signaling Handlers ────────────────────────────
@@ -486,12 +506,18 @@ class ChatWebSocketHandler(
         // Single query to get all unique user IDs across all conversations (replaces N+1 pattern)
         val contactUserIds = conversationRepository.findAllContactUserIds(userId)
 
-        // Someone who blocked you is still a "contact" — you share a conversation — so without this
-        // they keep receiving your live online/offline stream and the last-seen stamp that rides
-        // the OFFLINE transition. Hiding presence on the profile screen alone would have been
-        // cosmetic: the chat list they already have renders exactly this feed.
-        val blockedBy = blockPolicy.findBlockedBy(userId, contactUserIds)
-        contactUserIds.filterNot { it in blockedBy }.forEach { contactId ->
+        // Someone a block stands between is still a "contact" — the conversation the two shared
+        // outlives the block — so without this they keep receiving this user's live online/offline
+        // stream and the last-seen stamp that rides the OFFLINE transition. Hiding presence on the
+        // profile screen alone would have been cosmetic: the chat list they already have renders
+        // exactly this feed.
+        //
+        // This filtered "who blocked me" only, which is the opposite of what GET /conversations
+        // filtered, so between them each direction leaked through one transport (#711). Both now
+        // ask PresenceVisibility, and its answer is symmetric — the same set covers "must not be
+        // told about this user" and "must not be shown to this user".
+        val hidden = presenceVisibility.hiddenFrom(userId, contactUserIds)
+        contactUserIds.filterNot { it in hidden }.forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {
                 sessionManager.sendToUser(contactId, json)
             }
