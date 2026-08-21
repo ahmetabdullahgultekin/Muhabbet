@@ -15,6 +15,12 @@ actual object CrashReporter {
         Sentry.setUser(User().apply { id = userId })
     }
 
+    actual fun clearUser() {
+        // Null is Sentry's documented way to unset the user on the current scope; there is no
+        // separate clear call.
+        Sentry.setUser(null)
+    }
+
     actual fun captureException(throwable: Throwable) {
         Sentry.captureException(throwable)
     }

@@ -1,14 +1,86 @@
+# Dependency updates.
+#
+# WHAT WAS WRONG WITH THE OLD CONFIGURATION
+#
+# One group called `all-dependencies` containing every update type, aimed at the default branch.
+# Two things followed from that, and both of them hurt:
+#
+#   1. One bad bump held every good bump hostage. #564 grouped four updates, of which exactly one
+#      was unmergeable — `androidx.core:core-ktx` 1.19.0 requires `compileSdk 37` and this project
+#      is on 36 — so the whole pull request was unmergeable, and the three healthy bumps had to be
+#      extracted into #675 by hand. That is not a one-off: of the ten dependency pull requests
+#      Dependabot has opened here, NINE were closed unmerged, several of them carrying 37 to 42
+#      updates each. A pull request nobody can review is a pull request nobody merges.
+#
+#   2. They all targeted `main`. `main` is the release branch — feature work goes to `dev` and is
+#      batched to `main` at release time — so a dependency bump landing directly on `main` puts it
+#      ahead of `dev` and requires an approving review that a solo engineer cannot give on a pull
+#      request opened against a protected branch.
+#
+# WHAT THIS DOES INSTEAD
+#
+#   - Everything targets `dev`, like every other change in this repository.
+#   - PATCH updates are grouped into one pull request and merged automatically once the required
+#     checks pass (.github/workflows/dependabot-auto-merge.yml). They are the high-volume, low-risk
+#     half of the traffic and reviewing them by hand buys nothing.
+#   - MINOR and MAJOR updates are NOT grouped. Each gets its own pull request, so the #564 failure
+#     mode — one unmergeable bump blocking three mergeable ones — cannot happen again by
+#     construction. They are never auto-merged; a human reads them.
+#
+# NOTE: automatic merging only works while `dev` has required status checks. `--auto` on a branch
+# with no required check merges IMMEDIATELY, without waiting for anything. Do not enable one without
+# the other.
+
 version: 2
 updates:
   - package-ecosystem: "gradle"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+      time: "05:00"
+      timezone: "Europe/Istanbul"
+    # Raised from 5 because minor and major updates now arrive one per pull request instead of in a
+    # single bundle. In practice the patch group closes itself every week, so this ceiling is a
+    # backstop rather than a weekly reality.
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "type:chore"
     groups:
-      all-dependencies:
+      # The only group. Patch bumps are individually boring and collectively noisy, which is exactly
+      # what a group is for — and what auto-merge is for.
+      gradle-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
         update-types:
-          - "major"
-          - "minor"
           - "patch"
+    ignore:
+      # 1.19.0 raises the compileSdk floor to 37; mobile/composeApp/build.gradle.kts sets 36, and
+      # the module pins 1.18.0 (mobile/designsystem/build.gradle.kts). Without this line Dependabot
+      # re-opens the same unmergeable pull request every Monday — it already did, twice.
+      # DELETE THIS ENTRY when compileSdk reaches 37.
+      - dependency-name: "androidx.core:core-ktx"
+        versions: [">=1.19.0"]
+
+  # Actions are pinned twice over here: once by the `@vN` ref in the workflow, and again by
+  # infra/scripts/seed-runner-action-cache.sh, which pre-extracts each action into the self-hosted
+  # runner's cache so jobs stop downloading from codeload (#563). The second pin is the reason this
+  # ecosystem is worth watching: a seeded action is never re-downloaded, so if `v4` moves — for a
+  # security fix, say — this host keeps running the old copy and nothing says so. Dependabot is the
+  # only thing that will.
+  #
+  # Monthly, not weekly: actions move slowly and each bump has a manual tail. AFTER MERGING AN ACTION
+  # BUMP, re-run the seed script on the runner with --force, or the cache still holds the old ref.
+  # These are never auto-merged, for the same reason.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "area:ci"

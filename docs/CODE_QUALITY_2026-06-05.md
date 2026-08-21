@@ -1,5 +1,22 @@
 # Muhabbet — Code Quality & Architecture Review
 
+> **Re-verified 2026-08-21.** Most of this was fixed and is now only of historical interest: the
+> actuator endpoints require `ROLE_ADMIN`, the "17 `!!` remain" sweep is down to one, the NPE sites
+> named as highest-risk no longer exist, and the iOS grading predates the design-system work. Read
+> it for the three things that are **still true and tracked nowhere else**:
+>
+> - **`InputSanitizer` is dead code.** Its only references repo-wide are its own declaration and its
+>   test, so no server-side HTML escaping runs on any request path. Fourteen months open; no issue.
+> - **`BackupService.fetchAllMessages` paginates on a timestamp, not a keyset** — `before` is set to
+>   the page minimum against a strict `<` comparison with a timestamp-only `ORDER BY`, so messages
+>   sharing a timestamp at a page boundary are skipped. As this file puts it, a backup that loses
+>   data without erroring is the worst failure mode a backup has.
+> - **The sanitise-vs-escape decision is still unmade**, and it has a constraint that only this file
+>   records: if E2E is ever enabled, server-side content sanitisation must **not** run on E2E bodies,
+>   because the server holds ciphertext it cannot read — escape on render instead. Related, and also
+>   only here: the blanket `catch → plaintext` fallback means an encryption *bug* downgrades
+>   silently, so the flag flip needs telemetry on the fallback rate before it goes wide.
+
 **Date:** 2026-06-05
 **Reviewer:** Senior code-quality & software-architecture review (Claude Opus 4.8)
 **Scope:** `main` HEAD `299f34f` (E2E encrypt/decrypt wiring + real backup job, PR #31, just merged)

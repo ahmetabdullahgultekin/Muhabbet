@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.CommunityInvitePreview
 import com.muhabbet.messaging.domain.port.`in`.CommunitySummary
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityInviteUseCase
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CommunityInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -40,6 +41,7 @@ open class CommunityInviteService(
     private val communityRepository: CommunityRepository,
     private val inviteLinkRepository: CommunityInviteLinkRepository,
     private val userDirectoryPort: UserDirectoryPort,
+    private val blockPolicy: BlockPolicyPort,
     private val announcementChannel: CommunityAnnouncementChannel
 ) : ManageCommunityInviteUseCase {
 
@@ -137,6 +139,19 @@ open class CommunityInviteService(
         val community = communityRepository.findById(link.communityId)
             ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
 
+        // Checked here rather than left for accept to throw, because a member re-opening a link
+        // they were sent is an ordinary thing to do, not an error — the screen offers "open"
+        // instead of a join that would fail.
+        val alreadyMember = communityRepository.findMember(community.id, requesterId) != null
+
+        // The same guard [accept] applies, asked one step earlier so the screen never offers a Join
+        // button the accept would refuse. Skipped for a member: they are already inside, and the
+        // guard is about being seated in a room, not about staying in one.
+        //
+        // Ahead of the directory lookup on purpose, so a blocked inviter's name and avatar are
+        // never read, let alone returned. The same ordering listAddableMembers uses (#685).
+        if (!alreadyMember) requireInviterNotBlockedBy(link, requesterId)
+
         // Everything below is chosen to be the least a person needs in order to decide whether to
         // accept. No group list, no member list — reading those still requires membership (#375).
         val inviterDisplayName = userDirectoryPort
@@ -149,10 +164,7 @@ open class CommunityInviteService(
             avatarUrl = community.avatarUrl,
             memberCount = memberCountOf(community.id),
             inviterDisplayName = inviterDisplayName,
-            // So the screen can offer "open" rather than an accept that would fail. Checked here
-            // rather than let accept throw, because a member re-opening a link they were sent is
-            // an ordinary thing to do, not an error.
-            alreadyMember = communityRepository.findMember(community.id, requesterId) != null
+            alreadyMember = alreadyMember
         )
     }
 
@@ -165,6 +177,11 @@ open class CommunityInviteService(
         if (communityRepository.findMember(community.id, userId) != null) {
             throw BusinessException(ErrorCode.GROUP_ALREADY_MEMBER)
         }
+
+        // Deliberately after the cheaper membership check, so someone who is already in is refused
+        // for that reason without the block table being consulted at all — the ordering
+        // CommunityService.addMember uses.
+        requireInviterNotBlockedBy(link, userId)
 
         // The membership row, written here and nowhere earlier. This line is what #387 is about:
         // the person joining performed an action, and only then did they become a member.
@@ -209,6 +226,44 @@ open class CommunityInviteService(
         if (link.isExpiredAt(now)) throw BusinessException(ErrorCode.INVITE_LINK_EXPIRED)
         if (link.isExhausted()) throw BusinessException(ErrorCode.INVITE_LINK_MAX_USES)
         return link
+    }
+
+    /**
+     * Refuses to admit someone who has blocked the person that minted the link (#294, #685).
+     *
+     * `CommunityService.addMember` already refuses this, because enrolment ends in the community's
+     * announcement channel — a GROUP conversation the enroller can post to, and reaching a person
+     * through a room you put them in is the reach the send path refuses outright. An invite ends in
+     * the same seat, by the same two lines below. Without this, everything #685 closed reopens
+     * through the new door: mint a link, get it to the person who blocked you by any route they
+     * still share with you, and their accept puts them back in a room with you.
+     *
+     * That the joiner performs the action is not consent to *this*: what a link shows them is a
+     * community, and the blocked person may be one admin among several, or the community's name may
+     * say nothing about who runs it. The block is the standing instruction; a link is not a request
+     * to reconsider it.
+     *
+     * Directional, like every block check in this codebase: the question is whether the **joiner**
+     * blocked the **link's creator**. A creator who blocked the joiner is their own business —
+     * they are not the one being reached, and they can revoke the link.
+     *
+     * Reported as [ErrorCode.INVITE_LINK_NOT_FOUND], the code a revoked link also gets. To the
+     * holder these are one fact ("this link does not admit me"); a code of its own would announce
+     * which of the two people involved did the blocking. Same reasoning as the shared
+     * `COMMUNITY_MEMBER_NOT_IN_ANY_GROUP` on the owner-side add.
+     *
+     * Judged by `createdBy`, the only participant a link records. A link forwarded by a third party
+     * is still judged by who minted it; there is nothing else to judge it by.
+     */
+    private fun requireInviterNotBlockedBy(link: CommunityInviteLink, userId: UUID) {
+        if (blockPolicy.hasBlocked(userId, link.createdBy)) {
+            log.info(
+                "Community invite refused, the joiner has blocked the link creator: community={}, link={}",
+                link.communityId,
+                link.id
+            )
+            throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
+        }
     }
 
     private fun memberCountOf(communityId: UUID): Int =

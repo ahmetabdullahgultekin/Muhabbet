@@ -1,5 +1,21 @@
 # Muhabbet — VDS Provider Comparison (February 2026)
 
+> **Outcome, added 2026-08-21: none of the options below was chosen.** Production runs on a
+> **Hetzner CX43 in Nuremberg, Germany** — a provider this comparison does not even list. So read
+> this as the record of *why not a Turkish data centre*, which is the part that still holds, and not
+> as a recommendation. The action items in §7 were never carried out and are not going to be.
+>
+> The reasoning that survives is §2: **KVKK imposes no hard data-localization mandate**, so hosting
+> in the EU is lawful, and what it actually requires is a transfer mechanism and a data-processing
+> agreement per processor. Those are still **not filed** for Hetzner, FCM or the SMS provider —
+> `docs/legal/README.md` carries that as an open gap. The latency argument in §3 also still applies:
+> Nuremberg is in the 35–45 ms band this document called acceptable for an MVP, not the 1–10 ms an
+> Istanbul data centre would give.
+>
+> The companion deployment guide this file's §7 points at, `natro-deployment.md`, has been
+> **deleted** — it described a provider that was never bought, using an nginx + certbot stack the
+> project does not run. The live deployment procedure is in `CLAUDE.md`.
+
 **Purpose:** Choose a VDS (Virtual Dedicated Server) provider for Muhabbet's production backend.
 **Requirement:** ~4 dedicated CPU cores, ~8GB guaranteed RAM, 60-100GB SSD, Turkey DC preferred.
 **Last updated:** 2026-02-11
@@ -388,7 +404,7 @@ Istanbul-based providers peering at TurkIX get direct routing to all major Turki
   - Budget priority → Contabo
   - Compliance priority → hosting.com.tr
   - Hardware priority → Hostmatik (with trust risk accepted)
-- [ ] **After decision:** Update `docs/natro-deployment.md` to reflect chosen provider (deployment steps are 95% identical — Ubuntu 24.04 + Docker)
+- [x] ~~**After decision:** Update `docs/natro-deployment.md` to reflect chosen provider~~ — overtaken: Hetzner was chosen and that guide was deleted. See the banner at the top of this file.
 - [ ] **Optional:** Test Hostmatik with 1-month trial to evaluate their service quality firsthand
 
 ---

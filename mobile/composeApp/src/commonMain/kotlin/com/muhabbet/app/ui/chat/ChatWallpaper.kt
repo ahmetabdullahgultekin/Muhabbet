@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
@@ -14,6 +15,7 @@ import com.muhabbet.app.util.hexToColorOrNull
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.LocalThemeMode
 import com.muhabbet.designsystem.theme.ResolvedThemeMode
+import com.muhabbet.designsystem.theme.muhabbetWallpaperGradient
 import org.koin.compose.koinInject
 
 /**
@@ -38,6 +40,15 @@ internal fun ChatWallpaper(modifier: Modifier = Modifier) {
     val defaultWallpaperColor = LocalSemanticColors.current.chatWallpaper.container
 
     when (wallpaper) {
+        // A photo is arbitrary user media, so nothing drawn over it can promise contrast against a
+        // theme token — the same category #586/#589 found unreadable in the status viewer. It is
+        // painted here at full fidelity rather than under a tint, because the one surface a chat
+        // draws straight onto the wallpaper (the date-separator pill) now carries its own opacity
+        // floor: see MuhabbetAlphas.ChatOverlaySurface, which is measured against a pure-white and
+        // a pure-black photo, not just against the palette. Washing every user's picture to protect
+        // one pill would have been the wrong end of the problem — and it would not have worked
+        // anyway: the other translucent surface a chat can draw here, the half-opacity deleted-message
+        // bubble (#678), fails just as badly over a light *swatch*, which no tint on a photo reaches.
         is WallpaperRepository.ChatWallpaper.Custom -> AsyncImage(
             model = "file://${wallpaper.path}",
             // Decorative background, not content — a screen reader has nothing useful to
@@ -54,6 +65,16 @@ internal fun ChatWallpaper(modifier: Modifier = Modifier) {
             modifier = modifier.fillMaxSize()
                 .background(wallpaper.hexColor.hexToColorOrNull() ?: defaultWallpaperColor)
         )
+        is WallpaperRepository.ChatWallpaper.Gradient -> {
+            // The stored preference is an id, never the colours — the design system owns those, so a
+            // palette revision reaches every device that already picked one. An id this build does
+            // not ship resolves to null and falls back to the theme's own wallpaper, which is the
+            // same contract the Solid branch above gives an unparseable hex.
+            val brush = remember(wallpaper.id, defaultWallpaperColor) {
+                muhabbetWallpaperGradient(wallpaper.id)?.brush ?: SolidColor(defaultWallpaperColor)
+            }
+            Box(modifier = modifier.fillMaxSize().background(brush))
+        }
         WallpaperRepository.ChatWallpaper.Default -> Box(
             modifier = modifier.fillMaxSize().background(defaultWallpaperColor)
         )

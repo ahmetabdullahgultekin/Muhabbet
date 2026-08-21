@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.model.CommunityMember
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CommunityInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -49,6 +50,7 @@ class CommunityInviteServiceTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val inviteLinkRepository = mockk<CommunityInviteLinkRepository>()
     private val userDirectoryPort = mockk<UserDirectoryPort>()
+    private val blockPolicy = mockk<BlockPolicyPort>()
     private lateinit var service: CommunityInviteService
 
     private val communityId = UUID.randomUUID()
@@ -65,8 +67,13 @@ class CommunityInviteServiceTest {
             communityRepository = communityRepository,
             inviteLinkRepository = inviteLinkRepository,
             userDirectoryPort = userDirectoryPort,
+            blockPolicy = blockPolicy,
             announcementChannel = CommunityAnnouncementChannel(communityRepository, conversationRepository)
         )
+        // Default across the suite: nobody has blocked anybody, so every expectation that predates
+        // the block guard keeps meaning what it meant.
+        every { blockPolicy.hasBlocked(any(), any()) } returns false
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
         every { communityRepository.findById(communityId) } returns community()
         every { communityRepository.countMembersByCommunityIds(listOf(communityId)) } returns mapOf(communityId to 3)
         every { communityRepository.countGroupsByCommunityIds(listOf(communityId)) } returns mapOf(communityId to 1)
@@ -87,7 +94,7 @@ class CommunityInviteServiceTest {
         @Test
         fun `should refuse to add an outsider to a community with no groups`() {
             val communityService = CommunityService(
-                communityRepository, conversationRepository, userDirectoryPort,
+                communityRepository, conversationRepository, userDirectoryPort, blockPolicy,
                 CommunityAnnouncementChannel(communityRepository, conversationRepository)
             )
             every { communityRepository.findGroupsByCommunityId(communityId) } returns emptyList()
@@ -459,6 +466,119 @@ class CommunityInviteServiceTest {
             assertEquals(created.captured.id, joined.community.announcementGroupId)
         }
     }
+
+    /**
+     * The block guard (#294, closed for the owner-side add by #685) reaching the door this PR opens.
+     *
+     * `CommunityService.addMember` refuses to enrol someone who has blocked the caller, because
+     * enrolment ends in the announcement channel — a GROUP conversation the caller can post to, and
+     * reaching a person through a room you put them in is the reach the send path already refuses.
+     * An invite link ends in exactly the same seat. Without this, everything #685 closed reopens
+     * through the new entrance: mint a link, get it to the person who blocked you by any route
+     * (a shared group, a third party), and their accept puts them back in a room with you.
+     *
+     * Directional, like every other block check in the codebase: the question is whether the
+     * **joiner** blocked the **person who minted the link**. Someone being seated in a community run
+     * by a person they blocked is the case being refused; a link creator who blocked the joiner is
+     * their own business, and they are not the one being reached.
+     *
+     * Refused as [ErrorCode.INVITE_LINK_NOT_FOUND] — the same code a revoked link gets, for the
+     * same reason it does: to the holder these are one fact ("this link does not admit me"), and a
+     * code of its own would say out loud which of the two people involved did the blocking.
+     *
+     * The check is against `createdBy`, the only participant a link records. A link **forwarded** by
+     * a third party is still judged by who minted it; there is nothing else to judge it by.
+     */
+    @Nested
+    inner class BlockedInvitee {
+
+        @BeforeEach
+        fun stubJoin() {
+            every { inviteLinkRepository.findByToken(token) } returns link()
+            every { inviteLinkRepository.incrementUseCount(any()) } returns Unit
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+            every { conversationRepository.saveMember(any()) } answers { firstArg() }
+            every { userDirectoryPort.findDisplayInfo(listOf(ownerId)) } returns
+                mapOf(ownerId to UserDisplayInfo(ownerId, "Ayşe", null))
+        }
+
+        @Test
+        fun `should refuse to seat someone who has blocked the person who minted the link`() {
+            every { blockPolicy.hasBlocked(outsiderId, ownerId) } returns true
+
+            val ex = assertThrows<BusinessException> { service.accept(token, outsiderId) }
+
+            assertEquals(ErrorCode.INVITE_LINK_NOT_FOUND, ex.errorCode)
+            verify(exactly = 0) { communityRepository.saveMember(any()) }
+            // And no use burned: a refused join must not shrink the link for everyone else.
+            verify(exactly = 0) { inviteLinkRepository.incrementUseCount(any()) }
+        }
+
+        @Test
+        fun `should not put a blocker into the announcement channel`() {
+            // The seat is the whole point of the guard — the community row on its own reaches nobody.
+            every { blockPolicy.hasBlocked(outsiderId, ownerId) } returns true
+
+            assertThrows<BusinessException> { service.accept(token, outsiderId) }
+
+            verify(exactly = 0) { conversationRepository.saveMember(any()) }
+        }
+
+        @Test
+        fun `should still admit someone the link creator has blocked`() {
+            // Directional. An admin who blocked you has not thereby revoked a link you hold; they
+            // revoke links by revoking them.
+            every { blockPolicy.hasBlocked(outsiderId, ownerId) } returns false
+            every { blockPolicy.hasBlocked(ownerId, outsiderId) } returns true
+
+            val joined = service.accept(token, outsiderId)
+
+            assertEquals(communityId, joined.community.id)
+            verify { communityRepository.saveMember(any()) }
+        }
+
+        @Test
+        fun `should not show the preview to someone who has blocked the inviter`() {
+            // Otherwise the screen offers a Join button the accept below refuses — the exact
+            // mismatch requireUsableLink is shared between the two calls to prevent.
+            every { blockPolicy.hasBlocked(outsiderId, ownerId) } returns true
+
+            val ex = assertThrows<BusinessException> { service.preview(token, outsiderId) }
+
+            assertEquals(ErrorCode.INVITE_LINK_NOT_FOUND, ex.errorCode)
+        }
+
+        @Test
+        fun `should not read the inviter name for someone who has blocked them`() {
+            // Refused before the directory lookup, so a blocked inviter's display name and avatar
+            // are never fetched, let alone returned.
+            every { blockPolicy.hasBlocked(outsiderId, ownerId) } returns true
+
+            assertThrows<BusinessException> { service.preview(token, outsiderId) }
+
+            verify(exactly = 0) { userDirectoryPort.findDisplayInfo(any()) }
+        }
+
+        @Test
+        fun `should still preview for a member who has blocked the inviter`() {
+            // They are already inside; the guard is about being put into a room, not about staying
+            // in one. Blocking an admin must not break the link the member is re-opening.
+            every { blockPolicy.hasBlocked(plainMemberId, ownerId) } returns true
+
+            assertTrue(service.preview(token, plainMemberId).alreadyMember)
+        }
+
+        @Test
+        fun `should not ask about blocks before the cheaper membership check has passed`() {
+            // Someone already a member is refused for that reason, with the block table never
+            // consulted — the ordering CommunityService.addMember uses.
+            val ex = assertThrows<BusinessException> { service.accept(token, plainMemberId) }
+
+            assertEquals(ErrorCode.GROUP_ALREADY_MEMBER, ex.errorCode)
+            verify(exactly = 0) { blockPolicy.hasBlocked(any(), any()) }
+        }
+    }
+
 
     // ─── fixtures ───────────────────────────────────────
 

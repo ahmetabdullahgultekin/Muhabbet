@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CalendarToday
@@ -132,6 +133,7 @@ object MuhabbetIcons {
     val Star: ImageVector get() = Icons.Default.Star
     val StarOutline: ImageVector get() = Icons.Default.StarBorder
     val Pin: ImageVector get() = Icons.Default.PushPin
+    val Archive: ImageVector get() = Icons.Default.Archive
     val Info: ImageVector get() = Icons.Default.Info
     val Share: ImageVector get() = Icons.Default.Share
     val Download: ImageVector get() = Icons.Default.Download

@@ -1,5 +1,26 @@
 # Tech-Stack & Architecture Modernization Review — 2026-06-05
 
+> **Re-verified 2026-08-21. The version inventory below is stale — do not read a version out of it.**
+> Kotlin is 2.4.10, Spring Boot 4.1.0, Gradle 9.7.0, Compose Multiplatform 1.11.1. Read those from
+> the root `build.gradle.kts` and the wrapper properties, which cannot be out of date. Its P0
+> ("upgrade libsignal 0.86.5 → 0.94.4") is moot: libsignal is no longer a dependency at all — the
+> line is commented out — and the current, fuller account of that blocker is in `CLAUDE.md`.
+>
+> **Two things in it are still load-bearing and exist nowhere else:**
+>
+> - **§2.16 — MinIO community edition is discontinued.** The Docker Hub images were archived in
+>   Feb 2026, so `minio/minio:latest` resolves to the last archived image and will never receive a
+>   security patch. Production runs a shared MinIO container. No issue tracks this.
+> - **§4 — the iOS bridging research.** libsignal's Swift binding is CocoaPods-only and its authors
+>   state SPM is not supported for production, whereas LiveKit's Swift SDK *is* SPM and can be
+>   imported through Kotlin 2.4's `swiftPMDependencies`. The recommendation to do both on shared
+>   scaffolding is real research and is not version-sensitive the way the inventory is.
+>
+> Its **KEEP** verdicts are also worth preserving as "why we did *not* change this" records — most
+> usefully the HS256 rationale (the only JWT consumer is the process that issues it, so the
+> RS256/ES256 guidance aimed at multi-party verification does not apply here) and the note that
+> Redis 8's licence should go past counsel before it is adopted.
+
 **Reviewer:** Staff-level automated review (Claude Sonnet 4.6)
 **Scope:** All subprojects — `backend/`, `shared/`, `mobile/composeApp/`
 **Purpose:** Advisory only. No code/config changes. Each "newer/better" claim is grounded in a cited source.

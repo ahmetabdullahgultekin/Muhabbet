@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.muhabbet.designsystem.theme.MuhabbetAlphas
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
@@ -22,7 +23,9 @@ fun DateSeparatorPill(date: String, modifier: Modifier = Modifier) {
     ) {
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+            // Straight onto the wallpaper, so the opacity is the design system's, not this
+            // file's — see MuhabbetAlphas.ChatOverlaySurface for what 0.8f measured at.
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = MuhabbetAlphas.ChatOverlaySurface),
             shadowElevation = MuhabbetElevation.Level1
         ) {
             Text(

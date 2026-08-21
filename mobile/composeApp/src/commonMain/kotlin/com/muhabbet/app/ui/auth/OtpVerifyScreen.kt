@@ -61,6 +61,9 @@ fun OtpVerifyScreen(
     var otp by remember { mutableStateOf(mockCode ?: "") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // The code this screen has already spent an attempt on. Null means nothing is outstanding.
+    // A code and not a flag — see [shouldSubmitOtp].
+    var submittedCode by remember { mutableStateOf<String?>(null) }
     var countdown by remember { mutableStateOf(if (firebaseVerificationId != null) 60 else 300) }
     var isResending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -86,14 +89,26 @@ fun OtpVerifyScreen(
 
     // Hoisted out of the button's onClick so the boxed field can auto-submit on the sixth digit and
     // the button can still submit, without the verify path existing twice.
-    val submit = {
+    val submit = submit@{
+        val code = otp
+        // Guarded HERE, inside the handler, and not by the button's `enabled` alone. `enabled` is a
+        // composition input: it is re-read when Compose recomposes, so two dispatches landing in the
+        // same frame — the field auto-submitting on the sixth digit plus a tap, or two fast taps —
+        // both observe the stale value and both fire. A snapshot write made in an event handler is
+        // visible to the very next read on the same thread, so the second caller sees what the first
+        // wrote microseconds earlier. `enabled` below still mirrors the same predicate, so the
+        // button is visibly dead rather than silently inert.
+        if (!shouldSubmitOtp(code, inFlight = isLoading, alreadySubmitted = submittedCode)) {
+            return@submit
+        }
+        submittedCode = code
         isLoading = true
         error = null
         scope.launch {
             try {
                 if (useFirebase && firebasePhoneAuth != null && firebaseVerificationId != null) {
                     // Firebase: verify code → get ID token → exchange with backend
-                    val idToken = firebasePhoneAuth.verifyCode(firebaseVerificationId, otp)
+                    val idToken = firebasePhoneAuth.verifyCode(firebaseVerificationId, code)
                     val result = authRepository.verifyFirebaseToken(
                         idToken = idToken,
                         deviceName = getDeviceModel(),
@@ -104,7 +119,7 @@ fun OtpVerifyScreen(
                     // Mock/backend OTP: verify directly with backend
                     val result = authRepository.verifyOtp(
                         phoneNumber = phoneNumber,
-                        otp = otp,
+                        otp = code,
                         deviceName = getDeviceModel(),
                         platform = getPlatformName()
                     )
@@ -112,6 +127,11 @@ fun OtpVerifyScreen(
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "OTP verification rejected: $e")
+                // A code the server actually judged is spent, and resending the same digits could
+                // only lose a second attempt. A failure that never reached the counter — no network,
+                // a 5xx, a Firebase error — releases the latch, so Verify stays usable without
+                // making the user retype a code that was never found wrong.
+                if (!consumedAnAttempt(e)) submittedCode = null
                 error = otpErrors.forFailure(e, verifyFailedMsg)
             } finally {
                 isLoading = false
@@ -177,6 +197,12 @@ fun OtpVerifyScreen(
             onValueChange = {
                 otp = it
                 error = null
+                // Any edit makes this a different attempt, so the latch is released — including when
+                // the user retypes the same six digits, because reaching them means passing through
+                // shorter values first. This is what keeps the guard from being a debounce: it is
+                // keyed on the code, not on the clock, so a genuine re-entry always goes through and
+                // a duplicate never does, however fast or slow it arrives.
+                submittedCode = null
             },
             modifier = Modifier.testTag("otp_input"),
             length = OtpLength,
@@ -261,7 +287,8 @@ fun OtpVerifyScreen(
 
         Button(
             onClick = submit,
-            enabled = !isLoading && otp.length == OtpLength && countdown > 0,
+            enabled = shouldSubmitOtp(otp, inFlight = isLoading, alreadySubmitted = submittedCode) &&
+                countdown > 0,
             modifier = Modifier.fillMaxWidth().testTag("otp_verify")
         ) {
             if (isLoading) {
@@ -286,9 +313,49 @@ fun OtpVerifyScreen(
 }
 
 /** Digits in a verification code. Both the field and the submit guard read it. */
-private const val OtpLength = 6
+internal const val OtpLength = 6
 
 private const val TAG = "OtpVerifyScreen"
+
+/**
+ * Whether [code] may be sent to the server right now.
+ *
+ * Three conditions, and the third is the one #400 was missing. A verification code is worth one of
+ * five attempts, the server claims that attempt *before* it compares anything, and this screen has
+ * two ways to submit: the field auto-submits on the sixth digit and the button submits on a tap.
+ * Nothing stopped both from firing for the same six digits.
+ *
+ * [alreadySubmitted] is a **code and not a flag**, deliberately. A flag has to be cleared, and the
+ * only thing available to clear it is a timer — which is a debounce, and a debounce is wrong in both
+ * directions: too short and a slow duplicate still gets through, too long and a user who genuinely
+ * wants to try again is told to wait. Keyed on the code there is no window at all. A duplicate is
+ * refused however fast it arrives, and a re-entry is accepted however fast it arrives, because
+ * entering a code means editing the field and editing the field clears the latch.
+ *
+ * [inFlight] closes the same-frame race on its own terms: it is read inside the event handler rather
+ * than through the button's `enabled`, which Compose only re-evaluates on recomposition.
+ */
+internal fun shouldSubmitOtp(code: String, inFlight: Boolean, alreadySubmitted: String?): Boolean =
+    code.length == OtpLength && !inFlight && code != alreadySubmitted
+
+/**
+ * The rejections that mean the server already counted an attempt against the code just sent.
+ *
+ * `AuthService.verifyOtp` claims an attempt before it compares the code, so both of these are
+ * answers *about that code* and the guess is spent. `AUTH_OTP_EXPIRED` is thrown before the claim
+ * and so is absent: nothing was counted, though nothing can be retried either.
+ */
+private val AttemptConsumingCodes = setOf("AUTH_OTP_INVALID", "AUTH_OTP_MAX_ATTEMPTS")
+
+/**
+ * Whether [e] means an attempt was spent, and so whether the same digits must never go out again.
+ *
+ * Anything that is not an answer from the OTP endpoint — no network, a 5xx, a Firebase failure —
+ * never reached the counter, so the latch is released and the user can press Verify again without
+ * retyping a code that was never found wrong.
+ */
+internal fun consumedAnAttempt(e: Throwable): Boolean =
+    (e as? ApiException)?.code in AttemptConsumingCodes
 
 /**
  * The four rejections the OTP endpoints report in normal use, in the device's language.

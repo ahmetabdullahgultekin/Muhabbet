@@ -5,10 +5,11 @@ Thank you for considering contributing to Muhabbet! This document outlines the p
 ## Getting Started
 
 ### Prerequisites
-- JDK 25
-- Android SDK (API 35)
-- Docker & Docker Compose (for backend services)
-- Kotlin 2.3.10+ (managed by Gradle wrapper)
+- JDK 21 (the Gradle toolchain pins it — see `backend/build.gradle.kts`)
+- Android SDK, `compileSdk` 36 / `minSdk` 26
+- Docker & Docker Compose (for backend services **and for the backend test suite** — without them
+  ten Testcontainers classes fail at start-up and are silently not executed)
+- Kotlin 2.4.10 and Gradle 9.7.0, both supplied by the wrapper
 
 ### Local Development Setup
 
@@ -43,6 +44,9 @@ Thank you for considering contributing to Muhabbet! This document outlines the p
 - **Mobile:** Compose Multiplatform with Clean Architecture
 - **Shared:** Kotlin Multiplatform module for DTOs, models, and protocol
 
+Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) before your first change — it explains the module
+boundaries and the rules that the layout exists to enforce.
+
 ### Code Standards
 Please read `CLAUDE.md` for detailed coding standards. Key points:
 - Follow SOLID principles strictly
@@ -52,26 +56,34 @@ Please read `CLAUDE.md` for detailed coding standards. Key points:
 - All REST responses use the envelope pattern
 
 ### Branching Strategy
-- `main` — stable release branch
-- `develop` — integration branch
-- `feature/*` — feature branches
-- `fix/*` — bug fix branches
+- `main` — stable release branch; batched from `dev` at release time
+- `dev` — the working branch. **There is no `develop`** — the name appears in some workflow triggers
+  and matches nothing, which is why no CI ran on PRs into `dev` at all until #487.
+- `feat/*`, `fix/*`, `docs/*`, `ci/*`, `chore/*` — working branches, cut from `dev`
 
 ### Commit Messages
-Use conventional commits:
+**Not conventional commits.** A commit message says what the *user* experienced, in a plain
+sentence, with the issue number:
+
 ```
-feat: add group voice calls
-fix: resolve message ordering in chat
-refactor: extract MessageMapper for DRY compliance
-docs: update API contract for polls endpoint
+Deliver the messages that Redis was silently dropping (#412)
+Stop an ampersand in a search from silently truncating it (#622)
 ```
 
+not `fix(redis): channel parsing`. The prefix describes the code; the sentence describes the defect,
+and the defect is the thing anyone reading the history later is looking for.
+
 ### Pull Request Process
-1. Create a feature branch from `develop`
+1. Cut a branch from `dev`
 2. Make your changes following the code standards
-3. Ensure all tests pass
-4. Submit a PR with a clear description
-5. Wait for code review
+3. Run the gates — `./gradlew :backend:test :shared:jvmTest` with Docker up
+4. Open the PR **against `dev`**, with a description of what a user would have noticed
+5. Wait for review
+
+Before calling anything user-visible done, check all three: does it **persist**, does anything
+**read** it, and does a **mechanism** exist? The characteristic defect in this codebase is a control
+that is drawn and wired to nothing, and it compiles perfectly. See
+[`ROADMAP.md`](ROADMAP.md#definition-of-done).
 
 ## Testing
 

@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.Status
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -29,6 +30,7 @@ class StatusServiceTest {
     private lateinit var statusRepository: StatusRepository
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var userDirectory: UserDirectoryPort
+    private lateinit var blockPolicy: BlockPolicyPort
     private lateinit var service: StatusService
 
     private val viewer = TestData.USER_ID_1
@@ -40,7 +42,11 @@ class StatusServiceTest {
         statusRepository = mockk()
         conversationRepository = mockk()
         userDirectory = mockk()
-        service = StatusService(statusRepository, conversationRepository, userDirectory)
+        blockPolicy = mockk()
+        // Default across the suite: nobody has blocked anybody, so every pre-existing expectation
+        // in this file keeps meaning what it meant.
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        service = StatusService(statusRepository, conversationRepository, userDirectory, blockPolicy)
     }
 
     private fun status(
@@ -242,6 +248,99 @@ class StatusServiceTest {
                 { assertEquals("newer", group.statuses.first().content) },
                 { assertEquals("older", group.statuses.last().content) }
             )
+        }
+    }
+
+    /**
+     * #294, vector 4 - "can a blocked person still watch your stories?"
+     *
+     * Contact scope alone does not answer this. A block does not delete the conversation the two
+     * share, so the person you blocked stays a "contact" by the only definition this app has, and
+     * [StatusService.getContactStatusesForUser] served them every status you posted afterwards. Of
+     * the six surfaces a block has to close, this was the one still open: presence, about, the send
+     * path and the group-add all grew a guard in #554 and this did not.
+     *
+     * The audience list is not a substitute. It is the author's own allow/deny list, maintained per
+     * status in the composer - nobody edits it when they block someone, and expecting them to would
+     * make blocking a two-step action that silently half-works.
+     *
+     * Asked in the batched direction on purpose: one query for the whole contact set, not one per
+     * author. The Updates tab resolves everyone the viewer knows the moment it opens.
+     */
+    @Nested
+    inner class BlockedViewer {
+
+        @Test
+        fun `should hide an author's statuses from someone that author has blocked`() {
+            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { blockPolicy.findBlockedBy(viewer, setOf(contact)) } returns setOf(contact)
+            every { statusRepository.findActiveByUserIds(any()) } returns listOf(status(contact))
+            every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
+
+            assertTrue(service.getContactStatusesForUser(viewer).isEmpty())
+        }
+
+        @Test
+        fun `should keep the statuses of contacts who have not blocked the viewer`() {
+            // The blocker is dropped and nobody else is: one hostile contact must not cost the
+            // viewer the rest of the tab.
+            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { blockPolicy.findBlockedBy(viewer, any()) } returns setOf(contact)
+            // Answers the ids it is actually asked for, the way the real query does. A stub that
+            // returned both rows regardless would hide the whole point: the narrowing happens in
+            // the argument, so a fixed return value would make the test pass even if the service
+            // asked for everyone.
+            val posted = mapOf(
+                contact to status(contact, content = "from the blocker"),
+                stranger to status(stranger, content = "from someone else")
+            )
+            every { statusRepository.findActiveByUserIds(any()) } answers {
+                firstArg<Collection<UUID>>().mapNotNull { posted[it] }
+            }
+            every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
+
+            val groups = service.getContactStatusesForUser(viewer)
+
+            assertAll(
+                { assertEquals(1, groups.size) },
+                { assertEquals(stranger, groups.single().userId) },
+                { assertEquals("from someone else", groups.single().statuses.single().content) }
+            )
+        }
+
+        @Test
+        fun `should not read a status the blocker posted at all`() {
+            // Narrowed before the repository call, not after it. A row that never leaves the
+            // database cannot leak through a later change to the mapping, and the query is smaller.
+            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { blockPolicy.findBlockedBy(viewer, setOf(contact, stranger)) } returns setOf(contact)
+            every { statusRepository.findActiveByUserIds(setOf(stranger)) } returns emptyList()
+
+            service.getContactStatusesForUser(viewer)
+
+            verify(exactly = 1) { statusRepository.findActiveByUserIds(setOf(stranger)) }
+            verify(exactly = 0) { statusRepository.findActiveByUserIds(match { contact in it }) }
+        }
+
+        @Test
+        fun `should return nothing without touching the repository when every contact has blocked the viewer`() {
+            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { blockPolicy.findBlockedBy(viewer, setOf(contact)) } returns setOf(contact)
+
+            assertTrue(service.getContactStatusesForUser(viewer).isEmpty())
+
+            verify(exactly = 0) { statusRepository.findActiveByUserIds(any()) }
+        }
+
+        @Test
+        fun `should not ask about blocks when the viewer has no contacts`() {
+            // The empty-contact short circuit predates this guard and stays in front of it: no
+            // contacts means no query of any kind, the block lookup included.
+            every { conversationRepository.findAllContactUserIds(viewer) } returns emptySet()
+
+            assertTrue(service.getContactStatusesForUser(viewer).isEmpty())
+
+            verify(exactly = 0) { blockPolicy.findBlockedBy(any(), any()) }
         }
     }
 }

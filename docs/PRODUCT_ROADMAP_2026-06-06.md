@@ -12,6 +12,37 @@
 > - The two IDORs, the SSRF, the public actuator endpoints and the KVKK erasure gap listed below
 >   are **still open** and have not been re-verified since this snapshot.
 
+> **Re-verified 2026-08-21. Why this file survives, and what in it is now false.**
+>
+> **It is kept because it is the only record of four product decisions**, each with its reasoning:
+> the identity model (§ "phone is OPTIONAL, not enforced" — the anchor is the FIVUCSAS `sub`, and
+> phone buys exactly one thing, contact auto-discovery, which is a feature and not an auth
+> requirement); the FIVUCSAS sequencing and its two hard prerequisites; the premium pricing anchors;
+> and the de-cloning of the WhatsApp theme as a P1 brand/legal risk, which is the stated
+> justification for `docs/design/muhabbet-design-system.md` superseding the old UI spec. None of
+> that is written down anywhere else — not in `CLAUDE.md`, not in `ROADMAP.md`, not in an ADR.
+> The §5 legal register is also the cited source for `docs/legal/README.md`.
+>
+> **The security line immediately above is now wrong.** All three are **fixed**, verified against
+> current source: the message-search IDOR (the repository queries now `JOIN conversation_members` on
+> the authenticated user, with a service-layer membership guard as well), the media presigned-URL
+> IDOR (uploader-only check in `MediaService`), and the link-preview SSRF (a purpose-built
+> `SsrfGuard` re-validating **every** redirect hop against loopback / link-local / site-local /
+> ULA ranges, with a hop cap and a body cap). `/actuator/metrics` and `/actuator/prometheus` now
+> require `ROLE_ADMIN`. KVKK erasure is partial: identity and phone hashes are purged, MinIO blobs
+> and `media_files` rows are not.
+>
+> Note the fix did **not** follow this file's prescription. It said "call the existing
+> `InputSanitizer.sanitizeUrl`"; that would not have helped, since that method checks only for an
+> `https://` prefix and two bad schemes and blocks no IP range. `InputSanitizer` remains **dead
+> code** — its only references repo-wide are its own declaration and its test — so no server-side
+> escaping runs on any path. That is still open and is tracked in no issue.
+>
+> Also stale: `SMS_PROVIDER` is now `twilio-verify`, not mock; a signing keystore exists and Play
+> publishing to the internal track is automated; the privacy policy is served and correctly names
+> Hetzner Nuremberg. The Phase 0–4 sequencing and the Tier 1/2/3 framing are superseded by the
+> version milestones in [`ROADMAP.md`](../ROADMAP.md).
+
 
 
 > **Date:** 2026-06-06

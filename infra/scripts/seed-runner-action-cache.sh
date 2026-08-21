@@ -35,12 +35,19 @@ set -euo pipefail
 # Every action referenced by .github/workflows/*.yml, as <owner>/<repo>@<ref>. A sub-action such as
 # `gradle/actions/setup-gradle@v4` or `github/codeql-action/init@v3` caches under its *repository*,
 # not its path, so it is listed once here as `gradle/actions@v4` / `github/codeql-action@v3`.
+#
+# `dependabot/fetch-metadata` is listed even though `dependabot-auto-merge.yml` currently runs on
+# `ubuntu-latest`, where this cache is irrelevant. The invariant the list keeps is "every action any
+# workflow references", not "every action the self-hosted runner happens to need today" — the moment
+# somebody moves that job to `self-hosted` to save hosted minutes, an unlisted action is a job that
+# dies in *Set up job* on the next 429 day, with no log to explain it.
 ACTIONS=(
   "actions/checkout@v4"
   "actions/setup-java@v4"
   "actions/upload-artifact@v4"
   "appleboy/ssh-action@v1"
   "aquasecurity/trivy-action@master"
+  "dependabot/fetch-metadata@v2"
   "docker/build-push-action@v6"
   "docker/setup-buildx-action@v3"
   "github/codeql-action@v3"

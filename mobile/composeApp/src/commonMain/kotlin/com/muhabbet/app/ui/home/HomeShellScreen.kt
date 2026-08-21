@@ -106,6 +106,7 @@ fun HomeShellScreen(
     onNewCall: () -> Unit,
     onCommunityClick: (String) -> Unit = {},
     onCreateCommunity: () -> Unit = {},
+    onOpenArchived: () -> Unit = {},
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
     messageRepository: MessageRepository = koinInject(),
@@ -408,6 +409,7 @@ fun HomeShellScreen(
                             onNewConversation = onNewConversation,
                             onSettings = onSettings,
                             onStatusClick = onStatusClick,
+                            onOpenArchived = onOpenArchived,
                             refreshKey = refreshKey,
                             showTopBar = false,
                             showStatusRow = false

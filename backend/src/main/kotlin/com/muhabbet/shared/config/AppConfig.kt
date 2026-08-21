@@ -219,11 +219,13 @@ class AppConfig {
     fun statusService(
         statusRepository: StatusRepository,
         conversationRepository: ConversationRepository,
-        userDirectory: UserDirectoryPort
+        userDirectory: UserDirectoryPort,
+        blockPolicy: BlockPolicyPort
     ): StatusService = StatusService(
         statusRepository = statusRepository,
         conversationRepository = conversationRepository,
-        userDirectory = userDirectory
+        userDirectory = userDirectory,
+        blockPolicy = blockPolicy
     )
 
     @Bean
@@ -404,11 +406,13 @@ class AppConfig {
         communityRepository: CommunityRepository,
         conversationRepository: ConversationRepository,
         userDirectoryPort: UserDirectoryPort,
+        blockPolicy: BlockPolicyPort,
         communityAnnouncementChannel: CommunityAnnouncementChannel
     ): CommunityService = CommunityService(
         communityRepository = communityRepository,
         conversationRepository = conversationRepository,
         userDirectoryPort = userDirectoryPort,
+        blockPolicy = blockPolicy,
         announcementChannel = communityAnnouncementChannel
     )
 
@@ -417,11 +421,13 @@ class AppConfig {
         communityRepository: CommunityRepository,
         communityInviteLinkRepository: CommunityInviteLinkRepository,
         userDirectoryPort: UserDirectoryPort,
+        blockPolicy: BlockPolicyPort,
         communityAnnouncementChannel: CommunityAnnouncementChannel
     ): CommunityInviteService = CommunityInviteService(
         communityRepository = communityRepository,
         inviteLinkRepository = communityInviteLinkRepository,
         userDirectoryPort = userDirectoryPort,
+        blockPolicy = blockPolicy,
         announcementChannel = communityAnnouncementChannel
     )
 

@@ -22,7 +22,9 @@ import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.request
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
@@ -149,6 +151,27 @@ class ApiClient(
                 // the server, so nothing stopped them at the filter chain either: they reached the
                 // controller with an empty SecurityContext and came back 401 AUTH_UNAUTHORIZED.
                 sendWithoutRequest { request -> request.url.build().encodedPath !in PRE_LOGIN_PATHS }
+            }
+
+            // A 401 from a pre-login endpoint is the server rejecting a **code**, not challenging
+            // for a **token**, and Ktor cannot tell the two apart on its own.
+            //
+            // The Auth plugin retries every 401. Where the request carried a bearer token it
+            // refreshes first; where it did not — which is exactly the paths above, by
+            // `sendWithoutRequest` — it has no token version recorded against the request, so
+            // `refreshTokenIfNeeded` returns true without refreshing anything and the request is
+            // replayed unchanged. No `/auth/token/refresh` is sent, which is why nothing in a log
+            // hints at a retry: there are simply two identical POSTs.
+            //
+            // `AUTH_OTP_INVALID` is 401 and `AuthService.verifyOtp` claims an attempt *before* it
+            // compares the code, so both copies counted. One entered code cost two of the five
+            // configured attempts and the third typo locked the user out (#400).
+            //
+            // This narrows the predicate rather than removing the retry: every other 401 still
+            // re-authorizes exactly as before, or no session would survive its first expiry.
+            reAuthorizeOnResponse { response ->
+                response.status == HttpStatusCode.Unauthorized &&
+                    response.request.url.encodedPath !in PRE_LOGIN_PATHS
             }
         }
 

@@ -26,7 +26,7 @@ class WallpaperRepositoryTest {
     @Test
     fun resolveWallpaper_whenSolidChosen_returnsTheStoredColor() {
         val repo = repository()
-        repo.setWallpaperType("SOLID")
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
         repo.setSolidColor("#112233")
 
         assertEquals(
@@ -38,15 +38,76 @@ class WallpaperRepositoryTest {
     @Test
     fun resolveWallpaper_whenSolidChosenButNoColorStored_fallsBackToDefault() {
         val repo = repository()
-        repo.setWallpaperType("SOLID")
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
 
         assertEquals(WallpaperRepository.ChatWallpaper.Default, repo.resolveWallpaper(isDarkTheme = false))
     }
 
     @Test
+    fun resolveWallpaper_whenGradientChosen_returnsTheStoredId() {
+        val repo = repository()
+        repo.setWallpaperType(WallpaperRepository.TYPE_GRADIENT)
+        repo.setGradientId("harbour")
+
+        assertEquals(
+            WallpaperRepository.ChatWallpaper.Gradient("harbour"),
+            repo.resolveWallpaper(isDarkTheme = false)
+        )
+    }
+
+    /**
+     * The id is carried, not resolved: the colours live in the design system and this layer does not
+     * import it. Which means an id this build cannot paint has to survive as far as the UI, where the
+     * lookup fails and the chat falls back — the repository must not try to be clever about it here.
+     */
+    @Test
+    fun resolveWallpaper_whenGradientIdIsNotOneThisBuildShips_stillReturnsIt() {
+        val repo = repository()
+        repo.setWallpaperType(WallpaperRepository.TYPE_GRADIENT)
+        repo.setGradientId("a-gradient-from-a-later-build")
+
+        assertEquals(
+            WallpaperRepository.ChatWallpaper.Gradient("a-gradient-from-a-later-build"),
+            repo.resolveWallpaper(isDarkTheme = false)
+        )
+    }
+
+    @Test
+    fun resolveWallpaper_whenGradientChosenButNoIdStored_fallsBackToDefault() {
+        val repo = repository()
+        repo.setWallpaperType(WallpaperRepository.TYPE_GRADIENT)
+
+        assertEquals(WallpaperRepository.ChatWallpaper.Default, repo.resolveWallpaper(isDarkTheme = false))
+    }
+
+    /**
+     * A gradient and a solid are stored in separate slots on purpose, so moving between the two type
+     * buttons and back does not lose the other choice. If they ever shared one, this is the test that
+     * would notice.
+     */
+    @Test
+    fun gradientAndSolidSelections_doNotOverwriteEachOther() {
+        val repo = repository()
+        repo.setSolidColor("#112233")
+        repo.setGradientId("sage")
+
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
+        assertEquals(
+            WallpaperRepository.ChatWallpaper.Solid("#112233"),
+            repo.resolveWallpaper(isDarkTheme = false)
+        )
+
+        repo.setWallpaperType(WallpaperRepository.TYPE_GRADIENT)
+        assertEquals(
+            WallpaperRepository.ChatWallpaper.Gradient("sage"),
+            repo.resolveWallpaper(isDarkTheme = false)
+        )
+    }
+
+    @Test
     fun resolveWallpaper_whenCustomChosen_returnsTheStoredImagePath() {
         val repo = repository()
-        repo.setWallpaperType("CUSTOM")
+        repo.setWallpaperType(WallpaperRepository.TYPE_CUSTOM)
         repo.setCustomPath("/data/user/0/com.muhabbet.app/files/wallpapers/wall.jpg")
 
         assertEquals(
@@ -58,7 +119,7 @@ class WallpaperRepositoryTest {
     @Test
     fun resolveWallpaper_whenCustomChosenButNoPathStored_fallsBackToDefault() {
         val repo = repository()
-        repo.setWallpaperType("CUSTOM")
+        repo.setWallpaperType(WallpaperRepository.TYPE_CUSTOM)
 
         assertEquals(WallpaperRepository.ChatWallpaper.Default, repo.resolveWallpaper(isDarkTheme = false))
     }
@@ -66,7 +127,7 @@ class WallpaperRepositoryTest {
     @Test
     fun resolveWallpaper_inDarkThemeWithDarkModeToggleOff_ignoresTheSelection() {
         val repo = repository()
-        repo.setWallpaperType("SOLID")
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
         repo.setSolidColor("#112233")
         repo.setDarkModeWallpaperEnabled(false)
 
@@ -76,7 +137,7 @@ class WallpaperRepositoryTest {
     @Test
     fun resolveWallpaper_inDarkThemeWithDarkModeToggleOn_honoursTheSelection() {
         val repo = repository()
-        repo.setWallpaperType("SOLID")
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
         repo.setSolidColor("#112233")
         repo.setDarkModeWallpaperEnabled(true)
 
@@ -97,7 +158,7 @@ class WallpaperRepositoryTest {
     @Test
     fun isSelectionHiddenByDarkTheme_inDarkThemeWithASelectionAndTheToggleOff_isTrue() {
         val repo = repository()
-        repo.setWallpaperType("SOLID")
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
         repo.setSolidColor("#112233")
         repo.setDarkModeWallpaperEnabled(false)
 
@@ -108,7 +169,7 @@ class WallpaperRepositoryTest {
     @Test
     fun isSelectionHiddenByDarkTheme_inLightTheme_isFalse() {
         val repo = repository()
-        repo.setWallpaperType("SOLID")
+        repo.setWallpaperType(WallpaperRepository.TYPE_SOLID)
         repo.setSolidColor("#112233")
         repo.setDarkModeWallpaperEnabled(false)
 
@@ -119,7 +180,7 @@ class WallpaperRepositoryTest {
     @Test
     fun isSelectionHiddenByDarkTheme_whenTheDarkModeToggleIsOn_isFalse() {
         val repo = repository()
-        repo.setWallpaperType("CUSTOM")
+        repo.setWallpaperType(WallpaperRepository.TYPE_CUSTOM)
         repo.setCustomPath("/data/user/0/com.muhabbet.app/files/wallpapers/wall.jpg")
         repo.setDarkModeWallpaperEnabled(true)
 
@@ -142,7 +203,7 @@ class WallpaperRepositoryTest {
     @Test
     fun isSelectionHiddenByDarkTheme_whenTheStoredSelectionIsIncomplete_isFalse() {
         val repo = repository()
-        repo.setWallpaperType("CUSTOM")
+        repo.setWallpaperType(WallpaperRepository.TYPE_CUSTOM)
 
         assertFalse(repo.isSelectionHiddenByDarkTheme(isDarkTheme = true))
     }

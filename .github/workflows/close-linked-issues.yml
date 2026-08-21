@@ -1,0 +1,87 @@
+# Closes the issues a pull request says it closes, when that pull request merges into `dev`.
+#
+# GitHub does this natively — but only for the repository's **default** branch, which here is
+# `main`. Every piece of work in this repo is merged into `dev`, so `Closes #349` in a PR body has
+# never once closed an issue. Nor does it close later: the release PR that carries `dev` into `main`
+# has its own body, and the individual `Closes` lines are not in it.
+#
+# That is the whole mechanical explanation for a pattern that had been read as carelessness. On
+# 2026-08-21 a triage pass found a dozen issues describing defects that were fixed weeks earlier —
+# #349, #594, #618, #622, #633, #638, #641, #642 among them — still open, still being handed to
+# agents as work, still counted in the milestone. One of them was assigned to an agent that day and
+# came back with "this is already fixed; the issue is open for process reasons."
+#
+# Two ways to fix it. Making `dev` the default branch gets the behaviour for free, and was rejected:
+# `main` is what a visitor to a public repository should land on, and it is what releases are cut
+# from. So the automation is reproduced here instead, deliberately narrow — it closes only what a PR
+# explicitly claims, in the same keywords GitHub itself honours.
+name: Close linked issues on dev merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  close:
+    # Closing on merge, not on "closed": a PR abandoned without merging has fixed nothing.
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close what the PR says it closes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          # The keywords GitHub itself honours, and only those. "Fixes #123" closes; "See #123",
+          # "Related to #123" and a bare "#123" do not — a PR mentions far more issues than it ends,
+          # and closing a merely-referenced one is worse than leaving it open.
+          printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
+            | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' \
+            | grep -oE '[0-9]+' \
+            | sort -un > /tmp/linked.txt || true
+
+          if [ ! -s /tmp/linked.txt ]; then
+            echo "PR #$PR_NUMBER claims to close nothing." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "## Linked issues" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+
+          while read -r n; do
+            state=$(gh issue view "$n" --repo "$REPO" --json state --jq .state 2>/dev/null || echo MISSING)
+            case "$state" in
+              OPEN)
+                # The comment matters as much as the close. An issue that shuts with no explanation
+                # is indistinguishable from one someone gave up on, and this repo has a standing
+                # rule that a mobile fix is not done until it has been driven on a device — so the
+                # comment says plainly that merging is not that.
+                cat > /tmp/comment.md <<COMMENT
+          Kapatan: #$PR_NUMBER (\`dev\`'e merge edildi).
+
+          Bu kapatmayi otomasyon yapti: GitHub bagli issue'lari yalnizca varsayilan dala
+          (\`main\`) merge edildiginde kapatiyor, bu depodaki her is ise \`dev\`'e giriyor.
+
+          **Merge edilmis olmak, cihazda gorulmus olmak degildir.** Kullaniciya gorunen bir
+          degisiklikse, emulatorde veya gercek telefonda surulene kadar dogrulanmis sayilmaz —
+          oyleyse bu issue'yu yeniden acin.
+          COMMENT
+                sed -i 's/^          //' /tmp/comment.md
+                gh issue comment "$n" --repo "$REPO" --body-file /tmp/comment.md
+                gh issue close "$n" --repo "$REPO" --reason completed
+                echo "- Closed #$n" >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              CLOSED)  echo "- #$n was already closed" >> "$GITHUB_STEP_SUMMARY" ;;
+              *)       echo "- #$n could not be read (deleted, or a pull request)" >> "$GITHUB_STEP_SUMMARY" ;;
+            esac
+          done < /tmp/linked.txt

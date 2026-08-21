@@ -26,6 +26,16 @@ actual object CrashReporter {
         // SentrySDK.setUser(SentryUser().apply { this.userId = userId })
     }
 
+    actual fun clearUser() {
+        // Removed rather than overwritten with a blank: this key survives the process, so a value
+        // left here would be read back and re-attached on the next launch by whoever adds the
+        // Sentry pod.
+        NSUserDefaults.standardUserDefaults.removeObjectForKey("sentry_user_id")
+        NSLog("CrashReporter: clearUser()")
+        // When Sentry is integrated:
+        // SentrySDK.setUser(null)
+    }
+
     actual fun captureException(throwable: Throwable) {
         NSLog("CrashReporter: exception — ${throwable.message}")
         NSLog("CrashReporter: stackTrace — ${throwable.stackTraceToString()}")

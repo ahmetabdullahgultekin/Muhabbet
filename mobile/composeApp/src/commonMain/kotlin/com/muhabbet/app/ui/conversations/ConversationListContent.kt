@@ -41,10 +41,31 @@ import com.muhabbet.shared.model.Message
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetChip
+import com.muhabbet.designsystem.components.SettingsNavRow
 import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 internal enum class ConversationFilter {
     ALL, UNREAD, FAVORITES, GROUPS
+}
+
+/**
+ * The persistent entry point into archived chats — pinned above every active conversation, unlike
+ * the section it replaces (#612) which sat below all of them and rendered nothing at all whenever
+ * nothing was archived. Shown only when [count] is positive: archiving is already discoverable from
+ * every row's long-press menu, so this row's job is purely "where did it go", which has nothing to
+ * say until something has actually been archived. The first archive makes it appear immediately —
+ * that appearance *is* how the mechanism teaches itself.
+ */
+@Composable
+internal fun ArchivedChatsRow(count: Int, onClick: () -> Unit) {
+    SettingsNavRow(
+        title = stringResource(Res.string.conv_archived_section),
+        subtitle = stringResource(Res.string.archived_row_count, count),
+        icon = Muhabbet.icons.Archive,
+        // Decorative: the title beside it already says "archived", so naming the icon too would
+        // just put a noise word ahead of what the screen reader announces next.
+        onClick = onClick
+    )
 }
 
 /**
