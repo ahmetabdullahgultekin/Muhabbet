@@ -148,7 +148,11 @@
     <string name="group_leave_confirm">Bu gruptan ayrılmak istediğinize emin misiniz?</string>
     <string name="group_leave_button">Ayrıl</string>
     <string name="group_leave_failed">Ayrılma başarısız</string>
-    <string name="group_participant_count">%1$d katılımcı</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="group_participant_count">
+        <item quantity="one">%1$d katılımcı</item>
+        <item quantity="other">%1$d katılımcı</item>
+    </plurals>
     <string name="group_members">Üyeler</string>
     <string name="group_role_owner">Sahip</string>
     <string name="group_role_admin">Yönetici</string>
@@ -264,7 +268,11 @@
     <string name="status_load_failed">Durumlar yüklenemedi</string>
     <string name="updates_title">Güncellemeler</string>
     <string name="updates_recent">Son güncellemeler</string>
-    <string name="updates_status_meta">%1$d güncelleme • %2$s</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="updates_status_meta">
+        <item quantity="one">%1$d güncelleme • %2$s</item>
+        <item quantity="other">%1$d güncelleme • %2$s</item>
+    </plurals>
 
     <!-- Home Tabs -->
     <string name="home_tab_chats">Sohbetler</string>
@@ -277,7 +285,11 @@
     <string name="channels_empty">Henüz kanal yok</string>
     <string name="channels_subscribe">Abone Ol</string>
     <string name="channels_unsubscribe">Abonelikten Çık</string>
-    <string name="channels_subscriber_count">%1$d abone</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="channels_subscriber_count">
+        <item quantity="one">%1$d abone</item>
+        <item quantity="other">%1$d abone</item>
+    </plurals>
 
     <!-- Reactions -->
     <string name="reaction_added">Tepki eklendi</string>
@@ -375,7 +387,11 @@
     <string name="storage_documents">Belgeler</string>
     <string name="storage_loading">Yükleniyor…</string>
     <string name="storage_error">Depolama bilgisi alınamadı</string>
-    <string name="storage_items">%1$d öğe</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="storage_items">
+        <item quantity="one">%1$d öğe</item>
+        <item quantity="other">%1$d öğe</item>
+    </plurals>
 
     <!-- Calls -->
     <string name="calls_title">Aramalar</string>
@@ -474,7 +490,11 @@
     <string name="conv_unmute">Sesi Aç</string>
     <string name="conv_archived_section">Arşivlenmiş Sohbetler</string>
     <!-- Count shown under the archived-chats row at the top of the conversation list, e.g. "3 sohbet". -->
-    <string name="archived_row_count">%1$d sohbet</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="archived_row_count">
+        <item quantity="one">%1$d sohbet</item>
+        <item quantity="other">%1$d sohbet</item>
+    </plurals>
     <!-- Shown on the Archived Chats screen when nothing is archived. -->
     <string name="archived_empty">Arşivlenmiş sohbet yok</string>
 
@@ -638,9 +658,19 @@
     <string name="community_announcements">Duyurular</string>
     <string name="community_groups">Gruplar</string>
     <string name="community_members">Üyeler</string>
-    <string name="community_member_count">%1$d üye</string>
-    <string name="community_group_count">%1$d grup</string>
-    <string name="community_group_member_summary">%1$d grup · %2$d üye</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="community_member_count">
+        <item quantity="one">%1$d üye</item>
+        <item quantity="other">%1$d üye</item>
+    </plurals>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="community_group_count">
+        <item quantity="one">%1$d grup</item>
+        <item quantity="other">%1$d grup</item>
+    </plurals>
+    <!-- Joins two already-pluralised halves; it carries no count of its own, because one
+         plural resource can only agree with one number. -->
+    <string name="community_group_member_summary">%1$s · %2$s</string>
     <string name="group_event_going_count">%1$d katılıyor</string>
     <string name="community_add_group">Grup Ekle</string>
 
@@ -781,10 +811,15 @@
     <string name="schedule_error_past">Lütfen gelecekte bir zaman seçin</string>
     <string name="schedule_queued">Mesaj planlandı</string>
     <string name="schedule_cancelled">Planlanmış mesaj iptal edildi</string>
-    <string name="schedule_pending_count">%1$d planlanmış mesaj</string>
+    <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
+    <plurals name="schedule_pending_count">
+        <item quantity="one">%1$d planlanmış mesaj</item>
+        <item quantity="other">%1$d planlanmış mesaj</item>
+    </plurals>
     <string name="schedule_list_title">Planlanmış mesajlar</string>
     <string name="schedule_list_empty">Planlanmış mesaj yok</string>
     <string name="contacts_refresh">Kişileri yenile</string>
+    <!-- Unreferenced while the Calls-tab FAB is gone (#684); the right label for it when calling works. -->
     <string name="calls_new_call">Yeni arama</string>
     <!-- Failure feedback: shown when an action or a load silently failed before -->
     <string name="error_load_failed">İçerik yüklenemedi</string>

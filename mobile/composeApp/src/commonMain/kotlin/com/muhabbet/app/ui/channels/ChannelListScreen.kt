@@ -47,6 +47,7 @@ import com.muhabbet.shared.dto.ChannelInfoResponse
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -196,7 +197,11 @@ private fun ChannelItem(
             }
 
             Text(
-                text = stringResource(Res.string.channels_subscriber_count, channel.subscriberCount),
+                text = pluralStringResource(
+                    Res.plurals.channels_subscriber_count,
+                    channel.subscriberCount,
+                    channel.subscriberCount
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
