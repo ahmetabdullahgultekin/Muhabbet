@@ -18,13 +18,18 @@ on:
     # matched nothing. Two PRs that were each green in isolation were merged and broke
     # each other, and it was only caught at release. The backend suite is the cheap,
     # high-value gate, so it runs here.
+    #
+    # There is deliberately NO `paths:` filter here any more. A filter on the trigger does not make
+    # an irrelevant pull request cheap — it stops the workflow from STARTING, so GitHub never creates
+    # the "Build & Test" check run at all. #682 and #683 changed only documentation and carried zero
+    # checks. A check that is sometimes not created can never be a *required* check: GitHub holds
+    # such a pull request at "Expected — waiting for status to be reported" forever. And without a
+    # required check, a red pull request merges — which is how `dev` was broken on 2026-08-21.
+    #
+    # The filtering moved INTO the job: see the "Decide what this pull request needs" step below.
+    # The check run now always exists, and a pull request that touches no backend source reports
+    # green in well under a minute.
     branches: [main, dev, develop]
-    paths:
-      - 'backend/**'
-      - 'shared/**'
-      - 'build.gradle.kts'
-      - 'settings.gradle.kts'
-      - 'gradle/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -55,24 +60,68 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The `paths:` filter that used to sit on the trigger lives here now. Every step below that
+      # costs more than a few seconds is gated on this output, so the check run is always created
+      # (and can therefore be required on a branch) while an unrelated pull request still finishes
+      # in seconds. See .github/scripts/paths-changed.sh for the full reasoning.
+      #
+      # The prefix list is the old `paths:` filter plus `gradle.properties`, which affects this
+      # build and was only ever listed by Mobile CI. `.github/workflows/backend-ci.yml` is
+      # deliberately NOT in the list — it was not in the old filter either, and there is one
+      # self-hosted runner, so making every edit of this file run the whole suite would queue behind
+      # the deploys it delays. Add it if that trade stops being worth it.
+      - name: Decide what this pull request needs
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          backend=$(bash .github/scripts/paths-changed.sh \
+            backend/ \
+            shared/ \
+            build.gradle.kts \
+            settings.gradle.kts \
+            gradle.properties \
+            gradle/)
+          case "$backend" in
+            true|false) ;;
+            *)
+              # A silent "false" would turn every pull request green without running a single test,
+              # which is worse than any build failure. Refuse to continue on an answer we cannot read.
+              echo "paths-changed.sh returned '$backend'; expected true or false" >&2
+              exit 1
+              ;;
+          esac
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          if [ "$backend" = "true" ]; then
+            echo "Backend, shared or Gradle sources changed — building and running the suite." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No backend, shared or Gradle sources changed — build and tests skipped, check reports green." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
+        if: steps.changes.outputs.backend == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
 
       - name: Setup Gradle
+        if: steps.changes.outputs.backend == 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
       - name: Build shared module
+        if: steps.changes.outputs.backend == 'true'
         run: ./gradlew :shared:jvmJar
 
       - name: Build backend
+        if: steps.changes.outputs.backend == 'true'
         run: ./gradlew :backend:assemble
 
       - name: Run tests
+        if: steps.changes.outputs.backend == 'true'
         run: ./gradlew :backend:test
         # DB_HOST / REDIS_HOST are deliberately absent. Every integration test supplies its own
         # Testcontainers instance through @DynamicPropertySource; pointing these at localhost aimed
@@ -88,9 +137,10 @@ jobs:
 
       - name: Generate JaCoCo coverage report
         run: ./gradlew :backend:jacocoTestReport
-        if: always()
+        if: always() && steps.changes.outputs.backend == 'true'
 
       - name: Verify code coverage thresholds
+        if: steps.changes.outputs.backend == 'true'
         run: ./gradlew :backend:jacocoTestCoverageVerification
         continue-on-error: true
 
@@ -100,12 +150,19 @@ jobs:
       # frozen in `backend/detekt-baseline.xml`, so this can only go red on something the branch
       # introduced. If it does go red, fix the finding or argue it into `detekt.yml`; do not
       # regenerate the baseline to bury it, and do not put `continue-on-error` back.
+      #
+      # Gated on the same `changes.backend` output as every other expensive step, and for the same
+      # reason: the gate belongs on the STEP, never on the workflow trigger. Skipping the step still
+      # produces the "Build & Test" check run, so this check stays requirable on a branch; a
+      # docs-only pull request neither pays for a detekt run nor waits forever on a check that was
+      # never created. `always()` is kept so a failing test run does not hide a new finding — the
+      # two failures are independent and both should be visible in one run.
       - name: Run detekt static analysis
         run: ./gradlew :backend:detekt
-        if: always()
+        if: always() && steps.changes.outputs.backend == 'true'
 
       - name: Upload test results
-        if: failure()
+        if: failure() && steps.changes.outputs.backend == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
@@ -116,7 +173,7 @@ jobs:
       # an unconditional upload turns every green build red at the last step. The PR coverage
       # comment reads the XML from disk, not from this artifact, so nothing downstream needs it.
       - name: Upload JaCoCo coverage report
-        if: failure()
+        if: failure() && steps.changes.outputs.backend == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-coverage-report
@@ -124,22 +181,25 @@ jobs:
           retention-days: 3
 
       - name: Upload detekt report
-        if: failure()
+        if: failure() && steps.changes.outputs.backend == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: detekt-report
           path: backend/build/reports/detekt/
           retention-days: 3
 
+      # Both reporting steps below MUST stay gated. With no tests run there is no JUnit XML and no
+      # JaCoCo XML on disk, and both actions fail on a missing report — which would turn the cheap
+      # path red and defeat the whole point of making this check requirable.
       - name: Publish test report
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.backend == 'true'
         uses: mikepenz/action-junit-report@v5
         with:
           report_paths: 'backend/build/test-results/test/*.xml'
           check_name: 'Backend Test Results'
 
       - name: Add coverage to PR comment
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.backend == 'true'
         uses: madrapps/jacoco-report@v1.7.1
         with:
           paths: backend/build/reports/jacoco/test/jacocoTestReport.xml
