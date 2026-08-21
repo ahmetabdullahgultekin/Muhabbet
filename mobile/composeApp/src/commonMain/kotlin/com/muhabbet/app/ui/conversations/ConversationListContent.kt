@@ -38,6 +38,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.shared.model.Message
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetChip
@@ -60,7 +61,7 @@ internal enum class ConversationFilter {
 internal fun ArchivedChatsRow(count: Int, onClick: () -> Unit) {
     SettingsNavRow(
         title = stringResource(Res.string.conv_archived_section),
-        subtitle = stringResource(Res.string.archived_row_count, count),
+        subtitle = pluralStringResource(Res.plurals.archived_row_count, count, count),
         icon = Muhabbet.icons.Archive,
         // Decorative: the title beside it already says "archived", so naming the icon too would
         // just put a noise word ahead of what the screen reader announces next.

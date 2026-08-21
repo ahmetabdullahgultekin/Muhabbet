@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -56,6 +58,7 @@ import com.muhabbet.shared.dto.UserProfileDetailResponse
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -63,6 +66,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.modifier.pressable
 import androidx.compose.foundation.shape.CircleShape
+import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +93,7 @@ fun UserProfileScreen(
     // Only ever set true when profile.avatarUrl is non-null — see the render site below.
     var showPhotoViewer by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val relativeDayLabels = rememberRelativeDayLabels()
     val scope = rememberCoroutineScope()
 
     val errorMsg = stringResource(Res.string.profile_load_failed)
@@ -257,7 +262,7 @@ fun UserProfileScreen(
                         } else {
                             val lastSeen = p.lastSeenAt
                             if (lastSeen != null) {
-                                val time = DateTimeFormatter.formatLastSeen(lastSeen)
+                                val time = DateTimeFormatter.formatLastSeen(lastSeen, relativeDayLabels)
                                 Text(
                                     text = stringResource(Res.string.profile_last_seen, time),
                                     style = MaterialTheme.typography.bodyMedium,
@@ -474,6 +479,20 @@ fun UserProfileScreen(
     }
 }
 
+/**
+ * One of the icon-over-label buttons under the avatar.
+ *
+ * `sizeIn`, not `size` (#701). `MuhabbetSizes.MinTouchTarget` is a **floor** — WCAG 2.5.5 says a
+ * target may not be smaller than this, not that it must be exactly this. Pinned to it as a fixed
+ * square, the 28.dp icon plus a 4.dp gap plus a label line came to roughly 50.dp of content inside
+ * a 40.dp box once padding was taken off: the label overlapped the icon and was clipped at both
+ * ends. Turkish and English labels differ in width too, so the width has to follow the text.
+ *
+ * Through `pressable` rather than a hand-rolled `clip`/`clickable` pair, so the press ripple follows
+ * the rounded shape instead of the node's bounding box (#703). This was the one call site that fix
+ * had to skip: clipping a box whose content already overflowed it would have cropped the label
+ * rather than rounding the ripple. The `sizeIn` above is what made it safe.
+ */
 @Composable
 private fun ProfileActionButton(
     icon: ImageVector,
@@ -483,21 +502,25 @@ private fun ProfileActionButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clickable(onClick = onClick)
-            .size(MuhabbetSizes.MinTouchTarget)
-            .padding(MuhabbetSpacing.XSmall)
+            .pressable(MaterialTheme.shapes.medium, onClick = onClick)
+            .sizeIn(
+                minWidth = MuhabbetSizes.MinTouchTarget,
+                minHeight = MuhabbetSizes.MinTouchTarget
+            )
+            .padding(horizontal = MuhabbetSpacing.Medium, vertical = MuhabbetSpacing.Small)
     ) {
         Icon(
             icon,
-            contentDescription = label,
+            contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(MuhabbetSizes.IconLarge)
         )
         Spacer(Modifier.height(MuhabbetSpacing.XSmall))
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1
         )
     }
 }
@@ -549,7 +572,7 @@ private fun MutualGroupItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = stringResource(Res.string.group_participant_count, group.memberCount),
+                text = pluralStringResource(Res.plurals.group_participant_count, group.memberCount, group.memberCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

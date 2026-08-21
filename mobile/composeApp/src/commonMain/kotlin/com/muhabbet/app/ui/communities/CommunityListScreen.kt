@@ -38,6 +38,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.CommunityResponse
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -145,10 +146,21 @@ private fun CommunityListItem(
                     maxLines = 1
                 )
                 Text(
+                    // One plural resource can only agree with one number, and this line carries
+                    // two. Each half is pluralised on its own and the resource that joins them
+                    // holds nothing but the separator, so a locale can still reorder it.
                     text = stringResource(
                         Res.string.community_group_member_summary,
-                        community.groupCount,
-                        community.memberCount
+                        pluralStringResource(
+                            Res.plurals.community_group_count,
+                            community.groupCount,
+                            community.groupCount
+                        ),
+                        pluralStringResource(
+                            Res.plurals.community_member_count,
+                            community.memberCount,
+                            community.memberCount
+                        )
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

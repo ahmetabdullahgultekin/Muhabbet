@@ -145,7 +145,10 @@
     <string name="group_leave_confirm">Are you sure you want to leave this group?</string>
     <string name="group_leave_button">Leave</string>
     <string name="group_leave_failed">Failed to leave group</string>
-    <string name="group_participant_count">%1$d participants</string>
+    <plurals name="group_participant_count">
+        <item quantity="one">%1$d participant</item>
+        <item quantity="other">%1$d participants</item>
+    </plurals>
     <string name="group_members">Members</string>
     <string name="group_role_owner">Owner</string>
     <string name="group_role_admin">Admin</string>
@@ -254,7 +257,10 @@
     <string name="status_load_failed">Failed to load statuses</string>
     <string name="updates_title">Updates</string>
     <string name="updates_recent">Recent updates</string>
-    <string name="updates_status_meta">%1$d updates • %2$s</string>
+    <plurals name="updates_status_meta">
+        <item quantity="one">%1$d update • %2$s</item>
+        <item quantity="other">%1$d updates • %2$s</item>
+    </plurals>
 
     <!-- Home Tabs -->
     <string name="home_tab_chats">Chats</string>
@@ -267,7 +273,10 @@
     <string name="channels_empty">No channels yet</string>
     <string name="channels_subscribe">Subscribe</string>
     <string name="channels_unsubscribe">Unsubscribe</string>
-    <string name="channels_subscriber_count">%1$d subscribers</string>
+    <plurals name="channels_subscriber_count">
+        <item quantity="one">%1$d subscriber</item>
+        <item quantity="other">%1$d subscribers</item>
+    </plurals>
 
     <!-- Reactions -->
     <string name="reaction_added">Reaction added</string>
@@ -359,7 +368,10 @@
     <string name="storage_documents">Documents</string>
     <string name="storage_loading">Loading…</string>
     <string name="storage_error">Failed to load storage info</string>
-    <string name="storage_items">%1$d items</string>
+    <plurals name="storage_items">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
 
     <!-- Calls -->
     <string name="calls_title">Calls</string>
@@ -454,7 +466,10 @@
     <string name="conv_unmute">Unmute</string>
     <string name="conv_archived_section">Archived Chats</string>
     <!-- Count shown under the archived-chats row at the top of the conversation list, e.g. "3 chats". -->
-    <string name="archived_row_count">%1$d chats</string>
+    <plurals name="archived_row_count">
+        <item quantity="one">%1$d chat</item>
+        <item quantity="other">%1$d chats</item>
+    </plurals>
     <!-- Shown on the Archived Chats screen when nothing is archived. -->
     <string name="archived_empty">No archived chats</string>
 
@@ -618,9 +633,17 @@
     <string name="community_announcements">Announcements</string>
     <string name="community_groups">Groups</string>
     <string name="community_members">Members</string>
-    <string name="community_member_count">%1$d members</string>
-    <string name="community_group_count">%1$d groups</string>
-    <string name="community_group_member_summary">%1$d groups · %2$d members</string>
+    <plurals name="community_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <plurals name="community_group_count">
+        <item quantity="one">%1$d group</item>
+        <item quantity="other">%1$d groups</item>
+    </plurals>
+    <!-- Joins two already-pluralised halves; it carries no count of its own, because one
+         plural resource can only agree with one number. -->
+    <string name="community_group_member_summary">%1$s · %2$s</string>
     <string name="group_event_going_count">%1$d going</string>
     <string name="community_add_group">Add Group</string>
 
@@ -758,10 +781,14 @@
     <string name="schedule_error_past">Please choose a time in the future</string>
     <string name="schedule_queued">Message scheduled</string>
     <string name="schedule_cancelled">Scheduled message cancelled</string>
-    <string name="schedule_pending_count">%1$d scheduled message(s)</string>
+    <plurals name="schedule_pending_count">
+        <item quantity="one">%1$d scheduled message</item>
+        <item quantity="other">%1$d scheduled messages</item>
+    </plurals>
     <string name="schedule_list_title">Scheduled messages</string>
     <string name="schedule_list_empty">No scheduled messages</string>
     <string name="contacts_refresh">Refresh contacts</string>
+    <!-- Unreferenced while the Calls-tab FAB is gone (#684); the right label for it when calling works. -->
     <string name="calls_new_call">New call</string>
     <!-- Failure feedback: shown when an action or a load silently failed before -->
     <string name="error_load_failed">Could not load content</string>
@@ -833,6 +860,26 @@
     <string name="messages_loading">Loading messages</string>
     <string name="communities_loading">Loading communities</string>
     <string name="channels_loading">Loading channels</string>
+
+    <!-- Contacts access recovery (#692). See the Turkish file for why this exists. -->
+    <string name="contacts_open_settings">Open settings</string>
+
+    <!-- First-run welcome flow (#692). -->
+    <string name="welcome_skip">Skip</string>
+    <string name="welcome_next">Continue</string>
+    <string name="welcome_intro_title">Welcome to Muhabbet</string>
+    <string name="welcome_intro_body">Your messages will live here. Two short steps before you start, and you can skip both.</string>
+    <string name="welcome_contacts_title">See who you already know on Muhabbet</string>
+    <string name="welcome_contacts_already_body">Contacts access is already on. One thing is left: agreeing to have your address book matched. The numbers themselves never leave your phone, only irreversible hashes (SHA-256) of them are sent.</string>
+    <string name="welcome_contacts_denied_note">Contacts access was refused earlier. Android never opens the permission dialog again after a second refusal, so system settings is the only way to turn it on.</string>
+    <string name="welcome_contacts_action">Agree and allow contacts</string>
+    <string name="welcome_contacts_skip">Not now</string>
+    <string name="welcome_ready_title_contacts">You are ready</string>
+    <string name="welcome_ready_body_contacts">People from your contacts who use Muhabbet will appear in your chat list. Tap the plus button to start a new conversation.</string>
+    <string name="welcome_ready_title_no_contacts">You can start with a number</string>
+    <string name="welcome_ready_body_no_contacts">Everything works without contacts access. Tap the plus button and use Start a chat by number to choose who to write to.</string>
+    <string name="welcome_ready_action">Start</string>
+
     <!-- What's new / release notes (#672). Rewritten from CHANGELOG.md, not translated from it:
          that file is written for an engineer, this is written for someone holding the phone. -->
     <string name="whatsnew_title">What's new</string>

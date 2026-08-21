@@ -51,7 +51,7 @@ import com.muhabbet.designsystem.theme.LocalThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.ResolvedThemeMode
-import com.muhabbet.designsystem.theme.readableContentOn
+import com.muhabbet.designsystem.theme.swatchOutlineOn
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -165,11 +165,13 @@ fun WallpaperPickerScreen(
                             val colorHex = colorToHex(color)
                             WallpaperSwatch(
                                 brush = SolidColor(color),
-                                // The swatch is the one ground the palette does not choose, so the
-                                // tick is derived from it rather than fixed. It used to be a
-                                // hardcoded white one, which on the pale swatches was a white tick
-                                // on near-white.
-                                tickColor = readableContentOn(color).content,
+                                // The swatch is the one ground the palette does not choose, so what
+                                // is drawn on and around it is derived from it rather than fixed.
+                                // Both halves of that were once wrong: the tick was a hardcoded
+                                // white one, invisible on the pale swatches, and there was no
+                                // outline at all, which left the deep swatches invisible on a dark
+                                // page (#697).
+                                contentColor = swatchOutlineOn(color),
                                 isSelected = selectedColor == colorHex,
                                 onClick = {
                                     selectedColor = colorHex
@@ -187,8 +189,11 @@ fun WallpaperPickerScreen(
                                 // Read off the far stop, the darker end of every gradient in the
                                 // set: the tick sits at the swatch's centre, and at 6–13 points of
                                 // L* travel both ends resolve to the same content colour anyway, so
-                                // taking the worse one costs nothing and cannot be wrong.
-                                tickColor = readableContentOn(gradient.stops.last()).content,
+                                // taking the worse one costs nothing and cannot be wrong. The
+                                // outline runs across both stops, so both are measured against
+                                // every theme's page in WallpaperSwatchContrastTest rather than
+                                // assumed to agree.
+                                contentColor = swatchOutlineOn(gradient.stops.last()),
                                 isSelected = selectedGradientId == gradient.id,
                                 onClick = {
                                     selectedGradientId = gradient.id
@@ -332,11 +337,22 @@ private fun ColumnScope.WallpaperSwatchGrid(content: LazyGridScope.() -> Unit) {
  * Takes a [Brush] rather than a [Color] so the gradient tab is the same control as the solid tab
  * rather than a copy of it: `SolidColor(color)` is a brush, and the selection border, the tick and
  * the touch target then cannot diverge between the two.
+ *
+ * **Every swatch carries an outline, not only the selected one.** A swatch is a graphical object and
+ * has to clear 3:1 against the page it is offered on (WCAG SC 1.4.11), and half of this palette
+ * cannot do that on its own in any given theme — the twelve deep swatches vanish into a dark page,
+ * the twelve pale ones vanish into a light one, so on OLED there was an invisible but tappable
+ * square in the grid (#697). The outline is what clears the floor, and because it is derived from
+ * the swatch by [swatchOutlineOn] rather than fixed by the theme, it is light around a dark swatch
+ * and dark around a light one instead of being right in two themes out of three.
+ *
+ * @param contentColor the colour that stands away from this swatch — the outline around it and the
+ *   tick on it, which are the same colour by construction.
  */
 @Composable
 private fun WallpaperSwatch(
     brush: Brush,
-    tickColor: Color,
+    contentColor: Color,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -345,7 +361,10 @@ private fun WallpaperSwatch(
             .aspectRatio(1f)
             .clip(MaterialTheme.shapes.medium)
             .background(brush)
+            .border(MuhabbetSizes.BorderHairline, contentColor, MaterialTheme.shapes.medium)
             .then(
+                // Drawn after, and wider, so it covers the hairline rather than sitting inside it:
+                // selection reads as one ring changing colour and weight, not as two rings.
                 if (isSelected)
                     Modifier.border(MuhabbetSizes.BorderActive, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
                 else Modifier
@@ -359,7 +378,7 @@ private fun WallpaperSwatch(
             Icon(
                 Muhabbet.icons.Sent,
                 contentDescription = stringResource(Res.string.a11y_selected),
-                tint = tickColor,
+                tint = contentColor,
                 modifier = Modifier.size(MuhabbetSizes.IconLarge)
             )
         }

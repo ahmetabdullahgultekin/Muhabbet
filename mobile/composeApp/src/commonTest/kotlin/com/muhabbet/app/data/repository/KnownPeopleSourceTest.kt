@@ -185,5 +185,8 @@ class KnownPeopleSourceTest {
 
         override fun readContacts(): List<DeviceContact> =
             throw AssertionError("the conversation path must not read the address book")
+
+        override fun openSystemSettings() =
+            throw AssertionError("the conversation path must not send anyone to system settings")
     }
 }
