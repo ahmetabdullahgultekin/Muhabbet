@@ -217,11 +217,19 @@ open class CommunityInviteService(
         val link = inviteLinkRepository.findByToken(token)
             ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
 
+        // One ordered list of refusals rather than four scattered throws. detekt's ThrowsCount caps
+        // a function at two, and it is right to here: the reasons a link will not admit someone are
+        // a single decision, and written as a `when` they are visible as one — including that the
+        // order matters, since a revoked link must report as missing before anything else looks at
+        // it. The `else -> return link` branch is the only success path out.
         val now = Instant.now()
-        if (!link.isActive) throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
-        if (link.isExpiredAt(now)) throw BusinessException(ErrorCode.INVITE_LINK_EXPIRED)
-        if (link.isExhausted()) throw BusinessException(ErrorCode.INVITE_LINK_MAX_USES)
-        return link
+        val refusal = when {
+            !link.isActive -> ErrorCode.INVITE_LINK_NOT_FOUND
+            link.isExpiredAt(now) -> ErrorCode.INVITE_LINK_EXPIRED
+            link.isExhausted() -> ErrorCode.INVITE_LINK_MAX_USES
+            else -> return link
+        }
+        throw BusinessException(refusal)
     }
 
     private fun memberCountOf(communityId: UUID): Int =
