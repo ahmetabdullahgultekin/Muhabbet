@@ -7,6 +7,8 @@ import com.muhabbet.shared.config.InviteLinkProperties
 import com.muhabbet.shared.config.JsonConfig
 import com.muhabbet.shared.dto.CreateInviteLinkRequest
 import com.muhabbet.shared.dto.InviteLinkResponse
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
 import io.mockk.mockk
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
 import java.time.Instant
@@ -212,6 +215,67 @@ class InviteLinkControllerTest {
             assertNotNull(controller.getLinkInfo(token).body?.data)
 
             verify { manageInviteLinkUseCase.getLinkInfo(token) }
+        }
+    }
+
+    /**
+     * The GET on the base path — the call the app has always made and this controller never
+     * answered (#705). Its absence produced 405, not 404, because the URL matched the POST above;
+     * `InviteLinkRepository` absorbs only 404, so the sheet reported the generic error on open.
+     */
+    @Nested
+    inner class GetActiveLink {
+
+        @Test
+        fun `should serve a body the client can decode`() {
+            every { manageInviteLinkUseCase.getActiveLink(conversationId, userId) } returns
+                link(requiresApproval = true, maxUses = 10, useCount = 4)
+
+            val decoded = decode(controller.getActiveLink(conversationId).body?.data)
+
+            assertEquals(linkId.toString(), decoded.id)
+            assertEquals(conversationId.toString(), decoded.conversationId)
+            assertEquals(token, decoded.inviteToken)
+            assertEquals("https://muhabbet.app/invite/$token", decoded.inviteUrl)
+            assertTrue(decoded.isActive)
+            assertTrue(decoded.requiresApproval)
+            assertEquals(10, decoded.maxUses)
+            assertEquals(4, decoded.useCount)
+        }
+
+        @Test
+        fun `should pass the authenticated caller to the use case, not a caller-supplied id`() {
+            every { manageInviteLinkUseCase.getActiveLink(conversationId, userId) } returns link()
+
+            assertEquals(200, controller.getActiveLink(conversationId).statusCode.value())
+
+            verify { manageInviteLinkUseCase.getActiveLink(conversationId, userId) }
+        }
+
+        @Test
+        fun `should let the not-yet-created case reach the client as 404`() {
+            // The one status the client absorbs into "no link, offer to create one". The controller
+            // must not soften it into an empty 200 — that would render as a spinner-less sheet with
+            // neither a link nor a Create button.
+            every { manageInviteLinkUseCase.getActiveLink(conversationId, userId) } throws
+                BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
+
+            val ex = assertThrows<BusinessException> { controller.getActiveLink(conversationId) }
+
+            assertEquals(ErrorCode.INVITE_LINK_NOT_FOUND, ex.errorCode)
+            assertEquals(404, ex.errorCode.httpStatus.value())
+        }
+
+        @Test
+        fun `should let a non-member's rejection reach the client as 403, not 404`() {
+            // 403 must stay 403: mapped to 404 it would become "no link yet" and put a Create
+            // button in front of someone with no right to press it.
+            every { manageInviteLinkUseCase.getActiveLink(conversationId, userId) } throws
+                BusinessException(ErrorCode.GROUP_NOT_MEMBER)
+
+            val ex = assertThrows<BusinessException> { controller.getActiveLink(conversationId) }
+
+            assertEquals(403, ex.errorCode.httpStatus.value())
         }
     }
 

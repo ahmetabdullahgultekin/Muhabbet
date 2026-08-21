@@ -655,6 +655,7 @@
     <string name="invite_link_revoke">Revoke link</string>
     <string name="invite_link_require_approval">Require admin approval</string>
     <string name="invite_link_copied">Link copied</string>
+    <string name="invite_link_none_yet">This group doesn't have an invite link yet. Only admins can create one.</string>
 
     <!-- Group Events -->
     <string name="group_event_title">Event</string>
