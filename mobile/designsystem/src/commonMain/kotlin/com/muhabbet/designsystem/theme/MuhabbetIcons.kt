@@ -130,6 +130,16 @@ object MuhabbetIcons {
     val Copy: ImageVector get() = Icons.Default.ContentCopy
     val Edit: ImageVector get() = Icons.Default.Edit
     val Delete: ImageVector get() = Icons.Default.Delete
+
+    /**
+     * The circle-slash on the tombstone left where a message was deleted.
+     *
+     * Same glyph as [Block] today and a separate name on purpose: [Block] is an action a user takes
+     * against a person, this is a state a message is in. One of the two will eventually want a
+     * different drawing, and by then the call sites should not have to be told apart.
+     */
+    val MessageDeleted: ImageVector get() = Icons.Default.Block
+
     val Star: ImageVector get() = Icons.Default.Star
     val StarOutline: ImageVector get() = Icons.Default.StarBorder
     val Pin: ImageVector get() = Icons.Default.PushPin

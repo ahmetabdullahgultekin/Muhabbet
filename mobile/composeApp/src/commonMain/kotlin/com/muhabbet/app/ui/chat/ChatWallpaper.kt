@@ -47,8 +47,10 @@ internal fun ChatWallpaper(modifier: Modifier = Modifier) {
         // floor: see MuhabbetAlphas.ChatOverlaySurface, which is measured against a pure-white and
         // a pure-black photo, not just against the palette. Washing every user's picture to protect
         // one pill would have been the wrong end of the problem — and it would not have worked
-        // anyway: the other translucent surface a chat can draw here, the half-opacity deleted-message
-        // bubble (#678), fails just as badly over a light *swatch*, which no tint on a photo reaches.
+        // anyway: the other translucent surface a chat could draw here, the half-opacity
+        // deleted-message bubble, failed just as badly over a light *swatch*, which no tint on a
+        // photo reaches. That one was fixed where it belonged, on the bubble: #678 gave it an opaque
+        // ground of its own, so the pill is once again the only surface the wallpaper reaches.
         is WallpaperRepository.ChatWallpaper.Custom -> AsyncImage(
             model = "file://${wallpaper.path}",
             // Decorative background, not content — a screen reader has nothing useful to

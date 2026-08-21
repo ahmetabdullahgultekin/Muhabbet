@@ -197,6 +197,17 @@ class MuhabbetTextStyles internal constructor(typography: Typography) {
     /** Bubble metadata: send time, "edited" marker, media duration badges. */
     val ChatMeta: TextStyle = typography.labelSmall
 
+    /**
+     * "This message was deleted" — body size, italic.
+     *
+     * The italic is not decoration. A deleted message has to be distinguishable from a live one, and
+     * the treatment this replaced carried that distinction in a 50% opacity that also cost the label
+     * its contrast over any wallpaper the user picked (#678). WCAG 1.4.1 asks for a channel besides
+     * colour anyway; type style is one that costs no contrast at all, and the circle-slash glyph
+     * beside it ([MuhabbetIcons.MessageDeleted]) is a second.
+     */
+    val ChatDeletedLabel: TextStyle = ChatBody.copy(fontStyle = FontStyle.Italic)
+
     /** The italic "Forwarded" caption above a forwarded bubble. */
     val ChatForwardedLabel: TextStyle = typography.labelSmall.copy(
         fontSize = 12.sp,

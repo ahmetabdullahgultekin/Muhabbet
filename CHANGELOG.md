@@ -67,6 +67,16 @@ exactly the kind of correctness a refactor removes without noticing.
 - **A malformed typing indicator could drop your connection** (#572). One unparseable id thrown from
   a frame nobody was even waiting on escaped far enough to close the socket, and the chat stopped
   working for a reason with nothing to do with chatting. No frame can cost a connection now.
+- **"This message was deleted" was unreadable, and worst on the wallpaper the app ships with**
+  (#678). The bubble was drawn at half opacity with its label at half opacity on top, so the chat
+  wallpaper bled into the ground the label was read against — **1.23:1** over a light photo in the
+  dark theme, and **2.23:1** on the light theme's own default wallpaper, against a 4.5:1 floor. The
+  issue was reported as a custom-wallpaper defect because it measured the timestamp, which is drawn
+  in the opaque bubble's colour and did clear on the default; two texts on that bubble were wrong in
+  two different ways. Deleted messages now get an opaque ground of their own with the muted
+  foreground that belongs to it, and the "deleted" signal moved off translucency onto two channels
+  that cost no contrast: an italic label and a circle-slash glyph. Worst case across three themes,
+  24 solid wallpapers, 8 gradients and the two photo extremes is now 5.05:1.
 
 **What is not proven yet:** the media check has not been exercised against a real MinIO — that needs
 a running server, so it runs on CI, not on a machine without Docker. The ordering that keeps a media

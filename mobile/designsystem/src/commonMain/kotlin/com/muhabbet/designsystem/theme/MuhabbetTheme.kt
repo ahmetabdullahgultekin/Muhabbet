@@ -114,6 +114,29 @@ data class MuhabbetSemanticColors(
     val bubbleOtherInset: MuhabbetColorPair,
     val bubbleOtherInsetSelected: MuhabbetColorPair,
 
+    /**
+     * A message that has been deleted for everyone: the tombstone, not a message.
+     *
+     * It is its own ground because it is no longer the conversation's ground. There is no sender
+     * voice left to carry, so it drops both the copper own-bubble wash and the paper incoming
+     * bubble for the theme's quietest neutral container, with the muted foreground that belongs to
+     * it. Every foreground on that bubble — label, timestamp — is this one colour.
+     *
+     * **Both halves are fully opaque, and that is the whole point of the token (#678).** The bubble
+     * used to be `surfaceVariant` at 50% alpha, with the label at 50% alpha on top of that, so half
+     * of whatever the user had chosen as a wallpaper blended into the ground its own label was read
+     * against. Measured through it, the label reached **1.23:1** over a white photo in the dark
+     * theme, and only **2.23:1** on the app's own default light wallpaper — under AA everywhere,
+     * not merely on unusual wallpapers.
+     *
+     * Opacity is the wrong instrument for "muted" whenever the thing behind it is not the palette's
+     * to choose. So the mutedness moved into the colours, and the "deleted" signal that translucency
+     * used to carry moved onto two channels that cost no contrast at all: the italic
+     * `ChatDeletedLabel` and the circle-slash glyph beside it. `DeletedBubbleContrastTest` measures
+     * this pair over every ground a chat can put behind it.
+     */
+    val bubbleDeleted: MuhabbetColorPair,
+
     val unreadBadge: MuhabbetColorPair,
     val chatWallpaper: MuhabbetColorPair,
     val inputBar: MuhabbetColorPair,
@@ -168,6 +191,10 @@ val LightSemanticColors = MuhabbetSemanticColors(
     bubbleOwnInsetSelected = MuhabbetColorPair(MuhabbetPalette.Copper.C80, MuhabbetPalette.OnCopperContainerLight),
     bubbleOtherInset = MuhabbetColorPair(MuhabbetPalette.Ink.I95, MuhabbetPalette.Ink.I10),
     bubbleOtherInsetSelected = MuhabbetColorPair(MuhabbetPalette.CopperContainerLight, MuhabbetPalette.OnCopperContainerLight),
+    // A shade below the white incoming bubble, so the tombstone recedes rather than announcing
+    // itself — and far enough below the default wallpaper (I95-ish) to still read as a plate.
+    // I40 on it is 5.73:1; it is the light scheme's own surfaceContainerHighest/onSurfaceVariant.
+    bubbleDeleted = MuhabbetColorPair(MuhabbetPalette.SurfaceHighestLight, MuhabbetPalette.Ink.I40),
     unreadBadge = MuhabbetColorPair(MuhabbetPalette.Copper.C40, Color.White),
     chatWallpaper = MuhabbetColorPair(MuhabbetPalette.WallpaperLight, MuhabbetPalette.Ink.I10),
     inputBar = MuhabbetColorPair(Color.White, MuhabbetPalette.Ink.I10),
@@ -200,6 +227,10 @@ val DarkSemanticColors = MuhabbetSemanticColors(
     bubbleOwnInsetSelected = MuhabbetColorPair(MuhabbetPalette.Copper.C60, MuhabbetPalette.Ink.I05),
     bubbleOtherInset = MuhabbetColorPair(MuhabbetPalette.Ink.I20, MuhabbetPalette.PaperOnDark),
     bubbleOtherInsetSelected = MuhabbetColorPair(MuhabbetPalette.CopperContainerDark, MuhabbetPalette.Copper.C90),
+    // In a dark theme a neutral container lifts rather than sinks — a tombstone one rung above the
+    // incoming bubble reads as inert, where one rung below it would read as a hole. I70 on I20 is
+    // 6.43:1; again the scheme's own surfaceContainerHighest/onSurfaceVariant.
+    bubbleDeleted = MuhabbetColorPair(MuhabbetPalette.Ink.I20, MuhabbetPalette.Ink.I70),
     unreadBadge = MuhabbetColorPair(MuhabbetPalette.Copper.C70, MuhabbetPalette.Ink.I05),
     chatWallpaper = MuhabbetColorPair(MuhabbetPalette.Ink.I00, MuhabbetPalette.PaperOnDark),
     inputBar = MuhabbetColorPair(MuhabbetPalette.Ink.I15, MuhabbetPalette.PaperOnDark),
@@ -213,6 +244,9 @@ val DarkSemanticColors = MuhabbetSemanticColors(
 val OledSemanticColors = DarkSemanticColors.copy(
     bubbleOther = MuhabbetColorPair(MuhabbetPalette.Ink.I00, MuhabbetPalette.PaperOnDark),
     bubbleOtherInset = MuhabbetColorPair(MuhabbetPalette.Ink.I10, MuhabbetPalette.PaperOnDark),
+    // One rung below the dark theme's, because every OLED surface starts a rung lower. I70 on I15
+    // is 7.45:1.
+    bubbleDeleted = MuhabbetColorPair(MuhabbetPalette.Ink.I15, MuhabbetPalette.Ink.I70),
     chatWallpaper = MuhabbetColorPair(Color.Black, MuhabbetPalette.PaperOnDark),
     inputBar = MuhabbetColorPair(MuhabbetPalette.Ink.I00, MuhabbetPalette.PaperOnDark),
     inputField = MuhabbetColorPair(MuhabbetPalette.Ink.I10, MuhabbetPalette.PaperOnDark),

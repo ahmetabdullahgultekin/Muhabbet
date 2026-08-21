@@ -104,6 +104,10 @@ class SemanticColorContrastTest {
         "bubbleOwnInsetSelected" to c.bubbleOwnInsetSelected,
         "bubbleOtherInset" to c.bubbleOtherInset,
         "bubbleOtherInsetSelected" to c.bubbleOtherInsetSelected,
+        // Measured here as the pair it claims to be, and again in DeletedBubbleContrastTest over
+        // every wallpaper a chat can sit on — this bubble is drawn on the one ground the palette
+        // does not choose, so the declared pairing is only half of what has to hold (#678).
+        "bubbleDeleted" to c.bubbleDeleted,
         "unreadBadge" to c.unreadBadge,
         "callAccept" to c.callAccept,
         "callDecline" to c.callDecline,
