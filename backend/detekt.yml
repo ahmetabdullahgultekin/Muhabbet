@@ -1,4 +1,22 @@
-maxIssues: 50
+# `maxIssues` sat at the top level here until #279. detekt 1.23 expects it under `build:`, and with
+# `config.validation` on (the default) an unknown top-level key is not ignored — it aborts the run.
+# So this file was doubly inert: the threshold was never applied, and once the Kotlin mismatch that
+# masked it was fixed, detekt refused to start until the key moved. Zero is correct now that
+# `detekt-baseline.xml` holds the pre-existing findings: everything already there is exempt, and
+# anything new fails the build.
+build:
+  maxIssues: 0
+
+# The default config suppresses ProjectStatisticsReport and ComplexityReport. Both are on here for
+# one reason: they make the run print how many files it scanned, so a run that analysed nothing can
+# no longer be mistaken for a run that found nothing. That mistake is the whole of #279 — for months
+# a crashed detekt and a clean detekt produced the same green tick. If the output has no
+# "number of kt files:" line, the result means nothing.
+console-reports:
+  active: true
+  exclude:
+    - 'NotificationReport'
+    - 'FindingsReport'
 
 complexity:
   LongMethod:

@@ -1,0 +1,131 @@
+name: Hata bildirimi
+description: Çalışması gereken bir şey çalışmıyor.
+labels: ["type:bug"]
+body:
+  - type: checkboxes
+    id: duplicate-check
+    attributes:
+      label: Önce mükerrer kontrolü
+      description: >-
+        Bu deponun en pahalı israfı bu. 2026-08-21 triyajında 389 açık issue içinde sekiz mükerrer
+        çift bulundu (292≡491, 293≡490, 291≡492, 140≡150, 123≡607, 415≡587, 413≡591, 158≡469) ve
+        bir UI partisindeki ~25 issue aslında ~4 işti. Aramak otuz saniye, mükerrer bir issue'yu iki
+        kez çözmek bir gün.
+        Arama: https://github.com/ahmetabdullahgultekin/Muhabbet/issues?q=is%3Aissue
+      options:
+        - label: Açık ve kapalı issue'larda benzer bir kayıt aradım, bulamadım.
+          required: true
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: Ne oluyor
+      description: Tek cümleyle gözlenen davranış, sonra ayrıntı.
+      placeholder: |
+        Sesli mesajın "Yazıya çevir" düğmesine basınca uygulama kapanıyor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Nasıl tekrarlanır
+      description: Numaralı adımlar. Tekrarlanamayan bir hata düzeltildiğini de kanıtlayamaz.
+      placeholder: |
+        1. Bir sohbet aç
+        2. Basılı tutup sesli mesaj gönder
+        3. Baloncuktaki "Yazıya çevir"e bas
+        4. Uygulama kapanıyor
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Bunun yerine ne olmalıydı
+    validations:
+      required: true
+
+  - type: dropdown
+    id: observed-where
+    attributes:
+      label: Nerede görüldü
+      description: >-
+        Bu alan zorunlu, çünkü bu depoda "kod yazıldı" ile "çalıştığı görüldü" sürekli karışıyor —
+        0.3.7 her kullanıcıda açılışta çöktüğü halde yayınlandı, çünkü kimse APK'yı kurup açmadı
+        (#633). Sadece kodu okuyarak bulunmuş bir hata da geçerli bir hatadır; yeter ki öyle
+        yazılsın.
+      options:
+        - Gerçek telefonda, elimde
+        - Emülatörde (emulator-5554)
+        - Prod backend'e istek atarak (curl / script)
+        - CI çıktısında veya testte
+        - Sadece kodu okuyarak — çalıştırmadım
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Nerede
+      options:
+        - mobile — Android
+        - mobile — iOS
+        - backend
+        - shared (KMP)
+        - infra / CI / deploy
+        - docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: wiring-check
+    attributes:
+      label: Kalıcılık / okuyan / mekanizma
+      description: >-
+        Kullanıcıya görünen bir şey için bu üçü ayrı ayrı sorulur, çünkü ikisi olup biri olmayan
+        bir özellik derlenir, açılır ve hiçbir şey yapmaz. Gizlilik panosunun dört kontrolü de
+        yerel state'ti; App Lock'un ne kalıcılığı ne de bir kilit mekanizması vardı; duvar kağıdı
+        bir kuyuya yazıyordu. Üçünü de kontrol etmediysen "bilmiyorum" yaz — tahmin yazma.
+        Kullanıcıya görünmeyen bir hataysa "kullanıcıya görünmez" yeterli.
+      value: |
+        Kalıcılık (persistence) — bir yere yazılıyor mu:
+        Okuyan (reader) — yazılan şeyi okuyan bir kod var mı:
+        Mekanizma (mechanism) — okunan şeyi uygulayan bir şey var mı:
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Sürüm ve ortam
+      description: >-
+        Uygulama sürümü (Ayarlar'ın altında, `BuildInfo`), cihaz + Android/iOS sürümü, backend için
+        tag veya commit. "Son sürüm" bir sürüm değildir — üç hafta sonra hangi kod olduğunu kimse
+        bilemez.
+      placeholder: "Uygulama 0.3.10 · Pixel 6a / Android 14 · backend v0.3.10 (f5eccfb)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Log, ekran görüntüsü, stack trace
+      description: >-
+        Çökme varsa `adb logcat -d | grep -A40 FATAL`. Backend içinse
+        `ssh hetzner 'docker logs --since 5m muhabbet-backend'`. Ekran görüntüsünü buraya
+        sürükleyebilirsin.
+      render: shell
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Aciliyet tahmini
+      description: Tahmin. Triyajda değişebilir.
+      options:
+        - "P0 — veri kaybı, çökme, ya da güvenlik"
+        - "P1 — temel bir akış çalışmıyor"
+        - "P2 — can sıkıcı ama etrafından dolaşılabiliyor"
+        - "P3 — kozmetik"
+    validations:
+      required: true

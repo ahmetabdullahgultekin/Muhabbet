@@ -54,7 +54,7 @@ private const val TERMS_URL = "https://muhabbet.rollingcatsoftware.com/terms.htm
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onReleaseNotes: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -109,6 +109,19 @@ fun AboutScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(MuhabbetSpacing.XLarge))
             HorizontalDivider()
+            Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+            // Directly under the version, because it is the same fact read the other way round:
+            // the number above says which build this is, and this says what that build changed
+            // (#672). It is also the only route back to an update sheet somebody dismissed.
+            SettingsNavRow(
+                title = stringResource(Res.string.release_notes_title),
+                subtitle = stringResource(Res.string.release_notes_row_subtitle),
+                icon = Muhabbet.icons.Info,
+                iconContentDescription = null,
+                onClick = onReleaseNotes
+            )
+
             Spacer(Modifier.height(MuhabbetSpacing.Large))
 
             SettingsSectionTitle(stringResource(Res.string.about_legal_section))

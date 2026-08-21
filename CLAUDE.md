@@ -244,6 +244,8 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `docs/api-contract.md` — REST + WebSocket API specification
 - `docs/qa/` — QA engineering documentation (9 ISO/IEC 25010 documents + UI/UX analysis)
 - `backend/detekt.yml` — detekt static analysis configuration
+- `backend/detekt-baseline.xml` — the 82 pre-existing findings detekt is allowed to ignore. Anything
+  outside it fails the build. Shrink it, never regenerate it.
 - `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
 - `docs/design/muhabbet-design-system.md` — **The design system's reference document.** Module
   architecture, the Copper palette and its rationale, Manrope, depth/gradient/blur/motion/haptic
@@ -552,11 +554,24 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   splitting a batch (#560). A `try/catch` around the loop body is not a substitute either: Spring
   Data's writes join the shared transaction and doom the commit, so the catch swallows an exception
   that has already decided the outcome and the run reports success before dying at commit.
-- **detekt does not run at all** (#279). `:backend:detekt` dies at plugin startup with "detekt was
-  compiled with Kotlin 2.0.21 but is currently running with 2.4.10", before analysing a file. CI marks
-  the step `continue-on-error: true`, so a total failure of the tool has been indistinguishable from a
-  clean run. Treat every threshold in `backend/detekt.yml` as currently unenforced, and hand-check the
-  diff against it instead.
+- **detekt runs, and it is blocking** (#279, fixed 2026-08-21 — it had not analysed a single file for
+  months before that). `./gradlew :backend:detekt` scans **442 Kotlin files** and prints the count; if
+  the output has no `number of kt files:` line, the tool did not run and the result means nothing.
+  That is the whole lesson of #279: it died at startup on "detekt was compiled with Kotlin 2.0.21 but
+  is currently running with 2.4.10", and because CI marked the step `continue-on-error: true`, a
+  crashed linter and a clean one produced the same green tick.
+  - **The fix is a Kotlin pin scoped to the detekt classpath**, in `backend/build.gradle.kts`:
+    `configurations.matching { it.name == "detekt" }` forces `org.jetbrains.kotlin:*` to `2.0.21`,
+    the version detekt 1.23.8 embeds. It does not touch the compiler that builds the project. Bump
+    `detektKotlinVersion` only in lockstep with the detekt version — never to match project Kotlin.
+  - **`backend/detekt-baseline.xml` freezes the 82 findings that existed on the day it started
+    working** (86 raw, deduplicated to 82 signatures). `build.maxIssues` is `0`, so anything not in
+    the baseline fails the build. **Shrink the baseline; never regenerate it to bury a new finding.**
+  - `build.maxIssues` must live under `build:` in `backend/detekt.yml`. It sat at the top level for
+    months, where detekt's config validation rejects it outright — so the file was inert twice over.
+  - `shared/` and `mobile/` still have **no static analysis at all** (#696). Note the trap before
+    extending it: detekt's default source set is `src/main/kotlin`, which does not exist in a KMP
+    module, so a naive `apply` scans **zero files and passes**. Check the printed file count.
 - **Mobile compile canary:** `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` —
   compiles commonMain (incl. the Compose compiler + generated `Res.string.*`) and resolves KMP/iOS
   variants. Cheap gate for commonMain changes, but it does **not** catch androidMain breakage.
@@ -911,6 +926,15 @@ is not evidence that it works.
   backend change through the UI you must temporarily set `BASE_URL` to `http://10.0.2.2:8080` (the
   emulator's alias for the host) and flip `usesCleartextTraffic` to `true`, rebuild, then revert both.
   Worth replacing with a build-type-scoped override.
+- **Ktor's `Auth` plugin sends every 401 twice** (#400). It retries any 401 as an authentication
+  challenge. When the request carried a bearer token it refreshes first; when it did **not** — the
+  four `ApiClient.PRE_LOGIN_PATHS`, by `sendWithoutRequest` — it has no token version recorded, skips
+  the refresh and replays the request unchanged. **No `/auth/token/refresh` appears in the log**, so
+  there is nothing to hint at a retry: just two identical POSTs a few hundred ms apart. That doubled
+  every OTP attempt (`AUTH_OTP_INVALID` is 401 and the server claims an attempt before comparing the
+  code), so 5 attempts were really 2.5. Fixed by narrowing `reAuthorizeOnResponse` to exclude
+  `PRE_LOGIN_PATHS`. **Any `ErrorCode` you map to 401 that is a business rejection rather than a
+  token problem will be sent twice** — check `ApiClient` before adding one.
 - **Spring Security 403 vs 401**: Default Spring Security returns 403 for unauthenticated requests. Must configure `authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))` so Ktor Auth plugin triggers token refresh on 401
 - **kotlinx-datetime `toLocalDateTime`**: It's an extension function — needs explicit `import kotlinx.datetime.toLocalDateTime`, not available via fully-qualified `instant.toLocalDateTime()`
 - **SharedFlow vs Channel**: `MutableSharedFlow` broadcasts to ALL collectors (no competition). Use for WS messages shared between multiple screens

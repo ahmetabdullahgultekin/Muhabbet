@@ -72,8 +72,8 @@ interface TokenStorage {
     fun setContactSyncConsentAt(timestamp: String)
     fun clearContactSyncConsent()
 
-    // Abstract for the same reason as media quality above (#380): these four were defaulted, no
-    // implementation overrode any of them, and so WallpaperPickerScreen wrote to an empty body and
+    // Abstract for the same reason as media quality above (#380): the four original pairs below were
+    // defaulted, no implementation overrode any of them, and so WallpaperPickerScreen wrote to an empty body and
     // read back null/false on every platform every time — the picker looked like it remembered a
     // choice only because that choice lived in the screen's own `remember{}` for the one composition
     // it was open. A no-op that compiles is exactly the failure this file already guards against.
@@ -81,6 +81,16 @@ interface TokenStorage {
     fun setWallpaperType(type: String)
     fun getSolidColor(): String?
     fun setSolidColor(color: String?)
+
+    /**
+     * The **id** of the chosen gradient wallpaper (`MuhabbetWallpaperGradient.id`), not its colours.
+     *
+     * Separate from [getSolidColor] rather than sharing one "value" slot with it, so that switching
+     * between SOLID and GRADIENT and back does not silently overwrite the other's choice — the two
+     * are different value spaces (a hex, an id) and a single slot would have to guess which it holds.
+     */
+    fun getWallpaperGradientId(): String?
+    fun setWallpaperGradientId(id: String?)
     fun getCustomWallpaperPath(): String?
     fun setCustomWallpaperPath(path: String?)
     fun getDarkModeWallpaperEnabled(): Boolean
@@ -149,4 +159,25 @@ interface TokenStorage {
      */
     fun getWelcomeSeen(): Boolean
     fun setWelcomeSeen()
+
+    /**
+     * The app version whose release notes this user has already been shown, or null on a device
+     * that has never recorded one (#672).
+     *
+     * Seeded once by `RootComponent` — see `versionToRecordOnFirstLaunch` for why a fresh install
+     * and an upgrade from a build without this feature both arrive here as null and must not be
+     * treated the same — and rewritten each time the "What's new" sheet is dismissed.
+     *
+     * Abstract, for the seventh time in this file and for the same reason (#380, media quality,
+     * contact consent, the test-build notice, the notification prompt, the contacts prompt, the
+     * welcome flow): a defaulted no-op would read
+     * back null on every launch. Because null means "fresh install, say nothing", the visible result
+     * would not be a sheet that repeats — it would be a sheet that never appears at all, on any
+     * device, forever. That is the exact failure #672 exists to fix, and it would compile.
+     *
+     * Deliberately not cleared by [clear]: which releases a person has seen is a fact about the
+     * install, not about the session, and logging out is not a reason to show them again.
+     */
+    fun getLastSeenVersion(): String?
+    fun setLastSeenVersion(version: String)
 }

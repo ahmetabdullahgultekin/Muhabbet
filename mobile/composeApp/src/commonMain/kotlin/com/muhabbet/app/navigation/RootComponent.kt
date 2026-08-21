@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -13,9 +16,12 @@ import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
+import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.notice.shouldShowTestBuildNotice
 import com.muhabbet.app.ui.onboarding.FirstRunSurfaces
 import com.muhabbet.app.ui.settings.AppLockGate
+import com.muhabbet.app.ui.whatsnew.versionToRecordOnFirstLaunch
 import kotlinx.serialization.Serializable
 
 class RootComponent(
@@ -34,6 +40,32 @@ class RootComponent(
      * by login, and a flag that survived that would drop a returning user into Settings.
      */
     private var pendingLanguageSettings = tokenStorage.consumePendingLanguageRestart()
+
+    /**
+     * Whether the test-build notice is due this launch.
+     *
+     * Read here, at construction, because this is the last moment it is still true: the dialog
+     * writes the acknowledgement the instant it is dismissed, and the release-notes sheet needs to
+     * know whether it is queued behind one. Both are once-per-version, so an update brings both due
+     * together and something has to decide the order.
+     */
+    val testBuildNoticePending: Boolean =
+        shouldShowTestBuildNotice(tokenStorage.getTestBuildNoticeAckVersion(), BuildInfo.VERSION)
+
+    init {
+        // A device that has never recorded a version records one now, before any screen composes and
+        // therefore before the release-notes sheet can ask (#672). Doing it here rather than in the
+        // sheet keeps the two apart: the sheet decides whether to *show*, and it never has to reason
+        // about a null that means two different things.
+        if (tokenStorage.getLastSeenVersion() == null) {
+            tokenStorage.setLastSeenVersion(
+                versionToRecordOnFirstLaunch(
+                    acknowledgedTestBuildVersion = tokenStorage.getTestBuildNoticeAckVersion(),
+                    currentVersion = BuildInfo.VERSION
+                )
+            )
+        }
+    }
 
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
@@ -74,10 +106,28 @@ class RootComponent(
     }
 }
 
+/**
+ * Whether a signed-in session is on screen right now.
+ *
+ * The one definition of "logged in" that the composition is allowed to use, because it is the only
+ * one that is *reactive*. `tokenStorage.isLoggedIn()` answers correctly but only once, at the moment
+ * it is read; an effect keyed on `Unit` above the auth/main switch therefore samples the login
+ * screen's answer and keeps it for the life of the process. That is #349, and it cost the app its
+ * WebSocket, push token, E2E keys and background sync for every first session after signing in.
+ *
+ * This flips the instant `RootComponent.onAuthComplete` swaps `Config.Auth` -> `Config.Main`, and
+ * back on logout — so effects keyed on it fire in both directions. Named and shared rather than
+ * re-derived at each call site, so "is anyone signed in" has one answer rather than one per caller.
+ */
+@Composable
+fun isSessionActive(root: RootComponent): Boolean {
+    val stack by root.childStack.subscribeAsState()
+    return stack.active.instance is RootComponent.Child.Main
+}
+
 @Composable
 fun RootContent(root: RootComponent) {
-    val stack by root.childStack.subscribeAsState()
-    val isMain = stack.active.instance is RootComponent.Child.Main
+    val isMain = isSessionActive(root)
 
     // Box, not a bare Children call, so App Lock's cover (#378) can be layered on top of whatever
     // screen is underneath in the SAME composition and the SAME Activity window — not a separate
@@ -103,7 +153,7 @@ fun RootContent(root: RootComponent) {
         // login screen; because that is the reactive stack value it fires on a fresh login as well
         // as on a relaunch that was already authenticated. FirstRunSurfaces owns the order.
         if (isMain) {
-            FirstRunSurfaces()
+            FirstRunSurfaces(noticePending = root.testBuildNoticePending)
         }
 
         // Gated on the Main child, same as the surfaces above: there is nothing to protect on the

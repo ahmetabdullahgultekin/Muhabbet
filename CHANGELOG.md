@@ -8,6 +8,30 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — blocking someone now stops two more things it did not stop
+
+- **The person you blocked could still watch your stories** (#294). Status is scoped to your
+  contacts, and blocking someone does not delete the conversation the two of you share — so by the
+  only definition of "contact" this app has, they stayed one, and every status you posted afterwards
+  went to them. The per-status audience list was no defence: it is chosen in the composer, and
+  nobody goes back to edit it when they block someone.
+- **The person you blocked could still add you to their community** (#294). Adding someone to a
+  group has refused this since #554; adding them to a *community* did not, and that path ends by
+  enrolling them in the announcement channel — a group conversation the owner can post to. The
+  existing "must already be in one of the community's groups" rule narrowed it without closing it,
+  because a shared group is exactly what two people still have after one blocks the other. The
+  member picker no longer offers someone the add would refuse, either.
+
+Both refusals reuse the error code the ordinary "cannot add this person" case already returns. A
+code of their own would be a reliable way to test who has blocked you.
+
+**The other four ways a blocked person could reach you were already closed** — direct messages,
+presence and last-seen, push notifications, and your profile and about text — but only three of
+them had any test that said so. They do now, including one that wires the real push chain and
+asserts that nothing reaches FCM. That one was never a guard at all: push lives two hops from the
+send path and is correct today only as a consequence of the message never being stored, which is
+exactly the kind of correctness a refactor removes without noticing.
+
 ### Fixed — failures that were invisible, or reported as the wrong thing
 
 - **One scheduled message that could not be sent silently stopped all of them** (#560). Every due
@@ -105,6 +129,39 @@ No code has landed on `dev` since `v0.3.10` — the tag and the branch tip are t
   banner** instead, because each still holds a decision or a verified-open finding that lives
   nowhere else. Decision records (`docs/adr/`, `docs/decisions.md`) were kept whether or not they
   have aged well; that is what they are for.
+### Fixed
+- **The chat wallpaper picker offered twelve near-identical swatches** (#380). Six warm creams a few
+  percent apart and six near-black inks — one hue family, no gradients. There are now **24 solids
+  across seven low-chroma families** (warm, clay, wheat, sage, sea, harbour, mauve) and a new **Renk
+  Geçişi** tab with 8 gradients, wired end to end: stored, resolved and painted. Nothing was
+  removed, so no saved selection loses its swatch.
+- **"Arka planı kaldır" left its own tick behind** (#380). It nulled the stored colour and left the
+  grid marking it as chosen — a picker claiming a selection the chat was not painting.
+- **The date-separator pill failed WCAG AA over any non-default wallpaper** (#380). It draws on the
+  wallpaper at what was a hardcoded 80% opacity, so a fifth of the user's pick bled into the ground
+  its label is read against: 4.03:1 over a light wallpaper in the dark theme, 3.88:1 over a white
+  photo. Its opacity is now a measured design-system token, and `WallpaperContrastTest` holds every
+  wallpaper × theme combination against the 4.5:1 floor.
+- **`/api/v1/wallpapers` would have wiped the wallpaper it was called to set** (#380). The controller
+  declared private request/response classes whose field names disagreed with the shared DTOs of the
+  same name, with a `"DEFAULT"` default behind the mismatch. It uses the shared DTOs now. The
+  endpoint still has no client — wallpaper stays device-local, deliberately; see `WallpaperRepository`.
+
+### Added
+- **The app tells you what changed when it updates** (#672). Three releases went out between 0.3.8
+  and 0.3.10 carrying dozens of fixes, several of them to features that had never worked, and the
+  person using the app had no way to learn about any of it: `CHANGELOG.md` sits in the repository
+  and Play's "What's new" is somewhere you only look if you go there. There is now a **Neler
+  değişti** sheet, shown once after an update and never again for that version, plus a **Sürüm
+  notları** screen under Settings → Hakkında for anyone who dismissed it or wants to look back.
+  It is deliberately silent on a fresh install — telling a brand-new user what is new since a
+  version they have never run is meaningless.
+
+  The notes are **written by hand in `strings.xml`, in both locales, and are not derived from this
+  file.** Parsing the changelog at build time was considered and rejected: this file is the
+  engineering record, with issue numbers, file names and the reasoning for things that were *not*
+  done. Two readers, two texts. The rule that comes with it: every version that ships writes its own
+  three-to-six lines, and a test fails the build if the shipping version has none.
 
 ## [0.3.10] — 2026-08-18
 
