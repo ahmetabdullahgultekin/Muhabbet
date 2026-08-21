@@ -32,6 +32,30 @@ object MuhabbetAlphas {
      * and the track is this much of it, so the pair holds wherever the bar is drawn.
      */
     const val ProgressTrack = 0.24f
+
+    /**
+     * Opacity of a surface drawn **directly on the chat wallpaper**, rather than inside a bubble.
+     *
+     * There is one such surface today: the date-separator pill (`DateSeparator.kt`). It exists to be
+     * slightly translucent, so the wallpaper tints it and the chat reads as one surface rather than
+     * a list of cards — which means whatever the wallpaper is showing reaches the label behind it.
+     *
+     * At the 80% it used to be hardcoded to, that reach is 20%, and 20% of an arbitrary ground is
+     * more than the label can absorb. Measured through it, the label fell to **4.03:1** on a light
+     * wallpaper in the dark theme (reachable: the dark-mode toggle carries a light selection into a
+     * dark chat), **4.34:1** on the near-black swatch in the light theme, and **3.88:1** over a
+     * pure-white photo — all under the 4.5:1 AA floor, on a screen where nothing had picked an
+     * unusual colour.
+     *
+     * 90% is where every ground the app can put behind it clears with room: across all three themes,
+     * all 24 solid swatches, both stops of all 8 gradients, and pure-white and pure-black photos, the
+     * worst case is **5.42:1**. The pill is still visibly tinted by the wallpaper at 90% — the
+     * translucency was never the problem, the amount of it was.
+     *
+     * `WallpaperContrastTest` holds this. Any future surface painted straight onto the wallpaper
+     * takes this token rather than a number of its own, or it inherits the bug rather than the fix.
+     */
+    const val ChatOverlaySurface = 0.90f
 }
 
 // ─── Semantic colors (beyond M3 colorScheme) ────────────────
