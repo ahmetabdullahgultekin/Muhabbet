@@ -8,7 +8,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.arkivanov.decompose.ComponentContext
-import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.essenty.lifecycle.Lifecycle
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
@@ -19,8 +18,10 @@ import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.di.bootstrapOrReuseKoin
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
+import com.muhabbet.app.navigation.isSessionActive
 import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.CrashReporter
+import com.muhabbet.app.session.SessionWiring
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.app_language_code
@@ -47,30 +48,45 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         val themeMode by themeController.mode.collectAsState()
         val hapticsEnabled by themeController.hapticsEnabled.collectAsState()
 
-        // Initialize crash reporter and set user
+        // Configuring the crash SDK genuinely is a once-per-process job, so `Unit` is the right key
+        // here. Naming the *user* was not, and used to ride along on this line: it read
+        // `tokenStorage.getUserId()` at the first composition, which on a fresh install is the login
+        // screen, where the answer is null. It is the fifth instance of #349's Unit-key defect and
+        // the one #540 left behind on purpose ("`setUser` has the same defect ... flagged rather
+        // than done"). It now lives in SessionWiring, keyed on the session like everything else.
         LaunchedEffect(Unit) {
             CrashReporter.init()
-            tokenStorage.getUserId()?.let { CrashReporter.setUser(it) }
         }
 
         MuhabbetTheme(mode = themeMode, hapticsEnabled = hapticsEnabled) {
-            WebSocketLifecycle(root)
+            SessionLifecycle(root)
             RootContent(root)
         }
     }
 }
 
+/**
+ * Everything the app switches on when someone is signed in, and off when they are not.
+ *
+ * Called `WebSocketLifecycle` until #349 was finished, which was accurate for about one of the six
+ * things it does. The name mattered more than it looks: this is where a reader goes to answer "what
+ * happens at login", and for a long time nobody looking for that would have opened a file called
+ * WebSocketLifecycle — which is part of why five of these effects sat keyed on `Unit`, never
+ * re-running after the login they were supposed to react to, for as long as they did.
+ *
+ * Every effect below is keyed on `loggedIn`, never on `Unit`. That is the whole rule of this file.
+ */
 @Composable
-private fun WebSocketLifecycle(root: RootComponent) {
+private fun SessionLifecycle(root: RootComponent) {
     val wsClient: WsClient = koinInject()
     val tokenStorage: TokenStorage = koinInject()
     val pushTokenRegistrar: PushTokenRegistrar = koinInject()
 
     // Reactive login state, unlike tokenStorage.isLoggedIn() below — that is a snapshot read once
     // when a Unit-keyed effect first runs. This tracks the navigation stack, so it flips the
-    // moment RootComponent.onAuthComplete() swaps Config.Auth -> Config.Main.
-    val stack by root.childStack.subscribeAsState()
-    val loggedIn = stack.active.instance is RootComponent.Child.Main
+    // moment RootComponent.onAuthComplete() swaps Config.Auth -> Config.Main. Shared with
+    // RootContent rather than re-derived here, so there is one answer to "is anyone signed in".
+    val loggedIn = isSessionActive(root)
 
     // The generation this composition connected as, handed straight back to disconnect().
     //
@@ -191,11 +207,17 @@ private fun WebSocketLifecycle(root: RootComponent) {
         }
     }
 
-    // Schedule background message sync
-    val syncManager: com.muhabbet.app.platform.BackgroundSyncManager = koinInject()
+    // Everything a session leaves OUTSIDE the composition: the WorkManager sync job, which survives
+    // process death and a reboot, and the crash reporter's user, which is global state in the SDK.
+    //
+    // The only effect here with an `else`, and it needs one. The four above are all switched off by
+    // the composition going away — the socket by its own onDispose, the ack pump and the two
+    // registrations by their coroutines being cancelled. These two are not: nothing in the app
+    // called cancelPeriodicSync() (zero call sites in the repository), so a device that logged in
+    // once kept waking every 15 minutes for as long as the app stayed installed, and the crash
+    // reporter kept naming the account that had logged out. See SessionWiring.
+    val sessionWiring: SessionWiring = koinInject()
     LaunchedEffect(loggedIn) {
-        if (loggedIn) {
-            syncManager.schedulePeriodicSync()
-        }
+        if (loggedIn) sessionWiring.onSessionActive() else sessionWiring.onSessionEnded()
     }
 }

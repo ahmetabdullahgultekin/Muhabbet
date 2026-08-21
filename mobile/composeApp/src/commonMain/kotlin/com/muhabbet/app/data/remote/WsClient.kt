@@ -94,7 +94,7 @@ class WsClient(
      * Brings the socket up and keeps it up until the returned generation is passed to [disconnect].
      *
      * `shouldReconnect` is set **here, synchronously**, not inside the coroutine it used to live in.
-     * `WebSocketLifecycle` calls disconnect()+connect() on every composition swap, and an Activity
+     * `SessionLifecycle` calls disconnect()+connect() on every composition swap, and an Activity
      * recreation — which the language switch performs deliberately — interleaved them so that the
      * old Activity's `onDispose` wrote `false` after the new loop had already read `true`. The new
      * loop fell out of its own `while (shouldReconnect)`, nothing was left running, and the socket
@@ -232,7 +232,7 @@ class WsClient(
                 Log.e(TAG, "Connection error: ${e.message}")
             } finally {
                 // Clear by identity, not by field. `WsClient` is a Koin single and
-                // `WebSocketLifecycle` calls disconnect()+connect() on every composition swap (every
+                // `SessionLifecycle` calls disconnect()+connect() on every composition swap (every
                 // Activity recreation, including the deliberate language switch), so a later
                 // iteration may already have overwritten `session` by the time this one's socket
                 // closes. Nulling the field blindly would drop a live session on the floor; it is
@@ -409,7 +409,7 @@ class WsClient(
      * Tears down the generation named by [generation], and does nothing if it is not the live one.
      *
      * The guard is the other half of the #511 fix, and setting `shouldReconnect` synchronously in
-     * [connect] does not remove the need for it. `WebSocketLifecycle`'s `onDispose` belongs to a
+     * [connect] does not remove the need for it. `SessionLifecycle`'s `onDispose` belongs to a
      * composition that is already gone, but it still runs on the calling thread whenever Android
      * gets round to it — after the replacement Activity has composed and called `connect()`. An
      * unguarded `disconnect()` at that point sets `shouldReconnect = false` and closes the socket
