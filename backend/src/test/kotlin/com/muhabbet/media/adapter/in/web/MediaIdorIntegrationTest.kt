@@ -69,6 +69,8 @@ class MediaIdorIntegrationTest {
             override fun putObject(key: String, inputStream: InputStream, contentType: String, sizeBytes: Long) {}
             override fun getPresignedUrl(key: String, expirySeconds: Int): String = "https://media.example/$key"
             override fun deleteObject(key: String) {}
+            override fun resolveObjectKey(url: String): String? =
+                url.removePrefix("https://media.example/").takeIf { it != url && it.isNotBlank() }
         }
     }
 

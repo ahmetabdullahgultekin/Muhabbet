@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
@@ -46,6 +47,9 @@ class MessagingServiceTest {
     private lateinit var userDirectory: UserDirectoryPort
     private lateinit var readReceiptPolicy: ReadReceiptPolicyPort
     private lateinit var blockPolicy: BlockPolicyPort
+
+    // Nothing here sends media, so the policy is never consulted; MediaAttachmentTest owns that rule.
+    private lateinit var mediaAttachmentPolicy: MediaAttachmentPolicyPort
     private lateinit var conversationService: ConversationService
     private lateinit var messageService: MessageService
 
@@ -62,6 +66,7 @@ class MessagingServiceTest {
         userDirectory = mockk(relaxed = true)
         readReceiptPolicy = mockk(relaxed = true)
         blockPolicy = mockk()
+        mediaAttachmentPolicy = mockk(relaxed = true)
         // Default across the suite: nobody has blocked anybody, so every existing expectation holds.
         every { blockPolicy.hasBlocked(any(), any()) } returns false
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
@@ -79,7 +84,8 @@ class MessagingServiceTest {
             userDirectory = userDirectory,
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            mediaAttachmentPolicy = mediaAttachmentPolicy
         )
     }
 

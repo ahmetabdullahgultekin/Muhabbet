@@ -18,6 +18,8 @@ import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachment
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
@@ -39,7 +41,8 @@ open class MessageService(
     private val userDirectory: UserDirectoryPort,
     private val readReceiptPolicy: ReadReceiptPolicyPort,
     private val blockPolicy: BlockPolicyPort,
-    private val transactions: TransactionRunner
+    private val transactions: TransactionRunner,
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -120,6 +123,11 @@ open class MessageService(
         val member = conversationRepository.findMember(command.conversationId, command.senderId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
+        // Checked here, immediately behind membership, and not in either transport: the socket
+        // handler and the REST fallback both arrive at this one method, and a check in a controller
+        // is a check the other transport does not have.
+        val (mediaUrl, thumbnailUrl) = resolvePublishableMedia(command)
+
         // One lookup, three uses: announcement mode, the disappearing-message window, and the
         // direct-conversation test the block check needs. It used to be fetched twice.
         val conversation = conversationRepository.findById(command.conversationId)
@@ -158,8 +166,8 @@ open class MessageService(
             contentType = command.contentType,
             content = command.content,
             replyToId = command.replyToId,
-            mediaUrl = command.mediaUrl,
-            thumbnailUrl = command.thumbnailUrl,
+            mediaUrl = mediaUrl,
+            thumbnailUrl = thumbnailUrl,
             serverTimestamp = now,
             clientTimestamp = command.clientTimestamp,
             expiresAt = expiresAt,
@@ -215,6 +223,65 @@ open class MessageService(
         // recipient. The fan-out itself happens in sendMessage, after this transaction commits.
         return SendOutcome(message, recipients)
     }
+
+    /**
+     * The media this message may carry, or a refusal.
+     *
+     * Until #679 both URLs went from the request body into the row and out to the recipient's
+     * image loader untouched, which made the sender's choice of address the recipient's outbound
+     * request. Nobody had to tap anything: composing the bubble is the fetch. That handed the
+     * sender the recipient's IP address and the moment the message appeared on their screen — a
+     * read receipt around the back of the setting that governs read receipts.
+     *
+     * The test is ownership against `media_files`, not the shape of the URL. Shape is forgeable and
+     * ownership is not; the download side learned the same lesson from the other direction when its
+     * authorization query keyed off this very column (#267).
+     *
+     * **Forwarding is the one case where the sender is legitimately not the uploader.** What makes
+     * it safe is not `forwardedFrom` — the client sets that — but the message it names: the
+     * original is looked up, the forwarder must be a member of the conversation it lives in, and
+     * the URL must be one that message actually carries. Since the original could only have been
+     * stored by passing this same check, the exception is bounded rather than a way around it.
+     *
+     * Returns the normalised pair so the value checked is the value stored; validating a trimmed
+     * string and persisting an untrimmed one is how a check comes to protect a different string
+     * from the one that ships.
+     */
+    private fun resolvePublishableMedia(command: SendMessageCommand): Pair<String?, String?> {
+        val mediaUrl = command.mediaUrl?.trim()?.takeIf { it.isNotEmpty() }
+        val thumbnailUrl = command.thumbnailUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (mediaUrl == null && thumbnailUrl == null) return null to null
+
+        // Resolved once even when both URLs need it, which is the common photo case.
+        val forwardSource = command.forwardedFrom?.let { forwardSource(it, command.senderId) }
+
+        listOfNotNull(mediaUrl, thumbnailUrl).distinct().forEach { url ->
+            val attachment = mediaAttachmentPolicy.classify(url)
+            val publishable = attachment.isPublishableBy(command.senderId) ||
+                (attachment is MediaAttachment.OwnStorage && forwardSource.carries(url))
+            if (!publishable) {
+                log.warn(
+                    "Message refused, sender may not publish this media: sender={}, conv={}, attachment={}",
+                    command.senderId,
+                    command.conversationId,
+                    attachment
+                )
+                throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+            }
+        }
+
+        return mediaUrl to thumbnailUrl
+    }
+
+    /** The message a forward claims to come from, but only if the forwarder can actually see it. */
+    private fun forwardSource(originalMessageId: UUID, senderId: UUID): Message? {
+        val original = messageRepository.findById(originalMessageId) ?: return null
+        if (conversationRepository.findMember(original.conversationId, senderId) == null) return null
+        return original
+    }
+
+    private fun Message?.carries(url: String): Boolean =
+        this != null && (mediaUrl == url || thumbnailUrl == url)
 
     /**
      * Whether this send is a direct message to someone who has blocked the sender.

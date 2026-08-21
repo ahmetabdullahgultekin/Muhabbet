@@ -18,6 +18,9 @@ class MediaFilePersistenceAdapter(
     override fun findById(id: UUID): MediaFile? =
         springDataMediaFileRepository.findById(id).orElse(null)?.toDomain()
 
+    override fun findByObjectKey(key: String): MediaFile? =
+        springDataMediaFileRepository.findByObjectKey(key).firstOrNull()?.toDomain()
+
     override fun sumSizeByUploaderAndContentTypePrefix(uploaderId: UUID, prefix: String): Long =
         springDataMediaFileRepository.sumSizeByUploaderAndContentTypePrefix(uploaderId, prefix)
 

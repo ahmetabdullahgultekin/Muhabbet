@@ -20,6 +20,7 @@ import com.muhabbet.auth.domain.service.UserDataService
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
+import com.muhabbet.media.domain.service.MediaOwnershipService
 import com.muhabbet.media.domain.service.MediaService
 import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
@@ -31,6 +32,7 @@ import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
@@ -158,6 +160,14 @@ class AppConfig {
         userRepository = userRepository
     )
 
+    /**
+     * The parameter list is [MessageService]'s constructor, restated because the domain stays
+     * Spring-free and its dependencies have to be named somewhere. detekt allows 12 arguments to a
+     * constructor and 8 to a function; this is the former wearing the latter's shape, so the
+     * function threshold is the wrong one to apply to it. Suppressed here rather than by moving the
+     * threshold, which would relax the rule for every genuine function in the module.
+     */
+    @Suppress("LongParameterList")
     @Bean
     fun messageService(
         conversationRepository: ConversationRepository,
@@ -166,7 +176,8 @@ class AppConfig {
         userDirectory: UserDirectoryPort,
         readReceiptPolicy: ReadReceiptPolicyPort,
         blockPolicy: BlockPolicyPort,
-        transactions: TransactionRunner
+        transactions: TransactionRunner,
+        mediaAttachmentPolicy: MediaAttachmentPolicyPort
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
@@ -174,7 +185,8 @@ class AppConfig {
         userDirectory = userDirectory,
         readReceiptPolicy = readReceiptPolicy,
         blockPolicy = blockPolicy,
-        transactions = transactions
+        transactions = transactions,
+        mediaAttachmentPolicy = mediaAttachmentPolicy
     )
 
     @Bean
@@ -213,17 +225,33 @@ class AppConfig {
         thumbnailHeight = mediaProperties.thumbnailHeight
     )
 
+    /**
+     * Answers "who uploaded this?" for a media URL. Separate from [mediaService] because that class
+     * already implements three use cases, and this one shares none of its dependencies beyond the
+     * two it needs.
+     */
+    @Bean
+    fun mediaOwnershipService(
+        mediaStoragePort: MediaStoragePort,
+        mediaFileRepository: MediaFileRepository
+    ): MediaOwnershipService = MediaOwnershipService(
+        mediaStoragePort = mediaStoragePort,
+        mediaFileRepository = mediaFileRepository
+    )
+
     @Bean
     fun statusService(
         statusRepository: StatusRepository,
         conversationRepository: ConversationRepository,
         userDirectory: UserDirectoryPort,
-        blockPolicy: BlockPolicyPort
+        blockPolicy: BlockPolicyPort,
+        mediaAttachmentPolicy: MediaAttachmentPolicyPort
     ): StatusService = StatusService(
         statusRepository = statusRepository,
         conversationRepository = conversationRepository,
         userDirectory = userDirectory,
-        blockPolicy = blockPolicy
+        blockPolicy = blockPolicy,
+        mediaAttachmentPolicy = mediaAttachmentPolicy
     )
 
     @Bean

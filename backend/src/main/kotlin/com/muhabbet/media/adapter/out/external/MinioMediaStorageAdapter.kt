@@ -13,6 +13,7 @@ import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.io.InputStream
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -73,6 +74,59 @@ class MinioMediaStorageAdapter(
         } else {
             url
         }
+    }
+
+    /**
+     * Reverses [getPresignedUrl]: the origin must be one we publish under, the path must start with
+     * our bucket, and what is left is the object key.
+     *
+     * Both endpoints are accepted. `publicEndpoint` is what clients see in production, but it is
+     * optional — where it is unset (local dev, tests) [getPresignedUrl] returns the internal
+     * endpoint unrewritten, and a URL minted by this very method would otherwise fail to resolve.
+     *
+     * The comparison is on scheme, host and effective port, not `startsWith(endpoint)`. A prefix
+     * test would accept `https://cdn-muhabbet.example.com.attacker.test/…`, which is exactly the
+     * class of bypass a host check exists to prevent. The query string is ignored: the signature on
+     * a presigned URL expires, so it cannot be part of the identity of the object.
+     */
+    override fun resolveObjectKey(url: String): String? {
+        val uri = try {
+            URI(url.trim())
+        } catch (e: Exception) {
+            return null
+        }
+
+        val endpoints = listOfNotNull(
+            mediaProperties.minio.publicEndpoint?.takeIf { it.isNotBlank() },
+            mediaProperties.minio.endpoint.takeIf { it.isNotBlank() }
+        )
+        if (endpoints.none { sameOrigin(uri, it) }) return null
+
+        val path = uri.path?.removePrefix("/") ?: return null
+        val bucketPrefix = mediaProperties.minio.bucket + "/"
+        if (!path.startsWith(bucketPrefix)) return null
+
+        return path.removePrefix(bucketPrefix).takeIf { it.isNotBlank() }
+    }
+
+    private fun sameOrigin(uri: URI, endpoint: String): Boolean {
+        val other = try {
+            URI(endpoint)
+        } catch (e: Exception) {
+            return false
+        }
+        val host = uri.host ?: return false
+        val otherHost = other.host ?: return false
+        return host.equals(otherHost, ignoreCase = true) &&
+            uri.scheme.orEmpty().equals(other.scheme.orEmpty(), ignoreCase = true) &&
+            effectivePort(uri) == effectivePort(other)
+    }
+
+    /** An absent port means the scheme's default, so `https://h` and `https://h:443` are one origin. */
+    private fun effectivePort(uri: URI): Int = when {
+        uri.port != -1 -> uri.port
+        uri.scheme.equals("https", ignoreCase = true) -> 443
+        else -> 80
     }
 
     override fun deleteObject(key: String) {
