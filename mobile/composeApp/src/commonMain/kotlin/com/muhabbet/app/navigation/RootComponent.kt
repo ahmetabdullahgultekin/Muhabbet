@@ -108,10 +108,28 @@ class RootComponent(
     }
 }
 
+/**
+ * Whether a signed-in session is on screen right now.
+ *
+ * The one definition of "logged in" that the composition is allowed to use, because it is the only
+ * one that is *reactive*. `tokenStorage.isLoggedIn()` answers correctly but only once, at the moment
+ * it is read; an effect keyed on `Unit` above the auth/main switch therefore samples the login
+ * screen's answer and keeps it for the life of the process. That is #349, and it cost the app its
+ * WebSocket, push token, E2E keys and background sync for every first session after signing in.
+ *
+ * This flips the instant `RootComponent.onAuthComplete` swaps `Config.Auth` -> `Config.Main`, and
+ * back on logout — so effects keyed on it fire in both directions. Named and shared rather than
+ * re-derived at each call site, so "is anyone signed in" has one answer rather than one per caller.
+ */
+@Composable
+fun isSessionActive(root: RootComponent): Boolean {
+    val stack by root.childStack.subscribeAsState()
+    return stack.active.instance is RootComponent.Child.Main
+}
+
 @Composable
 fun RootContent(root: RootComponent) {
-    val stack by root.childStack.subscribeAsState()
-    val isMain = stack.active.instance is RootComponent.Child.Main
+    val isMain = isSessionActive(root)
 
     // Box, not a bare Children call, so App Lock's cover (#378) can be layered on top of whatever
     // screen is underneath in the SAME composition and the SAME Activity window — not a separate

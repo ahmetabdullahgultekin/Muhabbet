@@ -64,6 +64,10 @@ class FakeTokenStorage : TokenStorage {
     override fun getSolidColor(): String? = solidColor
     override fun setSolidColor(color: String?) { solidColor = color }
 
+    private var wallpaperGradientId: String? = null
+    override fun getWallpaperGradientId(): String? = wallpaperGradientId
+    override fun setWallpaperGradientId(id: String?) { wallpaperGradientId = id }
+
     private var customWallpaperPath: String? = null
     override fun getCustomWallpaperPath(): String? = customWallpaperPath
     override fun setCustomWallpaperPath(path: String?) { customWallpaperPath = path }

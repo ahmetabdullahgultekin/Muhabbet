@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.port.`in`.CommunityMemberSummary
 import com.muhabbet.messaging.domain.port.`in`.CommunitySummary
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityMembershipUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -28,7 +29,8 @@ import java.util.UUID
 open class CommunityService(
     private val communityRepository: CommunityRepository,
     private val conversationRepository: ConversationRepository,
-    private val userDirectoryPort: UserDirectoryPort
+    private val userDirectoryPort: UserDirectoryPort,
+    private val blockPolicy: BlockPolicyPort
 ) : ManageCommunityUseCase, ManageCommunityMembershipUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -158,6 +160,27 @@ open class CommunityService(
             throw BusinessException(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP)
         }
 
+        // Someone who blocked you does not get pulled into a room with you (#294) — the same rule
+        // GroupService.addMembers enforces, and for the same reason: enrolment ends in the
+        // announcement channel below, which is a GROUP conversation this caller can post to.
+        // Reaching a person through a room you added them to is the reach the send path already
+        // refuses.
+        //
+        // The group-membership rule above narrows the exposure without closing it. It permits
+        // enrolling anyone already in one of the community's groups, and a shared group is exactly
+        // what two people still have after one of them blocks the other.
+        //
+        // It reuses COMMUNITY_MEMBER_NOT_IN_ANY_GROUP, the code raised immediately above, rather
+        // than getting one of its own. A distinct code would be a reliable one-bit oracle: make a
+        // throwaway community, add the target, read the code, and you know they blocked you.
+        // Sharing the code with the ordinary "not addable" case is what keeps the answer ambiguous.
+        // Deliberately after the permission and membership checks, so a caller who fails those is
+        // refused without the block table being consulted at all.
+        if (blockPolicy.hasBlocked(userId, requesterId)) {
+            log.info("Community add refused, the invitee has blocked the requester: community={}, requester={}", communityId, requesterId)
+            throw BusinessException(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP)
+        }
+
         val member = CommunityMember(communityId = communityId, userId = userId, role = MemberRole.MEMBER)
         val saved = communityRepository.saveMember(member)
 
@@ -218,8 +241,16 @@ open class CommunityService(
             .toSet() - alreadyMembers
         if (candidateIds.isEmpty()) return emptyList()
 
-        val displayInfo = userDirectoryPort.findDisplayInfo(candidateIds)
-        return candidateIds
+        // The same predicate addMember enforces, asked in the batched direction (#294). The picker
+        // must not offer a person the caller cannot add: leaving them in makes the row a dead
+        // control, and — tapped repeatedly across candidates — a way to learn who blocked you by
+        // elimination. Filtered ahead of the directory lookup, so a blocker's name and face are
+        // never read either.
+        val addable = candidateIds - blockPolicy.findBlockedBy(requesterId, candidateIds)
+        if (addable.isEmpty()) return emptyList()
+
+        val displayInfo = userDirectoryPort.findDisplayInfo(addable)
+        return addable
             .map { userId ->
                 val info = displayInfo[userId]
                 CommunityMemberCandidate(

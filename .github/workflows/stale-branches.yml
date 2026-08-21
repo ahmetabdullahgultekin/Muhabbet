@@ -1,0 +1,164 @@
+# Deletes branches by age, on a schedule.
+#
+# GitHub's own "Automatically delete head branches" fires on merge, which is a different rule and
+# not the one this repo wants: a branch is worth keeping for a while after it merges, and a branch
+# that never merged is worth keeping for longer than one that did.
+#
+# Hence two clocks, not one:
+#
+#   ABSORBED  — the branch's work is in `dev`. Decided by asking GitHub whether the branch was the
+#               head of a MERGED pull request, not by asking git. Git cannot answer this here: a
+#               squash merge rewrites N commits into one with a different patch, so the branch is
+#               neither an ancestor of `dev` nor cherry-equivalent to it, and both `--merged` and
+#               `git cherry` call a squash-merged branch unmerged. This repo squash-merges almost
+#               everything — a dry run of the git-based test classified 19 branches with merged PRs
+#               as unmerged work, which would have kept every one of them forever. `git merge-base`
+#               is still consulted as a second chance, for branches merged before PRs existed.
+#               Default 30 days.
+#
+#   UNMERGED  — the branch carries work `dev` has never seen. Deleting one of these on a 30-day
+#               clock destroys work. That is not hypothetical here: `claude/relaxed-goldberg-P1IKj`
+#               sat unmerged for two months holding 27 commits and a feature nobody had rebuilt,
+#               and a naive age rule would have taken it. Default 90 days, and the run opens an
+#               issue listing them a full cycle before they go, so nothing disappears in silence.
+#
+# Never touched, on either clock:
+#   - the default branch, `dev`, and anything matching `release/*` or `keep/*`
+#   - any branch that is the head of an open pull request
+#
+# Deleted branches are recoverable: GitHub keeps the ref for a while and a merged PR's page offers
+# "Restore branch". An unmerged branch is recoverable only from the SHA this run logs, so the SHA is
+# always printed before the delete.
+name: Stale branch cleanup
+
+on:
+  schedule:
+    # Mondays 04:00 UTC — off the working day, and after the weekend's merges have settled.
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      absorbed_days:
+        description: 'Delete absorbed branches older than N days'
+        required: false
+        default: '30'
+      unmerged_days:
+        description: 'Delete unmerged branches older than N days (0 = never delete unmerged)'
+        required: false
+        default: '90'
+      dry_run:
+        description: 'List what would be deleted without deleting it'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ABSORBED_DAYS: ${{ github.event.inputs.absorbed_days || '30' }}
+          UNMERGED_DAYS: ${{ github.event.inputs.unmerged_days || '90' }}
+          # A scheduled run is the point of this workflow, so it deletes. A hand-started run
+          # defaults to dry, because someone reaching for the button is usually asking "what would
+          # this do".
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || github.event.inputs.dry_run }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          BASE=dev
+          git fetch origin "$BASE" --quiet
+
+          # Head branches of open PRs. An open PR outranks any age.
+          gh pr list --state open --limit 500 --json headRefName --jq '.[].headRefName' > /tmp/open_prs.txt
+          # Every branch that was the head of a merged PR. This — not git — is what "absorbed" means
+          # in a repo that squash-merges.
+          gh pr list --state merged --limit 1000 --json headRefName --jq '.[].headRefName' | sort -u > /tmp/merged_prs.txt
+
+          now=$(date +%s)
+          absorbed_cutoff=$(( now - ABSORBED_DAYS * 86400 ))
+          unmerged_cutoff=$(( now - UNMERGED_DAYS * 86400 ))
+
+          : > /tmp/deleted.txt
+          : > /tmp/warned.txt
+
+          while read -r ts branch; do
+            # HEAD is origin's symbolic ref, not a branch; there is no refs/heads/HEAD to delete.
+            case "$branch" in
+              HEAD|"$BASE"|main|master|release/*|keep/*) continue ;;
+            esac
+            if grep -qxF "$branch" /tmp/open_prs.txt; then
+              echo "skip (open PR)      $branch"
+              continue
+            fi
+
+            sha=$(git rev-parse "origin/$branch")
+            age_days=$(( (now - ts) / 86400 ))
+            # How much would be lost if this went now — reported, not used to classify.
+            unique=$(git rev-list --count "origin/$BASE".."origin/$branch" 2>/dev/null || echo 0)
+
+            if grep -qxF "$branch" /tmp/merged_prs.txt                || git merge-base --is-ancestor "origin/$branch" "origin/$BASE" 2>/dev/null; then
+              [ "$ts" -gt "$absorbed_cutoff" ] && { echo "keep (absorbed, ${age_days}d)  $branch"; continue; }
+              reason="absorbed into $BASE, ${age_days}d old"
+            else
+              if [ "$UNMERGED_DAYS" -eq 0 ] || [ "$ts" -gt "$unmerged_cutoff" ]; then
+                # Warn one cycle early so an unmerged branch is never a surprise.
+                half=$(( unmerged_cutoff + (UNMERGED_DAYS * 86400 / 4) ))
+                [ "$UNMERGED_DAYS" -ne 0 ] && [ "$ts" -lt "$half" ] && \
+                  echo "- \`$branch\` — ${age_days} days old, $unique commit(s) not in $BASE, sha \`$sha\`" >> /tmp/warned.txt
+                echo "keep (unmerged, ${age_days}d, ${unique} unique)  $branch"
+                continue
+              fi
+              reason="$unique commit(s) never merged, ${age_days}d old"
+            fi
+
+            echo "DELETE  $branch  ($reason)  sha=$sha"
+            echo "- \`$branch\` — $reason — recover with \`git push origin $sha:refs/heads/$branch\`" >> /tmp/deleted.txt
+            if [ "$DRY_RUN" != "true" ]; then
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$branch"
+            fi
+          done < <(git for-each-ref --format='%(committerdate:unix) %(refname:lstrip=3)' refs/remotes/origin)
+
+          {
+            echo "## Stale branch cleanup"
+            echo
+            echo "Absorbed cutoff: ${ABSORBED_DAYS}d · Unmerged cutoff: ${UNMERGED_DAYS}d · Dry run: ${DRY_RUN}"
+            echo
+            if [ -s /tmp/deleted.txt ]; then
+              echo "### Deleted"; echo; cat /tmp/deleted.txt
+            else
+              echo "Nothing was old enough to delete."
+            fi
+            if [ -s /tmp/warned.txt ]; then
+              echo; echo "### Unmerged, approaching the cutoff"; echo
+              echo "These still hold work \`$BASE\` has never seen. Merge, cherry-pick, or rename to"
+              echo "\`keep/…\` before the cutoff, or they go on a later run."
+              echo; cat /tmp/warned.txt
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -s /tmp/warned.txt ] && [ "$DRY_RUN" != "true" ]; then
+            {
+              echo "Bu dallar \`$BASE\`'in hiç görmediği işi taşıyor ve **${UNMERGED_DAYS} günlük eşiğe yaklaşıyorlar.**"
+              echo
+              cat /tmp/warned.txt
+              echo
+              echo "Eşiği geçtiklerinde otomatik olarak silinecekler. Önce şunlardan birini yapın:"
+              echo "merge edin, değerli kısmı cherry-pick edip issue'ya bağlayın, ya da dalı"
+              echo "\`keep/…\` olarak yeniden adlandırın — \`keep/*\` bu temizliğin dışında."
+              echo
+              echo "Silinen bir dal, yukarıdaki SHA ile geri getirilebilir."
+            } > /tmp/issue.md
+            gh issue create --title "Yaklaşan dal temizliği: merge edilmemiş işi olan dallar" --body-file /tmp/issue.md
+          fi

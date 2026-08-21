@@ -8,6 +8,30 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — blocking someone now stops two more things it did not stop
+
+- **The person you blocked could still watch your stories** (#294). Status is scoped to your
+  contacts, and blocking someone does not delete the conversation the two of you share — so by the
+  only definition of "contact" this app has, they stayed one, and every status you posted afterwards
+  went to them. The per-status audience list was no defence: it is chosen in the composer, and
+  nobody goes back to edit it when they block someone.
+- **The person you blocked could still add you to their community** (#294). Adding someone to a
+  group has refused this since #554; adding them to a *community* did not, and that path ends by
+  enrolling them in the announcement channel — a group conversation the owner can post to. The
+  existing "must already be in one of the community's groups" rule narrowed it without closing it,
+  because a shared group is exactly what two people still have after one blocks the other. The
+  member picker no longer offers someone the add would refuse, either.
+
+Both refusals reuse the error code the ordinary "cannot add this person" case already returns. A
+code of their own would be a reliable way to test who has blocked you.
+
+**The other four ways a blocked person could reach you were already closed** — direct messages,
+presence and last-seen, push notifications, and your profile and about text — but only three of
+them had any test that said so. They do now, including one that wires the real push chain and
+asserts that nothing reaches FCM. That one was never a guard at all: push lives two hops from the
+send path and is correct today only as a consequence of the message never being stored, which is
+exactly the kind of correctness a refactor removes without noticing.
+
 ### Fixed — failures that were invisible, or reported as the wrong thing
 
 - **One scheduled message that could not be sent silently stopped all of them** (#560). Every due
@@ -81,6 +105,47 @@ proves the third fix needs a real database, so it runs on CI and not on a machin
   list entirely and sit behind a single **Arşivlenmiş Sohbetler · N** row pinned to the top, which
   opens a screen of its own. Unarchiving is the same long-press gesture that archived the chat, and
   the chat is back in the main list when you come back.
+No code has landed on `dev` since `v0.3.10` — the tag and the branch tip are the same commit.
+
+### Changed — documentation
+- **The system is described somewhere a human can read it.** New
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the modular monolith and its boundaries, what each
+  backend module owns, how the shared KMP module feeds the server and the app from one definition,
+  the end-to-end path of a sent message, and a section on what has deliberately *not* been built.
+  Until now the only description of the architecture was `CLAUDE.md`, which is 77 KB of agent
+  instructions and was never written to be read by a person.
+- **The README says what the project is for, and what state it is actually in.** It was a stub with
+  a repository tree; it now carries the positioning that had never been written down anywhere, and a
+  status table that says plainly which parts do not work.
+- **`README.en.md` removed** — it duplicated `README.md`. English lives in `README.md`, Turkish in
+  `README.tr.md`, and each fact exists in exactly two places rather than three.
+- **`ROADMAP.md` aligned with the milestones that actually exist**, and the release process now
+  includes the two steps that were only written down elsewhere: run the gates with Docker up, and
+  install the built artifact on the emulator before publishing.
+- **Six stale one-shot documents deleted from `docs/`** — a superseded WhatsApp-clone UI spec, a
+  deployment guide for a server that was never bought, the MVP sprint plan, an engineering roadmap
+  claiming we host on GCP, a feature-gap analysis superseded by a tracker issue, and a release plan
+  that contradicted `ROADMAP.md`. Five other dated documents were **kept and given a correction
+  banner** instead, because each still holds a decision or a verified-open finding that lives
+  nowhere else. Decision records (`docs/adr/`, `docs/decisions.md`) were kept whether or not they
+  have aged well; that is what they are for.
+### Fixed
+- **The chat wallpaper picker offered twelve near-identical swatches** (#380). Six warm creams a few
+  percent apart and six near-black inks — one hue family, no gradients. There are now **24 solids
+  across seven low-chroma families** (warm, clay, wheat, sage, sea, harbour, mauve) and a new **Renk
+  Geçişi** tab with 8 gradients, wired end to end: stored, resolved and painted. Nothing was
+  removed, so no saved selection loses its swatch.
+- **"Arka planı kaldır" left its own tick behind** (#380). It nulled the stored colour and left the
+  grid marking it as chosen — a picker claiming a selection the chat was not painting.
+- **The date-separator pill failed WCAG AA over any non-default wallpaper** (#380). It draws on the
+  wallpaper at what was a hardcoded 80% opacity, so a fifth of the user's pick bled into the ground
+  its label is read against: 4.03:1 over a light wallpaper in the dark theme, 3.88:1 over a white
+  photo. Its opacity is now a measured design-system token, and `WallpaperContrastTest` holds every
+  wallpaper × theme combination against the 4.5:1 floor.
+- **`/api/v1/wallpapers` would have wiped the wallpaper it was called to set** (#380). The controller
+  declared private request/response classes whose field names disagreed with the shared DTOs of the
+  same name, with a `"DEFAULT"` default behind the mismatch. It uses the shared DTOs now. The
+  endpoint still has no client — wallpaper stays device-local, deliberately; see `WallpaperRepository`.
 
 ### Added
 - **The app tells you what changed when it updates** (#672). Three releases went out between 0.3.8
@@ -133,6 +198,14 @@ to remove, and this is the release where most of it goes.
   FCM service restarting.
 - **The full-screen photo viewer was not full-screen** (#651) — every photo ever opened had the chat
   showing down both sides.
+- **The typing bubble and the online/last-seen subtitle never appeared** (#643, #644). Neither was a
+  broken wire: the typing bubble was composed correctly but landed one row below the viewport,
+  because auto-scroll was keyed on `messages.size` and the bubble is not one of the messages; and
+  nothing on the chat screen ever *asked* for the peer's presence, so a chat opened onto someone
+  whose status did not happen to change while you watched showed a blank subtitle. The subtitle is
+  now seeded from `GET /api/v1/users/{id}`, which means it shows exactly what that peer's own
+  visibility setting allows and nothing when it hides everything. Shipped in 0.3.10 and missing from
+  its notes; recorded here on 2026-08-21.
 
 ### Added
 - **About** screen with the version and the three legal documents (#614).
