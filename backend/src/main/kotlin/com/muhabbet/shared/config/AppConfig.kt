@@ -25,6 +25,7 @@ import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
 import com.muhabbet.messaging.domain.port.out.ChatFolderRepository
 import com.muhabbet.messaging.domain.port.out.ChatWallpaperRepository
+import com.muhabbet.messaging.domain.port.out.CommunityInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
@@ -50,6 +51,8 @@ import com.muhabbet.messaging.domain.service.PinnedMessageService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
 import com.muhabbet.messaging.domain.service.ChatWallpaperService
+import com.muhabbet.messaging.domain.service.CommunityAnnouncementChannel
+import com.muhabbet.messaging.domain.service.CommunityInviteService
 import com.muhabbet.messaging.domain.service.CommunityService
 import com.muhabbet.messaging.domain.service.ConversationService
 import com.muhabbet.messaging.domain.service.DisappearingMessageService
@@ -384,17 +387,47 @@ class AppConfig {
         inviteLinkRepository = inviteLinkRepository
     )
 
+    /**
+     * The announcement-channel logic (#584), shared by [communityService] and
+     * [communityInviteService] so the two cannot create or populate a community's channel by
+     * different rules. A bean rather than a per-service instance only so that the sharing is
+     * visible here; the class is stateless either way.
+     */
+    @Bean
+    fun communityAnnouncementChannel(
+        communityRepository: CommunityRepository,
+        conversationRepository: ConversationRepository
+    ): CommunityAnnouncementChannel = CommunityAnnouncementChannel(
+        communityRepository = communityRepository,
+        conversationRepository = conversationRepository
+    )
+
     @Bean
     fun communityService(
         communityRepository: CommunityRepository,
         conversationRepository: ConversationRepository,
         userDirectoryPort: UserDirectoryPort,
-        blockPolicy: BlockPolicyPort
+        blockPolicy: BlockPolicyPort,
+        communityAnnouncementChannel: CommunityAnnouncementChannel
     ): CommunityService = CommunityService(
         communityRepository = communityRepository,
         conversationRepository = conversationRepository,
         userDirectoryPort = userDirectoryPort,
-        blockPolicy = blockPolicy
+        blockPolicy = blockPolicy,
+        announcementChannel = communityAnnouncementChannel
+    )
+
+    @Bean
+    fun communityInviteService(
+        communityRepository: CommunityRepository,
+        communityInviteLinkRepository: CommunityInviteLinkRepository,
+        userDirectoryPort: UserDirectoryPort,
+        communityAnnouncementChannel: CommunityAnnouncementChannel
+    ): CommunityInviteService = CommunityInviteService(
+        communityRepository = communityRepository,
+        inviteLinkRepository = communityInviteLinkRepository,
+        userDirectoryPort = userDirectoryPort,
+        announcementChannel = communityAnnouncementChannel
     )
 
     @Bean

@@ -223,4 +223,148 @@ class CommunityRepositoryTest {
 
         assertEquals("COMMUNITY_LAST_MEMBER_CANNOT_LEAVE", failure.code)
     }
+
+    // ─── Invite links (#387, #416) ──────────────────────
+    //
+    // These pin the two things a repository method can get wrong on its own: the URL it calls, and
+    // whether the server's JSON decodes into the shared DTO. The second is not hypothetical — the
+    // group equivalent, `InviteLinkRepository.getInviteLink`, cannot decode a real response at all,
+    // because `InviteLinkResponse` declares `inviteUrl` and `isActive` as required and the backend
+    // controller's private copy of the DTO sends neither. `ignoreUnknownKeys` forgives extra fields,
+    // never missing ones. The community endpoints use the shared DTOs on both sides; the round-trips
+    // below are what would notice if that stopped being true.
+
+    /** Records the path each call goes to, so a wrong URL fails here rather than in production. */
+    private class RecordingRepository {
+        val paths = mutableListOf<String>()
+        lateinit var repository: CommunityRepository
+
+        fun respondingWith(status: HttpStatusCode, body: String): CommunityRepository {
+            repository = CommunityRepository(
+                ApiClient(
+                    FakeTokenStorage(),
+                    MockEngine { request ->
+                        paths += request.url.encodedPath
+                        respond(
+                            content = body,
+                            status = status,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                        )
+                    },
+                )
+            )
+            return repository
+        }
+    }
+
+    @Test
+    fun createInviteLink_onSuccess_decodesTheServerBuiltUrl() = runTest {
+        val recorder = RecordingRepository()
+        val repository = recorder.respondingWith(
+            HttpStatusCode.Created,
+            """{"data":{"id":"l-1","communityId":"c-1","inviteToken":"tok","inviteUrl":"muhabbet://community-invite/tok","isActive":true,"useCount":0,"createdAt":"2026-08-15T09:00:00Z"},"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        val link = repository.createInviteLink("c-1")
+
+        assertEquals("tok", link.inviteToken)
+        // Built by the server so the scheme can change without shipping an app.
+        assertEquals("muhabbet://community-invite/tok", link.inviteUrl)
+        assertEquals(listOf("/api/v1/communities/c-1/invite-links"), recorder.paths)
+    }
+
+    @Test
+    fun createInviteLink_whenCallerIsAPlainMember_fails() = runTest {
+        val repository = repositoryRespondingWith(
+            HttpStatusCode.Forbidden,
+            """{"error":{"code":"COMMUNITY_PERMISSION_DENIED","message":"Bu topluluk işlemi için yetkiniz yok"},"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        val failure = assertFailsWith<ApiException> { repository.createInviteLink("c-1") }
+
+        assertEquals("COMMUNITY_PERMISSION_DENIED", failure.code)
+    }
+
+    @Test
+    fun getInviteLinks_onEmptySuccess_returnsAnEmptyList() = runTest {
+        // A community with no links yet is the ordinary starting state, not a failure.
+        val repository = repositoryRespondingWith(
+            HttpStatusCode.OK,
+            """{"data":[],"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        assertTrue(repository.getInviteLinks("c-1").isEmpty())
+    }
+
+    @Test
+    fun previewInvite_onSuccess_decodesOnlyWhatANonMemberMaySee() = runTest {
+        val recorder = RecordingRepository()
+        val repository = recorder.respondingWith(
+            HttpStatusCode.OK,
+            """{"data":{"communityId":"c-1","name":"Mahalle","memberCount":12,"inviterDisplayName":"Ayşe","alreadyMember":false},"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        val preview = repository.previewInvite("tok")
+
+        assertEquals("Mahalle", preview.name)
+        assertEquals(12, preview.memberCount)
+        assertEquals("Ayşe", preview.inviterDisplayName)
+        assertEquals(false, preview.alreadyMember)
+        assertEquals(listOf("/api/v1/communities/invites/tok"), recorder.paths)
+    }
+
+    @Test
+    fun previewInvite_whenTheLinkIsRevoked_failsSoTheScreenCanSayWhy() = runTest {
+        // The join screen shows "this invite is not valid" for this. Before, an unusable link had
+        // no screen at all — the app simply opened on the conversation list.
+        val repository = repositoryRespondingWith(
+            HttpStatusCode.NotFound,
+            """{"error":{"code":"INVITE_LINK_NOT_FOUND","message":"Davet bağlantısı bulunamadı"},"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        val failure = assertFailsWith<ApiException> { repository.previewInvite("tok") }
+
+        assertEquals("INVITE_LINK_NOT_FOUND", failure.code)
+    }
+
+    @Test
+    fun acceptInvite_onSuccess_returnsTheJoinedCommunitySoTheAppCanOpenIt() = runTest {
+        val recorder = RecordingRepository()
+        val repository = recorder.respondingWith(
+            HttpStatusCode.OK,
+            """{"data":{"id":"c-1","name":"Mahalle","memberCount":13,"groupCount":2,"createdAt":"2026-08-15T09:00:00Z"},"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        val joined = repository.acceptInvite("tok")
+
+        assertEquals("c-1", joined.id)
+        assertEquals(13, joined.memberCount)
+        assertEquals(listOf("/api/v1/communities/invites/tok/accept"), recorder.paths)
+    }
+
+    @Test
+    fun acceptInvite_whenTheLinkIsUsedUp_failsInsteadOfReportingSuccess() = runTest {
+        val repository = repositoryRespondingWith(
+            HttpStatusCode.Conflict,
+            """{"error":{"code":"INVITE_LINK_MAX_USES","message":"Davet bağlantısı maksimum kullanım sayısına ulaştı"},"timestamp":"2026-08-15T10:00:00Z"}""",
+        )
+
+        val failure = assertFailsWith<ApiException> { repository.acceptInvite("tok") }
+
+        assertEquals("INVITE_LINK_MAX_USES", failure.code)
+    }
+
+    @Test
+    fun revokeInviteLink_callsTheLinkScopedPath() = runTest {
+        val recorder = RecordingRepository()
+
+        recorder.respondingWith(
+            HttpStatusCode.OK,
+            """{"data":null,"timestamp":"2026-08-15T10:00:00Z"}""",
+        ).revokeInviteLink("c-1", "l-1")
+
+        // Both ids are in the path so the server can check they agree — an admin of one community
+        // must not be able to revoke another's link.
+        assertEquals(listOf("/api/v1/communities/c-1/invite-links/l-1"), recorder.paths)
+    }
 }

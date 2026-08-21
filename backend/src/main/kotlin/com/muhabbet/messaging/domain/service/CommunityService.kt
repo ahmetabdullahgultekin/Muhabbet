@@ -3,8 +3,6 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.Community
 import com.muhabbet.messaging.domain.model.CommunityGroup
 import com.muhabbet.messaging.domain.model.CommunityMember
-import com.muhabbet.messaging.domain.model.Conversation
-import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
@@ -30,7 +28,14 @@ open class CommunityService(
     private val communityRepository: CommunityRepository,
     private val conversationRepository: ConversationRepository,
     private val userDirectoryPort: UserDirectoryPort,
-    private val blockPolicy: BlockPolicyPort
+    private val blockPolicy: BlockPolicyPort,
+    // Defaulted rather than required: the collaborator is stateless, has no configuration and no
+    // second implementation, so a caller that does not care can ignore it and still get the one
+    // correct behaviour. AppConfig passes the shared bean explicitly so the wiring stays visible,
+    // and CommunityInviteService takes the same instance — the point of extracting it was that the
+    // invite path and this one must create and populate the same channel by the same rules.
+    private val announcementChannel: CommunityAnnouncementChannel =
+        CommunityAnnouncementChannel(communityRepository, conversationRepository)
 ) : ManageCommunityUseCase, ManageCommunityMembershipUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -53,8 +58,8 @@ open class CommunityService(
         // Every community carries an announcement channel from the moment it exists (#584) — the
         // one place a member can always speak, or read from admins, rather than a community being
         // nothing but a row in a list. The creator was just saved above, so the bulk-enrol inside
-        // ensureAnnouncementChannel picks them up and seats them as its owner.
-        val channelId = ensureAnnouncementChannel(saved)
+        // CommunityAnnouncementChannel.ensureFor picks them up and seats them as its owner.
+        val channelId = announcementChannel.ensureFor(saved)
 
         log.info("Community created: id={}, name={}, creator={}", saved.id, name, creatorId)
         // A community starts with no groups and exactly one member: the creator just added above.
@@ -151,10 +156,15 @@ open class CommunityService(
         }
 
         // Community membership derives from group membership, as it does in WhatsApp: an owner may
-        // enrol someone who is already in one of the community's own groups, and nobody else. This
-        // is a restriction, not a feature — the real answer is an invite the recipient accepts, and
-        // that is #387. Without it, an owner could attach any user id they could guess or read, and
-        // the community would appear in that person's Communities tab unannounced.
+        // enrol someone already in one of the community's own groups, and nobody else. Without it an
+        // owner could attach any user id they could guess or read, and the community would appear in
+        // that person's Communities tab unannounced — the defect #375 closed.
+        //
+        // This stays as strict as it was now that invites exist (#387). The consented path is
+        // `CommunityInviteService.accept`, where the person joining performs the action; this one is
+        // the *owner* acting on someone else, so "already in one of our groups" remains the only
+        // adjacency that substitutes for consent. Relaxing it here would reopen #375 through the
+        // door the invite was built to replace.
         val conversationIds = communityRepository.findGroupsByCommunityId(communityId).map { it.conversationId }
         if (!conversationRepository.isMemberOfAny(conversationIds, userId)) {
             throw BusinessException(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP)
@@ -185,14 +195,11 @@ open class CommunityService(
         val saved = communityRepository.saveMember(member)
 
         // A member added later is a member the announcement channel must also carry (#584, the exact
-        // check the issue named) — `saveMember` upserts, so this is safe whether the channel already
-        // existed or was only just created above (in which case the bulk-enrol inside
-        // ensureAnnouncementChannel already saw this user, since it re-reads membership after the
-        // line above).
-        val channelId = ensureAnnouncementChannel(community)
-        conversationRepository.saveMember(
-            ConversationMember(conversationId = channelId, userId = userId, role = MemberRole.MEMBER)
-        )
+        // check the issue named) — `enrol` upserts, so this is safe whether the channel already
+        // existed or was only just created here (in which case ensureFor's bulk-enrol already saw
+        // this user, since it re-reads membership after the saveMember above).
+        val channelId = announcementChannel.ensureFor(community)
+        announcementChannel.enrol(channelId, userId)
 
         log.info("Member added to community: community={}, user={}", communityId, userId)
         return saved
@@ -273,8 +280,11 @@ open class CommunityService(
             .filter { it.userId != userId }
 
         if (others.isEmpty()) {
-            // Removing the only member would leave rows nothing can reach: there is no discovery,
-            // no invite (#387) and no delete endpoint. Refuse instead of orphaning the community.
+            // A community whose last member walks out is not reachable by anyone: it appears in no
+            // list, and while an invite link (#387) can now admit a stranger, only an admin can mint
+            // one and there would be no admin left to do it. Refuse, and let the owner use the
+            // explicit delete (#407) — an auditable removal rather than an implicit one on the way
+            // out.
             throw BusinessException(ErrorCode.COMMUNITY_LAST_MEMBER_CANNOT_LEAVE)
         }
 
@@ -300,7 +310,7 @@ open class CommunityService(
         // Leaving the community means leaving its announcement channel too — otherwise a former
         // member keeps reading (and, if they were an admin, posting to) a channel their community
         // membership no longer explains. `null` here only for a community nobody has read or changed
-        // since #584 shipped; ensureAnnouncementChannel backfills it on the next getDetails/addMember.
+        // since #584 shipped; ensureFor backfills it on the next getDetails/addMember/invite accept.
         community.announcementGroupId?.let { channelId ->
             conversationRepository.removeMember(channelId, userId)
         }
@@ -308,7 +318,7 @@ open class CommunityService(
         log.info("Member left community: community={}, user={}", communityId, userId)
     }
 
-    // Deliberately not `readOnly = true`: ensureAnnouncementChannel below writes for any community
+    // Deliberately not `readOnly = true`: ensureFor below writes for any community
     // that predates #584, and a read-only Postgres transaction refuses an INSERT outright rather
     // than silently no-op-ing it.
     @Transactional
@@ -316,17 +326,22 @@ open class CommunityService(
         val community = communityRepository.findById(communityId)
             ?: throw BusinessException(ErrorCode.COMMUNITY_NOT_FOUND)
 
-        // Members only. There is no discovery, search or invite path in this app, so a community is
-        // only ever opened from the caller's own list or straight after creating it — nothing
-        // legitimate reads a community the caller does not belong to, and reading one exposes every
-        // linked conversation's name, avatar and size.
+        // Members only, and deliberately still so after invites shipped (#387). Reading a community
+        // exposes every linked conversation's name, avatar and size, and nothing legitimate needs
+        // that from outside: a community is opened from the caller's own list, or straight after
+        // creating or joining it.
+        //
+        // Someone holding an invite token is served by `CommunityInviteService.preview`, a separate
+        // endpoint returning name, avatar, member count and inviter — no group list. That split is
+        // the point. Widening this method to serve non-members instead is exactly the IDOR #375
+        // fixed, and #416 says so explicitly: do not implement discovery by loosening this check.
         val membership = requireMember(communityId, userId)
 
         // Self-healing backfill for the communities that existed before #584: the eight rows already
         // in production, each with one member and nowhere to speak. No SQL migration reaches into
         // `conversations` to fabricate a channel for them; the first read after this ships does it
         // instead, with the same code path a brand-new community goes through in `create`.
-        val channelId = ensureAnnouncementChannel(community)
+        val channelId = announcementChannel.ensureFor(community)
 
         val groups = communityRepository.findGroupsByCommunityId(communityId)
         val conversationIds = groups.map { it.conversationId }
@@ -335,7 +350,7 @@ open class CommunityService(
         val groupMemberCounts = conversationRepository.countMembersByConversationIds(conversationIds)
 
         return CommunityDetails(
-            // `community` alone would still show the pre-backfill null here when ensureAnnouncementChannel
+            // `community` alone would still show the pre-backfill null here when ensureFor
             // just created the channel above — copy it in so this field and the dedicated
             // announcementGroupId below never disagree.
             community = community.copy(announcementGroupId = channelId),
@@ -373,77 +388,17 @@ open class CommunityService(
         }
     }
 
-    /**
-     * Returns [community]'s announcement channel, creating it first if this is the first time
-     * anything has asked (#584). The channel is a GROUP conversation, `announcementOnly = true`, that
-     * carries every current community member — owners and admins seated as conversation ADMIN (one
-     * of them, the community's own OWNER, as conversation OWNER too), everyone else as a plain
-     * MEMBER. `MessageService.sendMessage` already refuses a plain MEMBER on an `announcementOnly`
-     * conversation (`MSG_ANNOUNCEMENT_ONLY`), and a message that does get through fans out over the
-     * same `MessageBroadcaster` path every other conversation uses — nothing new was needed on
-     * either side of the send path for this to work.
-     *
-     * Idempotent by the `announcementGroupId` check, which is also what makes this the backfill for
-     * communities created before this existed: called from `create` (freshly, for the member just
-     * added) and from `getDetails`/`addMember` (lazily, for a community that predates it), never a
-     * SQL migration reaching into `conversations`.
-     *
-     * Not safe against two concurrent first-calls on the same community racing each other into two
-     * channels — there is no row lock here. Accepted for now: this app has no concurrent-access
-     * volume that makes it likely, and the loser's channel is merely orphaned, not destructive.
-     */
-    private fun ensureAnnouncementChannel(community: Community): UUID {
-        community.announcementGroupId?.let { return it }
-
-        val members = communityRepository.findMembersByCommunityId(community.id)
-        val channel = conversationRepository.save(
-            Conversation(
-                type = ConversationType.GROUP,
-                name = community.name.take(ValidationRules.GROUP_NAME_MAX),
-                createdBy = community.createdBy,
-                announcementOnly = true
-            )
-        )
-        members.forEach { member ->
-            conversationRepository.saveMember(
-                ConversationMember(
-                    conversationId = channel.id,
-                    userId = member.userId,
-                    role = if (member.administers()) MemberRole.ADMIN else MemberRole.MEMBER
-                )
-            )
-        }
-        // Exactly one OWNER, matching what GroupService's own role/succession logic expects of any
-        // GROUP conversation — administers() alone would leave the community's OWNER seated as only
-        // an ADMIN of their own channel.
-        members.firstOrNull { it.role == MemberRole.OWNER }?.let { owner ->
-            conversationRepository.updateMemberRole(channel.id, owner.userId, MemberRole.OWNER)
-        }
-
-        communityRepository.update(community.copy(announcementGroupId = channel.id))
-        log.info("Announcement channel created for community: community={}, channel={}", community.id, channel.id)
-        return channel.id
-    }
-
+    // The three guards moved to CommunityAccess.kt when CommunityInviteService appeared and had to
+    // answer them identically — see that file for why there is exactly one copy. Kept as private
+    // forwarders so every call site here still reads as a plain requireX(communityId, userId).
     private fun requireMember(communityId: UUID, userId: UUID): CommunityMember =
-        communityRepository.findMember(communityId, userId)
-            ?: throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
+        communityRepository.requireMember(communityId, userId)
 
-    private fun requireAdminOrOwner(communityId: UUID, userId: UUID): CommunityMember {
-        val member = requireMember(communityId, userId)
-        if (!member.administers()) {
-            throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
-        }
-        return member
-    }
+    private fun requireAdminOrOwner(communityId: UUID, userId: UUID): CommunityMember =
+        communityRepository.requireAdminOrOwner(communityId, userId)
 
-    private fun requireOwner(communityId: UUID, userId: UUID): CommunityMember {
-        val member = requireMember(communityId, userId)
-        if (member.role != MemberRole.OWNER) {
-            throw BusinessException(ErrorCode.COMMUNITY_PERMISSION_DENIED)
-        }
-        return member
-    }
+    private fun requireOwner(communityId: UUID, userId: UUID): CommunityMember =
+        communityRepository.requireOwner(communityId, userId)
 
     private fun requireValidName(name: String) {
         if (!ValidationRules.isValidCommunityName(name)) {

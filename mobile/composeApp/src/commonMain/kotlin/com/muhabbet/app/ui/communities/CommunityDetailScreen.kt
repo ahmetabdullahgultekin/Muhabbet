@@ -43,6 +43,7 @@ fun CommunityDetailScreen(
     var detail by remember { mutableStateOf<CommunityDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var showAddGroupSheet by remember { mutableStateOf(false) }
+    var showInviteSheet by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -94,6 +95,18 @@ fun CommunityDetailScreen(
             excludeConversationIds = current.groups.map { it.conversationId }.toSet(),
             onDismiss = { showAddGroupSheet = false },
             onGroupAdded = { scope.launch { loadDetail() } },
+            snackbarHostState = snackbarHostState,
+            communityRepository = communityRepository
+        )
+    }
+
+    // Gated on canManage at the call site AND in CommunityDetailContent, which is what decides
+    // whether the row is even drawn. The server refuses a plain member either way; hiding it keeps
+    // the app from offering a control that can only 403.
+    if (showInviteSheet && canManage) {
+        CommunityInviteSheet(
+            communityId = communityId,
+            onDismiss = { showInviteSheet = false },
             snackbarHostState = snackbarHostState,
             communityRepository = communityRepository
         )
@@ -249,6 +262,7 @@ fun CommunityDetailScreen(
                 canManage = canManage,
                 contentPadding = padding,
                 onMembersClick = { onMembersClick(communityId) },
+                onInviteClick = { showInviteSheet = true },
                 onAddGroupClick = { showAddGroupSheet = true },
                 onGroupClick = onGroupClick,
                 onRemoveGroupClick = { groupPendingRemoval = it }

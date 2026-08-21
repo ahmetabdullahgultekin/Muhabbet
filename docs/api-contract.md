@@ -441,7 +441,106 @@ is not a language tag is ignored rather than stored.
 
 ---
 
-## 6. WebSocket Protocol
+## 6. Community Invite Endpoints
+
+> This document covers a core subset of the API. Communities, groups, polls, status and several
+> other verticals are not described here. The invite endpoints below are documented because two of
+> them are the **only** community reads a non-member is permitted, which makes their disclosure
+> surface a thing worth writing down rather than inferring from code.
+
+Background: `POST /api/v1/communities/{id}/members` only accepts a target who is already in one of
+the community's own groups (#375), so a community with no groups can never gain a second member.
+These endpoints are the consented way in (#387, #416). **A link is an offer, not a membership** —
+`community_members` is written only by the accept below.
+
+### POST /api/v1/communities/{communityId}/invite-links
+Mint an invite link. **Admins and owners only.**
+
+**Request:**
+```json
+{
+  "maxUses": 20,
+  "expiresAt": "2027-01-01T00:00:00Z"
+}
+```
+Both fields are optional: `maxUses` null means unlimited, `expiresAt` null means no expiry. A
+`maxUses` of zero or less is rejected (`COMMUNITY_INVITE_INVALID_MAX_USES`), as is an `expiresAt`
+already in the past or not an ISO-8601 instant (`COMMUNITY_INVITE_INVALID_EXPIRY`). A community may
+hold at most 10 active links (`COMMUNITY_INVITE_LIMIT_REACHED`).
+
+**Response 201:**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "communityId": "uuid",
+    "inviteToken": "43-char-url-safe-base64",
+    "inviteUrl": "muhabbet://community-invite/43-char-url-safe-base64",
+    "isActive": true,
+    "maxUses": 20,
+    "useCount": 0,
+    "expiresAt": "2027-01-01T00:00:00Z",
+    "createdAt": "2026-08-21T10:00:00Z"
+  },
+  "timestamp": "2026-08-21T10:00:00Z"
+}
+```
+
+`inviteUrl` is built by the server so the scheme can change without shipping an app. It is currently
+a `muhabbet://` deep link, not an `https://` one: App Links need an `assetlinks.json` on a domain
+this project does not own yet, so a recipient **without the app installed** cannot open it.
+
+### GET /api/v1/communities/{communityId}/invite-links
+Active links, newest first. **Admins and owners only** — a token is a bearer credential, so being
+able to read one is the same power as being able to admit anyone.
+
+### DELETE /api/v1/communities/{communityId}/invite-links/{linkId}
+Revoke a link. **Admins and owners of the link's own community only.** Both ids are checked against
+each other: a link whose `communityId` does not match the path returns `INVITE_LINK_NOT_FOUND`, so an
+admin of one community cannot revoke another's link.
+
+### GET /api/v1/communities/invites/{token}
+Preview an invite. **Any authenticated caller holding the token.** Does not join anything and does
+not spend a use, so a client may call it on every open.
+
+**Response 200:**
+```json
+{
+  "data": {
+    "communityId": "uuid",
+    "name": "Mahalle",
+    "avatarUrl": null,
+    "memberCount": 12,
+    "inviterDisplayName": "Ayşe",
+    "alreadyMember": false
+  },
+  "timestamp": "2026-08-21T10:00:00Z"
+}
+```
+
+**This field list is a security decision, not a convenience.** It is the least a person needs in
+order to decide whether to accept. There is deliberately no group list and no member list — reading
+those still requires membership, which is what #375 fixed. The disclosure is keyed on holding a
+256-bit token, not on being signed in; this is an invite, not a directory.
+
+`alreadyMember` lets a client offer "open" instead of an accept that would fail.
+
+### POST /api/v1/communities/invites/{token}/accept
+**The accept step.** Any authenticated caller holding the token. Writes the membership row, enrols
+the caller in the community's announcement channel (#584), and spends one use of the link — in that
+order, so a failed join never burns a use.
+
+Does **not** add the caller to the community's groups: community membership is the container, and
+each group is still joined on its own.
+
+**Response 200:** the joined `CommunityResponse`, so the app can navigate straight into it.
+
+Errors: `INVITE_LINK_NOT_FOUND` (unknown or revoked), `INVITE_LINK_EXPIRED`, `INVITE_LINK_MAX_USES`,
+`GROUP_ALREADY_MEMBER` (caller is already in the community).
+
+---
+
+## 7. WebSocket Protocol
 
 ### Connection
 ```
@@ -598,6 +697,18 @@ All frames are JSON with a `type` discriminator:
 | `MEDIA_UNSUPPORTED_TYPE` | File MIME type is not allowed |
 | `MEDIA_NOT_FOUND` | Media file not found or expired |
 | `MEDIA_UPLOAD_FAILED` | Failed to store media file |
+
+### Community Invites
+| Code | Description |
+|------|-------------|
+| `INVITE_LINK_NOT_FOUND` | Token is unknown, or the link was revoked (the two are deliberately indistinguishable) |
+| `INVITE_LINK_EXPIRED` | Link is past its `expiresAt` |
+| `INVITE_LINK_MAX_USES` | Link has admitted `maxUses` people already |
+| `GROUP_ALREADY_MEMBER` | Caller is already in this community |
+| `COMMUNITY_PERMISSION_DENIED` | Caller does not administer this community (also returned when they are not a member at all) |
+| `COMMUNITY_INVITE_LIMIT_REACHED` | Community already holds the maximum of 10 active links |
+| `COMMUNITY_INVITE_INVALID_MAX_USES` | `maxUses` is zero or negative |
+| `COMMUNITY_INVITE_INVALID_EXPIRY` | `expiresAt` is in the past or is not an ISO-8601 instant |
 
 ### General
 | Code | Description |

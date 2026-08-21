@@ -4,10 +4,12 @@ import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.Community
 import com.muhabbet.messaging.domain.model.CommunityGroup
+import com.muhabbet.messaging.domain.model.CommunityInviteLink
 import com.muhabbet.messaging.domain.model.CommunityMember
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.out.CommunityInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.redis.testcontainers.RedisContainer
@@ -54,6 +56,9 @@ class CommunityPersistenceAdapterIntegrationTest {
 
     @Autowired
     private lateinit var userRepository: UserRepository
+
+    @Autowired
+    private lateinit var inviteLinkRepository: CommunityInviteLinkRepository
 
     private lateinit var creatorId: UUID
     private lateinit var communityId: UUID
@@ -225,6 +230,123 @@ class CommunityPersistenceAdapterIntegrationTest {
         val reloaded = communityRepository.findById(communityId)
         assertEquals("Yeni Mahalle", reloaded?.name)
         assertEquals("Yeni açıklama", reloaded?.description)
+    }
+
+    // --- Invite links (#387, #416) ---
+    //
+    // These run here rather than as mocked unit tests because everything they check is the database
+    // or Spring Data itself: derived query names that are only validated when the repository boots,
+    // and V23's `ON DELETE CASCADE`. A mock agrees with whatever it is told, which is exactly how
+    // #360 shipped a DELETE that Spring Data had silently built as a SELECT.
+
+    @Test
+    fun `should round-trip an invite link through every column`() {
+        val expiresAt = Instant.parse("2027-01-01T00:00:00Z")
+        val saved = inviteLinkRepository.save(
+            CommunityInviteLink(
+                communityId = communityId,
+                inviteToken = "token-round-trip",
+                createdBy = creatorId,
+                maxUses = 20,
+                expiresAt = expiresAt
+            )
+        )
+
+        val reloaded = inviteLinkRepository.findById(saved.id)
+        assertEquals(communityId, reloaded?.communityId)
+        assertEquals("token-round-trip", reloaded?.inviteToken)
+        assertEquals(creatorId, reloaded?.createdBy)
+        assertEquals(20, reloaded?.maxUses)
+        assertEquals(0, reloaded?.useCount)
+        assertEquals(expiresAt, reloaded?.expiresAt)
+        assertEquals(true, reloaded?.isActive)
+    }
+
+    @Test
+    fun `should resolve a revoked link by token rather than hiding it`() {
+        // The out-port promises findByToken returns revoked rows too, so the service can decide what
+        // a revoked token means. The group equivalent filters on isActive inside the query and so
+        // cannot tell "revoked" from "never existed" at all.
+        val saved = inviteLinkRepository.save(
+            CommunityInviteLink(communityId = communityId, inviteToken = "token-revoked", createdBy = creatorId)
+        )
+        inviteLinkRepository.deactivate(saved.id)
+
+        val reloaded = inviteLinkRepository.findByToken("token-revoked")
+        assertEquals(saved.id, reloaded?.id)
+        assertEquals(false, reloaded?.isActive)
+    }
+
+    @Test
+    fun `should list only active links, newest first`() {
+        val revoked = inviteLinkRepository.save(
+            CommunityInviteLink(communityId = communityId, inviteToken = "t-revoked", createdBy = creatorId)
+        )
+        val older = inviteLinkRepository.save(
+            CommunityInviteLink(
+                communityId = communityId, inviteToken = "t-older", createdBy = creatorId,
+                createdAt = Instant.parse("2026-01-01T00:00:00Z")
+            )
+        )
+        val newer = inviteLinkRepository.save(
+            CommunityInviteLink(
+                communityId = communityId, inviteToken = "t-newer", createdBy = creatorId,
+                createdAt = Instant.parse("2026-06-01T00:00:00Z")
+            )
+        )
+        inviteLinkRepository.deactivate(revoked.id)
+
+        assertEquals(
+            listOf(newer.id, older.id),
+            inviteLinkRepository.findActiveByCommunityId(communityId).map { it.id }
+        )
+    }
+
+    @Test
+    fun `should count only this community's active links`() {
+        val otherCommunityId = communityRepository.save(Community(name = "Okul", createdBy = creatorId)).id
+        inviteLinkRepository.save(
+            CommunityInviteLink(communityId = communityId, inviteToken = "t-a", createdBy = creatorId)
+        )
+        val revoked = inviteLinkRepository.save(
+            CommunityInviteLink(communityId = communityId, inviteToken = "t-b", createdBy = creatorId)
+        )
+        inviteLinkRepository.save(
+            CommunityInviteLink(communityId = otherCommunityId, inviteToken = "t-c", createdBy = creatorId)
+        )
+        inviteLinkRepository.deactivate(revoked.id)
+
+        // The cap is per community; counting across communities would let one busy community lock
+        // every other one out of minting links.
+        assertEquals(1, inviteLinkRepository.countActiveByCommunityId(communityId))
+        assertEquals(1, inviteLinkRepository.countActiveByCommunityId(otherCommunityId))
+    }
+
+    @Test
+    fun `should increment the use count`() {
+        val saved = inviteLinkRepository.save(
+            CommunityInviteLink(communityId = communityId, inviteToken = "t-uses", createdBy = creatorId)
+        )
+
+        inviteLinkRepository.incrementUseCount(saved.id)
+        inviteLinkRepository.incrementUseCount(saved.id)
+
+        assertEquals(2, inviteLinkRepository.findById(saved.id)?.useCount)
+    }
+
+    @Test
+    fun `should cascade-remove invite links when a community is deleted`() {
+        // V23 declares `community_id ... ON DELETE CASCADE`, unlike group_invite_links. Without it
+        // the community delete would fail on the foreign key, and live tokens would outlive their
+        // community.
+        val saved = inviteLinkRepository.save(
+            CommunityInviteLink(communityId = communityId, inviteToken = "t-cascade", createdBy = creatorId)
+        )
+
+        communityRepository.delete(communityId)
+
+        assertNull(inviteLinkRepository.findById(saved.id))
+        assertNull(inviteLinkRepository.findByToken("t-cascade"))
     }
 
     private fun seedUser(): UUID {

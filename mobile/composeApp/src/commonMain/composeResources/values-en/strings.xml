@@ -702,6 +702,32 @@
     <string name="community_delete_button">Delete</string>
     <string name="community_delete_failed">Could not delete the community</string>
     <string name="community_add_member">Add Member</string>
+
+    <!-- Community invite links (#387, #416) -->
+    <string name="community_invite_title">Invite Link</string>
+    <string name="community_invite_subtitle">Anyone with this link can join the community. Share it only with people you trust.</string>
+    <string name="community_invite_create">Create invite link</string>
+    <string name="community_invite_row">Invite via link</string>
+    <string name="community_invite_copy">Copy link</string>
+    <string name="community_invite_copied">Invite link copied</string>
+    <string name="community_invite_share">Share link</string>
+    <string name="community_invite_revoke">Revoke link</string>
+    <string name="community_invite_revoked">Invite link revoked</string>
+    <string name="community_invite_revoke_failed">Could not revoke the invite link</string>
+    <string name="community_invite_create_failed">Could not create an invite link</string>
+    <string name="community_invite_empty">No invite links yet</string>
+    <string name="community_invite_uses">%1$d joined</string>
+    <string name="community_invite_uses_limited">%1$d of %2$d joined</string>
+
+    <!-- Join-by-invite screen -->
+    <string name="community_join_title">Join Community</string>
+    <string name="community_join_invited_by">%1$s invited you</string>
+    <string name="community_join_member_count">%1$d members</string>
+    <string name="community_join_button">Join</string>
+    <string name="community_join_open">Open community</string>
+    <string name="community_join_already_member">You are already a member of this community</string>
+    <string name="community_join_failed">Could not join the community</string>
+    <string name="community_join_invalid">This invite link is not valid or has been revoked</string>
     <string name="community_add_member_title">Add Member to Community</string>
     <string name="community_add_member_subtitle">People in this community's groups can be added</string>
     <string name="community_add_member_empty">Nobody can be added yet. Only people who are already in one of this community's groups are eligible.</string>

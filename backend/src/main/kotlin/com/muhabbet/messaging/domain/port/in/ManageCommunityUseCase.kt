@@ -154,8 +154,14 @@ interface ManageCommunityMembershipUseCase {
     fun listAddableUsers(communityId: UUID, requesterId: UUID): List<CommunityMemberCandidate>
 
     /**
-     * Enrols [userId] in the community. Until an invite flow exists (#387), the target must already
-     * be a member of one of the community's groups — see the note in the implementation.
+     * Enrols [userId] in the community, on an **admin's** action. The target must already be a
+     * member of one of the community's groups — see the note in the implementation for why that
+     * survived the arrival of invites.
+     *
+     * This is not the way a stranger joins. That is
+     * [ManageCommunityInviteUseCase.accept] (#387), where the person joining performs the action
+     * themselves; here someone is being added by another party, so adjacency has to stand in for
+     * consent and the rule stays strict.
      */
     fun addMember(communityId: UUID, userId: UUID, requesterId: UUID): CommunityMember
 
