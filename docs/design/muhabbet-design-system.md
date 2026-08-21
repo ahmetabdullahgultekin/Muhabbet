@@ -129,7 +129,11 @@ the container without the content. The pairs that exist:
 
 For the one ground the palette does **not** choose — a wallpaper swatch the user picked — there is
 `readableContentOn(container)`, which derives the foreground from the swatch's own luminance and
-returns it as a pair.
+returns it as a pair. #380 widened that set from twelve swatches in one hue family to **24 solids
+across seven low-chroma families** (warm, clay, wheat, sage, sea, harbour, mauve — one light and one
+deep member each) plus **8 gradients**, after the owner reported the original twelve as "very
+limited". Chroma stays low because this ground sits behind copper bubbles; the breadth is in hue, not
+in saturation.
 
 The eight remaining tokens are **marks**, not grounds: `statusOnline`, `statusRead`,
 `statusDelivered`, `statusSending`, `callMissed`, `linkColor`, `dividerColor`, `secondaryText`.
@@ -230,7 +234,7 @@ it dates instantly.
 | Use | Verdict |
 |---|---|
 | Auth hero, call screens (full-bleed) | **yes** — identity moments |
-| Chat wallpaper (≤4% luminance travel) | **yes** |
+| Chat wallpaper (4–13 points of CIE L*, measured — see below) | **yes** |
 | Avatar fallback, deterministic from the display name | **yes** — cheapest high-impact change available |
 | Status ring, empty-state illustrations | **yes** |
 | Message bubbles | **no** — 2014 skeuomorphism, wrecks text contrast, and the contrast test cannot express a gradient |
@@ -239,6 +243,23 @@ it dates instantly.
 
 **Rule: a gradient either covers ≥25% of the viewport or it is decoration carrying no text. Never
 behind body copy.**
+
+The chat wallpaper is the one place that rule needs a number rather than a verdict, because a chat
+*is* body copy over a full-bleed ground. #380 replaced the old ≤"4% luminance travel" guess with a
+measurement, and in doing so allowed a wider one: **4 to 13 points of CIE L***. The floor is there for
+the same reason as the ceiling — under about 4 points a "gradient" is a flat swatch at picker size,
+which defeats the purpose of offering it separately.
+
+What makes that safe is that only one text surface on a chat is translucent enough for the wallpaper
+to reach it — message bubbles are fully opaque, and the date-separator pill is the sole exception.
+Its opacity is now `MuhabbetAlphas.ChatOverlaySurface` (0.90, up from a hardcoded 0.80), measured
+across all three themes × all 24 solid swatches × both stops of all 8 gradients × pure-white and
+pure-black photos: **worst case 5.42:1** against the 4.5:1 AA floor. At the old 0.80 the same sweep
+bottomed out at 3.88:1, so the pill was already failing on ordinary picks before any gradient existed.
+
+Two things follow. Any *new* surface painted straight onto the wallpaper takes that token instead of
+a number of its own. And `WallpaperContrastTest` is the merge gate for both — widening a gradient
+stop or adding a swatch is a change you re-measure, not one you eyeball.
 
 ### Blur
 

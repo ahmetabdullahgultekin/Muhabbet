@@ -550,6 +550,7 @@
     <string name="wallpaper_title">Chat Wallpaper</string>
     <string name="wallpaper_default">Default</string>
     <string name="wallpaper_solid">Solid Color</string>
+    <string name="wallpaper_gradient">Gradient</string>
     <string name="wallpaper_custom">Gallery</string>
     <string name="wallpaper_remove">Remove wallpaper</string>
     <string name="wallpaper_dark_mode">Dark mode wallpaper</string>

@@ -8,6 +8,24 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Fixed
+- **The chat wallpaper picker offered twelve near-identical swatches** (#380). Six warm creams a few
+  percent apart and six near-black inks — one hue family, no gradients. There are now **24 solids
+  across seven low-chroma families** (warm, clay, wheat, sage, sea, harbour, mauve) and a new **Renk
+  Geçişi** tab with 8 gradients, wired end to end: stored, resolved and painted. Nothing was
+  removed, so no saved selection loses its swatch.
+- **"Arka planı kaldır" left its own tick behind** (#380). It nulled the stored colour and left the
+  grid marking it as chosen — a picker claiming a selection the chat was not painting.
+- **The date-separator pill failed WCAG AA over any non-default wallpaper** (#380). It draws on the
+  wallpaper at what was a hardcoded 80% opacity, so a fifth of the user's pick bled into the ground
+  its label is read against: 4.03:1 over a light wallpaper in the dark theme, 3.88:1 over a white
+  photo. Its opacity is now a measured design-system token, and `WallpaperContrastTest` holds every
+  wallpaper × theme combination against the 4.5:1 floor.
+- **`/api/v1/wallpapers` would have wiped the wallpaper it was called to set** (#380). The controller
+  declared private request/response classes whose field names disagreed with the shared DTOs of the
+  same name, with a `"DEFAULT"` default behind the mismatch. It uses the shared DTOs now. The
+  endpoint still has no client — wallpaper stays device-local, deliberately; see `WallpaperRepository`.
+
 ## [0.3.10] — 2026-08-18
 
 Thirteen merged changes, most of them the same shape: a feature whose code was written and whose last
