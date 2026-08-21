@@ -103,7 +103,6 @@ fun HomeShellScreen(
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit,
-    onCallUser: (userId: String, name: String?, callType: String) -> Unit,
     onNewCall: () -> Unit,
     onCommunityClick: (String) -> Unit = {},
     onCreateCommunity: () -> Unit = {},
@@ -421,7 +420,6 @@ fun HomeShellScreen(
                         )
                         HomeTab.CALLS -> CallHistoryScreen(
                             onBack = {},
-                            onCallUser = onCallUser,
                             onNewCall = onNewCall,
                             showBackButton = false,
                             showTopBar = false

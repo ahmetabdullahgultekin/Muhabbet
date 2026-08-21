@@ -324,6 +324,7 @@
 
     <!-- Round 3 -->
     <string name="call_coming_soon">Calling feature coming soon</string>
+    <string name="call_coming_soon_detail">Voice and video calling is not available yet. Your calls will be listed here once it is.</string>
     <string name="video_play">Play video</string>
     <string name="starred_you">You</string>
     <string name="starred_conversation_unavailable">This conversation is no longer available</string>
