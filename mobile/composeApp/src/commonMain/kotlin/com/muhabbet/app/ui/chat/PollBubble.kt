@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.chat
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +38,7 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.modifier.pressable
 
 private val pollJson = Json { ignoreUnknownKeys = true }
 
@@ -113,7 +113,7 @@ fun PollBubble(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
-                    .clickable {
+                    .pressable(shape = MaterialTheme.shapes.small) {
                         scope.launch {
                             // Clear the previous failure the moment the user retries: tapping an
                             // option again IS the retry, and leaving the red line up during it made

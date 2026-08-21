@@ -68,6 +68,8 @@ import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.chat.MediaViewer
+import com.muhabbet.designsystem.modifier.pressable
+import androidx.compose.foundation.shape.CircleShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -300,7 +302,7 @@ fun GroupInfoScreen(
                                 contentDescription = stringResource(Res.string.cd_group_avatar),
                                 // No photo means no navigation: a full-screen gradient isn't worth it (#615).
                                 modifier = if (groupAvatarUrl != null) {
-                                    Modifier.clickable { showPhotoViewer = true }
+                                    Modifier.pressable(shape = CircleShape) { showPhotoViewer = true }
                                 } else {
                                     Modifier
                                 }

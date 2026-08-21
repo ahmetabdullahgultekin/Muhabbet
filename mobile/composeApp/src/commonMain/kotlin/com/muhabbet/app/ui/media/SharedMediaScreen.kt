@@ -5,7 +5,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,13 +44,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import androidx.compose.ui.graphics.RectangleShape
 import com.muhabbet.designsystem.components.MuhabbetMenu
+import com.muhabbet.designsystem.modifier.longPressable
 import com.muhabbet.designsystem.components.MuhabbetMenuItem
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -273,8 +273,8 @@ fun SharedMediaScreen(
                                     Box(
                                         modifier = Modifier
                                             .aspectRatio(1f)
-                                            .clip(MaterialTheme.shapes.extraSmall)
-                                            .combinedClickable(
+                                            .longPressable(
+                                                shape = MaterialTheme.shapes.extraSmall,
                                                 onClick = {
                                                     if (message.contentType == ContentType.VIDEO) {
                                                         // Open video in external player
@@ -344,7 +344,11 @@ fun SharedMediaScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .combinedClickable(
+                                            // Full-bleed document row, square corners: a rectangular
+                                            // ripple is the right one here (#703). Named, not left
+                                            // to the default, so it reads as a decision.
+                                            .longPressable(
+                                                shape = RectangleShape,
                                                 onClick = {
                                                     if (isVoice) {
                                                         // Toggle voice playback

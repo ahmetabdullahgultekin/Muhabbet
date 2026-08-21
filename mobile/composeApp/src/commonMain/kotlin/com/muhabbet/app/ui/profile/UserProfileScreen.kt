@@ -61,6 +61,8 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.modifier.pressable
+import androidx.compose.foundation.shape.CircleShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -223,7 +225,7 @@ fun UserProfileScreen(
                             size = MuhabbetSizes.AvatarHero,
                             // No photo means no navigation: a full-screen gradient isn't worth it (#615).
                             modifier = if (p.avatarUrl != null) {
-                                Modifier.clickable { showPhotoViewer = true }
+                                Modifier.pressable(shape = CircleShape) { showPhotoViewer = true }
                             } else {
                                 Modifier
                             }

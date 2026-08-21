@@ -271,6 +271,14 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
   `rootFade()` and `predictiveBack()`, all built on `MuhabbetMotion` springs. Lives in `composeApp`,
   not the design-system module, because `StackAnimation` is a navigation type and the library must
   not know navigation — the physics is imported, the plumbing is local.
+- `mobile/designsystem/.../modifier/Pressable.kt` — **the only place allowed to call
+  `combinedClickable`** (`rawCombinedClickable` guardrail = 0). `Modifier.pressable` /
+  `Modifier.longPressable` take the shape as a **required** argument and lay down
+  `shadow → clip → background → clickable`, which is the only order in which a ripple follows the
+  element's shape. The shadow must be outside the clip or the clip removes it — that is why
+  `shadowElevation` is a parameter here and comes *off* `Surface(shadowElevation = ...)` at the call
+  site. `RectangleShape` is a correct answer for a full-bleed row; not answering is what made a
+  deliberate rectangle and a forgotten clip identical in source (#703).
 - `mobile/composeApp/.../ui/transition/AvatarHandoff.kt` — the app's one shared element (list row
   avatar ↔ chat title avatar). Uses `sharedElementWithCallerManagedVisibility`, because Decompose's
   `Children` never creates the `AnimatedVisibilityScope` that plain `sharedElement()` requires.

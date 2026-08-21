@@ -85,6 +85,7 @@ import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.modifier.pressable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -301,7 +302,7 @@ fun UpdatesTabScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
-                                .clickable { showStatusInput = true }
+                                .pressable(shape = myStatusShape) { showStatusInput = true }
                         ) {
                             Row(
                                 modifier = Modifier

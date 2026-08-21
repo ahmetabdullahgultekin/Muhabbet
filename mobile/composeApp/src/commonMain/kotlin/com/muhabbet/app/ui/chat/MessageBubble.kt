@@ -2,7 +2,6 @@ package com.muhabbet.app.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +43,7 @@ import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.designsystem.components.MuhabbetMenu
 import com.muhabbet.designsystem.components.MuhabbetMenuItem
+import com.muhabbet.designsystem.modifier.longPressable
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetElevation
@@ -122,14 +122,20 @@ fun MessageBubble(
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
     ) {
         Box {
+            val bubbleShape = RoundedCornerShape(MuhabbetCorners.Bubble)
             Surface(
-                shape = RoundedCornerShape(MuhabbetCorners.Bubble),
+                shape = bubbleShape,
                 color = bubbleColor,
                 tonalElevation = MuhabbetElevation.None,
-                shadowElevation = MuhabbetElevation.Level1,
+                // The shadow moves onto `longPressable` rather than staying a Surface argument
+                // (#703): the clip that keeps the long-press ripple inside the bubble's 18dp
+                // corners would otherwise sit above the Surface's shadow layer and clip the shadow
+                // away entirely. Same shadow, drawn one node higher.
                 modifier = Modifier
                     .widthIn(min = MuhabbetSizes.BubbleMinWidth, max = MuhabbetSizes.BubbleMaxWidth)
-                    .combinedClickable(
+                    .longPressable(
+                        shape = bubbleShape,
+                        shadowElevation = MuhabbetElevation.Level1,
                         onClick = {},
                         onLongClick = onLongPress,
                         onDoubleClick = onDoubleTap

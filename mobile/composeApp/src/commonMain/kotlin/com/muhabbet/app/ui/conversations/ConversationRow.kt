@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.RectangleShape
 import com.muhabbet.designsystem.components.UserAvatar
+import com.muhabbet.designsystem.modifier.longPressable
 import com.muhabbet.app.ui.transition.handoffAvatar
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -77,7 +78,12 @@ internal fun ConversationItem(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = MuhabbetSizes.ChatListItemMinHeight)
-            .combinedClickable(
+            // RectangleShape on purpose (#703): this row spans the full width with square corners,
+            // so a rectangular ripple IS its shape. The shape is still named rather than left to
+            // the default, because "no clip" and "deliberately square" look identical in source and
+            // that ambiguity is what put a rectangular flash over 18dp bubble corners.
+            .longPressable(
+                shape = RectangleShape,
                 onClick = onClick,
                 onLongClick = {
                     haptics.perform(MuhabbetHapticIntent.ItemLongPressed)

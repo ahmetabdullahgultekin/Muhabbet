@@ -5,7 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -28,6 +27,8 @@ import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 import com.muhabbet.shared.validation.ValidationRules
+import com.muhabbet.designsystem.modifier.pressable
+import androidx.compose.foundation.shape.CircleShape
 
 /**
  * The six the bar offers. Sourced from the shared module rather than declared here, because the
@@ -70,7 +71,7 @@ fun QuickReactionBar(
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .size(MuhabbetSizes.MinTouchTarget)
-                            .clickable { onReaction(emoji) }
+                            .pressable(shape = CircleShape) { onReaction(emoji) }
                             .padding(MuhabbetSpacing.XSmall)
                     )
                 }
@@ -97,7 +98,7 @@ fun ReactionBadges(
                 shape = MaterialTheme.shapes.medium,
                 color = if (isOwn) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.clickable { onReactionClick(emoji) }
+                modifier = Modifier.pressable(shape = MaterialTheme.shapes.medium) { onReactionClick(emoji) }
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline),
