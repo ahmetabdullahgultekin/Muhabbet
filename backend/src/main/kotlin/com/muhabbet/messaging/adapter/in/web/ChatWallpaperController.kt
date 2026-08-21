@@ -64,7 +64,13 @@ class ChatWallpaperController(
     ): ResponseEntity<ApiResponse<WallpaperResponse>> {
         val userId = AuthenticatedUser.currentUserId()
         val type = request.toWallpaperType()
-        val wallpaper = manageChatWallpaperUseCase.setConversationWallpaper(userId, conversationId, type, request.wallpaperValue, request.darkModeValue)
+        val wallpaper = manageChatWallpaperUseCase.setConversationWallpaper(
+            userId,
+            conversationId,
+            type,
+            request.wallpaperValue,
+            request.darkModeValue
+        )
         return ApiResponseBuilder.ok(wallpaper.toResponse())
     }
 

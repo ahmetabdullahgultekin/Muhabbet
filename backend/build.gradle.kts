@@ -154,10 +154,32 @@ tasks.jacocoTestCoverageVerification {
 
 // ─── Detekt Static Analysis ─────────────────────────────
 
+// detekt 1.23.8 embeds the Kotlin 2.0.21 compiler frontend. The project builds with Kotlin 2.4.10,
+// and the Kotlin Gradle plugin's stdlib lands on the resolved detekt CLI classpath, so detekt's own
+// version check saw 2.4.10 at runtime and aborted before parsing a single file (#279 — and because
+// the CI step was `continue-on-error: true`, a tool that never started was indistinguishable from a
+// clean run, for months). Pinning the org.jetbrains.kotlin coordinates *inside the detekt classpath
+// only* hands detekt back the compiler it was built against. This is the resolution documented at
+// https://detekt.dev/docs/gettingstarted/gradle#dependencies; it does not touch the compiler that
+// builds the project. Bump it in lockstep with the detekt version, never with the Kotlin version.
+val detektKotlinVersion = "2.0.21"
+
+configurations.matching { it.name == "detekt" }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin") {
+            useVersion(detektKotlinVersion)
+        }
+    }
+}
+
 detekt {
     config.setFrom(files("$projectDir/detekt.yml"))
     buildUponDefaultConfig = true
     parallel = true
+    // Everything detekt finds on the day it started working is frozen here, so the gate can be made
+    // blocking without a multi-thousand-line cleanup first. Anything NOT in this file fails the
+    // build. Shrink it; never regenerate it to make a new finding go away.
+    baseline = file("$projectDir/detekt-baseline.xml")
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {

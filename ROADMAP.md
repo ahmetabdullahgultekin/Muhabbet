@@ -114,8 +114,9 @@ mistake.
    does a *mechanism* exist? Adding persistence alone to App Lock makes the toggle remember its
    position while the app still never locks — strictly worse than leaving it visibly broken, because
    it then looks repaired.
-2. **The gate ran.** A check that did not execute is not a check that passed. detekt has been dead
-   for months while reporting nothing; Mobile CI never built the app at all; a `MessageListenerAdapter`
+2. **The gate ran.** A check that did not execute is not a check that passed. detekt was dead for
+   months while reporting nothing (#279 — fixed; it now prints the file count precisely so this
+   cannot recur silently); Mobile CI never built the app at all; a `MessageListenerAdapter`
    published happily and delivered nothing. Confirm the thing ran, not that it failed to complain.
 3. **Verified where the property lives.** Logic → tests. Layout, motion, gesture, colour → a screen.
    The build host has no emulator; the Windows dev host does (AVD `openscale_tr`). If it was not
