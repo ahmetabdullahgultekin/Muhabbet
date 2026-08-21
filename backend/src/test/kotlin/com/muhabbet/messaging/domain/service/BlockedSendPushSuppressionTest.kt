@@ -105,7 +105,8 @@ class BlockedSendPushSuppressionTest {
             userDirectory = userDirectory,
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            mediaAttachmentPolicy = mockk(relaxed = true)
         )
 
         val members = listOf(

@@ -55,7 +55,8 @@ class ScheduledDeliveryIsolationTest {
         userDirectory = mockk(relaxed = true),
         readReceiptPolicy = mockk(relaxed = true),
         blockPolicy = blockPolicy,
-        transactions = transactions
+        transactions = transactions,
+        mediaAttachmentPolicy = mockk(relaxed = true)
     )
 
     private fun scheduled(conversationId: UUID) = Message(

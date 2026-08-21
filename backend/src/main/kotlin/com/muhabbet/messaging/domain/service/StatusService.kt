@@ -5,8 +5,11 @@ import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -15,17 +18,35 @@ open class StatusService(
     private val statusRepository: StatusRepository,
     private val conversationRepository: ConversationRepository,
     private val userDirectory: UserDirectoryPort,
-    private val blockPolicy: BlockPolicyPort
+    private val blockPolicy: BlockPolicyPort,
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort
 ) : ManageStatusUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * The same rule the message path applies (#679), and via the same port, so the two cannot
+     * drift: a status is shown to every contact the moment they open the tab, so an unchecked
+     * `mediaUrl` here beacons to a *wider* audience than one on a message, not a narrower one.
+     *
+     * There is no forwarding exception — a status is always published on the poster's own account,
+     * so [MediaAttachment.isPublishableBy] is the whole rule.
+     */
+    private fun publishableMedia(userId: UUID, mediaUrl: String?): String? {
+        val url = mediaUrl?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (!mediaAttachmentPolicy.classify(url).isPublishableBy(userId)) {
+            log.warn("Status refused, poster may not publish this media: user={}", userId)
+            throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+        }
+        return url
+    }
 
     @Transactional
     override fun createStatus(userId: UUID, content: String?, mediaUrl: String?): Status {
         val status = Status(
             userId = userId,
             content = content,
-            mediaUrl = mediaUrl
+            mediaUrl = publishableMedia(userId, mediaUrl)
         )
         val saved = statusRepository.save(status)
         log.info("Status created: id={}, user={}", saved.id, userId)
@@ -44,7 +65,7 @@ open class StatusService(
         val status = Status(
             userId = userId,
             content = content,
-            mediaUrl = mediaUrl,
+            mediaUrl = publishableMedia(userId, mediaUrl),
             visibility = visibility,
             excludedUserIds = excludedUserIds,
             includedUserIds = includedUserIds

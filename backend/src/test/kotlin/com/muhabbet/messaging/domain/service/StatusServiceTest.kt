@@ -47,7 +47,14 @@ class StatusServiceTest {
         // in this file keeps meaning what it meant. Both directions, for the same reason.
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
         every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
-        service = StatusService(statusRepository, conversationRepository, userDirectory, blockPolicy)
+        // Nothing here posts media, so the attachment policy is never consulted.
+        service = StatusService(
+            statusRepository,
+            conversationRepository,
+            userDirectory,
+            blockPolicy,
+            mockk(relaxed = true)
+        )
     }
 
     private fun status(

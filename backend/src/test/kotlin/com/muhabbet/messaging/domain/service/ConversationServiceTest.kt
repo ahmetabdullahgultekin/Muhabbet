@@ -61,7 +61,10 @@ class ConversationServiceTest {
             userDirectory = mockk(relaxed = true),
             readReceiptPolicy = mockk(relaxed = true),
             blockPolicy = mockk(relaxed = true),
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            // Nothing here sends media, so the policy is never consulted; see MediaAttachmentTest
+            // for the rule itself.
+            mediaAttachmentPolicy = mockk(relaxed = true)
         )
     }
 

@@ -27,6 +27,12 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     MSG_EMPTY_CONTENT(HttpStatus.BAD_REQUEST, "Mesaj boş olamaz"),
     MSG_DUPLICATE(HttpStatus.CONFLICT, "Bu mesaj zaten işlendi"),
 
+    // The sender named a mediaUrl/thumbnailUrl they have no claim to: an address of their own
+    // choosing, or a blob on our store that someone else uploaded and they are not forwarding.
+    // FORBIDDEN rather than BAD_REQUEST — the URL is well formed, the sender is simply not
+    // entitled to publish it.
+    MSG_MEDIA_NOT_ACCESSIBLE(HttpStatus.FORBIDDEN, "Bu medyayı bu mesaja ekleyemezsiniz"),
+
     // Conversation
     CONV_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bu kullanıcıyla zaten bir konuşma mevcut"),
     CONV_INVALID_PARTICIPANTS(HttpStatus.BAD_REQUEST, "Geçersiz katılımcı"),

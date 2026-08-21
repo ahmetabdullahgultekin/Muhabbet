@@ -74,7 +74,8 @@ class SendMessageTransactionBoundaryTest {
         userDirectory = userDirectory,
         readReceiptPolicy = readReceiptPolicy,
         blockPolicy = blockPolicy,
-        transactions = transactions
+        transactions = transactions,
+        mediaAttachmentPolicy = mockk(relaxed = true)
     )
 
     private fun command() = SendMessageCommand(

@@ -3,6 +3,7 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.*
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
@@ -24,6 +25,9 @@ class DeliveryStatusTest {
     private val readReceiptPolicy = mockk<ReadReceiptPolicyPort>()
     private val blockPolicy = mockk<BlockPolicyPort>(relaxed = true)
 
+    // Nothing here sends media, so the policy is never consulted; see MediaAttachmentTest.
+    private val mediaAttachmentPolicy = mockk<MediaAttachmentPolicyPort>(relaxed = true)
+
     private lateinit var service: MessageService
 
     @BeforeEach
@@ -37,7 +41,8 @@ class DeliveryStatusTest {
             userDirectory,
             readReceiptPolicy,
             blockPolicy,
-            InlineTransactionRunner()
+            InlineTransactionRunner(),
+            mediaAttachmentPolicy
         )
     }
 
