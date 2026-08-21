@@ -43,16 +43,31 @@ module/
 - `auth` — **DONE** — OTP via Twilio Verify in prod (`SMS_PROVIDER=twilio-verify`; MockOtpSender/Netgsm adapters also exist), JWT HS256, device management, phone hash for contact sync
 - `messaging` — **DONE** — Send/receive messages, delivery status, conversation management, WebSocket real-time, cursor pagination, backup, bots, channel analytics
 - `media` — **DONE** — Upload/download via MinIO (S3 API), thumbnail generation, pre-signed URLs via nginx proxy
-- `presence` — **DONE** — Online/offline tracking via Redis (TTL-based keys), typing indicators, last seen persistence
-- `notification` — **DONE** — Push notifications via FCM (FcmPushNotificationAdapter), push token registration
+- ~~`presence`~~ / ~~`notification`~~ — **these are not modules and never were** (corrected
+  2026-08-21; `ls backend/src/main/kotlin/com/muhabbet/` returns exactly `auth media messaging
+  moderation shared`). Both are **adapters of `messaging`**, which is correct — each exists only to
+  serve a message. Presence: `messaging/adapter/out/external/RedisPresenceAdapter.kt` behind
+  `messaging/domain/port/out/PresencePort.kt` (Redis TTL keys, typing, last seen). Push:
+  `FcmPushNotificationAdapter` / `NoOpPushNotificationAdapter` / `OfflinePushSender` in the same
+  folder. Do not create the packages to match this list.
 - `moderation` — **DONE** — Report/block system (BTK Law 5651), admin review workflows
 - `user` — Profile endpoints in auth module for now (`GET/PATCH /users/me`)
 
 ### Cross-Cutting (`shared/` package in backend)
-- `config/` — SecurityConfig, WebSocketConfig, RedisConfig, AsyncConfig
-- `exception/` — GlobalExceptionHandler, BusinessException, ErrorCode enum
-- `security/` — JwtProvider, JwtAuthFilter
-- `event/` — DomainEvent marker interface
+Five packages, 23 files — verified 2026-08-21.
+- `config/` — `AppConfig` (33 `@Bean` methods; this is where domain services are wired so they stay
+  Spring-free), `WebSocketConfig`, `RedisConfig`, `AsyncConfig`, `FirebaseConfig`, `JsonConfig`,
+  and the `@ConfigurationProperties` holders. **`SecurityConfig` is NOT here** — it is in
+  `security/`, which is where you should look for it.
+- `security/` — `SecurityConfig`, `JwtProvider`, `JwtAuthFilter`, `JwtProperties`,
+  `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`
+- `exception/` — `GlobalExceptionHandler`, `BusinessException`, `ErrorCode` enum (92 entries)
+- `web/` — `ApiResponseBuilder`, the only place the response envelope is built
+- `analytics/` — `AnalyticsEvent`
+- ~~`event/` — DomainEvent marker interface~~ — **does not exist** (corrected 2026-08-21;
+  `grep -rl DomainEvent backend/src/main/kotlin` returns nothing). The one domain-event file in the
+  backend is `messaging/domain/event/MessagingEvents.kt`. Cross-module communication by Spring
+  `ApplicationEvent` is still the rule; there is just no marker interface to implement.
 
 ## Software Engineering Principles — ALWAYS Follow These
 
@@ -175,19 +190,26 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - Local DB: SQLDelight
 - HTTP client: Ktor
 - WebSocket: Ktor WebSocket client
-- State management: Simple ViewModels with StateFlow (MVI-style for chat screen)
+- State management: **there are no ViewModels** (corrected 2026-08-21 — `grep -rl ViewModel
+  mobile/composeApp/src` returns nothing). Screens hold state in `remember { mutableStateOf(...) }`
+  and pull dependencies with `koinInject()`. State that spans screens lives in Koin **singletons**
+  exposing a `StateFlow` — `ThemeController`, `PrivacySettingsController`, `AppLockController`, and
+  `WsClient`'s connection state and inbound flow. **A value two screens display must come from one
+  of those singletons**; two screens each holding a `remember` copy is how the app once showed two
+  read-receipt switches that disagreed. Do not add a ViewModel layer to "fix" this — it is the
+  deliberate KISS choice, not an oversight.
 - Architecture: Clean Architecture (data/domain/presentation per feature)
 
 ## Tech Stack Quick Reference
 | Component | Technology |
 |-----------|-----------|
 | Language | Kotlin 2.4.10 (everywhere) |
-| Backend framework | Spring Boot 4.0.6 |
+| Backend framework | Spring Boot 4.1.0 |
 | Mobile framework | CMP (Compose Multiplatform) |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
 | Media storage | MinIO (S3-compatible) |
-| Build system | Gradle 9.4.1 (Kotlin DSL) |
+| Build system | Gradle 9.7.0 (Kotlin DSL) |
 | SMS gateway | Netgsm |
 | Push | FCM (Firebase Cloud Messaging) |
 | Monitoring | SLF4J + Logback (JSON) + Spring Actuator + Sentry |
@@ -197,6 +219,13 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | CI/CD | GitHub Actions on self-hosted runner `muhabbet-cx43` (ONE runner, one job at a time) |
 
 ## Key Files
+- `docs/ARCHITECTURE.md` — **the system described for a human**, and the right place to send anyone
+  who needs the shape rather than the rules: module boundaries and what each owns, how the `shared/`
+  KMP module feeds both sides from one definition, the mobile layers, the end-to-end path of a sent
+  message, and a section on what has deliberately **not** been built (E2E off twice over, calls never
+  initiated, single instance on purpose). Written 2026-08-21 and verified against the source, so
+  where it and this file disagree about a *fact*, check the code — where they disagree about a
+  *rule*, this file wins. **Keep it in sync when a module boundary or the message path changes.**
 - `settings.gradle.kts` — Root, includes all subprojects
 - `backend/build.gradle.kts` — Spring Boot dependencies
 - `shared/build.gradle.kts` — KMP configuration
@@ -211,9 +240,12 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `docs/design/muhabbet-design-system.md` — **The design system's reference document.** Module
   architecture, the Copper palette and its rationale, Manrope, depth/gradient/blur/motion/haptic
   rules, component catalogue, guardrail baselines, and what is still unverified.
-  **`docs/whatsapp-ui-clone-spec.md` is SUPERSEDED by it — do not restore consistency with that
-  document.** It specified pixel parity with WhatsApp and the palette constants were literally named
-  `WhatsAppAccent`; the roadmap lists de-cloning as a P1 brand/legal risk.
+  **The old `docs/whatsapp-ui-clone-spec.md` was superseded by it and has been deleted (2026-08-21)
+  — do not restore consistency with it, and do not resurrect it from git history to "check" a
+  value.** It specified pixel parity with WhatsApp Android and the palette constants were literally
+  named `WhatsAppAccent = 0xFF00A884`; `docs/PRODUCT_ROADMAP_2026-06-06.md` lists de-cloning the
+  theme as a P1 brand and legal risk before any screenshot goes public. Every colour, the type
+  scale and the top-bar treatment it described have been deliberately replaced.
 - `mobile/designsystem/` — **Separate KMP Gradle module holding the entire visual language.** Cannot
   see `composeApp` (compiler-enforced), carries no user-visible strings, raw colours are `internal`
   so no screen can name a hex. Single entry point: `com.muhabbet.designsystem.Muhabbet`.
@@ -282,7 +314,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > | App Lock (settings) | No persistence, no reader, and **no lock mechanism exists at all** — no biometric dependency, no PIN, no lifecycle gate. #378 |
 > | Wallpaper / HD media quality | Wrote to a sink; nothing outside their own picker read them. **HD media quality (#383) fixed** — `TokenStorage` members are now abstract and overridden on all three implementations, and `MediaUploadHelper` resolves a `MediaQuality` profile per upload instead of hardcoding 1280/80. **Wallpaper (#380) still open**; a complete backend wallpaper vertical still sits unused. |
 > | Voice transcription | **Crashes on Android 8–11** (API 31 call, `minSdk` 26, no guard) and opens the live mic on newer versions. #381 |
-> | E2E "flag-OFF, no effect" | `registerKeys()` is **not** gated on `E2EConfig.ENABLED`, so every launch writes `noop-identity-key-<random>` to the production backend. #379 |
+> | E2E "flag-OFF, no effect" | Was: `registerKeys()` **not** gated on `E2EConfig.ENABLED`, so every launch wrote `noop-identity-key-<random>` to the production backend. **#379 fixed** — `App.kt:181` now reads `if (E2EConfig.ENABLED && loggedIn)`, verified 2026-08-21. Rows already written are still there. |
 >
 > Two more that are not feature claims but invalidate reasoning about all of them:
 > - **`ApiClient` never checks the HTTP status** (#374). A 403/500 decodes cleanly to `data = null`,
@@ -371,7 +403,15 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ### libsignal upgrade (BLOCKED — owner decision needed; gating dependency for all Tier-2 crypto)
 
-The Android E2E primitive is pinned at `org.signal:libsignal-android:0.86.5`
+**Correction, 2026-08-21: libsignal is no longer a dependency at all — it is not merely pinned.**
+`mobile/composeApp/build.gradle.kts:126` has the line commented out
+(`// implementation("org.signal:libsignal-android:0.100.0")`), with a comment above it saying
+libsignal is not a dependency while E2E is off and that every Signal source file is `.disabled`.
+So the app links no libsignal, the four `*.kt.disabled` files compile against nothing, and the
+version number to argue about is now `0.100.0` rather than `0.86.5`. Everything below still
+describes the API breakage correctly and is why the dependency came out rather than being bumped.
+
+The Android E2E primitive was pinned at `org.signal:libsignal-android:0.86.5`
 (`mobile/composeApp/build.gradle.kts`). Two facts surfaced during the 2026-06-05 currency-upgrade attempt:
 
 1. **Distribution moved.** Signal stopped publishing libsignal to Maven Central; it is **frozen at
@@ -428,7 +468,8 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
 ## Build & test (what actually runs on the CI host)
 
 - **Toolchain:** JDK 21 (`java -version` → 21), Gradle wrapper **9.7.0**, Kotlin 2.4.10, Spring Boot
-  4.0.6. Run `./gradlew` from repo root.
+  **4.1.0**. Run `./gradlew` from repo root. All four are declared in the root `build.gradle.kts`
+  plugins block and `gradle/wrapper/gradle-wrapper.properties` — read them there rather than here.
 - **Backend tests:** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers + ArchUnit.
   **Without Docker the baseline was 672 / 10 at `dev` on 2026-08-17** — and it was 539 the day
   before, and 416 for months before that. It moves every day. **Measure it, do not read it here.**

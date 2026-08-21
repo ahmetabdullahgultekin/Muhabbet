@@ -1,8 +1,11 @@
 # Muhabbet Design System
 
-> Supersedes [`docs/whatsapp-ui-clone-spec.md`](../whatsapp-ui-clone-spec.md), which specified pixel
-> parity with WhatsApp Android. That document is retained only so its hex values stay recognisable
-> if any turn up somewhere that was missed.
+> Supersedes the former `docs/whatsapp-ui-clone-spec.md`, which specified pixel parity with WhatsApp
+> Android — down to palette constants literally named `WhatsAppAccent`. That document was **deleted
+> on 2026-08-21**; de-cloning the theme is recorded as a P1 brand and legal risk in
+> [`docs/PRODUCT_ROADMAP_2026-06-06.md`](../PRODUCT_ROADMAP_2026-06-06.md), and every colour, the
+> type scale and the top-bar treatment it described have been deliberately replaced. If one of its
+> hex values turns up in the source, that is a defect to fix, not a reference to restore.
 
 The visual language lives in its own Gradle module, `:mobile:designsystem`. This document is why it
 exists, what is in it, and which rules it enforces.
