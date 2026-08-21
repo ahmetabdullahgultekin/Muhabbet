@@ -74,9 +74,14 @@ fun shouldShowTestBuildNotice(acknowledgedVersion: String?, currentVersion: Stri
  * and every dismissal route still works. The scrim tap and the system back gesture dismiss it as
  * surely as the button does, and all three write the flag, so it cannot come back tomorrow merely
  * because it was dismissed the other way.
+ *
+ * @param onDismissed fires once, whichever way the dialog was closed. It exists so the release-notes
+ *   sheet (#672) can wait its turn: both are once-per-version and an update brings both due on the
+ *   same launch, so without this they would stack, and the caveat underneath a celebratory sheet is
+ *   the one nobody reads.
  */
 @Composable
-fun TestBuildNoticeDialog(modifier: Modifier = Modifier) {
+fun TestBuildNoticeDialog(modifier: Modifier = Modifier, onDismissed: () -> Unit = {}) {
     val tokenStorage: TokenStorage = koinInject()
 
     // Read once into state. Re-reading storage on every recomposition would mean the frame between
@@ -98,6 +103,7 @@ fun TestBuildNoticeDialog(modifier: Modifier = Modifier) {
         onDismiss = {
             tokenStorage.setTestBuildNoticeAckVersion(BuildInfo.VERSION)
             visible = false
+            onDismissed()
         },
         modifier = modifier.testTag(TestBuildNoticeDialogTag),
         dismissLabel = stringResource(Res.string.test_build_notice_dismiss)

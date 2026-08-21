@@ -82,6 +82,22 @@ proves the third fix needs a real database, so it runs on CI and not on a machin
   opens a screen of its own. Unarchiving is the same long-press gesture that archived the chat, and
   the chat is back in the main list when you come back.
 
+### Added
+- **The app tells you what changed when it updates** (#672). Three releases went out between 0.3.8
+  and 0.3.10 carrying dozens of fixes, several of them to features that had never worked, and the
+  person using the app had no way to learn about any of it: `CHANGELOG.md` sits in the repository
+  and Play's "What's new" is somewhere you only look if you go there. There is now a **Neler
+  değişti** sheet, shown once after an update and never again for that version, plus a **Sürüm
+  notları** screen under Settings → Hakkında for anyone who dismissed it or wants to look back.
+  It is deliberately silent on a fresh install — telling a brand-new user what is new since a
+  version they have never run is meaningless.
+
+  The notes are **written by hand in `strings.xml`, in both locales, and are not derived from this
+  file.** Parsing the changelog at build time was considered and rejected: this file is the
+  engineering record, with issue numbers, file names and the reasoning for things that were *not*
+  done. Two readers, two texts. The rule that comes with it: every version that ships writes its own
+  three-to-six lines, and a test fails the build if the shipping version has none.
+
 ## [0.3.10] — 2026-08-18
 
 Thirteen merged changes, most of them the same shape: a feature whose code was written and whose last

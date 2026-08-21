@@ -115,4 +115,24 @@ interface TokenStorage {
      */
     fun getNotificationPermissionAsked(): Boolean
     fun setNotificationPermissionAsked()
+
+    /**
+     * The app version whose release notes this user has already been shown, or null on a device
+     * that has never recorded one (#672).
+     *
+     * Seeded once by `RootComponent` — see `versionToRecordOnFirstLaunch` for why a fresh install
+     * and an upgrade from a build without this feature both arrive here as null and must not be
+     * treated the same — and rewritten each time the "What's new" sheet is dismissed.
+     *
+     * Abstract, for the fifth time in this file and for the same reason (#380, media quality,
+     * contact consent, the test-build notice, the notification prompt): a defaulted no-op would read
+     * back null on every launch. Because null means "fresh install, say nothing", the visible result
+     * would not be a sheet that repeats — it would be a sheet that never appears at all, on any
+     * device, forever. That is the exact failure #672 exists to fix, and it would compile.
+     *
+     * Deliberately not cleared by [clear]: which releases a person has seen is a fact about the
+     * install, not about the session, and logging out is not a reason to show them again.
+     */
+    fun getLastSeenVersion(): String?
+    fun setLastSeenVersion(version: String)
 }
