@@ -473,6 +473,10 @@
     <string name="conv_mute">Sessize Al</string>
     <string name="conv_unmute">Sesi Aç</string>
     <string name="conv_archived_section">Arşivlenmiş Sohbetler</string>
+    <!-- Count shown under the archived-chats row at the top of the conversation list, e.g. "3 sohbet". -->
+    <string name="archived_row_count">%1$d sohbet</string>
+    <!-- Shown on the Archived Chats screen when nothing is archived. -->
+    <string name="archived_empty">Arşivlenmiş sohbet yok</string>
 
     <!-- Group enhancements -->
     <string name="group_remove_confirm">%1$s adlı kişiyi gruptan çıkarmak istediğinize emin misiniz?</string>

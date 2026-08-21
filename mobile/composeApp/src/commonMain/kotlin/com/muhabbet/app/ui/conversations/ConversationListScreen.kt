@@ -67,6 +67,7 @@ fun ConversationListScreen(
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit = { _, _ -> },
+    onOpenArchived: () -> Unit = {},
     refreshKey: Int = 0,
     showTopBar: Boolean = true,
     showStatusRow: Boolean = true,
@@ -474,6 +475,7 @@ fun ConversationListScreen(
                     },
                     onAddStatus = { showStatusInput = true },
                     onStatusClick = onStatusClick,
+                    onOpenArchived = onOpenArchived,
                     onConversationClick = onConversationClick,
                     onConversationLongClick = { conv ->
                         longPressTargetConv = conv
