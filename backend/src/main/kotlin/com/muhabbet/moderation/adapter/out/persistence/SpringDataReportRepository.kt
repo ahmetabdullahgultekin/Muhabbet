@@ -19,4 +19,11 @@ interface SpringDataBlockRepository : JpaRepository<BlockJpaEntity, UUID> {
      * once, so it must be one query rather than one per participant.
      */
     fun findByBlockedIdAndBlockerIdIn(blockedId: UUID, blockerIds: Collection<UUID>): List<BlockJpaEntity>
+
+    /**
+     * [findByBlockerId] narrowed to a candidate list: which of these people have I blocked. The
+     * `UNIQUE(blocker_id, blocked_id)` on `user_blocks` is the index this rides, so no migration
+     * comes with it.
+     */
+    fun findByBlockerIdAndBlockedIdIn(blockerId: UUID, blockedIds: Collection<UUID>): List<BlockJpaEntity>
 }

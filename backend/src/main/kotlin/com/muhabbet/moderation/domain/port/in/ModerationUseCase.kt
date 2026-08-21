@@ -38,6 +38,16 @@ interface BlockUserUseCase {
      * participant on the page in one query, never one call per participant.
      */
     fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
+
+    /**
+     * Which of [candidateIds] [userId] has blocked — [getBlockedUsers] asked about a specific set
+     * instead of the whole list, and the question a feed has to ask before it shows anyone.
+     *
+     * Not served by filtering [getBlockedUsers] in the caller: that reads every block the user has
+     * ever placed in order to keep the handful that are on screen, and it hands a domain model to
+     * a caller that only wants ids. Batched by contract, like its mirror above.
+     */
+    fun findBlockedAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
 }
 
 interface ReviewReportsUseCase {

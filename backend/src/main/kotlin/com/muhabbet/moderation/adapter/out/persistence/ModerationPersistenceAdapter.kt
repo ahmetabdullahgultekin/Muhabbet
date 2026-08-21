@@ -87,6 +87,13 @@ class BlockPersistenceAdapter(
             .findByBlockedIdAndBlockerIdIn(userId, candidateIds.distinct())
             .mapTo(mutableSetOf()) { it.blockerId }
     }
+
+    override fun findBlockedAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
+        if (candidateIds.isEmpty()) return emptySet()
+        return springDataBlockRepository
+            .findByBlockerIdAndBlockedIdIn(userId, candidateIds.distinct())
+            .mapTo(mutableSetOf()) { it.blockedId }
+    }
 }
 
 private fun ReportJpaEntity.toDomain() = UserReport(
