@@ -874,12 +874,12 @@
     <string name="whatsnew_0_3_11_line_5">Aynı anda çok kişi mesaj gönderdiğinde sunucuda oluşan tıkanıklık kaldırıldı. Kalabalık gruplarda mesajlar belirgin şekilde daha hızlı ulaşıyor.</string>
     <string name="whatsnew_0_3_11_line_6">Bir güncellemeden sonra neyin değiştiğini artık bu ekranda görüyorsunuz. Eski sürümlerin notlarına Ayarlar → Hakkında → Sürüm notları üzerinden istediğiniz zaman ulaşabilirsiniz.</string>
 
-    <string name="whatsnew_0_3_10_line_1">Engelleme ve şikayet artık gerçekten çalışıyor. Engellediğiniz kişileri Ayarlar\'daki listeden görebilir, dilediğinizde geri alabilirsiniz.</string>
+    <string name="whatsnew_0_3_10_line_1">Engelleme ve şikayet artık gerçekten çalışıyor. Engellediğiniz kişileri Ayarlar'daki listeden görebilir, dilediğinizde geri alabilirsiniz.</string>
     <string name="whatsnew_0_3_10_line_2">Sohbetleri arşivleme, sessize alma ve kilitleme kalıcı hale geldi. Sessize aldığınız bir sohbetten artık bildirim gelmiyor.</string>
     <string name="whatsnew_0_3_10_line_3">Uygulama Kilidi gerçek bir kilit oldu: parmak iziniz ya da cihaz şifrenizle açılıyor, sohbet listeniz son uygulamalar ekranında görünmüyor.</string>
     <string name="whatsnew_0_3_10_line_4">Sesli mesajı göndermeden önce iptal edebilir, kaydı kilitleyip elinizi çekebilir ya da dinleyebilirsiniz. Yazıya çevirme de artık düzgün çalışıyor.</string>
     <string name="whatsnew_0_3_10_line_5">Bildirimler birbirinin üzerine yazmıyor; aynı sohbetin mesajları tek bildirimde birikiyor. Tek tik ve çift tik durumu da düzeltildi.</string>
-    <string name="whatsnew_0_3_10_line_6">Fotoğraflar artık gerçekten tam ekran açılıyor ve Ayarlar\'a bir Hakkında ekranı eklendi.</string>
+    <string name="whatsnew_0_3_10_line_6">Fotoğraflar artık gerçekten tam ekran açılıyor ve Ayarlar'a bir Hakkında ekranı eklendi.</string>
 
     <string name="whatsnew_0_3_9_line_1">Bir sesli mesajı oynattığınızda sohbetteki bütün sesli mesajlar oynuyormuş gibi görünüyordu. Artık yalnızca dinlediğiniz mesaj hareket ediyor.</string>
     <string name="whatsnew_0_3_9_line_2">Bildirime dokunduğunuzda açık olan sohbetin üstüne, üstelik yanlış isimle, ikinci bir kopya açılıyordu. Artık doğrudan o sohbete dönüyorsunuz.</string>

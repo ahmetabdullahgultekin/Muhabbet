@@ -834,7 +834,7 @@
     <string name="channels_loading">Loading channels</string>
     <!-- What's new / release notes (#672). Rewritten from CHANGELOG.md, not translated from it:
          that file is written for an engineer, this is written for someone holding the phone. -->
-    <string name="whatsnew_title">What\'s new</string>
+    <string name="whatsnew_title">What's new</string>
     <string name="whatsnew_intro">Muhabbet has been updated. Here is what you will notice:</string>
     <string name="whatsnew_dismiss">Got it</string>
     <string name="release_notes_title">Release notes</string>
@@ -864,5 +864,5 @@
 
     <string name="whatsnew_0_3_8_line_1">Version 0.3.7 crashed on launch and would not start for anyone. This release undoes that.</string>
     <string name="whatsnew_0_3_8_line_2">The menu now tells you that you have 15 minutes to edit a message. Past that window the option is greyed out and says why.</string>
-    <string name="whatsnew_0_3_8_line_3">The read receipts setting described itself wrongly. Turning it off does not stop you seeing other people\'s receipts; it only stops you sharing yours.</string>
+    <string name="whatsnew_0_3_8_line_3">The read receipts setting described itself wrongly. Turning it off does not stop you seeing other people's receipts; it only stops you sharing yours.</string>
 </resources>
