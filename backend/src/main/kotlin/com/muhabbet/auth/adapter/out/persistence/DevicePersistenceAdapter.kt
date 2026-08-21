@@ -21,6 +21,11 @@ class DevicePersistenceAdapter(
     override fun findByUserId(userId: UUID): List<Device> =
         springDataDeviceRepository.findByUserId(userId).map { it.toDomain() }
 
+    override fun findByUserIdIn(userIds: Collection<UUID>): List<Device> =
+        // An empty IN () is not valid SQL and Spring Data would still issue the statement.
+        if (userIds.isEmpty()) emptyList()
+        else springDataDeviceRepository.findByUserIdIn(userIds).map { it.toDomain() }
+
     override fun findById(id: UUID): Device? =
         springDataDeviceRepository.findById(id).orElse(null)?.toDomain()
 

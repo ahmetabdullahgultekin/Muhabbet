@@ -105,7 +105,7 @@ class MutedConversationSuppressesPushTest {
 
                 f.broadcaster.broadcastMessage(message, listOf(muted))
 
-                verify(exactly = 0) { f.offlinePushSender.sendTo(recipient, any(), any(), any()) }
+                verify(exactly = 0) { f.offlinePushSender.sendToAll(match { recipient in it }, any(), any(), any()) }
             }
         }
 
@@ -126,7 +126,7 @@ class MutedConversationSuppressesPushTest {
 
                 f.broadcaster.broadcastMessage(message, listOf(expiredMute))
 
-                verify(exactly = 1) { f.offlinePushSender.sendTo(recipient, message, any(), any()) }
+                verify(exactly = 1) { f.offlinePushSender.sendToAll(match { recipient in it }, message, any(), any()) }
             }
         }
 
@@ -143,7 +143,7 @@ class MutedConversationSuppressesPushTest {
 
                 f.broadcaster.broadcastMessage(message, listOf(unmuted))
 
-                verify(exactly = 1) { f.offlinePushSender.sendTo(recipient, message, any(), any()) }
+                verify(exactly = 1) { f.offlinePushSender.sendToAll(match { recipient in it }, message, any(), any()) }
             }
         }
 
@@ -168,8 +168,8 @@ class MutedConversationSuppressesPushTest {
 
                 f.broadcaster.broadcastMessage(message, members)
 
-                verify(exactly = 0) { f.offlinePushSender.sendTo(mutedRecipient, any(), any(), any()) }
-                verify(exactly = 1) { f.offlinePushSender.sendTo(unmutedRecipient, message, any(), any()) }
+                verify(exactly = 0) { f.offlinePushSender.sendToAll(match { mutedRecipient in it }, any(), any(), any()) }
+                verify(exactly = 1) { f.offlinePushSender.sendToAll(match { unmutedRecipient in it }, message, any(), any()) }
             }
         }
 
@@ -193,7 +193,7 @@ class MutedConversationSuppressesPushTest {
                 f.broadcaster.broadcastMessage(message, listOf(muted))
 
                 verify { f.sessionManager.sendToUser(recipient, any()) }
-                verify(exactly = 0) { f.offlinePushSender.sendTo(any(), any(), any(), any()) }
+                verify(exactly = 0) { f.offlinePushSender.sendToAll(any(), any(), any(), any()) }
             }
         }
 }

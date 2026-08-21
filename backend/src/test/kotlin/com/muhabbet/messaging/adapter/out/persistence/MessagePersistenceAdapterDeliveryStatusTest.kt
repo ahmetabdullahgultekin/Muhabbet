@@ -5,6 +5,7 @@ import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessa
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageRepository
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import io.mockk.every
+import jakarta.persistence.EntityManager
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -24,7 +25,8 @@ class MessagePersistenceAdapterDeliveryStatusTest {
 
     private val messageRepo: SpringDataMessageRepository = mockk()
     private val deliveryStatusRepo: SpringDataMessageDeliveryStatusRepository = mockk()
-    private val adapter = MessagePersistenceAdapter(messageRepo, deliveryStatusRepo)
+    private val entityManager: EntityManager = mockk(relaxed = true)
+    private val adapter = MessagePersistenceAdapter(messageRepo, deliveryStatusRepo, entityManager)
 
     private val messageId = UUID.randomUUID()
     private val userId = UUID.randomUUID()

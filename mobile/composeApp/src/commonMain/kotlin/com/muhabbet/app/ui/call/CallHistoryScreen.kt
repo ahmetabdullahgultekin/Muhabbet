@@ -2,7 +2,6 @@ package com.muhabbet.app.ui.call
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +45,8 @@ import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.error_load_failed
 import com.muhabbet.composeapp.generated.resources.action_back
-import com.muhabbet.composeapp.generated.resources.call_history_empty
+import com.muhabbet.composeapp.generated.resources.call_coming_soon
+import com.muhabbet.composeapp.generated.resources.call_coming_soon_detail
 import com.muhabbet.composeapp.generated.resources.calls_new_call
 import com.muhabbet.composeapp.generated.resources.call_incoming
 import com.muhabbet.composeapp.generated.resources.call_missed
@@ -53,11 +54,13 @@ import com.muhabbet.composeapp.generated.resources.call_outgoing
 import com.muhabbet.composeapp.generated.resources.call_video
 import com.muhabbet.composeapp.generated.resources.call_voice
 import com.muhabbet.composeapp.generated.resources.calls_title
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetFab
 
@@ -65,7 +68,6 @@ import com.muhabbet.designsystem.components.MuhabbetFab
 @Composable
 fun CallHistoryScreen(
     onBack: () -> Unit,
-    onCallUser: (userId: String, name: String?, callType: String) -> Unit,
     /**
      * Opens a contact picker so a call can be started from this tab. Without it the tab was a dead
      * end for anyone with an empty history — which is every new user — and calling was reachable
@@ -82,15 +84,25 @@ fun CallHistoryScreen(
     var calls by remember { mutableStateOf<List<CallHistoryResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
-    val emptyText = stringResource(Res.string.call_history_empty)
     val title = stringResource(Res.string.calls_title)
     val voiceLabel = stringResource(Res.string.call_voice)
     val videoLabel = stringResource(Res.string.call_video)
     val incomingLabel = stringResource(Res.string.call_incoming)
     val outgoingLabel = stringResource(Res.string.call_outgoing)
     val missedLabel = stringResource(Res.string.call_missed)
+    // Calling has never worked (#367–#373): the client never sends call.initiate, no mic track is
+    // ever published, and LiveKit is unconfigured in prod. Tapping a row or the call-back icon used
+    // to mint a fake call id and push ActiveCallScreen, which then sat on "Connecting…" forever
+    // because no call.room frame was ever coming. This is the same "coming soon" message
+    // ProfileScreen's call button already shows, so the two honest surfaces agree.
+    val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
+    val callComingSoonDetail = stringResource(Res.string.call_coming_soon_detail)
+    val onCallUser: (userId: String, name: String?, callType: String) -> Unit = { _, _, _ ->
+        scope.launch { snackbarHostState.showSnackbar(callComingSoonMsg) }
+    }
 
     LaunchedEffect(Unit) {
         val failure = runCatchingCancellable {
@@ -102,7 +114,8 @@ fun CallHistoryScreen(
         // over content that has already finished loading.
         isLoading = false
         if (failure != null) {
-            // Without this the screen shows the "no calls yet" empty state, which is a lie.
+            // Without this a failed load is indistinguishable from the empty state below, which
+            // explains why there are no calls for a reason that is not "the request failed".
             Log.e("CallHistoryScreen", "Failed to load call history", failure)
             snackbarHostState.showSnackbar(errorLoadMsg)
         }
@@ -135,9 +148,21 @@ fun CallHistoryScreen(
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
         } else if (calls.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(emptyText, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            // This is the state every user sees, always: `call_history` has 0 rows in production
+            // and cannot gain one, because nothing ever sends `call.initiate` (#367). A bare
+            // "Henüz arama yok" therefore said something true about the table and something false
+            // about the app — it reads as "you have not called anyone yet", which invites the user
+            // to go and try. The headline now says what is actually the case, and the disclosure
+            // lands before any tap rather than in a snackbar after two.
+            //
+            // `call_history_empty` is deliberately left declared in both locales: it is the right
+            // string the day a real call can be missing from a real list.
+            MuhabbetEmptyState(
+                modifier = Modifier.padding(padding),
+                icon = Muhabbet.icons.CallStart,
+                title = callComingSoonMsg,
+                subtitle = callComingSoonDetail
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
