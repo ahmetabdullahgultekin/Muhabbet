@@ -93,6 +93,12 @@ Internal testing needs none of this, which is why it is the right first track. P
 
 - End-to-end encryption is **off**. The store listing must not claim otherwise, and the privacy
   policy must describe what actually happens: transport encryption only, history on our servers.
-- The two IDORs and the SSRF in `docs/PRODUCT_ROADMAP_2026-06-06.md` are open. Shipping an
-  authorization hole to the public is different from shipping it to yourself.
+- ~~The two IDORs and the SSRF~~ — **closed** as of 2026-08-21, verified against source: the
+  message-search and media-URL IDORs both enforce membership/ownership now, and link previews go
+  through an `SsrfGuard` that re-validates every redirect hop. They no longer block anything.
+  Two authorization findings that *are* still open have taken their place: two-step verification
+  does not gate login at all, and `InputSanitizer` is dead code, so no server-side escaping runs on
+  any path. Both are recorded with evidence in
+  [`PROD_READINESS_AND_PLAN_2026-06-06.md`](PROD_READINESS_AND_PLAN_2026-06-06.md) and
+  [`CODE_QUALITY_2026-06-05.md`](CODE_QUALITY_2026-06-05.md).
 - SMS delivery is live via Twilio Verify, but on an account with no spend controls configured.

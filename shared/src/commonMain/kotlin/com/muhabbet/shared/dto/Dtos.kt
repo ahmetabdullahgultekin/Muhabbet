@@ -689,18 +689,39 @@ data class ViewOnceRevealResponse(
 )
 
 // ─── Wallpaper DTOs ─────────────────────────────────────
+/**
+ * These are the wire contract for `/api/v1/wallpapers`, and until #380 they were not.
+ *
+ * `ChatWallpaperController` declared its own pair with the same class names and different field
+ * names — `type` and `value` against these `wallpaperType` and `wallpaperValue` — and its `type`
+ * carried a `"DEFAULT"` default. A client serialising the classes here would therefore have sent
+ * fields the server did not read, and the server would have filled in DEFAULT and wiped the
+ * wallpaper the request was sent to set. Nothing caught it because nothing had ever called the
+ * endpoint. The controller now uses these, so the mismatch cannot come back silently.
+ *
+ * `wallpaperType` has no default for the same reason: a missing field must fail the request, not
+ * quietly mean "reset it".
+ */
 @Serializable
 data class SetWallpaperRequest(
-    val wallpaperType: String,  // DEFAULT, SOLID, CUSTOM
+    val wallpaperType: String,  // DEFAULT, SOLID, GRADIENT, CUSTOM
     val wallpaperValue: String? = null,
     val darkModeValue: String? = null
 )
 
+/**
+ * [id] is what `DELETE /api/v1/wallpapers/{id}` takes, and [conversationId] is how a caller tells the
+ * global default (null) from a per-conversation override. Both were on the controller's private copy
+ * and missing here, which would have left a client able to create wallpapers it could not then remove.
+ */
 @Serializable
 data class WallpaperResponse(
+    val id: String,
+    val conversationId: String? = null,
     val wallpaperType: String,
     val wallpaperValue: String? = null,
-    val darkModeValue: String? = null
+    val darkModeValue: String? = null,
+    val createdAt: String
 )
 
 // ─── Privacy Settings DTOs ──────────────────────────────

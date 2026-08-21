@@ -166,6 +166,19 @@ open class CommunityInviteService(
             throw BusinessException(ErrorCode.GROUP_ALREADY_MEMBER)
         }
 
+        // No block check here, deliberately, even though `CommunityService.addMember` now has one
+        // (`blockPolicy.hasBlocked(target, requester)` — you cannot be enrolled by someone you
+        // blocked). That guard has no subject in this method. There, an admin acts on somebody else
+        // and the block is what stops the imposition; here the actor and the subject are the same
+        // person, who opened a link and pressed a button. Refusing them would not be enforcing their
+        // block, it would be overriding their own current choice with an older one.
+        //
+        // The other direction — the link's creator having blocked whoever accepts — is not checked
+        // either, matching `addMember`, which does not consult it. A link is a bearer credential
+        // handed out to a crowd, not a directed invitation to one person, so there is no "this
+        // admin invited you" relationship for a block to negate. If that changes, revoke is the
+        // control that exists.
+
         // The membership row, written here and nowhere earlier. This line is what #387 is about:
         // the person joining performed an action, and only then did they become a member.
         communityRepository.saveMember(

@@ -160,6 +160,13 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         else plainPrefs.edit().putString("wallpaper_solid_color", color).apply()
     }
 
+    override fun getWallpaperGradientId(): String? = plainPrefs.getString("wallpaper_gradient_id", null)
+
+    override fun setWallpaperGradientId(id: String?) {
+        if (id == null) plainPrefs.edit().remove("wallpaper_gradient_id").apply()
+        else plainPrefs.edit().putString("wallpaper_gradient_id", id).apply()
+    }
+
     override fun getCustomWallpaperPath(): String? = plainPrefs.getString("wallpaper_custom_path", null)
 
     override fun setCustomWallpaperPath(path: String?) {

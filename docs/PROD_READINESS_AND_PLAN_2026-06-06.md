@@ -1,5 +1,37 @@
 # Muhabbet — Production Readiness & Next-Phase Plan
 
+> **Re-verified 2026-08-21. Read this box before believing anything below it.**
+>
+> This is a dated findings register, not a plan anyone is following. It is kept for one reason: it
+> holds the `file:line` evidence behind findings that other documents only *index*, and two of those
+> findings are still live and are recorded in no issue and no other document.
+>
+> **Mostly fixed since.** P0-1 (message-search IDOR), P0-2 (link-preview SSRF), P0-5/8/13 (media
+> presigned-URL IDOR), P0-3 (Redis subscriber never registered), P0-6, P0-7, P0-9 (phone number
+> leaked on foreign profile lookups), P0-4/11/19 (Twilio Verify and FCM), P0-17, P0-20/26 (signed
+> artifact and the Play internal track), P0-23/24 (the legal set) are all **closed**, verified
+> against current source. P0-10 (KVKK erasure) is partial — identity and phone hashes are purged,
+> MinIO blobs and `media_files` rows are not. P0-14 is moot in an unexpected way: libsignal is no
+> longer a dependency at all, not merely un-upgradable.
+>
+> **Two findings are still open and are the reason this file was not deleted:**
+>
+> - **P0-12 — secrets committed to git history.** The condition it was gated on ("before any public
+>   release") has since been crossed: the repository is now **public**, and the commit named below
+>   is still reachable. The secrets were rotated, so this is an exposure of dead credentials rather
+>   than live ones, but the remediation it asks for was never done. **Handle this privately** —
+>   do not open a public issue that points at it.
+> - **P0-25 — two-step verification does not gate login.** Verified still true: `AuthService`
+>   contains no reference to the two-step fields, both `verifyOtp` and `verifyFirebaseToken` fall
+>   through to `authenticatePhone`, and a full token is minted with no check. Worse, the endpoint
+>   that verifies the second factor is itself behind an authenticated-user check — it requires the
+>   token it exists to withhold.
+>
+> Its §9 scale design is **superseded** by `findings/2026-06-19-infra-tech-assessment.md`, which
+> reached the opposite and better-grounded conclusion: adopt no broker, one host, YAGNI. Its §2
+> method lesson — that green tests which bypass the security filter chain are not evidence of
+> authorization correctness — now lives in the tracker and in `ROADMAP.md`.
+
 > **Date:** 2026-06-06
 > **Verdict:** **NOT-READY** (planner: `not-ready`)
 > **Live:** Backend live at https://muhabbet-api.rollingcatsoftware.com (healthy). Mobile not store-launched. E2E + multi-device ship dark (flags OFF).

@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -33,6 +34,7 @@ class CommunityServiceTest {
     private val communityRepository = mockk<CommunityRepository>()
     private val conversationRepository = mockk<ConversationRepository>()
     private val userDirectoryPort = mockk<UserDirectoryPort>()
+    private val blockPolicy = mockk<BlockPolicyPort>()
     private lateinit var service: CommunityService
 
     private val userId = UUID.randomUUID()
@@ -40,7 +42,11 @@ class CommunityServiceTest {
 
     @BeforeEach
     fun setUp() {
-        service = CommunityService(communityRepository, conversationRepository, userDirectoryPort)
+        // Default across the suite: nobody has blocked anybody, so every pre-existing expectation
+        // in this file keeps meaning what it meant.
+        every { blockPolicy.hasBlocked(any(), any()) } returns false
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        service = CommunityService(communityRepository, conversationRepository, userDirectoryPort, blockPolicy)
     }
 
     @Nested
@@ -619,6 +625,73 @@ class CommunityServiceTest {
             assertEquals(ErrorCode.COMMUNITY_NOT_FOUND, ex.errorCode)
         }
 
+        /**
+         * #294, vector 5 - the community half. [GroupService.addMembers] grew this guard in #554
+         * and this path did not, even though it ends in the same place: an enrolled member lands in
+         * the community's announcement channel, which is a GROUP conversation the owner can post
+         * to. Reaching someone who blocked you through a room you added them to is the same reach
+         * the send path already refuses.
+         *
+         * The existing group-membership rule narrows the exposure but does not close it. An owner
+         * may enrol anyone already in one of the community's groups - and a shared group is exactly
+         * what two people who used to talk still have after one of them blocks the other.
+         *
+         * The refusal reuses COMMUNITY_MEMBER_NOT_IN_ANY_GROUP rather than getting a code of its
+         * own, for the reason spelled out in GroupService: a distinct code is a one-bit oracle.
+         * Make a community, add the target, read the code, and you know they blocked you. Sharing
+         * the code with "not addable for the ordinary reason" is what keeps the answer ambiguous.
+         */
+        @Test
+        fun `should refuse to enrol someone who has blocked the caller`() {
+            stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = true)
+            every { blockPolicy.hasBlocked(targetUserId, userId) } returns true
+
+            val ex = assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP, ex.errorCode)
+            verify(exactly = 0) { communityRepository.saveMember(any()) }
+        }
+
+        @Test
+        fun `should not put a blocker into the announcement channel`() {
+            // The channel enrol is the part that actually reaches them, so it is asserted
+            // separately from the membership row - a guard that stopped one and not the other
+            // would leave the harasser a room to post in.
+            stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = true)
+            every { blockPolicy.hasBlocked(targetUserId, userId) } returns true
+
+            assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            verify(exactly = 0) { conversationRepository.saveMember(match { it.userId == targetUserId }) }
+        }
+
+        @Test
+        fun `should still enrol someone the caller has blocked`() {
+            // Directional, as everywhere else: the question is whether the *target* blocked the
+            // caller. An owner adding a person they themselves blocked is their own business, and
+            // refusing it would read as a bug rather than a policy.
+            stubAddMember(groups = listOf(groupConversationId), targetIsInAGroup = true)
+            every { blockPolicy.hasBlocked(targetUserId, userId) } returns false
+            every { blockPolicy.hasBlocked(userId, targetUserId) } returns true
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+
+            val member = service.addMember(communityId, targetUserId, userId)
+
+            assertEquals(targetUserId, member.userId)
+        }
+
+        @Test
+        fun `should not ask about blocks before the cheaper membership checks have passed`() {
+            // Ordering matters for the oracle: a caller who is not an admin must be refused for
+            // that reason without the block table ever being consulted.
+            every { communityRepository.findById(communityId) } returns community(id = communityId)
+            stubCommunityRole(MemberRole.MEMBER)
+
+            assertThrows<BusinessException> { service.addMember(communityId, targetUserId, userId) }
+
+            verify(exactly = 0) { blockPolicy.hasBlocked(any(), any()) }
+        }
+
         private fun stubAddMember(groups: List<UUID>, targetIsInAGroup: Boolean) {
             every { communityRepository.findById(communityId) } returns community(id = communityId)
             stubCommunityRole(MemberRole.OWNER)
@@ -917,6 +990,57 @@ class CommunityServiceTest {
             val ex = assertThrows<BusinessException> { service.listAddableUsers(communityId, userId) }
 
             assertEquals(ErrorCode.COMMUNITY_NOT_FOUND, ex.errorCode)
+        }
+
+        /**
+         * The picker must not offer a person the caller cannot add. Without this the blocker sits
+         * in the list with their name and face, the owner taps them, and the add is refused with a
+         * code that says something else entirely - which is both a dead control and, repeated,
+         * a way to learn who blocked you by elimination.
+         *
+         * Same predicate as [CommunityService.addMember], asked in the batched direction: one
+         * query for the whole candidate set, not one per row.
+         */
+        @Test
+        fun `should not offer a candidate who has blocked the caller`() {
+            stubCandidates(
+                groupMembers = listOf(candidateId, userId),
+                communityMembers = listOf(userId)
+            )
+            every { blockPolicy.findBlockedBy(userId, setOf(candidateId)) } returns setOf(candidateId)
+
+            assertTrue(service.listAddableUsers(communityId, userId).isEmpty())
+        }
+
+        @Test
+        fun `should still offer the candidates who have not blocked the caller`() {
+            val other = UUID.randomUUID()
+            stubCandidates(
+                groupMembers = listOf(candidateId, other, userId),
+                communityMembers = listOf(userId)
+            )
+            every { blockPolicy.findBlockedBy(userId, any()) } returns setOf(candidateId)
+            every { userDirectoryPort.findDisplayInfo(setOf(other)) } returns
+                mapOf(other to UserDisplayInfo(other, "Ayse", null))
+
+            val candidates = service.listAddableUsers(communityId, userId)
+
+            assertEquals(listOf(other), candidates.map { it.userId })
+        }
+
+        @Test
+        fun `should not resolve a name for a candidate it is about to drop`() {
+            // Filtered before the directory lookup, so a blocker's display name and avatar are
+            // never even read, let alone returned.
+            stubCandidates(
+                groupMembers = listOf(candidateId, userId),
+                communityMembers = listOf(userId)
+            )
+            every { blockPolicy.findBlockedBy(userId, setOf(candidateId)) } returns setOf(candidateId)
+
+            service.listAddableUsers(communityId, userId)
+
+            verify(exactly = 0) { userDirectoryPort.findDisplayInfo(match { candidateId in it }) }
         }
 
         private fun stubCandidates(groupMembers: List<UUID>, communityMembers: List<UUID>) {

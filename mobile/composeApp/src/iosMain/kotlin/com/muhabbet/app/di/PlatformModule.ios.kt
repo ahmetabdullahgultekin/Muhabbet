@@ -148,6 +148,13 @@ class IosTokenStorage : TokenStorage {
         else defaults.setObject(color, forKey = "wallpaper_solid_color")
     }
 
+    override fun getWallpaperGradientId(): String? = defaults.stringForKey("wallpaper_gradient_id")
+
+    override fun setWallpaperGradientId(id: String?) {
+        if (id == null) defaults.removeObjectForKey("wallpaper_gradient_id")
+        else defaults.setObject(id, forKey = "wallpaper_gradient_id")
+    }
+
     override fun getCustomWallpaperPath(): String? = defaults.stringForKey("wallpaper_custom_path")
 
     override fun setCustomWallpaperPath(path: String?) {

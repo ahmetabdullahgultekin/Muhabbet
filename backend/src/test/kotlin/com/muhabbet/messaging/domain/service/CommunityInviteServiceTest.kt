@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.model.CommunityMember
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CommunityInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -49,6 +50,13 @@ class CommunityInviteServiceTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val inviteLinkRepository = mockk<CommunityInviteLinkRepository>()
     private val userDirectoryPort = mockk<UserDirectoryPort>()
+
+    /**
+     * Only [CommunityService] consults this — [CommunityInviteService] deliberately does not, because
+     * accepting an invite is the joiner acting on themselves. It exists here solely to construct the
+     * neighbouring service in `TheWallThisFeatureGetsAround`.
+     */
+    private val blockPolicy = mockk<BlockPolicyPort>()
     private lateinit var service: CommunityInviteService
 
     private val communityId = UUID.randomUUID()
@@ -87,11 +95,14 @@ class CommunityInviteServiceTest {
         @Test
         fun `should refuse to add an outsider to a community with no groups`() {
             val communityService = CommunityService(
-                communityRepository, conversationRepository, userDirectoryPort,
+                communityRepository, conversationRepository, userDirectoryPort, blockPolicy,
                 CommunityAnnouncementChannel(communityRepository, conversationRepository)
             )
             every { communityRepository.findGroupsByCommunityId(communityId) } returns emptyList()
             every { conversationRepository.isMemberOfAny(emptyList(), outsiderId) } returns false
+            // Nobody has blocked anybody; the refusal below must come from the group rule, not from
+            // the block gate addMember also carries.
+            every { blockPolicy.hasBlocked(any(), any()) } returns false
 
             val ex = assertThrows<BusinessException> {
                 communityService.addMember(communityId, outsiderId, ownerId)
