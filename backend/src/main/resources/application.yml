@@ -160,6 +160,12 @@ muhabbet:
     thumbnail-width: 320
     thumbnail-height: 320
 
+  invite:
+    # Base of the shareable group invite URL the server puts in InviteLinkResponse.inviteUrl.
+    # Matches the app link the Android manifest claims (https://muhabbet.app/invite/...), so a
+    # phone with Muhabbet installed opens it in the app. Change this when the real domain lands.
+    base-url: ${INVITE_LINK_BASE_URL:https://muhabbet.app/invite}
+
   multi-device:
     # Tier-2 linked-device endpoints. DEFAULT false = single-device path unchanged; the QR
     # link / list / revoke endpoints return 403 until flipped. Kill-switch is this flag (no
