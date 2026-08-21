@@ -94,10 +94,15 @@ jobs:
         run: ./gradlew :backend:jacocoTestCoverageVerification
         continue-on-error: true
 
+      # Blocking, deliberately (#279). This step carried `continue-on-error: true` for months while
+      # detekt was not running at all — it died at startup on a Kotlin version mismatch, and an
+      # ignored crash and a clean run produce the identical green tick. The pre-existing findings are
+      # frozen in `backend/detekt-baseline.xml`, so this can only go red on something the branch
+      # introduced. If it does go red, fix the finding or argue it into `detekt.yml`; do not
+      # regenerate the baseline to bury it, and do not put `continue-on-error` back.
       - name: Run detekt static analysis
         run: ./gradlew :backend:detekt
         if: always()
-        continue-on-error: true
 
       - name: Upload test results
         if: failure()
