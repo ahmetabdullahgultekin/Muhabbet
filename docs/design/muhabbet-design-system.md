@@ -123,6 +123,9 @@ So `Muhabbet.colors.selected` hands back both halves in one expression, and ther
 the container without the content. The pairs that exist:
 
 - `bubbleOwn` / `bubbleOther` — the two message grounds
+- `bubbleDeleted` — the tombstone left where a message was. Its own ground because it is no longer
+  the conversation's: a deleted message has no sender voice to carry, so it drops both bubble
+  colours for the theme's quietest neutral container and the muted foreground that belongs to it.
 - `bubbleOwnInset` / `bubbleOtherInset` and their `…Selected` forms — a panel inset **into** a
   bubble (poll option, link preview, quoted reply). Separate from `selected` because a bubble is not
   a surface: the app-wide selection colour was never measured against a copper ground.
@@ -150,6 +153,24 @@ swatches and dark around the pale ones — so it is derived from the swatch, whi
 against any page: the derivation flips at the same luminance where the swatch itself starts to
 disappear. Floor is **3:1**, WCAG 1.4.11 for graphical objects, not the 4.5:1 that applies to text;
 measured worst case is 14.07:1.
+
+**Opacity is not a way to say "quiet" on a surface the palette does not own.** That is #678, and it
+is the same defect as the swatch above wearing a third set of clothes. The deleted-message bubble was
+`surfaceVariant` at 50% with its label at another 50% on top, so half the wallpaper reached the
+ground its own label was read against: **1.23:1** over a light photo in the dark theme, and **2.23:1**
+on the light theme's own default wallpaper — this was never only a custom-wallpaper defect. Muting a
+bubble now happens in its colours, which can be measured, and the "deleted" signal that translucency
+used to carry sits on two channels that cost no contrast at all: the italic `ChatDeletedLabel` and
+the `MessageDeleted` circle-slash (WCAG 1.4.1 wants a second channel beyond colour regardless).
+Floor is **4.5:1**, SC 1.4.3, because both things on that bubble — the label and the timestamp — are
+prose; the glyph is a graphical object at 3:1 and is drawn in the label's colour, so the text floor
+covers it. `DeletedBubbleContrastTest` measures the pair over all 24 solids, both stops of all 8
+gradients and the two photo extremes in three themes: worst case **5.05:1**, the group sender name in
+the light theme.
+
+The rule that generalises: **a bubble is opaque.** The only surface a chat is allowed to draw
+translucently onto the wallpaper is the date-separator pill, which takes
+`MuhabbetAlphas.ChatOverlaySurface` and is measured through it.
 
 The eight remaining tokens are **marks**, not grounds: `statusOnline`, `statusRead`,
 `statusDelivered`, `statusSending`, `callMissed`, `linkColor`, `dividerColor`, `secondaryText`.

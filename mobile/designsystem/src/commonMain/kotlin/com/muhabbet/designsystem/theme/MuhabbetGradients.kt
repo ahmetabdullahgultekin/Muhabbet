@@ -169,7 +169,8 @@ data class MuhabbetWallpaperGradient(
  * is body copy and it sits over this. So the travel is bounded rather than free.
  *
  * The bound is not a guess. Only one text surface on a chat is translucent enough to let the wallpaper
- * through at all — message bubbles are fully opaque, and the date-separator pill is `surfaceVariant`
+ * through at all — message bubbles are fully opaque since #678 took the alpha off the deleted one,
+ * and the date-separator pill is `surfaceVariant`
  * at [MuhabbetAlphas.ChatOverlaySurface] (`DateSeparator.kt`), so a tenth of the wallpaper reaches the
  * label behind it. Both stops of all eight gradients were measured through that bleed, in all three
  * themes: the worst case is **5.48:1** for the pill label, against a WCAG AA floor of 4.5:1. The travel

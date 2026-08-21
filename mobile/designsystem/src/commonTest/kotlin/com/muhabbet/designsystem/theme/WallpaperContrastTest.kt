@@ -18,7 +18,9 @@ import kotlin.test.fail
  *
  * What is measured is the **date-separator pill** (`DateSeparator.kt`), because it is the only text
  * surface a chat draws straight onto the wallpaper — message bubbles are fully opaque, so nothing
- * behind them reaches their text. The pill is deliberately translucent, at
+ * behind them reaches their text. That last clause was false when this file was written: the
+ * deleted-message bubble was drawn at 50% alpha, which is #678, and [DeletedBubbleContrastTest] is
+ * the sibling that holds it now that it is opaque. The pill is deliberately translucent, at
  * [MuhabbetAlphas.ChatOverlaySurface], which means `(1 - alpha)` of whatever the wallpaper is showing
  * blends into the ground its label is read against.
  *
