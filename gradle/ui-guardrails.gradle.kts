@@ -235,37 +235,46 @@ val verifyDesignSystem by tasks.registering {
 
 val verifyStringResourceSync by tasks.registering {
     group = "verification"
-    description = "Every string exists in both locales, and every Res.string.* reference exists in both."
+    description = "Every string and plural exists in both locales, and every Res.string/plurals reference exists in both."
     if (resourcesDir.exists()) inputs.dir(resourcesDir)
     if (File(mobileSrc, "commonMain/kotlin").exists()) inputs.dir(File(mobileSrc, "commonMain/kotlin"))
     doLast {
-        val namePattern = Regex("""<string\s+name="([^"]+)"""")
-        fun namesIn(locale: String): Set<String> {
+        fun namesIn(tag: String, locale: String): Set<String> {
             val f = File(resourcesDir, "$locale/strings.xml")
             check(f.exists()) { "Missing strings file: $f" }
-            return namePattern.findAll(f.readText()).map { it.groupValues[1] }.toSet()
+            return Regex("""<$tag\s+name="([^"]+)"""").findAll(f.readText()).map { it.groupValues[1] }.toSet()
         }
 
-        val tr = namesIn("values")
-        val en = namesIn("values-en")
         val problems = mutableListOf<String>()
+        val kotlinText = File(mobileSrc, "commonMain/kotlin").kotlinFiles().map { it.readText() }
 
-        (tr - en).sorted().forEach { problems += "  only in values/ (Turkish), missing English: $it" }
-        (en - tr).sorted().forEach { problems += "  only in values-en/, missing Turkish: $it" }
+        // `plurals` is checked exactly like `string` and not folded into it: a plural declared in
+        // only one locale is invisible to a <string>-only scan, and Turkish and English do not
+        // agree on the quantity forms, so the two files genuinely can drift (#694).
+        fun checkTag(tag: String, accessor: String): Int {
+            val tr = namesIn(tag, "values")
+            val en = namesIn(tag, "values-en")
+            (tr - en).sorted().forEach { problems += "  <$tag> only in values/ (Turkish), missing English: $it" }
+            (en - tr).sorted().forEach { problems += "  <$tag> only in values-en/, missing Turkish: $it" }
 
-        // Referenced-but-undeclared is the failure that actually reaches users: it compiles against
-        // the generated Res class only if it exists in the DEFAULT locale, so a key present only in
-        // values-en/ builds fine and then renders untranslated.
-        val referenced = File(mobileSrc, "commonMain/kotlin").kotlinFiles()
-            .flatMap { f -> Regex("""Res\.string\.([A-Za-z0-9_]+)""").findAll(f.readText()).map { it.groupValues[1] } }
-            .toSet()
-        (referenced - tr).sorted().forEach { problems += "  referenced in Kotlin but not declared in values/: $it" }
-        (referenced - en).sorted().forEach { problems += "  referenced in Kotlin but not declared in values-en/: $it" }
+            // Referenced-but-undeclared is the failure that actually reaches users: it compiles
+            // against the generated Res class only if it exists in the DEFAULT locale, so a key
+            // present only in values-en/ builds fine and then renders untranslated.
+            val referenced = kotlinText
+                .flatMap { Regex("""Res\.$accessor\.([A-Za-z0-9_]+)""").findAll(it).map { m -> m.groupValues[1] } }
+                .toSet()
+            (referenced - tr).sorted().forEach { problems += "  Res.$accessor.$it referenced in Kotlin but not declared in values/" }
+            (referenced - en).sorted().forEach { problems += "  Res.$accessor.$it referenced in Kotlin but not declared in values-en/" }
+            return tr.size
+        }
+
+        val stringCount = checkTag("string", "string")
+        val pluralCount = checkTag("plurals", "plurals")
 
         check(problems.isEmpty()) {
-            "String resources are out of sync (${tr.size} tr / ${en.size} en):\n" + problems.joinToString("\n")
+            "String resources are out of sync:\n" + problems.joinToString("\n")
         }
-        logger.lifecycle("ui-guardrails: ${tr.size} strings in sync across both locales")
+        logger.lifecycle("ui-guardrails: $stringCount strings and $pluralCount plurals in sync across both locales")
     }
 }
 

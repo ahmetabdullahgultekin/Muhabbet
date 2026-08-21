@@ -56,6 +56,7 @@ import com.muhabbet.shared.model.MemberRole
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -312,8 +313,13 @@ fun GroupInfoScreen(
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
+                        val participantCount = conversation?.participants?.size ?: 0
                         Text(
-                            text = stringResource(Res.string.group_participant_count, conversation?.participants?.size ?: 0),
+                            text = pluralStringResource(
+                                Res.plurals.group_participant_count,
+                                participantCount,
+                                participantCount
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

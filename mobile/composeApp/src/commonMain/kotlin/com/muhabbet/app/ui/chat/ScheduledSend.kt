@@ -38,6 +38,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
 import com.muhabbet.designsystem.Muhabbet
@@ -171,7 +172,7 @@ fun ScheduledMessagesChip(
                 tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Text(
-                text = stringResource(Res.string.schedule_pending_count, count),
+                text = pluralStringResource(Res.plurals.schedule_pending_count, count, count),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )

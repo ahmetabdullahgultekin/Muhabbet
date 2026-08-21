@@ -47,7 +47,6 @@ import com.muhabbet.composeapp.generated.resources.error_load_failed
 import com.muhabbet.composeapp.generated.resources.action_back
 import com.muhabbet.composeapp.generated.resources.call_coming_soon
 import com.muhabbet.composeapp.generated.resources.call_coming_soon_detail
-import com.muhabbet.composeapp.generated.resources.calls_new_call
 import com.muhabbet.composeapp.generated.resources.call_incoming
 import com.muhabbet.composeapp.generated.resources.call_missed
 import com.muhabbet.composeapp.generated.resources.call_outgoing
@@ -62,18 +61,11 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
 import com.muhabbet.designsystem.components.MuhabbetIconButton
-import com.muhabbet.designsystem.components.MuhabbetFab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CallHistoryScreen(
     onBack: () -> Unit,
-    /**
-     * Opens a contact picker so a call can be started from this tab. Without it the tab was a dead
-     * end for anyone with an empty history — which is every new user — and calling was reachable
-     * only from inside an existing conversation.
-     */
-    onNewCall: (() -> Unit)? = null,
     showBackButton: Boolean = true,
     showTopBar: Boolean = true
 ) {
@@ -134,15 +126,16 @@ fun CallHistoryScreen(
                 )
             }
         },
-        floatingActionButton = {
-            if (onNewCall != null) {
-                MuhabbetFab(
-                    icon = Muhabbet.icons.CallStart,
-                    contentDescription = stringResource(Res.string.calls_new_call),
-                    onClick = onNewCall
-                )
-            }
-        },
+        // No FAB (#684). The Calls tab used to carry a phone FAB that opened NewConversationScreen
+        // in call-picker mode — a screen whose title still read "New Conversation", and which asks
+        // for the contacts permission before it can show anything. That is a real permission
+        // prompt bought for a flow that cannot end in a call: nothing sends call.initiate
+        // (#367–#373). The empty state below already says calling is not available yet, and a
+        // bright button underneath that sentence contradicts it.
+        //
+        // Config.PickContactForCall and NewConversationScreen's isCallPickerMode are deliberately
+        // left in place — they are the right destination the day calling is wired. Only the FAB
+        // that reaches them today is gone.
         snackbarHostState = snackbarHostState
     ) { padding ->
         if (isLoading) {
