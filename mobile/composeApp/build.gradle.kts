@@ -109,10 +109,10 @@ kotlin {
             implementation("com.google.firebase:firebase-messaging")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:8.52.0")
+            implementation("io.sentry:sentry-android:8.53.0")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.27.0")
+            implementation("io.livekit:livekit-android:2.28.0")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
             // libsignal is NOT a dependency while E2E is off. Every Signal source file is
