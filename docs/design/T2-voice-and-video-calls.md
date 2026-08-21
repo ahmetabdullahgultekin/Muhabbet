@@ -8,7 +8,7 @@
 | **Milestone** | [`0.7.0 — Live`](https://github.com/ahmetabdullahgultekin/Muhabbet/milestone/7) — *"a call connects, carries audio both ways, and appears in history"* |
 | **Feature flag** | `muhabbet.livekit.enabled` (backend, exists, default OFF) + `CallsConfig.ENABLED` (mobile, **to be added**) |
 | **ADR** | [ADR-0009 — where call media runs](../adr/0009-call-media-infrastructure.md) |
-| **Issues** | #367 #368 #369 #370 #371 #372 #373 #606; #84 and #86 for the later stages |
+| **Tracking** | **#715** — the umbrella issue. Stage work: #367 #368 #369 #370 #371 #372 #373 #606, plus #84 and #86 for the later stages |
 
 > **Every claim here was checked against the source on 2026-08-21**, on `origin/dev` at `296ef51`,
 > and against the running production host. Where something could not be verified it says so. Line
