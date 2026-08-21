@@ -82,6 +82,39 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # when-authorized alone means "any authenticated principal". JwtAuthFilter grants an ordinary
+      # user an authenticated token with zero authorities, so before this line every logged-in user
+      # could read the database vendor, the Redis version and the host's free disk bytes off
+      # /actuator/health (#494). Named roles narrow that to admin tokens, which are real: V21 added
+      # users.is_admin and both login paths and the refresh path carry it into the claim.
+      roles: ADMIN
+      probes:
+        # Spring Boot 4 enables the liveness/readiness groups on every platform, not just on
+        # Kubernetes as 2.x and 3.x did (AvailabilityProbesAutoConfiguration is
+        # @ConditionalOnBooleanProperty(..., matchIfMissing = true)). The effect here was that
+        # /actuator/health advertised "groups":["liveness","readiness"] while SecurityConfig permits
+        # the exact path "/actuator/health" only, so both sub-paths answered 401 forever — an
+        # invitation to point a probe at something that cannot work. Nothing uses them: the compose
+        # healthcheck and the deploy gate both poll the aggregate. Turned off rather than opened up,
+        # because widening the matcher to /actuator/health/** would expose the per-component paths
+        # too. If this ever runs on Kubernetes, enable them, widen the matcher, and put db and redis
+        # into the readiness group — its default membership is readinessState alone, which would
+        # report ready with the database down.
+        enabled: false
+      status:
+        # Position in this list IS the precedence: SimpleStatusAggregator keeps only the statuses
+        # named here and takes the lowest-ranked one. MEDIA_UNAVAILABLE sits after UP so a MinIO
+        # outage stays visible on this endpoint without taking the aggregate with it — restarting
+        # the backend does not fix MinIO, and neither does reverting the release, so it must not
+        # fail the container healthcheck or the deploy gate. Moving it up next to DOWN would do
+        # exactly that. HealthStatusOrderTest drives the real aggregator with this list and fails
+        # if the ranking is ever inverted.
+        order: DOWN,OUT_OF_SERVICE,UP,MEDIA_UNAVAILABLE,UNKNOWN
+        http-mapping:
+          # Explicit rather than inherited. The default mapper answers 200 for anything that is not
+          # DOWN or OUT_OF_SERVICE, so this is belt and braces — but the deploy gate reads nothing
+          # except this number, and it should not depend on a default.
+          MEDIA_UNAVAILABLE: 200
   metrics:
     tags:
       application: muhabbet

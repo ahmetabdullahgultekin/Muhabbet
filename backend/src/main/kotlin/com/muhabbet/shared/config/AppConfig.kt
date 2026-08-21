@@ -40,6 +40,7 @@ import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.NotificationTextPort
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.messaging.domain.service.BroadcastListService
@@ -163,14 +164,16 @@ class AppConfig {
         messageBroadcaster: MessageBroadcaster,
         userDirectory: UserDirectoryPort,
         readReceiptPolicy: ReadReceiptPolicyPort,
-        blockPolicy: BlockPolicyPort
+        blockPolicy: BlockPolicyPort,
+        transactions: TransactionRunner
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         messageBroadcaster = messageBroadcaster,
         userDirectory = userDirectory,
         readReceiptPolicy = readReceiptPolicy,
-        blockPolicy = blockPolicy
+        blockPolicy = blockPolicy,
+        transactions = transactions
     )
 
     @Bean

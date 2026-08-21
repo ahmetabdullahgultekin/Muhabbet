@@ -62,7 +62,7 @@ class OfflinePushSenderTest {
         Conversation(id = conversationId, type = ConversationType.DIRECT)
 
     private fun sendTo(vararg devices: Device): List<PushNotification> {
-        every { deviceRepository.findByUserId(recipientId) } returns devices.toList()
+        every { deviceRepository.findByUserIdIn(listOf(recipientId)) } returns devices.toList()
         val sent = mutableListOf<PushNotification>()
         every { pushNotificationPort.sendPush(any(), capture(sent)) } returns Unit
 
@@ -126,7 +126,7 @@ class OfflinePushSenderTest {
         every { countingComposer.compose(any(), any(), any(), any()) } returns
             PushNotification("t", "b", conversationId.toString(), emptyMap())
         val sender = OfflinePushSender(deviceRepository, pushNotificationPort, countingComposer)
-        every { deviceRepository.findByUserId(recipientId) } returns
+        every { deviceRepository.findByUserIdIn(listOf(recipientId)) } returns
             listOf(device("a", "tr"), device("b", "tr"), device("c", "tr"))
 
         sender.sendTo(recipientId, voiceMessage(), "Ayşe", directConversation())
@@ -139,7 +139,7 @@ class OfflinePushSenderTest {
     fun `should read the device rows exactly once`() {
         sendTo(device("token-tr", locale = "tr"), device("token-en", locale = "en"))
 
-        verify(exactly = 1) { deviceRepository.findByUserId(recipientId) }
+        verify(exactly = 1) { deviceRepository.findByUserIdIn(listOf(recipientId)) }
     }
 
     @Test
@@ -153,7 +153,7 @@ class OfflinePushSenderTest {
     fun `should not throw when the device lookup fails`() {
         // The message itself is already stored and will arrive on reconnect. A failed courtesy push
         // must not abort the loop and cost the remaining recipients theirs.
-        every { deviceRepository.findByUserId(recipientId) } throws IllegalStateException("db down")
+        every { deviceRepository.findByUserIdIn(listOf(recipientId)) } throws IllegalStateException("db down")
 
         sender.sendTo(recipientId, voiceMessage(), "Ayşe", directConversation())
     }

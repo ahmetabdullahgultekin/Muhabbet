@@ -8,6 +8,72 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Fixed — failures that were invisible, or reported as the wrong thing
+
+- **One scheduled message that could not be sent silently stopped all of them** (#560). Every due
+  message shared a single database transaction, so a failure on the third undid the first two as
+  well — they were still pending, the next run a minute later picked the same batch in the same
+  order and hit the same message, forever. Each message now gets its own transaction, one failure is
+  logged with the message id and skipped, and the rest go out. A run also takes a bounded batch
+  instead of the entire backlog.
+- **The health check could not see the one thing most likely to fail quietly** (#494). Every photo,
+  voice note and document lives in MinIO, and after startup nothing ever checked it: it could be
+  down, out of disk, or have lost its bucket while the server reported itself healthy and a deploy
+  of a build with completely broken media passed its gate. There is now a media check, reported in a
+  way that makes an outage visible **without** rolling back a release — restarting the backend does
+  not fix storage, and neither does reverting.
+- **Anyone logged in could read the server's internals** (#494). The health endpoint hid its detail
+  from the public internet but not from ordinary users: any valid account could read the database
+  vendor, the Redis version and the host's free disk space. That now requires an admin account.
+- **The app was told the same thing whatever went wrong** (#572). Refusing to send a message
+  because it was too long, because you are not in the conversation, because the group is
+  announcement-only, because it had already been sent, or because the server genuinely broke — all
+  five arrived as one indistinguishable code, so the app could not say which had happened in the
+  reader's own language. Each now carries its own, matching what the REST API has always done.
+- **A malformed typing indicator could drop your connection** (#572). One unparseable id thrown from
+  a frame nobody was even waiting on escaped far enough to close the socket, and the chat stopped
+  working for a reason with nothing to do with chatting. No frame can cost a connection now.
+
+**What is not proven yet:** the media check has not been exercised against a real MinIO — that needs
+a running server, so it runs on CI, not on a machine without Docker. The ordering that keeps a media
+outage from failing a deploy *is* proven here, against Spring's real aggregator.
+
+
+### Fixed — the path every message takes
+
+Three defects on the same code path — saving a message and handing it to its recipients — fixed
+together because they touch the same five files and because two of them only make sense as a pair.
+
+- **Twenty people could be sending at once, and the twenty-first was refused** (#491). The database
+  transaction that saved a message stayed open across the whole delivery fan-out: the WebSocket
+  writes, the Redis publishes, the push notifications. A WebSocket write blocks, and Tomcat waits up
+  to twenty seconds for a phone that has stopped reading, so one stalled recipient held a database
+  connection for that whole time. There are twenty connections. That was the ceiling for the entire
+  server — not twenty per second, twenty at any one moment — while the database sat idle. Delivery
+  now happens after the save has committed.
+  The same change fixes something quieter: recipients could be handed a message *before* it was
+  committed, so if the save then failed they were left holding a message the server did not have.
+- **A message could stop arriving for someone whose connection was fine** (#490). Three things write
+  to a phone's connection — the reply to what it just sent, someone else's incoming message, and the
+  keep-alive — and only some of them took the lock that was supposed to keep them apart. When two
+  collided, the server concluded the connection was dead and removed it: the person stayed logged
+  in, appeared offline to everyone, and silently received nothing further until they reconnected.
+  Every write now goes through one place, and a phone that has stopped reading is disconnected on a
+  ten-second budget instead of blocking everyone else for twenty.
+- **Sending one message cost eight database round trips, and a group message hundreds** (#492).
+  Every insert on this path first read the row it was about to create — a row that by definition did
+  not exist yet — because of how the persistence layer decides whether something is new. In a group
+  that was one wasted read per member, plus one lookup per member to find their devices for the
+  notification. A message to a 256-person group now writes the delivery rows in batches and looks up
+  devices once for the whole group.
+
+None of this is visible as a feature. It is what stops the app falling over once more than a handful
+of people use it at the same time.
+
+**What is not proven yet:** the connection-pool relief is argued from the code and held in place by
+tests; it has not been measured under load on a production-like server. The statement-count test that
+proves the third fix needs a real database, so it runs on CI and not on a machine without Docker.
+
 ## [0.3.10] — 2026-08-18
 
 Thirteen merged changes, most of them the same shape: a feature whose code was written and whose last

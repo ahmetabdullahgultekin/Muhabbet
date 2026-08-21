@@ -52,7 +52,12 @@ module/
 - `config/` — SecurityConfig, WebSocketConfig, RedisConfig, AsyncConfig
 - `exception/` — GlobalExceptionHandler, BusinessException, ErrorCode enum
 - `security/` — JwtProvider, JwtAuthFilter
-- `event/` — DomainEvent marker interface
+- ~~`event/` — DomainEvent marker interface~~ — **does not exist.** There is no `DomainEvent` type
+  anywhere in the repository, and as of 2026-08-21 there is not a single `@EventListener`,
+  `@TransactionalEventListener` or `publishEvent` call in the backend either.
+  `messaging/domain/event/MessagingEvents.kt` declares two POJOs that nothing publishes or listens
+  to, and `EncryptionService` takes an `ApplicationEventPublisher` it never uses and is not wired
+  with. Rule 3 below describes an intention, not the code.
 
 ## Software Engineering Principles — ALWAYS Follow These
 
@@ -91,7 +96,11 @@ Every piece of code in this project MUST adhere to these principles. These are n
    - **NO JPA entity instantiation in controllers.** Controllers must not import `*JpaEntity` classes.
    - **NO `SpringData*Repository` in controllers.** Controllers call use case interfaces only.
 2. **Domain models ≠ JPA entities.** Always map between them. Domain model lives in `domain/model/`, JPA entity lives in `adapter/out/persistence/`.
-3. **Modules communicate via Spring ApplicationEvent**, never by direct imports across module boundaries.
+3. **Modules communicate via Spring ApplicationEvent**, never by direct imports across module
+   boundaries. **Aspirational — nothing implements this today** (see the note above). Cross-module
+   reach currently goes through a port with an adapter on the other side (`BlockPolicyPort`,
+   `ReadReceiptPolicyPort`, `UserDirectoryPort`, `OfflinePushSender`), which is the pattern to
+   follow until an actual event bus exists.
 4. **All use cases are interfaces** (in-ports). Services implement them.
 5. **All repositories are interfaces** (out-ports). JPA adapters implement them.
 6. **No Spring annotations in domain layer.** Domain is framework-agnostic.
@@ -478,6 +487,31 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   for a security fix — will not arrive until the cache is refreshed. Re-run with `--force` after a
   runner reinstall and on whatever schedule you are willing to defend. This is a trade, not a
   free win.
+- **Spring Boot 4 moved the Actuator health API, and turned probes on everywhere** (established
+  2026-08-21 by reading the resolved jars, after guessing wrong twice).
+  - `HealthIndicator`, `Health` and `Status` are in **`org.springframework.boot.health.contributor`**,
+    shipped in a separate `spring-boot-health` artifact. The Boot 3 package
+    `org.springframework.boot.actuate.health` does not exist here and code written from memory will
+    not compile.
+  - `AvailabilityProbesAutoConfiguration` is
+    `@ConditionalOnBooleanProperty("management.endpoint.health.probes.enabled", matchIfMissing = true)`
+    — so `liveness`/`readiness` groups are on **on every platform**, not only on Kubernetes as in
+    2.x/3.x. That is why `/actuator/health` advertised groups whose sub-paths answered 401, since
+    `SecurityConfig` permits the exact path `/actuator/health` only. Now disabled explicitly.
+  - **`SimpleStatusAggregator` filters before it ranks**:
+    `statuses.stream().filter(this::contains).min(byOrderIndex).orElse(UNKNOWN)`, where `contains`
+    is `order.contains(code)`. A status **absent** from `management.endpoint.health.status.order` is
+    ignored, not promoted — the `indexOf(...) == -1` branch you might expect to make it win is
+    unreachable. Precedence is purely position in that list, which is why `MEDIA_UNAVAILABLE` sits
+    after `UP` and why `HealthStatusOrderTest` pins it: ranked above `UP`, a MinIO outage would fail
+    the container healthcheck and roll back every deploy.
+- **`TransactionRunner` uses `REQUIRED` propagation.** Wrapping per-item work in
+  `transactions.inTransaction { }` while the enclosing method still carries `@Transactional` gives
+  **no isolation at all** — the inner call joins the outer transaction, and one item's failure still
+  marks the whole thing rollback-only. Removing the method-level annotation is not optional when
+  splitting a batch (#560). A `try/catch` around the loop body is not a substitute either: Spring
+  Data's writes join the shared transaction and doom the commit, so the catch swallows an exception
+  that has already decided the outcome and the run reports success before dying at commit.
 - **detekt does not run at all** (#279). `:backend:detekt` dies at plugin startup with "detekt was
   compiled with Kotlin 2.0.21 but is currently running with 2.4.10", before analysing a file. CI marks
   the step `continue-on-error: true`, so a total failure of the tool has been indistinguishable from a
@@ -694,6 +728,25 @@ is not evidence that it works.
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
+- **Transactions and the message hot path (#490/#491/#492 — fixed 2026-08-21, not yet load-tested).**
+  `MessageService.sendMessage` is **no longer `@Transactional`**. It runs the persistence half
+  inside `TransactionRunner.inTransaction { }` and fans out **after** that commits, because a
+  `@Transactional` method holds its Hikari connection across everything it does afterwards — which
+  was the whole WebSocket/Redis/FCM fan-out, capping the instance at twenty concurrent sends.
+  `@TransactionalEventListener(AFTER_COMMIT)` was rejected for this: it runs before
+  `cleanupAfterCompletion`, so whether the connection is back in the pool depends on Hibernate's
+  `connection.handling_mode`, which this application never sets.
+  **The other nine broadcast-inside-a-transaction call sites are still there** (`MessageService`
+  `updateStatus`/`deleteMessage`/`editMessage`/`deliverScheduledMessages`, `GroupService` ×5) — the
+  mechanism now exists to fix them and they are filed separately.
+  Also: **nothing on the send path may call `repository.save` for a new row.** Every JPA entity here
+  has an assigned id and none implements `Persistable`, so `SimpleJpaRepository.save` is always a
+  `merge`, which reads before it writes. Use `entityManager.persist` in the adapter, as
+  `MessagePersistenceAdapter` now does.
+  And **nothing may write to a raw `WebSocketSession`.** `WebSocketSessionManager.register` wraps
+  every session in a `ConcurrentWebSocketSessionDecorator`; writers go through
+  `sessionManager.send(session, json)` or `sendToUser(...)`. A direct `session.sendMessage(...)` in
+  `ChatWebSocketHandler` fails `HandlerWritesThroughManagerTest`.
 - **~~Single-server architecture~~**: Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) provides cross-instance WS fan-out. **NOTE (2026-06-19):** the subscriber half was never wired — `RedisBroadcastListener` existed but no `RedisMessageListenerContainer` registered it, so cross-instance delivery silently dropped. Now fixed (`RedisConfig.kt` subscribes `ws:broadcast:*`). True multi-instance correctness (presence-aware push suppression; Redis-backed rate-limit) remains a documented follow-up — see `docs/findings/2026-06-19-infra-tech-assessment.md`. **Prod runs a single instance**, so multi-instance is latent (YAGNI) until horizontal scale is actually needed.
 - **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
 - **~~In-memory E2E key store~~**: Resolved — `PersistentSignalProtocolStore` with EncryptedSharedPreferences (Android), `KeychainHelper` for iOS tokens.

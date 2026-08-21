@@ -51,6 +51,10 @@ class WebSocketMessageBroadcaster(
 
         val json = wsJson.encodeToString<WsMessage>(wsMessage)
 
+        // Collected in the loop and pushed after it — one device query for the whole group (#492).
+        // Kept in step with RedisMessageBroadcaster by hand, as the note below says.
+        val pushTo = mutableListOf<UUID>()
+
         recipients.forEach { member ->
             val recipientId = member.userId
             if (sessionManager.isOnline(recipientId)) {
@@ -68,8 +72,14 @@ class WebSocketMessageBroadcaster(
             // RedisMessageBroadcaster's identical check by hand — #469 was this same pair of
             // broadcasters drifting apart once already.
             if (!member.isMuted() && !sessionManager.isViewingConversation(recipientId, message.conversationId)) {
-                offlinePushSender.sendTo(recipientId, message, senderDisplayName, conversation)
+                pushTo += recipientId
             }
+        }
+
+        // Guarded so the lazy `conversation` is not forced when no push is owed — see the twin
+        // comment in RedisMessageBroadcaster.
+        if (pushTo.isNotEmpty()) {
+            offlinePushSender.sendToAll(pushTo, message, senderDisplayName, conversation)
         }
     }
 
