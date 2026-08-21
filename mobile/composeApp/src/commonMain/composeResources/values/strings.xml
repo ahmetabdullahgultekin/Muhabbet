@@ -337,6 +337,10 @@
 
     <!-- Round 3 -->
     <string name="call_coming_soon">Arama özelliği yakında</string>
+    <!-- Aramalar sekmesinin boş durumu. Sekme her zaman boştur: istemci call.initiate göndermiyor,
+         mikrofon yayınlanmıyor ve LiveKit üretimde yapılandırılmamış (#367-#373). "Henüz arama yok"
+         tek başına aramanın mümkün olduğunu ima ediyordu; bu metin nedenini açıkça söylüyor. -->
+    <string name="call_coming_soon_detail">Sesli ve görüntülü arama henüz kullanıma açık değil. Hazır olduğunda aramalarınız burada listelenecek.</string>
     <string name="video_play">Videoyu oynat</string>
     <string name="starred_you">Sen</string>
     <string name="starred_conversation_unavailable">Bu sohbet artık açılamıyor</string>
