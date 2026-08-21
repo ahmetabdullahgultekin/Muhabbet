@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -36,7 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.repository.WallpaperRepository
@@ -57,6 +61,7 @@ import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetSwitch
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
+import com.muhabbet.designsystem.theme.MuhabbetWallpaperGradients
 import com.muhabbet.designsystem.theme.MuhabbetWallpapers
 
 // The swatches live in the design system with every other colour, so a screen still cannot name a
@@ -72,6 +77,7 @@ fun WallpaperPickerScreen(
 ) {
     var selectedType by remember { mutableStateOf(wallpaperRepository.getWallpaperType()) }
     var selectedColor by remember { mutableStateOf(wallpaperRepository.getSolidColor()) }
+    var selectedGradientId by remember { mutableStateOf(wallpaperRepository.getGradientId()) }
     var darkModeEnabled by remember { mutableStateOf(wallpaperRepository.getDarkModeWallpaperEnabled()) }
     var customWallpaperSet by remember { mutableStateOf(wallpaperRepository.getCustomPath() != null) }
 
@@ -89,8 +95,8 @@ fun WallpaperPickerScreen(
         pickedImage?.let { img ->
             val savedPath = wallpaperImageSaver.save(img.fileName, img.bytes) ?: return@let
             wallpaperRepository.setCustomPath(savedPath)
-            wallpaperRepository.setWallpaperType("CUSTOM")
-            selectedType = "CUSTOM"
+            wallpaperRepository.setWallpaperType(WallpaperRepository.TYPE_CUSTOM)
+            selectedType = WallpaperRepository.TYPE_CUSTOM
             customWallpaperSet = true
         }
     }
@@ -110,7 +116,7 @@ fun WallpaperPickerScreen(
                 .padding(padding)
                 .padding(MuhabbetSpacing.XLarge)
         ) {
-            // Type selection row
+            // Type selection
             Text(
                 text = stringResource(Res.string.wallpaper_title),
                 style = MaterialTheme.typography.titleSmall,
@@ -118,86 +124,80 @@ fun WallpaperPickerScreen(
             )
             Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
-            ) {
-                WallpaperTypeButton(
-                    label = stringResource(Res.string.wallpaper_default),
-                    isSelected = selectedType == "DEFAULT",
-                    onClick = {
-                        selectedType = "DEFAULT"
-                        wallpaperRepository.setWallpaperType("DEFAULT")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WallpaperTypeButton(
-                    label = stringResource(Res.string.wallpaper_solid),
-                    isSelected = selectedType == "SOLID",
-                    onClick = {
-                        selectedType = "SOLID"
-                        wallpaperRepository.setWallpaperType("SOLID")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WallpaperTypeButton(
-                    label = stringResource(Res.string.wallpaper_custom),
-                    isSelected = selectedType == "CUSTOM",
-                    onClick = {
-                        selectedType = "CUSTOM"
-                        wallpaperRepository.setWallpaperType("CUSTOM")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
+            // Two rows of two rather than one row of four. Four columns inside the screen padding
+            // leave each label about 80dp on a 360dp phone, which "Renk Geçişi" does not fit in — and
+            // a truncated type name on the control whose only job is to name the types is not a
+            // trade worth making. The pairs are built once and chunked so a fifth type cannot be
+            // added to the list without also getting a button.
+            val wallpaperTypes = listOf(
+                stringResource(Res.string.wallpaper_default) to WallpaperRepository.TYPE_DEFAULT,
+                stringResource(Res.string.wallpaper_solid) to WallpaperRepository.TYPE_SOLID,
+                stringResource(Res.string.wallpaper_gradient) to WallpaperRepository.TYPE_GRADIENT,
+                stringResource(Res.string.wallpaper_custom) to WallpaperRepository.TYPE_CUSTOM
+            )
+            wallpaperTypes.chunked(2).forEachIndexed { rowIndex, rowTypes ->
+                if (rowIndex > 0) Spacer(Modifier.height(MuhabbetSpacing.Medium))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium)
+                ) {
+                    rowTypes.forEach { (label, type) ->
+                        WallpaperTypeButton(
+                            label = label,
+                            isSelected = selectedType == type,
+                            onClick = {
+                                selectedType = type
+                                wallpaperRepository.setWallpaperType(type)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
             when (selectedType) {
-                "SOLID" -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
-                        verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
-                        modifier = Modifier.weight(1f)
-                    ) {
+                WallpaperRepository.TYPE_SOLID -> {
+                    WallpaperSwatchGrid {
                         items(solidColors) { color ->
                             val colorHex = colorToHex(color)
-                            // The swatch is the one ground the palette does not choose, so the tick
-                            // is derived from it rather than fixed. It used to be a hardcoded white
-                            // one, which on the six pale swatches was a white tick on near-white.
-                            val swatch = readableContentOn(color)
-                            Box(
-                                modifier = Modifier
-                                    .aspectRatio(1f)
-                                    .clip(MaterialTheme.shapes.medium)
-                                    .background(color)
-                                    .then(
-                                        if (selectedColor == colorHex)
-                                            Modifier.border(3.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
-                                        else Modifier
-                                    )
-                                    .clickable {
-                                        selectedColor = colorHex
-                                        wallpaperRepository.setSolidColor(colorHex)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (selectedColor == colorHex) {
-                                    // The swatch itself is a bare coloured Box with no text, so this
-                                    // check mark is the only thing a screen reader can announce for it.
-                                    Icon(
-                                        Muhabbet.icons.Sent,
-                                        contentDescription = stringResource(Res.string.a11y_selected),
-                                        tint = swatch.content,
-                                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                                    )
+                            WallpaperSwatch(
+                                brush = SolidColor(color),
+                                // The swatch is the one ground the palette does not choose, so the
+                                // tick is derived from it rather than fixed. It used to be a
+                                // hardcoded white one, which on the pale swatches was a white tick
+                                // on near-white.
+                                tickColor = readableContentOn(color).content,
+                                isSelected = selectedColor == colorHex,
+                                onClick = {
+                                    selectedColor = colorHex
+                                    wallpaperRepository.setSolidColor(colorHex)
                                 }
-                            }
+                            )
                         }
                     }
                 }
-                "CUSTOM" -> {
+                WallpaperRepository.TYPE_GRADIENT -> {
+                    WallpaperSwatchGrid {
+                        items(MuhabbetWallpaperGradients, key = { it.id }) { gradient ->
+                            WallpaperSwatch(
+                                brush = gradient.brush,
+                                // Read off the far stop, the darker end of every gradient in the
+                                // set: the tick sits at the swatch's centre, and at 6–13 points of
+                                // L* travel both ends resolve to the same content colour anyway, so
+                                // taking the worse one costs nothing and cannot be wrong.
+                                tickColor = readableContentOn(gradient.stops.last()).content,
+                                isSelected = selectedGradientId == gradient.id,
+                                onClick = {
+                                    selectedGradientId = gradient.id
+                                    wallpaperRepository.setGradientId(gradient.id)
+                                }
+                            )
+                        }
+                    }
+                }
+                WallpaperRepository.TYPE_CUSTOM -> {
                     Box(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         contentAlignment = Alignment.Center
@@ -271,7 +271,7 @@ fun WallpaperPickerScreen(
             // above write straight through to storage: without them the notice would go on claiming
             // the wallpaper is hidden after the user had removed it.
             val selectionHidden = remember(
-                isDarkTheme, darkModeEnabled, selectedType, selectedColor, customWallpaperSet
+                isDarkTheme, darkModeEnabled, selectedType, selectedColor, selectedGradientId, customWallpaperSet
             ) {
                 wallpaperRepository.isSelectionHiddenByDarkTheme(isDarkTheme)
             }
@@ -290,12 +290,76 @@ fun WallpaperPickerScreen(
             MuhabbetButton(
                 text = stringResource(Res.string.wallpaper_remove),
                 onClick = {
-                    selectedType = "DEFAULT"
-                    wallpaperRepository.setWallpaperType("DEFAULT")
+                    // Clear the on-screen selection as well as the stored one. Removing used to null
+                    // the stored colour and leave `selectedColor` set, so the grid went on showing a
+                    // tick against a colour storage no longer held — a picker claiming a selection
+                    // the chat is not painting, which is the whole of #380 in miniature.
+                    selectedType = WallpaperRepository.TYPE_DEFAULT
+                    selectedColor = null
+                    selectedGradientId = null
+                    wallpaperRepository.setWallpaperType(WallpaperRepository.TYPE_DEFAULT)
                     wallpaperRepository.setSolidColor(null)
+                    wallpaperRepository.setGradientId(null)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 role = MuhabbetButtonRole.Primary
+            )
+        }
+    }
+}
+
+/**
+ * The grid both swatch tabs are laid out in.
+ *
+ * Shared so that solids and gradients cannot drift into two different column counts or two different
+ * gutters — they sit behind the same four type buttons and have to read as one screen.
+ */
+@Composable
+private fun ColumnScope.WallpaperSwatchGrid(content: LazyGridScope.() -> Unit) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(4),
+        horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
+        verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
+        modifier = Modifier.weight(1f),
+        content = content
+    )
+}
+
+/**
+ * One pickable wallpaper, solid or gradient.
+ *
+ * Takes a [Brush] rather than a [Color] so the gradient tab is the same control as the solid tab
+ * rather than a copy of it: `SolidColor(color)` is a brush, and the selection border, the tick and
+ * the touch target then cannot diverge between the two.
+ */
+@Composable
+private fun WallpaperSwatch(
+    brush: Brush,
+    tickColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clip(MaterialTheme.shapes.medium)
+            .background(brush)
+            .then(
+                if (isSelected)
+                    Modifier.border(MuhabbetSizes.BorderActive, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
+                else Modifier
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isSelected) {
+            // The swatch is a bare filled Box with no text, so this check mark is the only thing a
+            // screen reader has to announce for it.
+            Icon(
+                Muhabbet.icons.Sent,
+                contentDescription = stringResource(Res.string.a11y_selected),
+                tint = tickColor,
+                modifier = Modifier.size(MuhabbetSizes.IconLarge)
             )
         }
     }

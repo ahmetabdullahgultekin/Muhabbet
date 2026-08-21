@@ -1,0 +1,112 @@
+name: Özellik / iş
+description: Yapılması gereken bir iş — yeni bir özellik, eksik bir bağlantı, bir refactor.
+labels: ["type:feature"]
+body:
+  - type: checkboxes
+    id: duplicate-check
+    attributes:
+      label: Önce mükerrer kontrolü
+      description: >-
+        Bu deponun en pahalı israfı bu. 2026-08-21 triyajında 389 açık issue içinde sekiz mükerrer
+        çift bulundu, ve bir UI partisindeki ~25 issue aslında ~4 işti — aynı işi dört ayrı
+        başlıktan dört kez okumak, dört kez tahmin etmek demek.
+        Arama: https://github.com/ahmetabdullahgultekin/Muhabbet/issues?q=is%3Aissue
+      options:
+        - label: Açık ve kapalı issue'larda benzer bir kayıt aradım, bulamadım.
+          required: true
+        - label: >-
+            Bu tek bir iş — birden çok ekranı veya katmanı kapsıyorsa parçalara böldüm, ya da
+            aşağıda neden bölünemeyeceğini yazdım.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Kullanıcı bugün ne yapamıyor
+      description: >-
+        Çözümle değil, eksiklikle başla. "Bir topluluğa insan ekleyemiyorsun" iyi bir başlangıç;
+        "AddMemberSheet yazılmalı" değil — ikincisi çözümü daha problem anlaşılmadan sabitliyor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done-means
+    attributes:
+      label: Bitti ne demek
+      description: >-
+        Kontrol edilebilir maddeler. "Çalışıyor" kontrol edilebilir değildir; "gerçek bir telefonda
+        A kişisi B'yi topluluğa ekliyor ve B listede görünüyor" edilebilir.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: wiring-check
+    attributes:
+      label: Kalıcılık / okuyan / mekanizma
+      description: >-
+        Kullanıcıya görünen her iş için üçü de gerekiyor, ve üçü ayrı ayrı yazılıyor çünkü ikisini
+        yapıp üçüncüsünü atlamak bu depoda defalarca oldu: Gizlilik panosunun üç alanından ikisinin
+        backend'de okuyanı yoktu, yani istemciyi bağlamak "kaydeden ama hiçbir şeyi değiştirmeyen"
+        bir ekran üretecekti. App Lock'a yalnızca kalıcılık eklemek, uygulama hâlâ hiç kilitlenmezken
+        onarılmış gibi gösterirdi — görünür şekilde bozuk bırakmaktan kötü. Henüz bilinmiyorsa
+        "tasarımda belirlenecek" yaz.
+      value: |
+        Kalıcılık (persistence) — nereye yazılacak (migration / tablo / kolon / SharedPreferences):
+        Okuyan (reader) — yazılanı kim okuyacak:
+        Mekanizma (mechanism) — okunan şeyi kim uygulayacak:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Hangi katman
+      description: Birden çoksa iş büyük olabilir — bölmeyi düşün.
+      options:
+        - mobile — Android
+        - mobile — iOS
+        - backend
+        - shared (KMP)
+        - infra / CI / deploy
+        - docs
+        - birden çok katman (aşağıda açıkla)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: verification
+    attributes:
+      label: Bittiğinde nasıl doğrulanacak
+      description: >-
+        Yeşil bir test takımı kanıt değil. Bu depodaki ciddi kusurların hepsi uygulamayı kullanırken
+        bulundu; otomatik taramaların hiçbiri bulamadı.
+      options:
+        - Gerçek telefonda elle
+        - Emülatörde (emulator-5554) elle
+        - Prod backend'e istek atarak (curl / script)
+        - Otomatik test yeterli — kullanıcıya görünen bir tarafı yok
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Öncelik tahmini
+      options:
+        - "P0 — bunsuz sürüm çıkmaz"
+        - "P1 — bir sonraki sürümde"
+        - "P2 — sırasında"
+        - "P3 — bir gün"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Bağlam
+      description: >-
+        İlgili issue'lar, dosya:satır referansları, ekran görüntüleri, önceki denemeler. Zaten var
+        olan ama bağlanmamış bir backend dikeyi varsa burada söyle — birkaç kez oldu.

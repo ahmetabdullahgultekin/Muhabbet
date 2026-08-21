@@ -575,6 +575,7 @@
     <string name="wallpaper_title">Sohbet Arka Planı</string>
     <string name="wallpaper_default">Varsayılan</string>
     <string name="wallpaper_solid">Düz Renk</string>
+    <string name="wallpaper_gradient">Renk Geçişi</string>
     <string name="wallpaper_custom">Galeri</string>
     <string name="wallpaper_remove">Arka planı kaldır</string>
     <string name="wallpaper_dark_mode">Karanlık mod arka planı</string>

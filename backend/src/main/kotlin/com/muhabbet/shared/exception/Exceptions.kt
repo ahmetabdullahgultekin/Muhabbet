@@ -71,6 +71,10 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     POLL_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "Anket mesajı bulunamadı"),
     POLL_INVALID_OPTION(HttpStatus.BAD_REQUEST, "Geçersiz anket seçeneği"),
 
+    // Chat wallpaper. An unrecognised type used to reach Enum.valueOf and come back as a 500 for
+    // what is a malformed request body — latent until #380 gave the enum a fourth value.
+    WALLPAPER_INVALID_TYPE(HttpStatus.BAD_REQUEST, "Geçersiz sohbet arka planı türü"),
+
     // Encryption
     ENCRYPTION_KEY_BUNDLE_NOT_FOUND(HttpStatus.NOT_FOUND, "Şifreleme anahtar paketi bulunamadı"),
     ENCRYPTION_INVALID_KEY_DATA(HttpStatus.BAD_REQUEST, "Geçersiz şifreleme anahtar verisi"),

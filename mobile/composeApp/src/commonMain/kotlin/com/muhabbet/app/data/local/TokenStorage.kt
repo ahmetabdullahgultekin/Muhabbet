@@ -72,8 +72,8 @@ interface TokenStorage {
     fun setContactSyncConsentAt(timestamp: String)
     fun clearContactSyncConsent()
 
-    // Abstract for the same reason as media quality above (#380): these four were defaulted, no
-    // implementation overrode any of them, and so WallpaperPickerScreen wrote to an empty body and
+    // Abstract for the same reason as media quality above (#380): the four original pairs below were
+    // defaulted, no implementation overrode any of them, and so WallpaperPickerScreen wrote to an empty body and
     // read back null/false on every platform every time — the picker looked like it remembered a
     // choice only because that choice lived in the screen's own `remember{}` for the one composition
     // it was open. A no-op that compiles is exactly the failure this file already guards against.
@@ -81,6 +81,16 @@ interface TokenStorage {
     fun setWallpaperType(type: String)
     fun getSolidColor(): String?
     fun setSolidColor(color: String?)
+
+    /**
+     * The **id** of the chosen gradient wallpaper (`MuhabbetWallpaperGradient.id`), not its colours.
+     *
+     * Separate from [getSolidColor] rather than sharing one "value" slot with it, so that switching
+     * between SOLID and GRADIENT and back does not silently overwrite the other's choice — the two
+     * are different value spaces (a hex, an id) and a single slot would have to guess which it holds.
+     */
+    fun getWallpaperGradientId(): String?
+    fun setWallpaperGradientId(id: String?)
     fun getCustomWallpaperPath(): String?
     fun setCustomWallpaperPath(path: String?)
     fun getDarkModeWallpaperEnabled(): Boolean

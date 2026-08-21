@@ -153,6 +153,17 @@ fun appModule(): Module = module {
             tokenStorage = get()
         )
     }
+    // What a session switches on when it starts and — the half that had no call sites anywhere —
+    // off when it ends (#349). BackgroundSyncManager comes from the platform module, which is
+    // loaded alongside this one; both collaborators are named through their narrow interfaces so
+    // the logout direction is reachable from commonTest without an emulator.
+    single {
+        com.muhabbet.app.session.SessionWiring(
+            tokenStorage = get(),
+            backgroundSync = com.muhabbet.app.session.PlatformBackgroundSync(get()),
+            crashIdentity = com.muhabbet.app.session.PlatformCrashIdentity
+        )
+    }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.
     single { DeviceLinkRepository(apiClient = get()) }
     // E2EKeyManager and EncryptionPort are provided by platform modules.
