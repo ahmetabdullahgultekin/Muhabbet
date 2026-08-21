@@ -19,6 +19,7 @@ import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.call.IncomingCallScreen
 import com.muhabbet.app.ui.chat.ChatScreen
 import com.muhabbet.app.ui.chat.MessageInfoScreen
+import com.muhabbet.app.ui.conversations.ArchivedChatsScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.home.HomeShellScreen
 import com.muhabbet.app.ui.conversations.NewConversationScreen
@@ -166,6 +167,14 @@ class MainComponent(
     @OptIn(DelicateDecomposeApi::class)
     fun openStarredMessages() {
         navigation.push(Config.StarredMessages)
+    }
+
+    /** The pinned "Arşivlenmiş · N" row's destination (#612) — every conversation with `archived`
+     *  set, and the one place unarchiving is reachable from besides the long-press menu that put it
+     *  there in the first place. */
+    @OptIn(DelicateDecomposeApi::class)
+    fun openArchivedChats() {
+        navigation.push(Config.ArchivedChats)
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -334,6 +343,7 @@ class MainComponent(
         @Serializable data class UserProfile(val userId: String, val contactName: String? = null, val conversationId: String? = null) : Config
         @Serializable data class StatusViewer(val userId: String, val displayName: String) : Config
         @Serializable data object StarredMessages : Config
+        @Serializable data object ArchivedChats : Config
         @Serializable data class SharedMedia(val conversationId: String) : Config
         @Serializable data class MessageInfo(val messageId: String) : Config
         @Serializable data class IncomingCall(val callId: String, val callerId: String, val callerName: String? = null, val callType: String = "VOICE") : Config
@@ -459,6 +469,7 @@ private fun MainStack(component: MainComponent) {
                 onNewCall = component::openPickContactForCall,
                 onCommunityClick = { communityId -> component.openCommunityDetail(communityId) },
                 onCreateCommunity = component::openCreateCommunity,
+                onOpenArchived = component::openArchivedChats,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.ConversationList -> ConversationListScreen(
@@ -466,6 +477,7 @@ private fun MainStack(component: MainComponent) {
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
+                onOpenArchived = component::openArchivedChats,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.Chat -> ChatScreen(
@@ -545,6 +557,10 @@ private fun MainStack(component: MainComponent) {
                 onNavigateToConversation = { target, msgId ->
                     component.openChat(target, scrollToMessageId = msgId)
                 }
+            )
+            is MainComponent.Config.ArchivedChats -> ArchivedChatsScreen(
+                onBack = component::goBack,
+                onConversationClick = component::openChat
             )
             is MainComponent.Config.SharedMedia -> SharedMediaScreen(
                 conversationId = config.conversationId,

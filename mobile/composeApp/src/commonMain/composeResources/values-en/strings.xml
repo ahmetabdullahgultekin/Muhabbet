@@ -452,6 +452,10 @@
     <string name="conv_mute">Mute</string>
     <string name="conv_unmute">Unmute</string>
     <string name="conv_archived_section">Archived Chats</string>
+    <!-- Count shown under the archived-chats row at the top of the conversation list, e.g. "3 chats". -->
+    <string name="archived_row_count">%1$d chats</string>
+    <!-- Shown on the Archived Chats screen when nothing is archived. -->
+    <string name="archived_empty">No archived chats</string>
 
     <!-- Group enhancements -->
     <string name="group_remove_confirm">Are you sure you want to remove %1$s from the group?</string>

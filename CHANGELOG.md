@@ -8,6 +8,14 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Changed
+- **Archived chats are somewhere you can find them** (#612). The archive was a section at the
+  *bottom* of the conversation list that vanished whenever nothing was in it — so the one person who
+  wrote the app used the feature and concluded it did not exist. Archived chats now leave the main
+  list entirely and sit behind a single **Arşivlenmiş Sohbetler · N** row pinned to the top, which
+  opens a screen of its own. Unarchiving is the same long-press gesture that archived the chat, and
+  the chat is back in the main list when you come back.
+
 ## [0.3.10] — 2026-08-18
 
 Thirteen merged changes, most of them the same shape: a feature whose code was written and whose last
