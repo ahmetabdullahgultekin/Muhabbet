@@ -88,6 +88,8 @@ import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetSkeletonConversation
 import com.muhabbet.designsystem.components.MuhabbetSkeletonGate
+import com.muhabbet.app.util.DateTimeFormatter
+import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 private const val TAG = "ChatScreen"
 
@@ -620,9 +622,17 @@ fun ChatScreen(
     }
 
     val lastSeenMillis = peerLastSeen
+    // Relative day + time, not time alone (#702). "son gorulme 17:35" on a peer last seen two days
+    // ago reads as this afternoon, which is the complaint. Same formatter the profile screen uses,
+    // so the two surfaces cannot describe the same instant differently again.
+    val relativeDayLabels = rememberRelativeDayLabels()
     val subtitle = when {
         peerTyping -> typingText; peerOnline -> chatOnlineText
-        lastSeenMillis != null -> "$chatLastSeenText ${formatMessageTime(Instant.fromEpochMilliseconds(lastSeenMillis))}"
+        lastSeenMillis != null -> "$chatLastSeenText " +
+            DateTimeFormatter.formatLastSeen(
+                Instant.fromEpochMilliseconds(lastSeenMillis),
+                relativeDayLabels
+            )
         else -> null
     }
 

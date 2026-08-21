@@ -138,4 +138,60 @@ class DateTimeFormatterTest {
             "expected a numeric fallback, was '$formatted'"
         )
     }
+
+    // ── Last seen (#702) ──────────────────────────────────────────────────────
+    //
+    // The bug these pin: the chat header formatted last-seen with a time-only formatter, so a peer
+    // last seen two days ago read as "son gorulme 17:35" and looked like this afternoon. Every case
+    // below therefore asserts on the presence of a day, not only on the time.
+
+    @Test
+    fun `last seen today is the time alone`() {
+        val formatted = DateTimeFormatter.formatLastSeen(isoDaysAgo(0), labels)
+        assertEquals("12:00", formatted)
+    }
+
+    @Test
+    fun `last seen yesterday names the day and keeps the time`() {
+        val formatted = DateTimeFormatter.formatLastSeen(isoDaysAgo(1), labels)
+        assertEquals("${labels.yesterday} 12:00", formatted)
+    }
+
+    @Test
+    fun `last seen within the week names the weekday and keeps the time`() {
+        for (daysAgo in 2..6) {
+            val formatted = DateTimeFormatter.formatLastSeen(isoDaysAgo(daysAgo), labels)
+            val day = formatted.substringBeforeLast(' ')
+            assertTrue(day in labels.weekdays, "$daysAgo days ago gave '$formatted'")
+            assertTrue(formatted.endsWith(" 12:00"), "$daysAgo days ago lost the time: '$formatted'")
+        }
+    }
+
+    @Test
+    fun `last seen older than a week is a dated time`() {
+        val formatted = DateTimeFormatter.formatLastSeen(isoDaysAgo(9), labels)
+        assertTrue(formatted.endsWith(" 12:00"), "lost the time: '$formatted'")
+        assertTrue(
+            Regex("""^\d{2}\.\d{2}\.\d{4} 12:00$""").matches(formatted),
+            "expected dd.MM.yyyy HH:mm, got '$formatted'"
+        )
+    }
+
+    @Test
+    fun `nothing but today is ever shown as a bare time`() {
+        // The whole of #702 in one assertion: if any non-today bucket ever formats to just HH:mm
+        // again, the header is lying about how long ago someone left.
+        for (daysAgo in 1..30) {
+            val formatted = DateTimeFormatter.formatLastSeen(isoDaysAgo(daysAgo), labels)
+            assertTrue(
+                !Regex("""^\d{2}:\d{2}$""").matches(formatted),
+                "$daysAgo days ago formatted as a bare time: '$formatted'"
+            )
+        }
+    }
+
+    @Test
+    fun `an unparseable last seen is empty rather than a crash`() {
+        assertEquals("", DateTimeFormatter.formatLastSeen("not a timestamp", labels))
+    }
 }
