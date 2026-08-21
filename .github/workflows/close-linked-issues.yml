@@ -30,7 +30,15 @@ jobs:
   close:
     # Closing on merge, not on "closed": a PR abandoned without merging has fixed nothing.
     if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
+    # Self-hosted, not `ubuntu-latest`. Every GitHub-hosted job on this account is refused before it
+    # starts, with "The job was not started because your account is locked due to a billing issue".
+    # That refusal produces a red X and no log, so this workflow ran three times, closed nothing, and
+    # looked wired up the whole time — the exact failure mode it was written to end.
+    #
+    # The self-hosted runner takes ONE job at a time on the production host, so this does join the
+    # deploy queue. It is a few seconds of API calls; a few seconds in the queue beats a job that
+    # cannot start. `gh` 2.89 is already installed there and nothing is checked out.
+    runs-on: [self-hosted, linux, x64]
     steps:
       - name: Close what the PR says it closes
         env:
