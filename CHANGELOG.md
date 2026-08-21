@@ -8,6 +8,35 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — a block now hides presence in both directions, on both transports
+
+- **Blocking someone did not stop you seeing their dot, and did not stop them seeing yours** (#711).
+  The same asymmetry #687 closed on stories was open on presence in four more places, and in one of
+  them the two transports actively undid each other. `GET /conversations` and `GET /users/{id}`
+  asked only "who has blocked me", so the person who pressed Block went on watching the blocked
+  person's green dot, last seen and about. The WebSocket presence broadcast asked only the opposite
+  — "who have I blocked" — so it pushed the blocker's live `presence.online` frame to the person
+  they had blocked, who therefore opened the chat list to no dot and watched it light up seconds
+  later. The chat list writes both sources into the same state, so between them each direction
+  leaked through one channel. Typing indicators had no check in either direction and flowed both
+  ways through a blocked 1:1 chat.
+- **The rule is now stated once**, in `PresenceVisibility` (messaging domain): presence is withheld
+  in both directions whichever of the two placed the block. Its answer is symmetric, so the one set
+  serves "must not be shown to this user" and "must not be told about this user" without a caller
+  having to work out which it is in — the thing that went wrong. Auth's `BlockDirectoryPort` no
+  longer exposes a directional question at all, so the profile lookup cannot ask one way round.
+- **The hot path stays cheap.** Typing frames drop offline recipients first, with an in-process
+  lookup and no query, and return before asking about blocks or even encoding the frame when that
+  leaves nobody — strictly less work than before for a frame that reaches no one. Only a frame about
+  to be delivered costs a question, and then one batched query per direction over just the online
+  recipients. Deliberately not cached: a cache puts a staleness window on a privacy control, which
+  is the class of half-fix this issue is about.
+- **The regression tests drive both transports from one block**, through a fake that knows only who
+  blocked whom. A test that exercises one transport is how this survived two green suites.
+
+The four deliberately one-directional block checks are unchanged — direct send, group add and the
+two community adds — and each still carries the comment saying why.
+
 ### Security — blocking someone now works in both directions on stories
 
 - **You kept seeing the stories of the person you blocked** (#687). The fix above closed the other

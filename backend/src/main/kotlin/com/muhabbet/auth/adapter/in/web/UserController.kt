@@ -79,13 +79,15 @@ class UserController(
      * end to end. Resolved together with presence so the "contacts" case costs one membership
      * query rather than one per field.
      *
-     * A block short-circuits all of it. Whatever the target chose for everyone else, someone they
-     * blocked sees no presence, no last seen and no about — a blocked harasser watching a green dot
-     * to learn when their target is awake is the concrete harm here. Name and avatar still show,
-     * because a chat the two shared before the block would otherwise become an anonymous row.
+     * A block short-circuits all of it, **whichever of the two placed it** (#711). Whatever the
+     * target chose for everyone else, no presence, no last seen and no about crosses a block in
+     * either direction — a blocked harasser watching a green dot to learn when their target is
+     * awake is the concrete harm one way, and being made to keep watching the person you blocked is
+     * the concrete harm the other. Name and avatar still show, because a chat the two shared before
+     * the block would otherwise become an anonymous row.
      */
     private fun resolveVisibility(user: User, requesterId: UUID): VisibleProfile {
-        if (requesterId != user.id && blockDirectory.hasBlocked(user.id, requesterId)) {
+        if (requesterId != user.id && blockDirectory.blockExistsBetween(user.id, requesterId)) {
             return VisibleProfile(isOnline = false, lastSeen = null, about = null)
         }
 

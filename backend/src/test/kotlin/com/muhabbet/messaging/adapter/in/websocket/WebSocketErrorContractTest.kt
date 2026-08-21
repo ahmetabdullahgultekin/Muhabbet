@@ -8,6 +8,7 @@ import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.CallSignalingService
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
@@ -60,7 +61,7 @@ class WebSocketErrorContractTest {
         callSignalingService = mockk<CallSignalingService>(relaxed = true),
         callRoomProvider = mockk<CallRoomProvider>(relaxed = true),
         webSocketRateLimiter = rateLimiter,
-        blockPolicy = mockk<BlockPolicyPort>(relaxed = true)
+        presenceVisibility = PresenceVisibility(mockk<BlockPolicyPort>(relaxed = true))
     )
 
     @BeforeEach

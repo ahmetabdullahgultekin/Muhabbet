@@ -323,6 +323,14 @@ Details that matter and are easy to get wrong:
   the sender.
 - **Blocking drops the message after validation and before insert.** The sender still receives
   `ack OK`. This is intentional: telling a blocked sender they were blocked is itself information.
+- **A block hides presence both ways, and a message only one way.** The asymmetry is deliberate and
+  worth stating because it looks like an inconsistency. Presence — the online dot, last seen, about,
+  and the typing indicator — is withheld in *both* directions whichever of the two pressed Block;
+  `messaging/domain/service/PresenceVisibility` is the only place that rule is written, and every
+  surface that shows any of it asks that. Sending a message, adding someone to a group and adding
+  someone to a community stay one-directional: only the *recipient's* block counts, because someone
+  who messages a person they themselves blocked is not a victim and swallowing their outgoing
+  message reads as a fault. Those four call sites each carry a comment saying so.
 - **Two broadcasters exist and only one is live.** `RedisMessageBroadcaster` is `@Primary` and is what
   runs. The other, in `adapter/out/NoOpMessageBroadcaster.kt`, declares a class called
   `WebSocketMessageBroadcaster` — the filename has not matched its contents for some time — and is

@@ -9,10 +9,12 @@ import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -66,7 +68,7 @@ class ConversationPresenceBlockTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            blockPolicy = blockPolicy
+            presenceVisibility = PresenceVisibility(blockPolicy)
         )
 
         every { userRepository.findAllByIds(any()) } returns listOf(
@@ -97,6 +99,12 @@ class ConversationPresenceBlockTest {
             null,
             emptyList()
         )
+
+        // Neither direction blocked unless a test says so. Both are stubbed because presence is
+        // withheld symmetrically (#711) and a test that stubbed only one would pass while the
+        // other direction went unasked.
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
     }
 
     @AfterEach
@@ -124,6 +132,26 @@ class ConversationPresenceBlockTest {
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
 
         assertTrue(otherParticipantIsOnline())
+    }
+
+    @Test
+    fun `should withhold the online dot for a participant the viewer has blocked`() {
+        // The other direction of the same control (#711). Blocking someone is not a request to be
+        // less visible to them; it is a request to be done with them. Until this, the blocker kept
+        // watching the blocked person's green dot in their own chat list every day.
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns setOf(other)
+
+        assertFalse(otherParticipantIsOnline())
+    }
+
+    @Test
+    fun `should ask both directions about the same participant set`() {
+        // Contract, not decoration. The bug this replaces was one direction being asked and the
+        // other not, on a surface whose answer the app renders as a live dot.
+        controller.getConversations(null, 20)
+
+        verify(exactly = 1) { blockPolicy.findBlockedBy(me, listOf(other)) }
+        verify(exactly = 1) { blockPolicy.findBlockedAmong(me, listOf(other)) }
     }
 
     @Test
