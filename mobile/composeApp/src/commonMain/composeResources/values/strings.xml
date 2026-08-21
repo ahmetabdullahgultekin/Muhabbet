@@ -855,6 +855,30 @@
     <string name="messages_loading">Mesajlar yükleniyor</string>
     <string name="communities_loading">Topluluklar yükleniyor</string>
     <string name="channels_loading">Kanallar yükleniyor</string>
+
+    <!-- Contacts access recovery (#692). Android stops showing the permission dialog after two
+         refusals, so this is the only route left; contacts_permission_denied already tells the
+         user the answer is in settings, and until now gave them no way to get there. -->
+    <string name="contacts_open_settings">Ayarları aç</string>
+
+    <!-- First-run welcome flow (#692). Shown once, skippable, and the only place the app gets to
+         say what to do first. The contacts step reuses contacts_consent_body rather than
+         paraphrasing it: two copies of a KVKK explanation is how the two ends of it drift apart. -->
+    <string name="welcome_skip">Atla</string>
+    <string name="welcome_next">Devam et</string>
+    <string name="welcome_intro_title">Muhabbet'e hoş geldiniz</string>
+    <string name="welcome_intro_body">Mesajlarınız burada olacak. Başlamadan önce iki kısa adım var, ikisini de atlayabilirsiniz.</string>
+    <string name="welcome_contacts_title">Kimlerin Muhabbet'te olduğunu görün</string>
+    <string name="welcome_contacts_already_body">Rehber erişimi zaten açık. Geriye tek şey kaldı: rehberinizdeki numaraların eşleştirilmesini onaylamak. Numaraların kendisi telefonunuzdan çıkmaz, yalnızca geri döndürülemez özetleri (SHA-256) gönderilir.</string>
+    <string name="welcome_contacts_denied_note">Rehber izni daha önce reddedilmiş. Android, ikinci reddin ardından izin penceresini bir daha hiç açmaz; açmanın tek yolu sistem ayarları.</string>
+    <string name="welcome_contacts_action">Onayla ve rehbere izin ver</string>
+    <string name="welcome_contacts_skip">Şimdi değil</string>
+    <string name="welcome_ready_title_contacts">Hazırsınız</string>
+    <string name="welcome_ready_body_contacts">Rehberinizdeki Muhabbet kullanıcıları sohbet listenizde görünecek. Yeni bir sohbet başlatmak için artı düğmesine dokunun.</string>
+    <string name="welcome_ready_title_no_contacts">Numarayla başlayabilirsiniz</string>
+    <string name="welcome_ready_body_no_contacts">Rehber erişimi olmadan da her şey çalışır. Artı düğmesine dokunun ve Numara ile sohbet başlat satırından kime yazacağınızı seçin.</string>
+    <string name="welcome_ready_action">Başla</string>
+
     <!-- "Neler değişti" / sürüm notları (#672). Buradaki satırlar CHANGELOG.md'nin çevirisi
          DEĞİLDİR. O dosya mühendis için yazılıyor; bunlar telefonu elinde tutan kişi için yazılıyor
          ve her sürümde birbirinden bağımsız olarak elle yazılır. Issue numarası yok, dosya adı yok,

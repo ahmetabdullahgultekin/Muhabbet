@@ -142,6 +142,17 @@ fun appModule(): Module = module {
     // — an open chat re-asserting its read receipt, today. A singleton because a second copy could
     // report a different answer than the one the writer is updating.
     single { com.muhabbet.app.platform.AppVisibility() }
+    // Contacts access (#691) — singleton for the third time and the third identical reason. The
+    // answer used to live in five per-screen `remember` slots that could not tell each other apart;
+    // granting the permission from system settings and coming back changed none of them, because
+    // returning to the foreground tears down no composition. One flow, re-read on every foreground
+    // by ContactsAccessRefreshEffect.
+    single {
+        com.muhabbet.app.data.local.ContactsAccessController(
+            contactsProvider = get(),
+            tokenStorage = get()
+        )
+    }
     // What a session switches on when it starts and — the half that had no call sites anywhere —
     // off when it ends (#349). BackgroundSyncManager comes from the platform module, which is
     // loaded alongside this one; both collaborators are named through their narrow interfaces so

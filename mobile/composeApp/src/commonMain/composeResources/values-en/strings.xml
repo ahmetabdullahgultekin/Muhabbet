@@ -833,6 +833,26 @@
     <string name="messages_loading">Loading messages</string>
     <string name="communities_loading">Loading communities</string>
     <string name="channels_loading">Loading channels</string>
+
+    <!-- Contacts access recovery (#692). See the Turkish file for why this exists. -->
+    <string name="contacts_open_settings">Open settings</string>
+
+    <!-- First-run welcome flow (#692). -->
+    <string name="welcome_skip">Skip</string>
+    <string name="welcome_next">Continue</string>
+    <string name="welcome_intro_title">Welcome to Muhabbet</string>
+    <string name="welcome_intro_body">Your messages will live here. Two short steps before you start, and you can skip both.</string>
+    <string name="welcome_contacts_title">See who you already know on Muhabbet</string>
+    <string name="welcome_contacts_already_body">Contacts access is already on. One thing is left: agreeing to have your address book matched. The numbers themselves never leave your phone, only irreversible hashes (SHA-256) of them are sent.</string>
+    <string name="welcome_contacts_denied_note">Contacts access was refused earlier. Android never opens the permission dialog again after a second refusal, so system settings is the only way to turn it on.</string>
+    <string name="welcome_contacts_action">Agree and allow contacts</string>
+    <string name="welcome_contacts_skip">Not now</string>
+    <string name="welcome_ready_title_contacts">You are ready</string>
+    <string name="welcome_ready_body_contacts">People from your contacts who use Muhabbet will appear in your chat list. Tap the plus button to start a new conversation.</string>
+    <string name="welcome_ready_title_no_contacts">You can start with a number</string>
+    <string name="welcome_ready_body_no_contacts">Everything works without contacts access. Tap the plus button and use Start a chat by number to choose who to write to.</string>
+    <string name="welcome_ready_action">Start</string>
+
     <!-- What's new / release notes (#672). Rewritten from CHANGELOG.md, not translated from it:
          that file is written for an engineer, this is written for someone holding the phone. -->
     <string name="whatsnew_title">What's new</string>

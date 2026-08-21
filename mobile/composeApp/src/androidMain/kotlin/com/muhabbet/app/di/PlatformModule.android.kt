@@ -200,6 +200,22 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putBoolean("notification_permission_asked", true).apply()
     }
 
+    // Plain prefs, for the same reasons as the two above. Both are read on the first frame after
+    // login and neither says anything about the user that a stranger holding the phone could not
+    // learn by opening the app.
+    override fun getContactsPermissionAsked(): Boolean =
+        plainPrefs.getBoolean("contacts_permission_asked", false)
+
+    override fun setContactsPermissionAsked() {
+        plainPrefs.edit().putBoolean("contacts_permission_asked", true).apply()
+    }
+
+    override fun getWelcomeSeen(): Boolean = plainPrefs.getBoolean("welcome_seen", false)
+
+    override fun setWelcomeSeen() {
+        plainPrefs.edit().putBoolean("welcome_seen", true).apply()
+    }
+
     // Plain prefs, for the same reasons as the two above, plus one of its own: `clear()` wipes only
     // the encrypted store, and which releases someone has already been shown must survive a logout.
     override fun getLastSeenVersion(): String? = plainPrefs.getString("last_seen_version", null)

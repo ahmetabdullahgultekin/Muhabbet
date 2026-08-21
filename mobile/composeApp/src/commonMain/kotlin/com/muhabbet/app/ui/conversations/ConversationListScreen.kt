@@ -20,6 +20,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import com.muhabbet.app.data.local.ContactsAccess
+import com.muhabbet.app.data.local.ContactsAccessController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.ui.connection.ConnectionStrip
@@ -76,6 +78,7 @@ fun ConversationListScreen(
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
+    contactsAccessController: ContactsAccessController = koinInject(),
     statusRepository: StatusRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject()
 ) {
@@ -96,6 +99,9 @@ fun ConversationListScreen(
 
     // Map of normalized E.164 phone → device contact saved name
     val contactNameMap = remember { mutableStateMapOf<String, String>() }
+
+    // The app's one answer about contacts access (#691), rather than a private read of the OS.
+    val contactsAccess by contactsAccessController.access.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
@@ -217,23 +223,30 @@ fun ConversationListScreen(
         }
     }
 
-    // Load device contacts for name resolution (contact name > nickname > phone)
-    LaunchedEffect(Unit) {
-        if (contactsProvider.hasPermission()) {
-            try {
-                val deviceContacts = withContext(Dispatchers.Default) {
-                    contactsProvider.readContacts()
-                }
-                deviceContacts.forEach { contact ->
-                    val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
-                    val normalized = normalizeToE164(digits)
-                    if (normalized != null) {
-                        contactNameMap[normalized] = contact.name
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to read device contacts", e)
+    // Load device contacts for name resolution (contact name > nickname > phone).
+    //
+    // Keyed on the shared access flow, not on `Unit` (#691). As `LaunchedEffect(Unit)` reading
+    // `contactsProvider.hasPermission()` this ran exactly once, at the first composition of the
+    // conversation list — which on a fresh account is before the user has ever been asked, so it
+    // read false and stopped. Granting the permission afterwards, from anywhere, changed nothing:
+    // returning from system settings tears down no composition, so the effect never re-ran and this
+    // list went on showing raw phone numbers. That looks precisely like the grant not having
+    // worked, which is why the same permission kept being granted over and over.
+    LaunchedEffect(contactsAccess) {
+        if (contactsAccess != ContactsAccess.Granted) return@LaunchedEffect
+        try {
+            val deviceContacts = withContext(Dispatchers.Default) {
+                contactsProvider.readContacts()
             }
+            deviceContacts.forEach { contact ->
+                val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
+                val normalized = normalizeToE164(digits)
+                if (normalized != null) {
+                    contactNameMap[normalized] = contact.name
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read device contacts", e)
         }
     }
 

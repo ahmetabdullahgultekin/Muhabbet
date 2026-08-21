@@ -9,6 +9,9 @@ import platform.Contacts.CNContactFetchRequest
 import platform.Contacts.CNContactGivenNameKey
 import platform.Contacts.CNContactFamilyNameKey
 import platform.Contacts.CNContactPhoneNumbersKey
+import platform.Foundation.NSURL
+import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenSettingsURLString
 
 class IosContactsProvider : ContactsProvider {
     private val store = CNContactStore()
@@ -46,6 +49,17 @@ class IosContactsProvider : ContactsProvider {
             // Contact fetch failed
         }
         return contacts
+    }
+
+    /**
+     * The app's own page in Settings. iOS shows a per-app privacy list there, so Contacts is one
+     * tap away — and, as on Android, it is the only route left once the system prompt has been
+     * answered, because `requestAccessForEntityType` returns immediately without prompting again.
+     */
+    @OptIn(ExperimentalForeignApi::class)
+    override fun openSystemSettings() {
+        val url = NSURL.URLWithString(UIApplicationOpenSettingsURLString) ?: return
+        UIApplication.sharedApplication.openURL(url, options = emptyMap<Any?, Any>(), completionHandler = null)
     }
 }
 

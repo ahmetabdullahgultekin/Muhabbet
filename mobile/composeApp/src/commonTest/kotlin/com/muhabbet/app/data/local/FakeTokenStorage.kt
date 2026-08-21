@@ -92,6 +92,14 @@ class FakeTokenStorage : TokenStorage {
     override fun getAppLockTimeout(): String? = appLockTimeout
     override fun setAppLockTimeout(timeout: String) { appLockTimeout = timeout }
 
+    private var contactsPermissionAsked: Boolean = false
+    override fun getContactsPermissionAsked(): Boolean = contactsPermissionAsked
+    override fun setContactsPermissionAsked() { contactsPermissionAsked = true }
+
+    private var welcomeSeen: Boolean = false
+    override fun getWelcomeSeen(): Boolean = welcomeSeen
+    override fun setWelcomeSeen() { welcomeSeen = true }
+
     private var lastSeenVersion: String? = null
     override fun getLastSeenVersion(): String? = lastSeenVersion
     override fun setLastSeenVersion(version: String) { lastSeenVersion = version }

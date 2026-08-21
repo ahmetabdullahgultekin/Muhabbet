@@ -187,6 +187,19 @@ class IosTokenStorage : TokenStorage {
         defaults.setBool(true, forKey = "notification_permission_asked")
     }
 
+    override fun getContactsPermissionAsked(): Boolean =
+        defaults.boolForKey("contacts_permission_asked")
+
+    override fun setContactsPermissionAsked() {
+        defaults.setBool(true, forKey = "contacts_permission_asked")
+    }
+
+    override fun getWelcomeSeen(): Boolean = defaults.boolForKey("welcome_seen")
+
+    override fun setWelcomeSeen() {
+        defaults.setBool(true, forKey = "welcome_seen")
+    }
+
     override fun getLastSeenVersion(): String? = defaults.stringForKey("last_seen_version")
 
     override fun setLastSeenVersion(version: String) {

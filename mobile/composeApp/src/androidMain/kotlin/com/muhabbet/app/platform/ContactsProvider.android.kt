@@ -1,11 +1,16 @@
 package com.muhabbet.app.platform
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.provider.ContactsContract
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.core.content.ContextCompat
+import com.muhabbet.app.util.Log
 
 class AndroidContactsProvider(private val context: Context) : ContactsProvider {
 
@@ -40,10 +45,33 @@ class AndroidContactsProvider(private val context: Context) : ContactsProvider {
         return contacts.distinctBy { normalizePhone(it.phoneNumber) }
     }
 
+    /**
+     * The app's own details page, which carries the Permissions entry.
+     *
+     * There is no per-permission deep link on Android — `ACTION_APPLICATION_DETAILS_SETTINGS` is the
+     * closest the platform offers, and it is one tap from the Contacts switch. `FLAG_ACTIVITY_NEW_TASK`
+     * because this class is handed the application context, not the Activity.
+     *
+     * A failure is logged rather than swallowed, following `AndroidNotificationPermission`: a report
+     * of "the button does nothing" then reads differently from a report of "the button is not there".
+     */
+    override fun openSystemSettings() {
+        val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(Uri.fromParts("package", context.packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(appDetails)
+        } catch (e: ActivityNotFoundException) {
+            Log.e(TAG, "App details settings did not resolve", e)
+        }
+    }
+
     private fun normalizePhone(phone: String): String {
         return phone.filter { it.isDigit() || it == '+' }
     }
 }
+
+private const val TAG = "ContactsProvider"
 
 @Composable
 actual fun rememberContactsPermissionRequester(
