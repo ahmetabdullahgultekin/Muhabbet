@@ -18,6 +18,7 @@ import jakarta.persistence.PersistenceContext
 import org.hibernate.SessionFactory
 import org.hibernate.stat.Statistics
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -27,6 +28,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
+import org.springframework.transaction.IllegalTransactionStateException
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Instant
@@ -172,6 +174,45 @@ class SendPathStatementCountIntegrationTest {
             stats.prepareStatementCount < 31,
             "expected the inserts to batch, but ${stats.prepareStatementCount} statements were prepared for 31 rows"
         )
+    }
+
+    /**
+     * The other half of #492: a bare `persist` no longer brings a transaction of its own, so who
+     * opens one became a real question — and the answer has to be enforced rather than documented.
+     *
+     * `MANDATORY` is what enforces it. The alternative, `REQUIRED`, would let a caller that forgot
+     * the boundary write the message in one transaction and its delivery rows in another; if the
+     * second failed, the message would exist in nobody's inbox and nobody's unread count, with no
+     * later run to repair it. Refusing up front is the only outcome that cannot leave that row
+     * behind.
+     *
+     * Asserted here, and not left to the six integration tests that discovered it by failing,
+     * because those failed on a *test-setup* omission and the message they produced named JPA
+     * rather than the contract. This one states the contract, so a future `REQUIRED` "fix" that
+     * quietly restores per-call transactions has to argue with a red test instead of a green one.
+     */
+    @Test
+    fun `should refuse to insert a message when the caller has not opened a transaction`() {
+        val error = assertThrows(IllegalTransactionStateException::class.java) {
+            messageRepository.save(newMessage())
+        }
+        assertTrue(
+            error.message?.contains("mandatory", ignoreCase = true) == true,
+            "expected the failure to name the propagation contract, but it said: ${error.message}"
+        )
+    }
+
+    /**
+     * The empty list is the case that would otherwise pass silently. `saveDeliveryStatuses` on no
+     * recipients persists nothing, so without the propagation check it succeeds with no transaction
+     * — a conversation the sender is alone in would be the one send that never reported the bug.
+     * `MANDATORY` is checked before the body runs, so it fails like any other.
+     */
+    @Test
+    fun `should refuse delivery rows outside a transaction even when there are none to write`() {
+        assertThrows(IllegalTransactionStateException::class.java) {
+            messageRepository.saveDeliveryStatuses(emptyList())
+        }
     }
 
     private fun newMessage() = Message(
