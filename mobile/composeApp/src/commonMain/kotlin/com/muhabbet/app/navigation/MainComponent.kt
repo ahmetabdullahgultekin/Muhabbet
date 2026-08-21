@@ -31,6 +31,7 @@ import com.muhabbet.app.ui.starred.StarredMessagesScreen
 import com.muhabbet.app.ui.communities.CommunityDetailScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
 import com.muhabbet.app.ui.communities.CommunityMembersScreen
+import com.muhabbet.app.ui.communities.JoinCommunityScreen
 import com.muhabbet.app.ui.communities.CreateCommunityScreen
 import com.muhabbet.app.ui.conversations.BroadcastDetailScreen
 import com.muhabbet.app.ui.conversations.BroadcastListScreen
@@ -258,6 +259,20 @@ class MainComponent(
         }
     }
 
+    /**
+     * Opens the invite a `muhabbet://community-invite/{token}` link carries.
+     *
+     * `navigate` rather than `push` so that tapping the same link twice — which happens, because a
+     * link sits in a chat and gets re-read — returns to the screen already on the stack instead of
+     * stacking a second copy of it behind the first.
+     */
+    fun openJoinCommunity(token: String) {
+        val target = Config.JoinCommunity(token)
+        navigation.navigate { stack ->
+            if (target in stack) stack.dropLastWhile { it != target } else stack + target
+        }
+    }
+
     @OptIn(DelicateDecomposeApi::class)
     fun openPickContactForCall() {
         navigation.push(Config.PickContactForCall)
@@ -361,6 +376,7 @@ class MainComponent(
         @Serializable data object About : Config
         @Serializable data class CommunityDetail(val communityId: String) : Config
         @Serializable data class CommunityMembers(val communityId: String) : Config
+        @Serializable data class JoinCommunity(val token: String) : Config
         @Serializable data object CreateCommunity : Config
         @Serializable data object PickContactForCall : Config
         @Serializable data class GroupEvents(val conversationId: String) : Config
@@ -383,6 +399,7 @@ class MainComponent(
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun MainContent(component: MainComponent) {
     OpenChatFromOutside(component)
+    OpenCommunityInviteFromOutside(component)
     SharedTransitionLayout {
         val stack by component.childStack.subscribeAsState()
         val handoff = AvatarHandoff(
@@ -451,6 +468,26 @@ private fun OpenChatFromOutside(component: MainComponent) {
         // lookup above was suspended must not be thrown away with the one it replaced.
         pendingChatOpen.consume(request)
         component.openChat(target)
+    }
+}
+
+/**
+ * Acts on a `muhabbet://community-invite/{token}` link parked by the platform (#387, #416).
+ *
+ * The sibling of [OpenChatFromOutside], and mounted for the same reason: only a signed-in user has a
+ * navigation stack to push onto, so a token that arrived at the login screen waits here until there
+ * is one. Simpler than the chat case because there is nothing to resolve — the token is the whole
+ * request, and the screen it opens fetches everything else from the server.
+ */
+@Composable
+private fun OpenCommunityInviteFromOutside(component: MainComponent) {
+    val pendingCommunityInvite: PendingCommunityInvite = koinInject()
+    val pending by pendingCommunityInvite.pending.collectAsState()
+
+    LaunchedEffect(pending) {
+        val token = pending ?: return@LaunchedEffect
+        pendingCommunityInvite.consume(token)
+        component.openJoinCommunity(token)
     }
 }
 
@@ -619,7 +656,15 @@ private fun MainStack(component: MainComponent) {
                 onGroupClick = component::openChat,
                 onMembersClick = component::openCommunityMembers
             )
-            is MainComponent.Config.CommunityMembers -> CommunityMembersScreen(
+            is MainComponent.Config.JoinCommunity -> JoinCommunityScreen(
+            token = config.token,
+            onBack = component::goBack,
+            // replaceCurrent, not push: once you have joined, the invite screen is spent and
+            // backing out of the community onto "Join" would offer an action that now fails.
+            onJoined = component::replaceWithCommunityDetail
+        )
+
+        is MainComponent.Config.CommunityMembers -> CommunityMembersScreen(
                 communityId = config.communityId,
                 onBack = component::goBack,
                 onMemberClick = { userId -> component.openUserProfile(userId) }

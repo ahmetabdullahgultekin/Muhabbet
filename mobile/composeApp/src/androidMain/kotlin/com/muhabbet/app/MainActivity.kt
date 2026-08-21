@@ -18,6 +18,7 @@ import com.muhabbet.app.di.androidPlatformModule
 import com.muhabbet.app.di.bootstrapOrReuseKoin
 import com.muhabbet.app.navigation.ChatOpenRequest
 import com.muhabbet.app.navigation.PendingChatOpen
+import com.muhabbet.app.navigation.PendingCommunityInvite
 import com.muhabbet.app.platform.MuhabbetNotifications
 import java.util.Locale
 
@@ -113,6 +114,11 @@ class MainActivity : FragmentActivity() {
     private fun handleChatIntent(intent: android.content.Intent?, platformModule: org.koin.core.module.Module) {
         val intent = intent ?: return
 
+        // A community invite is a different destination, so it is answered first and returns —
+        // otherwise the chat parsing below would read the token as a conversation id and push a
+        // chat that does not exist.
+        if (handleCommunityInviteIntent(intent, platformModule)) return
+
         val fromNotification = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
         val fromDeepLink = intent.data
             ?.takeIf { it.host == DEEP_LINK_CHAT_HOST || it.pathSegments.firstOrNull() == DEEP_LINK_CHAT_HOST }
@@ -164,11 +170,53 @@ class MainActivity : FragmentActivity() {
         resources.updateConfiguration(config, resources.displayMetrics)
     }
 
+    /**
+     * Parks a `muhabbet://community-invite/{token}` link, and reports whether it did (#387, #416).
+     *
+     * Returns true when the intent was an invite, so the caller can stop rather than fall through to
+     * the chat parsing — which would otherwise treat the invite token as a conversation id, because
+     * that parser ends in `pathSegments.lastOrNull()` and would happily take it.
+     *
+     * The manifest's `muhabbet` filter carries no host restriction, so this needed no manifest
+     * change. The `https://muhabbet.app/invite` filter is already declared and is matched by the
+     * path-segment branch — though an https link is not usable in practice yet, because App Links
+     * need an assetlinks.json on a domain this project does not own.
+     */
+    private fun handleCommunityInviteIntent(
+        intent: android.content.Intent,
+        platformModule: org.koin.core.module.Module
+    ): Boolean {
+        val data = intent.data ?: return false
+        val isInvite = data.host == DEEP_LINK_INVITE_HOST ||
+            data.pathSegments.firstOrNull() == DEEP_LINK_INVITE_HOST ||
+            data.pathSegments.firstOrNull() == DEEP_LINK_INVITE_PATH
+        if (!isInvite) return false
+
+        val token = data.pathSegments.lastOrNull()
+            ?.takeIf { it.isNotBlank() && it != DEEP_LINK_INVITE_PATH && it != DEEP_LINK_INVITE_HOST }
+            ?: return false
+
+        // Cleared so a configuration change — or the deliberate Activity recreation the language
+        // switch performs — cannot replay the same join a second time.
+        intent.data = null
+
+        bootstrapOrReuseKoin(platformModule)
+            .get<PendingCommunityInvite>()
+            .request(token)
+        return true
+    }
+
     private companion object {
         /**
          * `muhabbet://chat/{id}` puts `chat` in the host; the `https://` app link puts it in the
          * first path segment. Both filters are in the manifest, so both are checked.
          */
         const val DEEP_LINK_CHAT_HOST = "chat"
+
+        /** `muhabbet://community-invite/{token}` — the host, matching the scheme the server mints. */
+        const val DEEP_LINK_INVITE_HOST = "community-invite"
+
+        /** `https://muhabbet.app/invite/{token}` — the universal-link form already in the manifest. */
+        const val DEEP_LINK_INVITE_PATH = "invite"
     }
 }

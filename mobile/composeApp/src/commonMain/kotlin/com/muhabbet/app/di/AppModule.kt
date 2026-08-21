@@ -109,6 +109,11 @@ fun appModule(): Module = module {
     // singleton because the two ends are in different worlds: the Activity writes into it, a
     // composable that may not exist yet reads out of it (#594).
     single { com.muhabbet.app.navigation.PendingChatOpen() }
+
+    // Same parking space, for a community invite link arriving from outside the app (#387, #416).
+    // A singleton for the same reason: the Activity writes into it, and the composable that can act
+    // on it may not exist yet — most obviously when the link is tapped by someone not signed in.
+    single { com.muhabbet.app.navigation.PendingCommunityInvite() }
     // localCache resolved as LocalCache explicitly, for the same reason ConversationRepository is:
     // the parameter's type is the narrower MessageCache interface, which nothing registers, and
     // Koin resolves get() by the parameter type — left implicit this fails at startup, not at

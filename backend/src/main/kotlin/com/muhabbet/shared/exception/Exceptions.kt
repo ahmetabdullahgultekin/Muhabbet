@@ -121,6 +121,23 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     ),
     COMMUNITY_INVALID_NAME(HttpStatus.BAD_REQUEST, "Geçersiz topluluk adı"),
 
+    // Community invite links (#387, #416). The three generic INVITE_LINK_* codes above are shared
+    // with group links deliberately — "not found", "expired" and "used up" mean exactly the same
+    // thing to the person holding the token, and the app already has copy for them. Only the three
+    // below say something a group link never needs to say.
+    COMMUNITY_INVITE_LIMIT_REACHED(
+        HttpStatus.CONFLICT,
+        "Bu topluluk için çok fazla etkin davet bağlantısı var, önce birini iptal edin"
+    ),
+    COMMUNITY_INVITE_INVALID_MAX_USES(
+        HttpStatus.BAD_REQUEST,
+        "Davet bağlantısının kullanım sınırı geçersiz"
+    ),
+    COMMUNITY_INVITE_INVALID_EXPIRY(
+        HttpStatus.BAD_REQUEST,
+        "Davet bağlantısının son kullanma tarihi geçmişte olamaz"
+    ),
+
     // Leaving would strand the community with no member and no owner. #407 added a real delete
     // endpoint (owner only) as the honest way to remove one; leave still refuses for a sole member
     // so the escape hatch is an explicit, auditable delete rather than an implicit one on the way out.

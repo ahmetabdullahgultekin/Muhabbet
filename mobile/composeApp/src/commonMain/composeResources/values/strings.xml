@@ -693,6 +693,33 @@
     <string name="community_delete_button">Sil</string>
     <string name="community_delete_failed">Topluluk silinemedi</string>
     <string name="community_add_member">Üye Ekle</string>
+
+    <!-- Community invite links (#387, #416) — the only way a community can gain a member who is
+         not already in one of its groups. -->
+    <string name="community_invite_title">Davet Bağlantısı</string>
+    <string name="community_invite_subtitle">Bu bağlantıyı alan herkes topluluğa katılabilir. Yalnızca güvendiğiniz kişilerle paylaşın.</string>
+    <string name="community_invite_create">Davet bağlantısı oluştur</string>
+    <string name="community_invite_row">Bağlantıyla davet et</string>
+    <string name="community_invite_copy">Bağlantıyı kopyala</string>
+    <string name="community_invite_copied">Davet bağlantısı kopyalandı</string>
+    <string name="community_invite_share">Bağlantıyı paylaş</string>
+    <string name="community_invite_revoke">Bağlantıyı iptal et</string>
+    <string name="community_invite_revoked">Davet bağlantısı iptal edildi</string>
+    <string name="community_invite_revoke_failed">Davet bağlantısı iptal edilemedi</string>
+    <string name="community_invite_create_failed">Davet bağlantısı oluşturulamadı</string>
+    <string name="community_invite_empty">Henüz davet bağlantısı yok</string>
+    <string name="community_invite_uses">%1$d kişi katıldı</string>
+    <string name="community_invite_uses_limited">%1$d / %2$d kişi katıldı</string>
+
+    <!-- Join-by-invite screen -->
+    <string name="community_join_title">Topluluğa Katıl</string>
+    <string name="community_join_invited_by">Sizi %1$s davet etti</string>
+    <string name="community_join_member_count">%1$d üye</string>
+    <string name="community_join_button">Katıl</string>
+    <string name="community_join_open">Topluluğu aç</string>
+    <string name="community_join_already_member">Bu topluluğun zaten üyesisiniz</string>
+    <string name="community_join_failed">Topluluğa katılınamadı</string>
+    <string name="community_join_invalid">Bu davet bağlantısı geçerli değil veya iptal edilmiş</string>
     <string name="community_add_member_title">Topluluğa Üye Ekle</string>
     <string name="community_add_member_subtitle">Topluluğun gruplarındaki kişiler eklenebilir</string>
     <string name="community_add_member_empty">Eklenebilecek kimse yok. Yalnızca bu topluluğun gruplarında bulunan kişiler eklenebilir.</string>

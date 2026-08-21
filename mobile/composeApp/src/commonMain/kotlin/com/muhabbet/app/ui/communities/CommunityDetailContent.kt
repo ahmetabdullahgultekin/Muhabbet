@@ -53,6 +53,7 @@ fun CommunityDetailContent(
     canManage: Boolean,
     contentPadding: PaddingValues,
     onMembersClick: () -> Unit,
+    onInviteClick: () -> Unit,
     onAddGroupClick: () -> Unit,
     onGroupClick: (ChatTarget) -> Unit,
     onRemoveGroupClick: (CommunityGroupInfo) -> Unit
@@ -139,6 +140,36 @@ fun CommunityDetailContent(
             }
             HorizontalDivider()
             Spacer(Modifier.height(MuhabbetSpacing.Medium))
+        }
+
+        // Invite via link (#387, #416) — admins and owners only, matching the server, which refuses
+        // both the list and the create for a plain member. This is the only control in the app that
+        // can bring in someone who is not already in one of the community's groups.
+        if (canManage) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onInviteClick)
+                        .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Muhabbet.icons.Link,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(MuhabbetSizes.IconLarge)
+                    )
+                    Spacer(Modifier.width(MuhabbetSpacing.Medium))
+                    Text(
+                        text = stringResource(Res.string.community_invite_row),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                HorizontalDivider()
+                Spacer(Modifier.height(MuhabbetSpacing.Medium))
+            }
         }
 
         item {

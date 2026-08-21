@@ -566,14 +566,82 @@ data class CommunityMemberResponse(
  *
  * The server computes this from the same rule `addMember` enforces — membership of one of the
  * community's own groups (#375) — so the picker cannot offer a person the add would then reject.
- * It is deliberately not a user search: until the invite flow (#387) exists, nobody outside those
- * groups can be added at all.
+ * It is deliberately not a user search. It is also no longer the only way in: an invite link
+ * ([CommunityInviteLinkResponse]) admits someone from outside those groups, on their own accept.
  */
 @Serializable
 data class CommunityMemberCandidateResponse(
     val userId: String,
     val displayName: String? = null,
     val avatarUrl: String? = null
+)
+
+// ─── Community Invite DTOs (#387, #416) ─────────────────
+//
+// These three are the client's half of the only path by which a community can gain a member who
+// was not already in one of its groups. The backend controller uses **these** types rather than
+// private copies of them, deliberately: `InviteLinkResponse` above is declared here with a required
+// `inviteUrl` that the group invite-link controller never sends, so that response fails to decode
+// on the device — `ignoreUnknownKeys` forgives extra fields, never missing required ones. One
+// definition, used on both sides, is the only thing that actually prevents that.
+
+/**
+ * `POST /api/v1/communities/{id}/invite-links`. Admins and owners only.
+ *
+ * @param maxUses how many people the link may admit; null for unlimited.
+ * @param expiresAt ISO-8601 instant, or null for no expiry. Must not already be in the past.
+ */
+@Serializable
+data class CreateCommunityInviteRequest(
+    val maxUses: Int? = null,
+    val expiresAt: String? = null
+)
+
+/**
+ * One invite link, as its community's admins see it.
+ *
+ * [inviteToken] is a bearer credential — anyone holding it can join. Never show it in a list that a
+ * plain member can reach, and never log it.
+ *
+ * [inviteUrl] is built by the **server**, so the scheme can change without shipping an app. It is
+ * currently a `muhabbet://` deep link rather than an `https://` one, because the project does not
+ * yet own a domain to host the App Links `assetlinks.json` at; a recipient without the app
+ * installed therefore cannot use it yet.
+ */
+@Serializable
+data class CommunityInviteLinkResponse(
+    val id: String,
+    val communityId: String,
+    val inviteToken: String,
+    val inviteUrl: String,
+    val isActive: Boolean = true,
+    val maxUses: Int? = null,
+    val useCount: Int = 0,
+    val expiresAt: String? = null,
+    val createdAt: String
+)
+
+/**
+ * What someone holding an invite token is shown before they decide — `GET
+ * /api/v1/communities/invites/{token}`.
+ *
+ * This is the one community shape a **non-member** may read, so its field list is a security
+ * decision: name, avatar, size, and who invited them. No group list and no member list — reading
+ * those still requires membership, which is what #375 fixed. The disclosure is keyed on holding a
+ * 256-bit token, not on being logged in; this is an invite, not a public directory (#416 leaves the
+ * directory question open on purpose).
+ *
+ * @param alreadyMember true when the viewer is already in this community — the screen offers "open"
+ * instead of "join", and no use of the link is spent.
+ */
+@Serializable
+data class CommunityInvitePreviewResponse(
+    val communityId: String,
+    val name: String,
+    val avatarUrl: String? = null,
+    val memberCount: Int = 0,
+    val inviterDisplayName: String? = null,
+    val alreadyMember: Boolean = false
 )
 
 // ─── Group Event DTOs ───────────────────────────────────
