@@ -191,7 +191,7 @@ class ChatWebSocketHandler(
                 status = AckStatus.OK,
                 serverTimestamp = message.serverTimestamp.toEpochMilli()
             )
-            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(ack)))
+            sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
 
         } catch (e: Exception) {
             val ack = WsMessage.ServerAck(
@@ -201,7 +201,7 @@ class ChatWebSocketHandler(
                 errorCode = "MSG_SEND_FAILED",
                 errorMessage = e.message
             )
-            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(ack)))
+            sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
             log.warn("Failed to send message: {}", e.message)
         }
     }
@@ -277,7 +277,7 @@ class ChatWebSocketHandler(
         } catch (e: CallBusyException) {
             // Send call.end with BUSY reason back to caller
             val busy = WsMessage.CallEnd(callId = msg.callId, reason = com.muhabbet.shared.model.CallEndReason.BUSY)
-            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(busy)))
+            sessionManager.send(session, wsJson.encodeToString<WsMessage>(busy))
             return
         }
 
@@ -286,7 +286,7 @@ class ChatWebSocketHandler(
             // Callee offline — end call with MISSED
             callSignalingService.endCall(msg.callId, CallStatus.MISSED)
             val missed = WsMessage.CallEnd(callId = msg.callId, reason = com.muhabbet.shared.model.CallEndReason.MISSED)
-            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(missed)))
+            sessionManager.send(session, wsJson.encodeToString<WsMessage>(missed))
             return
         }
 
@@ -354,7 +354,7 @@ class ChatWebSocketHandler(
                         token = calleeToken,
                         roomName = room.roomName
                     )
-                    session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(calleeRoomInfo)))
+                    sessionManager.send(session, wsJson.encodeToString<WsMessage>(calleeRoomInfo))
 
                     log.info("LiveKit room created: callId={}, room={}", msg.callId, room.roomName)
                 }
@@ -413,13 +413,13 @@ class ChatWebSocketHandler(
 
     private fun sendPong(session: WebSocketSession) {
         val pong = WsMessage.Pong
-        session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(pong)))
+        sessionManager.send(session, wsJson.encodeToString<WsMessage>(pong))
     }
 
     private fun sendError(session: WebSocketSession, code: String, message: String) {
         val error = WsMessage.Error(code = code, message = message)
         if (session.isOpen) {
-            session.sendMessage(TextMessage(wsJson.encodeToString<WsMessage>(error)))
+            sessionManager.send(session, wsJson.encodeToString<WsMessage>(error))
         }
     }
 

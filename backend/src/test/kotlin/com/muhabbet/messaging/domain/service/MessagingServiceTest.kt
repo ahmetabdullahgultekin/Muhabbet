@@ -19,6 +19,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -77,7 +78,8 @@ class MessagingServiceTest {
             messageBroadcaster = messageBroadcaster,
             userDirectory = userDirectory,
             readReceiptPolicy = readReceiptPolicy,
-            blockPolicy = blockPolicy
+            blockPolicy = blockPolicy,
+            transactions = InlineTransactionRunner()
         )
     }
 
@@ -329,7 +331,15 @@ class MessagingServiceTest {
             )
         )
 
-        verify(exactly = 2) { messageRepository.saveDeliveryStatus(any()) }
+        // One batched call rather than one per member (#492). The assertion the old
+        // `verify(exactly = 2) { saveDeliveryStatus(any()) }` was protecting — a row for everyone
+        // except the sender, and nobody else — is what is checked here, on the contents of that
+        // single call.
+        verify(exactly = 1) {
+            messageRepository.saveDeliveryStatuses(
+                match { rows -> rows.map { it.userId }.toSet() == setOf(userB, userC) }
+            )
+        }
         verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB, userC)) }
     }
 
@@ -410,7 +420,7 @@ class MessagingServiceTest {
         )
 
         verify(exactly = 0) { messageRepository.save(any()) }
-        verify(exactly = 0) { messageRepository.saveDeliveryStatus(any()) }
+        verify(exactly = 0) { messageRepository.saveDeliveryStatuses(any()) }
         verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
     }
 
@@ -520,7 +530,7 @@ class MessagingServiceTest {
         val delivered = messageService.deliverScheduledMessages()
 
         verify { messageRepository.softDelete(scheduled.id) }
-        verify(exactly = 0) { messageRepository.saveDeliveryStatus(any()) }
+        verify(exactly = 0) { messageRepository.saveDeliveryStatuses(any()) }
         verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
         // Not counted. The run had work and delivered none of it, which must not read as a quiet run.
         assertEquals(0, delivered)

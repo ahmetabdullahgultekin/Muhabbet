@@ -8,6 +8,41 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Fixed — the path every message takes
+
+Three defects on the same code path — saving a message and handing it to its recipients — fixed
+together because they touch the same five files and because two of them only make sense as a pair.
+
+- **Twenty people could be sending at once, and the twenty-first was refused** (#491). The database
+  transaction that saved a message stayed open across the whole delivery fan-out: the WebSocket
+  writes, the Redis publishes, the push notifications. A WebSocket write blocks, and Tomcat waits up
+  to twenty seconds for a phone that has stopped reading, so one stalled recipient held a database
+  connection for that whole time. There are twenty connections. That was the ceiling for the entire
+  server — not twenty per second, twenty at any one moment — while the database sat idle. Delivery
+  now happens after the save has committed.
+  The same change fixes something quieter: recipients could be handed a message *before* it was
+  committed, so if the save then failed they were left holding a message the server did not have.
+- **A message could stop arriving for someone whose connection was fine** (#490). Three things write
+  to a phone's connection — the reply to what it just sent, someone else's incoming message, and the
+  keep-alive — and only some of them took the lock that was supposed to keep them apart. When two
+  collided, the server concluded the connection was dead and removed it: the person stayed logged
+  in, appeared offline to everyone, and silently received nothing further until they reconnected.
+  Every write now goes through one place, and a phone that has stopped reading is disconnected on a
+  ten-second budget instead of blocking everyone else for twenty.
+- **Sending one message cost eight database round trips, and a group message hundreds** (#492).
+  Every insert on this path first read the row it was about to create — a row that by definition did
+  not exist yet — because of how the persistence layer decides whether something is new. In a group
+  that was one wasted read per member, plus one lookup per member to find their devices for the
+  notification. A message to a 256-person group now writes the delivery rows in batches and looks up
+  devices once for the whole group.
+
+None of this is visible as a feature. It is what stops the app falling over once more than a handful
+of people use it at the same time.
+
+**What is not proven yet:** the connection-pool relief is argued from the code and held in place by
+tests; it has not been measured under load on a production-like server. The statement-count test that
+proves the third fix needs a real database, so it runs on CI and not on a machine without Docker.
+
 ## [0.3.10] — 2026-08-18
 
 Thirteen merged changes, most of them the same shape: a feature whose code was written and whose last

@@ -21,6 +21,7 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -37,7 +38,8 @@ open class MessageService(
     private val messageBroadcaster: MessageBroadcaster,
     private val userDirectory: UserDirectoryPort,
     private val readReceiptPolicy: ReadReceiptPolicyPort,
-    private val blockPolicy: BlockPolicyPort
+    private val blockPolicy: BlockPolicyPort,
+    private val transactions: TransactionRunner
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -61,8 +63,39 @@ open class MessageService(
      * accident of where the check sits: the alternative — an error the client can see — turns a
      * block into a probe, telling a harasser exactly who has blocked them and when they unblock.
      */
-    @Transactional
     override fun sendMessage(command: SendMessageCommand): Message {
+        val outcome = transactions.inTransaction { persistSend(command) }
+
+        // Outside the transaction, and that is the entire point of #491.
+        //
+        // This call writes to every recipient's WebSocket, publishes to Redis once per offline
+        // recipient and hands the push fan-out its work. A WebSocket write is blocking, and
+        // Tomcat's blocking send timeout is twenty seconds; while any of it ran, the Hikari
+        // connection this send had checked out was still checked out. The pool is twenty, so
+        // twenty in-flight sends were the ceiling for the whole instance and the twenty-first
+        // caller waited five seconds and failed — with the database idle and two hundred Tomcat
+        // threads free.
+        //
+        // Moving it out also fixes an ordering bug that was quieter and worse: recipients were
+        // handed the message before the transaction that created it committed, so a rollback left
+        // them holding a message the database did not have.
+        //
+        // On the caller's own thread, deliberately. An executor would return the connection just
+        // as well and would let two messages in one conversation change places on the way out,
+        // which for a chat application is a worse bug than the one being fixed.
+        outcome.recipients?.let { messageBroadcaster.broadcastMessage(outcome.message, it) }
+
+        return outcome.message
+    }
+
+    /**
+     * What the transaction produced. A null [recipients] means there is nothing to fan out — the
+     * message was dropped for a block, or it is scheduled for later — as distinct from an empty
+     * list, which would mean a conversation the sender is alone in.
+     */
+    private data class SendOutcome(val message: Message, val recipients: List<ConversationMember>?)
+
+    private fun persistSend(command: SendMessageCommand): SendOutcome {
         // Validate content
         if (command.contentType == ContentType.TEXT) {
             if (!ValidationRules.isValidMessageContent(command.content)) {
@@ -86,7 +119,14 @@ open class MessageService(
             throw BusinessException(ErrorCode.MSG_ANNOUNCEMENT_ONLY)
         }
 
-        // Idempotency check
+        // Idempotency check. Kept, against #492's suggestion to drop it and let the primary key
+        // catch a duplicate: now that the insert is a real `persist` rather than a `merge`, a
+        // duplicate id surfaces as a constraint violation at flush — after the delivery rows have
+        // been written and as something far less legible than MSG_DUPLICATE. A client resending the
+        // same messageId after a reconnect is an ordinary, expected event on this path, and one
+        // SELECT to answer it cleanly is worth keeping. It is not a race-proof guard and never was;
+        // two concurrent sends of the same id still both pass it and the second fails at commit,
+        // which is the correct outcome.
         if (messageRepository.existsById(command.messageId)) {
             throw BusinessException(ErrorCode.MSG_DUPLICATE)
         }
@@ -131,7 +171,7 @@ open class MessageService(
                 command.conversationId,
                 command.senderId
             )
-            return draft
+            return SendOutcome(draft, recipients = null)
         }
 
         val message = messageRepository.save(draft)
@@ -139,29 +179,29 @@ open class MessageService(
         // Scheduled messages are not delivered immediately
         if (isScheduled) {
             log.info("Scheduled message saved: id={}, conv={}, scheduledAt={}", message.id, command.conversationId, command.scheduledAt)
-            return message
+            return SendOutcome(message, recipients = null)
         }
 
         // Create delivery status for all recipients
         val recipients = members.filter { it.userId != command.senderId }
 
-        recipients.forEach { member ->
-            messageRepository.saveDeliveryStatus(
+        // One batched insert for the whole group rather than one statement per member (#492).
+        messageRepository.saveDeliveryStatuses(
+            recipients.map { member ->
                 MessageDeliveryStatus(
                     messageId = message.id,
                     userId = member.userId,
                     status = DeliveryStatus.SENT
                 )
-            )
-        }
-
-        // Broadcast to online recipients. Each recipient's own ConversationMember rides along so
-        // the broadcaster can withhold the offline push from whoever muted this conversation
-        // (#571) without a second query per recipient.
-        messageBroadcaster.broadcastMessage(message, recipients)
+            }
+        )
 
         log.info("Message sent: id={}, conv={}, sender={}", message.id, command.conversationId, command.senderId)
-        return message
+
+        // Each recipient's own ConversationMember rides along so the broadcaster can withhold the
+        // offline push from whoever muted this conversation (#571) without a second query per
+        // recipient. The fan-out itself happens in sendMessage, after this transaction commits.
+        return SendOutcome(message, recipients)
     }
 
     /**
@@ -512,15 +552,15 @@ open class MessageService(
 
             val recipients = members.filter { it.userId != message.senderId }
 
-            recipients.forEach { member ->
-                messageRepository.saveDeliveryStatus(
+            messageRepository.saveDeliveryStatuses(
+                recipients.map { member ->
                     MessageDeliveryStatus(
                         messageId = message.id,
                         userId = member.userId,
                         status = DeliveryStatus.SENT
                     )
-                )
-            }
+                }
+            )
 
             messageBroadcaster.broadcastMessage(message, recipients)
             delivered++

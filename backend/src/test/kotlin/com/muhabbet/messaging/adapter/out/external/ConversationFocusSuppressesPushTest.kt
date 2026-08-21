@@ -97,7 +97,7 @@ class ConversationFocusSuppressesPushTest {
 
                 f.broadcaster.broadcastMessage(message, listOf(member))
 
-                verify(exactly = 0) { f.offlinePushSender.sendTo(recipient, any(), any(), any()) }
+                verify(exactly = 0) { f.offlinePushSender.sendToAll(match { recipient in it }, any(), any(), any()) }
             }
         }
 
@@ -118,7 +118,7 @@ class ConversationFocusSuppressesPushTest {
                 f.broadcaster.broadcastMessage(message, listOf(member))
 
                 verify { f.sessionManager.sendToUser(recipient, any()) }
-                verify(exactly = 1) { f.offlinePushSender.sendTo(recipient, message, any(), any()) }
+                verify(exactly = 1) { f.offlinePushSender.sendToAll(match { recipient in it }, message, any(), any()) }
             }
         }
 
@@ -136,7 +136,7 @@ class ConversationFocusSuppressesPushTest {
 
                 f.broadcaster.broadcastMessage(message, listOf(member))
 
-                verify(exactly = 1) { f.offlinePushSender.sendTo(recipient, message, any(), any()) }
+                verify(exactly = 1) { f.offlinePushSender.sendToAll(match { recipient in it }, message, any(), any()) }
             }
         }
 }
