@@ -63,6 +63,44 @@ open class InviteLinkService(
         return saved
     }
 
+    /**
+     * Reading the group's link needs **membership**, not admin rights, and that is a deliberate
+     * split rather than an oversight (#705).
+     *
+     * Creating and revoking stay admin-or-owner because they are the policy acts: an admin decides
+     * whether the group can be joined by link at all, and can withdraw that at any moment. Reading
+     * is the distribution act, and reserving it to admins would collapse the whole feature into
+     * `addMember`, which already exists and is already admin-gated — a member who cannot see the
+     * link cannot invite anyone with it.
+     *
+     * It also costs nothing that is not already spent. [getLinkInfo] hands the same record to any
+     * authenticated caller holding the token, member or not, so the link's contents are not
+     * confidential to begin with; and once an admin shares the URL once it is transitively
+     * shareable by whoever receives it. Withholding it from the group's own members would leave
+     * them less trusted than a stranger who was forwarded the link.
+     */
+    @Transactional(readOnly = true)
+    override fun getActiveLink(conversationId: UUID, userId: UUID): GroupInviteLink {
+        val conversation = conversationRepository.findById(conversationId)
+            ?: throw BusinessException(ErrorCode.GROUP_NOT_FOUND)
+
+        // Membership before type, unlike createLink: a non-member should not learn from the error
+        // code whether the id they guessed is a group or a DM.
+        requireMember(conversationId, userId)
+
+        if (conversation.type != ConversationType.GROUP) {
+            throw BusinessException(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT)
+        }
+
+        // createLink does not deactivate the previous link, so a group whose admin pressed Create
+        // twice has several active rows and the out-port returns them in whatever order the
+        // database chose. The sheet shows one link and its Revoke button targets the one shown, so
+        // the pick has to be deterministic: newest wins, id breaks a same-instant tie.
+        return inviteLinkRepository.findActiveByConversationId(conversationId)
+            .maxWithOrNull(compareBy({ it.createdAt }, { it.id }))
+            ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
+    }
+
     @Transactional
     override fun revokeLink(linkId: UUID, userId: UUID) {
         val link = inviteLinkRepository.findById(linkId)
@@ -131,10 +169,12 @@ open class InviteLinkService(
         return link
     }
 
-    private fun requireAdminOrOwner(conversationId: UUID, userId: UUID) {
-        val member = conversationRepository.findMember(conversationId, userId)
+    private fun requireMember(conversationId: UUID, userId: UUID): ConversationMember =
+        conversationRepository.findMember(conversationId, userId)
             ?: throw BusinessException(ErrorCode.GROUP_NOT_MEMBER)
-        if (member.role == MemberRole.MEMBER) {
+
+    private fun requireAdminOrOwner(conversationId: UUID, userId: UUID) {
+        if (requireMember(conversationId, userId).role == MemberRole.MEMBER) {
             throw BusinessException(ErrorCode.GROUP_PERMISSION_DENIED)
         }
     }

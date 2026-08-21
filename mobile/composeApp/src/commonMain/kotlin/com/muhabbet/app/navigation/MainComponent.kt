@@ -288,6 +288,14 @@ class MainComponent(
         }
     }
 
+    /**
+     * Unreachable today: the Calls-tab FAB that used to call this is gone (#684). It opened a
+     * contact picker — and therefore an Android contacts-permission prompt — for a flow that
+     * cannot end in a call, because nothing sends `call.initiate` (#367–#373).
+     *
+     * Kept, like [openIncomingCall] and [openActiveCall], as the entry point calling should be
+     * wired back to rather than rebuilt from scratch.
+     */
     @OptIn(DelicateDecomposeApi::class)
     fun openPickContactForCall() {
         navigation.push(Config.PickContactForCall)
@@ -520,7 +528,6 @@ private fun MainStack(component: MainComponent) {
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
-                onNewCall = component::openPickContactForCall,
                 onCommunityClick = { communityId -> component.openCommunityDetail(communityId) },
                 onCreateCommunity = component::openCreateCommunity,
                 onOpenArchived = component::openArchivedChats,

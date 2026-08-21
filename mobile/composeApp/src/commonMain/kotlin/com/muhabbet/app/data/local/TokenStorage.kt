@@ -127,6 +127,40 @@ interface TokenStorage {
     fun setNotificationPermissionAsked()
 
     /**
+     * Whether the app has already put the system **contacts** permission dialog in front of this
+     * user (#691). Written once, before the dialog is shown, and never cleared.
+     *
+     * This is the only thing that separates "never asked" from "asked and refused" —
+     * `shouldShowRequestPermissionRationale` needs an Activity and `AndroidContactsProvider` holds
+     * the application context, so the OS cannot be asked. See [ContactsAccess].
+     *
+     * Abstract, for the fifth time in this file and for the same reason as its four neighbours: a
+     * defaulted no-op would read back false forever, so a user who has already refused twice —
+     * after which Android never shows the dialog again — would keep being offered a button that
+     * does nothing, instead of the settings route that still works.
+     *
+     * Deliberately not cleared by [clear], like the notification flag: the permission belongs to
+     * the app, not to the session.
+     */
+    fun getContactsPermissionAsked(): Boolean
+    fun setContactsPermissionAsked()
+
+    /**
+     * Whether the first-run welcome flow (#692) has been seen. Written when it is finished **or
+     * skipped**, since both are the user telling us they are done with it.
+     *
+     * A plain boolean rather than the version string the test-build notice stores: that notice
+     * returns after every update because what it warns about changes with the build, whereas an
+     * introduction that reappeared on every update would be an app that keeps introducing itself.
+     *
+     * Abstract for the same reason as everything else in this block. A defaulted no-op would show
+     * the welcome flow on every single launch — over the conversation list, before the user can
+     * reach anything.
+     */
+    fun getWelcomeSeen(): Boolean
+    fun setWelcomeSeen()
+
+    /**
      * The app version whose release notes this user has already been shown, or null on a device
      * that has never recorded one (#672).
      *
@@ -134,8 +168,9 @@ interface TokenStorage {
      * and an upgrade from a build without this feature both arrive here as null and must not be
      * treated the same — and rewritten each time the "What's new" sheet is dismissed.
      *
-     * Abstract, for the fifth time in this file and for the same reason (#380, media quality,
-     * contact consent, the test-build notice, the notification prompt): a defaulted no-op would read
+     * Abstract, for the seventh time in this file and for the same reason (#380, media quality,
+     * contact consent, the test-build notice, the notification prompt, the contacts prompt, the
+     * welcome flow): a defaulted no-op would read
      * back null on every launch. Because null means "fresh install, say nothing", the visible result
      * would not be a sheet that repeats — it would be a sheet that never appears at all, on any
      * device, forever. That is the exact failure #672 exists to fix, and it would compile.

@@ -21,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,7 +32,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.local.ContactsAccess
+import com.muhabbet.app.data.local.ContactsAccessController
 import com.muhabbet.app.data.repository.KnownPerson
 import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.data.repository.PhoneLookupResult
@@ -49,7 +51,6 @@ import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -95,7 +96,7 @@ fun PeoplePicker(
     knownPeopleSource: KnownPeopleSource = koinInject(),
     phoneNumberLookup: PhoneNumberLookup = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
-    tokenStorage: TokenStorage = koinInject(),
+    contactsAccessController: ContactsAccessController = koinInject(),
 ) {
     var fromConversations by remember { mutableStateOf<List<KnownPerson>>(emptyList()) }
     var fromContacts by remember { mutableStateOf<List<KnownPerson>>(emptyList()) }
@@ -113,15 +114,20 @@ fun PeoplePicker(
     // can accept.
     var byNumberNotice by remember { mutableStateOf<String?>(null) }
 
-    var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
+    // Both of these came out of this composable's own `remember` until #691, which meant a picker
+    // that happened to be composed when the answer changed elsewhere never learned about it — and,
+    // worse, that the consent flag had two independent copies, so this picker and
+    // `NewConversationScreen` could give different answers to a question with legal weight.
+    val access by contactsAccessController.access.collectAsState()
+    val hasPermission = access == ContactsAccess.Granted
     // Two separate gates, and both are required before a single hash leaves the phone. The OS
     // permission authorises *reading* the address book; it says nothing about sending anything
     // derived from it to a server, and the people in it are not users of this service (#425).
     // CreateGroupScreen used to check only the first — it synced on permission alone.
-    var contactSyncConsented by remember { mutableStateOf(tokenStorage.getContactSyncConsentAt() != null) }
+    val contactSyncConsented by contactsAccessController.syncConsented.collectAsState()
     var showConsentDialog by remember { mutableStateOf(false) }
 
-    val requestPermission = rememberContactsPermissionRequester { granted -> hasPermission = granted }
+    val requestPermission = rememberContactsPermissionRequester { contactsAccessController.refresh() }
 
     LaunchedEffect(Unit) {
         val loaded = runCatchingCancellable { knownPeopleSource.peopleWithDirectConversations() }
@@ -175,8 +181,7 @@ fun PeoplePicker(
             dismissLabel = stringResource(Res.string.contacts_consent_decline),
             confirmLabel = stringResource(Res.string.contacts_consent_accept),
             onConfirm = {
-                tokenStorage.setContactSyncConsentAt(Clock.System.now().toString())
-                contactSyncConsented = true
+                contactsAccessController.grantSyncConsent()
                 showConsentDialog = false
             }
         ) {
@@ -225,9 +230,24 @@ fun PeoplePicker(
         if (!hasPermission || !contactSyncConsented) {
             PeoplePickerActionRow(
                 icon = Muhabbet.icons.Contact,
-                label = stringResource(Res.string.people_picker_find_more_contacts),
+                // Names where the row goes once asking is no longer possible, rather than keeping
+                // one label for two destinations. Android stops showing the permission dialog after
+                // two refusals, and a row that promises contacts and silently does nothing is worse
+                // than no row (#692).
+                label = if (access == ContactsAccess.Denied) {
+                    stringResource(Res.string.contacts_open_settings)
+                } else {
+                    stringResource(Res.string.people_picker_find_more_contacts)
+                },
                 onClick = {
-                    if (!hasPermission) requestPermission() else showConsentDialog = true
+                    when (access) {
+                        ContactsAccess.Denied -> contactsProvider.openSystemSettings()
+                        ContactsAccess.NotAsked -> {
+                            contactsAccessController.onPermissionRequested()
+                            requestPermission()
+                        }
+                        ContactsAccess.Granted -> showConsentDialog = true
+                    }
                 }
             )
             HorizontalDivider()

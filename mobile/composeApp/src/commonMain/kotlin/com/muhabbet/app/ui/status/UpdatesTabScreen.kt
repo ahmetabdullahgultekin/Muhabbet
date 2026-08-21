@@ -73,6 +73,7 @@ import com.muhabbet.composeapp.generated.resources.updates_status_meta
 import com.muhabbet.composeapp.generated.resources.updates_title
 import com.muhabbet.shared.dto.UserStatusGroup
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -381,8 +382,9 @@ fun UpdatesTabScreen(
                                 ?: unknownPersonLabel
                             val avatarUrl = avatarByUserId[group.userId] ?: group.avatarUrl
                             val latestStatusTime = group.statuses.maxOfOrNull { it.createdAt } ?: 0L
-                            val meta = stringResource(
-                                Res.string.updates_status_meta,
+                            val meta = pluralStringResource(
+                                Res.plurals.updates_status_meta,
+                                group.statuses.size,
                                 group.statuses.size,
                                 DateTimeFormatter.formatTime(latestStatusTime)
                             )

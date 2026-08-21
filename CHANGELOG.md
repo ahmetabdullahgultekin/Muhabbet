@@ -8,6 +8,16 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — blocking someone now works in both directions on stories
+
+- **You kept seeing the stories of the person you blocked** (#687). The fix above closed the other
+  half of this: it stopped the person you blocked from seeing *your* stories. It did not stop you
+  from seeing theirs, because the Updates tab asked only "who has blocked me" and nothing asked "who
+  have I blocked" — so blocking a harasser and then being shown their stories every day was the
+  behaviour, and it was the half the person who pressed Block was actually asking for. Both
+  directions are now applied, as one batched question each rather than one per author, so the feed
+  costs the same two queries whether you have blocked nobody or everybody.
+
 ### Security — blocking someone now stops two more things it did not stop
 
 - **The person you blocked could still watch your stories** (#294). Status is scoped to your

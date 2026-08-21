@@ -77,28 +77,37 @@ open class StatusService(
      * leak. The relationship is the thing the server can actually check, and for the account in
      * #507 — brand new, no conversations — it yields the empty list the owner expected.
      *
-     * **A block narrows it again (#294).** Blocking someone does not delete the conversation the
-     * two share, so the blocked person remains a "contact" by the only definition this app has and
-     * kept receiving every status the blocker posted afterwards. Of the six surfaces a block has to
-     * close, this was the one #554 left open — the send path, presence, about and the group-add all
-     * grew a guard there and status did not.
+     * **A block narrows it again (#294), in both directions (#687).** Blocking someone does not
+     * delete the conversation the two share, so each stays a "contact" of the other by the only
+     * definition this app has, and the statuses kept flowing both ways. Of the six surfaces a block
+     * has to close, this was the one #554 left open — the send path, presence, about and the
+     * group-add all grew a guard there and status did not.
      *
-     * The audience list is not a substitute for this. It is the author's own per-status allow/deny
-     * list, chosen in the composer; nobody goes back and edits it when they block someone, and a
-     * block that required them to would be a two-step control that silently half-works.
+     * Both directions, because a block is not a request to be less visible; it is a request to be
+     * done with someone. #294 asked only "can the person I blocked still watch me", so the filter
+     * that answered it asked only [BlockPolicyPort.findBlockedBy] — and the blocker went on seeing
+     * the blocked person's stories in the Updates tab every day. That is the half the person who
+     * pressed Block was actually asking for, and it is the half that was missing.
      *
-     * Applied to the contact set rather than to the statuses it returns, so a blocker's rows are
-     * never read at all: nothing loaded is nothing to leak through a later change to the mapping
-     * below, and it makes the query smaller rather than larger. One batched question for the whole
-     * set — the Updates tab resolves every contact the moment it opens, so asking per author would
-     * be an N+1 on a screen that is opened constantly.
+     * The audience list is not a substitute for either direction. It is the author's own per-status
+     * allow/deny list, chosen in the composer; nobody goes back and edits it when they block
+     * someone, and a block that required them to would be a two-step control that silently
+     * half-works.
+     *
+     * Applied to the contact set rather than to the statuses it returns, so a hidden author's rows
+     * are never read at all: nothing loaded is nothing to leak through a later change to the
+     * mapping below, and it makes the query smaller rather than larger. One batched question per
+     * direction for the whole set — the Updates tab resolves every contact the moment it opens, so
+     * asking per author would be an N+1 on a screen that is opened constantly.
      */
     @Transactional(readOnly = true)
     override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
         val contactIds = conversationRepository.findAllContactUserIds(viewerUserId)
         if (contactIds.isEmpty()) return emptyList()
 
-        val authorIds = contactIds - blockPolicy.findBlockedBy(viewerUserId, contactIds)
+        val authorIds = contactIds -
+            blockPolicy.findBlockedBy(viewerUserId, contactIds) -
+            blockPolicy.findBlockedAmong(viewerUserId, contactIds)
         if (authorIds.isEmpty()) return emptyList()
 
         val visible = statusRepository.findActiveByUserIds(authorIds)

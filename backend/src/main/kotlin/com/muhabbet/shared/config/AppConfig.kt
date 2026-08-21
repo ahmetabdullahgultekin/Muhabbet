@@ -80,7 +80,8 @@ import org.springframework.security.crypto.password.PasswordEncoder
     OtpProperties::class,
     SmsProperties::class,
     MediaProperties::class,
-    MultiDeviceProperties::class
+    MultiDeviceProperties::class,
+    InviteLinkProperties::class
 )
 class AppConfig {
 

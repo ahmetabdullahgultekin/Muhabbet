@@ -249,6 +249,37 @@ fun readableContentOn(container: Color): MuhabbetColorPair {
     return MuhabbetColorPair(container, content)
 }
 
+/**
+ * The outline that makes a colour swatch perceivable as an object on the page offering it.
+ *
+ * A swatch is a graphical object, so the floor it has to clear is WCAG 2.1 SC 1.4.11's **3:1**, not
+ * the 4.5:1 that applies to text. And the pairing that has to clear it is *swatch against page* —
+ * a different relationship from the one `WallpaperContrastTest` measures, which is *text against
+ * wallpaper*. Measuring one and not its neighbour is how the wallpaper picker shipped with a square
+ * nobody could see: on the OLED theme the deepest ink swatch on a black page is **1.06:1**, an
+ * invisible but still tappable hole in the grid (#697).
+ *
+ * It was never only an OLED defect. In the light theme all twelve pale swatches sit between 1.07:1
+ * and 1.31:1 against the near-white page — the same hole, in the theme nobody had screenshotted.
+ *
+ * **A fixed outline colour cannot fix this**, because it would have to be light around the deep
+ * swatches and dark around the pale ones; committing to either re-creates the defect in whichever
+ * theme disagrees. So the outline is derived from the **swatch**, not from the theme.
+ * [readableContentOn] already answers "which end of the ramp is furthest from this colour", and that
+ * is exactly the question being asked here.
+ *
+ * That derivation holds against any page the app can draw, because it flips at the same luminance
+ * where the swatch itself starts to disappear: whenever a swatch is close enough to the page to
+ * vanish into it, its outline is at the far end of the ramp from both of them. Measured worst case
+ * across 24 solids and 8 gradients in all three themes is **14.07:1** against a 3:1 floor —
+ * `WallpaperSwatchContrastTest` holds it.
+ *
+ * The same colour is what a swatch's selection tick is drawn in, for the same reason: the tick sits
+ * on the swatch, the outline sits on its edge, and one colour that stands away from the swatch
+ * serves both. A picker that derived them separately would eventually derive them differently.
+ */
+fun swatchOutlineOn(swatch: Color): Color = readableContentOn(swatch).content
+
 // ─── Spacing tokens ─────────────────────────────────────────
 
 object MuhabbetSpacing {
@@ -359,6 +390,13 @@ object MuhabbetSizes {
     /** One segment of the sign-up progress rail. */
     val StepRailSegmentWidth: Dp = 28.dp
     val StepRailSegmentHeight: Dp = 4.dp
+
+    /**
+     * The drawn artwork at the top of an onboarding step. Larger than [StateIconBadge], which sits
+     * above a sentence in a list; this one is the top half of a screen the user has nothing else to
+     * look at, and at 96dp it reads as an oversized icon rather than as an illustration.
+     */
+    val OnboardingIllustration: Dp = 132.dp
 
     /**
      * The copper mark that rides the top edge of the bottom bar and slides to the selected tab.
