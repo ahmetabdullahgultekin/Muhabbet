@@ -892,11 +892,11 @@
     <string name="release_notes_version">Version %1$s</string>
     <string name="release_notes_current">The version you are on</string>
 
-    <string name="whatsnew_0_3_11_line_1">Archived chats now sit in a single row at the top of the list and open in a screen of their own. You no longer have to go looking for a chat you archived.</string>
-    <string name="whatsnew_0_3_11_line_2">One scheduled message that could not be sent used to hold up all the others behind it. Each message now goes out on its own.</string>
+    <string name="whatsnew_0_3_11_line_1">The first time you open the app it now tells you what to do. You read why we ask for contacts access — the numbers never leave your phone, only irreversible hashes of them are sent — and decide for yourself, and you can skip it.</string>
+    <string name="whatsnew_0_3_11_line_2">Archived chats now sit in a single row at the top of the list and open in a screen of their own. You no longer have to go looking for a chat you archived.</string>
     <string name="whatsnew_0_3_11_line_3">When a message cannot be sent, the app says why: it is too long, you cannot post in that group, or the connection dropped.</string>
-    <string name="whatsnew_0_3_11_line_4">Fixed a problem where a typing indicator could silently drop your connection, leaving the chat quietly not working.</string>
-    <string name="whatsnew_0_3_11_line_5">Removed a server bottleneck that showed up when many people were sending at once. Messages in busy groups arrive noticeably faster.</string>
+    <string name="whatsnew_0_3_11_line_4">One scheduled message that could not be sent used to hold up all the others behind it. Each message now goes out on its own.</string>
+    <string name="whatsnew_0_3_11_line_5">Readability fixes: deleted messages stay legible over any wallpaper, no colour in the wallpaper picker disappears into the page behind it, and the press effect now follows the real shape of what you touched.</string>
     <string name="whatsnew_0_3_11_line_6">After an update you now see what changed on this screen. Notes for earlier versions are always there under Settings → About → Release notes.</string>
 
     <string name="whatsnew_0_3_10_line_1">Blocking and reporting actually work now. You can see everyone you have blocked in a list in Settings, and undo it whenever you like.</string>
