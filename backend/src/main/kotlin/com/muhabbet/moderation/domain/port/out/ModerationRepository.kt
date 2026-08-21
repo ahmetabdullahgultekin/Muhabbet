@@ -20,4 +20,10 @@ interface BlockRepository {
 
     /** Which of [candidateIds] have blocked [userId]. Batched — presence asks about a whole page. */
     fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
+
+    /**
+     * Which of [candidateIds] [userId] has blocked. The mirror of [findBlockersAmong] and batched
+     * for the same reason — a feed asks it about every author on the screen at once.
+     */
+    fun findBlockedAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID>
 }

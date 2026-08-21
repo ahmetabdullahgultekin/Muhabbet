@@ -78,6 +78,11 @@ open class ModerationService(
     }
 
     @Transactional(readOnly = true)
+    override fun findBlockedAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
+        return blockRepository.findBlockedAmong(userId, candidateIds)
+    }
+
+    @Transactional(readOnly = true)
     override fun getPendingReports(limit: Int, offset: Int): List<UserReport> {
         return reportRepository.findByStatus(ReportStatus.PENDING, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
     }
