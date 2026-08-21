@@ -144,10 +144,22 @@ jobs:
         run: ./gradlew :backend:jacocoTestCoverageVerification
         continue-on-error: true
 
+      # Blocking, deliberately (#279). This step carried `continue-on-error: true` for months while
+      # detekt was not running at all — it died at startup on a Kotlin version mismatch, and an
+      # ignored crash and a clean run produce the identical green tick. The pre-existing findings are
+      # frozen in `backend/detekt-baseline.xml`, so this can only go red on something the branch
+      # introduced. If it does go red, fix the finding or argue it into `detekt.yml`; do not
+      # regenerate the baseline to bury it, and do not put `continue-on-error` back.
+      #
+      # Gated on the same `changes.backend` output as every other expensive step, and for the same
+      # reason: the gate belongs on the STEP, never on the workflow trigger. Skipping the step still
+      # produces the "Build & Test" check run, so this check stays requirable on a branch; a
+      # docs-only pull request neither pays for a detekt run nor waits forever on a check that was
+      # never created. `always()` is kept so a failing test run does not hide a new finding — the
+      # two failures are independent and both should be visible in one run.
       - name: Run detekt static analysis
         run: ./gradlew :backend:detekt
         if: always() && steps.changes.outputs.backend == 'true'
-        continue-on-error: true
 
       - name: Upload test results
         if: failure() && steps.changes.outputs.backend == 'true'

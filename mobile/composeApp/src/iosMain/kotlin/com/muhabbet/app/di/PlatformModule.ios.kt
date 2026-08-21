@@ -186,4 +186,10 @@ class IosTokenStorage : TokenStorage {
     override fun setNotificationPermissionAsked() {
         defaults.setBool(true, forKey = "notification_permission_asked")
     }
+
+    override fun getLastSeenVersion(): String? = defaults.stringForKey("last_seen_version")
+
+    override fun setLastSeenVersion(version: String) {
+        defaults.setObject(version, forKey = "last_seen_version")
+    }
 }

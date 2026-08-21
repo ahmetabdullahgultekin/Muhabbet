@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -13,10 +16,14 @@ import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
+import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.notice.TestBuildNoticeDialog
+import com.muhabbet.app.ui.notice.shouldShowTestBuildNotice
 import com.muhabbet.app.ui.notification.NotificationPermissionGate
 import com.muhabbet.app.ui.settings.AppLockGate
+import com.muhabbet.app.ui.whatsnew.WhatsNewSheet
+import com.muhabbet.app.ui.whatsnew.versionToRecordOnFirstLaunch
 import kotlinx.serialization.Serializable
 
 class RootComponent(
@@ -35,6 +42,32 @@ class RootComponent(
      * by login, and a flag that survived that would drop a returning user into Settings.
      */
     private var pendingLanguageSettings = tokenStorage.consumePendingLanguageRestart()
+
+    /**
+     * Whether the test-build notice is due this launch.
+     *
+     * Read here, at construction, because this is the last moment it is still true: the dialog
+     * writes the acknowledgement the instant it is dismissed, and the release-notes sheet needs to
+     * know whether it is queued behind one. Both are once-per-version, so an update brings both due
+     * together and something has to decide the order.
+     */
+    val testBuildNoticePending: Boolean =
+        shouldShowTestBuildNotice(tokenStorage.getTestBuildNoticeAckVersion(), BuildInfo.VERSION)
+
+    init {
+        // A device that has never recorded a version records one now, before any screen composes and
+        // therefore before the release-notes sheet can ask (#672). Doing it here rather than in the
+        // sheet keeps the two apart: the sheet decides whether to *show*, and it never has to reason
+        // about a null that means two different things.
+        if (tokenStorage.getLastSeenVersion() == null) {
+            tokenStorage.setLastSeenVersion(
+                versionToRecordOnFirstLaunch(
+                    acknowledgedTestBuildVersion = tokenStorage.getTestBuildNoticeAckVersion(),
+                    currentVersion = BuildInfo.VERSION
+                )
+            )
+        }
+    }
 
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
@@ -127,11 +160,22 @@ fun RootContent(root: RootComponent) {
     // and because that is the reactive stack value, it fires on a fresh login as well as on a
     // relaunch that was already authenticated.
     if (isMain) {
-        TestBuildNoticeDialog()
+        // Two once-per-version overlays can fall due on the same launch, because the update that
+        // brings new release notes is by definition a new build number. Sequenced, not stacked: the
+        // notice sets the expectation that this is a build under test, and only then does the sheet
+        // say what changed. The other way round, the caveat arrives as an afterthought to a
+        // celebration, which is how a warning stops being read.
+        var noticePending by remember { mutableStateOf(root.testBuildNoticePending) }
+
+        TestBuildNoticeDialog(onDismissed = { noticePending = false })
 
         // Asks for notification permission once (#547), under the same gate and for the same
         // reason: it belongs after login, not on the login screen. Draws nothing — see the
         // composable's own note on why the system dialog is allowed to land over the notice above.
         NotificationPermissionGate()
+
+        if (!noticePending) {
+            WhatsNewSheet()
+        }
     }
 }

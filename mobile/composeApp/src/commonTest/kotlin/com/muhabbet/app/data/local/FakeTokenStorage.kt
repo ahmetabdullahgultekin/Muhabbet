@@ -91,4 +91,8 @@ class FakeTokenStorage : TokenStorage {
     private var appLockTimeout: String? = null
     override fun getAppLockTimeout(): String? = appLockTimeout
     override fun setAppLockTimeout(timeout: String) { appLockTimeout = timeout }
+
+    private var lastSeenVersion: String? = null
+    override fun getLastSeenVersion(): String? = lastSeenVersion
+    override fun setLastSeenVersion(version: String) { lastSeenVersion = version }
 }
