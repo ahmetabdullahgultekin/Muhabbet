@@ -79,6 +79,10 @@ class RedisMessageBroadcaster(
         )
         val json = wsJson.encodeToString<WsMessage>(newMessage)
 
+        // Collected in the loop and pushed after it, so the device rows for the whole group are
+        // read in one query rather than one per member (#492).
+        val pushTo = mutableListOf<UUID>()
+
         recipients.forEach { member ->
             val recipientId = member.userId
             if (sessionManager.isOnline(recipientId)) {
@@ -106,8 +110,15 @@ class RedisMessageBroadcaster(
             // member's own row.
             val viewingThisConversation = sessionManager.isViewingConversation(recipientId, message.conversationId)
             if (!member.isMuted() && !viewingThisConversation) {
-                offlinePushSender.sendTo(recipientId, message, senderName, conversation)
+                pushTo += recipientId
             }
+        }
+
+        // Guarded rather than left to sendToAll's own empty check: `conversation` is a lazy whose
+        // only purpose is the push title, and passing it as an argument would force the query even
+        // on the common broadcast where nobody is owed a notification.
+        if (pushTo.isNotEmpty()) {
+            offlinePushSender.sendToAll(pushTo, message, senderName, conversation)
         }
     }
 

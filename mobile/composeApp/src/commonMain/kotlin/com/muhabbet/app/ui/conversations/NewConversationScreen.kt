@@ -64,11 +64,15 @@ fun NewConversationScreen(
     onCreateGroup: () -> Unit = {},
     onBack: () -> Unit,
     /**
-     * When set, picking a contact hands the caller the contact instead of opening a conversation.
-     * The Calls tab uses this: it had no way to reach a person at all, so calling was only possible
-     * from inside an existing chat.
+     * The Calls tab opens this screen in "who do you want to call" mode: the group/by-number rows
+     * that answer a different question are hidden, and picking a contact shows the same "coming
+     * soon" message as every other call entry point instead of opening a conversation or a call
+     * screen. Calling has never worked end to end (#367–#373: the client never sends
+     * `call.initiate`, no mic track is ever published, LiveKit is unconfigured in prod) — this used
+     * to hand the picked contact to a callback that minted a fake call id and pushed
+     * `ActiveCallScreen`, which is exactly the dishonest flow the audit called out.
      */
-    onContactPicked: ((userId: String, name: String?) -> Unit)? = null,
+    isCallPickerMode: Boolean = false,
     conversationRepository: ConversationRepository = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
     knownPeopleSource: KnownPeopleSource = koinInject(),
@@ -95,6 +99,7 @@ fun NewConversationScreen(
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_generic)
     val contactsSyncingLabel = stringResource(Res.string.contacts_syncing)
+    val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
 
     // The sync is slow enough that the placeholder always earns its place, but it goes through the
     // same gate as every other screen so there is one answer to "when does a skeleton appear".
@@ -189,7 +194,7 @@ fun NewConversationScreen(
             // and the parameter defaults to an empty lambda. Group calls do not exist (#367–#373),
             // so there is no version of this row that belongs on the call surface — the fix is to
             // hide it there, not to pass the lambda through.
-            if (onContactPicked == null) {
+            if (!isCallPickerMode) {
                 PeoplePickerActionRow(
                     icon = Muhabbet.icons.GroupOutlined,
                     label = stringResource(Res.string.new_conversation_new_group),
@@ -316,8 +321,12 @@ fun NewConversationScreen(
                                         defaultName = defaultChatName,
                                         onClick = {
                                             if (isCreating) return@ContactItem
-                                            if (onContactPicked != null) {
-                                                onContactPicked(contact.userId, contact.displayName)
+                                            if (isCallPickerMode) {
+                                                // Honest "not yet" (#367–#373), not a call screen
+                                                // for a call that is not happening.
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar(callComingSoonMsg)
+                                                }
                                                 return@ContactItem
                                             }
                                             isCreating = true

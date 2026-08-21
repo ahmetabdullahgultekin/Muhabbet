@@ -337,6 +337,10 @@
 
     <!-- Round 3 -->
     <string name="call_coming_soon">Arama özelliği yakında</string>
+    <!-- Aramalar sekmesinin boş durumu. Sekme her zaman boştur: istemci call.initiate göndermiyor,
+         mikrofon yayınlanmıyor ve LiveKit üretimde yapılandırılmamış (#367-#373). "Henüz arama yok"
+         tek başına aramanın mümkün olduğunu ima ediyordu; bu metin nedenini açıkça söylüyor. -->
+    <string name="call_coming_soon_detail">Sesli ve görüntülü arama henüz kullanıma açık değil. Hazır olduğunda aramalarınız burada listelenecek.</string>
     <string name="video_play">Videoyu oynat</string>
     <string name="starred_you">Sen</string>
     <string name="starred_conversation_unavailable">Bu sohbet artık açılamıyor</string>
@@ -469,6 +473,10 @@
     <string name="conv_mute">Sessize Al</string>
     <string name="conv_unmute">Sesi Aç</string>
     <string name="conv_archived_section">Arşivlenmiş Sohbetler</string>
+    <!-- Count shown under the archived-chats row at the top of the conversation list, e.g. "3 sohbet". -->
+    <string name="archived_row_count">%1$d sohbet</string>
+    <!-- Shown on the Archived Chats screen when nothing is archived. -->
+    <string name="archived_empty">Arşivlenmiş sohbet yok</string>
 
     <!-- Group enhancements -->
     <string name="group_remove_confirm">%1$s adlı kişiyi gruptan çıkarmak istediğinize emin misiniz?</string>

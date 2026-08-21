@@ -8,19 +8,70 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
 @Component
 class MessagePersistenceAdapter(
     private val messageRepo: SpringDataMessageRepository,
-    private val deliveryStatusRepo: SpringDataMessageDeliveryStatusRepository
+    private val deliveryStatusRepo: SpringDataMessageDeliveryStatusRepository,
+    @PersistenceContext private val entityManager: EntityManager
 ) : MessageRepository {
 
-    override fun save(message: Message): Message =
-        messageRepo.save(MessageJpaEntity.fromDomain(message)).toDomain()
+    /**
+     * `entityManager.persist`, not `repository.save`, and this is the whole of #492.
+     *
+     * `SimpleJpaRepository.save` decides between `persist` and `merge` by asking whether the id is
+     * null. Every id in this application is assigned — the client mints the message id — so the
+     * answer is always "not new" and every save was a `merge`. A merge must read the row it is
+     * about to copy onto, so each of these inserts was preceded by a SELECT that could only ever
+     * return nothing. That is one wasted round trip for the message and one for every recipient's
+     * delivery row, and it also defeated `hibernate.jdbc.batch_size`: the interleaved SELECTs force
+     * a flush between inserts, so nothing ever batched.
+     *
+     * The alternative was `Persistable<UUID>` with a transient `isNew` flag on the entities. It was
+     * rejected: `Persistable.getId()` collides with the JVM signature Kotlin already generates for
+     * the `id` property, and the ways out of that collision all involve renaming the mapped
+     * property — which every `@Query` in [SpringDataMessageRepository] refers to by name. A change
+     * confined to this adapter is the smaller and safer one.
+     *
+     * `persist` needs an open transaction; on the send path the caller supplies one through
+     * `TransactionRunner`. A duplicate id no longer costs a SELECT here, which is why
+     * `MessageService` keeps its explicit `existsById` guard — see the note there.
+     *
+     * **`MANDATORY`, and not the `REQUIRED` that `SimpleJpaRepository.save` used to bring with it.**
+     * The old `save` carried its own transaction, so "who opens the transaction" was a question
+     * nobody had to answer; a bare `persist` makes it one, and the two candidate answers are not
+     * equally safe.
+     *
+     * `REQUIRED` would restore the old behaviour and quietly reintroduce a worse bug than the one
+     * it hides. This insert and the [saveDeliveryStatuses] that follows it must commit together —
+     * a message with no delivery rows is in nobody's inbox and nobody's unread count, and no later
+     * run repairs it. Under `REQUIRED` a caller that forgot the boundary gets two independent
+     * transactions and, if the second fails, exactly that row: written, invisible, permanent.
+     * `MANDATORY` makes it unreachable — the first call refuses before anything is written.
+     *
+     * It also removes a way for the mistake to go unnoticed. `saveDeliveryStatuses` on an empty
+     * list persists nothing, so with no transaction it *succeeds*; a conversation the sender is
+     * alone in would pass while every other send failed. `MANDATORY` is checked before the body
+     * runs, so an empty list fails as loudly as a full one.
+     *
+     * What it deliberately does not do is open a transaction. The caller keeps the boundary,
+     * which is the whole of #491: the fan-out has to happen after the commit, and only a caller
+     * that owns the transaction can put it there.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    override fun save(message: Message): Message {
+        val entity = MessageJpaEntity.fromDomain(message)
+        entityManager.persist(entity)
+        return entity.toDomain()
+    }
 
     override fun findById(id: UUID): Message? =
         messageRepo.findById(id).orElse(null)?.toDomain()
@@ -45,8 +96,17 @@ class MessagePersistenceAdapter(
             .map { it.toDomain() }
     }
 
-    override fun saveDeliveryStatus(status: MessageDeliveryStatus) {
-        deliveryStatusRepo.save(MessageDeliveryStatusJpaEntity.fromDomain(status))
+    /**
+     * One `persist` per row and one flush for all of them: with the merge-SELECTs gone (see [save])
+     * there is nothing between the inserts, so Hibernate finally batches them at the `batch_size`
+     * the configuration has been asking for all along.
+     *
+     * `MANDATORY` for the reasons given on [save] — these two calls are one write, and this is the
+     * half that would silently pass on an empty list without a transaction to reject it.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    override fun saveDeliveryStatuses(statuses: List<MessageDeliveryStatus>) {
+        statuses.forEach { entityManager.persist(MessageDeliveryStatusJpaEntity.fromDomain(it)) }
     }
 
     override fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
@@ -125,8 +185,8 @@ class MessagePersistenceAdapter(
     override fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int =
         messageRepo.markViewOnceViewed(messageId, viewedBy, viewedAt)
 
-    override fun findScheduledMessagesReadyToSend(now: Instant): List<Message> =
-        messageRepo.findScheduledMessagesReadyToSend(now).map { it.toDomain() }
+    override fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message> =
+        messageRepo.findScheduledMessagesReadyToSend(now, PageRequest.of(0, limit)).map { it.toDomain() }
 
     override fun markAsDelivered(messageId: UUID) {
         messageRepo.markScheduledAsDelivered(messageId)

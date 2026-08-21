@@ -103,10 +103,10 @@ fun HomeShellScreen(
     onNewConversation: () -> Unit,
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit,
-    onCallUser: (userId: String, name: String?, callType: String) -> Unit,
     onNewCall: () -> Unit,
     onCommunityClick: (String) -> Unit = {},
     onCreateCommunity: () -> Unit = {},
+    onOpenArchived: () -> Unit = {},
     refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
     messageRepository: MessageRepository = koinInject(),
@@ -409,6 +409,7 @@ fun HomeShellScreen(
                             onNewConversation = onNewConversation,
                             onSettings = onSettings,
                             onStatusClick = onStatusClick,
+                            onOpenArchived = onOpenArchived,
                             refreshKey = refreshKey,
                             showTopBar = false,
                             showStatusRow = false
@@ -421,7 +422,6 @@ fun HomeShellScreen(
                         )
                         HomeTab.CALLS -> CallHistoryScreen(
                             onBack = {},
-                            onCallUser = onCallUser,
                             onNewCall = onNewCall,
                             showBackButton = false,
                             showTopBar = false

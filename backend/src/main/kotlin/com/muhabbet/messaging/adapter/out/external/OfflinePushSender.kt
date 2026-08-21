@@ -57,9 +57,32 @@ class OfflinePushSender(
         message: Message,
         senderName: String?,
         conversation: Conversation?
+    ) = sendToAll(listOf(recipientId), message, senderName, conversation)
+
+    /**
+     * The whole fan-out in **one** device query, and one composition per language across all of it.
+     *
+     * This is the batched half of #492. The per-recipient [sendTo] above is now a one-element call
+     * into this, so there is a single implementation to keep correct. The saving is the query: a
+     * group of two hundred used to run two hundred `findByUserId` statements from inside the
+     * broadcaster's loop, each one inside the send transaction (#491). Grouping across the whole
+     * recipient set rather than per recipient also collapses composition — fifty Turkish readers
+     * cost one composed notification, not fifty.
+     *
+     * Never throws, for the reason the single-recipient version never did: a push is a courtesy on
+     * top of a message that is already stored. The per-device `try` inside the loop is what keeps
+     * that promise per recipient now that they share one call — one rejected FCM submission must
+     * not cost the other hundred and ninety-nine their notification.
+     */
+    fun sendToAll(
+        recipientIds: Collection<UUID>,
+        message: Message,
+        senderName: String?,
+        conversation: Conversation?
     ) {
+        if (recipientIds.isEmpty()) return
         try {
-            deviceRepository.findByUserId(recipientId)
+            deviceRepository.findByUserIdIn(recipientIds)
                 .filter { !it.pushToken.isNullOrBlank() }
                 .groupBy { it.locale }
                 .forEach { (localeTag, devices) ->
@@ -70,11 +93,16 @@ class OfflinePushSender(
                         recipientLocale = PushNotificationComposer.localeOf(localeTag)
                     )
                     devices.forEach { device ->
-                        device.pushToken?.let { token -> pushNotificationPort.sendPush(token, push) }
+                        val token = device.pushToken ?: return@forEach
+                        try {
+                            pushNotificationPort.sendPush(token, push)
+                        } catch (e: Exception) {
+                            log.warn("Push notification failed for userId={}: {}", device.userId, e.message)
+                        }
                     }
                 }
         } catch (e: Exception) {
-            log.warn("Push notification failed for userId={}: {}", recipientId, e.message)
+            log.warn("Push notification fan-out failed for {} recipients: {}", recipientIds.size, e.message)
         }
     }
 }

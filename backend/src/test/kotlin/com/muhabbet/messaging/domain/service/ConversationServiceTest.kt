@@ -13,6 +13,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
+import com.muhabbet.shared.InlineTransactionRunner
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -59,7 +60,8 @@ class ConversationServiceTest {
             messageBroadcaster = messageBroadcaster,
             userDirectory = mockk(relaxed = true),
             readReceiptPolicy = mockk(relaxed = true),
-            blockPolicy = mockk(relaxed = true)
+            blockPolicy = mockk(relaxed = true),
+            transactions = InlineTransactionRunner()
         )
     }
 

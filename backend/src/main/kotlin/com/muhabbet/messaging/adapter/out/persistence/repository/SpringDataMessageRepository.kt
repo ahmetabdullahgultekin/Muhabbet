@@ -165,7 +165,7 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         ORDER BY m.scheduledAt ASC
         """
     )
-    fun findScheduledMessagesReadyToSend(now: Instant): List<MessageJpaEntity>
+    fun findScheduledMessagesReadyToSend(now: Instant, pageable: Pageable): List<MessageJpaEntity>
 
     @Modifying
     @Query("UPDATE MessageJpaEntity m SET m.isScheduled = false WHERE m.id = :messageId")
