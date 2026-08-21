@@ -1,0 +1,94 @@
+# Merges Dependabot's patch bumps on its own, once the required checks are green.
+#
+# WHY
+#
+# Nine of the ten dependency pull requests Dependabot has opened on this repository were closed
+# without being merged. They were not rejected on their merits — they were bundles of 37 to 42
+# updates that nobody had time to read, so they aged out. Splitting them up (see dependabot.yml)
+# fixes the reviewability half of that; this workflow fixes the other half, which is that a solo
+# engineer should not be spending a review slot on `1.2.3 -> 1.2.4`.
+#
+# WHAT IT WILL AND WILL NOT MERGE
+#
+#   patch, gradle          -> auto-merge, AFTER the required status checks pass
+#   minor or major         -> left alone. A human reads it. `androidx.core:core-ktx` 1.19.0 was a
+#                             MINOR bump and it raised the compileSdk floor (#564), so "minor is
+#                             safe" is not a rule this project can afford.
+#   github-actions, any    -> left alone. An action bump also needs the self-hosted runner's action
+#                             cache re-seeded (infra/scripts/seed-runner-action-cache.sh --force),
+#                             and a workflow that merges it silently would leave the runner pinned
+#                             to the old copy with nothing to say so.
+#
+# THE PRECONDITION THAT MAKES OR BREAKS THIS
+#
+# `gh pr merge --auto` does not mean "merge later". It means "merge as soon as the branch's merge
+# requirements are satisfied" — and on a branch with NO required status checks, they are satisfied
+# immediately, so the pull request merges on the spot without a single test having run. This
+# workflow is therefore only safe once `dev` has required status checks configured. It also needs
+# repository-level auto-merge switched on:
+#
+#     gh api repos/ahmetabdullahgultekin/Muhabbet -X PATCH -F allow_auto_merge=true
+#
+# Without that flag the merge step fails loudly rather than merging early, which is the right way
+# round, but it does mean nothing gets merged until it is set.
+#
+# RUNNER CHOICE
+#
+# `ubuntu-latest`, not the self-hosted runner. This job is a few seconds of API calls and the
+# self-hosted runner accepts ONE job at a time on the production host — putting this in that queue
+# would delay deploys to save nothing. `stale-branches.yml` already runs on a hosted runner, so the
+# path is known to work for this repository.
+
+name: Dependabot auto-merge
+
+on: pull_request
+
+# Dependabot-triggered runs get a read-only GITHUB_TOKEN unless the workflow asks for more.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-merge patch bumps
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+
+    steps:
+      # Reads the machine-readable metadata Dependabot puts in the commit trailer: which packages,
+      # which ecosystem, and — for a grouped pull request — the HIGHEST semver step in the group.
+      # That "highest" is the reason this cannot be done by parsing the title: a grouped pull request
+      # is titled "bump the gradle-patch group with N updates" and names no versions at all.
+      - name: Read Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch bumps
+        if: >-
+          steps.metadata.outputs.package-ecosystem == 'gradle' &&
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Patch bump (${{ steps.metadata.outputs.dependency-names }}) — queueing for auto-merge."
+          gh pr merge --auto --merge "$PR_URL"
+
+      - name: Explain why this one was left for a human
+        if: >-
+          steps.metadata.outputs.package-ecosystem != 'gradle' ||
+          steps.metadata.outputs.update-type != 'version-update:semver-patch'
+        run: |
+          {
+            echo "Not auto-merged — this one needs a person."
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| ecosystem | \`${{ steps.metadata.outputs.package-ecosystem }}\` |"
+            echo "| update type | \`${{ steps.metadata.outputs.update-type }}\` |"
+            echo "| dependencies | ${{ steps.metadata.outputs.dependency-names }} |"
+            echo ""
+            echo "Only gradle **patch** bumps merge on their own. See .github/dependabot.yml for why."
+          } >> "$GITHUB_STEP_SUMMARY"

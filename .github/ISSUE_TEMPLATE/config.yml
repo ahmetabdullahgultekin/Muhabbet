@@ -1,0 +1,32 @@
+# Boş issue açmak AÇIK bırakıldı. Gerekçe, çünkü tersini yapmak daha "sıkı" göründüğü için cazip:
+#
+# Şablonlar yalnızca web arayüzünü bağlar. `gh issue create` ve REST API şablonlardan geçmez —
+# `blank_issues_enabled: false` bunları engellemez, sadece görmezden gelinir. Bu depoda issue'ların
+# büyük kısmı ajanlar tarafından `gh issue create` ile açılıyor, ve triyajda bulunan sekiz mükerrer
+# çift de oradan geldi. Yani boş issue'yu kapatmak, mükerrerlerin geldiği yola hiç dokunmadan,
+# yalnızca sahibin telefondan otuz saniyede not düşmesini zorlaştırırdı. "Önce issue aç" bu projenin
+# yürüyen kuralı; onu pahalılaştıran bir değişiklik kuralı öldürür.
+#
+# Şablonların asıl işi burada başka: doldurulacak bir form olmaktan çok, üzerinde anlaşılmış bir
+# kontrol listesi olmak. Aynı sorular `gh issue create --body` ile açılan issue'lar için de
+# geçerlidir; ajanların bunu bilmesi isteniyorsa yol CLAUDE.md'den bu dosyalara işaret etmektir,
+# web arayüzünü kapatmak değil.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Önce burada ara — mükerrer mi?
+    url: https://github.com/ahmetabdullahgultekin/Muhabbet/issues?q=is%3Aissue
+    about: >-
+      389 açık issue var ve son triyaj sekiz mükerrer çift buldu. Yeni bir kayıt açmadan önce
+      açık ve kapalı issue'ları ara; aramak otuz saniye, aynı işi iki kez yapmak bir gün.
+
+  - name: Güvenlik açığı
+    url: https://github.com/ahmetabdullahgultekin/Muhabbet/security/policy
+    about: >-
+      Güvenlik açıklarını herkese açık bir issue olarak açma. SECURITY.md'deki yolu kullan.
+
+  - name: Projeyi yeni mi devraldın?
+    url: https://github.com/ahmetabdullahgultekin/Muhabbet/blob/dev/docs/HANDOFF_2026-08-16.md
+    about: >-
+      Neyin doğrulandığı, neyin sadece derlendiği, ve her biri bir saate mal olmuş ortam
+      gerçekleri. Issue açmadan önce okumaya değer.
