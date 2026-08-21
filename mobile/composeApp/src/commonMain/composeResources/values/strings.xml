@@ -855,4 +855,39 @@
     <string name="messages_loading">Mesajlar yükleniyor</string>
     <string name="communities_loading">Topluluklar yükleniyor</string>
     <string name="channels_loading">Kanallar yükleniyor</string>
+    <!-- "Neler değişti" / sürüm notları (#672). Buradaki satırlar CHANGELOG.md'nin çevirisi
+         DEĞİLDİR. O dosya mühendis için yazılıyor; bunlar telefonu elinde tutan kişi için yazılıyor
+         ve her sürümde birbirinden bağımsız olarak elle yazılır. Issue numarası yok, dosya adı yok,
+         "şu yapılmadı çünkü" yok. Sürüm başına 3-6 satır. -->
+    <string name="whatsnew_title">Neler değişti</string>
+    <string name="whatsnew_intro">Muhabbet güncellendi. Bu sürümde fark edeceğiniz şeyler:</string>
+    <string name="whatsnew_dismiss">Anladım</string>
+    <string name="release_notes_title">Sürüm notları</string>
+    <string name="release_notes_row_subtitle">Önceki güncellemelerde neler değişti</string>
+    <string name="release_notes_intro">Her güncellemede neyin değiştiği, en yeniden başlayarak.</string>
+    <string name="release_notes_version">Sürüm %1$s</string>
+    <string name="release_notes_current">Şu an kullandığınız sürüm</string>
+
+    <string name="whatsnew_0_3_11_line_1">Arşivlediğiniz sohbetler artık listenin en üstündeki tek bir satırda toplanıyor ve kendi ekranında açılıyor. Arşive kaldırdığınız bir sohbeti aramak zorunda değilsiniz.</string>
+    <string name="whatsnew_0_3_11_line_2">Zamanlanmış mesajlarda bir tanesi gönderilemediğinde arkasındakiler de takılıp kalıyordu. Artık her mesaj kendi başına yola çıkıyor.</string>
+    <string name="whatsnew_0_3_11_line_3">Bir mesaj gönderilemediğinde uygulama nedenini söylüyor: mesaj çok uzun, o gruba yazma yetkiniz yok ya da bağlantı koptu.</string>
+    <string name="whatsnew_0_3_11_line_4">Karşı taraf yazarken bağlantınızın sessizce kopabilmesi sorunu giderildi. Sohbet artık kendi kendine susmuyor.</string>
+    <string name="whatsnew_0_3_11_line_5">Aynı anda çok kişi mesaj gönderdiğinde sunucuda oluşan tıkanıklık kaldırıldı. Kalabalık gruplarda mesajlar belirgin şekilde daha hızlı ulaşıyor.</string>
+    <string name="whatsnew_0_3_11_line_6">Bir güncellemeden sonra neyin değiştiğini artık bu ekranda görüyorsunuz. Eski sürümlerin notlarına Ayarlar → Hakkında → Sürüm notları üzerinden istediğiniz zaman ulaşabilirsiniz.</string>
+
+    <string name="whatsnew_0_3_10_line_1">Engelleme ve şikayet artık gerçekten çalışıyor. Engellediğiniz kişileri Ayarlar'daki listeden görebilir, dilediğinizde geri alabilirsiniz.</string>
+    <string name="whatsnew_0_3_10_line_2">Sohbetleri arşivleme, sessize alma ve kilitleme kalıcı hale geldi. Sessize aldığınız bir sohbetten artık bildirim gelmiyor.</string>
+    <string name="whatsnew_0_3_10_line_3">Uygulama Kilidi gerçek bir kilit oldu: parmak iziniz ya da cihaz şifrenizle açılıyor, sohbet listeniz son uygulamalar ekranında görünmüyor.</string>
+    <string name="whatsnew_0_3_10_line_4">Sesli mesajı göndermeden önce iptal edebilir, kaydı kilitleyip elinizi çekebilir ya da dinleyebilirsiniz. Yazıya çevirme de artık düzgün çalışıyor.</string>
+    <string name="whatsnew_0_3_10_line_5">Bildirimler birbirinin üzerine yazmıyor; aynı sohbetin mesajları tek bildirimde birikiyor. Tek tik ve çift tik durumu da düzeltildi.</string>
+    <string name="whatsnew_0_3_10_line_6">Fotoğraflar artık gerçekten tam ekran açılıyor ve Ayarlar'a bir Hakkında ekranı eklendi.</string>
+
+    <string name="whatsnew_0_3_9_line_1">Bir sesli mesajı oynattığınızda sohbetteki bütün sesli mesajlar oynuyormuş gibi görünüyordu. Artık yalnızca dinlediğiniz mesaj hareket ediyor.</string>
+    <string name="whatsnew_0_3_9_line_2">Bildirime dokunduğunuzda açık olan sohbetin üstüne, üstelik yanlış isimle, ikinci bir kopya açılıyordu. Artık doğrudan o sohbete dönüyorsunuz.</string>
+    <string name="whatsnew_0_3_9_line_3">Arama artık mesajların içinde de arıyor ve arama kutusu açıldığında klavye hazır geliyor.</string>
+    <string name="whatsnew_0_3_9_line_4">Sesli mesajlarda oynatma hızı (1×, 1,5×, 2×) ve ileri geri sarma çubuğu var. Duraklattığınız yerden devam ediyor.</string>
+
+    <string name="whatsnew_0_3_8_line_1">0.3.7 sürümü açılışta çöküyor, kimsede açılmıyordu. Bu sürüm onu düzeltiyor.</string>
+    <string name="whatsnew_0_3_8_line_2">Bir mesajı düzenlemek için 15 dakikanız olduğu artık menüde yazıyor. Süre dolduğunda seçenek pasif görünüyor ve nedenini söylüyor.</string>
+    <string name="whatsnew_0_3_8_line_3">Okundu bilgisi ayarının açıklaması yanlıştı. Bu ayarı kapatmak karşı tarafın okundu bilgisini görmenizi engellemez; yalnızca sizinkini paylaşmayı durdurur.</string>
 </resources>

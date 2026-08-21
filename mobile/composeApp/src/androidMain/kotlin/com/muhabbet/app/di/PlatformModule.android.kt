@@ -199,4 +199,12 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
     override fun setNotificationPermissionAsked() {
         plainPrefs.edit().putBoolean("notification_permission_asked", true).apply()
     }
+
+    // Plain prefs, for the same reasons as the two above, plus one of its own: `clear()` wipes only
+    // the encrypted store, and which releases someone has already been shown must survive a logout.
+    override fun getLastSeenVersion(): String? = plainPrefs.getString("last_seen_version", null)
+
+    override fun setLastSeenVersion(version: String) {
+        plainPrefs.edit().putString("last_seen_version", version).apply()
+    }
 }
