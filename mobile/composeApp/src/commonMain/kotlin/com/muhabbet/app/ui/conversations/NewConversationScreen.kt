@@ -21,6 +21,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,9 +41,9 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.app.platform.rememberContactsPermissionRequester
 import kotlinx.coroutines.launch
-import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.local.ContactsAccess
+import com.muhabbet.app.data.local.ContactsAccessController
 import com.muhabbet.designsystem.components.MuhabbetDialog
-import kotlin.time.Clock
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -75,23 +76,35 @@ fun NewConversationScreen(
     isCallPickerMode: Boolean = false,
     conversationRepository: ConversationRepository = koinInject(),
     contactsProvider: ContactsProvider = koinInject(),
-    knownPeopleSource: KnownPeopleSource = koinInject(),
-    tokenStorage: TokenStorage = koinInject()
+    contactsAccessController: ContactsAccessController = koinInject(),
+    knownPeopleSource: KnownPeopleSource = koinInject()
 ) {
     var contacts by remember { mutableStateOf<List<KnownPerson>>(emptyList()) }
     var isSyncing by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
-    var hasPermission by remember { mutableStateOf(contactsProvider.hasPermission()) }
-    var permissionDenied by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var showStartByNumber by remember { mutableStateOf(false) }
+
+    // The app's one answer, not this screen's private copy of it (#691).
+    //
+    // This used to be `remember { mutableStateOf(contactsProvider.hasPermission()) }` plus a
+    // `permissionDenied` boolean set from the dialog's own callback. Both were read once and could
+    // never be corrected: the denied message tells the user to grant it "from settings", and
+    // returning from settings tears down no composition, so this screen carried on showing the
+    // full-screen "Rehber Erişimi Ver" wall to somebody who had just granted exactly that. The
+    // denied/not-asked distinction now comes from the controller, which persists it, so it also
+    // survives the screen being closed and reopened.
+    val access by contactsAccessController.access.collectAsState()
+    val hasPermission = access == ContactsAccess.Granted
 
     // The Android READ_CONTACTS permission authorises reading contacts *on the device*. It says
     // nothing about sending anything derived from them to a server, and the people in the address
     // book are not users of this service and never agreed to anything. Until #425 this screen
     // uploaded the whole book the instant the OS permission was granted, while the KVKK texts
     // described contact matching as opt-in on explicit consent — a control that did not exist.
-    var contactSyncConsented by remember { mutableStateOf(tokenStorage.getContactSyncConsentAt() != null) }
+    // Shared with the member pickers for the same reason as the permission above: two copies of a
+    // consent flag is two answers to a legal question.
+    val contactSyncConsented by contactsAccessController.syncConsented.collectAsState()
     var showConsentDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -105,10 +118,9 @@ fun NewConversationScreen(
     // same gate as every other screen so there is one answer to "when does a skeleton appear".
     val showContactsSkeleton = rememberSkeletonVisible(isSyncing)
 
-    val requestPermission = rememberContactsPermissionRequester { granted ->
-        hasPermission = granted
-        if (!granted) permissionDenied = true
-    }
+    // The reported result is deliberately dropped in favour of re-reading the OS: that read is the
+    // one every other surface makes, so there is one answer rather than one answer and one rumour.
+    val requestPermission = rememberContactsPermissionRequester { contactsAccessController.refresh() }
 
     // Re-runnable on purpose. This used to be guarded by `contacts.isEmpty()` inside a
     // LaunchedEffect keyed only on `hasPermission`, which meant it ran at most once: after a sync
@@ -144,8 +156,7 @@ fun NewConversationScreen(
             dismissLabel = stringResource(Res.string.contacts_consent_decline),
             confirmLabel = stringResource(Res.string.contacts_consent_accept),
             onConfirm = {
-                tokenStorage.setContactSyncConsentAt(Clock.System.now().toString())
-                contactSyncConsented = true
+                contactsAccessController.grantSyncConsent()
                 showConsentDialog = false
             }
         ) {
@@ -230,7 +241,7 @@ fun NewConversationScreen(
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.Small))
                             Text(
-                                text = if (permissionDenied)
+                                text = if (access == ContactsAccess.Denied)
                                     stringResource(Res.string.contacts_permission_denied)
                                 else
                                     stringResource(Res.string.new_conversation_contacts_hint),
@@ -238,11 +249,27 @@ fun NewConversationScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(MuhabbetSpacing.Large))
-                            MuhabbetButton(
-                                text = stringResource(Res.string.contacts_grant_access),
-                                onClick = { requestPermission() },
-                                role = MuhabbetButtonRole.Primary
-                            )
+                            // Once the user has refused, "Rehber Erişimi Ver" is a button that does
+                            // nothing — Android stops showing the dialog after two denials, and the
+                            // message directly above already tells them the answer is in settings
+                            // without offering a way to get there (#692). So in that state the
+                            // control becomes the one that works.
+                            if (access == ContactsAccess.Denied) {
+                                MuhabbetButton(
+                                    text = stringResource(Res.string.contacts_open_settings),
+                                    onClick = { contactsProvider.openSystemSettings() },
+                                    role = MuhabbetButtonRole.Primary
+                                )
+                            } else {
+                                MuhabbetButton(
+                                    text = stringResource(Res.string.contacts_grant_access),
+                                    onClick = {
+                                        contactsAccessController.onPermissionRequested()
+                                        requestPermission()
+                                    },
+                                    role = MuhabbetButtonRole.Primary
+                                )
+                            }
                         }
                     }
                     // Permission granted, consent refused. Without this the screen would sit on an

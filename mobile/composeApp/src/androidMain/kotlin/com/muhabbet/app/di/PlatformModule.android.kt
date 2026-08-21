@@ -192,4 +192,20 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
     override fun setNotificationPermissionAsked() {
         plainPrefs.edit().putBoolean("notification_permission_asked", true).apply()
     }
+
+    // Plain prefs, for the same reasons as the two above. Both are read on the first frame after
+    // login and neither says anything about the user that a stranger holding the phone could not
+    // learn by opening the app.
+    override fun getContactsPermissionAsked(): Boolean =
+        plainPrefs.getBoolean("contacts_permission_asked", false)
+
+    override fun setContactsPermissionAsked() {
+        plainPrefs.edit().putBoolean("contacts_permission_asked", true).apply()
+    }
+
+    override fun getWelcomeSeen(): Boolean = plainPrefs.getBoolean("welcome_seen", false)
+
+    override fun setWelcomeSeen() {
+        plainPrefs.edit().putBoolean("welcome_seen", true).apply()
+    }
 }

@@ -337,6 +337,13 @@ object MuhabbetSizes {
     val StepRailSegmentHeight: Dp = 4.dp
 
     /**
+     * The drawn artwork at the top of an onboarding step. Larger than [StateIconBadge], which sits
+     * above a sentence in a list; this one is the top half of a screen the user has nothing else to
+     * look at, and at 96dp it reads as an oversized icon rather than as an illustration.
+     */
+    val OnboardingIllustration: Dp = 132.dp
+
+    /**
      * The copper mark that rides the top edge of the bottom bar and slides to the selected tab.
      *
      * Deliberately the same 28dp width as [StepRailSegmentWidth]: the sign-up rail and the tab rail

@@ -14,8 +14,7 @@ import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.data.local.TokenStorage
-import com.muhabbet.app.ui.notice.TestBuildNoticeDialog
-import com.muhabbet.app.ui.notification.NotificationPermissionGate
+import com.muhabbet.app.ui.onboarding.FirstRunSurfaces
 import com.muhabbet.app.ui.settings.AppLockGate
 import kotlinx.serialization.Serializable
 
@@ -95,25 +94,26 @@ fun RootContent(root: RootComponent) {
             }
         }
 
-        // Gated on the Main child, same as the notice/permission gate below: there is nothing to
-        // protect on the login screen, and TokenStorage.clear() on logout already wipes the stored
-        // App Lock setting (see AndroidTokenStorage.clear()), so it reads back disabled there anyway.
+        // The first-run surfaces (#519 test-build notice, #547 notification permission, #692
+        // welcome flow), sited here rather than inside the Children lambda so they are not part of
+        // the Auth -> Main cross-fade: they should appear over a settled conversation list, not
+        // fade in alongside it. Inside the Box because the welcome flow is a full-screen Surface
+        // layered over whatever is underneath, in the same composition and the same window — the
+        // reason AppLockGate is here too. Gated on the Main child, so nothing lands on top of the
+        // login screen; because that is the reactive stack value it fires on a fresh login as well
+        // as on a relaunch that was already authenticated. FirstRunSurfaces owns the order.
+        if (isMain) {
+            FirstRunSurfaces()
+        }
+
+        // Gated on the Main child, same as the surfaces above: there is nothing to protect on the
+        // login screen, and TokenStorage.clear() on logout already wipes the stored App Lock
+        // setting (see AndroidTokenStorage.clear()), so it reads back disabled there anyway.
+        //
+        // Last inside the Box, so the lock cover draws over the welcome flow rather than under it.
+        // A lock that an introduction could hide would not be a lock.
         if (isMain) {
             AppLockGate()
         }
-    }
-
-    // The test-build notice (#519), sited here rather than inside the Children lambda so it is not
-    // part of the Auth -> Main cross-fade: it should appear over a settled conversation list, not
-    // fade in alongside it. Gated on the Main child, so it never lands on top of the login screen —
-    // and because that is the reactive stack value, it fires on a fresh login as well as on a
-    // relaunch that was already authenticated.
-    if (isMain) {
-        TestBuildNoticeDialog()
-
-        // Asks for notification permission once (#547), under the same gate and for the same
-        // reason: it belongs after login, not on the login screen. Draws nothing — see the
-        // composable's own note on why the system dialog is allowed to land over the notice above.
-        NotificationPermissionGate()
     }
 }
