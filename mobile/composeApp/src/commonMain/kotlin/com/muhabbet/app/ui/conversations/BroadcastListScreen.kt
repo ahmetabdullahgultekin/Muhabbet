@@ -45,6 +45,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.BroadcastListResponse
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -178,7 +179,11 @@ fun BroadcastListScreen(
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                                 Text(
-                                    text = stringResource(Res.string.community_member_count, broadcastList.memberCount),
+                                    text = pluralStringResource(
+                                        Res.plurals.community_member_count,
+                                        broadcastList.memberCount,
+                                        broadcastList.memberCount
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

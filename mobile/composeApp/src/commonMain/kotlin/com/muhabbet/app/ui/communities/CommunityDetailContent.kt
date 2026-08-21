@@ -35,6 +35,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -132,7 +133,11 @@ fun CommunityDetailContent(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = stringResource(Res.string.community_member_count, community.memberCount),
+                    text = pluralStringResource(
+                        Res.plurals.community_member_count,
+                        community.memberCount,
+                        community.memberCount
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -156,7 +161,11 @@ fun CommunityDetailContent(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = stringResource(Res.string.community_group_count, community.groups.size),
+                        text = pluralStringResource(
+                            Res.plurals.community_group_count,
+                            community.groups.size,
+                            community.groups.size
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -225,7 +234,11 @@ private fun CommunityHeader(community: CommunityDetailResponse) {
         }
         Spacer(Modifier.height(MuhabbetSpacing.Small))
         Text(
-            text = stringResource(Res.string.community_member_count, community.memberCount),
+            text = pluralStringResource(
+                Res.plurals.community_member_count,
+                community.memberCount,
+                community.memberCount
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -263,7 +276,11 @@ private fun GroupItem(
                     maxLines = 1
                 )
                 Text(
-                    text = stringResource(Res.string.community_member_count, group.memberCount),
+                    text = pluralStringResource(
+                        Res.plurals.community_member_count,
+                        group.memberCount,
+                        group.memberCount
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

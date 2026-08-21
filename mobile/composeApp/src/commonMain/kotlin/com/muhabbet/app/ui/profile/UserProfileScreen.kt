@@ -58,6 +58,7 @@ import com.muhabbet.shared.dto.UserProfileDetailResponse
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -568,7 +569,7 @@ private fun MutualGroupItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = stringResource(Res.string.group_participant_count, group.memberCount),
+                text = pluralStringResource(Res.plurals.group_participant_count, group.memberCount, group.memberCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

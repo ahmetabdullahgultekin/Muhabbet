@@ -34,6 +34,13 @@ name: Stale branch cleanup
 on:
   schedule:
     # Mondays 04:00 UTC — off the working day, and after the weekend's merges have settled.
+    #
+    # THIS FIRES ONLY FROM `main`. GitHub reads `schedule:` triggers from the repository's DEFAULT
+    # branch and nowhere else, and every piece of work here is merged into `dev`. So a cron added on
+    # `dev` is inert until a release carries it across — `gh run list --workflow=stale-branches.yml`
+    # answers "not found on the default branch", which reads like a typo and is not one. The
+    # `workflow_dispatch` half below works from any branch, which is what makes the difference easy
+    # to miss: a hand-started run proves nothing about whether the schedule is live.
     - cron: '0 4 * * 1'
   workflow_dispatch:
     inputs:
@@ -58,7 +65,9 @@ permissions:
 
 jobs:
   cleanup:
-    runs-on: ubuntu-latest
+    # Self-hosted: GitHub-hosted jobs are refused before they start on this account, with a billing
+    # lock that renders as a red X and no log. See dependabot-auto-merge.yml for the full note.
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
         with:
