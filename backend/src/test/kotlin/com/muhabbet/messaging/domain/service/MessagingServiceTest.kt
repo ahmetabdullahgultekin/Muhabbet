@@ -518,7 +518,7 @@ class MessagingServiceTest {
             senderId = userA
         )
 
-        every { messageRepository.findScheduledMessagesReadyToSend(any()) } returns listOf(scheduled)
+        every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(scheduled)
         every { conversationRepository.findById(convId) } returns
             Conversation(id = convId, type = ConversationType.DIRECT)
         every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
@@ -545,7 +545,7 @@ class MessagingServiceTest {
         val first = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA)
         val second = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA)
 
-        every { messageRepository.findScheduledMessagesReadyToSend(any()) } returns listOf(first, second)
+        every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(first, second)
         every { conversationRepository.findById(convId) } returns
             Conversation(id = convId, type = ConversationType.DIRECT)
         every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
@@ -562,7 +562,7 @@ class MessagingServiceTest {
 
     @Test
     fun `should report zero when nothing was due`() {
-        every { messageRepository.findScheduledMessagesReadyToSend(any()) } returns emptyList()
+        every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns emptyList()
 
         assertEquals(0, messageService.deliverScheduledMessages())
 

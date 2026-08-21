@@ -487,6 +487,31 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   for a security fix — will not arrive until the cache is refreshed. Re-run with `--force` after a
   runner reinstall and on whatever schedule you are willing to defend. This is a trade, not a
   free win.
+- **Spring Boot 4 moved the Actuator health API, and turned probes on everywhere** (established
+  2026-08-21 by reading the resolved jars, after guessing wrong twice).
+  - `HealthIndicator`, `Health` and `Status` are in **`org.springframework.boot.health.contributor`**,
+    shipped in a separate `spring-boot-health` artifact. The Boot 3 package
+    `org.springframework.boot.actuate.health` does not exist here and code written from memory will
+    not compile.
+  - `AvailabilityProbesAutoConfiguration` is
+    `@ConditionalOnBooleanProperty("management.endpoint.health.probes.enabled", matchIfMissing = true)`
+    — so `liveness`/`readiness` groups are on **on every platform**, not only on Kubernetes as in
+    2.x/3.x. That is why `/actuator/health` advertised groups whose sub-paths answered 401, since
+    `SecurityConfig` permits the exact path `/actuator/health` only. Now disabled explicitly.
+  - **`SimpleStatusAggregator` filters before it ranks**:
+    `statuses.stream().filter(this::contains).min(byOrderIndex).orElse(UNKNOWN)`, where `contains`
+    is `order.contains(code)`. A status **absent** from `management.endpoint.health.status.order` is
+    ignored, not promoted — the `indexOf(...) == -1` branch you might expect to make it win is
+    unreachable. Precedence is purely position in that list, which is why `MEDIA_UNAVAILABLE` sits
+    after `UP` and why `HealthStatusOrderTest` pins it: ranked above `UP`, a MinIO outage would fail
+    the container healthcheck and roll back every deploy.
+- **`TransactionRunner` uses `REQUIRED` propagation.** Wrapping per-item work in
+  `transactions.inTransaction { }` while the enclosing method still carries `@Transactional` gives
+  **no isolation at all** — the inner call joins the outer transaction, and one item's failure still
+  marks the whole thing rollback-only. Removing the method-level annotation is not optional when
+  splitting a batch (#560). A `try/catch` around the loop body is not a substitute either: Spring
+  Data's writes join the shared transaction and doom the commit, so the catch swallows an exception
+  that has already decided the outcome and the run reports success before dying at commit.
 - **detekt does not run at all** (#279). `:backend:detekt` dies at plugin startup with "detekt was
   compiled with Kotlin 2.0.21 but is currently running with 2.4.10", before analysing a file. CI marks
   the step `continue-on-error: true`, so a total failure of the tool has been indistinguishable from a

@@ -66,6 +66,12 @@ interface MessageRepository {
     fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int
 
     // Scheduled messages
-    fun findScheduledMessagesReadyToSend(now: Instant): List<Message>
+    /**
+     * Due scheduled messages, oldest first, at most [limit] of them.
+     *
+     * Bounded by contract rather than by the adapter, so the caller owns how much work one run
+     * takes on. Unbounded, a backlog arrives as one list and — before #560 — as one transaction.
+     */
+    fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message>
     fun markAsDelivered(messageId: UUID)
 }

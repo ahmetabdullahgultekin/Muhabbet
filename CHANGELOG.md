@@ -8,6 +8,37 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Fixed — failures that were invisible, or reported as the wrong thing
+
+- **One scheduled message that could not be sent silently stopped all of them** (#560). Every due
+  message shared a single database transaction, so a failure on the third undid the first two as
+  well — they were still pending, the next run a minute later picked the same batch in the same
+  order and hit the same message, forever. Each message now gets its own transaction, one failure is
+  logged with the message id and skipped, and the rest go out. A run also takes a bounded batch
+  instead of the entire backlog.
+- **The health check could not see the one thing most likely to fail quietly** (#494). Every photo,
+  voice note and document lives in MinIO, and after startup nothing ever checked it: it could be
+  down, out of disk, or have lost its bucket while the server reported itself healthy and a deploy
+  of a build with completely broken media passed its gate. There is now a media check, reported in a
+  way that makes an outage visible **without** rolling back a release — restarting the backend does
+  not fix storage, and neither does reverting.
+- **Anyone logged in could read the server's internals** (#494). The health endpoint hid its detail
+  from the public internet but not from ordinary users: any valid account could read the database
+  vendor, the Redis version and the host's free disk space. That now requires an admin account.
+- **The app was told the same thing whatever went wrong** (#572). Refusing to send a message
+  because it was too long, because you are not in the conversation, because the group is
+  announcement-only, because it had already been sent, or because the server genuinely broke — all
+  five arrived as one indistinguishable code, so the app could not say which had happened in the
+  reader's own language. Each now carries its own, matching what the REST API has always done.
+- **A malformed typing indicator could drop your connection** (#572). One unparseable id thrown from
+  a frame nobody was even waiting on escaped far enough to close the socket, and the chat stopped
+  working for a reason with nothing to do with chatting. No frame can cost a connection now.
+
+**What is not proven yet:** the media check has not been exercised against a real MinIO — that needs
+a running server, so it runs on CI, not on a machine without Docker. The ordering that keeps a media
+outage from failing a deploy *is* proven here, against Spring's real aggregator.
+
+
 ### Fixed — the path every message takes
 
 Three defects on the same code path — saving a message and handing it to its recipients — fixed

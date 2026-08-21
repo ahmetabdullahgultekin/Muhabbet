@@ -51,6 +51,18 @@ open class MessageService(
          * an alias rather than inlined at the call site so the name still reads at line 371.
          */
         private const val EDIT_WINDOW_MINUTES = ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES
+
+        /**
+         * How many due messages one scheduled run will take on.
+         *
+         * The query had no bound at all, so a backlog was loaded whole into one list and, before
+         * #560, into one transaction. Per-message transactions remove the second problem; the cap
+         * removes the first and keeps a run's duration predictable, which matters because the job
+         * is `fixedDelay` — a long run delays the next one rather than overlapping it. At one run a
+         * minute this drains 12,000 messages an hour, far above anything this product will
+         * schedule, and the leftovers are simply picked up by the next run in the same order.
+         */
+        private const val SCHEDULED_BATCH_LIMIT = 200
     }
 
     /**
@@ -523,50 +535,103 @@ open class MessageService(
      * had nothing to do from a run that did nothing. Messages dropped for a block are not counted:
      * from the sender's side they were not delivered.
      */
-    @Transactional
     open fun deliverScheduledMessages(): Int {
         val now = Instant.now()
-        val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now)
+        val scheduledMessages = messageRepository.findScheduledMessagesReadyToSend(now, SCHEDULED_BATCH_LIMIT)
         var delivered = 0
 
         for (message in scheduledMessages) {
-            messageRepository.markAsDelivered(message.id)
+            // One transaction per message, and the try/catch that makes it worth having. Before
+            // this, a single message that could not be delivered took the whole run down with it:
+            // the batch shared one transaction, so its rollback also undid `markAsDelivered` for
+            // every message already handled, leaving them due again. The next run a minute later
+            // selected the same batch in the same `scheduled_at ASC` order and hit the same message.
+            // Nothing recovered from that, and the only symptom was one log line a minute (#560).
+            //
+            // The try/catch alone would NOT have fixed it, which is the part worth remembering.
+            // Spring Data's write methods carry their own `@Transactional`; joining a shared
+            // transaction and then throwing marks it rollback-only, so the catch swallows an
+            // exception that has already doomed the commit and the batch dies at commit time with
+            // UnexpectedRollbackException — reporting success all the way. Isolation has to come
+            // from a real transaction boundary per message, which is what `inTransaction` is.
+            //
+            // And the method-level `@Transactional` had to go for the same reason: TransactionRunner
+            // uses the default REQUIRED propagation, so with an outer transaction still in place
+            // every per-message call would simply join it and the isolation would be imaginary.
+            try {
+                val outcome = transactions.inTransaction { deliverOneScheduled(message) }
 
-            val conversation = conversationRepository.findById(message.conversationId)
-            val members = conversationRepository.findMembersByConversationId(message.conversationId)
-
-            // A message can be scheduled before a block and come due after it. Withholding the
-            // delivery rows and the fan-out is not enough on its own: the row was written at
-            // schedule time and history filters on `isDeleted`, not on `isScheduled`, so it would
-            // simply appear in the recipient's chat. Soft-deleting restores the invariant the
-            // immediate path gets for free — no readable row, for either party.
-            if (isBlockedDirectSend(conversation, members, message.senderId)) {
-                messageRepository.softDelete(message.id)
-                log.info(
-                    "Scheduled message dropped, recipient has blocked the sender: id={}, conv={}",
-                    message.id,
-                    message.conversationId
-                )
-                continue
-            }
-
-            val recipients = members.filter { it.userId != message.senderId }
-
-            messageRepository.saveDeliveryStatuses(
-                recipients.map { member ->
-                    MessageDeliveryStatus(
-                        messageId = message.id,
-                        userId = member.userId,
-                        status = DeliveryStatus.SENT
-                    )
+                // Outside the transaction, as on the immediate send path (#491): the fan-out is
+                // blocking WebSocket writes and a push, and holding a pool connection across them
+                // is what capped the instance at twenty concurrent sends.
+                if (outcome.recipients != null) {
+                    messageBroadcaster.broadcastMessage(message, outcome.recipients)
+                    delivered++
+                    log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
                 }
-            )
-
-            messageBroadcaster.broadcastMessage(message, recipients)
-            delivered++
-            log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
+            } catch (e: Exception) {
+                // Named, unlike before. The old handler was in the job and logged the run, not the
+                // message, so a poison message produced an identical line every minute with nothing
+                // to identify it. This one can be acted on.
+                log.error(
+                    "Scheduled message could not be delivered, skipping it: id={}, conv={}",
+                    message.id,
+                    message.conversationId,
+                    e
+                )
+            }
         }
 
         return delivered
+    }
+
+    /**
+     * What one scheduled message's transaction produced. A null [recipients] means there is nothing
+     * to fan out — it was dropped for a block — as distinct from an empty list, which is a
+     * conversation the sender is alone in. Same convention as [SendOutcome].
+     *
+     * A wrapper rather than a bare nullable list because [TransactionRunner.inTransaction] binds its
+     * result to a non-null type: Spring's template signals "no result" with null, so a block that
+     * may legitimately return null would be indistinguishable from one that failed to run.
+     */
+    private data class ScheduledOutcome(val recipients: List<ConversationMember>?)
+
+    /**
+     * The persistence half of delivering one scheduled message, to be run in its own transaction.
+     */
+    private fun deliverOneScheduled(message: Message): ScheduledOutcome {
+        messageRepository.markAsDelivered(message.id)
+
+        val conversation = conversationRepository.findById(message.conversationId)
+        val members = conversationRepository.findMembersByConversationId(message.conversationId)
+
+        // A message can be scheduled before a block and come due after it. Withholding the
+        // delivery rows and the fan-out is not enough on its own: the row was written at
+        // schedule time and history filters on `isDeleted`, not on `isScheduled`, so it would
+        // simply appear in the recipient's chat. Soft-deleting restores the invariant the
+        // immediate path gets for free — no readable row, for either party.
+        if (isBlockedDirectSend(conversation, members, message.senderId)) {
+            messageRepository.softDelete(message.id)
+            log.info(
+                "Scheduled message dropped, recipient has blocked the sender: id={}, conv={}",
+                message.id,
+                message.conversationId
+            )
+            return ScheduledOutcome(recipients = null)
+        }
+
+        val recipients = members.filter { it.userId != message.senderId }
+
+        messageRepository.saveDeliveryStatuses(
+            recipients.map { member ->
+                MessageDeliveryStatus(
+                    messageId = message.id,
+                    userId = member.userId,
+                    status = DeliveryStatus.SENT
+                )
+            }
+        )
+
+        return ScheduledOutcome(recipients)
     }
 }

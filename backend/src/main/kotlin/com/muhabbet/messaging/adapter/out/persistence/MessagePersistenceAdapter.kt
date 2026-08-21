@@ -157,8 +157,8 @@ class MessagePersistenceAdapter(
     override fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int =
         messageRepo.markViewOnceViewed(messageId, viewedBy, viewedAt)
 
-    override fun findScheduledMessagesReadyToSend(now: Instant): List<Message> =
-        messageRepo.findScheduledMessagesReadyToSend(now).map { it.toDomain() }
+    override fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message> =
+        messageRepo.findScheduledMessagesReadyToSend(now, PageRequest.of(0, limit)).map { it.toDomain() }
 
     override fun markAsDelivered(messageId: UUID) {
         messageRepo.markScheduledAsDelivered(messageId)

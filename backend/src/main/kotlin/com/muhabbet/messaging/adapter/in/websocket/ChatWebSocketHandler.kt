@@ -13,6 +13,8 @@ import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.CallBusyException
 import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.service.CallSignalingService
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
@@ -52,14 +54,14 @@ class ChatWebSocketHandler(
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val token = extractToken(session)
         if (token == null) {
-            sendError(session, "AUTH_TOKEN_INVALID", "Missing token query parameter")
+            sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Missing token query parameter")
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
 
         val claims = jwtProvider.validateToken(token)
         if (claims == null) {
-            sendError(session, "AUTH_TOKEN_INVALID", "Invalid or expired JWT")
+            sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Invalid or expired JWT")
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
@@ -83,35 +85,54 @@ class ChatWebSocketHandler(
 
         // Per-connection rate limiting
         if (!webSocketRateLimiter.allowMessage(userId)) {
-            sendError(session, "RATE_LIMITED", "Too many messages, please slow down")
+            sendError(session, ErrorCode.RATE_LIMITED, "Too many messages, please slow down")
             return
         }
 
         val wsMessage = try {
             wsJson.decodeFromString<WsMessage>(message.payload)
         } catch (e: Exception) {
-            sendError(session, "VALIDATION_ERROR", "Invalid message format: ${e.message}")
+            sendError(session, ErrorCode.VALIDATION_ERROR, "Invalid message format: ${e.message}")
             return
         }
 
-        when (wsMessage) {
-            is WsMessage.SendMessage -> handleSendMessage(session, userId, wsMessage)
-            is WsMessage.AckMessage -> handleAckMessage(userId, wsMessage)
-            is WsMessage.TypingIndicator -> handleTypingIndicator(userId, wsMessage)
-            is WsMessage.GoOnline -> {
-                presencePort.setOnline(userId)
-                log.debug("User {} went online", userId)
+        // Nothing a client can put in a frame may cost it its connection.
+        //
+        // Only handleSendMessage had a catch of its own; every other branch ran bare. That is not
+        // theoretical tidiness: handleTypingIndicator calls UUID.fromString on a client-supplied
+        // conversationId with no guard, so one malformed id threw IllegalArgumentException straight
+        // out of here into the container, which closes the socket. The user's chat stops working
+        // and the cause is a typing indicator.
+        //
+        // A refusal the domain made keeps its own code, exactly as on the send path; anything else
+        // is INTERNAL_ERROR and gets a stack trace, so this catch cannot quietly become the place
+        // real faults go to die.
+        try {
+            when (wsMessage) {
+                is WsMessage.SendMessage -> handleSendMessage(session, userId, wsMessage)
+                is WsMessage.AckMessage -> handleAckMessage(userId, wsMessage)
+                is WsMessage.TypingIndicator -> handleTypingIndicator(userId, wsMessage)
+                is WsMessage.GoOnline -> {
+                    presencePort.setOnline(userId)
+                    log.debug("User {} went online", userId)
+                }
+                is WsMessage.ConversationFocus -> handleConversationFocus(userId, wsMessage)
+                is WsMessage.Ping -> {
+                    presencePort.setOnline(userId)
+                    sendPong(session)
+                }
+                is WsMessage.CallInitiate -> handleCallInitiate(session, userId, wsMessage)
+                is WsMessage.CallAnswer -> handleCallAnswer(session, userId, wsMessage)
+                is WsMessage.CallIceCandidate -> handleCallIce(userId, wsMessage)
+                is WsMessage.CallEnd -> handleCallEnd(userId, wsMessage)
+                else -> sendError(session, ErrorCode.VALIDATION_ERROR, "Unexpected message type from client")
             }
-            is WsMessage.ConversationFocus -> handleConversationFocus(userId, wsMessage)
-            is WsMessage.Ping -> {
-                presencePort.setOnline(userId)
-                sendPong(session)
-            }
-            is WsMessage.CallInitiate -> handleCallInitiate(session, userId, wsMessage)
-            is WsMessage.CallAnswer -> handleCallAnswer(session, userId, wsMessage)
-            is WsMessage.CallIceCandidate -> handleCallIce(userId, wsMessage)
-            is WsMessage.CallEnd -> handleCallEnd(userId, wsMessage)
-            else -> sendError(session, "VALIDATION_ERROR", "Unexpected message type from client")
+        } catch (e: BusinessException) {
+            sendError(session, e.errorCode, e.message)
+            log.warn("Frame rejected: type={}, {} - {}", wsMessage::class.simpleName, e.errorCode, e.message)
+        } catch (e: Exception) {
+            sendError(session, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
+            log.error("Unexpected failure handling frame: type={}", wsMessage::class.simpleName, e)
         }
     }
 
@@ -193,16 +214,24 @@ class ChatWebSocketHandler(
             )
             sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
 
+        } catch (e: BusinessException) {
+            // The refusal the domain actually made, not a label for all of them. `MSG_SEND_FAILED`
+            // was a string invented here — it is not an ErrorCode and never has been — and it
+            // reached the client for "too long", "not a member", "announcement only", "duplicate"
+            // and a genuine fault alike. The client's job is to map a code to a localized string,
+            // which it cannot do when five causes share one code; the fallback was either a generic
+            // sentence or the server's Turkish text shown to someone reading the app in English.
+            // The REST path never had this problem — GlobalExceptionHandler answers with
+            // `errorCode.name` — so this is the WebSocket path being brought into line with it.
+            respondSendFailed(session, msg, e.errorCode, e.message)
+            log.warn("Message rejected: {} - {}", e.errorCode, e.message)
         } catch (e: Exception) {
-            val ack = WsMessage.ServerAck(
-                requestId = msg.requestId,
-                messageId = msg.messageId,
-                status = AckStatus.ERROR,
-                errorCode = "MSG_SEND_FAILED",
-                errorMessage = e.message
-            )
-            sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
-            log.warn("Failed to send message: {}", e.message)
+            // A genuine fault, and kept distinct from a refusal on both channels: the client is told
+            // INTERNAL_ERROR rather than something from the message domain, and the log carries the
+            // stack trace instead of just `e.message`. GlobalExceptionHandler draws the same line
+            // for the same reason — so this line stays worth paging on.
+            respondSendFailed(session, msg, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
+            log.error("Unexpected failure sending message: conv={}", msg.conversationId, e)
         }
     }
 
@@ -265,7 +294,7 @@ class ChatWebSocketHandler(
         val calleeId = try {
             UUID.fromString(msg.targetUserId)
         } catch (e: Exception) {
-            sendError(session, "CALL_INVALID_TARGET", "Invalid target user ID")
+            sendError(session, ErrorCode.CALL_INVALID_TARGET, "Invalid target user ID")
             return
         }
 
@@ -319,7 +348,7 @@ class ChatWebSocketHandler(
     private fun handleCallAnswer(session: WebSocketSession, userId: UUID, msg: WsMessage.CallAnswer) {
         val callSession = callSignalingService.getCall(msg.callId)
         if (callSession == null) {
-            sendError(session, "CALL_NOT_FOUND", "Call ${msg.callId} not found")
+            sendError(session, ErrorCode.CALL_NOT_FOUND, "Call ${msg.callId} not found")
             return
         }
 
@@ -411,13 +440,35 @@ class ChatWebSocketHandler(
 
     // ─── Messaging Helpers ────────────────────────────────────
 
+    private fun respondSendFailed(
+        session: WebSocketSession,
+        msg: WsMessage.SendMessage,
+        code: ErrorCode,
+        message: String?
+    ) {
+        val ack = WsMessage.ServerAck(
+            requestId = msg.requestId,
+            messageId = msg.messageId,
+            status = AckStatus.ERROR,
+            errorCode = code.name,
+            errorMessage = message
+        )
+        sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
+    }
+
     private fun sendPong(session: WebSocketSession) {
         val pong = WsMessage.Pong
         sessionManager.send(session, wsJson.encodeToString<WsMessage>(pong))
     }
 
-    private fun sendError(session: WebSocketSession, code: String, message: String) {
-        val error = WsMessage.Error(code = code, message = message)
+    /**
+     * [code] is an [ErrorCode] rather than a String on purpose. Every call site already passed a
+     * real one; the single place that did not was the send-failure ack, which invented
+     * `MSG_SEND_FAILED` and shipped it for months (#572). A String parameter is what allowed that,
+     * so the type is the guard.
+     */
+    private fun sendError(session: WebSocketSession, code: ErrorCode, message: String) {
+        val error = WsMessage.Error(code = code.name, message = message)
         if (session.isOpen) {
             sessionManager.send(session, wsJson.encodeToString<WsMessage>(error))
         }
