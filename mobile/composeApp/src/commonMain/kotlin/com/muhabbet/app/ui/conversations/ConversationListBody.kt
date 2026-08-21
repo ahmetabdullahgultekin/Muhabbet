@@ -1,29 +1,18 @@
 package com.muhabbet.app.ui.conversations
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import com.muhabbet.shared.dto.UserStatusGroup
 import com.muhabbet.designsystem.theme.MuhabbetSizes
-import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
-import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.designsystem.components.EmptyChatsIllustration
 import com.muhabbet.designsystem.components.MuhabbetSkeletonList
 import com.muhabbet.designsystem.components.rememberSkeletonVisible
@@ -38,8 +27,9 @@ import org.jetbrains.compose.resources.stringResource
  */
 
 /**
- * Loading / empty / list body for [ConversationListScreen]. Splits active vs archived,
- * sorts pinned-first, and renders the status row + filter chips above the list.
+ * Loading / empty / list body for [ConversationListScreen]. Keeps archived chats out of the list
+ * behind a single [ArchivedChatsRow] at the top (#612), sorts pinned-first, and renders the status
+ * row + filter chips above the list.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -60,7 +50,8 @@ internal fun ConversationListBody(
     onStatusClick: (userId: String, displayName: String) -> Unit,
     onConversationClick: (ChatTarget) -> Unit,
     onConversationLongClick: (ConversationResponse) -> Unit,
-    onPin: (ConversationResponse) -> Unit
+    onPin: (ConversationResponse) -> Unit,
+    onOpenArchived: () -> Unit
 ) {
     val showSkeleton = rememberSkeletonVisible(isLoading)
     val loadingLabel = stringResource(Res.string.chats_loading)
@@ -90,24 +81,23 @@ internal fun ConversationListBody(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Filter conversations
-            val filteredConversations = when (activeFilter) {
-                ConversationFilter.UNREAD -> conversations.filter { it.unreadCount > 0 }
-                ConversationFilter.FAVORITES -> conversations.filter { it.isPinned }
-                ConversationFilter.GROUPS -> conversations.filter { it.type == ConversationType.GROUP }
-                else -> conversations
-            }
-            // Split active vs archived
-            val activeConversations = filteredConversations.filter { !it.isArchived }
-            val archivedConversations = filteredConversations.filter { it.isArchived }
-
-            // Sort: pinned first, then by lastMessageAt
-            val sortedConversations = activeConversations.sortedWith(
-                compareByDescending<ConversationResponse> { it.isPinned }
-                    .thenByDescending { it.lastMessageAt ?: "" }
-            )
+            // Which chats belong in the list, and how many are behind the archived row — one rule,
+            // in one testable place. See [conversationSections].
+            val sections = conversationSections(conversations, activeFilter)
 
             LazyColumn {
+                // Pinned at the very top, above the status row and every chat — the fix for #612.
+                // The old archived section sat below every active conversation (invisible on any real
+                // account) and rendered nothing at all when the archive was empty (nothing to
+                // discover before you had already used the feature). Shown only once something is
+                // archived: the long-press menu already always offers "Archive", so this row's job is
+                // solely "where did it go", which has nothing to say at zero.
+                if (sections.archivedCount > 0) {
+                    item(key = "archived_row") {
+                        ArchivedChatsRow(count = sections.archivedCount, onClick = onOpenArchived)
+                        HorizontalDivider()
+                    }
+                }
                 if (showStatusRow) {
                     item(key = "status_row") {
                         ConversationStatusRow(
@@ -124,7 +114,7 @@ internal fun ConversationListBody(
                 // animateItem: a conversation that jumps to the top on a new message, or slides out
                 // when archived, moves there instead of teleporting. The app had zero uses of this
                 // anywhere; the keys it needs were already in place.
-                items(sortedConversations, key = { it.id }) { conv ->
+                items(sections.active, key = { it.id }) { conv ->
                     ConversationListItemRow(
                         modifier = Modifier.animateItem(),
                         conv = conv,
@@ -140,50 +130,6 @@ internal fun ConversationListBody(
                     HorizontalDivider(
                         modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
                     )
-                }
-
-                // Archived section
-                if (archivedConversations.isNotEmpty()) {
-                    item(key = "archived_header") {
-                        Spacer(Modifier.height(MuhabbetSpacing.Medium))
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = MuhabbetSpacing.XLarge, vertical = MuhabbetSpacing.Medium),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.conv_archived_section),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.width(MuhabbetSpacing.Small))
-                            Text(
-                                text = "(${archivedConversations.size})",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    items(archivedConversations, key = { "archived_${it.id}" }) { conv ->
-                        ConversationListItemRow(
-                            modifier = Modifier.animateItem(),
-                            conv = conv,
-                            currentUserId = currentUserId,
-                            contactNameMap = contactNameMap,
-                            onlineUsers = onlineUsers,
-                            defaultChatName = defaultChatName,
-                            isPinned = false,
-                            onConversationClick = onConversationClick,
-                            onConversationLongClick = onConversationLongClick,
-                            onPin = {}
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = MuhabbetSizes.ChatListDividerInset)
-                        )
-                    }
                 }
             }
         }

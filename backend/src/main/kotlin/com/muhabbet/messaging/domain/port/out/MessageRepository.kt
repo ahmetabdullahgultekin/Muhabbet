@@ -17,7 +17,15 @@ interface MessageRepository {
     ): List<Message>
 
     fun findUndeliveredForUser(userId: UUID, since: Instant?): List<Message>
-    fun saveDeliveryStatus(status: MessageDeliveryStatus)
+    /**
+     * Every recipient's row for one message, in one call.
+     *
+     * There is deliberately no single-row version. This replaced one, and writing the rows one at a
+     * time from inside a loop is exactly what made a group message cost a statement per member on
+     * the hottest path in the app (#492) — leaving the per-row method in place would leave the way
+     * back to it. A caller with one row passes a list of one.
+     */
+    fun saveDeliveryStatuses(statuses: List<MessageDeliveryStatus>)
     fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
     fun markConversationRead(conversationId: UUID, userId: UUID)
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
@@ -58,6 +66,12 @@ interface MessageRepository {
     fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int
 
     // Scheduled messages
-    fun findScheduledMessagesReadyToSend(now: Instant): List<Message>
+    /**
+     * Due scheduled messages, oldest first, at most [limit] of them.
+     *
+     * Bounded by contract rather than by the adapter, so the caller owns how much work one run
+     * takes on. Unbounded, a backlog arrives as one list and — before #560 — as one transaction.
+     */
+    fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message>
     fun markAsDelivered(messageId: UUID)
 }

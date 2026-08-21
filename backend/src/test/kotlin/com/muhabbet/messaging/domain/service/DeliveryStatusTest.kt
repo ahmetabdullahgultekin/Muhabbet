@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.InlineTransactionRunner
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -35,7 +36,8 @@ class DeliveryStatusTest {
             messageBroadcaster,
             userDirectory,
             readReceiptPolicy,
-            blockPolicy
+            blockPolicy,
+            InlineTransactionRunner()
         )
     }
 

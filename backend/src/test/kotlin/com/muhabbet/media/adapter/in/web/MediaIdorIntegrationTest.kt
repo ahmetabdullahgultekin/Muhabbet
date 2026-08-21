@@ -12,6 +12,7 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.shared.security.JwtProvider
 import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Test
@@ -89,6 +90,16 @@ class MediaIdorIntegrationTest {
     @Autowired
     private lateinit var messageRepository: MessageRepository
 
+    /**
+     * Seeding a message needs a transaction the same way the send path does: since #492 the
+     * adapter's insert is a bare `entityManager.persist`, declared `MANDATORY`, so it no longer
+     * brings a transaction of its own the way `SimpleJpaRepository.save` did. This is the same
+     * seam production uses — [TransactionRunner] — rather than `@Transactional` on the test, which
+     * would roll the seed back and let the request under test read it from the same transaction.
+     */
+    @Autowired
+    private lateinit var transactions: TransactionRunner
+
     companion object {
         @Container
         @JvmStatic
@@ -153,17 +164,19 @@ class MediaIdorIntegrationTest {
             ConversationMember(conversationId = conversationId, userId = userB, role = MemberRole.MEMBER)
         )
         // The message references the media via its stored URL (contains the file_key).
-        messageRepository.save(
-            Message(
-                id = UUID.randomUUID(),
-                conversationId = conversationId,
-                senderId = userA,
-                contentType = com.muhabbet.messaging.domain.model.ContentType.IMAGE,
-                content = "",
-                mediaUrl = "https://media.example/muhabbet-media/$fileKey?X-Amz-Signature=abc",
-                clientTimestamp = Instant.now()
+        transactions.inTransaction {
+            messageRepository.save(
+                Message(
+                    id = UUID.randomUUID(),
+                    conversationId = conversationId,
+                    senderId = userA,
+                    contentType = com.muhabbet.messaging.domain.model.ContentType.IMAGE,
+                    content = "",
+                    mediaUrl = "https://media.example/muhabbet-media/$fileKey?X-Amz-Signature=abc",
+                    clientTimestamp = Instant.now()
+                )
             )
-        )
+        }
 
         // Uploader → 200
         mockMvc.perform(get("/api/v1/media/$mediaId/url").header("Authorization", bearer(userA)))
@@ -211,17 +224,19 @@ class MediaIdorIntegrationTest {
         conversationRepository.saveMember(
             ConversationMember(conversationId = conversationId, userId = attacker, role = MemberRole.OWNER)
         )
-        messageRepository.save(
-            Message(
-                id = UUID.randomUUID(),
-                conversationId = conversationId,
-                senderId = attacker,
-                contentType = com.muhabbet.messaging.domain.model.ContentType.IMAGE,
-                content = "",
-                mediaUrl = "https://media.example/muhabbet-media/$fileKey?X-Amz-Signature=abc",
-                clientTimestamp = Instant.now()
+        transactions.inTransaction {
+            messageRepository.save(
+                Message(
+                    id = UUID.randomUUID(),
+                    conversationId = conversationId,
+                    senderId = attacker,
+                    contentType = com.muhabbet.messaging.domain.model.ContentType.IMAGE,
+                    content = "",
+                    mediaUrl = "https://media.example/muhabbet-media/$fileKey?X-Amz-Signature=abc",
+                    clientTimestamp = Instant.now()
+                )
             )
-        )
+        }
 
         mockMvc.perform(get("/api/v1/media/$mediaId/url").header("Authorization", bearer(attacker)))
             .andExpect(status().isForbidden)

@@ -8,6 +8,7 @@ import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.PingMessage
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -34,12 +35,48 @@ class WebSocketSessionManager {
          * frame each, so running it four times as often costs nothing measurable.
          */
         private const val REAP_INTERVAL_SECONDS = 30L
+
+        /**
+         * How long one write to a socket may take before that socket is the problem.
+         *
+         * Tomcat's own blocking send timeout is twenty seconds and nothing here overrides it, so
+         * without a limit of our own a single peer whose TCP window is full holds the writing
+         * thread for twenty. Ten seconds is deliberately under that: when a peer is this far
+         * behind, the decorator closes it and the writer moves on, rather than Tomcat deciding for
+         * us at twice the delay.
+         */
+        private const val SEND_TIME_LIMIT_MS = 10_000
+
+        /**
+         * How much may pile up for a peer that is not draining. Eight of the largest frame the
+         * server will accept (`WebSocketConfig.MAX_MESSAGE_BUFFER` is 64 KB). Past this the peer is
+         * not slow, it is gone, and holding more of its backlog only costs this instance memory.
+         */
+        private const val SEND_BUFFER_LIMIT_BYTES = 8 * 64 * 1024
     }
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     // userId -> set of sessions (a user can have multiple devices)
     private val sessions = ConcurrentHashMap<UUID, MutableSet<WebSocketSession>>()
+
+    // sessionId -> the decorated session every writer must go through.
+    //
+    // The raw WebSocketSession Spring hands a handler callback is NOT safe to write to from two
+    // threads, and this application has at least three writers: the container thread handling a
+    // frame, the fan-out thread delivering someone else's message, and the reaper writing pings.
+    // Tomcat answers an overlap with IllegalStateException [TEXT_FULL_WRITING]. Before #490 the
+    // manager took `synchronized(session)` and ChatWebSocketHandler wrote to the same sessions in
+    // seven places without it — a monitor only half the writers take protects nothing — and when
+    // the manager's write was the one that lost, its catch marked a perfectly healthy session stale
+    // and dropped it from every map, so a user with an open socket vanished from presence and from
+    // every later broadcast.
+    //
+    // ConcurrentWebSocketSessionDecorator serialises sends properly and bounds them, so the answer
+    // is to have exactly one wrapper per socket and let nothing write to the raw session. This map
+    // is what lets a handler holding the raw session reach its wrapper: the decorator delegates
+    // getId(), so every existing id-keyed map keeps working unchanged.
+    private val byId = ConcurrentHashMap<String, WebSocketSession>()
 
     // sessionId -> userId (reverse lookup)
     private val sessionToUser = ConcurrentHashMap<String, UUID>()
@@ -78,7 +115,9 @@ class WebSocketSessionManager {
     }
 
     fun register(userId: UUID, session: WebSocketSession) {
-        sessions.computeIfAbsent(userId) { ConcurrentHashMap.newKeySet() }.add(session)
+        val tracked = ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, SEND_BUFFER_LIMIT_BYTES)
+        sessions.computeIfAbsent(userId) { ConcurrentHashMap.newKeySet() }.add(tracked)
+        byId[session.id] = tracked
         sessionToUser[session.id] = userId
         lastSeenAt[session.id] = System.currentTimeMillis()
         log.info("WebSocket registered: userId={}, sessionId={}, total={}", userId, session.id, sessions.size)
@@ -124,13 +163,37 @@ class WebSocketSessionManager {
     fun isViewingConversation(userId: UUID, conversationId: UUID): Boolean =
         activeConversation[userId] == conversationId
 
+    /**
+     * Writes one frame to one session — the reply path, for an ack, an error or a pong that answers
+     * the frame a handler is holding.
+     *
+     * Takes the raw session a handler was given and finds its decorator, so a handler never has to
+     * know one exists. A session that is not registered yet is written to directly: the only two
+     * such writes are the auth failures in `afterConnectionEstablished`, which happen before
+     * register() and therefore before any other thread can possibly know about this socket.
+     *
+     * Logs rather than throws. A failed ack is not worth killing the connection over, and the
+     * reaper will collect a socket that has genuinely died within its next sweep. Unlike
+     * [sendToUser] it does not forget the session, because this is a reply on the peer's own
+     * thread, not evidence about the peer's health that a broadcast has.
+     */
+    fun send(session: WebSocketSession, payload: String) {
+        val target = byId[session.id] ?: session
+        try {
+            target.sendMessage(TextMessage(payload))
+        } catch (e: Exception) {
+            log.warn("Failed to write reply to session {}: {}", session.id, e.message)
+        }
+    }
+
     fun sendToUser(userId: UUID, message: String) {
         val userSessions = sessions[userId] ?: return
         val stale = mutableListOf<WebSocketSession>()
         userSessions.forEach { session ->
             if (session.isOpen) {
                 try {
-                    synchronized(session) { session.sendMessage(TextMessage(message)) }
+                    // No synchronized(): the set holds decorators, which serialise their own sends.
+                    session.sendMessage(TextMessage(message))
                 } catch (e: Exception) {
                     log.warn("Failed to send WS message to session {}, marking stale: {}", session.id, e.message)
                     stale.add(session)
@@ -187,12 +250,16 @@ class WebSocketSessionManager {
 
     /** Removes a session from all three maps. Idempotent. */
     private fun forget(userId: UUID, session: WebSocketSession) {
+        // Resolved through byId because callers reach here with either instance: the reaper walks
+        // the set and so holds the decorator, while unregister() is handed the raw session by the
+        // container. Removing the wrong one would leave the set holding a closed socket forever.
+        val tracked = byId.remove(session.id) ?: session
         sessionToUser.remove(session.id)
         lastSeenAt.remove(session.id)
         // computeIfPresent keeps "remove the session" and "drop the now-empty user entry" atomic
         // against a concurrent register() for the same user, which a check-then-remove would lose.
         sessions.computeIfPresent(userId) { _, set ->
-            set.remove(session)
+            set.remove(tracked)
             if (set.isEmpty()) null else set
         }
         // Only once every session for this user is gone — a second device may still be looking at
@@ -203,7 +270,11 @@ class WebSocketSessionManager {
 
     /** @return false if the ping could not be written, which means the session is dead. */
     private fun ping(session: WebSocketSession): Boolean = try {
-        synchronized(session) { session.sendMessage(PingMessage()) }
+        // Decorated, so this queues behind any in-flight send instead of colliding with it, and is
+        // bounded by SEND_TIME_LIMIT_MS instead of Tomcat's twenty seconds — which matters here
+        // more than anywhere, because the sweep is a single thread visiting every open socket in
+        // turn and one unresponsive peer used to stop it reaching the rest.
+        session.sendMessage(PingMessage())
         true
     } catch (e: Exception) {
         log.debug("Ping failed for session {}: {}", session.id, e.message)

@@ -9,6 +9,7 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.shared.security.JwtProvider
 import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Test
@@ -59,6 +60,16 @@ class MessageIdorIntegrationTest {
     @Autowired
     private lateinit var messageRepository: MessageRepository
 
+    /**
+     * Seeding a message needs a transaction the same way the send path does: since #492 the
+     * adapter's insert is a bare `entityManager.persist`, declared `MANDATORY`, so it no longer
+     * brings a transaction of its own the way `SimpleJpaRepository.save` did. This is the same
+     * seam production uses — [TransactionRunner] — rather than `@Transactional` on the test, which
+     * would roll the seed back and let the request under test read it from the same transaction.
+     */
+    @Autowired
+    private lateinit var transactions: TransactionRunner
+
     companion object {
         @Container
         @JvmStatic
@@ -108,16 +119,18 @@ class MessageIdorIntegrationTest {
 
     private fun seedMessage(conversationId: UUID, sender: UUID, viewOnce: Boolean = false): UUID {
         val id = UUID.randomUUID()
-        messageRepository.save(
-            Message(
-                id = id,
-                conversationId = conversationId,
-                senderId = sender,
-                content = "private body payload",
-                viewOnce = viewOnce,
-                clientTimestamp = Instant.now()
+        transactions.inTransaction {
+            messageRepository.save(
+                Message(
+                    id = id,
+                    conversationId = conversationId,
+                    senderId = sender,
+                    content = "private body payload",
+                    viewOnce = viewOnce,
+                    clientTimestamp = Instant.now()
+                )
             )
-        )
+        }
         return id
     }
 

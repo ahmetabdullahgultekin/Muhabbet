@@ -19,6 +19,7 @@ import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.call.IncomingCallScreen
 import com.muhabbet.app.ui.chat.ChatScreen
 import com.muhabbet.app.ui.chat.MessageInfoScreen
+import com.muhabbet.app.ui.conversations.ArchivedChatsScreen
 import com.muhabbet.app.ui.conversations.ConversationListScreen
 import com.muhabbet.app.ui.home.HomeShellScreen
 import com.muhabbet.app.ui.conversations.NewConversationScreen
@@ -44,7 +45,6 @@ import com.muhabbet.app.ui.settings.WallpaperPickerScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.ui.conversations.toChatTarget
@@ -168,6 +168,14 @@ class MainComponent(
         navigation.push(Config.StarredMessages)
     }
 
+    /** The pinned "Arşivlenmiş · N" row's destination (#612) — every conversation with `archived`
+     *  set, and the one place unarchiving is reachable from besides the long-press menu that put it
+     *  there in the first place. */
+    @OptIn(DelicateDecomposeApi::class)
+    fun openArchivedChats() {
+        navigation.push(Config.ArchivedChats)
+    }
+
     @OptIn(DelicateDecomposeApi::class)
     fun openMessageInfo(messageId: String) {
         navigation.push(Config.MessageInfo(messageId))
@@ -187,11 +195,26 @@ class MainComponent(
         }
     }
 
+    /**
+     * Unreachable today: nothing calls this. There is no WS listener that turns an inbound
+     * `call.room`/ringing signal into a navigation, because the client that would send
+     * `call.initiate` in the first place does not exist (#367–#373). Left in place — along with
+     * [IncomingCallScreen][com.muhabbet.app.ui.call.IncomingCallScreen] — as the real destination
+     * for that wiring once it lands, rather than deleted and rebuilt from scratch.
+     */
     @OptIn(DelicateDecomposeApi::class)
     fun openIncomingCall(callId: String, callerId: String, callerName: String?, callType: String) {
         navigation.push(Config.IncomingCall(callId, callerId, callerName, callType))
     }
 
+    /**
+     * No outgoing entry point calls this any more (see [PickContactForCall][Config.PickContactForCall]
+     * and the Calls tab in [HomeShellScreen][com.muhabbet.app.ui.home.HomeShellScreen], both of which
+     * now show a "coming soon" message instead of minting a fake call id and pushing this screen —
+     * #367–#373). Still reachable from [replaceWithActiveCall] via a real incoming-call accept, and
+     * kept as the target [ActiveCallScreen][com.muhabbet.app.ui.call.ActiveCallScreen] for whichever
+     * flow calling actually ships with.
+     */
     @OptIn(DelicateDecomposeApi::class)
     fun openActiveCall(callId: String, otherUserId: String, otherUserName: String?, callType: String) {
         navigation.push(Config.ActiveCall(callId, otherUserId, otherUserName, callType))
@@ -334,6 +357,7 @@ class MainComponent(
         @Serializable data class UserProfile(val userId: String, val contactName: String? = null, val conversationId: String? = null) : Config
         @Serializable data class StatusViewer(val userId: String, val displayName: String) : Config
         @Serializable data object StarredMessages : Config
+        @Serializable data object ArchivedChats : Config
         @Serializable data class SharedMedia(val conversationId: String) : Config
         @Serializable data class MessageInfo(val messageId: String) : Config
         @Serializable data class IncomingCall(val callId: String, val callerId: String, val callerName: String? = null, val callType: String = "VOICE") : Config
@@ -452,13 +476,10 @@ private fun MainStack(component: MainComponent) {
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
-                onCallUser = { userId, name, callType ->
-                    val callId = Clock.System.now().toEpochMilliseconds().toString()
-                    component.openActiveCall(callId, userId, name, callType)
-                },
                 onNewCall = component::openPickContactForCall,
                 onCommunityClick = { communityId -> component.openCommunityDetail(communityId) },
                 onCreateCommunity = component::openCreateCommunity,
+                onOpenArchived = component::openArchivedChats,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.ConversationList -> ConversationListScreen(
@@ -466,6 +487,7 @@ private fun MainStack(component: MainComponent) {
                 onNewConversation = component::openNewConversation,
                 onSettings = component::openSettings,
                 onStatusClick = { userId, displayName -> component.openStatusViewer(userId, displayName) },
+                onOpenArchived = component::openArchivedChats,
                 refreshKey = component.refreshTrigger.collectAsState(0).value
             )
             is MainComponent.Config.Chat -> ChatScreen(
@@ -546,6 +568,10 @@ private fun MainStack(component: MainComponent) {
                     component.openChat(target, scrollToMessageId = msgId)
                 }
             )
+            is MainComponent.Config.ArchivedChats -> ArchivedChatsScreen(
+                onBack = component::goBack,
+                onConversationClick = component::openChat
+            )
             is MainComponent.Config.SharedMedia -> SharedMediaScreen(
                 conversationId = config.conversationId,
                 onBack = component::goBack
@@ -586,11 +612,7 @@ private fun MainStack(component: MainComponent) {
                 onBack = component::goBack
             )
             is MainComponent.Config.CallHistory -> CallHistoryScreen(
-                onBack = component::goBack,
-                onCallUser = { userId, name, callType ->
-                    val callId = Clock.System.now().toEpochMilliseconds().toString()
-                    component.openActiveCall(callId, userId, name, callType)
-                }
+                onBack = component::goBack
             )
             is MainComponent.Config.TwoStepVerification -> TwoStepSetupScreen(
                 onBack = component::goBack
@@ -618,13 +640,16 @@ private fun MainStack(component: MainComponent) {
                 onBack = component::goBack,
                 onMemberClick = { userId -> component.openUserProfile(userId) }
             )
+            // Calling has never worked end to end (#367–#373: the client never sends
+            // call.initiate, no mic track is ever published, and LiveKit is unconfigured in
+            // prod). isCallPickerMode only hides the group/by-number rows that make no sense on
+            // a "who do you want to call" surface and turns a contact tap into the same
+            // "coming soon" message ProfileScreen's call button already shows — it does not open
+            // a call screen for a call that is not happening.
             is MainComponent.Config.PickContactForCall -> NewConversationScreen(
                 onConversationCreated = component::replaceWithChat,
                 onBack = component::goBack,
-                onContactPicked = { userId, name ->
-                    val callId = Clock.System.now().toEpochMilliseconds().toString()
-                    component.replaceWithActiveCall(callId, userId, name, "VOICE")
-                }
+                isCallPickerMode = true
             )
             is MainComponent.Config.CreateCommunity -> CreateCommunityScreen(
                 onBack = component::goBack,

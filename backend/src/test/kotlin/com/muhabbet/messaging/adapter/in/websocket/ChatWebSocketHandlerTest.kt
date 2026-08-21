@@ -188,12 +188,12 @@ class ChatWebSocketHandlerTest {
         @Test
         fun `should send error message before closing on invalid token`() {
             val session = createSession(token = "bad-token")
-            val messageSlot = slot<TextMessage>()
-            every { session.sendMessage(capture(messageSlot)) } just Runs
+            val messageSlot = slot<String>()
+            every { sessionManager.send(session, capture(messageSlot)) } just Runs
 
             handler.afterConnectionEstablished(session)
 
-            val sentJson = messageSlot.captured.payload
+            val sentJson = messageSlot.captured
             assertTrue(sentJson.contains("AUTH_TOKEN_INVALID"))
         }
     }
@@ -233,10 +233,10 @@ class ChatWebSocketHandlerTest {
             val json = wsJson.encodeToString<WsMessage>(sendMessage)
             handler.handleMessage(session, TextMessage(json))
 
-            val messageSlot = slot<TextMessage>()
-            verify { session.sendMessage(capture(messageSlot)) }
+            val messageSlot = slot<String>()
+            verify { sessionManager.send(session, capture(messageSlot)) }
 
-            val ackJson = messageSlot.captured.payload
+            val ackJson = messageSlot.captured
             assertTrue(ackJson.contains("\"status\":\"OK\""))
             assertTrue(ackJson.contains("req-1"))
         }
@@ -259,10 +259,10 @@ class ChatWebSocketHandlerTest {
             val json = wsJson.encodeToString<WsMessage>(sendMessage)
             handler.handleMessage(session, TextMessage(json))
 
-            val messageSlot = slot<TextMessage>()
-            verify { session.sendMessage(capture(messageSlot)) }
+            val messageSlot = slot<String>()
+            verify { sessionManager.send(session, capture(messageSlot)) }
 
-            val ackJson = messageSlot.captured.payload
+            val ackJson = messageSlot.captured
             assertTrue(ackJson.contains("\"status\":\"ERROR\""))
         }
 
@@ -274,10 +274,10 @@ class ChatWebSocketHandlerTest {
 
             handler.handleMessage(session, TextMessage("{invalid json"))
 
-            val messageSlot = slot<TextMessage>()
-            verify { session.sendMessage(capture(messageSlot)) }
+            val messageSlot = slot<String>()
+            verify { sessionManager.send(session, capture(messageSlot)) }
 
-            val sentJson = messageSlot.captured.payload
+            val sentJson = messageSlot.captured
             assertTrue(sentJson.contains("VALIDATION_ERROR"))
         }
 
@@ -310,10 +310,10 @@ class ChatWebSocketHandlerTest {
             val pingJson = wsJson.encodeToString<WsMessage>(WsMessage.Ping)
             handler.handleMessage(session, TextMessage(pingJson))
 
-            val messageSlot = slot<TextMessage>()
-            verify { session.sendMessage(capture(messageSlot)) }
+            val messageSlot = slot<String>()
+            verify { sessionManager.send(session, capture(messageSlot)) }
 
-            val sentJson = messageSlot.captured.payload
+            val sentJson = messageSlot.captured
             assertTrue(sentJson.contains("pong"))
             verify { presencePort.setOnline(userId) }
         }
