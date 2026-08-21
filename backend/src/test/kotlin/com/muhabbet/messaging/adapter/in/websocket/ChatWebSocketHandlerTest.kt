@@ -521,4 +521,78 @@ class ChatWebSocketHandlerTest {
             verify(exactly = 0) { presencePort.setOffline(any()) }
         }
     }
+
+    // ─── Presence and blocks (#294, vector 2) ───────────────
+
+    /**
+     * The live half of "a blocked person must not watch you".
+     *
+     * `GET /users/{id}` and `GET /conversations` were both closed in #554 and both have tests. This
+     * one - the push feed the chat list actually renders its green dot from - was closed in the same
+     * PR and had none, so nothing stood between the guard and a future refactor. A block leaks
+     * through here the moment somebody simplifies `broadcastPresence` back to "fan out to every
+     * contact", and the two REST tests would still be green while it did.
+     *
+     * The OFFLINE transition is asserted separately from the ONLINE one because it carries strictly
+     * more: `lastSeenAt` rides on it, so a guard that covered only the connect path would still hand
+     * a harasser a last-seen stamp every time the victim closed the app.
+     */
+    @Nested
+    inner class PresenceBlocks {
+
+        private val blockerId = UUID.randomUUID()
+        private val friendId = UUID.randomUUID()
+
+        @BeforeEach
+        fun stubContacts() {
+            every { conversationRepository.findAllContactUserIds(userId) } returns setOf(blockerId, friendId)
+            every { sessionManager.isOnline(blockerId) } returns true
+            every { sessionManager.isOnline(friendId) } returns true
+        }
+
+        @Test
+        fun `should not tell someone who blocked this user that they came online`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns setOf(blockerId)
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+        }
+
+        @Test
+        fun `should still tell everyone else that this user came online`() {
+            // A block costs the blocker the feed and nobody else: the fan-out must narrow, not stop.
+            every { blockPolicy.findBlockedBy(userId, any()) } returns setOf(blockerId)
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should not leak the last seen stamp to someone who blocked this user`() {
+            // The OFFLINE frame carries lastSeenAt. Guarding the connect path alone would still
+            // hand a blocked harasser a timestamp every time the victim closed the app.
+            every { blockPolicy.findBlockedBy(userId, any()) } returns setOf(blockerId)
+            val session = createSession()
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should ask about the whole contact set in one call rather than one per contact`() {
+            // Contract, not decoration: the chat list resolves every contact on open, and a
+            // per-contact question here is an N+1 on the app's busiest moment.
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
+        }
+    }
 }
