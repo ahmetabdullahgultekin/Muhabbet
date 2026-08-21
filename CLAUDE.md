@@ -871,6 +871,15 @@ is not evidence that it works.
   backend change through the UI you must temporarily set `BASE_URL` to `http://10.0.2.2:8080` (the
   emulator's alias for the host) and flip `usesCleartextTraffic` to `true`, rebuild, then revert both.
   Worth replacing with a build-type-scoped override.
+- **Ktor's `Auth` plugin sends every 401 twice** (#400). It retries any 401 as an authentication
+  challenge. When the request carried a bearer token it refreshes first; when it did **not** — the
+  four `ApiClient.PRE_LOGIN_PATHS`, by `sendWithoutRequest` — it has no token version recorded, skips
+  the refresh and replays the request unchanged. **No `/auth/token/refresh` appears in the log**, so
+  there is nothing to hint at a retry: just two identical POSTs a few hundred ms apart. That doubled
+  every OTP attempt (`AUTH_OTP_INVALID` is 401 and the server claims an attempt before comparing the
+  code), so 5 attempts were really 2.5. Fixed by narrowing `reAuthorizeOnResponse` to exclude
+  `PRE_LOGIN_PATHS`. **Any `ErrorCode` you map to 401 that is a business rejection rather than a
+  token problem will be sent twice** — check `ApiClient` before adding one.
 - **Spring Security 403 vs 401**: Default Spring Security returns 403 for unauthenticated requests. Must configure `authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))` so Ktor Auth plugin triggers token refresh on 401
 - **kotlinx-datetime `toLocalDateTime`**: It's an extension function — needs explicit `import kotlinx.datetime.toLocalDateTime`, not available via fully-qualified `instant.toLocalDateTime()`
 - **SharedFlow vs Channel**: `MutableSharedFlow` broadcasts to ALL collectors (no competition). Use for WS messages shared between multiple screens
