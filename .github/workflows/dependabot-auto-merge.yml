@@ -34,10 +34,18 @@
 #
 # RUNNER CHOICE
 #
-# `ubuntu-latest`, not the self-hosted runner. This job is a few seconds of API calls and the
-# self-hosted runner accepts ONE job at a time on the production host — putting this in that queue
-# would delay deploys to save nothing. `stale-branches.yml` already runs on a hosted runner, so the
-# path is known to work for this repository.
+# Self-hosted — and the reasoning that first said otherwise was wrong on its facts, which is worth
+# recording because it was a confident wrong. It argued that a few seconds of API calls should not
+# join the production host's single-job queue, and cited `stale-branches.yml` as proof that hosted
+# runners work here. They do not: every GitHub-hosted job on this account is refused before it
+# starts, with "The job was not started because your account is locked due to a billing issue".
+#
+# That refusal renders as a red X with no log, so three workflows — this one, the linked-issue
+# closer and the branch cleanup — were all configured, all failing, and all silent about why. The
+# citation was itself one of the three.
+#
+# A few seconds in the deploy queue is the honest price of a job that runs at all. If the account
+# billing is unlocked later this is one line to move back, and the queue argument becomes true then.
 
 name: Dependabot auto-merge
 
@@ -51,7 +59,7 @@ permissions:
 jobs:
   auto-merge:
     name: Auto-merge patch bumps
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     if: github.event.pull_request.user.login == 'dependabot[bot]'
 
     steps:

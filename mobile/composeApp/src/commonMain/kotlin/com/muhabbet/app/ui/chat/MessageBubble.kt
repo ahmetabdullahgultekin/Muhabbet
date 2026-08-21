@@ -67,6 +67,14 @@ import com.muhabbet.shared.validation.ValidationRules
 /** Opacity of the disc the play glyph sits on, so it stays legible over any thumbnail. */
 private const val PlayOverlayAlpha = 0.7f
 
+/**
+ * How far a bubble's timestamp falls back from its body text.
+ *
+ * Safe only because it is drawn on an **opaque** bubble: the composite is the bubble's own two
+ * colours and nothing else can reach it. The same 0.6 over a translucent ground is what #678 was.
+ */
+private const val MetaTextAlpha = 0.6f
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
@@ -113,10 +121,21 @@ fun MessageBubble(
 
     val clipboardManager = LocalClipboardManager.current
     val semanticColors = LocalSemanticColors.current
-    val bubble = if (isOwn) semanticColors.bubbleOwn else semanticColors.bubbleOther
-    val bubbleColor = if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        else bubble.container
+    // A deleted message is a tombstone rather than a message, so it takes its own ground — and it
+    // takes the foreground that ground ships with. Both halves opaque: the previous treatment drew
+    // a 50%-alpha bubble and kept the OPAQUE bubble's text colour on it, so the chat wallpaper bled
+    // through into the ground its own label was read against (#678).
+    val bubble = when {
+        message.isDeleted -> semanticColors.bubbleDeleted
+        isOwn -> semanticColors.bubbleOwn
+        else -> semanticColors.bubbleOther
+    }
+    val bubbleColor = bubble.container
     val onBubbleColor = bubble.content
+    // The tombstone's content colour is already the quiet one, chosen and measured as such. Taking
+    // another 40% off it for the timestamp would put it back under the floor the rest of this change
+    // exists to clear, so a deleted bubble carries no alpha anywhere.
+    val metaColor = if (message.isDeleted) onBubbleColor else onBubbleColor.copy(alpha = MetaTextAlpha)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start
@@ -148,8 +167,10 @@ fun MessageBubble(
                             modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline)
                         )
                     }
-                    // Quoted reply
-                    if (repliedMessage != null) {
+                    // Quoted reply. Not on a deleted message: the tombstone is one line, and the
+                    // quote panel is the last translucent chrome that would otherwise be drawn on
+                    // it — a ground inside a ground, each at its own alpha, measurable by nobody.
+                    if (repliedMessage != null && !message.isDeleted) {
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = onBubbleColor.copy(alpha = 0.1f),
@@ -172,8 +193,9 @@ fun MessageBubble(
                         }
                     }
 
-                    // Forwarded label
-                    if (message.forwardedFrom != null) {
+                    // Forwarded label. Same reason as the quote above, plus: a deleted message has
+                    // no content left to have been forwarded, so the caption describes nothing.
+                    if (message.forwardedFrom != null && !message.isDeleted) {
                         Row(
                             modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSizes.GapHairline),
                             verticalAlignment = Alignment.CenterVertically,
@@ -194,12 +216,28 @@ fun MessageBubble(
                     }
 
                     if (message.isDeleted) {
-                        Text(
-                            text = stringResource(Res.string.chat_message_deleted),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.XSmall)
-                        )
+                        // Three channels say "deleted", none of them opacity: the bubble's own
+                        // muted ground, an italic label, and the circle-slash. The glyph carries no
+                        // contentDescription because the sentence beside it says the same thing —
+                        // a screen reader announcing "blocked, this message was deleted" is worse
+                        // than one announcing the sentence alone.
+                        Row(
+                            modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small, vertical = MuhabbetSpacing.XSmall),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)
+                        ) {
+                            Icon(
+                                Muhabbet.icons.MessageDeleted,
+                                contentDescription = null,
+                                modifier = Modifier.size(MuhabbetSizes.IconSmall),
+                                tint = onBubbleColor
+                            )
+                            Text(
+                                text = stringResource(Res.string.chat_message_deleted),
+                                style = Muhabbet.text.ChatDeletedLabel,
+                                color = onBubbleColor
+                            )
+                        }
                     } else {
                         // Voice
                         if (message.contentType == ContentType.VOICE && message.mediaUrl != null) {
@@ -353,7 +391,7 @@ fun MessageBubble(
                         Text(
                             text = formatMessageTime(timestamp),
                             style = Muhabbet.text.ChatMeta,
-                            color = onBubbleColor.copy(alpha = 0.6f)
+                            color = metaColor
                         )
                         if (isOwn && !message.isDeleted) {
                             val (icon, tint) = when (message.status) {
