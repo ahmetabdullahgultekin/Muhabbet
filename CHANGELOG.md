@@ -81,6 +81,30 @@ proves the third fix needs a real database, so it runs on CI and not on a machin
   list entirely and sit behind a single **Arşivlenmiş Sohbetler · N** row pinned to the top, which
   opens a screen of its own. Unarchiving is the same long-press gesture that archived the chat, and
   the chat is back in the main list when you come back.
+No code has landed on `dev` since `v0.3.10` — the tag and the branch tip are the same commit.
+
+### Changed — documentation
+- **The system is described somewhere a human can read it.** New
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the modular monolith and its boundaries, what each
+  backend module owns, how the shared KMP module feeds the server and the app from one definition,
+  the end-to-end path of a sent message, and a section on what has deliberately *not* been built.
+  Until now the only description of the architecture was `CLAUDE.md`, which is 77 KB of agent
+  instructions and was never written to be read by a person.
+- **The README says what the project is for, and what state it is actually in.** It was a stub with
+  a repository tree; it now carries the positioning that had never been written down anywhere, and a
+  status table that says plainly which parts do not work.
+- **`README.en.md` removed** — it duplicated `README.md`. English lives in `README.md`, Turkish in
+  `README.tr.md`, and each fact exists in exactly two places rather than three.
+- **`ROADMAP.md` aligned with the milestones that actually exist**, and the release process now
+  includes the two steps that were only written down elsewhere: run the gates with Docker up, and
+  install the built artifact on the emulator before publishing.
+- **Six stale one-shot documents deleted from `docs/`** — a superseded WhatsApp-clone UI spec, a
+  deployment guide for a server that was never bought, the MVP sprint plan, an engineering roadmap
+  claiming we host on GCP, a feature-gap analysis superseded by a tracker issue, and a release plan
+  that contradicted `ROADMAP.md`. Five other dated documents were **kept and given a correction
+  banner** instead, because each still holds a decision or a verified-open finding that lives
+  nowhere else. Decision records (`docs/adr/`, `docs/decisions.md`) were kept whether or not they
+  have aged well; that is what they are for.
 
 ## [0.3.10] — 2026-08-18
 
@@ -117,6 +141,14 @@ to remove, and this is the release where most of it goes.
   FCM service restarting.
 - **The full-screen photo viewer was not full-screen** (#651) — every photo ever opened had the chat
   showing down both sides.
+- **The typing bubble and the online/last-seen subtitle never appeared** (#643, #644). Neither was a
+  broken wire: the typing bubble was composed correctly but landed one row below the viewport,
+  because auto-scroll was keyed on `messages.size` and the bubble is not one of the messages; and
+  nothing on the chat screen ever *asked* for the peer's presence, so a chat opened onto someone
+  whose status did not happen to change while you watched showed a blank subtitle. The subtitle is
+  now seeded from `GET /api/v1/users/{id}`, which means it shows exactly what that peer's own
+  visibility setting allows and nothing when it hides everything. Shipped in 0.3.10 and missing from
+  its notes; recorded here on 2026-08-21.
 
 ### Added
 - **About** screen with the version and the three legal documents (#614).

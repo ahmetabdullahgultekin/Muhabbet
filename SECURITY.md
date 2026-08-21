@@ -2,9 +2,13 @@
 
 ## Supported Versions
 
+Pre-1.0, only the newest release is supported. There is no backporting — the fix ships in the next
+version.
+
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| Latest release (see [CHANGELOG.md](CHANGELOG.md)) | Yes |
+| Anything older | No — upgrade |
 
 ## Reporting a Vulnerability
 
@@ -52,7 +56,11 @@ Muhabbet implements the following security measures:
 - **Phone numbers** stored as SHA-256 hashes (never in plaintext)
 - **KVKK compliance** — data export endpoint, account soft-deletion
 - **Secrets** via environment variables, no credentials in code
-- **E2E encryption** infrastructure ready (Signal Protocol, key exchange endpoints built)
+- **End-to-end encryption is OFF.** Messages are encrypted in transit (TLS) and are readable by the
+  server. Signal Protocol key exchange, storage and a send/receive path exist behind a default-off
+  flag; the Android primitive does not currently compile against its pinned libsignal version, so
+  the flag must not be turned on. Treat message history on the server as plaintext when assessing
+  impact. 1.0.0 is reserved for the release that changes this.
 
 ### CI/CD Security
 - **Trivy** vulnerability scanning (filesystem + Docker images)
