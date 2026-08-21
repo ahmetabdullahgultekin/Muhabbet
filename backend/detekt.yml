@@ -7,9 +7,11 @@
 build:
   maxIssues: 0
 
-# The default config suppresses both of these. They are on here for one reason: a run that prints
-# "number of kt files: 500" cannot be confused with a run that never started. That confusion is
-# the whole of #279 — for months a crashed detekt and a clean detekt produced the same green tick.
+# The default config suppresses ProjectStatisticsReport and ComplexityReport. Both are on here for
+# one reason: they make the run print how many files it scanned, so a run that analysed nothing can
+# no longer be mistaken for a run that found nothing. That mistake is the whole of #279 — for months
+# a crashed detekt and a clean detekt produced the same green tick. If the output has no
+# "number of kt files:" line, the result means nothing.
 console-reports:
   active: true
   exclude:
