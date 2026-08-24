@@ -104,15 +104,15 @@ kotlin {
             implementation("androidx.work:work-runtime-ktx:2.11.2")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.17.0"))
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.18.0"))
             implementation("com.google.firebase:firebase-auth")
             implementation("com.google.firebase:firebase-messaging")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:8.52.0")
+            implementation("io.sentry:sentry-android:8.53.0")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.27.0")
+            implementation("io.livekit:livekit-android:2.28.0")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
             // libsignal is NOT a dependency while E2E is off. Every Signal source file is
