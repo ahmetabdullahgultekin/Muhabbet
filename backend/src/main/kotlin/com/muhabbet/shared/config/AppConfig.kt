@@ -270,9 +270,15 @@ class AppConfig {
 
     @Bean
     fun disappearingMessageService(
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        messageBroadcaster: MessageBroadcaster,
+        transactions: TransactionRunner
     ): DisappearingMessageService = DisappearingMessageService(
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        messageBroadcaster = messageBroadcaster,
+        transactions = transactions
     )
 
     @Bean

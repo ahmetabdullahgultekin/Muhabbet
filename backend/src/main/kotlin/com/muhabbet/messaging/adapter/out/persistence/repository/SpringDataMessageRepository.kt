@@ -101,9 +101,15 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         WHERE m.expiresAt IS NOT NULL
           AND m.expiresAt <= :now
           AND m.isDeleted = false
+        ORDER BY m.expiresAt ASC
         """
     )
-    fun findExpiredMessages(now: Instant): List<MessageJpaEntity>
+    fun findExpiredMessages(now: Instant, pageable: Pageable): List<MessageJpaEntity>
+
+    /** Returns the rows updated. One statement for the whole sweep — see `MessageRepository`. */
+    @Modifying
+    @Query("UPDATE MessageJpaEntity m SET m.isDeleted = true, m.deletedAt = :deletedAt WHERE m.id IN :messageIds AND m.isDeleted = false")
+    fun softDeleteExpired(messageIds: List<UUID>, deletedAt: Instant): Int
 
     @Query(
         """

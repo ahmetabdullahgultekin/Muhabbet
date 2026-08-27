@@ -602,6 +602,11 @@ class WsClient(
             is WsMessage.StatusUpdate -> "${message.messageId}_${message.status}"
             is WsMessage.MessageDeleted -> message.messageId
             is WsMessage.MessageEdited -> "${message.messageId}_edited"
+            // Suffixed like `_edited` above, and for the reason `MessageDeleted` should have been:
+            // this set is shared across frame types, so a bare messageId here would collide with
+            // the `NewMessage` that delivered the same message and the expiry would be discarded as
+            // a duplicate — the message would then never leave the screen, which is the bug.
+            is WsMessage.MessageExpired -> "${message.messageId}_expired"
             else -> null // Don't dedup typing, presence, pong etc.
         }
     }

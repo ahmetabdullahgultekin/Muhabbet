@@ -132,6 +132,13 @@ class ConversationController(
                     )
                 },
                 lastMessagePreview = summary.lastMessagePreview,
+                // Backend domain enum → shared enum, the same hand-off `MessageMapper` makes. The
+                // two are kept separate on purpose (the domain must not import the wire format), so
+                // the name is the contract; `valueOf` on a member the shared enum lacks would throw
+                // and take the whole list with it, hence the null fallback.
+                lastMessageContentType = summary.lastMessageContentType?.let {
+                    runCatching { com.muhabbet.shared.model.ContentType.valueOf(it.name) }.getOrNull()
+                },
                 lastMessageAt = summary.lastMessageAt,
                 unreadCount = summary.unreadCount,
                 createdAt = "",

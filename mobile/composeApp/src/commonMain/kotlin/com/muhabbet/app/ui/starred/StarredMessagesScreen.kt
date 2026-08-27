@@ -47,6 +47,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.ConversationDirectory
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
+import com.muhabbet.app.ui.components.contentTypeLabel
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.ui.conversations.senderLabel
 import com.muhabbet.app.ui.conversations.toChatTarget
@@ -275,14 +276,16 @@ private fun contentTypeIcon(contentType: ContentType): ImageVector? = when (cont
 @Composable
 private fun contentPreview(message: Message): String {
     if (message.isDeleted) return ""
-    val fallback = when (message.contentType) {
-        ContentType.IMAGE -> stringResource(Res.string.chat_photo)
-        ContentType.VIDEO -> stringResource(Res.string.chat_video)
-        ContentType.VOICE -> stringResource(Res.string.chat_voice_message)
-        ContentType.DOCUMENT -> stringResource(Res.string.attach_document)
-        ContentType.LOCATION -> stringResource(Res.string.attach_location)
-        ContentType.POLL -> stringResource(Res.string.attach_poll)
-        else -> ""
+    // Through the shared resolver (#534) rather than a fourth private copy of this `when`. It puts
+    // the label first for media instead of treating it as a fallback for a blank body — which
+    // matters for the rows still holding the word "Fotoğraf" from before that stopped being sent.
+    // DOCUMENT keeps its own case here: the body is the filename, which the resolver deliberately
+    // prefers, but a starred document with no filename reads better as "Dosya" than as nothing.
+    contentTypeLabel(message.contentType)?.let { return it.take(100) }
+    val fallback = if (message.contentType == ContentType.DOCUMENT) {
+        stringResource(Res.string.attach_document)
+    } else {
+        ""
     }
     return message.content.ifBlank { fallback }.take(100)
 }
