@@ -1,14 +1,11 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
-import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
-import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
-import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
@@ -57,10 +54,8 @@ class WebSocketErrorContractTest {
         updateDeliveryStatusUseCase = mockk<UpdateDeliveryStatusUseCase>(relaxed = true),
         conversationRepository = mockk<ConversationRepository>(relaxed = true),
         presencePort = mockk<PresencePort>(relaxed = true),
-        userRepository = mockk<UserRepository>(relaxed = true),
         recordLastSeenUseCase = mockk<RecordLastSeenUseCase>(relaxed = true),
-        callSignalingService = mockk<CallSignalingService>(relaxed = true),
-        callRoomProvider = mockk<CallRoomProvider>(relaxed = true),
+        callFrameHandler = mockk<CallFrameHandler>(relaxed = true),
         webSocketRateLimiter = rateLimiter,
         blockPolicy = mockk<BlockPolicyPort>(relaxed = true)
     )

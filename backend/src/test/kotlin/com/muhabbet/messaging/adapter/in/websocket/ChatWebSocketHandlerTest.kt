@@ -1,16 +1,13 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
-import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
-import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
-import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtClaims
@@ -45,10 +42,8 @@ class ChatWebSocketHandlerTest {
     private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var presencePort: PresencePort
-    private lateinit var userRepository: UserRepository
     private lateinit var recordLastSeenUseCase: RecordLastSeenUseCase
-    private lateinit var callSignalingService: CallSignalingService
-    private lateinit var callRoomProvider: CallRoomProvider
+    private lateinit var callFrameHandler: CallFrameHandler
     private lateinit var webSocketRateLimiter: WebSocketRateLimiter
     private lateinit var blockPolicy: com.muhabbet.messaging.domain.port.out.BlockPolicyPort
     private lateinit var handler: ChatWebSocketHandler
@@ -71,10 +66,8 @@ class ChatWebSocketHandlerTest {
         updateDeliveryStatusUseCase = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
         presencePort = mockk(relaxed = true)
-        userRepository = mockk(relaxed = true)
         recordLastSeenUseCase = mockk(relaxed = true)
-        callSignalingService = mockk(relaxed = true)
-        callRoomProvider = mockk(relaxed = true)
+        callFrameHandler = mockk(relaxed = true)
         webSocketRateLimiter = mockk(relaxed = true)
         blockPolicy = mockk(relaxed = true)
 
@@ -90,10 +83,8 @@ class ChatWebSocketHandlerTest {
             updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
             conversationRepository = conversationRepository,
             presencePort = presencePort,
-            userRepository = userRepository,
             recordLastSeenUseCase = recordLastSeenUseCase,
-            callSignalingService = callSignalingService,
-            callRoomProvider = callRoomProvider,
+            callFrameHandler = callFrameHandler,
             webSocketRateLimiter = webSocketRateLimiter,
             blockPolicy = blockPolicy
         )
@@ -468,12 +459,21 @@ class ChatWebSocketHandlerTest {
         }
 
         @Test
-        fun `should record last seen through the transactional use case, not the repository`() {
+        fun `should record last seen through the transactional use case`() {
             // #402. This used to call UserRepository.updateLastSeenAt straight from the handler, on
             // a thread with no transaction, so the @Modifying query threw every time and
-            // last_seen_at never moved. Asserting the repository is *not* touched from here is what
-            // stops it drifting back: a mock succeeds happily with no transaction in sight, so
-            // "the write was called" is not a fact worth much on its own.
+            // last_seen_at never moved.
+            //
+            // There was a `verify(exactly = 0) { userRepository.updateLastSeenAt(...) }` here to
+            // stop it drifting back. It is gone because the handler no longer holds a UserRepository
+            // at all — the compiler enforces what the assertion used to watch for, and a verify
+            // against a mock that is not wired into the subject is true no matter what the code
+            // does, which is worse than no assertion because it reads like a guard.
+            //
+            // That this call happened is, on its own, a weak fact: a mocked use case succeeds with
+            // no transaction in sight, which is precisely how the bug survived. The transaction
+            // itself is asserted in LastSeenTransactionBoundaryTest, and the row in
+            // LastSeenPersistenceIntegrationTest.
             val session = createSession()
 
             every { sessionManager.getUserId(session) } returns userId
@@ -482,7 +482,6 @@ class ChatWebSocketHandlerTest {
             handler.afterConnectionClosed(session, CloseStatus.NORMAL)
 
             verify { recordLastSeenUseCase.recordLastSeen(eq(userId), any()) }
-            verify(exactly = 0) { userRepository.updateLastSeenAt(any(), any()) }
         }
 
         @Test
