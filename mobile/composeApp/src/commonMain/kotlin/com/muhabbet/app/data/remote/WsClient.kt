@@ -42,7 +42,12 @@ class WsClient(
     private val messageEncryptor: com.muhabbet.app.crypto.MessageEncryptor? = null,
     // Supplied only by tests, so the reconnect loop, the heartbeat and the watchdog can be driven
     // on virtual time instead of waiting 30 real seconds per tick. Production passes nothing.
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    // Also tests only: how a session is opened. Ktor's MockEngine does not implement the WebSocket
+    // capability, so without this seam nothing the client puts on the wire when a session comes up
+    // — the two drains, and now the focus re-assert — could be observed at all. Production passes
+    // nothing and gets the real Ktor session.
+    private val openSession: (suspend (token: String) -> WebSocketSession)? = null
 ) {
 
     companion object {
@@ -75,6 +80,20 @@ class WsClient(
     private var reconnectAttempt = 0
     private var shouldReconnect = false
     private var heartbeatJob: Job? = null
+
+    /**
+     * The conversation this client last told the server it is foregrounded on, or null for none.
+     *
+     * Held here, not only in the screen that reported it, because the server's copy does not
+     * survive the socket: `WebSocketSessionManager.forget` clears `activeConversation` once the
+     * user's last session goes away, which is correct — with the socket gone it genuinely cannot
+     * know any more. The client only ever sent a `ConversationFocus` frame when the focused
+     * conversation *changed*, so after a reconnect with the same chat still on screen the server
+     * believed the user was looking at nothing and pushed a notification for the conversation they
+     * were reading (#667). Remembering it is what lets [reassertConversationFocus] rebuild the
+     * server's view instead of assuming it survived.
+     */
+    private var focusedConversationId: String? = null
 
     /** The one connect loop, held so a second [connect] or the watchdog cannot start a rival. */
     private var connectJob: Job? = null
@@ -174,9 +193,10 @@ class WsClient(
             try {
                 _connectionState.value = ConnectionState.CONNECTING
                 Log.d(TAG, "Connecting...")
-                val ws = apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
-                    parameter("token", token)
-                }
+                val ws = openSession?.invoke(token)
+                    ?: apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
+                        parameter("token", token)
+                    }
                 mySession = ws
                 session = ws
                 reconnectAttempt = 0
@@ -190,6 +210,10 @@ class WsClient(
                 // refers to on the other side, and there is no reason to make the server reconcile
                 // them out of order.
                 drainPendingAcks()
+                // …and the claim about which chat is on screen, which the server dropped when the
+                // old socket went away. Last, because it is the only one of the three whose absence
+                // costs a notification rather than a message (#667).
+                reassertConversationFocus()
 
                 // No heartbeat is started here any more. It used to be created per iteration and
                 // cancelled in the `finally` below, which meant every path that skipped the cancel
@@ -346,6 +370,32 @@ class WsClient(
             queuePendingMessage(outgoing)
             false
         }
+    }
+
+    /**
+     * Reports which conversation is on screen, and remembers it so the claim can be made again.
+     *
+     * Every focus report goes through here rather than through [sendOrQueue] directly, because a
+     * frame that is only sent is a frame the server forgets at the next disconnect. Best-effort on
+     * the wire, exactly as before: a lost frame costs one push that was not needed, never a message.
+     */
+    suspend fun setConversationFocus(conversationId: String?) {
+        focusedConversationId = conversationId
+        sendOrQueue(WsMessage.ConversationFocus(conversationId))
+    }
+
+    /**
+     * Restates the focused conversation on a freshly established session.
+     *
+     * Only when there is one. A newly opened socket has no `activeConversation` entry on the server
+     * — `forget` removed it when the previous socket closed — so "none" is already the server's
+     * view and sending it again would say nothing.
+     *
+     * Visible for tests, which drive it through the connect loop rather than calling it directly.
+     */
+    internal suspend fun reassertConversationFocus() {
+        val focused = focusedConversationId ?: return
+        sendOrQueue(WsMessage.ConversationFocus(focused))
     }
 
     /**

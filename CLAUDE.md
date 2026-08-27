@@ -811,6 +811,28 @@ is not evidence that it works.
   `sessionManager.send(session, json)` or `sendToUser(...)`. A direct `session.sendMessage(...)` in
   `ChatWebSocketHandler` fails `HandlerWritesThroughManagerTest`.
 - **~~Single-server architecture~~**: Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) provides cross-instance WS fan-out. **NOTE (2026-06-19):** the subscriber half was never wired — `RedisBroadcastListener` existed but no `RedisMessageListenerContainer` registered it, so cross-instance delivery silently dropped. Now fixed (`RedisConfig.kt` subscribes `ws:broadcast:*`). True multi-instance correctness (presence-aware push suppression; Redis-backed rate-limit) remains a documented follow-up — see `docs/findings/2026-06-19-infra-tech-assessment.md`. **Prod runs a single instance**, so multi-instance is latent (YAGNI) until horizontal scale is actually needed.
+- **Conversation focus is per-user, in-process, and rebuilt by the client on every new socket**
+  (#618 wrote it, #667 finished it). `WebSocketSessionManager.activeConversation` is a
+  `ConcurrentHashMap<UUID, UUID>` recording which conversation each user is foregrounded on, from
+  the `WsMessage.ConversationFocus` frame the client sends. `RedisMessageBroadcaster` consults it —
+  alongside the mute check — to withhold a push for the exact chat being read. Three things about it
+  are worth knowing before changing either side:
+  - **The client owns the truth, the server only caches it.** `forget()` clears the entry once a
+    user's **last** session goes away, which is correct — with no socket it cannot know. So the
+    client remembers its own focus (`WsClient.focusedConversationId`) and restates it on every
+    session it establishes, next to the two queue drains. **Any new per-connection server-side
+    state about a client belongs in that same re-assert**, or it will silently be wrong for as
+    long as the app stays open after a reconnect, which is exactly what #667 was.
+  - **It is per-instance, like the WebSocket rate limiter.** Prod runs one instance so this is
+    correct today; with two, the instance deciding whether to push has no idea what the other's
+    user is looking at and suppression silently stops working. Same class of latent problem as
+    `WebSocketRateLimiter`'s in-process `ConcurrentHashMap`, and it moves to Redis at the same time
+    that does — not before (YAGNI).
+  - **A crashed client holds focus for at most ~120 s.** The liveness sweep runs every
+    `REAP_INTERVAL_SECONDS` (30) and reaps a session with no inbound frame for longer than
+    `STALE_THRESHOLD_MS` (90 s); reaping calls `forget`, which clears the entry. So the worst case
+    is 90 s of silence plus up to 30 s until the next sweep, during which one push may be withheld
+    for a chat nobody is looking at. Known and bounded — not worth new machinery.
 - **~~2 active bugs~~**: Fixed — Push notifications enabled via FCM_ENABLED=true in docker-compose.prod.yml; delivery ticks fixed via global DELIVERED ack in App.kt.
 - **~~In-memory E2E key store~~**: Resolved — `PersistentSignalProtocolStore` with EncryptedSharedPreferences (Android), `KeychainHelper` for iOS tokens.
 - **~~No offline support~~**: Resolved — SQLDelight cache layer with cache-first repository pattern + PendingMessage offline queue.

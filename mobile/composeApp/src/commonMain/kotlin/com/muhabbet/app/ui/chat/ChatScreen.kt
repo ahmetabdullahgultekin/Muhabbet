@@ -169,6 +169,14 @@ fun ChatScreen(
     // Spoken once when the placeholder bubbles appear; the bubbles themselves are silent.
     val loadingMessagesLabel = stringResource(Res.string.messages_loading)
 
+    // Why a send was refused, rather than the single sentence every refusal used to produce (#572).
+    val sendFailures = SendFailureMessages(
+        generic = errorSendMsg,
+        tooLong = stringResource(Res.string.error_send_too_long),
+        notMember = stringResource(Res.string.error_send_not_member),
+        announcementOnly = stringResource(Res.string.error_send_announcement_only),
+    )
+
     // One place decides what a send that did not reach the wire looks like.
     //
     // A message the socket *queued* is not a failure: it is sitting in the offline queue and will
@@ -451,9 +459,15 @@ fun ChatScreen(
     // staring at this one does. Best-effort — `sendOrQueue` never throws, and a frame lost to a
     // reconnect window means one message gets pushed that strictly did not need to be, never a
     // missed live update.
+    //
+    // Reported through `setConversationFocus` rather than sent as a bare frame, because the server
+    // drops its `activeConversation` entry the moment the socket closes. A frame that is only sent
+    // is therefore forgotten on the next reconnect, and this effect — keyed on `conversationId` —
+    // never reruns while the user sits in the same chat, so nothing said it again (#667). The
+    // client now remembers it and restates it whenever a session comes up.
     LaunchedEffect(conversationId) {
         appVisibility.isForeground.collect { foreground ->
-            wsClient.sendOrQueue(WsMessage.ConversationFocus(if (foreground) conversationId else null))
+            wsClient.setConversationFocus(if (foreground) conversationId else null)
         }
     }
     DisposableEffect(conversationId) {
@@ -461,8 +475,10 @@ fun ChatScreen(
             // Leaving the chat (back press, navigating elsewhere) is not a background transition,
             // so it fires none of the events above and needs its own clear — otherwise the server
             // keeps believing this chat is still on screen until some other screen happens to
-            // overwrite it.
-            scope.launch { wsClient.sendOrQueue(WsMessage.ConversationFocus(conversationId = null)) }
+            // overwrite it. Clearing it in the client as well matters just as much now: a
+            // remembered focus that is never cleared would be re-asserted on the next reconnect,
+            // long after the user left the chat.
+            scope.launch { wsClient.setConversationFocus(null) }
         }
     }
 
@@ -495,9 +511,13 @@ fun ChatScreen(
                     }
                 }
                 is WsMessage.ServerAck -> {
-                    if (ws.status == AckStatus.OK) {
+                    // MSG_DUPLICATE joins the OK arm rather than the failure one: it means the
+                    // server already holds this messageId, which is what the offline queue draining
+                    // after a reconnect looks like from the server's side. The message went. An
+                    // error ack carries no serverTimestamp, so the existing one is kept.
+                    if (ws.status == AckStatus.OK || serverAlreadyHasMessage(ws.errorCode)) {
                         messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
-                    } else scope.launch { snackbarHostState.showSnackbar(errorSendMsg) }
+                    } else scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
                     messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
