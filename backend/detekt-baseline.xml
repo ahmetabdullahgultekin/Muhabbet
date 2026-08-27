@@ -62,7 +62,6 @@
     <ID>ThrowsCount:UserController.kt$UserController$@PatchMapping("/me") fun updateMe(@RequestBody request: UpdateProfileRequest): ResponseEntity&lt;ApiResponse&lt;UserProfile&gt;&gt;</ID>
     <ID>TooGenericExceptionThrown:NetgsmOtpSender.kt$NetgsmOtpSender$throw RuntimeException("Netgsm SMS failed: $response")</ID>
     <ID>TooManyFunctions:AppConfig.kt$AppConfig</ID>
-    <ID>TooManyFunctions:ChatWebSocketHandler.kt$ChatWebSocketHandler : TextWebSocketHandler</ID>
     <ID>TooManyFunctions:CommunityService.kt$CommunityService : ManageCommunityUseCaseManageCommunityMembershipUseCase</ID>
     <ID>TooManyFunctions:ConversationPersistenceAdapter.kt$ConversationPersistenceAdapter : ConversationRepository</ID>
     <ID>TooManyFunctions:ConversationRepository.kt$ConversationRepository</ID>
