@@ -102,6 +102,61 @@ class ChatTargetTest {
         assertEquals(false, target.isGroup)
     }
 
+    // ─── the resolution order, on the one definition of it ───
+
+    // Three rungs, asserted one against the next rather than only end-to-end. #549 is the record of
+    // what happens when a surface implements "most of" this order: every hand-written copy in the
+    // app had the last two rungs and none had the first, so the app showed a phone number for
+    // someone the user had saved under a name of their own.
+
+    @Test
+    fun resolveName_prefersTheAddressBookOverTheNameTheyChose() {
+        val name = participant("u2", displayName = "ayse_1993", phoneNumber = "+905000000002")
+            .resolveName(mapOf("+905000000002" to "Ayşe Teyze"))
+
+        assertEquals("Ayşe Teyze", name)
+    }
+
+    @Test
+    fun resolveName_prefersTheNameTheyChoseOverTheirNumber() {
+        val name = participant("u2", displayName = "Ayşe", phoneNumber = "+905000000002")
+            .resolveName()
+
+        assertEquals("Ayşe", name)
+    }
+
+    @Test
+    fun resolveName_fallsBackToTheNumberOnlyWhenNothingElseIsKnown() {
+        // "A number is the most absurd of the options" — first. Last it is the most useful thing
+        // left, and is why the fallback is not "Bilinmeyen kişi".
+        val name = participant("u2", phoneNumber = "+905000000002").resolveName()
+
+        assertEquals("+905000000002", name)
+    }
+
+    @Test
+    fun resolveName_ignoresAnAddressBookEntryForADifferentNumber() {
+        // The map is keyed by E.164 and the lookup is exact. A near-miss must not silently borrow
+        // the wrong person's name.
+        val name = participant("u2", displayName = "Ayşe", phoneNumber = "+905000000002")
+            .resolveName(mapOf("05000000002" to "Ayşe Teyze"))
+
+        assertEquals("Ayşe", name)
+    }
+
+    @Test
+    fun resolveName_treatsABlankAddressBookNameAsNoNameAtAll() {
+        val name = participant("u2", displayName = "Ayşe", phoneNumber = "+905000000002")
+            .resolveName(mapOf("+905000000002" to "  "))
+
+        assertEquals("Ayşe", name)
+    }
+
+    @Test
+    fun resolveName_whenNothingIsKnown_returnsNullRatherThanTheUserId() {
+        assertNull(participant("6cd15421-0000").resolveName())
+    }
+
     // ─── which of several candidate names wins ───────────────
 
     @Test

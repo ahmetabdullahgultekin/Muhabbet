@@ -43,6 +43,8 @@ import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.ui.contacts.rememberContactNames
+import com.muhabbet.app.ui.conversations.resolveName
 import com.muhabbet.app.util.runCatchingCancellable
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -63,6 +65,8 @@ fun ContactSharePicker(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val errorLoadMsg = stringResource(Res.string.error_load_conversations)
+    val unknownLabel = stringResource(Res.string.unknown)
+    val contactNames = rememberContactNames()
 
     LaunchedEffect(Unit) {
         val failure = runCatchingCancellable {
@@ -96,7 +100,12 @@ fun ContactSharePicker(
             ) {
                 items(conversations, key = { it.id }) { conv ->
                     val participant = conv.participants.firstOrNull()
-                    val displayName = conv.name ?: participant?.displayName ?: stringResource(Res.string.unknown)
+                    // The chain used to be written out here and stopped at the display name, so a
+                    // person you have saved as "Anne" but who has set no name of their own was
+                    // offered as "Bilinmeyen" — the one option that identifies nobody (#549).
+                    val displayName = conv.name
+                        ?: participant?.resolveName(contactNames)
+                        ?: unknownLabel
                     val phoneNumber = participant?.phoneNumber
 
                     Surface(

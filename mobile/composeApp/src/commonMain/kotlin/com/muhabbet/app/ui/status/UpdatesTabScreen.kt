@@ -51,6 +51,8 @@ import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.contacts.rememberContactNames
+import com.muhabbet.app.ui.conversations.resolveName
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -132,6 +134,7 @@ fun UpdatesTabScreen(
     val retryLabel = stringResource(Res.string.action_retry)
     val settingsTitle = stringResource(Res.string.settings_title)
     val unknownPersonLabel = stringResource(Res.string.unknown_person)
+    val contactNames = rememberContactNames()
 
     suspend fun loadUpdates() {
         isLoading = true
@@ -160,7 +163,10 @@ fun UpdatesTabScreen(
             // No user-id fallback: a participant we cannot name contributes no entry, so the
             // caller falls through to the server's name and then to a plain "unknown contact".
             displayNameByUserId = participants.mapNotNull { (id, participant) ->
-                (participant.displayName ?: participant.phoneNumber)?.let { id to it }
+                // The order lives in ParticipantResponse.resolveName. Spelled out here it lacked
+                // the address-book rung, so a status author you have saved under a name of your
+                // own showed up as their phone number (#549).
+                participant.resolveName(contactNames)?.let { id to it }
             }.toMap()
             avatarByUserId = participants.mapValues { (_, participant) -> participant.avatarUrl }
         }.onFailure { e -> Log.w(TAG, "Status author names unavailable: ${e.message}") }
