@@ -171,7 +171,9 @@ class MessageController(
                 displayName = recipient.displayName ?: recipient.userId.toString().take(8),
                 avatarUrl = recipient.avatarUrl,
                 status = recipient.status.name,
-                updatedAt = recipient.updatedAt.toString()
+                // Null when the status was downgraded for a recipient with read receipts off; the
+                // client already renders the row without a time in that case.
+                updatedAt = recipient.updatedAt?.toString()
             )
         }
         val info = MessageInfoResponse(

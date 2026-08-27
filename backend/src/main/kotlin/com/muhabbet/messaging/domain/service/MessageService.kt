@@ -369,16 +369,32 @@ open class MessageService(
         // One batched lookup for the whole recipient list — resolving names one at a time was an N+1.
         val displayInfo = userDirectory.findDisplayInfo(statuses.map { it.userId })
 
+        // The third publish path, and the one that was missed. updateStatus downgrades the live WS
+        // broadcast and resolveDeliveryStatuses downgrades the history aggregate, but "Info" names
+        // each recipient individually and printed the stored row verbatim — so a reader who had
+        // turned read receipts off still appeared under "Read by", with the time they opened it.
+        // Same batched, READ-only lookup as the aggregate above (#620).
+        val receiptsDisabled = readReceiptPolicy.findReadReceiptsDisabled(
+            statuses.filter { it.status == DeliveryStatus.READ && it.userId != requesterId }
+                .map { it.userId }
+        )
+
         return MessageInfo(
             message = message,
             recipients = statuses.map { status ->
                 val user = displayInfo[status.userId]
+                // Your own state is always truthful to you — the same rule resolveDeliveryStatuses
+                // applies when the requester is a recipient. The setting governs what others are
+                // told about you, not what you are told about yourself.
+                val published =
+                    if (status.userId == requesterId) status.status
+                    else publishableStatus(status.userId, status.status, receiptsDisabled)
                 MessageRecipient(
                     userId = status.userId,
                     displayName = user?.displayName,
                     avatarUrl = user?.avatarUrl,
-                    status = status.status,
-                    updatedAt = status.updatedAt
+                    status = published,
+                    updatedAt = if (published == status.status) status.updatedAt else null
                 )
             }
         )

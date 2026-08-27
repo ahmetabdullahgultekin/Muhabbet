@@ -54,5 +54,11 @@ data class MessageRecipient(
     val displayName: String?,
     val avatarUrl: String?,
     val status: DeliveryStatus,
-    val updatedAt: Instant
+    /**
+     * Null when [status] was downgraded because the recipient turned read receipts off. The row
+     * carries a single `updated_at`, which a READ overwrites with the moment the message was
+     * opened — publishing it beside a DELIVERED would hand the sender the read time under another
+     * label, which is the very thing the downgrade exists to withhold (#620).
+     */
+    val updatedAt: Instant?
 )
