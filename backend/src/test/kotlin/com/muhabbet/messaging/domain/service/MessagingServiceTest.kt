@@ -245,6 +245,110 @@ class MessagingServiceTest {
         verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
     }
 
+    /**
+     * The enforcement half of #509, tested because nothing tested it before.
+     *
+     * The bug filed there was on the *client* — the switch PATCHed a field the update-group route
+     * does not have, so `announcement_only` never turned on. Repointing the switch is only worth
+     * anything if the flag it now sets actually stops someone posting, and until these three tests
+     * there was not one assertion in the repository that it did. Restoring persistence without
+     * proving the mechanism is exactly how this project has shipped switches that look fixed.
+     */
+    @Test
+    fun `should throw MSG_ANNOUNCEMENT_ONLY when a plain member posts to an announcement-only group`() {
+        val convId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.MEMBER)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { conversationRepository.findById(convId) } returns Conversation(
+            id = convId,
+            type = ConversationType.GROUP,
+            announcementOnly = true
+        )
+
+        val ex = assertThrows<BusinessException> {
+            messageService.sendMessage(
+                SendMessageCommand(
+                    messageId = UUID.randomUUID(),
+                    conversationId = convId,
+                    senderId = userA,
+                    content = "Hello!",
+                    clientTimestamp = Instant.now()
+                )
+            )
+        }
+
+        assertEquals(ErrorCode.MSG_ANNOUNCEMENT_ONLY, ex.errorCode)
+        // Refused before anything is written or broadcast — not saved-then-hidden.
+        verify(exactly = 0) { messageRepository.save(any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
+    }
+
+    @Test
+    fun `should let an admin post to an announcement-only group`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val admin = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.ADMIN)
+
+        every { conversationRepository.findMember(convId, userA) } returns admin
+        every { conversationRepository.findById(convId) } returns Conversation(
+            id = convId,
+            type = ConversationType.GROUP,
+            announcementOnly = true
+        )
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            admin,
+            ConversationMember(conversationId = convId, userId = userB, role = MemberRole.MEMBER)
+        )
+
+        val result = messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "Duyuru",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        assertEquals(messageId, result.id)
+        verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
+    }
+
+    @Test
+    fun `should let a plain member post once announcement mode is off`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.MEMBER)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { conversationRepository.findById(convId) } returns Conversation(
+            id = convId,
+            type = ConversationType.GROUP,
+            announcementOnly = false
+        )
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            member,
+            ConversationMember(conversationId = convId, userId = userB, role = MemberRole.OWNER)
+        )
+
+        val result = messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "Merhaba",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        assertEquals(messageId, result.id)
+    }
+
     @Test
     fun `should throw MSG_NOT_MEMBER when sender is not in conversation`() {
         val convId = UUID.randomUUID()

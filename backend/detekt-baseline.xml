@@ -55,7 +55,6 @@
     <ID>SerialVersionUIDInSerializableClass:GroupEventRsvpJpaEntity.kt$GroupEventRsvpId : Serializable</ID>
     <ID>SerialVersionUIDInSerializableClass:MessageDeliveryStatusJpaEntity.kt$MessageDeliveryStatusId : Serializable</ID>
     <ID>SerialVersionUIDInSerializableClass:PinnedMessageJpaEntity.kt$PinnedMessageId : Serializable</ID>
-    <ID>ThrowsCount:ConversationController.kt$ConversationController$@PutMapping("/{conversationId}/announcement") fun setAnnouncementMode( @PathVariable conversationId: UUID, @RequestBody request: AnnouncementRequest ): ResponseEntity&lt;ApiResponse&lt;Unit&gt;&gt;</ID>
     <ID>ThrowsCount:MessageService.kt$MessageService$private fun persistSend(command: SendMessageCommand): SendOutcome</ID>
     <ID>ThrowsCount:ModerationController.kt$ModerationController$@PostMapping("/reports") fun createReport( @RequestBody request: CreateReportRequest ): ResponseEntity&lt;*&gt;</ID>
     <ID>ThrowsCount:SsrfGuard.kt$SsrfGuard$fun assertSafe(rawUrl: String): URI</ID>
