@@ -83,6 +83,7 @@ class ConversationPresenceBlockTest {
                     name = null,
                     avatarUrl = null,
                     lastMessagePreview = null,
+                    lastMessageContentType = null,
                     lastMessageAt = null,
                     unreadCount = 0,
                     participantIds = listOf(me, other)

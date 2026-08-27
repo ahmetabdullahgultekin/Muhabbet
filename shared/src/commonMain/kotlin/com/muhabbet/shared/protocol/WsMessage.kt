@@ -167,7 +167,41 @@ sealed class WsMessage {
         val thumbnailUrl: String? = null,
         val serverTimestamp: Long,           // epoch millis
         val forwardedFrom: String? = null,
-        val viewOnce: Boolean = false
+        val viewOnce: Boolean = false,
+        /**
+         * Epoch millis at which a disappearing message is due to vanish, null if it never is.
+         *
+         * The recipient builds their bubble from this frame, so without it a message that arrives
+         * while the chat is open can never be removed on time — which was half of #513. The other
+         * half is [MessageExpired], for the messages whose deadline passes while nothing is
+         * listening.
+         */
+        val expiresAt: Long? = null
+    ) : WsMessage()
+
+    /**
+     * Server tells every member that a disappearing message's time is up.
+     *
+     * Deliberately **not** [MessageDeleted]. A deletion is an act by a person, which is why that
+     * frame carries `deletedBy` and why clients render its result as a "this message was deleted"
+     * tombstone. An expiry is nobody's act and leaves no tombstone: the server drops the row from
+     * every read path, so a tombstone would sit there until the next reload and then silently
+     * disappear — the same "it only updates when you look away" complaint one level down.
+     *
+     * It exists alongside the client's own timer rather than instead of it, and each covers the
+     * other's blind spot. The timer is exact while the chat is open and needs no round trip; this
+     * frame is what removes a message whose deadline passed while the app was asleep or whose clock
+     * disagreed with the server's.
+     *
+     * A client too old to know this frame drops it in `WsClient`'s per-frame `catch` and carries on
+     * — it simply keeps the behaviour it has today.
+     */
+    @Serializable
+    @SerialName("message.expired")
+    data class MessageExpired(
+        val messageId: String,
+        val conversationId: String,
+        val expiredAt: Long
     ) : WsMessage()
 
     /** Server notifies sender about delivery status change */

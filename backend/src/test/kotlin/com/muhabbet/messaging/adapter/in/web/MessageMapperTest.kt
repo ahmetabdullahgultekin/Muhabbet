@@ -63,6 +63,29 @@ class MessageMapperTest {
         assertFalse(shared.viewOnceViewed)
     }
 
+    /**
+     * #513: `expires_at` was written at send time and read by nothing except the cleanup job, so no
+     * response the server produced ever told a client when a disappearing message was due. The app
+     * could only discover it by reloading and noticing the message gone — which is why an expired
+     * message stayed on screen for as long as the chat stayed open.
+     */
+    @Test
+    fun `should carry the expiry deadline so a client can remove the message on time`() {
+        val deadline = Instant.now().plusSeconds(30)
+        val disappearing = viewOnceImage().copy(viewOnce = false, expiresAt = deadline)
+
+        val shared = disappearing.toSharedMessage(MessageStatus.DELIVERED)
+
+        assertEquals(deadline.toEpochMilli(), shared.expiresAt?.toEpochMilliseconds())
+    }
+
+    @Test
+    fun `should report no deadline for a message in a chat with no timer`() {
+        val shared = viewOnceImage().copy(viewOnce = false, expiresAt = null).toSharedMessage(MessageStatus.SENT)
+
+        assertNull(shared.expiresAt)
+    }
+
     @Test
     fun `should leave an ordinary image untouched`() {
         val ordinary = viewOnceImage().copy(viewOnce = false)

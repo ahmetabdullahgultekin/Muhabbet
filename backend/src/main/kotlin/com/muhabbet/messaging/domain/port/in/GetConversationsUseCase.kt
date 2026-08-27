@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.port.`in`
 
+import com.muhabbet.messaging.domain.model.ContentType
 import java.util.UUID
 
 interface GetConversationsUseCase {
@@ -12,6 +13,15 @@ data class ConversationSummary(
     val name: String?,
     val avatarUrl: String?,
     val lastMessagePreview: String?,
+    /**
+     * The last message's kind, so the reading device can name it in the reader's own language.
+     *
+     * [lastMessagePreview] is the message body and nothing else. For a photo or a voice note the
+     * body carried the *word* "Photo", written by the sender's app in the sender's language and
+     * stored here forever (#534) — a preview that no amount of switching language on the reading
+     * device could correct, because it was never that device's string.
+     */
+    val lastMessageContentType: ContentType?,
     val lastMessageAt: String?,
     val unreadCount: Int,
     val participantIds: List<UUID>,

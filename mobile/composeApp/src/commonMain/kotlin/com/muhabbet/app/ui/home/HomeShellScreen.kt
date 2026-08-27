@@ -36,6 +36,7 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.ui.call.CallHistoryScreen
 import com.muhabbet.app.ui.communities.CommunityListScreen
+import com.muhabbet.app.ui.components.conversationPreviewText
 import com.muhabbet.designsystem.components.MuhabbetMenu
 import com.muhabbet.designsystem.components.MuhabbetMenuItem
 import com.muhabbet.designsystem.components.MuhabbetNavBar
@@ -466,7 +467,12 @@ private fun ConversationSearchResultItem(
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1
             )
-            conversation.lastMessagePreview?.let { preview ->
+            // Same resolver the conversation list uses — a photo is named in the reader's language
+            // here too, rather than in whichever one the sender's phone was set to (#534).
+            conversationPreviewText(
+                conversation.lastMessageContentType,
+                conversation.lastMessagePreview
+            )?.let { preview ->
                 Text(
                     text = preview,
                     style = MaterialTheme.typography.bodySmall,

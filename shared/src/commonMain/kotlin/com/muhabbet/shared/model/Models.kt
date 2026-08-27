@@ -97,6 +97,22 @@ data class Message(
     val myReactions: Set<String> = emptySet(),
     val viewOnce: Boolean = false,
     /**
+     * When a disappearing message is due to vanish, or null if it never does.
+     *
+     * The server has always known this — `messages.expires_at` is set at send time from the
+     * conversation's timer — and never told anyone (#513). A client that cannot see the deadline
+     * cannot honour it, so an expired message sat on screen until the user left the chat and came
+     * back, which is precisely when the feature is being watched for the first time.
+     *
+     * Absolute rather than a remaining duration so it survives being read twice: the same payload
+     * is used by the live socket frame, the REST history fetch and the background sync, and a
+     * relative "expires in 30s" is only true at the instant it was computed. The cost is that the
+     * two clocks must roughly agree, which is why the client applies a grace window and errs
+     * towards keeping a message a moment too long rather than removing one early — see
+     * `MessageExpiry` on the mobile side.
+     */
+    val expiresAt: Instant? = null,
+    /**
      * Whether this view-once message has already been burned.
      *
      * Server-resolved, so "already opened" survives a scroll, a process death and a reinstall. The

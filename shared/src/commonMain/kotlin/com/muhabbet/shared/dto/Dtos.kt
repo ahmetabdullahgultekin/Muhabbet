@@ -1,5 +1,6 @@
 package com.muhabbet.shared.dto
 
+import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MemberRole
 import kotlinx.serialization.Serializable
@@ -123,6 +124,20 @@ data class ConversationResponse(
     val avatarUrl: String? = null,
     val participants: List<ParticipantResponse>,
     val lastMessagePreview: String? = null,
+    /**
+     * What kind of thing the last message was, so the viewer's device can name it.
+     *
+     * [lastMessagePreview] is the message body, and for a photo, a voice note, a GIF or a sticker
+     * there is no body worth showing — so the app used to send the *word* "Photo" as the body and
+     * the list rendered it verbatim (#534). That froze the label in whatever language the sender's
+     * phone was set to on the day they sent it: wrong for the recipient immediately, wrong for the
+     * sender the moment they switched language, and unfixable from the reading end.
+     *
+     * With the type on the wire the label is a `stringResource` chosen at draw time, which is the
+     * only place that knows who is looking. Nullable and defaulted so an older server that omits it
+     * still deserializes; the client then falls back to [lastMessagePreview] exactly as before.
+     */
+    val lastMessageContentType: ContentType? = null,
     val lastMessageAt: String? = null,
     val unreadCount: Int,
     val createdAt: String,

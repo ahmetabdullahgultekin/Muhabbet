@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.adapter.out.external
 
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.adapter.out.toNewMessageFrame
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
@@ -47,12 +48,6 @@ class RedisMessageBroadcaster(
     }
 
     override fun broadcastMessage(message: Message, recipients: List<ConversationMember>) {
-        val contentType = try {
-            com.muhabbet.shared.model.ContentType.valueOf(message.contentType.name)
-        } catch (e: Exception) {
-            com.muhabbet.shared.model.ContentType.TEXT
-        }
-
         // One lookup, reused by the socket payload and by every offline recipient's push. Resolved
         // before the loop so a group of fifty does not run fifty identical queries.
         val senderName = userDirectory.findDisplayInfo(listOf(message.senderId))[message.senderId]?.displayName
@@ -61,22 +56,7 @@ class RedisMessageBroadcaster(
         // this stays off the hot path until an offline recipient actually asks for it.
         val conversation by lazy { conversationRepository.findById(message.conversationId) }
 
-        val newMessage = WsMessage.NewMessage(
-            messageId = message.id.toString(),
-            conversationId = message.conversationId.toString(),
-            senderId = message.senderId.toString(),
-            senderName = senderName,
-            content = message.content,
-            contentType = contentType,
-            replyToId = message.replyToId?.toString(),
-            // Sealed on the wire, not in the UI: a view-once frame names the flag and withholds the
-            // blob URL, which is released once by POST /messages/{id}/view-once. See MessageMapper.
-            mediaUrl = if (message.viewOnce) null else message.mediaUrl,
-            thumbnailUrl = if (message.viewOnce) null else message.thumbnailUrl,
-            serverTimestamp = message.serverTimestamp.toEpochMilli(),
-            forwardedFrom = message.forwardedFrom?.toString(),
-            viewOnce = message.viewOnce
-        )
+        val newMessage = message.toNewMessageFrame(senderName)
         val json = wsJson.encodeToString<WsMessage>(newMessage)
 
         // Collected in the loop and pushed after it, so the device rows for the whole group are

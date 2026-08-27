@@ -40,5 +40,11 @@ fun Message.toSharedMessage(resolvedStatus: MessageStatus = MessageStatus.SENT):
     isDeleted = isDeleted,
     forwardedFrom = forwardedFrom?.toString(),
     viewOnce = viewOnce,
-    viewOnceViewed = viewedAt != null
+    viewOnceViewed = viewedAt != null,
+    // Same reasoning as `viewOnce` above, one column over: `expires_at` was written at send time
+    // and read by nothing but the cleanup job, so no response the server produced ever said when a
+    // disappearing message was due. The app could only find out by reloading and noticing it gone
+    // (#513). Every REST reader of a message goes through here, so history, search, starred and
+    // background sync all learn the deadline at once.
+    expiresAt = expiresAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) }
 )

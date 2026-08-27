@@ -361,8 +361,15 @@ fun MessageBubble(
                             Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                         }
                         // Text
+                        // "Is there a caption", not "is this string the current locale's word for
+                        // photo" (#534). The old test compared the stored body against a live
+                        // `stringResource`, so it only ever recognised a label written by a device
+                        // in the *reader's* language — a photo sent from the other language failed
+                        // the comparison and had "Photo" drawn as a caption under it. Senders no
+                        // longer put a label in the body at all, and V24 cleared the ones already
+                        // stored, so a non-blank body now means somebody actually wrote something.
                         if (message.contentType == ContentType.TEXT ||
-                            (message.contentType == ContentType.IMAGE && message.content != stringResource(Res.string.chat_photo) && message.content.isNotBlank())
+                            (message.contentType == ContentType.IMAGE && message.content.isNotBlank())
                         ) {
                             Text(
                                 text = linkifiedContent(message.content, semanticColors.linkColor, onOpenUrl),
