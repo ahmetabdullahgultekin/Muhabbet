@@ -24,6 +24,36 @@ object MuhabbetAlphas {
     const val ScrimOverlay = 0.5f
 
     /**
+     * Opacity of the plate a story viewer puts **between a photograph and its own text**.
+     *
+     * A palette can guarantee contrast against a token. It can guarantee nothing against a
+     * photograph: the status viewer draws a name, a timestamp and a caption straight over media the
+     * user chose, and that media may be a snow field or a night sky. So the text gets a ground of
+     * its own — [MuhabbetSemanticColors.scrim]'s container at this opacity — and the number is
+     * derived rather than picked.
+     *
+     * The derivation, for `scrim.content` (white) against the worst ground a photo can present
+     * (pure white, so the plate is the only thing darkening it):
+     *
+     * ```
+     * ground sRGB           = 1 - alpha
+     * WCAG needs            L(ground) <= (L(white) + 0.05) / 4.5 - 0.05 = 0.1833
+     * inverting the ramp    1 - alpha <= 0.4654
+     *                       alpha     >= 0.5346
+     * ```
+     *
+     * 0.6 clears that with margin: **5.74:1** over a white photo, and more over anything darker.
+     * `StatusScrimContrastTest` recomputes both ends rather than trusting this comment.
+     *
+     * Note what this does **not** license. Every foreground drawn on this plate must be fully
+     * opaque — the same rule [MuhabbetSemanticColors.bubbleDeleted] carries, and for the same
+     * reason (#678): the ground is not the palette's to choose, so alpha cannot be the instrument
+     * for "secondary". A timestamp on a story is made quiet by its type scale, never by fading it
+     * into a photograph.
+     */
+    const val MediaScrim = 0.6f
+
+    /**
      * How far the unfilled part of a progress or result bar falls back from the filled part.
      *
      * A token rather than a number at each bar because the two that exist — the voice-note scrubber
