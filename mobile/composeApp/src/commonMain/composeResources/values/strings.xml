@@ -11,6 +11,11 @@
     <string name="error_load_conversations">Konuşmalar yüklenemedi</string>
     <string name="error_load_messages">Mesajlar yüklenemedi</string>
     <string name="error_send_failed">Mesaj gönderilemedi</string>
+    <!-- Why a message the server refused did not go out (#572). One sentence per cause the sender
+         can actually do something about; anything else keeps error_send_failed above. -->
+    <string name="error_send_too_long">Mesaj çok uzun. Kısaltıp tekrar deneyin.</string>
+    <string name="error_send_not_member">Artık bu konuşmanın üyesi değilsiniz</string>
+    <string name="error_send_announcement_only">Bu grupta sadece yöneticiler mesaj gönderebilir</string>
     <string name="cancel">İptal</string>
     <string name="save">Kaydet</string>
     <string name="delete">Sil</string>
