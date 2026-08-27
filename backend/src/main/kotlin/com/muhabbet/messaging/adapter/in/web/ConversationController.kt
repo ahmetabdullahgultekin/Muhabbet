@@ -39,18 +39,25 @@ class ConversationController(
 ) {
 
     /**
-     * The set of participants whose online dot must be withheld from [viewerId] — those who have
-     * blocked them.
+     * The set of participants whose online dot must be withheld from [viewerId].
      *
      * This endpoint, not the profile screen, is where a blocked person actually watches you: the
      * mobile chat list seeds its dot straight from `ParticipantResponse.isOnline`. A guard on
      * `GET /users/{id}` alone would have left the live indicator on the screen users open first.
      *
-     * One batched query for the whole page — asking per participant would be an N+1 on the app's
-     * busiest call.
+     * **Both directions (#711)**, the same union `StatusService` applies to the Updates tab. This
+     * asked only "who has blocked me", so the person who pressed Block went on watching their
+     * blocked contact's dot light up in the chat list every day — the half they were actually
+     * asking for, and the half that was missing. A block is not a request to be less visible; it is
+     * a request to be done with someone, and presence is the channel that makes "done" visible.
+     *
+     * Two batched queries for the whole page, not two per participant — this is the app's busiest
+     * call, and either direction resolved per row would be an N+1 on the screen users open first.
      */
-    private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> =
-        blockPolicy.findBlockedBy(viewerId, participantIds.filter { it != viewerId })
+    private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> {
+        val others = participantIds.filter { it != viewerId }
+        return blockPolicy.findBlockedBy(viewerId, others) + blockPolicy.findBlockedAmong(viewerId, others)
+    }
 
     @PostMapping
     fun createConversation(@RequestBody request: CreateConversationRequest): ResponseEntity<ApiResponse<ConversationResponse>> {

@@ -38,6 +38,7 @@ internal fun outgoingPhoto(
     caption: String,
     mediaUrl: String,
     thumbnailUrl: String?,
+    mediaId: String?,
     viewOnce: Boolean,
     sentAt: Instant
 ): OutgoingPhoto = OutgoingPhoto(
@@ -61,6 +62,10 @@ internal fun outgoingPhoto(
         contentType = ContentType.IMAGE,
         mediaUrl = mediaUrl,
         thumbnailUrl = thumbnailUrl,
+        // The upload this device just performed, so the server can destroy the blob when the photo
+        // is burned (#541). Without it a view-once photo is sealed on every screen and still
+        // fetchable in the bucket — which is what "view once" meant until now.
+        mediaId = mediaId,
         viewOnce = viewOnce
     )
 )

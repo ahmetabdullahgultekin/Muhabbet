@@ -603,18 +603,29 @@ data class RsvpRequest(val status: String)  // GOING, NOT_GOING, MAYBE
 // ─── View-Once DTOs ─────────────────────────────────────
 
 /**
- * The one-time release of a view-once message's media.
+ * The one-time release of a view-once message's media, and the **only** response in the API that
+ * carries it — every list, search, media-grid and socket payload nulls it.
  *
- * Returned by `POST /api/v1/messages/{messageId}/view-once`, which is the **only** response in the
- * API that carries a view-once blob URL — every list, search, media-grid and socket payload nulls
- * it. The call burns the message in the same transaction that reads it, so a second caller (or a
- * second tap) gets `MSG_VIEW_ONCE_ALREADY_VIEWED` and no URL.
+ * Returned by `POST /api/v1/messages/{messageId}/view-once`, which burns the message in the same
+ * transaction that reads it, so a second caller (or a second tap) gets
+ * `MSG_VIEW_ONCE_ALREADY_VIEWED` and nothing else.
  *
- * Replaced a `ViewOnceStatusResponse` that had no producer and no consumer.
+ * [mediaBase64] rather than a URL, since #541. A presigned URL needs no credential — the URL *is*
+ * the credential — and the one stored on the message was minted with a seven-day expiry, so
+ * "burning" the message hid it from every screen and left the bytes fetchable for the rest of the
+ * week by anyone holding the string. The bytes now come back inline, in the same response that
+ * deletes the object, so there is no URL left to keep and nothing behind it to fetch.
+ *
+ * [mediaUrl] survives for messages sent **before** that change: they carry no media reference, so
+ * their blob cannot be found and cannot be destroyed, and returning the stored URL is the honest
+ * best available answer rather than showing the recipient nothing. Clients should prefer
+ * [mediaBase64] and fall back.
  */
 @Serializable
 data class ViewOnceRevealResponse(
     val messageId: String,
+    val mediaBase64: String? = null,
+    val mediaContentType: String? = null,
     val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
     val viewedAt: Long

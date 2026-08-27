@@ -237,7 +237,7 @@ fun GroupInfoScreen(
 
     if (showPhotoViewer) {
         conversation?.avatarUrl?.let { url ->
-            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+            MediaViewer(image = url, onDismiss = { showPhotoViewer = false })
         }
     }
 

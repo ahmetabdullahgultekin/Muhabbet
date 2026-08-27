@@ -191,7 +191,7 @@ fun SharedMediaScreen(
     // Full-screen media viewer (images)
     viewerMessage?.let { msg ->
         MediaViewer(
-            imageUrl = msg.mediaUrl ?: "",
+            image = msg.mediaUrl ?: "",
             onDismiss = { viewerMessage = null },
             onForward = {
                 val m = msg

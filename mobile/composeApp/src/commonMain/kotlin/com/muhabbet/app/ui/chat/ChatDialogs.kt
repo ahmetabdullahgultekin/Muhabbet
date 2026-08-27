@@ -78,7 +78,12 @@ import com.muhabbet.designsystem.components.MuhabbetIconButton
  */
 @Composable
 fun MediaViewer(
-    imageUrl: String,
+    /**
+     * Anything Coil can load: a URL for ordinary media, or a `ByteArray` for a view-once photo,
+     * whose bytes arrive in the burn response and whose object no longer exists to have a URL
+     * (#541).
+     */
+    image: Any,
     onDismiss: () -> Unit,
     onForward: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
@@ -131,7 +136,7 @@ fun MediaViewer(
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
-                model = imageUrl,
+                model = image,
                 contentDescription = stringResource(Res.string.a11y_image_full_screen),
                 modifier = Modifier
                     .fillMaxSize()
@@ -215,10 +220,10 @@ fun MediaViewer(
 /** Backward-compatible wrapper — used by ChatScreen where no actions are needed yet */
 @Composable
 fun FullImageViewer(
-    imageUrl: String,
+    image: Any,
     onDismiss: () -> Unit
 ) {
-    MediaViewer(imageUrl = imageUrl, onDismiss = onDismiss)
+    MediaViewer(image = image, onDismiss = onDismiss)
 }
 
 @Composable

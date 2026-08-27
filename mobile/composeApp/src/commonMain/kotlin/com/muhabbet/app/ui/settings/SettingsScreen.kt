@@ -197,7 +197,7 @@ fun SettingsScreen(
     // guard than to explain a crash).
     if (showPhotoViewer) {
         avatarUrl?.let { url ->
-            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+            MediaViewer(image = url, onDismiss = { showPhotoViewer = false })
         }
     }
 

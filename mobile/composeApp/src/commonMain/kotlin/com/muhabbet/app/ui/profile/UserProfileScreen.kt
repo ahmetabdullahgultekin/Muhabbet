@@ -193,7 +193,7 @@ fun UserProfileScreen(
 
     if (showPhotoViewer) {
         profile?.avatarUrl?.let { url ->
-            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+            MediaViewer(image = url, onDismiss = { showPhotoViewer = false })
         }
     }
 
