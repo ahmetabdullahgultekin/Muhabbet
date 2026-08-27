@@ -2,10 +2,12 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.AddMembersRequest
+import com.muhabbet.shared.dto.AnnouncementModeResponse
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.CreateConversationRequest
 import com.muhabbet.shared.dto.EditMessageRequest
 import com.muhabbet.shared.dto.ParticipantResponse
+import com.muhabbet.shared.dto.SetAnnouncementModeRequest
 import com.muhabbet.shared.dto.UpdateGroupRequest
 import com.muhabbet.shared.dto.UpdateRoleRequest
 import com.muhabbet.shared.model.ConversationType
@@ -53,6 +55,27 @@ class GroupRepository(private val apiClient: ApiClient) {
             UpdateGroupRequest(name = name, description = description, avatarUrl = avatarUrl)
         )
         return response.data ?: throw Exception(response.error?.message ?: "GROUP_UPDATE_FAILED")
+    }
+
+    /**
+     * Turns "only admins may post" on or off, returning what the server stored (#509).
+     *
+     * The group screen used to build this call itself: `PATCH /conversations/{id}` with an ad-hoc
+     * `mapOf("announcementOnly" to enabled)`. That route's body is [UpdateGroupRequest], which has
+     * no such field, so the server discarded it and answered 200 — the switch moved, the group
+     * stayed open, and nobody found out until it was spammed. It goes through the shared
+     * [SetAnnouncementModeRequest] here so a rename on either side breaks the build instead.
+     *
+     * The return value is the server's, not the caller's argument: the switch must not claim a
+     * permission change the server did not make.
+     */
+    suspend fun setAnnouncementMode(conversationId: String, enabled: Boolean): Boolean {
+        val response = apiClient.put<AnnouncementModeResponse>(
+            "/api/v1/conversations/$conversationId/announcement",
+            SetAnnouncementModeRequest(enabled = enabled)
+        )
+        return response.data?.announcementOnly
+            ?: throw Exception(response.error?.message ?: "GROUP_ANNOUNCEMENT_UPDATE_FAILED")
     }
 
     suspend fun updateMemberRole(conversationId: String, userId: String, role: MemberRole) {

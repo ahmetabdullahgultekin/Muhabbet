@@ -168,6 +168,31 @@ data class UpdateRoleRequest(
     val role: MemberRole
 )
 
+/**
+ * Body of `PUT /api/v1/conversations/{id}/announcement`.
+ *
+ * Shared rather than declared privately on each side, which is the whole point of it existing
+ * (#509). The group screen used to PATCH `{"announcementOnly": true}` at the *update-group* route,
+ * whose body is [UpdateGroupRequest] and has no such field; `ignoreUnknownKeys` dropped it and the
+ * server answered 200. A switch that turns a group read-only appeared to work and did not, and the
+ * failure was in the permissive direction — nobody finds out until the group is spammed. With one
+ * declaration compiled into both halves, that particular drift cannot recur silently.
+ */
+@Serializable
+data class SetAnnouncementModeRequest(
+    val enabled: Boolean
+)
+
+/**
+ * What the server actually stored, echoed back so the switch renders server truth rather than the
+ * caller's optimistic guess. The old client flipped before the request and reverted on throw; a
+ * permission control has to be able to say "on" only because the server says so.
+ */
+@Serializable
+data class AnnouncementModeResponse(
+    val announcementOnly: Boolean
+)
+
 // ─── Message Management DTOs ─────────────────────────────
 
 /**
