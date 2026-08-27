@@ -125,6 +125,12 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     ),
     COMMUNITY_INVALID_NAME(HttpStatus.BAD_REQUEST, "Geçersiz topluluk adı"),
 
+    // #446: names are unique per creator, not globally — two different people may both call a
+    // community "Aile". 409 rather than 400: the request is well-formed and would have been
+    // accepted a moment earlier, which is also what tells the client to offer a different name
+    // rather than to report that the field is malformed.
+    COMMUNITY_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bu isimde bir topluluğunuz zaten var"),
+
     // Leaving would strand the community with no member and no owner. #407 added a real delete
     // endpoint (owner only) as the honest way to remove one; leave still refuses for a sole member
     // so the escape hatch is an explicit, auditable delete rather than an implicit one on the way out.
