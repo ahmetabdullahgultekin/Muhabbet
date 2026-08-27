@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.CallStatus
 import com.muhabbet.messaging.domain.model.ContentType
@@ -24,7 +25,6 @@ import com.muhabbet.shared.security.WebSocketRateLimiter
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.PongMessage
 import org.springframework.web.socket.TextMessage
@@ -43,6 +43,7 @@ class ChatWebSocketHandler(
     private val conversationRepository: ConversationRepository,
     private val presencePort: PresencePort,
     private val userRepository: UserRepository,
+    private val recordLastSeenUseCase: RecordLastSeenUseCase,
     private val callSignalingService: CallSignalingService,
     private val callRoomProvider: CallRoomProvider,
     private val webSocketRateLimiter: WebSocketRateLimiter,
@@ -152,14 +153,8 @@ class ChatWebSocketHandler(
 
         // If no remaining sessions, mark offline and clean up
         if (userId != null && !sessionManager.isOnline(userId)) {
-            presencePort.setOffline(userId)
             webSocketRateLimiter.removeUser(userId)
-            try {
-                userRepository.updateLastSeenAt(userId, Instant.now())
-            } catch (e: Exception) {
-                log.warn("Failed to persist last_seen_at for {}: {}", userId, e.message)
-            }
-            broadcastPresence(userId, PresenceStatus.OFFLINE)
+            goOffline(userId)
         }
         log.info("WebSocket disconnected: userId={}, status={}", userId, status)
     }
@@ -170,14 +165,35 @@ class ChatWebSocketHandler(
         sessionManager.unregister(session)
 
         if (userId != null && !sessionManager.isOnline(userId)) {
-            presencePort.setOffline(userId)
-            try {
-                userRepository.updateLastSeenAt(userId, Instant.now())
-            } catch (e: Exception) {
-                log.warn("Failed to persist last_seen_at for {}: {}", userId, e.message)
-            }
-            broadcastPresence(userId, PresenceStatus.OFFLINE)
+            goOffline(userId)
         }
+    }
+
+    /**
+     * Everything that has to happen once a user's last socket is gone, in one place because the two
+     * ways a socket can end — a close frame and a transport error — must not drift apart. They had
+     * two copies of this, identical down to the log message.
+     *
+     * The `last_seen_at` write goes through [RecordLastSeenUseCase] rather than straight to the
+     * repository. That is the fix for #402: the write is a `@Modifying` query, this thread has no
+     * transaction, and calling the repository from here threw `No active transaction for update or
+     * delete query` on every single disconnect. The transaction now belongs to the service behind
+     * that port, and it only exists because this call crosses a Spring proxy — moving the write back
+     * into a private method here, or into any call this class makes on itself, brings the bug back
+     * unchanged.
+     *
+     * The failure is logged at ERROR with the exception, not warned about with `e.message`. A write
+     * that had never once succeeded produced a WARN line that read like noise for months; if this
+     * ever fails again it should look like what it is.
+     */
+    private fun goOffline(userId: UUID) {
+        presencePort.setOffline(userId)
+        try {
+            recordLastSeenUseCase.recordLastSeen(userId, Instant.now())
+        } catch (e: Exception) {
+            log.error("Failed to persist last_seen_at for {}", userId, e)
+        }
+        broadcastPresence(userId, PresenceStatus.OFFLINE)
     }
 
     private fun handleSendMessage(session: WebSocketSession, senderId: UUID, msg: WsMessage.SendMessage) {
@@ -190,12 +206,12 @@ class ChatWebSocketHandler(
 
             val message = sendMessageUseCase.sendMessage(
                 SendMessageCommand(
-                    messageId = UUID.fromString(msg.messageId),
-                    conversationId = UUID.fromString(msg.conversationId),
+                    messageId = parseId(msg.messageId, "messageId"),
+                    conversationId = parseId(msg.conversationId, "conversationId"),
                     senderId = senderId,
                     content = msg.content,
                     contentType = contentType,
-                    replyToId = msg.replyToId?.let { UUID.fromString(it) },
+                    replyToId = msg.replyToId?.let { parseId(it, "replyToId") },
                     mediaUrl = msg.mediaUrl,
                     thumbnailUrl = msg.thumbnailUrl,
                     clientTimestamp = Instant.now(),
@@ -244,11 +260,11 @@ class ChatWebSocketHandler(
         if (status == DeliveryStatus.READ) {
             // Bulk-update ALL messages in the conversation as read in DB
             updateDeliveryStatusUseCase.markConversationRead(
-                UUID.fromString(msg.conversationId), userId
+                parseId(msg.conversationId, "conversationId"), userId
             )
         }
         // Always broadcast StatusUpdate for the specific message to the sender
-        updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
+        updateDeliveryStatusUseCase.updateStatus(parseId(msg.messageId, "messageId"), userId, status)
     }
 
     /**
@@ -269,7 +285,7 @@ class ChatWebSocketHandler(
     }
 
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
-        val conversationId = UUID.fromString(msg.conversationId)
+        val conversationId = parseId(msg.conversationId, "conversationId")
         val members = conversationRepository.findMembersByConversationId(conversationId)
         val recipientIds = members.map { it.userId }.filter { it != userId }
 
@@ -439,6 +455,28 @@ class ChatWebSocketHandler(
     }
 
     // ─── Messaging Helpers ────────────────────────────────────
+
+    /**
+     * Parses an id the client supplied, and refuses the frame with a code the client can act on if
+     * it is not one.
+     *
+     * The remaining half of #572. `UUID.fromString` throws `IllegalArgumentException`, which is not
+     * a [BusinessException], so it fell to the catch-all and was answered with `INTERNAL_ERROR` —
+     * the one code that means "the server broke, a retry may help". Here nothing broke and a retry
+     * of the same frame will fail forever: it is a malformed request, and `VALIDATION_ERROR` is the
+     * code this file already uses for a frame it cannot parse.
+     *
+     * [field] goes to the log rather than into the exception message. The client renders a code, not
+     * server text (that is the rule #572 exists to restore), so naming the field to the user would
+     * be both untranslated and useless — while whoever is debugging the client wants exactly it.
+     */
+    private fun parseId(raw: String, field: String): UUID =
+        try {
+            UUID.fromString(raw)
+        } catch (_: IllegalArgumentException) {
+            log.warn("Malformed {} in WebSocket frame: {}", field, raw)
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
 
     private fun respondSendFailed(
         session: WebSocketSession,
