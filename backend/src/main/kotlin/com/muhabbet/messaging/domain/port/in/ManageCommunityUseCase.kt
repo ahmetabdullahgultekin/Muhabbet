@@ -74,6 +74,16 @@ data class CommunityMemberCandidate(
 )
 
 interface ManageCommunityUseCase {
+    /**
+     * Creates a community and enrols the creator as its owner.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_INVALID_NAME` when the name
+     * is blank or longer than the column allows, `COMMUNITY_NAME_ALREADY_EXISTS` when this creator
+     * already has a community under that name (#446). "The same name" ignores case, surrounding and
+     * repeated whitespace, and the Turkish dotted/dotless i — see
+     * `V23__community_name_unique_per_owner.sql`. It is scoped to the creator, so a name someone
+     * else is using is free.
+     */
     fun create(name: String, description: String?, creatorId: UUID): CommunitySummary
 
     /**
@@ -83,7 +93,10 @@ interface ManageCommunityUseCase {
      * merge, so the caller sends the whole thing.
      * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_NOT_FOUND` when no such
      * community exists, `COMMUNITY_PERMISSION_DENIED` when the caller does not run it,
-     * `COMMUNITY_INVALID_NAME` when the name is blank or longer than the column allows.
+     * `COMMUNITY_INVALID_NAME` when the name is blank or longer than the column allows,
+     * `COMMUNITY_NAME_ALREADY_EXISTS` when the community's creator already has a *different*
+     * community under that name (#446). Saving a community under the name it already has is not a
+     * conflict, so editing only the description always goes through.
      */
     fun update(communityId: UUID, requesterId: UUID, name: String, description: String?): CommunitySummary
 

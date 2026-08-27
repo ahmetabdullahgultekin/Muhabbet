@@ -208,4 +208,30 @@ class GlobalExceptionHandlerWebMvcTest {
                 .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"))
         }
     }
+
+    @Nested
+    inner class BusinessErrors {
+
+        /**
+         * #446: a second community under a name its creator already used is a conflict, and the
+         * create dialog can only show that against the name field if both the status and the code
+         * arrive intact. The status lives on the `ErrorCode` entry rather than at the throw site, so
+         * an entry given the wrong one would surface here rather than on somebody's phone.
+         */
+        @Test
+        fun `should answer 409 with the name conflict code`() {
+            every { manageCommunityUseCase.create("Muhabbet", null, TestData.USER_ID_1) } throws
+                BusinessException(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS)
+
+            mockMvc.perform(
+                post("/api/v1/communities")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"name":"Muhabbet"}""")
+            )
+                .andExpect(status().isConflict)
+                .andExpect(jsonPath("$.error.code").value("COMMUNITY_NAME_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.error.message").isNotEmpty)
+                .andExpect(jsonPath("$.data").doesNotExist())
+        }
+    }
 }

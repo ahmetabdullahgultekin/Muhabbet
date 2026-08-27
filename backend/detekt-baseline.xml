@@ -63,7 +63,6 @@
     <ID>TooGenericExceptionThrown:NetgsmOtpSender.kt$NetgsmOtpSender$throw RuntimeException("Netgsm SMS failed: $response")</ID>
     <ID>TooManyFunctions:AppConfig.kt$AppConfig</ID>
     <ID>TooManyFunctions:ChatWebSocketHandler.kt$ChatWebSocketHandler : TextWebSocketHandler</ID>
-    <ID>TooManyFunctions:CommunityRepository.kt$CommunityRepository</ID>
     <ID>TooManyFunctions:CommunityService.kt$CommunityService : ManageCommunityUseCaseManageCommunityMembershipUseCase</ID>
     <ID>TooManyFunctions:ConversationPersistenceAdapter.kt$ConversationPersistenceAdapter : ConversationRepository</ID>
     <ID>TooManyFunctions:ConversationRepository.kt$ConversationRepository</ID>
