@@ -75,6 +75,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedContent
 import com.muhabbet.designsystem.components.MuhabbetIconButton
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.ui.conversations.toChatTarget
 import com.muhabbet.composeapp.generated.resources.home_search_failed
@@ -144,6 +145,9 @@ fun HomeShellScreen(
     // from scope.launch.
     val searchFailedMsg = stringResource(Res.string.home_search_failed)
     val defaultChatName = stringResource(Res.string.chat_default_name)
+    // The search results name people too, and used to be the one place that never consulted the
+    // address book (#549).
+    val contactNames = rememberContactNames()
     val communitiesLabel = stringResource(Res.string.home_tab_communities)
     val chatsLabel = stringResource(Res.string.home_tab_chats)
     val updatesLabel = stringResource(Res.string.home_tab_updates)
@@ -344,17 +348,20 @@ fun HomeShellScreen(
                             }
                         }
                         items(filteredConversations, key = { it.id }) { conv ->
+                            // Resolved once, and both drawn and navigated with. The row used to
+                            // resolve its own display name — `conv.name ?: other?.displayName
+                            // ?: ""` — while the tap resolved a second time through toChatTarget,
+                            // so the same conversation could be listed under one name and open
+                            // under another, and the row's copy knew nothing of the address book
+                            // (#549) and ended in an empty string (#543).
+                            val target = conv.toChatTarget(currentUserId, defaultChatName, contactNames)
                             ConversationSearchResultItem(
                                 conversation = conv,
-                                currentUserId = currentUserId,
+                                target = target,
                                 onClick = {
                                     isSearchActive = false
                                     searchQuery = ""
-                                    // Was `conv.name ?: other?.displayName ?: ""` — no phone-number
-                                    // fallback and an empty string at the end, so searching for a
-                                    // contact who has set no display name opened a nameless chat
-                                    // (#543, reached from the home search instead).
-                                    onConversationClick(conv.toChatTarget(currentUserId, defaultChatName))
+                                    onConversationClick(target)
                                 }
                             )
                         }
@@ -434,14 +441,11 @@ fun HomeShellScreen(
 @Composable
 private fun ConversationSearchResultItem(
     conversation: ConversationResponse,
-    currentUserId: String,
+    target: ChatTarget,
     onClick: () -> Unit
 ) {
-    val displayName = conversation.name
-        ?: conversation.participants.firstOrNull { it.userId != currentUserId }?.displayName
-        ?: ""
-    val avatarUrl = conversation.avatarUrl
-        ?: conversation.participants.firstOrNull { it.userId != currentUserId }?.avatarUrl
+    val displayName = target.name
+    val avatarUrl = target.avatarUrl
 
     Row(
         modifier = Modifier

@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.contacts.ContactNamesEffect
 import com.muhabbet.app.ui.contacts.ContactsAccessRefreshEffect
 import com.muhabbet.app.ui.notice.TestBuildNoticeDialog
 import com.muhabbet.app.ui.notification.NotificationPermissionGate
@@ -31,14 +32,17 @@ import org.koin.compose.koinInject
  * test, and only then does the sheet say what changed. The other way round, the caveat arrives as
  * an afterthought to a celebration, which is how a warning stops being read.
  *
- * [ContactsAccessRefreshEffect] is mounted unconditionally and outside that sequencing: it draws
- * nothing and it must keep working for the whole session, not just during onboarding — the round
- * trip through system settings that #691 is about happens most often long after the welcome flow
- * has been dismissed, from `NewConversationScreen`.
+ * [ContactsAccessRefreshEffect] and [ContactNamesEffect] are mounted unconditionally and outside
+ * that sequencing: they draw nothing and must keep working for the whole session, not just during
+ * onboarding — the round trip through system settings that #691 is about happens most often long
+ * after the welcome flow has been dismissed, from `NewConversationScreen`.
  */
 @Composable
 fun FirstRunSurfaces(noticePending: Boolean, tokenStorage: TokenStorage = koinInject()) {
     ContactsAccessRefreshEffect()
+    // Mounted next to it and for the same reason: the address-book names every screen resolves a
+    // person's name from (#549) are read here, once, rather than by each screen that shows a name.
+    ContactNamesEffect()
 
     // Read once into state, following TestBuildNoticeDialog: re-reading storage on every
     // recomposition would put a synchronous preferences read on every frame of the navigation host,

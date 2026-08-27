@@ -44,6 +44,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetChip
 import com.muhabbet.designsystem.components.SettingsNavRow
 import com.muhabbet.app.ui.components.rememberRelativeDayLabels
+import com.muhabbet.app.ui.contacts.rememberContactNames
 
 internal enum class ConversationFilter {
     ALL, UNREAD, FAVORITES, GROUPS
@@ -84,6 +85,9 @@ internal fun MessageSearchResultRow(
     fallbackName: String,
     onClick: (ChatTarget) -> Unit
 ) {
+    // Read here rather than passed in: a search hit names a person, so it needs the same first rung
+    // of the resolution the conversation list has always had (#549).
+    val contactNames = rememberContactNames()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -92,7 +96,7 @@ internal fun MessageSearchResultRow(
                 // — the same empty header as #543, reached from search instead of Starred Messages.
                 val conv = conversations.firstOrNull { it.id == message.conversationId }
                 onClick(
-                    conv?.toChatTarget(currentUserId, fallbackName)
+                    conv?.toChatTarget(currentUserId, fallbackName, contactNames)
                         ?: ChatTarget(conversationId = message.conversationId, name = fallbackName)
                 )
             }
@@ -154,6 +158,7 @@ internal fun ConversationStatusRow(
     onStatusClick: (userId: String, displayName: String) -> Unit
 ) {
     val unknownPersonLabel = stringResource(Res.string.unknown_person)
+    val contactNames = rememberContactNames()
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = MuhabbetSpacing.Small),
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
@@ -195,9 +200,10 @@ internal fun ConversationStatusRow(
             val participant = conversations.flatMap { it.participants }
                 .firstOrNull { it.userId == group.userId }
             // Same order as the Updates tab, and the same prohibition: never the user id, whose
-            // first eight characters read as a hex hash (#507).
-            val displayName = participant?.displayName
-                ?: participant?.phoneNumber
+            // first eight characters read as a hex hash (#507). The order itself is
+            // ParticipantResponse.resolveName — written out here, it was missing the address-book
+            // rung and put a phone number over the name the user saved (#549).
+            val displayName = participant?.resolveName(contactNames)
                 ?: group.displayName
                 ?: unknownPersonLabel
             Column(

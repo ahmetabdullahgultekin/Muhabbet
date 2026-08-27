@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.designsystem.components.MuhabbetTopBar
@@ -116,6 +117,10 @@ fun StarredMessagesScreen(
     val unknownPersonLabel = stringResource(Res.string.unknown_person)
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val unavailableMsg = stringResource(Res.string.starred_conversation_unavailable)
+    // The sender of a starred message is a person, and this screen is where naming one went most
+    // wrong (#543 labelled everybody "Bilinmeyen kişi"). It resolves the same way as everywhere
+    // else now, address book first (#549).
+    val contactNames = rememberContactNames()
 
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
@@ -165,10 +170,11 @@ fun StarredMessagesScreen(
                                 isOwn -> youLabel
                                 // Falls back only when the sender really cannot be placed — they
                                 // left the conversation, or the conversation itself is gone.
-                                else -> conversation?.senderLabel(message.senderId) ?: unknownPersonLabel
+                                else -> conversation?.senderLabel(message.senderId, contactNames)
+                                    ?: unknownPersonLabel
                             },
                             onClick = {
-                                val target = conversation?.toChatTarget(currentUserId, defaultChatName)
+                                val target = conversation?.toChatTarget(currentUserId, defaultChatName, contactNames)
                                 if (target != null) {
                                     onNavigateToConversation?.invoke(target, message.id)
                                 } else {
