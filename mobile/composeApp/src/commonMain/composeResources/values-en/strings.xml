@@ -255,6 +255,10 @@
     <string name="status_post">Share</string>
     <string name="status_no_statuses">No statuses found</string>
     <string name="status_load_failed">Failed to load statuses</string>
+    <string name="status_delete">Delete status</string>
+    <string name="status_delete_confirm">Remove this status? This cannot be undone.</string>
+    <string name="status_delete_failed">Failed to delete status</string>
+    <string name="status_image_description">Status photo</string>
     <string name="updates_title">Updates</string>
     <string name="updates_recent">Recent updates</string>
     <plurals name="updates_status_meta">

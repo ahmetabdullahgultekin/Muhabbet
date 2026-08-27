@@ -266,6 +266,10 @@
     <string name="status_post">Paylaş</string>
     <string name="status_no_statuses">Durum bulunamadı</string>
     <string name="status_load_failed">Durumlar yüklenemedi</string>
+    <string name="status_delete">Durumu sil</string>
+    <string name="status_delete_confirm">Bu durum kaldırılsın mı? Bu işlem geri alınamaz.</string>
+    <string name="status_delete_failed">Durum silinemedi</string>
+    <string name="status_image_description">Durum fotoğrafı</string>
     <string name="updates_title">Güncellemeler</string>
     <string name="updates_recent">Son güncellemeler</string>
     <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
