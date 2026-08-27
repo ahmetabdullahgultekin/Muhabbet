@@ -14,6 +14,7 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
 import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
+import com.muhabbet.auth.domain.service.LastSeenService
 import com.muhabbet.auth.domain.service.LoginApprovalService
 import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
@@ -117,6 +118,18 @@ class AppConfig {
         mockEnabled = otpProperties.mockEnabled,
         testNumbers = otpProperties.testNumbers.toSet(),
         otpQuotaPort = otpQuotaPort
+    )
+
+    /**
+     * The transaction boundary for `last_seen_at` (#402). Declared as a bean like every other
+     * domain service so Spring proxies it — that proxy is the entire fix, because the WebSocket
+     * adapter that calls it has no transaction of its own and the write is a `@Modifying` query.
+     */
+    @Bean
+    fun lastSeenService(
+        userRepository: UserRepository
+    ): LastSeenService = LastSeenService(
+        userRepository = userRepository
     )
 
     @Bean

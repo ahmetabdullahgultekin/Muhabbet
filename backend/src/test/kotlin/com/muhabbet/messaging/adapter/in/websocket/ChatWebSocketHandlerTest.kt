@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.Message
@@ -45,6 +46,7 @@ class ChatWebSocketHandlerTest {
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var presencePort: PresencePort
     private lateinit var userRepository: UserRepository
+    private lateinit var recordLastSeenUseCase: RecordLastSeenUseCase
     private lateinit var callSignalingService: CallSignalingService
     private lateinit var callRoomProvider: CallRoomProvider
     private lateinit var webSocketRateLimiter: WebSocketRateLimiter
@@ -70,6 +72,7 @@ class ChatWebSocketHandlerTest {
         conversationRepository = mockk(relaxed = true)
         presencePort = mockk(relaxed = true)
         userRepository = mockk(relaxed = true)
+        recordLastSeenUseCase = mockk(relaxed = true)
         callSignalingService = mockk(relaxed = true)
         callRoomProvider = mockk(relaxed = true)
         webSocketRateLimiter = mockk(relaxed = true)
@@ -88,6 +91,7 @@ class ChatWebSocketHandlerTest {
             conversationRepository = conversationRepository,
             presencePort = presencePort,
             userRepository = userRepository,
+            recordLastSeenUseCase = recordLastSeenUseCase,
             callSignalingService = callSignalingService,
             callRoomProvider = callRoomProvider,
             webSocketRateLimiter = webSocketRateLimiter,
@@ -461,7 +465,54 @@ class ChatWebSocketHandlerTest {
 
             verify { sessionManager.unregister(session) }
             verify { presencePort.setOffline(userId) }
-            verify { userRepository.updateLastSeenAt(eq(userId), any()) }
+        }
+
+        @Test
+        fun `should record last seen through the transactional use case, not the repository`() {
+            // #402. This used to call UserRepository.updateLastSeenAt straight from the handler, on
+            // a thread with no transaction, so the @Modifying query threw every time and
+            // last_seen_at never moved. Asserting the repository is *not* touched from here is what
+            // stops it drifting back: a mock succeeds happily with no transaction in sight, so
+            // "the write was called" is not a fact worth much on its own.
+            val session = createSession()
+
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify { recordLastSeenUseCase.recordLastSeen(eq(userId), any()) }
+            verify(exactly = 0) { userRepository.updateLastSeenAt(any(), any()) }
+        }
+
+        @Test
+        fun `should still go offline and broadcast when recording last seen fails`() {
+            // Loud, but not fatal: a failed write must not cost the user the rest of the disconnect
+            // path, which is what tells their contacts they went offline.
+            val session = createSession()
+
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+            every { recordLastSeenUseCase.recordLastSeen(any(), any()) } throws RuntimeException("db down")
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify { presencePort.setOffline(userId) }
+            verify { conversationRepository.findAllContactUserIds(userId) }
+        }
+
+        @Test
+        fun `should record last seen on transport error too`() {
+            // The other way a socket ends. It had its own copy of this block, and a fix applied to
+            // one copy and not the other is how half of a disconnect path goes stale.
+            val session = createSession()
+
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.handleTransportError(session, RuntimeException("Connection reset"))
+
+            verify { recordLastSeenUseCase.recordLastSeen(eq(userId), any()) }
         }
 
         @Test
