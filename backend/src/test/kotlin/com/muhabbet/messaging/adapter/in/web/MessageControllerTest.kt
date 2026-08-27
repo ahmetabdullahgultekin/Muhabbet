@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.MessageInfo
@@ -34,6 +35,7 @@ class MessageControllerTest {
     private lateinit var manageMessageUseCase: ManageMessageUseCase
     private lateinit var sendMessageUseCase: SendMessageUseCase
     private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
+    private lateinit var burnViewOnceUseCase: BurnViewOnceUseCase
     private lateinit var controller: MessageController
 
     private val userId = TestData.USER_ID_1
@@ -47,11 +49,13 @@ class MessageControllerTest {
         manageMessageUseCase = mockk()
         sendMessageUseCase = mockk()
         updateDeliveryStatusUseCase = mockk(relaxed = true)
+        burnViewOnceUseCase = mockk()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             manageMessageUseCase = manageMessageUseCase,
             sendMessageUseCase = sendMessageUseCase,
-            updateDeliveryStatusUseCase = updateDeliveryStatusUseCase
+            updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
+            burnViewOnceUseCase = burnViewOnceUseCase
         )
         setAuthenticatedUser(userId, deviceId)
     }
@@ -407,10 +411,12 @@ class MessageControllerTest {
 
         @Test
         fun `should burn a view-once message through the use case port and return its media`() {
-            every { manageMessageUseCase.markViewOnceViewed(messageId, userId) } returns ViewOnceReveal(
+            every { burnViewOnceUseCase.markViewOnceViewed(messageId, userId) } returns ViewOnceReveal(
                 messageId = messageId,
-                mediaUrl = "https://cdn.example/blob?sig=abc",
-                thumbnailUrl = "https://cdn.example/thumb?sig=abc",
+                mediaBytes = byteArrayOf(1, 2, 3),
+                mediaContentType = "image/jpeg",
+                mediaUrl = null,
+                thumbnailUrl = null,
                 viewedAt = java.time.Instant.ofEpochMilli(1_700_000_000_000)
             )
 
@@ -418,15 +424,40 @@ class MessageControllerTest {
 
             assert(response.statusCode.value() == 200)
             val body = response.body?.data
-            assert(body?.mediaUrl == "https://cdn.example/blob?sig=abc")
+            // Base64 of the released bytes, and **no URL** — since #541 the object is already gone
+            // by the time this responds, so a URL would point at nothing and, worse, would be the
+            // kind of thing a recipient can keep.
+            assert(body?.mediaBase64 == java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3)))
+            assert(body?.mediaContentType == "image/jpeg")
+            assert(body?.mediaUrl == null)
             assert(body?.viewedAt == 1_700_000_000_000)
-            verify { manageMessageUseCase.markViewOnceViewed(messageId, userId) }
+            verify { burnViewOnceUseCase.markViewOnceViewed(messageId, userId) }
+        }
+
+        @Test
+        fun `should pass through the stored url for a message sent before media references existed`() {
+            // Rows written before V24 carry no media id, so their blob cannot be found or
+            // destroyed. Returning the URL is the honest best available answer; it is also the one
+            // case where the seven-day window still applies, which is why it is named here.
+            every { burnViewOnceUseCase.markViewOnceViewed(messageId, userId) } returns ViewOnceReveal(
+                messageId = messageId,
+                mediaBytes = null,
+                mediaContentType = null,
+                mediaUrl = "https://cdn.example/blob?sig=abc",
+                thumbnailUrl = "https://cdn.example/thumb?sig=abc",
+                viewedAt = java.time.Instant.ofEpochMilli(1_700_000_000_000)
+            )
+
+            val body = controller.markViewOnceViewed(messageId).body?.data
+
+            assert(body?.mediaBase64 == null)
+            assert(body?.mediaUrl == "https://cdn.example/blob?sig=abc")
         }
 
         @Test
         fun `should propagate MSG_NOT_MEMBER when caller is not a conversation member`() {
             every {
-                manageMessageUseCase.markViewOnceViewed(messageId, userId)
+                burnViewOnceUseCase.markViewOnceViewed(messageId, userId)
             } throws BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
             try {

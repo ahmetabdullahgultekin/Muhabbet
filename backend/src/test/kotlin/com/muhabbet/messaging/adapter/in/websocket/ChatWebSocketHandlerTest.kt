@@ -1,7 +1,9 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
+import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
@@ -86,7 +88,10 @@ class ChatWebSocketHandlerTest {
             recordLastSeenUseCase = recordLastSeenUseCase,
             callFrameHandler = callFrameHandler,
             webSocketRateLimiter = webSocketRateLimiter,
-            blockPolicy = blockPolicy
+            // The real collaborator over its mocked ports, not a mock of it: these tests are about
+            // which frames reach whom, and a stubbed filter would assert only that the handler
+            // called something.
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
     }
 
@@ -643,6 +648,137 @@ class ChatWebSocketHandlerTest {
             handler.afterConnectionEstablished(createSession(generateValidToken()))
 
             verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
+        }
+
+        // ─── The other direction (#711) ──────────────────────
+        //
+        // Everything above asks "does someone who blocked me still see me". This frame used to
+        // answer only that, which is the opposite of what `GET /conversations` withheld — so the
+        // pair of channels leaked in both directions at once. The blocked person opened the chat
+        // list to no dot and then watched it light up seconds later, from here.
+
+        @Test
+        fun `should not tell someone this user has blocked that they came online`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockerId)
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should not leak the last seen stamp to someone this user has blocked`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockerId)
+            val session = createSession()
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should ask both directions once each rather than one question per contact`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns emptySet()
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
+            verify(exactly = 1) { blockPolicy.findBlockedAmong(userId, setOf(blockerId, friendId)) }
+        }
+    }
+
+    // ─── Typing and blocks (#711) ───────────────────────────
+
+    /**
+     * "yazıyor…" is the liveliest presence signal the app has, and it had no block check in either
+     * direction: a blocked one-to-one chat streamed it both ways.
+     *
+     * Both directions are asserted, because a test covering only the direction that already worked
+     * proves nothing — and because asymmetry here is worse than no guard at all. A chat where one
+     * side sees typing and the other does not announces the block and the moment it happened.
+     */
+    @Nested
+    inner class TypingBlocks {
+
+        private val convId = UUID.randomUUID()
+        private val otherUserId = UUID.randomUUID()
+
+        private fun sendTyping() {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+                ConversationMember(conversationId = convId, userId = userId),
+                ConversationMember(conversationId = convId, userId = otherUserId)
+            )
+            every { sessionManager.isOnline(otherUserId) } returns true
+
+            val typing = WsMessage.TypingIndicator(conversationId = convId.toString(), isTyping = true)
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(typing)))
+        }
+
+        private fun directConversation() {
+            every { conversationRepository.findById(convId) } returns
+                Conversation(id = convId, type = ConversationType.DIRECT)
+        }
+
+        @Test
+        fun `should not tell someone who blocked this user that they are typing`() {
+            every { blockPolicy.hasBlocked(otherUserId, userId) } returns true
+            directConversation()
+
+            sendTyping()
+
+            verify(exactly = 0) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should not tell someone this user has blocked that they are typing`() {
+            every { blockPolicy.hasBlocked(userId, otherUserId) } returns true
+            directConversation()
+
+            sendTyping()
+
+            verify(exactly = 0) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should still send typing when neither has blocked the other`() {
+            every { blockPolicy.hasBlocked(any(), any()) } returns false
+
+            sendTyping()
+
+            verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should still send typing in a two-person group where a block exists`() {
+            // Deliberate: a block does not stop a group *message* either, so filtering group
+            // typing would make the two disagree and half-announce the block to the room.
+            every { blockPolicy.hasBlocked(userId, otherUserId) } returns true
+            every { conversationRepository.findById(convId) } returns
+                Conversation(id = convId, type = ConversationType.GROUP)
+
+            sendTyping()
+
+            verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should not load the conversation when there is no block between the pair`() {
+            // Typing arrives on every keystroke burst. The pair question is asked first so the
+            // ordinary case costs the two indexed lookups and no extra row.
+            every { blockPolicy.hasBlocked(any(), any()) } returns false
+
+            sendTyping()
+
+            verify(exactly = 0) { conversationRepository.findById(convId) }
         }
     }
 }

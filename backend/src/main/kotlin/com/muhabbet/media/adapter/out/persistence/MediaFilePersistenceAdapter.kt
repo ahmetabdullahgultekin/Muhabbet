@@ -23,4 +23,8 @@ class MediaFilePersistenceAdapter(
 
     override fun countByUploaderAndContentTypePrefix(uploaderId: UUID, prefix: String): Long =
         springDataMediaFileRepository.countByUploaderAndContentTypePrefix(uploaderId, prefix)
+
+    override fun deleteById(id: UUID) {
+        springDataMediaFileRepository.deleteById(id)
+    }
 }

@@ -57,7 +57,10 @@ class WebSocketErrorContractTest {
         recordLastSeenUseCase = mockk<RecordLastSeenUseCase>(relaxed = true),
         callFrameHandler = mockk<CallFrameHandler>(relaxed = true),
         webSocketRateLimiter = rateLimiter,
-        blockPolicy = mockk<BlockPolicyPort>(relaxed = true)
+        presenceVisibility = PresenceVisibility(
+            mockk<BlockPolicyPort>(relaxed = true),
+            mockk<ConversationRepository>(relaxed = true)
+        )
     )
 
     @BeforeEach

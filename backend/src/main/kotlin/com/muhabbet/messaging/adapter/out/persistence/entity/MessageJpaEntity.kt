@@ -39,6 +39,9 @@ class MessageJpaEntity(
     @Column(name = "thumbnail_url")
     val thumbnailUrl: String? = null,
 
+    @Column(name = "media_id")
+    var mediaId: UUID? = null,
+
     @Column(name = "server_timestamp", nullable = false)
     val serverTimestamp: Instant = Instant.now(),
 
@@ -80,7 +83,7 @@ class MessageJpaEntity(
     fun toDomain(): Message = Message(
         id = id, conversationId = conversationId, senderId = senderId,
         contentType = contentType, content = content, replyToId = replyToId,
-        mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl,
+        mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl, mediaId = mediaId,
         serverTimestamp = serverTimestamp, clientTimestamp = clientTimestamp,
         isDeleted = isDeleted, deletedAt = deletedAt, editedAt = editedAt,
         expiresAt = expiresAt, forwardedFrom = forwardedFrom,
@@ -92,7 +95,7 @@ class MessageJpaEntity(
         fun fromDomain(m: Message): MessageJpaEntity = MessageJpaEntity(
             id = m.id, conversationId = m.conversationId, senderId = m.senderId,
             contentType = m.contentType, content = m.content, replyToId = m.replyToId,
-            mediaUrl = m.mediaUrl, thumbnailUrl = m.thumbnailUrl,
+            mediaUrl = m.mediaUrl, thumbnailUrl = m.thumbnailUrl, mediaId = m.mediaId,
             serverTimestamp = m.serverTimestamp, clientTimestamp = m.clientTimestamp,
             isDeleted = m.isDeleted, deletedAt = m.deletedAt, editedAt = m.editedAt,
             expiresAt = m.expiresAt, forwardedFrom = m.forwardedFrom,

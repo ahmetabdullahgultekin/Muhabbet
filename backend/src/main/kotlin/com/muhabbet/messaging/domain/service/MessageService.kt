@@ -15,7 +15,6 @@ import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
-import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
@@ -160,6 +159,12 @@ open class MessageService(
             replyToId = command.replyToId,
             mediaUrl = command.mediaUrl,
             thumbnailUrl = command.thumbnailUrl,
+            // Recorded as the client asserted it, and trusted by nothing on this path.
+            // `ViewOnceService` checks that the object really was this sender's upload immediately
+            // before it destroys anything — the check belongs next to the consequence, and putting
+            // it here would make every text message in the app carry a media dependency it never
+            // uses (#541).
+            mediaId = command.mediaId,
             serverTimestamp = now,
             clientTimestamp = command.clientTimestamp,
             expiresAt = expiresAt,
@@ -486,56 +491,6 @@ open class MessageService(
 
         log.info("Message {} edited by {}", messageId, requesterId)
         return message.copy(content = newContent, editedAt = editedAt)
-    }
-
-    // ─── View-Once ────────────────────────────────────────────
-
-    /**
-     * Burns a view-once message and hands back its media, once.
-     *
-     * The order matters and every step earns its place:
-     *
-     * - **Authorize before anything else** — a non-member who knows the messageId must not be able
-     *   to burn someone else's message (the IDOR closed by #55).
-     * - **The sender is refused**, so opening your own view-once photo cannot consume the
-     *   recipient's one look. The sender's own copy is stripped by `toSharedMessage` too; a
-     *   view-once photo is not re-viewable by anyone once it leaves the composer.
-     * - **The write is the arbiter, not the read.** `viewedAt != null` above is a cheap rejection
-     *   for the common case, but two taps can both pass it. The conditional UPDATE can only match
-     *   once, so a zero row count means someone else won and this caller gets nothing.
-     */
-    @Transactional
-    override fun markViewOnceViewed(messageId: UUID, userId: UUID): ViewOnceReveal {
-        val message = messageRepository.findById(messageId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
-
-        conversationRepository.findMember(message.conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
-
-        if (!message.viewOnce) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR)
-        }
-
-        if (message.viewedAt != null) {
-            throw BusinessException(ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED)
-        }
-
-        if (message.senderId == userId) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR)
-        }
-
-        val viewedAt = Instant.now()
-        if (messageRepository.markViewOnceViewed(messageId, userId, viewedAt) == 0) {
-            throw BusinessException(ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED)
-        }
-
-        log.info("View-once message viewed: msg={}, user={}", messageId, userId)
-        return ViewOnceReveal(
-            messageId = messageId,
-            mediaUrl = message.mediaUrl,
-            thumbnailUrl = message.thumbnailUrl,
-            viewedAt = viewedAt
-        )
     }
 
     // ─── Scheduled Messages ──────────────────────────────────

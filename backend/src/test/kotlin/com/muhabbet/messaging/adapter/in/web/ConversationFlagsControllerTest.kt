@@ -67,6 +67,7 @@ class ConversationFlagsControllerTest {
         every { userRepository.findAllByIds(any()) } returns listOf(TestData.user(id = me))
         every { presencePort.getOnlineUserIds(any()) } returns emptySet()
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
 
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
             JwtClaims(userId = me, deviceId = TestData.DEVICE_ID_1),

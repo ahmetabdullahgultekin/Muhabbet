@@ -20,6 +20,19 @@ data class Message(
     val replyToId: UUID? = null,
     val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
+    /**
+     * The `media_files` row this message's blob lives in (#541).
+     *
+     * [mediaUrl] is a rendering convenience — a presigned URL that expires on its own schedule and,
+     * for a view-once photo, outlived the burn by seven days. This is the reference that lets the
+     * bytes actually be destroyed.
+     *
+     * **Client-asserted, and worth nothing on its own.** `ViewOnceService` confirms the object was
+     * this message's sender's upload immediately before it deletes anything; nowhere else acts on
+     * it. Any future reader owes the same check. Null for text, and for every message sent before
+     * V24.
+     */
+    val mediaId: UUID? = null,
     val serverTimestamp: Instant = Instant.now(),
     val clientTimestamp: Instant,
     val isDeleted: Boolean = false,

@@ -78,6 +78,7 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.decodedMedia
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
@@ -220,8 +221,13 @@ fun ChatScreen(
     var isTypingSent by remember { mutableStateOf(false) }
     var typingDismissJob by remember { mutableStateOf<Job?>(null) }
 
-    // Dialog state
-    var fullImageUrl by remember { mutableStateOf<String?>(null) }
+    // Dialog state.
+    //
+    // `Any?` rather than `String?` since #541: an ordinary photo is opened by URL, a view-once photo
+    // by the bytes the burn handed back. There is no URL for the second kind, on purpose — the
+    // object was deleted before the response was written, and a URL that outlived the burn is
+    // exactly what made "view once" a label rather than a guarantee.
+    var fullImage by remember { mutableStateOf<Any?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetId by remember { mutableStateOf<String?>(null) }
     var showDisappearDialog by remember { mutableStateOf(false) }
@@ -347,6 +353,7 @@ fun ChatScreen(
                 caption = MEDIA_HAS_NO_BODY,
                 mediaUrl = upload.url,
                 thumbnailUrl = upload.thumbnailUrl,
+                mediaId = upload.mediaId,
                 viewOnce = armed,
                 sentAt = Clock.System.now()
             )
@@ -709,7 +716,7 @@ fun ChatScreen(
     }
 
     // ── Dialogs ──────────────────────────────
-    fullImageUrl?.let { url -> FullImageViewer(url) { fullImageUrl = null } }
+    fullImage?.let { image -> FullImageViewer(image) { fullImage = null } }
     forwardMessage?.let { msg -> ForwardPickerDialog(msg, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation) }
     if (showDeleteDialog && deleteTargetId != null) DeleteConfirmDialog(
         onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog
@@ -834,7 +841,7 @@ fun ChatScreen(
                             modifier = Modifier
                                 .then(
                                     if (conversationAvatarUrl != null) {
-                                        Modifier.clickable { fullImageUrl = conversationAvatarUrl }
+                                        Modifier.clickable { fullImage = conversationAvatarUrl }
                                     } else {
                                         Modifier
                                     }
@@ -907,7 +914,7 @@ fun ChatScreen(
                                 snackbarHostState.showSnackbar(errorActionMsg) } } },
                             onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                             onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
-                            onImageClick = { fullImageUrl = it },
+                            onImageClick = { fullImage = it },
                             onReactionToggle = { msg, emoji ->
                                 scope.launch {
                                     runCatchingCancellable {
@@ -943,7 +950,16 @@ fun ChatScreen(
                                         if (it.id == id) it.copy(viewOnceViewed = true) else it
                                     }
                                     runCatchingCancellable { messageRepository.revealViewOnce(id) }
-                                        .onSuccess { reveal -> reveal.mediaUrl?.let { fullImageUrl = it } }
+                                        // Bytes first: since #541 the server deletes the blob in
+                                        // the same call, so these are the only copy that was ever
+                                        // released and there is no URL to fall back on. The URL
+                                        // branch is for messages sent before that change, whose
+                                        // blob has no server-side reference and cannot be
+                                        // destroyed.
+                                        .onSuccess { reveal ->
+                                            (reveal.decodedMedia() ?: reveal.mediaUrl)
+                                                ?.let { fullImage = it }
+                                        }
                                         .onFailure { e ->
                                             Log.w(TAG, "Failed to open view-once $id: ${e.message}")
                                             val alreadyViewed =

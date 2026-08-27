@@ -69,6 +69,7 @@ class MediaIdorIntegrationTest {
             override fun putObject(key: String, inputStream: InputStream, contentType: String, sizeBytes: Long) {}
             override fun getPresignedUrl(key: String, expirySeconds: Int): String = "https://media.example/$key"
             override fun deleteObject(key: String) {}
+            override fun getObject(key: String): ByteArray? = ByteArray(0)
         }
     }
 

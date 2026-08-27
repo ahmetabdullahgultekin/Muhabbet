@@ -6,7 +6,6 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
-import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.exception.BusinessException
@@ -40,7 +39,7 @@ class ChatWebSocketHandler(
     private val recordLastSeenUseCase: RecordLastSeenUseCase,
     private val callFrameHandler: CallFrameHandler,
     private val webSocketRateLimiter: WebSocketRateLimiter,
-    private val blockPolicy: BlockPolicyPort
+    private val presenceVisibility: PresenceVisibility
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -207,6 +206,12 @@ class ChatWebSocketHandler(
                     replyToId = msg.replyToId?.let { parseId(it, "replyToId") },
                     mediaUrl = msg.mediaUrl,
                     thumbnailUrl = msg.thumbnailUrl,
+                    // A malformed id is treated as absent rather than rejected: this is a hint
+                    // about a blob, not a request that can fail, and the worst it costs is a
+                    // view-once photo that cannot be destroyed. Whether the id names something
+                    // this sender actually uploaded is settled at burn time, next to the delete
+                    // (#541).
+                    mediaId = msg.mediaId?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
                     clientTimestamp = Instant.now(),
                     forwardedFrom = msg.forwardedFrom?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
                     viewOnce = msg.viewOnce,
@@ -290,8 +295,9 @@ class ChatWebSocketHandler(
         )
         val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
 
+        val hidden = presenceVisibility.hiddenFromTypingIn(conversationId, userId, recipientIds)
         recipientIds.forEach { recipientId ->
-            if (sessionManager.isOnline(recipientId)) {
+            if (recipientId !in hidden && sessionManager.isOnline(recipientId)) {
                 sessionManager.sendToUser(recipientId, json)
             }
         }
@@ -336,8 +342,15 @@ class ChatWebSocketHandler(
         // they keep receiving your live online/offline stream and the last-seen stamp that rides
         // the OFFLINE transition. Hiding presence on the profile screen alone would have been
         // cosmetic: the chat list they already have renders exactly this feed.
-        val blockedBy = blockPolicy.findBlockedBy(userId, contactUserIds)
-        contactUserIds.filterNot { it in blockedBy }.forEach { contactId ->
+        //
+        // Both directions (#711), and this frame is why the REST guard alone was not enough. The
+        // filter here used to hide the *broadcaster* from whoever had blocked them, which is the
+        // exact opposite of what `ConversationController` withheld — so each channel closed the
+        // direction the other left open, and the pair leaked both ways. The blocked person opened
+        // the chat list to no dot, then watched it light up seconds later when the blocker's socket
+        // connected, because `ConversationListScreen` writes this frame straight into its state.
+        val hidden = presenceVisibility.hiddenFromPresenceOf(userId, contactUserIds)
+        contactUserIds.filterNot { it in hidden }.forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {
                 sessionManager.sendToUser(contactId, json)
             }
