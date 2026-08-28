@@ -199,16 +199,34 @@ jobs:
       # "Artifact storage quota has been hit" — an account-level condition with nothing to do with
       # the code — and because the job stopped there, the APK build never ran and the run read as a
       # build failure. The tests themselves are the gate and fail the job at their own step.
+      #
+      # Uploads the XML rather than `reports/tests/`, which is a generated website of hundreds of
+      # small files (#599). The XML is what any tool parses and is a fraction of the size, and it
+      # is what `junit-summary.sh` renders straight into the step summary below — where it is
+      # readable even on a day the artifact quota is full and this step uploads nothing.
       - name: Upload test results
         if: always() && steps.changes.outputs.mobile == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mobile-test-results
+          # *.xml only: `test-results/` also holds Gradle's `binary/` event stream, which is the
+          # bulk of the bytes and which nothing reads.
           path: |
-            mobile/composeApp/build/reports/tests/
-            mobile/designsystem/build/reports/tests/
-          retention-days: 7
+            mobile/composeApp/build/test-results/*/*.xml
+            mobile/designsystem/build/test-results/*/*.xml
+          retention-days: 3
+
+      # Same reasoning as Backend CI: the run page should say which tests failed without anyone
+      # having to download an artifact, and the summary is not subject to the storage quota.
+      - name: Summarise test results
+        if: always() && steps.changes.outputs.mobile == 'true'
+        run: |
+          for d in mobile/composeApp/build/test-results/testDebugUnitTest \
+                   mobile/designsystem/build/test-results/testDebugUnitTest; do
+            echo "#### \`$d\`"
+            bash .github/scripts/junit-summary.sh "$d"
+          done >> "$GITHUB_STEP_SUMMARY"
 
       # Skipped on a pull request into `dev`. There is ONE self-hosted runner and it is the
       # production host, so a full APK assembly plus lint on every dev PR would queue behind
@@ -254,12 +272,19 @@ jobs:
         with:
           name: android-lint-results
           path: mobile/composeApp/build/reports/lint-results-*.html
-          retention-days: 14
+          retention-days: 3
 
       # ~128 MB a run. Twenty-six of these from February and March were still stored in August and
       # accounted for 3.10 GB of a 3.13 GB account total, which is what exhausted the artifact quota
       # and started failing this job. Retention is what keeps that from recurring; continue-on-error
       # is what keeps it from failing the build if it does.
+      #
+      # Cut from 7 days to 3 for #599. This artifact is, by the account's own numbers above, the
+      # single largest consumer of the quota — everything else in this repository uploads reports
+      # measured in kilobytes. A debug APK is reproducible from the commit in a few minutes, and
+      # the release verification that actually matters installs the RELEASE APK from the GitHub
+      # release on emulator-5554, never this one. Three days still covers "someone wants to try
+      # the build from that PR" over a weekend.
       - name: Upload debug APK
         if: success() && github.base_ref != 'dev' && steps.changes.outputs.mobile == 'true'
         continue-on-error: true
@@ -267,7 +292,7 @@ jobs:
         with:
           name: debug-apk
           path: mobile/composeApp/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          retention-days: 3
 
   # --- iOS Framework Build ---
   #

@@ -65,13 +65,18 @@ jobs:
       # Only on failure, and briefly. The account's artifact storage quota is exhausted, so an
       # unconditional upload fails the job after the scan itself has already succeeded — the same
       # fault that was making Backend CI red on green builds.
+      # `continue-on-error` as well as `failure()` (#599). Gating on failure stops this turning a
+      # green scan red, but it did not stop a quota error from ADDING a second, misleading failure
+      # to a job that had already failed for a real reason. An artifact upload should never be
+      # part of the verdict.
       - name: Upload dependency list
         if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: dependency-list
           path: backend-deps.txt
-          retention-days: 3
+          retention-days: 1
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master

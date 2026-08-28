@@ -161,32 +161,87 @@ jobs:
         run: ./gradlew :backend:detekt
         if: always() && steps.changes.outputs.backend == 'true'
 
+      # The primary test report, and the only one that is not subject to the artifact quota (#599).
+      #
+      # When the quota is full `actions/upload-artifact` fails outright, so on the day this
+      # mattered most there was NO readable report on the run page at all — finding out which
+      # tests had failed meant reading backend/build/test-results/test/*.xml off the runner's
+      # working directory by hand. Retention limits and narrower paths slow the quota refilling;
+      # they do nothing once it is already full. The step summary always renders.
+      #
+      # It also covers a case the artifacts never did: `mikepenz/action-junit-report` below only
+      # runs on `pull_request`, so a push to `main` — the thing that gates the deploy — had no
+      # readable report even when uploads worked.
+      #
+      # `always()` and never failing: this reports, it does not gate. The test step is the gate.
+      - name: Summarise test results
+        if: always() && steps.changes.outputs.backend == 'true'
+        run: bash .github/scripts/junit-summary.sh backend/build/test-results/test >> "$GITHUB_STEP_SUMMARY"
+
+      # ---------------------------------------------------------------------------------------
+      # Artifacts below are now a convenience on top of that summary, not the only way to read a
+      # run. Three things changed for #599:
+      #
+      #   1. `continue-on-error: true` everywhere. "Artifact storage quota has been hit" is an
+      #      account-level condition with nothing to do with the code, and it was failing jobs
+      #      whose actual work had already succeeded. mobile-ci.yml already reasoned its way to
+      #      this; backend-ci had not caught up.
+      #   2. The XML, not the generated HTML. Measured on this suite (1071 tests):
+      #        reports/tests/                     4.9 MB, 611 files  (a generated website)
+      #        test-results/test/*.xml            1.8 MB, 225 files  (what tools actually parse)
+      #        reports/jacoco/                    7.7 MB
+      #        reports/jacoco/.../jacocoTestReport.xml  948 KB  (the file the comment below reads)
+      #      12.6 MB down to 2.7 MB per run, before retention. The JUnit reporter below, the
+      #      summary above and any IDE all read the XML; nobody opens the HTML site.
+      #   3. One day of retention. Three days of a report nobody opened is what the quota was
+      #      being spent on, and a failure is investigated the same day or not at all.
+      #
+      # Kept at `failure()`: a green run's report is the one least likely to be read.
+      #
+      # What is NOT automated here, deliberately: purging the existing backlog. Retention only
+      # governs artifacts created from now on, so the stored ones — mostly ~128 MB debug APKs,
+      # 3.10 GB of a 3.13 GB account total — expire on the retention they were uploaded with.
+      # That is a one-time cleanup, and a scheduled job that deletes artifacts is a destructive
+      # automation nobody can test before it runs for real. Do it by hand, once:
+      #
+      #   gh api --paginate /repos/{owner}/{repo}/actions/artifacts --jq \
+      #     '.artifacts[] | select(.expired == false) | "\(.id) \(.name) \(.size_in_bytes)"'
+      #   gh api -X DELETE /repos/{owner}/{repo}/actions/artifacts/<id>
+      #
+      # (Or the Actions storage page.) Usage is recalculated every 6–12 hours, so the quota does
+      # not clear the moment the last delete returns.
+      # ---------------------------------------------------------------------------------------
       - name: Upload test results
         if: failure() && steps.changes.outputs.backend == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
-          path: backend/build/reports/tests/
-          retention-days: 3
+          # *.xml, not the directory. `test-results/test/` also holds `binary/`, Gradle's raw
+          # event stream (every line of stdout and stderr from every test), which is by far the
+          # largest thing in there and which nothing reads.
+          path: backend/build/test-results/test/*.xml
+          retention-days: 1
 
-      # Only on failure, like the other two. The account's artifact storage quota is exhausted, so
-      # an unconditional upload turns every green build red at the last step. The PR coverage
-      # comment reads the XML from disk, not from this artifact, so nothing downstream needs it.
       - name: Upload JaCoCo coverage report
         if: failure() && steps.changes.outputs.backend == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-coverage-report
-          path: backend/build/reports/jacoco/
-          retention-days: 3
+          path: backend/build/reports/jacoco/test/jacocoTestReport.xml
+          retention-days: 1
 
+      # detekt's reports are already small (one file per format), so this one only needed the
+      # quota-tolerance and the shorter retention.
       - name: Upload detekt report
         if: failure() && steps.changes.outputs.backend == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: detekt-report
           path: backend/build/reports/detekt/
-          retention-days: 3
+          retention-days: 1
 
       # Both reporting steps below MUST stay gated. With no tests run there is no JUnit XML and no
       # JaCoCo XML on disk, and both actions fail on a missing report — which would turn the cheap
