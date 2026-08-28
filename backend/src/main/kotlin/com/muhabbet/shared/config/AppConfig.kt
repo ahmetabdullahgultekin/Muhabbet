@@ -224,12 +224,14 @@ class AppConfig {
         conversationRepository: ConversationRepository,
         userRepository: UserRepository,
         messageBroadcaster: MessageBroadcaster,
-        blockPolicy: BlockPolicyPort
+        blockPolicy: BlockPolicyPort,
+        transactions: TransactionRunner
     ): GroupService = GroupService(
         conversationRepository = conversationRepository,
         userRepository = userRepository,
         messageBroadcaster = messageBroadcaster,
-        blockPolicy = blockPolicy
+        blockPolicy = blockPolicy,
+        transactions = transactions
     )
 
     @Bean
