@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
+import com.muhabbet.shared.TestMediaAttachmentPolicy
 
 /**
  * #669 — the three message mutations #491 did not reach.
@@ -88,6 +89,7 @@ class MessageMutationTransactionBoundaryTest {
         userDirectory = userDirectory,
         readReceiptPolicy = readReceiptPolicy,
         blockPolicy = blockPolicy,
+        mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
         transactions = transactions
     )
 
