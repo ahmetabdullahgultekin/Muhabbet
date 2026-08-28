@@ -13,6 +13,7 @@ import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.InlineTransactionRunner
+import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -60,6 +61,7 @@ class ScheduledDeliveryIsolationTest {
         userDirectory = mockk(relaxed = true),
         readReceiptPolicy = mockk(relaxed = true),
         blockPolicy = blockPolicy,
+            mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
         transactions = transactions
     )
 

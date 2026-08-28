@@ -42,6 +42,7 @@ import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.NotificationTextPort
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
@@ -179,17 +180,16 @@ class AppConfig {
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
         messageBroadcaster: MessageBroadcaster,
-        userDirectory: UserDirectoryPort,
-        readReceiptPolicy: ReadReceiptPolicyPort,
-        blockPolicy: BlockPolicyPort,
+        ports: MessageServicePorts,
         transactions: TransactionRunner
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         messageBroadcaster = messageBroadcaster,
-        userDirectory = userDirectory,
-        readReceiptPolicy = readReceiptPolicy,
-        blockPolicy = blockPolicy,
+        userDirectory = ports.userDirectory,
+        readReceiptPolicy = ports.readReceiptPolicy,
+        blockPolicy = ports.blockPolicy,
+        mediaAttachmentPolicy = ports.mediaAttachmentPolicy,
         transactions = transactions
     )
 
@@ -266,12 +266,14 @@ class AppConfig {
         statusRepository: StatusRepository,
         conversationRepository: ConversationRepository,
         userDirectory: UserDirectoryPort,
-        blockPolicy: BlockPolicyPort
+        blockPolicy: BlockPolicyPort,
+        mediaAttachmentPolicy: MediaAttachmentPolicyPort
     ): StatusService = StatusService(
         statusRepository = statusRepository,
         conversationRepository = conversationRepository,
         userDirectory = userDirectory,
-        blockPolicy = blockPolicy
+        blockPolicy = blockPolicy,
+        mediaAttachmentPolicy = mediaAttachmentPolicy
     )
 
     @Bean
