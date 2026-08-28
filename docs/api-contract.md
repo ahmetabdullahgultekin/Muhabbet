@@ -370,6 +370,7 @@ stored is rejected with `MSG_DUPLICATE`, so a retried POST cannot post the messa
 | `VALIDATION_ERROR` | 400 | `messageId` is not a UUID |
 | `MSG_EMPTY_CONTENT` | 400 | Content is blank |
 | `MSG_CONTENT_TOO_LONG` | 400 | Content exceeds the limit |
+| `MSG_MEDIA_NOT_ACCESSIBLE` | 400 | `mediaUrl`/`thumbnailUrl` is not on an origin this server publishes media from (#679) |
 | `MSG_NOT_MEMBER` | 403 | Caller is not a member of the conversation |
 | `MSG_ANNOUNCEMENT_ONLY` | 403 | Group accepts messages from admins only |
 | `MSG_DUPLICATE` | 409 | A message with this id has already been stored |
@@ -582,6 +583,7 @@ All frames are JSON with a `type` discriminator:
 | `MSG_CONTENT_TOO_LONG` | Message exceeds 10,000 characters |
 | `MSG_EMPTY_CONTENT` | Message content is empty |
 | `MSG_DUPLICATE` | Message with this ID already processed (idempotency) |
+| `MSG_MEDIA_NOT_ACCESSIBLE` | `mediaUrl`/`thumbnailUrl` names an origin this server does not publish media from. A message's media address is what every recipient's device is made to fetch, so it may not be a host the sender chose (#679). Send a `mediaId` from `POST /media/upload` and the server resolves the address itself. |
 
 ### Conversation
 | Code | Description |

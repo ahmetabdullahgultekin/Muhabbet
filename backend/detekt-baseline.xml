@@ -78,7 +78,6 @@
     <ID>UnusedPrivateProperty:ChannelAnalyticsService.kt$ChannelAnalyticsService$private val log = LoggerFactory.getLogger(javaClass)</ID>
     <ID>UnusedPrivateProperty:ChannelAnalyticsService.kt$ChannelAnalyticsService$val member = conversationRepository.findMember(channelId, userId) ?: throw BusinessException(ErrorCode.CHANNEL_NOT_FOUND)</ID>
     <ID>UnusedPrivateProperty:EncryptionService.kt$EncryptionService$private val eventPublisher: ApplicationEventPublisher? = null</ID>
-    <ID>UnusedPrivateProperty:MessageService.kt$MessageService.Companion$/** * Moved to [ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES] (#597) so the app can enforce the * same rule in its context menu instead of letting the user discover it by failing. Kept as * an alias rather than inlined at the call site so the name still reads at line 371. */ private const val EDIT_WINDOW_MINUTES = ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES</ID>
     <ID>UnusedPrivateProperty:RedisPresenceAdapter.kt$RedisPresenceAdapter$private val log = LoggerFactory.getLogger(javaClass)</ID>
     <ID>UseCheckOrError:SessionWriteSerialisationTest.kt$SessionWriteSerialisationTest.SingleWriterSession$throw IllegalStateException("The remote endpoint was in state [TEXT_FULL_WRITING]")</ID>
   </CurrentIssues>

@@ -21,6 +21,7 @@ import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestData
+import com.muhabbet.shared.TestMediaAttachmentPolicy
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -79,6 +80,7 @@ class MessagingServiceTest {
             userDirectory = userDirectory,
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
+            mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
             transactions = InlineTransactionRunner()
         )
     }

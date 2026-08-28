@@ -173,6 +173,13 @@ muhabbet:
     max-video-size: 104857600        # 100 MB
     thumbnail-width: 320
     thumbnail-height: 320
+    # Origins other than our own MinIO that a message or status may point media at (#679). The
+    # defaults are GIPHY's CDN hosts, because the GIF/sticker picker sends a URL straight off it and
+    # never re-hosts the file — without them the send path would refuse every GIF. See
+    # MediaProperties.attachmentOrigins for why a closed list of third parties does not reopen the
+    # issue. Override to add a host; the list replaces the default, so include GIPHY if you still
+    # want GIFs.
+    attachment-origins: ${MEDIA_ATTACHMENT_ORIGINS:https://media.giphy.com,https://media0.giphy.com,https://media1.giphy.com,https://media2.giphy.com,https://media3.giphy.com,https://media4.giphy.com,https://i.giphy.com,https://stickers.giphy.com}
 
   invite:
     # Base of the shareable group invite URL the server puts in InviteLinkResponse.inviteUrl.

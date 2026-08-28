@@ -17,6 +17,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
@@ -38,18 +39,18 @@ open class MessageService(
     private val userDirectory: UserDirectoryPort,
     private val readReceiptPolicy: ReadReceiptPolicyPort,
     private val blockPolicy: BlockPolicyPort,
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort,
     private val transactions: TransactionRunner
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        /**
-         * Moved to [ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES] (#597) so the app can enforce the
-         * same rule in its context menu instead of letting the user discover it by failing. Kept as
-         * an alias rather than inlined at the call site so the name still reads at line 371.
-         */
-        private const val EDIT_WINDOW_MINUTES = ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES
+        // The `EDIT_WINDOW_MINUTES` alias that stood here is gone. #597 moved the rule into
+        // `ValidationRules.isWithinEditWindow` so the app and the server compute the same answer,
+        // and `editMessage` has called that directly ever since — the alias was left behind
+        // referring to a call site that no longer used it, which is why detekt had it as an unused
+        // property. One entry off `detekt-baseline.xml` (79 → 78).
 
         /**
          * How many due messages one scheduled run will take on.
@@ -75,7 +76,12 @@ open class MessageService(
      * block into a probe, telling a harasser exactly who has blocked them and when they unblock.
      */
     override fun sendMessage(command: SendMessageCommand): Message {
-        val outcome = transactions.inTransaction { persistSend(command) }
+        // Before the transaction, because resolving a media id reads the media table and asks
+        // object storage to sign a URL, and #491's rule is that nothing which talks to something
+        // outside this database holds a Hikari connection while it does. A text message — every
+        // message with no media reference at all — never reaches the port and pays nothing.
+        val vetted = vetMediaAttachment(command)
+        val outcome = transactions.inTransaction { persistSend(vetted) }
 
         // Outside the transaction, and that is the entire point of #491.
         //
@@ -105,6 +111,55 @@ open class MessageService(
      * list, which would mean a conversation the sender is alone in.
      */
     private data class SendOutcome(val message: Message, val recipients: List<ConversationMember>?)
+
+    /**
+     * Settles what this message's media URLs will be before anything is written (#679).
+     *
+     * The URL on a message is not decoration: the recipient's client fetches it to draw the bubble,
+     * with no tap and no confirmation. Whatever string wins here is a request the server has decided
+     * every recipient's device will make, so it may not be a string the sender chose freely.
+     *
+     * Two outcomes, no third:
+     *
+     *  * The sender named a `mediaId` the server can confirm is their own upload → **the server's
+     *    own URLs replace whatever the client sent**, which is discarded unread. This is the case
+     *    the photo path takes, and after it `media_url` holds a value this process minted.
+     *  * Otherwise — a forward, a GIF or sticker off GIPHY's CDN, a client older than `mediaId`, or
+     *    an id that buys nothing — the client's string survives only if it sits on one of the
+     *    origins this deployment publishes media from.
+     *
+     * A URL that is neither is refused, and refused here rather than at the controller so both
+     * transports get it: the WebSocket frame and the REST fallback are the same use case.
+     *
+     * What this does not claim: for the second case the URL is still a string a client wrote, and
+     * "on an allowed origin" is weaker than "this sender's blob". It is as strong as a forward can
+     * be — forwarding deliberately carries no id, because claiming the original sender's blob would
+     * hand the forwarder the power to destroy it (#541) — and it closes every harm in #679, all of
+     * which need the *sender* to own the server the recipient's phone is made to talk to.
+     */
+    private fun vetMediaAttachment(command: SendMessageCommand): SendMessageCommand {
+        if (command.mediaUrl == null && command.thumbnailUrl == null && command.mediaId == null) {
+            return command
+        }
+
+        val resolved = command.mediaId?.let { mediaAttachmentPolicy.resolveOwnUpload(it, command.senderId) }
+
+        // The thumbnail falls back to the client's value when the blob has none of its own — a voice
+        // note or a document has no thumbnail row — and that fallback is checked like any other
+        // client string rather than trusted because its sibling resolved.
+        return command.copy(
+            mediaUrl = resolved?.mediaUrl ?: requireAllowedOrigin(command.mediaUrl),
+            thumbnailUrl = resolved?.thumbnailUrl ?: requireAllowedOrigin(command.thumbnailUrl)
+        )
+    }
+
+    private fun requireAllowedOrigin(url: String?): String? {
+        if (url == null) return null
+        if (!mediaAttachmentPolicy.isAllowedOrigin(url)) {
+            throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+        }
+        return url
+    }
 
     private fun persistSend(command: SendMessageCommand): SendOutcome {
         // Validate content
@@ -465,7 +520,7 @@ open class MessageService(
         val editedAt = Instant.now()
 
         // `updateContent` is the *second* way message content reaches a recipient, and guarding only
-        // `sendMessage` left it open: for EDIT_WINDOW_MINUTES after their last pre-block message, a
+        // `sendMessage` left it open: for the edit window after their last pre-block message, a
         // blocked sender could rewrite it to anything and MessageEdited would push the new text into
         // the blocker's open chat — repeatedly, on the same message. Same silence as the send path:
         // the caller is told it worked, nothing is written and nothing is broadcast.

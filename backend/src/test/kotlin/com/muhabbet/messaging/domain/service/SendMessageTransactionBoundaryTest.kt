@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.FailingTransactionRunner
 import com.muhabbet.shared.InlineTransactionRunner
+import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -74,6 +75,7 @@ class SendMessageTransactionBoundaryTest {
         userDirectory = userDirectory,
         readReceiptPolicy = readReceiptPolicy,
         blockPolicy = blockPolicy,
+            mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
         transactions = transactions
     )
 
