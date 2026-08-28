@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
@@ -80,7 +81,8 @@ class GroupServiceTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             messageBroadcaster = messageBroadcaster,
-            blockPolicy = blockPolicy
+            blockPolicy = blockPolicy,
+            transactions = InlineTransactionRunner()
         )
     }
 
