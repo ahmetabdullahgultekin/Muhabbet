@@ -1,3 +1,21 @@
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# THIS FILE DOES NOT DEPLOY. Editing it changes nothing in production.
+#
+# It is the LEGACY nginx stack: its own postgres, redis and minio, no Traefik labels, service
+# named `backend`, container names muhabbet-postgres/-redis/-minio. What actually runs is the
+# REPO-ROOT docker-compose.prod.yml — Traefik labels, service `muhabbet-backend`, and the shared
+# `shared-postgres` / `shared-redis` / `shared-minio` containers.
+#
+# Believing otherwise caused the 2026-08-11 login outage: the app was pinned to a host that only
+# this file mentions. Confirm which file a running container came from before trusting either:
+#
+#     docker inspect muhabbet-backend --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+#
+# Kept, and kept correct, because it is the template the shared stack was derived from — a bad
+# pattern left here is a bad pattern that gets copied. The Redis change below (#448) is exactly
+# that: it fixes the pattern, NOT the running `shared-redis`, which is defined outside this
+# repository. See infra/redis.conf.example for how to apply it to the container that does run.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
 version: '3.9'
 
 services:
@@ -96,19 +114,34 @@ services:
       - muhabbet-net
 
   # ─── Redis ────────────────────────────────
+  #
+  # The password is NOT passed on the command line (#448). It used to be:
+  #
+  #     command: redis-server --requirepass ${REDIS_PASSWORD} ...
+  #     healthcheck: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+  #
+  # Compose interpolates those at parse time, so the plaintext password is baked into the
+  # container's stored configuration and comes straight back out of `docker inspect` — which on
+  # the production host the `deploy` user can run, and the self-hosted CI runner IS that host
+  # executing code from pull requests. Measured with a dummy value: the old form put the secret
+  # in three places in `docker inspect` output (.Config.Cmd and twice in .Config.Healthcheck),
+  # the form below puts it in zero.
+  #
+  # `environment:` is NOT a fix for this and must not be substituted — it lands the value in
+  # .Config.Env, which `docker inspect` prints just as readily. Only keeping the secret in a file
+  # the container reads at runtime removes it from the container's configuration. Redis masks its
+  # own argv (`ps` shows `redis-server *:6379`), so Docker's stored config was the entire leak.
+  #
+  # The conf file is deliberately NOT in this repository: create it from infra/redis.conf.example,
+  # which carries the ownership and rotation steps. It must be readable by the container's redis
+  # user (uid 999) — `chmod 400` owned by root crash-loops the container on
+  # "Fatal error, can't open config file ... Permission denied".
   redis:
     image: redis:7-alpine
     container_name: muhabbet-redis
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --timeout 600
-      --tcp-keepalive 300
-      --databases 2
-      --lazyfree-lazy-eviction yes
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis_data:/data
     deploy:
       resources:
@@ -118,8 +151,15 @@ services:
         reservations:
           cpus: '0.1'
           memory: 128M
+    # Credential-free liveness check. A password-protected Redis answers an unauthenticated PING
+    # with "NOAUTH Authentication required", which proves the server is up and accepting
+    # connections just as well as a PONG does — and needs no secret to do it. Verified against a
+    # real container: exit 0 while the server is up, exit 1 once it is not.
+    #
+    # The point is that the old form ran `redis-cli -a <password>` as a real process every 10
+    # seconds for the life of the container, on top of storing it in .Config.Healthcheck.
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -qE 'PONG|NOAUTH'"]
       interval: 10s
       timeout: 5s
       retries: 5

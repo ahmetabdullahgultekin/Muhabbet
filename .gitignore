@@ -68,3 +68,10 @@ node_modules/
 coverage/
 test-results/
 jacoco/
+
+# ─── Secrets held in config files (#448) ──
+# The Redis password lives in a conf file the container reads at runtime, not in `--requirepass`
+# on the command line, because Compose bakes an interpolated flag into the container config where
+# `docker inspect` prints it back. The filled-in file must never be committed; the template that
+# documents it is infra/redis.conf.example.
+redis.conf
