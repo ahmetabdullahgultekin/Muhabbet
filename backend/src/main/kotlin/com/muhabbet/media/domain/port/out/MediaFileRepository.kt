@@ -8,4 +8,10 @@ interface MediaFileRepository {
     fun findById(id: UUID): MediaFile?
     fun sumSizeByUploaderAndContentTypePrefix(uploaderId: UUID, prefix: String): Long
     fun countByUploaderAndContentTypePrefix(uploaderId: UUID, prefix: String): Long
+
+    /**
+     * Forgets a media object's metadata once its bytes are gone (#541). Idempotent — deleting a row
+     * that is not there is not an error, because the burn path may be retried.
+     */
+    fun deleteById(id: UUID)
 }

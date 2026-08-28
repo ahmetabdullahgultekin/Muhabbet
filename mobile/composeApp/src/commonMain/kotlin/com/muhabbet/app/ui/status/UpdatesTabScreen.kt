@@ -51,6 +51,8 @@ import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.app.ui.contacts.rememberContactNames
+import com.muhabbet.app.ui.conversations.resolveName
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -71,6 +73,7 @@ import com.muhabbet.composeapp.generated.resources.unknown_person
 import com.muhabbet.composeapp.generated.resources.updates_recent
 import com.muhabbet.composeapp.generated.resources.updates_status_meta
 import com.muhabbet.composeapp.generated.resources.updates_title
+import com.muhabbet.shared.dto.StatusResponse
 import com.muhabbet.shared.dto.UserStatusGroup
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.pluralStringResource
@@ -101,6 +104,12 @@ fun UpdatesTabScreen(
     tokenStorage: TokenStorage = koinInject()
 ) {
     var statusGroups by remember { mutableStateOf<List<UserStatusGroup>>(emptyList()) }
+    // Your own statuses, which are NOT in `statusGroups` and cannot be: the contacts query filters
+    // `m.userId != :userId`, so the poster is structurally excluded from the audience it describes
+    // (#588). `GET /api/v1/statuses/me` is the reader for the other half; until now it had no
+    // caller anywhere in the app, so the one person guaranteed to care whether a status went out
+    // was the one person who could not see that it had.
+    var myStatuses by remember { mutableStateOf<List<StatusResponse>>(emptyList()) }
     var displayNameByUserId by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var avatarByUserId by remember { mutableStateOf<Map<String, String?>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -132,6 +141,7 @@ fun UpdatesTabScreen(
     val retryLabel = stringResource(Res.string.action_retry)
     val settingsTitle = stringResource(Res.string.settings_title)
     val unknownPersonLabel = stringResource(Res.string.unknown_person)
+    val contactNames = rememberContactNames()
 
     suspend fun loadUpdates() {
         isLoading = true
@@ -147,6 +157,16 @@ fun UpdatesTabScreen(
             errorMessage = loadFailed
         }
 
+        // Separate from the contacts load and deliberately absorbed, for the same reason the name
+        // refinement below is: an outage of one of the two lists should not replace a working
+        // Updates tab with a full-screen error. An empty own-list degrades to exactly the
+        // add-a-status row this screen has always shown.
+        runCatchingCancellable { myStatuses = statusRepository.getMyStatuses() }
+            .onFailure { e ->
+                Log.w(TAG, "Own statuses unavailable: ${e.message}")
+                myStatuses = emptyList()
+            }
+
         // Separate from the load above, and deliberately absorbed. This call only refines names and
         // avatars for statuses that have already arrived; sharing one catch meant a failure here
         // replaced a perfectly good Updates tab with a full-screen "statuses could not be loaded".
@@ -160,7 +180,10 @@ fun UpdatesTabScreen(
             // No user-id fallback: a participant we cannot name contributes no entry, so the
             // caller falls through to the server's name and then to a plain "unknown contact".
             displayNameByUserId = participants.mapNotNull { (id, participant) ->
-                (participant.displayName ?: participant.phoneNumber)?.let { id to it }
+                // The order lives in ParticipantResponse.resolveName. Spelled out here it lacked
+                // the address-book rung, so a status author you have saved under a name of your
+                // own showed up as their phone number (#549).
+                participant.resolveName(contactNames)?.let { id to it }
             }.toMap()
             avatarByUserId = participants.mapValues { (_, participant) -> participant.avatarUrl }
         }.onFailure { e -> Log.w(TAG, "Status author names unavailable: ${e.message}") }
@@ -296,6 +319,25 @@ fun UpdatesTabScreen(
                         .padding(padding)
                 ) {
                     item(key = "my_status") {
+                        // Two affordances, because there are two things to do with your own
+                        // status and until #588 the row only offered one of them. With nothing
+                        // posted the whole row composes, exactly as before. With something
+                        // posted the row *views* — that is how you confirm the thing went out,
+                        // and the only way into the viewer where it can be deleted — and the
+                        // trailing button, a full 48dp target rather than the 20dp badge,
+                        // composes another.
+                        val hasMyStatuses = myStatuses.isNotEmpty()
+                        val latestMine = myStatuses.maxOfOrNull { it.createdAt } ?: 0L
+                        val mySubtitle = if (hasMyStatuses) {
+                            pluralStringResource(
+                                Res.plurals.updates_status_meta,
+                                myStatuses.size,
+                                myStatuses.size,
+                                DateTimeFormatter.formatTime(latestMine)
+                            )
+                        } else {
+                            statusAdd
+                        }
                         val myStatusShape = RoundedCornerShape(MuhabbetCorners.Bubble)
                         Surface(
                             shape = myStatusShape,
@@ -303,7 +345,13 @@ fun UpdatesTabScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Small)
-                                .pressable(shape = myStatusShape) { showStatusInput = true }
+                                .pressable(shape = myStatusShape) {
+                                    if (hasMyStatuses && currentUserId != null) {
+                                        onStatusClick(currentUserId, myDisplayName)
+                                    } else {
+                                        showStatusInput = true
+                                    }
+                                }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -311,26 +359,37 @@ fun UpdatesTabScreen(
                                     .padding(MuhabbetSpacing.Large),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box {
+                                Box(
+                                    modifier = if (hasMyStatuses) {
+                                        // The same copper ring every contact with an unseen story
+                                        // gets. Without it "you have posted" and "you have not"
+                                        // are the same row.
+                                        Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                    } else {
+                                        Modifier
+                                    }
+                                ) {
                                     UserAvatar(
                                         avatarUrl = myAvatarUrl,
                                         displayName = myDisplayName,
                                         size = MuhabbetSizes.AvatarMedium
                                     )
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .size(20.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Muhabbet.icons.Add,
-                                                contentDescription = statusAdd,
-                                                tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(14.dp)
-                                            )
+                                    if (!hasMyStatuses) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .size(MuhabbetSizes.IconMedium)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Muhabbet.icons.Add,
+                                                    contentDescription = statusAdd,
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                                    modifier = Modifier.size(MuhabbetSizes.IconStatusTick)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -342,9 +401,16 @@ fun UpdatesTabScreen(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = statusAdd,
+                                        text = mySubtitle,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (hasMyStatuses) {
+                                    MuhabbetIconButton(
+                                        icon = Muhabbet.icons.Add,
+                                        contentDescription = statusAdd,
+                                        onClick = { showStatusInput = true }
                                     )
                                 }
                             }

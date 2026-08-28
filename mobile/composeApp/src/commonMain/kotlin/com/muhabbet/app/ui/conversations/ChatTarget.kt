@@ -66,7 +66,7 @@ fun ConversationResponse.toChatTarget(
         // A group falls straight to the fallback rather than to a member's name. Titling a group
         // with whichever member happened to sort first is the wrong identity, not a shorter one.
         name = name?.ifBlank { null }
-            ?: (if (isGroup) null else other?.label(contactNames))
+            ?: (if (isGroup) null else other?.resolveName(contactNames))
             ?: fallbackName,
         otherUserId = if (isGroup) null else other?.userId,
         isGroup = isGroup,
@@ -86,9 +86,11 @@ fun ConversationResponse.toChatTarget(
 fun ConversationResponse.senderLabel(
     senderId: String,
     contactNames: Map<String, String> = emptyMap()
-): String? = participants.firstOrNull { it.userId == senderId }?.label(contactNames)
+): String? = participants.firstOrNull { it.userId == senderId }?.resolveName(contactNames)
 
 /**
+ * **The resolution order. One definition, and the only one.**
+ *
  * Address-book name, then the name they chose, then their number.
  *
  * The address book wins because it is what the user themselves wrote down, and a display name is
@@ -98,8 +100,16 @@ fun ConversationResponse.senderLabel(
  * Blank is treated as absent at every rung. The server validates `displayName` with `isNotBlank()`,
  * so `""` should never arrive — but "should never arrive" is the assumption this whole change exists
  * to stop relying on, and a `?:` chain happily carries an empty string all the way to the title bar.
+ *
+ * Public since #549, and public only so that the surfaces that name a *person* rather than a
+ * conversation — the stories strip, the Updates tab, the contact-share picker — can call this
+ * instead of writing the chain out again. Four of them had, and no two agreed on where it ended.
+ * If you are naming a **conversation**, use [toChatTarget]: it knows that a group is called by its
+ * own name and never by a member's, which this cannot.
+ *
+ * Null when nothing is known. Deliberately not collapsed to a constant here — see [senderLabel].
  */
-private fun ParticipantResponse.label(contactNames: Map<String, String>): String? =
+fun ParticipantResponse.resolveName(contactNames: Map<String, String> = emptyMap()): String? =
     phoneNumber?.let { contactNames[it] }?.ifBlank { null }
         ?: displayName?.ifBlank { null }
         ?: phoneNumber?.ifBlank { null }

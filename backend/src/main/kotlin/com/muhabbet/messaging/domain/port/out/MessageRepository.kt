@@ -74,4 +74,29 @@ interface MessageRepository {
      */
     fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message>
     fun markAsDelivered(messageId: UUID)
+
+    // Disappearing messages
+
+    /**
+     * Disappearing messages whose deadline has passed and which are not already deleted, oldest
+     * first, at most [limit] of them.
+     *
+     * Bounded for the same reason [findScheduledMessagesReadyToSend] is: the sweep runs on a
+     * `fixedDelay` schedule, so an unbounded backlog turns one run into a long one and delays every
+     * run behind it. The leftovers are picked up by the next sweep in the same order.
+     *
+     * On the out-port rather than only on the Spring Data interface because the sweep now has to do
+     * more than mutate rows — it has to tell the connected members, which is domain work. The job
+     * that used to reach straight into the JPA repository from `adapter.in.scheduler` could not.
+     */
+    fun findExpiredMessages(now: Instant, limit: Int): List<Message>
+
+    /**
+     * Marks [messageIds] deleted as of [deletedAt], returning how many rows actually changed.
+     *
+     * One statement for the batch, not one per message: the sweep can legitimately have a few
+     * hundred rows due at once, and [softDelete] in a loop is how a background job quietly becomes
+     * the most expensive thing on the database.
+     */
+    fun softDeleteExpired(messageIds: List<UUID>, deletedAt: Instant): Int
 }

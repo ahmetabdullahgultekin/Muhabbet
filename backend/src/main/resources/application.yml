@@ -111,9 +111,23 @@ management:
         # if the ranking is ever inverted.
         order: DOWN,OUT_OF_SERVICE,UP,MEDIA_UNAVAILABLE,UNKNOWN
         http-mapping:
-          # Explicit rather than inherited. The default mapper answers 200 for anything that is not
-          # DOWN or OUT_OF_SERVICE, so this is belt and braces — but the deploy gate reads nothing
-          # except this number, and it should not depend on a default.
+          # This block REPLACES the built-in mapping, it does not extend it — which is the opposite
+          # of the `order` list above, and the reason DOWN and OUT_OF_SERVICE have to be written out
+          # here even though both are Spring defaults. HttpCodeStatusMapper.of() falls back to
+          # SimpleHttpCodeStatusMapper.DEFAULT_MAPPINGS only when this map is EMPTY; give it any
+          # entry at all and the lookup becomes getOrDefault(code, 200) over these entries alone.
+          #
+          # So listing MEDIA_UNAVAILABLE by itself silently dropped DOWN -> 503, and /actuator/health
+          # answered 200 with a body saying DOWN. Both gates read the status code and nothing else
+          # (`curl -sf` in deploy-hetzner.yml, `curl -f` in the compose healthcheck, both piped to
+          # /dev/null), so a release with a dead database would have passed the gate that exists to
+          # catch precisely that, and the container would have kept being reported healthy.
+          # HealthHttpStatusMappingTest drives the real mapper with this block and fails if either
+          # failure mapping goes missing again.
+          DOWN: 503
+          OUT_OF_SERVICE: 503
+          # 200 is also what an unlisted status would get; stated explicitly because it is a
+          # decision (#494) and not a fallback — a MinIO outage must not fail a deploy.
           MEDIA_UNAVAILABLE: 200
   metrics:
     tags:

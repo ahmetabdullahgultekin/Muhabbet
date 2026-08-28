@@ -11,6 +11,11 @@
     <string name="error_load_conversations">Konuşmalar yüklenemedi</string>
     <string name="error_load_messages">Mesajlar yüklenemedi</string>
     <string name="error_send_failed">Mesaj gönderilemedi</string>
+    <!-- Why a message the server refused did not go out (#572). One sentence per cause the sender
+         can actually do something about; anything else keeps error_send_failed above. -->
+    <string name="error_send_too_long">Mesaj çok uzun. Kısaltıp tekrar deneyin.</string>
+    <string name="error_send_not_member">Artık bu konuşmanın üyesi değilsiniz</string>
+    <string name="error_send_announcement_only">Bu grupta sadece yöneticiler mesaj gönderebilir</string>
     <string name="cancel">İptal</string>
     <string name="save">Kaydet</string>
     <string name="delete">Sil</string>
@@ -266,6 +271,10 @@
     <string name="status_post">Paylaş</string>
     <string name="status_no_statuses">Durum bulunamadı</string>
     <string name="status_load_failed">Durumlar yüklenemedi</string>
+    <string name="status_delete">Durumu sil</string>
+    <string name="status_delete_confirm">Bu durum kaldırılsın mı? Bu işlem geri alınamaz.</string>
+    <string name="status_delete_failed">Durum silinemedi</string>
+    <string name="status_image_description">Durum fotoğrafı</string>
     <string name="updates_title">Güncellemeler</string>
     <string name="updates_recent">Son güncellemeler</string>
     <!-- tr does have a CLDR 'one' category, but takes no plural suffix after a numeral, so both forms are identical on purpose. -->
@@ -654,6 +663,7 @@
     <string name="communities_title">Topluluklar</string>
     <string name="community_create">Topluluk Oluştur</string>
     <string name="community_name_hint">Topluluk adı</string>
+    <string name="community_name_taken">Bu isimde bir topluluğunuz zaten var</string>
     <string name="community_description_hint">Açıklama (isteğe bağlı)</string>
     <string name="community_announcements">Duyurular</string>
     <string name="community_groups">Gruplar</string>

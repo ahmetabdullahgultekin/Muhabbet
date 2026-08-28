@@ -1,5 +1,6 @@
 package com.muhabbet.shared.dto
 
+import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MemberRole
 import kotlinx.serialization.Serializable
@@ -123,6 +124,20 @@ data class ConversationResponse(
     val avatarUrl: String? = null,
     val participants: List<ParticipantResponse>,
     val lastMessagePreview: String? = null,
+    /**
+     * What kind of thing the last message was, so the viewer's device can name it.
+     *
+     * [lastMessagePreview] is the message body, and for a photo, a voice note, a GIF or a sticker
+     * there is no body worth showing — so the app used to send the *word* "Photo" as the body and
+     * the list rendered it verbatim (#534). That froze the label in whatever language the sender's
+     * phone was set to on the day they sent it: wrong for the recipient immediately, wrong for the
+     * sender the moment they switched language, and unfixable from the reading end.
+     *
+     * With the type on the wire the label is a `stringResource` chosen at draw time, which is the
+     * only place that knows who is looking. Nullable and defaulted so an older server that omits it
+     * still deserializes; the client then falls back to [lastMessagePreview] exactly as before.
+     */
+    val lastMessageContentType: ContentType? = null,
     val lastMessageAt: String? = null,
     val unreadCount: Int,
     val createdAt: String,
@@ -166,6 +181,31 @@ data class UpdateGroupRequest(
 @Serializable
 data class UpdateRoleRequest(
     val role: MemberRole
+)
+
+/**
+ * Body of `PUT /api/v1/conversations/{id}/announcement`.
+ *
+ * Shared rather than declared privately on each side, which is the whole point of it existing
+ * (#509). The group screen used to PATCH `{"announcementOnly": true}` at the *update-group* route,
+ * whose body is [UpdateGroupRequest] and has no such field; `ignoreUnknownKeys` dropped it and the
+ * server answered 200. A switch that turns a group read-only appeared to work and did not, and the
+ * failure was in the permissive direction — nobody finds out until the group is spammed. With one
+ * declaration compiled into both halves, that particular drift cannot recur silently.
+ */
+@Serializable
+data class SetAnnouncementModeRequest(
+    val enabled: Boolean
+)
+
+/**
+ * What the server actually stored, echoed back so the switch renders server truth rather than the
+ * caller's optimistic guess. The old client flipped before the request and reverted on throw; a
+ * permission control has to be able to say "on" only because the server says so.
+ */
+@Serializable
+data class AnnouncementModeResponse(
+    val announcementOnly: Boolean
 )
 
 // ─── Message Management DTOs ─────────────────────────────
@@ -603,18 +643,29 @@ data class RsvpRequest(val status: String)  // GOING, NOT_GOING, MAYBE
 // ─── View-Once DTOs ─────────────────────────────────────
 
 /**
- * The one-time release of a view-once message's media.
+ * The one-time release of a view-once message's media, and the **only** response in the API that
+ * carries it — every list, search, media-grid and socket payload nulls it.
  *
- * Returned by `POST /api/v1/messages/{messageId}/view-once`, which is the **only** response in the
- * API that carries a view-once blob URL — every list, search, media-grid and socket payload nulls
- * it. The call burns the message in the same transaction that reads it, so a second caller (or a
- * second tap) gets `MSG_VIEW_ONCE_ALREADY_VIEWED` and no URL.
+ * Returned by `POST /api/v1/messages/{messageId}/view-once`, which burns the message in the same
+ * transaction that reads it, so a second caller (or a second tap) gets
+ * `MSG_VIEW_ONCE_ALREADY_VIEWED` and nothing else.
  *
- * Replaced a `ViewOnceStatusResponse` that had no producer and no consumer.
+ * [mediaBase64] rather than a URL, since #541. A presigned URL needs no credential — the URL *is*
+ * the credential — and the one stored on the message was minted with a seven-day expiry, so
+ * "burning" the message hid it from every screen and left the bytes fetchable for the rest of the
+ * week by anyone holding the string. The bytes now come back inline, in the same response that
+ * deletes the object, so there is no URL left to keep and nothing behind it to fetch.
+ *
+ * [mediaUrl] survives for messages sent **before** that change: they carry no media reference, so
+ * their blob cannot be found and cannot be destroyed, and returning the stored URL is the honest
+ * best available answer rather than showing the recipient nothing. Clients should prefer
+ * [mediaBase64] and fall back.
  */
 @Serializable
 data class ViewOnceRevealResponse(
     val messageId: String,
+    val mediaBase64: String? = null,
+    val mediaContentType: String? = null,
     val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
     val viewedAt: Long

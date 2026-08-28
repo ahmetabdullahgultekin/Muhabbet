@@ -3,6 +3,7 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
@@ -274,6 +275,54 @@ class ConversationServiceTest {
             assertEquals(2, page.items.size)
             assertEquals("Newer msg", page.items[0].lastMessagePreview)
             assertEquals("Older msg", page.items[1].lastMessagePreview)
+        }
+
+        /**
+         * #534: the summary carried only the message *body*, and for a photo the app had written
+         * the word "Photo" into that body — resolved from a `stringResource` on the sending device,
+         * in the sending device's language, and then stored on the server forever. The reading
+         * device had no way to name the message for itself because it was never told what the
+         * message was. Now it is, and the label is drawn locally.
+         */
+        @Test
+        fun `should report the last message content type so the reader can name it`() {
+            val convId = UUID.randomUUID()
+            val now = Instant.now()
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns
+                listOf(Conversation(id = convId, type = ConversationType.DIRECT))
+            every { messageRepository.getLastMessages(any()) } returns mapOf(
+                convId to Message(
+                    id = UUID.randomUUID(), conversationId = convId, senderId = userB,
+                    contentType = ContentType.IMAGE, content = "Fotoğraf",
+                    serverTimestamp = now, clientTimestamp = now
+                )
+            )
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(ConversationMember(conversationId = convId, userId = userA))
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertEquals(ContentType.IMAGE, page.items[0].lastMessageContentType)
+        }
+
+        @Test
+        fun `should report no content type when the conversation has no messages yet`() {
+            val convId = UUID.randomUUID()
+
+            every { conversationRepository.findConversationsByUserId(userA) } returns
+                listOf(Conversation(id = convId, type = ConversationType.DIRECT))
+            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
+            every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
+                convId to listOf(ConversationMember(conversationId = convId, userId = userA))
+            )
+
+            val page = conversationService.getConversations(userA, null, 20)
+
+            assertNull(page.items[0].lastMessageContentType)
         }
 
         @Test

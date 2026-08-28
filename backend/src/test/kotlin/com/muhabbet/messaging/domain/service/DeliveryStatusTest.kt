@@ -402,6 +402,85 @@ class DeliveryStatusTest {
         verify(exactly = 1) { conversationRepository.updateLastReadAt(conversationId, readerId, any()) }
     }
 
+    // ─── Message Info: the third publish path (#620) ─────────
+    //
+    // updateStatus downgrades the live WS broadcast and resolveDeliveryStatuses downgrades the
+    // history aggregate. "Info" names each recipient individually and used to print the stored row
+    // verbatim, so a reader with receipts off still showed up under "Read by", with the time they
+    // opened the message. The switch promises "others won't see when you read their messages" —
+    // these three tests are what makes that sentence true rather than nearly true.
+
+    @Test
+    fun `message info publishes DELIVERED and no timestamp for a recipient who disabled read receipts`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val optedOut = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+        val readAt = Instant.now()
+
+        every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(message.conversationId, senderId) } returns
+            ConversationMember(message.conversationId, senderId)
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, optedOut, DeliveryStatus.READ, readAt)
+        )
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns setOf(optedOut)
+
+        val recipient = service.getMessageInfo(messageId, senderId).recipients.single()
+
+        assertEquals(DeliveryStatus.DELIVERED, recipient.status)
+        // The row carries one updated_at, which the READ overwrote. Publishing it beside a
+        // DELIVERED would hand the sender the read time under a different label.
+        assertNull(recipient.updatedAt)
+    }
+
+    @Test
+    fun `message info keeps READ and its timestamp for a recipient with read receipts enabled`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+        val readAt = Instant.now()
+
+        every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(message.conversationId, senderId) } returns
+            ConversationMember(message.conversationId, senderId)
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, recipientId, DeliveryStatus.READ, readAt)
+        )
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
+
+        val recipient = service.getMessageInfo(messageId, senderId).recipients.single()
+
+        assertEquals(DeliveryStatus.READ, recipient.status)
+        assertEquals(readAt, recipient.updatedAt)
+    }
+
+    @Test
+    fun `message info shows the requester their own true READ status even with receipts disabled`() {
+        // A group member opening Info on someone else's message appears in the recipient list.
+        // The setting governs what others are told about you, not what you are told about
+        // yourself — the same rule resolveDeliveryStatuses already applies.
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val requesterId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+        val readAt = Instant.now()
+
+        every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(message.conversationId, requesterId) } returns
+            ConversationMember(message.conversationId, requesterId)
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, requesterId, DeliveryStatus.READ, readAt)
+        )
+        every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns setOf(requesterId)
+
+        val recipient = service.getMessageInfo(messageId, requesterId).recipients.single()
+
+        assertEquals(DeliveryStatus.READ, recipient.status)
+        assertEquals(readAt, recipient.updatedAt)
+    }
+
     private fun createMessage(id: UUID, senderId: UUID) = Message(
         id = id,
         conversationId = UUID.randomUUID(),

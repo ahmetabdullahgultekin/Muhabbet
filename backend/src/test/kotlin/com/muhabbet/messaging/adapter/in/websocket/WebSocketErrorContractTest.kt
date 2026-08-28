@@ -1,13 +1,11 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
-import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
-import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
-import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
@@ -56,11 +54,13 @@ class WebSocketErrorContractTest {
         updateDeliveryStatusUseCase = mockk<UpdateDeliveryStatusUseCase>(relaxed = true),
         conversationRepository = mockk<ConversationRepository>(relaxed = true),
         presencePort = mockk<PresencePort>(relaxed = true),
-        userRepository = mockk<UserRepository>(relaxed = true),
-        callSignalingService = mockk<CallSignalingService>(relaxed = true),
-        callRoomProvider = mockk<CallRoomProvider>(relaxed = true),
+        recordLastSeenUseCase = mockk<RecordLastSeenUseCase>(relaxed = true),
+        callFrameHandler = mockk<CallFrameHandler>(relaxed = true),
         webSocketRateLimiter = rateLimiter,
-        blockPolicy = mockk<BlockPolicyPort>(relaxed = true)
+        presenceVisibility = PresenceVisibility(
+            mockk<BlockPolicyPort>(relaxed = true),
+            mockk<ConversationRepository>(relaxed = true)
+        )
     )
 
     @BeforeEach
@@ -140,12 +140,29 @@ class WebSocketErrorContractTest {
         // handleTypingIndicator parses a client-supplied id with no guard of its own. Before the
         // top-level catch, the IllegalArgumentException escaped into the container and the socket
         // was closed — a typing indicator cost the user their chat.
+        //
+        // The code it answers with used to be INTERNAL_ERROR, because IllegalArgumentException is
+        // not a BusinessException and fell to the catch-all. That is the same flattening #572 is
+        // about, one layer down: nothing on the server broke, and a retry of an id that is not a
+        // UUID will fail forever.
         val sent = send(
             WsMessage.TypingIndicator(conversationId = "not-a-uuid", isTyping = true)
         )
 
         verify(exactly = 0) { session.close(any()) }
         val error = wsJson.decodeFromString<WsMessage>(sent.single()) as WsMessage.Error
-        assertEquals(ErrorCode.INTERNAL_ERROR.name, error.code)
+        assertEquals(ErrorCode.VALIDATION_ERROR.name, error.code)
+    }
+
+    @Test
+    fun `should answer a malformed message id with a validation code and not attempt the send`() {
+        // The send path's own version of the same thing, and the one that reaches the sender as an
+        // ack rather than a bare error: a malformed id must be distinguishable from "the database
+        // is down", because only one of the two is worth retrying.
+        val sent = send(sendMessageFrame().copy(messageId = "not-a-uuid"))
+
+        val ack = ackOf(sent.single())
+        assertEquals(ErrorCode.VALIDATION_ERROR.name, ack.errorCode)
+        verify(exactly = 0) { sendMessageUseCase.sendMessage(any()) }
     }
 }

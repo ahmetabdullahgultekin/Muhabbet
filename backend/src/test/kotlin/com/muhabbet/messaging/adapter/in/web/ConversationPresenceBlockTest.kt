@@ -13,6 +13,7 @@ import com.muhabbet.shared.TestData
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -83,6 +84,7 @@ class ConversationPresenceBlockTest {
                     name = null,
                     avatarUrl = null,
                     lastMessagePreview = null,
+                    lastMessageContentType = null,
                     lastMessageAt = null,
                     unreadCount = 0,
                     participantIds = listOf(me, other)
@@ -115,6 +117,22 @@ class ConversationPresenceBlockTest {
     @Test
     fun `should withhold the online dot for a participant who has blocked the viewer`() {
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns setOf(other)
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
+
+        assertFalse(otherParticipantIsOnline())
+    }
+
+    /**
+     * The direction this endpoint never covered (#711).
+     *
+     * A block is not a request to be less visible; it is a request to be done with someone. Asking
+     * only "who has blocked me" left the person who pressed Block watching their blocked contact's
+     * dot in the chat list every day — the half they were actually asking for.
+     */
+    @Test
+    fun `should withhold the online dot for a participant the viewer has blocked`() {
+        every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns setOf(other)
 
         assertFalse(otherParticipantIsOnline())
     }
@@ -122,6 +140,7 @@ class ConversationPresenceBlockTest {
     @Test
     fun `should show the online dot when no one has blocked the viewer`() {
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
 
         assertTrue(otherParticipantIsOnline())
     }
@@ -131,10 +150,24 @@ class ConversationPresenceBlockTest {
         // The viewer is filtered out before the query: asking whether you have blocked yourself is
         // meaningless, and leaving yourself in would hide your own dot from your own chat list.
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
 
         val page = controller.getConversations(null, 20).body?.data
         val self = page?.items?.single()?.participants?.single { it.userId == me.toString() }
 
         assertEquals(true, self?.isOnline)
+    }
+
+    @Test
+    fun `should ask each direction once for the whole page rather than once per participant`() {
+        // Contract, not decoration: this is the app's busiest call, and either direction resolved
+        // per row would be an N+1 on the screen users open first.
+        every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
+
+        controller.getConversations(null, 20)
+
+        verify(exactly = 1) { blockPolicy.findBlockedBy(me, listOf(other)) }
+        verify(exactly = 1) { blockPolicy.findBlockedAmong(me, listOf(other)) }
     }
 }

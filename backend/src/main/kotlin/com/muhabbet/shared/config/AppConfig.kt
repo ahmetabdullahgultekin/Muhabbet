@@ -14,12 +14,14 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
 import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
+import com.muhabbet.auth.domain.service.LastSeenService
 import com.muhabbet.auth.domain.service.LoginApprovalService
 import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.media.domain.port.out.ThumbnailPort
+import com.muhabbet.media.domain.service.MediaObjectService
 import com.muhabbet.media.domain.service.MediaService
 import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
@@ -31,6 +33,7 @@ import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
+import com.muhabbet.messaging.domain.port.out.MediaObjectPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
@@ -43,6 +46,7 @@ import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
+import com.muhabbet.messaging.domain.service.ViewOnceService
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
@@ -119,6 +123,18 @@ class AppConfig {
         otpQuotaPort = otpQuotaPort
     )
 
+    /**
+     * The transaction boundary for `last_seen_at` (#402). Declared as a bean like every other
+     * domain service so Spring proxies it — that proxy is the entire fix, because the WebSocket
+     * adapter that calls it has no transaction of its own and the write is a `@Modifying` query.
+     */
+    @Bean
+    fun lastSeenService(
+        userRepository: UserRepository
+    ): LastSeenService = LastSeenService(
+        userRepository = userRepository
+    )
+
     @Bean
     fun contactSyncService(
         phoneHashRepository: PhoneHashRepository,
@@ -177,6 +193,23 @@ class AppConfig {
         transactions = transactions
     )
 
+    /**
+     * Opening a view-once message, kept out of [messageService] (#541). It is the one message
+     * operation that reaches into object storage and the one that destroys something, and giving
+     * it its own service means the class that handles every text message sent does not carry a
+     * media dependency it never uses.
+     */
+    @Bean
+    fun viewOnceService(
+        messageRepository: MessageRepository,
+        conversationRepository: ConversationRepository,
+        mediaObjects: MediaObjectPort
+    ): ViewOnceService = ViewOnceService(
+        messageRepository = messageRepository,
+        conversationRepository = conversationRepository,
+        mediaObjects = mediaObjects
+    )
+
     @Bean
     fun searchService(
         conversationRepository: ConversationRepository,
@@ -211,6 +244,21 @@ class AppConfig {
         thumbnailPort = thumbnailPort,
         thumbnailWidth = mediaProperties.thumbnailWidth,
         thumbnailHeight = mediaProperties.thumbnailHeight
+    )
+
+    /**
+     * The destructive half of the media module, kept out of [mediaService] on purpose (#541) —
+     * a class that both accepts uploads and deletes them invites an edit that does the second
+     * while meaning the first, and `MediaService` already implements the three use cases it is
+     * allowed.
+     */
+    @Bean
+    fun mediaObjectService(
+        mediaFileRepository: MediaFileRepository,
+        mediaStoragePort: MediaStoragePort
+    ): MediaObjectService = MediaObjectService(
+        mediaFileRepository = mediaFileRepository,
+        mediaStoragePort = mediaStoragePort
     )
 
     @Bean
@@ -257,9 +305,15 @@ class AppConfig {
 
     @Bean
     fun disappearingMessageService(
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        messageBroadcaster: MessageBroadcaster,
+        transactions: TransactionRunner
     ): DisappearingMessageService = DisappearingMessageService(
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        messageBroadcaster = messageBroadcaster,
+        transactions = transactions
     )
 
     @Bean

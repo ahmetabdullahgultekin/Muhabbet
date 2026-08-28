@@ -32,22 +32,7 @@ class WebSocketMessageBroadcaster(
         val senderDisplayName = userDirectory.findDisplayInfo(listOf(message.senderId))[message.senderId]?.displayName
         val conversation by lazy { conversationRepository.findById(message.conversationId) }
 
-        val wsMessage = WsMessage.NewMessage(
-            messageId = message.id.toString(),
-            conversationId = message.conversationId.toString(),
-            senderId = message.senderId.toString(),
-            senderName = senderDisplayName,
-            content = message.content,
-            contentType = com.muhabbet.shared.model.ContentType.valueOf(message.contentType.name),
-            replyToId = message.replyToId?.toString(),
-            // Sealed on the wire, not in the UI: a view-once frame names the flag and withholds the
-            // blob URL, which is released once by POST /messages/{id}/view-once. See MessageMapper.
-            mediaUrl = if (message.viewOnce) null else message.mediaUrl,
-            thumbnailUrl = if (message.viewOnce) null else message.thumbnailUrl,
-            serverTimestamp = message.serverTimestamp.toEpochMilli(),
-            forwardedFrom = message.forwardedFrom?.toString(),
-            viewOnce = message.viewOnce
-        )
+        val wsMessage = message.toNewMessageFrame(senderDisplayName)
 
         val json = wsJson.encodeToString<WsMessage>(wsMessage)
 

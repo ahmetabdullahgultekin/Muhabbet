@@ -191,4 +191,10 @@ class MessagePersistenceAdapter(
     override fun markAsDelivered(messageId: UUID) {
         messageRepo.markScheduledAsDelivered(messageId)
     }
+
+    override fun findExpiredMessages(now: Instant, limit: Int): List<Message> =
+        messageRepo.findExpiredMessages(now, PageRequest.of(0, limit)).map { it.toDomain() }
+
+    override fun softDeleteExpired(messageIds: List<UUID>, deletedAt: Instant): Int =
+        if (messageIds.isEmpty()) 0 else messageRepo.softDeleteExpired(messageIds, deletedAt)
 }

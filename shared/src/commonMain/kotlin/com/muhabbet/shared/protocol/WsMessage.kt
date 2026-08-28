@@ -31,6 +31,17 @@ sealed class WsMessage {
         val replyToId: String? = null,
         val mediaUrl: String? = null,
         val thumbnailUrl: String? = null,
+        /**
+         * The id returned by `POST /media/upload` for this message's blob (#541).
+         *
+         * [mediaUrl] renders the photo; this identifies the object behind it, so the server can
+         * destroy it when a view-once message is burned. Set it **only for a fresh upload by this
+         * device** — never carry it over when forwarding, where the blob belongs to whoever
+         * originally sent it. The server acts on it only after confirming the sender really was
+         * the object's uploader, so naming someone else's blob achieves nothing; it just means the
+         * photo cannot be destroyed and the seal falls back to its weaker form.
+         */
+        val mediaId: String? = null,
         val forwardedFrom: String? = null,  // original messageId if forwarded
         val viewOnce: Boolean = false,
         val scheduledAt: Long? = null        // epoch millis, null = send immediately
@@ -167,7 +178,41 @@ sealed class WsMessage {
         val thumbnailUrl: String? = null,
         val serverTimestamp: Long,           // epoch millis
         val forwardedFrom: String? = null,
-        val viewOnce: Boolean = false
+        val viewOnce: Boolean = false,
+        /**
+         * Epoch millis at which a disappearing message is due to vanish, null if it never is.
+         *
+         * The recipient builds their bubble from this frame, so without it a message that arrives
+         * while the chat is open can never be removed on time — which was half of #513. The other
+         * half is [MessageExpired], for the messages whose deadline passes while nothing is
+         * listening.
+         */
+        val expiresAt: Long? = null
+    ) : WsMessage()
+
+    /**
+     * Server tells every member that a disappearing message's time is up.
+     *
+     * Deliberately **not** [MessageDeleted]. A deletion is an act by a person, which is why that
+     * frame carries `deletedBy` and why clients render its result as a "this message was deleted"
+     * tombstone. An expiry is nobody's act and leaves no tombstone: the server drops the row from
+     * every read path, so a tombstone would sit there until the next reload and then silently
+     * disappear — the same "it only updates when you look away" complaint one level down.
+     *
+     * It exists alongside the client's own timer rather than instead of it, and each covers the
+     * other's blind spot. The timer is exact while the chat is open and needs no round trip; this
+     * frame is what removes a message whose deadline passed while the app was asleep or whose clock
+     * disagreed with the server's.
+     *
+     * A client too old to know this frame drops it in `WsClient`'s per-frame `catch` and carries on
+     * — it simply keeps the behaviour it has today.
+     */
+    @Serializable
+    @SerialName("message.expired")
+    data class MessageExpired(
+        val messageId: String,
+        val conversationId: String,
+        val expiredAt: Long
     ) : WsMessage()
 
     /** Server notifies sender about delivery status change */

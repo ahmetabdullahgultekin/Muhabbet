@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationRepository
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.designsystem.components.ConfirmDialog
@@ -282,7 +283,9 @@ private fun ArchivedConversationRow(
     onConversationLongClick: (ConversationResponse) -> Unit
 ) {
     val otherParticipant = conv.participants.firstOrNull { it.userId != currentUserId }
-    val target = conv.toChatTarget(currentUserId, defaultChatName)
+    // Archived chats are still chats: the same address-book-first resolution as the main list
+    // (#549), rather than the phone number this row used to fall to.
+    val target = conv.toChatTarget(currentUserId, defaultChatName, rememberContactNames())
     val isOtherOnline = otherParticipant?.isOnline ?: false
     ConversationItem(
         conversation = conv,

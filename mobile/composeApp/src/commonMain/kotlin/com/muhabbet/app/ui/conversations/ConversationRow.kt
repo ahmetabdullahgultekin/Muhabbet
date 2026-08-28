@@ -49,6 +49,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedVisibility
+import com.muhabbet.app.ui.components.conversationPreviewText
 import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -152,7 +153,12 @@ internal fun ConversationItem(
                     )
                 }
             }
-            val preview = conversation.lastMessagePreview
+            // Resolved from the content type, not read out of the stored body. The body for a photo
+            // held the word "Photo" in the *sender's* language, frozen at send time (#534).
+            val preview = conversationPreviewText(
+                conversation.lastMessageContentType,
+                conversation.lastMessagePreview
+            )
             if (preview != null) {
                 Text(
                     text = preview,

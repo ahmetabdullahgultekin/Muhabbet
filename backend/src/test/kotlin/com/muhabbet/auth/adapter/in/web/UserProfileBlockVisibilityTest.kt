@@ -70,6 +70,9 @@ class UserProfileBlockVisibilityTest {
 
         every { userRepository.findById(targetId) } returns target
         every { presencePort.isOnline(targetId) } returns true
+        // Neither direction by default; each test names the one it is about. Both are asked,
+        // because #711 was exactly the assumption that only one of them mattered.
+        every { blockDirectory.hasBlocked(any(), any()) } returns false
 
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
             JwtClaims(userId = requesterId, deviceId = UUID.randomUUID()),
@@ -105,10 +108,41 @@ class UserProfileBlockVisibilityTest {
         assertEquals("Target", profile?.displayName)
     }
 
+    /**
+     * The direction this endpoint never covered (#711).
+     *
+     * It asked only whether the *target* had blocked the caller, so the person who pressed Block
+     * went on reading their blocked contact's online state, last-seen stamp and about text from the
+     * profile screen. A block is a request to be done with someone, not a request to be less
+     * visible to them.
+     */
+    @Test
+    fun `should hide presence last seen and about from someone the requester has blocked`() {
+        every { blockDirectory.hasBlocked(requesterId, targetId) } returns true
+
+        val profile = controller.getUserById(targetId).body?.data
+        assertNotNull(profile)
+
+        assertFalse(profile?.isOnline ?: true)
+        assertNull(profile?.lastSeenAt)
+        assertNull(profile?.about)
+    }
+
+    @Test
+    fun `should hide presence on the detail endpoint for someone the requester has blocked`() {
+        every { blockDirectory.hasBlocked(requesterId, targetId) } returns true
+        every { conversationRepository.findConversationsByUserId(any()) } returns emptyList()
+
+        val detail = controller.getUserDetail(targetId).body?.data
+        assertNotNull(detail)
+
+        assertFalse(detail?.isOnline ?: true)
+        assertNull(detail?.lastSeenAt)
+        assertNull(detail?.about)
+    }
+
     @Test
     fun `should show presence and about to someone the target has not blocked`() {
-        every { blockDirectory.hasBlocked(targetId, requesterId) } returns false
-
         val profile = controller.getUserById(targetId).body?.data
         assertNotNull(profile)
 

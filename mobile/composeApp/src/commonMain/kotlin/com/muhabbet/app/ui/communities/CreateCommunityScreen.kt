@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -50,10 +51,15 @@ fun CreateCommunityScreen(
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isCreating by remember { mutableStateOf(false) }
+    // #446: the server refuses a name this account already used. That belongs under the name field,
+    // not in a snackbar — a 409 reported as a generic failure reads as a broken button, and the one
+    // thing the user needs to know is which field to change.
+    var nameError by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val genericErrorMsg = stringResource(Res.string.error_generic)
+    val nameTakenMsg = stringResource(Res.string.community_name_taken)
 
     MuhabbetScaffold(
         topBar = {
@@ -73,9 +79,15 @@ fun CreateCommunityScreen(
         ) {
             MuhabbetTextField(
                 value = name,
-                onValueChange = { if (it.length <= 64) name = it },
+                onValueChange = {
+                    if (it.length <= 64) name = it
+                    // The name the server refused is no longer the name in the field, so the
+                    // complaint about it has to go with it.
+                    nameError = null
+                },
                 modifier = Modifier.fillMaxWidth(),
                 label = stringResource(Res.string.community_name_hint),
+                error = nameError,
                 singleLine = true,
                 imeAction = ImeAction.Next
             )
@@ -98,6 +110,7 @@ fun CreateCommunityScreen(
                 onClick = {
                     scope.launch {
                         isCreating = true
+                        nameError = null
                         var createFailed = false
                         try {
                             val created = communityRepository.createCommunity(
@@ -107,6 +120,15 @@ fun CreateCommunityScreen(
                                 )
                             )
                             onCommunityCreated(created.id)
+                        } catch (e: ApiException) {
+                            // The one failure the user can actually fix from this screen (#446).
+                            // Everything else stays a snackbar: it says nothing about the name, so
+                            // pinning it under the name field would misdirect.
+                            if (e.code == CommunityNameTakenCode) {
+                                nameError = nameTakenMsg
+                            } else {
+                                createFailed = true
+                            }
                         } catch (_: Exception) {
                             createFailed = true
                         }

@@ -140,6 +140,7 @@ class ConversationControllerTest {
                         avatarUrl = null,
                         participantIds = listOf(userId, otherUserId),
                         lastMessagePreview = "Hello",
+                        lastMessageContentType = null,
                         lastMessageAt = "2026-02-14T10:00:00Z",
                         unreadCount = 3,
                         disappearAfterSeconds = null,

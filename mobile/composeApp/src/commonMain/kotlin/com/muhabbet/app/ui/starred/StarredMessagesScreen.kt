@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.designsystem.components.MuhabbetTopBar
@@ -46,6 +47,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.ConversationDirectory
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.ui.chat.formatMessageTime
+import com.muhabbet.app.ui.components.contentTypeLabel
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.ui.conversations.senderLabel
 import com.muhabbet.app.ui.conversations.toChatTarget
@@ -116,6 +118,10 @@ fun StarredMessagesScreen(
     val unknownPersonLabel = stringResource(Res.string.unknown_person)
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val unavailableMsg = stringResource(Res.string.starred_conversation_unavailable)
+    // The sender of a starred message is a person, and this screen is where naming one went most
+    // wrong (#543 labelled everybody "Bilinmeyen kişi"). It resolves the same way as everywhere
+    // else now, address book first (#549).
+    val contactNames = rememberContactNames()
 
     MuhabbetScaffold(
         snackbarHostState = snackbarHostState,
@@ -165,10 +171,11 @@ fun StarredMessagesScreen(
                                 isOwn -> youLabel
                                 // Falls back only when the sender really cannot be placed — they
                                 // left the conversation, or the conversation itself is gone.
-                                else -> conversation?.senderLabel(message.senderId) ?: unknownPersonLabel
+                                else -> conversation?.senderLabel(message.senderId, contactNames)
+                                    ?: unknownPersonLabel
                             },
                             onClick = {
-                                val target = conversation?.toChatTarget(currentUserId, defaultChatName)
+                                val target = conversation?.toChatTarget(currentUserId, defaultChatName, contactNames)
                                 if (target != null) {
                                     onNavigateToConversation?.invoke(target, message.id)
                                 } else {
@@ -269,14 +276,16 @@ private fun contentTypeIcon(contentType: ContentType): ImageVector? = when (cont
 @Composable
 private fun contentPreview(message: Message): String {
     if (message.isDeleted) return ""
-    val fallback = when (message.contentType) {
-        ContentType.IMAGE -> stringResource(Res.string.chat_photo)
-        ContentType.VIDEO -> stringResource(Res.string.chat_video)
-        ContentType.VOICE -> stringResource(Res.string.chat_voice_message)
-        ContentType.DOCUMENT -> stringResource(Res.string.attach_document)
-        ContentType.LOCATION -> stringResource(Res.string.attach_location)
-        ContentType.POLL -> stringResource(Res.string.attach_poll)
-        else -> ""
+    // Through the shared resolver (#534) rather than a fourth private copy of this `when`. It puts
+    // the label first for media instead of treating it as a fallback for a blank body — which
+    // matters for the rows still holding the word "Fotoğraf" from before that stopped being sent.
+    // DOCUMENT keeps its own case here: the body is the filename, which the resolver deliberately
+    // prefers, but a starred document with no filename reads better as "Dosya" than as nothing.
+    contentTypeLabel(message.contentType)?.let { return it.take(100) }
+    val fallback = if (message.contentType == ContentType.DOCUMENT) {
+        stringResource(Res.string.attach_document)
+    } else {
+        ""
     }
     return message.content.ifBlank { fallback }.take(100)
 }

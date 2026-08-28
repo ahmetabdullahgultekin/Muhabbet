@@ -30,6 +30,17 @@ internal data class OutgoingPhoto(
  * guarantees only that whatever is decided reaches both the screen and the socket, which is the part
  * that was not true. `PhotoSendTest` asserts it.
  */
+/**
+ * @param caption what the sender actually typed alongside the picture, or empty when they typed
+ *   nothing — which is every photo this version can send, since there is no caption field.
+ *
+ *   It used to be the *word* "Photo", resolved from `stringResource` on the sending device and put
+ *   on the wire as the message body (#534). That is not a caption; it is a label, and a label
+ *   belongs to whoever is reading. Stored as the body it was frozen in the sender's language
+ *   forever: wrong for a recipient in the other language from the moment it was sent, and immune to
+ *   the sender switching their own. The label is now drawn from `contentType` at render time, on
+ *   the device doing the rendering, which leaves this parameter free to mean what its name says.
+ */
 internal fun outgoingPhoto(
     messageId: String,
     requestId: String,
@@ -38,6 +49,7 @@ internal fun outgoingPhoto(
     caption: String,
     mediaUrl: String,
     thumbnailUrl: String?,
+    mediaId: String?,
     viewOnce: Boolean,
     sentAt: Instant
 ): OutgoingPhoto = OutgoingPhoto(
@@ -61,6 +73,10 @@ internal fun outgoingPhoto(
         contentType = ContentType.IMAGE,
         mediaUrl = mediaUrl,
         thumbnailUrl = thumbnailUrl,
+        // The upload this device just performed, so the server can destroy the blob when the photo
+        // is burned (#541). Without it a view-once photo is sealed on every screen and still
+        // fetchable in the bucket — which is what "view once" meant until now.
+        mediaId = mediaId,
         viewOnce = viewOnce
     )
 )

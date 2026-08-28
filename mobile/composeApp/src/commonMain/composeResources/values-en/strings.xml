@@ -11,6 +11,11 @@
     <string name="error_load_conversations">Failed to load conversations</string>
     <string name="error_load_messages">Failed to load messages</string>
     <string name="error_send_failed">Failed to send message</string>
+    <!-- Why a message the server refused did not go out (#572). One sentence per cause the sender
+         can actually do something about; anything else keeps error_send_failed above. -->
+    <string name="error_send_too_long">Message is too long. Shorten it and try again.</string>
+    <string name="error_send_not_member">You are no longer a member of this conversation</string>
+    <string name="error_send_announcement_only">Only admins can post in this group</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="delete">Delete</string>
@@ -255,6 +260,10 @@
     <string name="status_post">Share</string>
     <string name="status_no_statuses">No statuses found</string>
     <string name="status_load_failed">Failed to load statuses</string>
+    <string name="status_delete">Delete status</string>
+    <string name="status_delete_confirm">Remove this status? This cannot be undone.</string>
+    <string name="status_delete_failed">Failed to delete status</string>
+    <string name="status_image_description">Status photo</string>
     <string name="updates_title">Updates</string>
     <string name="updates_recent">Recent updates</string>
     <plurals name="updates_status_meta">
@@ -629,6 +638,7 @@
     <string name="communities_title">Communities</string>
     <string name="community_create">Create Community</string>
     <string name="community_name_hint">Community name</string>
+    <string name="community_name_taken">You already have a community with this name</string>
     <string name="community_description_hint">Description (optional)</string>
     <string name="community_announcements">Announcements</string>
     <string name="community_groups">Groups</string>

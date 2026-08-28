@@ -1,15 +1,15 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
-import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
+import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
-import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
-import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtClaims
@@ -44,9 +44,8 @@ class ChatWebSocketHandlerTest {
     private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var presencePort: PresencePort
-    private lateinit var userRepository: UserRepository
-    private lateinit var callSignalingService: CallSignalingService
-    private lateinit var callRoomProvider: CallRoomProvider
+    private lateinit var recordLastSeenUseCase: RecordLastSeenUseCase
+    private lateinit var callFrameHandler: CallFrameHandler
     private lateinit var webSocketRateLimiter: WebSocketRateLimiter
     private lateinit var blockPolicy: com.muhabbet.messaging.domain.port.out.BlockPolicyPort
     private lateinit var handler: ChatWebSocketHandler
@@ -69,9 +68,8 @@ class ChatWebSocketHandlerTest {
         updateDeliveryStatusUseCase = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
         presencePort = mockk(relaxed = true)
-        userRepository = mockk(relaxed = true)
-        callSignalingService = mockk(relaxed = true)
-        callRoomProvider = mockk(relaxed = true)
+        recordLastSeenUseCase = mockk(relaxed = true)
+        callFrameHandler = mockk(relaxed = true)
         webSocketRateLimiter = mockk(relaxed = true)
         blockPolicy = mockk(relaxed = true)
 
@@ -87,11 +85,13 @@ class ChatWebSocketHandlerTest {
             updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
             conversationRepository = conversationRepository,
             presencePort = presencePort,
-            userRepository = userRepository,
-            callSignalingService = callSignalingService,
-            callRoomProvider = callRoomProvider,
+            recordLastSeenUseCase = recordLastSeenUseCase,
+            callFrameHandler = callFrameHandler,
             webSocketRateLimiter = webSocketRateLimiter,
-            blockPolicy = blockPolicy
+            // The real collaborator over its mocked ports, not a mock of it: these tests are about
+            // which frames reach whom, and a stubbed filter would assert only that the handler
+            // called something.
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
     }
 
@@ -461,7 +461,62 @@ class ChatWebSocketHandlerTest {
 
             verify { sessionManager.unregister(session) }
             verify { presencePort.setOffline(userId) }
-            verify { userRepository.updateLastSeenAt(eq(userId), any()) }
+        }
+
+        @Test
+        fun `should record last seen through the transactional use case`() {
+            // #402. This used to call UserRepository.updateLastSeenAt straight from the handler, on
+            // a thread with no transaction, so the @Modifying query threw every time and
+            // last_seen_at never moved.
+            //
+            // There was a `verify(exactly = 0) { userRepository.updateLastSeenAt(...) }` here to
+            // stop it drifting back. It is gone because the handler no longer holds a UserRepository
+            // at all — the compiler enforces what the assertion used to watch for, and a verify
+            // against a mock that is not wired into the subject is true no matter what the code
+            // does, which is worse than no assertion because it reads like a guard.
+            //
+            // That this call happened is, on its own, a weak fact: a mocked use case succeeds with
+            // no transaction in sight, which is precisely how the bug survived. The transaction
+            // itself is asserted in LastSeenTransactionBoundaryTest, and the row in
+            // LastSeenPersistenceIntegrationTest.
+            val session = createSession()
+
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify { recordLastSeenUseCase.recordLastSeen(eq(userId), any()) }
+        }
+
+        @Test
+        fun `should still go offline and broadcast when recording last seen fails`() {
+            // Loud, but not fatal: a failed write must not cost the user the rest of the disconnect
+            // path, which is what tells their contacts they went offline.
+            val session = createSession()
+
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+            every { recordLastSeenUseCase.recordLastSeen(any(), any()) } throws RuntimeException("db down")
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify { presencePort.setOffline(userId) }
+            verify { conversationRepository.findAllContactUserIds(userId) }
+        }
+
+        @Test
+        fun `should record last seen on transport error too`() {
+            // The other way a socket ends. It had its own copy of this block, and a fix applied to
+            // one copy and not the other is how half of a disconnect path goes stale.
+            val session = createSession()
+
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.handleTransportError(session, RuntimeException("Connection reset"))
+
+            verify { recordLastSeenUseCase.recordLastSeen(eq(userId), any()) }
         }
 
         @Test
@@ -593,6 +648,137 @@ class ChatWebSocketHandlerTest {
             handler.afterConnectionEstablished(createSession(generateValidToken()))
 
             verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
+        }
+
+        // ─── The other direction (#711) ──────────────────────
+        //
+        // Everything above asks "does someone who blocked me still see me". This frame used to
+        // answer only that, which is the opposite of what `GET /conversations` withheld — so the
+        // pair of channels leaked in both directions at once. The blocked person opened the chat
+        // list to no dot and then watched it light up seconds later, from here.
+
+        @Test
+        fun `should not tell someone this user has blocked that they came online`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockerId)
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should not leak the last seen stamp to someone this user has blocked`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockerId)
+            val session = createSession()
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should ask both directions once each rather than one question per contact`() {
+            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns emptySet()
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
+            verify(exactly = 1) { blockPolicy.findBlockedAmong(userId, setOf(blockerId, friendId)) }
+        }
+    }
+
+    // ─── Typing and blocks (#711) ───────────────────────────
+
+    /**
+     * "yazıyor…" is the liveliest presence signal the app has, and it had no block check in either
+     * direction: a blocked one-to-one chat streamed it both ways.
+     *
+     * Both directions are asserted, because a test covering only the direction that already worked
+     * proves nothing — and because asymmetry here is worse than no guard at all. A chat where one
+     * side sees typing and the other does not announces the block and the moment it happened.
+     */
+    @Nested
+    inner class TypingBlocks {
+
+        private val convId = UUID.randomUUID()
+        private val otherUserId = UUID.randomUUID()
+
+        private fun sendTyping() {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+                ConversationMember(conversationId = convId, userId = userId),
+                ConversationMember(conversationId = convId, userId = otherUserId)
+            )
+            every { sessionManager.isOnline(otherUserId) } returns true
+
+            val typing = WsMessage.TypingIndicator(conversationId = convId.toString(), isTyping = true)
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(typing)))
+        }
+
+        private fun directConversation() {
+            every { conversationRepository.findById(convId) } returns
+                Conversation(id = convId, type = ConversationType.DIRECT)
+        }
+
+        @Test
+        fun `should not tell someone who blocked this user that they are typing`() {
+            every { blockPolicy.hasBlocked(otherUserId, userId) } returns true
+            directConversation()
+
+            sendTyping()
+
+            verify(exactly = 0) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should not tell someone this user has blocked that they are typing`() {
+            every { blockPolicy.hasBlocked(userId, otherUserId) } returns true
+            directConversation()
+
+            sendTyping()
+
+            verify(exactly = 0) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should still send typing when neither has blocked the other`() {
+            every { blockPolicy.hasBlocked(any(), any()) } returns false
+
+            sendTyping()
+
+            verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should still send typing in a two-person group where a block exists`() {
+            // Deliberate: a block does not stop a group *message* either, so filtering group
+            // typing would make the two disagree and half-announce the block to the room.
+            every { blockPolicy.hasBlocked(userId, otherUserId) } returns true
+            every { conversationRepository.findById(convId) } returns
+                Conversation(id = convId, type = ConversationType.GROUP)
+
+            sendTyping()
+
+            verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should not load the conversation when there is no block between the pair`() {
+            // Typing arrives on every keystroke burst. The pair question is asked first so the
+            // ordinary case costs the two indexed lookups and no extra row.
+            every { blockPolicy.hasBlocked(any(), any()) } returns false
+
+            sendTyping()
+
+            verify(exactly = 0) { conversationRepository.findById(convId) }
         }
     }
 }

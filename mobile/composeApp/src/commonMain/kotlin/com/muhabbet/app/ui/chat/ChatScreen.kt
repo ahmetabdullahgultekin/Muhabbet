@@ -65,6 +65,7 @@ import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -77,6 +78,7 @@ import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.decodedMedia
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
@@ -101,6 +103,21 @@ private const val TAG = "ChatScreen"
  * "the request failed" — is the difference between a correct refusal and a bug report.
  */
 private const val ViewOnceAlreadyViewedCode = "MSG_VIEW_ONCE_ALREADY_VIEWED"
+
+/**
+ * The body of a message that is a picture, a voice note, a GIF or a sticker: nothing.
+ *
+ * These four have no caption field, so there is no text a person authored to put here. Until #534
+ * the app filled the gap with a `stringResource` — the *word* "Photo", resolved on the sending
+ * device — and sent it as the message content. That is a label, and a label belongs to whoever is
+ * reading: stored as the body it froze in the sender's language forever, wrong for a recipient in
+ * the other language from the moment of sending and beyond the reach of either of them changing
+ * their own setting.
+ *
+ * Named rather than written as a bare `""` at seven call sites, so the next person to add a media
+ * type finds the reason instead of copying the empty string and wondering.
+ */
+private const val MEDIA_HAS_NO_BODY = ""
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,11 +167,7 @@ fun ChatScreen(
     val typingText = stringResource(Res.string.chat_typing)
     val chatOnlineText = stringResource(Res.string.chat_online)
     val chatLastSeenText = stringResource(Res.string.chat_last_seen)
-    val chatPhotoText = stringResource(Res.string.chat_photo)
-    val chatVoiceText = stringResource(Res.string.chat_voice_message)
     val chatEditMode = stringResource(Res.string.chat_edit_mode)
-    val gifContentLabel = stringResource(Res.string.attach_gif)
-    val stickerContentLabel = stringResource(Res.string.attach_sticker)
     val scheduleQueuedMsg = stringResource(Res.string.schedule_queued)
     val scheduleCancelledMsg = stringResource(Res.string.schedule_cancelled)
     val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
@@ -168,6 +181,14 @@ fun ChatScreen(
     val viewOnceOpenFailedMsg = stringResource(Res.string.view_once_open_failed)
     // Spoken once when the placeholder bubbles appear; the bubbles themselves are silent.
     val loadingMessagesLabel = stringResource(Res.string.messages_loading)
+
+    // Why a send was refused, rather than the single sentence every refusal used to produce (#572).
+    val sendFailures = SendFailureMessages(
+        generic = errorSendMsg,
+        tooLong = stringResource(Res.string.error_send_too_long),
+        notMember = stringResource(Res.string.error_send_not_member),
+        announcementOnly = stringResource(Res.string.error_send_announcement_only),
+    )
 
     // One place decides what a send that did not reach the wire looks like.
     //
@@ -200,8 +221,13 @@ fun ChatScreen(
     var isTypingSent by remember { mutableStateOf(false) }
     var typingDismissJob by remember { mutableStateOf<Job?>(null) }
 
-    // Dialog state
-    var fullImageUrl by remember { mutableStateOf<String?>(null) }
+    // Dialog state.
+    //
+    // `Any?` rather than `String?` since #541: an ordinary photo is opened by URL, a view-once photo
+    // by the bytes the burn handed back. There is no URL for the second kind, on purpose — the
+    // object was deleted before the response was written, and a URL that outlived the burn is
+    // exactly what made "view once" a label rather than a guarantee.
+    var fullImage by remember { mutableStateOf<Any?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetId by remember { mutableStateOf<String?>(null) }
     var showDisappearDialog by remember { mutableStateOf(false) }
@@ -276,12 +302,12 @@ fun ChatScreen(
                 conversationId = conversationId,
                 senderId = currentUserId,
                 contentType = ContentType.VOICE,
-                content = chatVoiceText,
+                content = MEDIA_HAS_NO_BODY,
                 mediaUrl = upload.url,
                 status = MessageStatus.SENDING,
                 clientTimestamp = Clock.System.now()
             )
-            wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = chatVoiceText, contentType = ContentType.VOICE, mediaUrl = upload.url))
+            wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = MEDIA_HAS_NO_BODY, contentType = ContentType.VOICE, mediaUrl = upload.url))
         } catch (_: Exception) { sendFailed = true }
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isUploading = false
@@ -324,9 +350,10 @@ fun ChatScreen(
                 requestId = generateMessageId(),
                 conversationId = conversationId,
                 senderId = currentUserId,
-                caption = chatPhotoText,
+                caption = MEDIA_HAS_NO_BODY,
                 mediaUrl = upload.url,
                 thumbnailUrl = upload.thumbnailUrl,
+                mediaId = upload.mediaId,
                 viewOnce = armed,
                 sentAt = Clock.System.now()
             )
@@ -451,9 +478,15 @@ fun ChatScreen(
     // staring at this one does. Best-effort — `sendOrQueue` never throws, and a frame lost to a
     // reconnect window means one message gets pushed that strictly did not need to be, never a
     // missed live update.
+    //
+    // Reported through `setConversationFocus` rather than sent as a bare frame, because the server
+    // drops its `activeConversation` entry the moment the socket closes. A frame that is only sent
+    // is therefore forgotten on the next reconnect, and this effect — keyed on `conversationId` —
+    // never reruns while the user sits in the same chat, so nothing said it again (#667). The
+    // client now remembers it and restates it whenever a session comes up.
     LaunchedEffect(conversationId) {
         appVisibility.isForeground.collect { foreground ->
-            wsClient.sendOrQueue(WsMessage.ConversationFocus(if (foreground) conversationId else null))
+            wsClient.setConversationFocus(if (foreground) conversationId else null)
         }
     }
     DisposableEffect(conversationId) {
@@ -461,8 +494,37 @@ fun ChatScreen(
             // Leaving the chat (back press, navigating elsewhere) is not a background transition,
             // so it fires none of the events above and needs its own clear — otherwise the server
             // keeps believing this chat is still on screen until some other screen happens to
-            // overwrite it.
-            scope.launch { wsClient.sendOrQueue(WsMessage.ConversationFocus(conversationId = null)) }
+            // overwrite it. Clearing it in the client as well matters just as much now: a
+            // remembered focus that is never cleared would be re-asserted on the next reconnect,
+            // long after the user left the chat.
+            scope.launch { wsClient.setConversationFocus(null) }
+        }
+    }
+
+    // Removes a disappearing message at its deadline instead of when the user happens to leave.
+    //
+    // #513: the server has always deleted the row on time and told nobody, so a chat that stayed
+    // open went on rendering an expired message indefinitely — which is exactly what someone does
+    // the first time they set a timer and watch it. Worse than cosmetic in a chat both people have
+    // open: the feature's promise is a bound on how long a message exists, and a bound the server
+    // honours while the client ignores it is not that promise.
+    //
+    // `collectLatest` on the soonest deadline is what makes one timer enough. Every arrival,
+    // removal or refetch republishes the deadline, cancelling the outstanding wait and starting the
+    // right one; a per-message timer would mean tracking and cancelling one coroutine per bubble.
+    //
+    // Two cases this deliberately does not try to cover on its own, both handled elsewhere. If the
+    // process is killed the wait dies with it — the reopened chat re-fetches, and the server omits
+    // deleted messages. If the device clock disagrees with the server's, or the app was merely
+    // asleep past a deadline, `WsMessage.MessageExpired` below removes the message on the server's
+    // authority rather than this device's opinion of the time.
+    LaunchedEffect(conversationId) {
+        snapshotFlow { messages.nextExpiryAt() }.collectLatest { deadline ->
+            if (deadline == null) return@collectLatest
+            // Non-positive when the deadline is already past — a message fetched after it expired
+            // but before the server's once-a-minute sweep reached it. `delay` returns immediately.
+            delay(deadline - Clock.System.now())
+            messages = messages.dropExpired(Clock.System.now())
         }
     }
 
@@ -481,7 +543,11 @@ fun ChatScreen(
                                 // builds their bubble from this frame, so a photo that arrives while
                                 // the chat is open rendered in full no matter what the sender chose.
                                 // The reload path was equally blind — see MessageMapper (#515).
-                                viewOnce = ws.viewOnce)
+                                viewOnce = ws.viewOnce,
+                                // Same shape of omission one field over: without the deadline on
+                                // the frame, a disappearing message that arrives while the chat is
+                                // open could never be removed on time (#513).
+                                expiresAt = ws.expiresAt?.let { Instant.fromEpochMilliseconds(it) })
                         }
                         // Deliberately OUTSIDE the "not already rendered" guard above (#478). That
                         // guard exists to stop a bubble being drawn twice — it was also deciding
@@ -495,9 +561,13 @@ fun ChatScreen(
                     }
                 }
                 is WsMessage.ServerAck -> {
-                    if (ws.status == AckStatus.OK) {
+                    // MSG_DUPLICATE joins the OK arm rather than the failure one: it means the
+                    // server already holds this messageId, which is what the offline queue draining
+                    // after a reconnect looks like from the server's side. The message went. An
+                    // error ack carries no serverTimestamp, so the existing one is kept.
+                    if (ws.status == AckStatus.OK || serverAlreadyHasMessage(ws.errorCode)) {
                         messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
-                    } else scope.launch { snackbarHostState.showSnackbar(errorSendMsg) }
+                    } else scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
                     messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
@@ -529,6 +599,15 @@ fun ChatScreen(
                     }
                 }
                 is WsMessage.MessageDeleted -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(isDeleted = true, content = "") else m }
+                // Removed outright, not turned into a tombstone like a deletion above. The server
+                // drops an expired message from every read path, so a "this message was deleted"
+                // row would sit here until the next reload and then quietly vanish — the same
+                // "it only updates when you look away" complaint, one level down.
+                //
+                // This is the authority the local timer is not: it needs no agreement between the
+                // device clock and the server's, and it arrives for messages whose deadline passed
+                // while the app was asleep or whose deadline this device never learned.
+                is WsMessage.MessageExpired -> if (ws.conversationId == conversationId) messages = messages.filterNot { it.id == ws.messageId }
                 is WsMessage.MessageEdited -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(content = ws.newContent, editedAt = Instant.fromEpochMilliseconds(ws.editedAt)) else m }
                 is WsMessage.MessageReaction -> if (ws.conversationId == conversationId) {
                     messages = messages.map { m ->
@@ -637,7 +716,7 @@ fun ChatScreen(
     }
 
     // ── Dialogs ──────────────────────────────
-    fullImageUrl?.let { url -> FullImageViewer(url) { fullImageUrl = null } }
+    fullImage?.let { image -> FullImageViewer(image) { fullImage = null } }
     forwardMessage?.let { msg -> ForwardPickerDialog(msg, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation) }
     if (showDeleteDialog && deleteTargetId != null) DeleteConfirmDialog(
         onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog
@@ -762,7 +841,7 @@ fun ChatScreen(
                             modifier = Modifier
                                 .then(
                                     if (conversationAvatarUrl != null) {
-                                        Modifier.clickable { fullImageUrl = conversationAvatarUrl }
+                                        Modifier.clickable { fullImage = conversationAvatarUrl }
                                     } else {
                                         Modifier
                                     }
@@ -835,7 +914,7 @@ fun ChatScreen(
                                 snackbarHostState.showSnackbar(errorActionMsg) } } },
                             onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                             onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
-                            onImageClick = { fullImageUrl = it },
+                            onImageClick = { fullImage = it },
                             onReactionToggle = { msg, emoji ->
                                 scope.launch {
                                     runCatchingCancellable {
@@ -871,7 +950,16 @@ fun ChatScreen(
                                         if (it.id == id) it.copy(viewOnceViewed = true) else it
                                     }
                                     runCatchingCancellable { messageRepository.revealViewOnce(id) }
-                                        .onSuccess { reveal -> reveal.mediaUrl?.let { fullImageUrl = it } }
+                                        // Bytes first: since #541 the server deletes the blob in
+                                        // the same call, so these are the only copy that was ever
+                                        // released and there is no URL to fall back on. The URL
+                                        // branch is for messages sent before that change, whose
+                                        // blob has no server-side reference and cannot be
+                                        // destroyed.
+                                        .onSuccess { reveal ->
+                                            (reveal.decodedMedia() ?: reveal.mediaUrl)
+                                                ?.let { fullImage = it }
+                                        }
                                         .onFailure { e ->
                                             Log.w(TAG, "Failed to open view-once $id: ${e.message}")
                                             val alreadyViewed =
@@ -1060,12 +1148,12 @@ fun ChatScreen(
                     conversationId = conversationId,
                     senderId = currentUserId,
                     contentType = ContentType.GIF,
-                    content = gifContentLabel,
+                    content = MEDIA_HAS_NO_BODY,
                     mediaUrl = url,
                     status = MessageStatus.SENDING,
                     clientTimestamp = Clock.System.now()
                 )
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = gifContentLabel, contentType = ContentType.GIF, mediaUrl = url)) } catch (e: Exception) {
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = MEDIA_HAS_NO_BODY, contentType = ContentType.GIF, mediaUrl = url)) } catch (e: Exception) {
                     reportSendOutcome(mid, e) } }
             },
             onStickerSelected = { url, _ ->
@@ -1077,12 +1165,12 @@ fun ChatScreen(
                     conversationId = conversationId,
                     senderId = currentUserId,
                     contentType = ContentType.STICKER,
-                    content = stickerContentLabel,
+                    content = MEDIA_HAS_NO_BODY,
                     mediaUrl = url,
                     status = MessageStatus.SENDING,
                     clientTimestamp = Clock.System.now()
                 )
-                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = stickerContentLabel, contentType = ContentType.STICKER, mediaUrl = url)) } catch (e: Exception) {
+                scope.launch { try { wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = MEDIA_HAS_NO_BODY, contentType = ContentType.STICKER, mediaUrl = url)) } catch (e: Exception) {
                     reportSendOutcome(mid, e) } }
             }
         )

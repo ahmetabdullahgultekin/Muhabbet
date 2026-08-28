@@ -263,6 +263,26 @@ open class GroupService(
         log.info("User {} left group {}", userId, conversationId)
     }
 
+    @Transactional
+    override fun setAnnouncementMode(conversationId: UUID, requesterId: UUID, enabled: Boolean): Conversation {
+        val conversation = conversationRepository.findById(conversationId)
+            ?: throw BusinessException(ErrorCode.GROUP_NOT_FOUND)
+
+        // A DIRECT conversation has no admins, so "only admins may post" would silence both people
+        // with no way back. The route used to accept one.
+        if (conversation.type == ConversationType.DIRECT) {
+            throw BusinessException(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT)
+        }
+
+        requireAdminOrOwner(conversationId, requesterId)
+
+        val saved = conversationRepository.updateConversation(
+            conversation.copy(announcementOnly = enabled, updatedAt = Instant.now())
+        )
+        log.info("Announcement mode set to {} on conversation {} by {}", enabled, conversationId, requesterId)
+        return saved
+    }
+
     // ─── Helpers ──────────────────────────────────────────────
 
     private fun requireMember(conversationId: UUID, userId: UUID): ConversationMember {

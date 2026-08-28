@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.repository.CommunityRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -44,6 +45,9 @@ fun CommunityDetailScreen(
     var isLoading by remember { mutableStateOf(true) }
     var showAddGroupSheet by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    // #446: only the server knows whether a name is already taken, so this is filled in after a
+    // failed save and shown against the dialog's name field rather than as a snackbar.
+    var editNameError by remember { mutableStateOf<String?>(null) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var groupPendingRemoval by remember { mutableStateOf<CommunityGroupInfo?>(null) }
@@ -53,6 +57,7 @@ fun CommunityDetailScreen(
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
     val updatedMsg = stringResource(Res.string.community_updated)
     val updateFailedMsg = stringResource(Res.string.community_update_failed)
+    val nameTakenMsg = stringResource(Res.string.community_name_taken)
     val leaveFailedMsg = stringResource(Res.string.community_leave_failed)
     val groupRemovedMsg = stringResource(Res.string.community_remove_group_removed)
     val groupRemoveFailedMsg = stringResource(Res.string.community_remove_group_failed)
@@ -103,9 +108,13 @@ fun CommunityDetailScreen(
         EditCommunityDialog(
             initialName = current.name,
             initialDescription = current.description,
-            onDismiss = { showEditDialog = false },
-            onConfirm = { newName, newDescription ->
+            onDismiss = {
                 showEditDialog = false
+                editNameError = null
+            },
+            nameError = editNameError,
+            onNameEdited = { editNameError = null },
+            onConfirm = { newName, newDescription ->
                 scope.launch {
                     val failure = runCatchingCancellable {
                         communityRepository.updateCommunity(communityId, newName, newDescription)
@@ -114,6 +123,16 @@ fun CommunityDetailScreen(
                     if (failure != null) {
                         Log.e(TAG, "Failed to update community $communityId", failure)
                     }
+                    // A name already in use is the one failure the user can fix without leaving the
+                    // dialog, so the dialog stays up and says which field is wrong. Every other
+                    // outcome — success or a failure this screen cannot explain — closes it and
+                    // reports in the snackbar, as before.
+                    if ((failure as? ApiException)?.code == CommunityNameTakenCode) {
+                        editNameError = nameTakenMsg
+                        return@launch
+                    }
+                    showEditDialog = false
+                    editNameError = null
                     snackbarHostState.showSnackbar(if (failure == null) updatedMsg else updateFailedMsg)
                 }
             }
