@@ -103,6 +103,18 @@ class IosTokenStorage : TokenStorage {
         defaults.removeObjectForKey("contact_sync_consent_at")
     }
 
+    // `boolForKey` returns false for a key that was never set, which is the wrong default here
+    // (#516 asks for Enter-sends out of the box), so absence is checked explicitly — the same shape
+    // as haptics above.
+    override fun getEnterToSend(): Boolean =
+        if (defaults.objectForKey("enter_to_send") == null) true
+        else defaults.boolForKey("enter_to_send")
+
+    override fun setEnterToSend(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "enter_to_send")
+        defaults.synchronize()
+    }
+
     override fun getMediaQuality(): String? = defaults.stringForKey("media_quality")
 
     override fun setMediaQuality(quality: String) {

@@ -48,6 +48,10 @@ class FakeTokenStorage : TokenStorage {
     override fun setTheme(theme: String) { this.theme = theme }
 
     private var mediaQuality: String? = null
+    private var enterToSend: Boolean = true
+    override fun getEnterToSend(): Boolean = enterToSend
+    override fun setEnterToSend(enabled: Boolean) { enterToSend = enabled }
+
     override fun getMediaQuality(): String? = mediaQuality
     override fun setMediaQuality(quality: String) { mediaQuality = quality }
 

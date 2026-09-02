@@ -83,6 +83,7 @@ fun SettingsScreen(
     onTwoStepVerification: () -> Unit = {},
     onAppLock: () -> Unit = {},
     onWallpaper: () -> Unit = {},
+    onStorage: () -> Unit = {},
     onAbout: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
@@ -354,7 +355,13 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                StorageSection(storageLoading = storageLoading, storageUsage = storageUsage)
+                // Tappable now (#546): the four numbers answer "how much" and the screen behind
+                // them answers "what do I delete", which is the question people open this for.
+                StorageSection(
+                    storageLoading = storageLoading,
+                    storageUsage = storageUsage,
+                    onOpenDetail = onStorage
+                )
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 
@@ -377,6 +384,10 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = MuhabbetSpacing.Large))
 
                 HapticsSection(themeController = themeController)
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = MuhabbetSpacing.Large))
+
+                EnterToSendSection()
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()

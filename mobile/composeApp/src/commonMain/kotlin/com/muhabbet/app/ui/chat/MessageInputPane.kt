@@ -69,6 +69,15 @@ import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.runtime.collectAsState
+import com.muhabbet.app.data.local.ComposerSettingsController
+import org.koin.compose.koinInject
 
 @Composable
 fun ReplyPreviewBar(
@@ -167,9 +176,13 @@ fun MessageInputBar(
     onCameraPick: () -> Unit = {},
     viewOnceEnabled: Boolean = false,
     onViewOnceToggle: () -> Unit = {},
-    onScheduleSend: () -> Unit = {}
+    onScheduleSend: () -> Unit = {},
+    composerSettings: ComposerSettingsController = koinInject()
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
+    // #516. Collected from the singleton rather than read once into a `remember`, so flipping the
+    // switch in Settings changes what Enter does in a chat that is already open behind it.
+    val enterToSend by composerSettings.enterToSend.collectAsState()
     val fieldBackground = LocalSemanticColors.current.inputField.container
     // Only Idle and Held ever reach this composable — see the doc on VoiceRecordGestureButton for
     // why Locked/Preview are rendered by an entirely different composable one level up instead.
@@ -235,7 +248,35 @@ fun MessageInputBar(
                 value = messageText,
                 onValueChange = onTextChange,
                 placeholder = { Text(stringResource(Res.string.chat_message_placeholder)) },
-                modifier = Modifier.weight(1f).testTag("message_input"),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("message_input")
+                    // The half of #516 that #514 could not reach. A hardware Enter never becomes an
+                    // IME action, so `keyboardActions` below never sees it — `adb shell input
+                    // keyevent KEYCODE_ENTER` produced a second line and no message. Preview rather
+                    // than `onKeyEvent`: the field consumes Enter itself, so a non-preview handler
+                    // runs only after the newline has already been inserted.
+                    //
+                    // KeyDown only. Enter also emits a KeyUp, and handling both would send twice.
+                    .onPreviewKeyEvent { event ->
+                        if (event.key != Key.Enter || event.type != KeyEventType.KeyDown) {
+                            false
+                        } else {
+                            when (
+                                enterKeyAction(
+                                    enterToSend = enterToSend,
+                                    shiftPressed = event.isShiftPressed,
+                                    hasSendableText = messageText.isNotBlank()
+                                )
+                            ) {
+                                // Consumed, so the newline the field would otherwise insert never
+                                // happens — sending and then leaving a blank line behind is the
+                                // defect that makes this look half-fixed.
+                                EnterKeyAction.Send -> { onSend(); true }
+                                EnterKeyAction.InsertNewline -> false
+                            }
+                        }
+                    },
                 // Grows line by line as it fills and scrolls inside itself past the cap, which is
                 // what a composer has to do — a message is not a form field. Named rather than a
                 // bare 4 so the cap is a decision and not a leftover.
@@ -254,7 +295,18 @@ fun MessageInputBar(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                // The action follows the setting. With Enter-sends off, declaring `Send` would have
+                // the keyboard promise something the field then refuses to do; `Default` lets the
+                // IME draw its return key, which is now the honest label for what Enter does.
+                //
+                // The field stays multi-line either way — people write paragraphs — and Android
+                // adds TYPE_TEXT_FLAG_MULTI_LINE to a multi-line field, which is why some IMEs
+                // ignore this and draw a return key regardless. That is not a fallback worth
+                // removing: on the keyboards that do honour it, this is the path that fires, and on
+                // the ones that do not, the key handler above catches the same press.
+                keyboardOptions = KeyboardOptions(
+                    imeAction = if (enterToSend) ImeAction.Send else ImeAction.Default
+                ),
                 // The bug this pane was reported for: `ImeAction.Send` was declared and no handler
                 // was supplied, so the keyboard drew a send key that did nothing at all. Guarded on
                 // blank for the same reason the send button is: an empty message is not a message.

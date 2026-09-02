@@ -42,6 +42,7 @@ import com.muhabbet.app.ui.settings.AboutScreen
 import com.muhabbet.app.ui.whatsnew.ReleaseNotesScreen
 import com.muhabbet.app.ui.settings.AppLockScreen
 import com.muhabbet.app.ui.settings.TwoStepSetupScreen
+import com.muhabbet.app.ui.settings.StorageUsageScreen
 import com.muhabbet.app.ui.settings.WallpaperPickerScreen
 import com.muhabbet.app.ui.status.StatusViewerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -253,6 +254,11 @@ class MainComponent(
     }
 
     @OptIn(DelicateDecomposeApi::class)
+    fun openStorage() {
+        navigation.push(Config.Storage)
+    }
+
+    @OptIn(DelicateDecomposeApi::class)
     fun openAbout() {
         navigation.push(Config.About)
     }
@@ -383,6 +389,7 @@ class MainComponent(
         @Serializable data object TwoStepVerification : Config
         @Serializable data object AppLock : Config
         @Serializable data object Wallpaper : Config
+        @Serializable data object Storage : Config
         @Serializable data object About : Config
         @Serializable data object ReleaseNotes : Config
         @Serializable data class CommunityDetail(val communityId: String) : Config
@@ -578,6 +585,7 @@ private fun MainStack(component: MainComponent) {
                 onTwoStepVerification = component::openTwoStepVerification,
                 onAppLock = component::openAppLock,
                 onWallpaper = component::openWallpaper,
+                onStorage = component::openStorage,
                 onAbout = component::openAbout
             )
             is MainComponent.Config.StarredMessages -> StarredMessagesScreen(
@@ -642,6 +650,9 @@ private fun MainStack(component: MainComponent) {
                 onBack = component::goBack
             )
             is MainComponent.Config.Wallpaper -> WallpaperPickerScreen(
+                onBack = component::goBack
+            )
+            is MainComponent.Config.Storage -> StorageUsageScreen(
                 onBack = component::goBack
             )
             is MainComponent.Config.About -> AboutScreen(
