@@ -40,6 +40,46 @@ jobs:
     # cannot start. `gh` 2.89 is already installed there and nothing is checked out.
     runs-on: [self-hosted, linux, x64]
     steps:
+      # Runs before anything is closed, and fails the job if the extractor has drifted. A regex that
+      # decides which issues get closed is worth a test: the previous one was wrong for two months
+      # and nothing said so, because "closed fewer issues than it should have" looks exactly like
+      # "the PR did not claim any". Cheap — no checkout, no network, pure shell.
+      - name: The extractor still extracts
+        run: |
+          set -euo pipefail
+
+          # `|| true` because "no match" is a legitimate answer, and grep reports it as failure —
+          # under `set -e -o pipefail` an unmatched body would kill the job instead of returning
+          # the empty string the two "nothing to close" cases below are asserting.
+          extract() {
+            printf '%s' "$1" \
+              | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+([[:space:]]*(,|and|&)[[:space:]]*#[0-9]+)*' \
+              | grep -oE '#[0-9]+' | tr -d '#' | sort -un | tr '\n' ' ' | sed 's/ $//' || true
+          }
+
+          fail=0
+          check() {
+            got=$(extract "$2")
+            if [ "$got" = "$3" ]; then
+              echo "ok   $1"
+            else
+              echo "FAIL $1: expected '$3', got '$got'" >&2
+              fail=1
+            fi
+          }
+
+          # Real PR bodies from this repository, and the traps around them.
+          check "comma list (PR #410)"      'Closes #397, #401, #402.'              '397 401 402'
+          check "and-list (PR #652)"        'Fixes #595 and #623 but see #999.'     '595 623'
+          check "and not followed by an id" 'Closes #1 and then #2 is unrelated'    '1'
+          check "no keyword"                'See #10, related to #11'               ''
+          check "ampersand list"            'Resolves #7 & #8 & #9'                 '7 8 9'
+          check "keyword per line"          'fixed #3
+          Closes #4'                                                                '3 4'
+          check "bare reference"            'This mentions #50 with no keyword'     ''
+
+          [ "$fail" -eq 0 ] || { echo "The closing-keyword extractor is wrong. Fix it before this job closes anything." >&2; exit 1; }
+
       - name: Close what the PR says it closes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,9 +93,21 @@ jobs:
           # The keywords GitHub itself honours, and only those. "Fixes #123" closes; "See #123",
           # "Related to #123" and a bare "#123" do not — a PR mentions far more issues than it ends,
           # and closing a merely-referenced one is worse than leaving it open.
+          #
+          # The trailing group walks a LIST after one keyword: `Closes #397, #401, #402` and
+          # `Fixes #595 and #623` end all of them, not just the first. Without it this workflow
+          # reproduced GitHub's own limitation, which is how #401, #402 and #623 sat open for weeks
+          # behind merged PRs that said they closed them — the automation written to stop exactly
+          # that had the same blind spot as the thing it replaced.
+          #
+          # The list stops at the first token that is not a separator followed by another `#N`, so
+          # `Fixes #595 and #623 but see #999` takes 595 and 623 and leaves 999, and
+          # `Closes #1 and then #2 is unrelated` takes only 1 — `and` must be followed by `#N` for
+          # the chain to continue. Seven cases including those two are pinned in the step below.
           printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
-            | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' \
-            | grep -oE '[0-9]+' \
+            | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+([[:space:]]*(,|and|&)[[:space:]]*#[0-9]+)*' \
+            | grep -oE '#[0-9]+' \
+            | tr -d '#' \
             | sort -un > /tmp/linked.txt || true
 
           if [ ! -s /tmp/linked.txt ]; then
