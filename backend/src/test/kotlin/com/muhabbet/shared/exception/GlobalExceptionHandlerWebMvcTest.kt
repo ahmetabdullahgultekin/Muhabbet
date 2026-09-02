@@ -1,8 +1,11 @@
 package com.muhabbet.shared.exception
 
+import com.muhabbet.messaging.adapter.`in`.web.ChannelAnalyticsController
 import com.muhabbet.messaging.adapter.`in`.web.CommunityController
 import com.muhabbet.messaging.adapter.`in`.web.SearchController
+import com.muhabbet.messaging.domain.port.`in`.ChannelAnalyticsSummary
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
+import com.muhabbet.messaging.domain.port.`in`.ManageChannelAnalyticsUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
 import com.muhabbet.messaging.domain.port.`in`.SearchMessagesUseCase
 import com.muhabbet.shared.TestData
@@ -11,6 +14,7 @@ import com.muhabbet.shared.security.JwtClaims
 import com.muhabbet.shared.security.RateLimitFilter
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -34,6 +38,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -48,7 +53,7 @@ import java.util.UUID
  * Docker, and the whole point is that they stay runnable on a laptop.
  */
 @WebMvcTest(
-    controllers = [CommunityController::class, SearchController::class],
+    controllers = [CommunityController::class, SearchController::class, ChannelAnalyticsController::class],
     // A @WebMvcTest slice pulls in every `Filter` bean, and these two drag the whole JWT and
     // rate-limit chain in behind them. The filters are switched off for these requests anyway
     // (`addFilters = false`) — what is under test happens inside the DispatcherServlet, after any
@@ -69,10 +74,12 @@ class GlobalExceptionHandlerWebMvcTest {
         @Bean fun manageCommunityUseCase(): ManageCommunityUseCase = mockk()
         @Bean fun searchMessagesUseCase(): SearchMessagesUseCase = mockk()
         @Bean fun getMessageHistoryUseCase(): GetMessageHistoryUseCase = mockk()
+        @Bean fun manageChannelAnalyticsUseCase(): ManageChannelAnalyticsUseCase = mockk()
     }
 
     @Autowired private lateinit var mockMvc: MockMvc
     @Autowired private lateinit var manageCommunityUseCase: ManageCommunityUseCase
+    @Autowired private lateinit var channelAnalyticsUseCase: ManageChannelAnalyticsUseCase
 
     private val communityId = UUID.randomUUID()
 
@@ -156,6 +163,108 @@ class GlobalExceptionHandlerWebMvcTest {
             )
                 .andExpect(status().isBadRequest)
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+        }
+    }
+
+    /**
+     * #401 again, one layer out from the request body it was reported against. The body half landed
+     * in #410: a payload the deserializer cannot read is now a 400 carrying the decoder's message.
+     * A **query parameter or path variable** whose text will not convert was still answered with
+     * 500 `INTERNAL_ERROR` and an ERROR-level stack trace, for the identical reason and with the
+     * identical consequences — the caller is told the server broke and invited to retry something
+     * that cannot succeed, and anyone can fill the production log with stack traces by sending junk.
+     *
+     * `/channels/{id}/analytics` was the only endpoint that could still reach it, because it was
+     * the only one that took a date as a `String` and called `LocalDate.parse` itself.
+     * `DateTimeParseException` extends `DateTimeException`, **not** `IllegalArgumentException`, so
+     * it missed [GlobalExceptionHandler.handleBadRequest] entirely and landed on
+     * [GlobalExceptionHandler.handleUnexpected]. A malformed UUID on that same request was a 400
+     * and a malformed date beside it was a 500 — an asymmetry, not a considered distinction.
+     */
+    @Nested
+    inner class MalformedRequestValues {
+
+        private val channelId = UUID.randomUUID()
+
+        @Test
+        fun `should answer 400 when a date query parameter is not a date`() {
+            mockMvc.perform(get("/api/v1/channels/$channelId/analytics?startDate=not-a-date"))
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty)
+                .andExpect(jsonPath("$.data").doesNotExist())
+        }
+
+        /**
+         * The status alone does not answer #401. Its third complaint was that `INTERNAL_ERROR`
+         * "gave no hint that the field was named wrong", and a 400 whose body says only
+         * "Dogrulama hatasi" repeats that failure one status code down. The parameter's name and
+         * the type it needed are both facts about our own mapping, so naming them leaks nothing;
+         * the offending value is deliberately not echoed back.
+         */
+        @Test
+        fun `should name the parameter that could not be converted`() {
+            mockMvc.perform(get("/api/v1/channels/$channelId/analytics?endDate=yarin"))
+                .andExpect(status().isBadRequest)
+                .andExpect(
+                    jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("endDate"))
+                )
+                .andExpect(
+                    jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("LocalDate"))
+                )
+        }
+
+        /** A request Spring cannot bind must never reach the domain. */
+        @Test
+        fun `should not reach the use case when a parameter will not convert`() {
+            // Nothing is stubbed on the mock, so a call would fail this test with a MockK error.
+            mockMvc.perform(get("/api/v1/channels/$channelId/analytics?startDate=dun"))
+                .andExpect(status().isBadRequest)
+
+            verify(exactly = 0) { channelAnalyticsUseCase.getAnalytics(any(), any(), any(), any()) }
+        }
+
+        /** The path variable was already a 400, by way of `UUID.fromString`. It must stay one. */
+        @Test
+        fun `should answer 400 when the channel id in the path is not a UUID`() {
+            mockMvc.perform(get("/api/v1/channels/not-a-uuid/analytics"))
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+        }
+
+        /**
+         * The counterweight to the four above. Moving the parsing out of the controller and into
+         * Spring's binder is only safe if the binder accepts exactly what `LocalDate.parse`
+         * accepted, so the wire format is pinned here rather than assumed — and the values must
+         * still arrive at the use case, converted, rather than being rejected wholesale.
+         */
+        @Test
+        fun `should pass well-formed ISO dates through to the use case`() {
+            every {
+                channelAnalyticsUseCase.getAnalytics(
+                    channelId,
+                    TestData.USER_ID_1,
+                    LocalDate.of(2026, 1, 5),
+                    LocalDate.of(2026, 2, 6)
+                )
+            } returns ChannelAnalyticsSummary(
+                channelId = channelId.toString(),
+                totalSubscribers = 0,
+                dailyStats = emptyList()
+            )
+
+            mockMvc.perform(
+                get("/api/v1/channels/$channelId/analytics?startDate=2026-01-05&endDate=2026-02-06")
+            ).andExpect(status().isOk)
+
+            verify(exactly = 1) {
+                channelAnalyticsUseCase.getAnalytics(
+                    channelId,
+                    TestData.USER_ID_1,
+                    LocalDate.of(2026, 1, 5),
+                    LocalDate.of(2026, 2, 6)
+                )
+            }
         }
     }
 

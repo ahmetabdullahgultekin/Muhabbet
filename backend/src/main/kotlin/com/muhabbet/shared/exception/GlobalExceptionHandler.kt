@@ -53,12 +53,47 @@ class GlobalExceptionHandler {
     }
 
     /**
-     * Malformed inputs that Spring/JVM raise before they reach the service layer:
-     * a bad UUID in a path variable (`MethodArgumentTypeMismatchException`) or in a request body
-     * (`UUID.fromString` → `IllegalArgumentException`). These are client errors → 400, not 500.
+     * A path variable or query parameter whose text Spring could not convert to the type the
+     * mapping declares — `?startDate=yarın`, or an id that is not a UUID.
+     *
+     * Split out of [handleBadRequest] so the answer can say **which** value was wrong (#401). Its
+     * third complaint was not the status alone but that `INTERNAL_ERROR` "gave no hint that the
+     * field was named wrong"; a 400 whose body reads only "Doğrulama hatası" repeats that failure
+     * one status code down, and the caller is still reduced to reading the container log.
+     *
+     * The parameter's name and the type it needed are facts about our own mapping, so naming them
+     * discloses nothing. The offending **value** is deliberately not echoed back: it is unbounded
+     * attacker-controlled text, and a client that sent it already knows what it sent.
+     *
+     * No prose is invented here for the same reason [handleValidation] invents none — the detail is
+     * `name: Type`, which needs no translation and cannot drift out of step with a locale.
      */
-    @ExceptionHandler(MethodArgumentTypeMismatchException::class, IllegalArgumentException::class)
-    fun handleBadRequest(ex: Exception): ResponseEntity<ApiResponse<Nothing>> {
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun handleTypeMismatch(ex: MethodArgumentTypeMismatchException): ResponseEntity<ApiResponse<Nothing>> {
+        val requiredType = ex.requiredType?.simpleName
+        log.warn("Type mismatch on request value: {} (required {})", ex.name, requiredType)
+        return respond(
+            ErrorCode.VALIDATION_ERROR,
+            requiredType?.let { "${ex.name}: $it" } ?: ex.name
+        )
+    }
+
+    /**
+     * A value the JVM rejected inside the controller rather than at the binder — most of this
+     * codebase's controllers still take an id as `String` and call `UUID.fromString` themselves,
+     * which throws `IllegalArgumentException`. Client error → 400, not 500.
+     *
+     * This arm is wider than it looks: **any** `IllegalArgumentException` escaping any layer lands
+     * here, including a `require(...)` that fails deep in a service, which is a server fault
+     * answered as though the caller had mistyped something. That is a reason to keep moving parsing
+     * to the binder — where [handleTypeMismatch] can tell the caller precisely what was wrong —
+     * rather than a reason to widen this net further. Nothing should be added to it whose origin is
+     * ambiguous; `DateTimeParseException` was considered and deliberately left out, because a date
+     * that will not parse is a client error only when it came off the wire, and `LocalDate.parse`
+     * is also called on values read back from the database.
+     */
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleBadRequest(ex: IllegalArgumentException): ResponseEntity<ApiResponse<Nothing>> {
         log.warn("Bad request: {}", ex.message)
         return respond(ErrorCode.VALIDATION_ERROR)
     }
