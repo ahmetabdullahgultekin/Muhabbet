@@ -55,6 +55,9 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
  * @param onFilled fired once the last digit lands, so the caller can submit without the user having
  *   to reach for a button. Given the code arrives by SMS, the tap after the sixth digit is pure
  *   ceremony.
+ * @param masked draws a dot per entered digit instead of the digit. Off for an SMS code, which the
+ *   user is reading off another screen anyway and needs to be able to check; on for a two-step PIN,
+ *   which is a secret the user knows and which is entered in public (#566).
  */
 @Composable
 fun MuhabbetOtpField(
@@ -64,6 +67,7 @@ fun MuhabbetOtpField(
     length: Int = 6,
     isError: Boolean = false,
     enabled: Boolean = true,
+    masked: Boolean = false,
     onFilled: (String) -> Unit = {}
 ) {
     val haptics = LocalHaptics.current
@@ -123,7 +127,8 @@ fun MuhabbetOtpField(
                     OtpDigitBox(
                         digit = value.getOrNull(index),
                         isActive = isFocused && index == value.length.coerceAtMost(length - 1),
-                        isError = isError
+                        isError = isError,
+                        masked = masked
                     )
                 }
             }
@@ -134,7 +139,7 @@ fun MuhabbetOtpField(
 }
 
 @Composable
-private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean) {
+private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean, masked: Boolean) {
     val borderColor by animateColorAsState(
         targetValue = when {
             isError -> MaterialTheme.colorScheme.error
@@ -162,13 +167,18 @@ private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = digit?.toString().orEmpty(),
+            // Masked at the point of drawing rather than by a VisualTransformation: the real field
+            // is invisible here, so there is nothing for a transformation to transform.
+            text = digit?.let { if (masked) MaskGlyph else it.toString() }.orEmpty(),
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
     }
 }
+
+/** U+2022 BULLET — the same glyph `PasswordVisualTransformation` uses by default. */
+private const val MaskGlyph = "\u2022"
 
 private const val ShakeAmplitude = 12f
 private const val ShakeDurationMs = 320

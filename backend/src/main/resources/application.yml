@@ -148,6 +148,11 @@ muhabbet:
     cooldown-seconds: 60
     mock-enabled: ${OTP_MOCK_ENABLED:false}  # true = log OTP to console instead of SMS
 
+  # Two-step verification: the sign-in gate's guess budget (#566). See TwoStepProperties.
+  two-step:
+    max-attempts: 5
+    lock-seconds: 900                # 15 minutes, then the window reopens
+
   sms:
     provider: ${SMS_PROVIDER:mock}     # mock, twilio, twilio-verify, netgsm
     twilio:

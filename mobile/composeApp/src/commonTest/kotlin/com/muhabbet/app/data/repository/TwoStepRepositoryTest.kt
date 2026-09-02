@@ -77,29 +77,29 @@ class TwoStepRepositoryTest {
         // maps for DELETE only — 405, surfaced to the user as a generic failure.
         val repository = repositoryRespondingWith(HttpStatusCode.OK, okEmpty)
 
-        repository.enable("123456", null)
+        repository.enable("123456")
 
         assertEquals(listOf("POST" to "/api/v1/auth/two-step/setup"), recorded.map { it.method to it.path })
     }
 
     @Test
-    fun enable_sendsThePinAndRecoveryEmailTheEndpointReads() = runTest {
+    fun enable_sendsThePinTheEndpointReads() = runTest {
         val repository = repositoryRespondingWith(HttpStatusCode.OK, okEmpty)
 
-        repository.enable("123456", "kurtarma@example.com")
+        repository.enable("123456")
 
         val sent = recorded.single().body
         assertTrue(sent.contains("\"pin\":\"123456\""), "pin should be sent: $sent")
-        assertTrue(sent.contains("\"email\":\"kurtarma@example.com\""), "email should be sent: $sent")
     }
 
     @Test
-    fun enable_withoutARecoveryEmail_sendsNullRatherThanAnEmptyString() = runTest {
-        // The column is nullable and `resetPinViaEmail` compares against it. An empty string would
-        // be a stored address that matches "" and nothing else — worse than storing nothing.
+    fun enable_sendsNoRecoveryAddressAtAll() = runTest {
+        // The "recovery email" was collected for an endpoint that verified nothing and has been
+        // removed (#566). Sending null rather than an address is the honest state: there is no
+        // recovery yet, so there is nothing to store one for.
         val repository = repositoryRespondingWith(HttpStatusCode.OK, okEmpty)
 
-        repository.enable("123456", null)
+        repository.enable("123456")
 
         assertTrue(recorded.single().body.contains("\"email\":null"), "email should be null: ${recorded.single().body}")
     }
@@ -141,7 +141,7 @@ class TwoStepRepositoryTest {
         )
 
         repository.status()
-        repository.enable("123456", null)
+        repository.enable("123456")
         repository.disable("123456")
 
         assertEquals(List(3) { "Bearer access-1" }, seenAuthorization.map { it.orEmpty() })
@@ -179,7 +179,7 @@ class TwoStepRepositoryTest {
             """{"error":{"code":"AUTH_2FA_ALREADY_ENABLED","message":"İki adımlı doğrulama zaten etkin"},"timestamp":"2026-08-17T10:00:00Z"}""",
         )
 
-        val failure = assertFailsWith<ApiException> { repository.enable("123456", null) }
+        val failure = assertFailsWith<ApiException> { repository.enable("123456") }
 
         assertEquals("AUTH_2FA_ALREADY_ENABLED", failure.code)
     }

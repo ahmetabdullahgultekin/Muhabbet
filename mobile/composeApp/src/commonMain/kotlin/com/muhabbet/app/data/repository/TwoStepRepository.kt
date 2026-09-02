@@ -44,9 +44,18 @@ class TwoStepRepository(
         apiClient.get<TwoStepStatusResponse>(STATUS_PATH).data
             ?: TwoStepStatusResponse(enabled = false, hasEmail = false)
 
-    /** Turns two-step on. [recoveryEmail] is optional and is what a later reset would be sent to. */
-    suspend fun enable(pin: String, recoveryEmail: String?) {
-        apiClient.post<Unit>(SETUP_PATH, SetupTwoStepRequest(pin = pin, email = recoveryEmail))
+    /**
+     * Turns two-step on. The PIN is all that is sent, and `email` therefore goes as null.
+     *
+     * The screen used to collect a "recovery email". Nothing could recover with it: the endpoint it
+     * fed compared an address the caller supplied against the stored one and cleared the PIN, which
+     * verifies nothing and was reachable only from a session the locked-out user does not have. That
+     * endpoint is gone (#566) and so is the field — collecting an address for a recovery that does
+     * not exist is the same promise this whole issue is about. The DTO field and the column remain
+     * for the mail round-trip that would make it real.
+     */
+    suspend fun enable(pin: String) {
+        apiClient.post<Unit>(SETUP_PATH, SetupTwoStepRequest(pin = pin, email = null))
     }
 
     /**

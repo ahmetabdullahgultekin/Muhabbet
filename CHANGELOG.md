@@ -8,6 +8,42 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Added — Enter sends, and you can say whether it does
+
+- **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired
+  `ImeAction.Send` to a handler and the key still inserted a newline, for two reasons the issue
+  named correctly: a **hardware** Enter never becomes an IME action at all, so `KeyboardActions`
+  never saw it, and a multi-line field (the composer caps at four lines, because people write
+  paragraphs) makes Android add `TYPE_TEXT_FLAG_MULTI_LINE`, after which many IMEs draw a return
+  key and ignore the declared action. The composer now intercepts the key itself
+  (`onPreviewKeyEvent`, KeyDown only, so one press is not two sends) and keeps the IME handler for
+  the keyboards that do honour it.
+  **Settings -> Enter key sends**, on by default. With it on, Shift+Enter is the newline; with it
+  off, Enter is the newline and the send button is the only way to send — which is why it is a
+  setting rather than a decision: there is no answer that is right both for someone with a laptop
+  keyboard and for someone typing a paragraph on a phone. On a soft keyboard there is no Shift to
+  hold, so turning the setting off *is* the newline affordance; WhatsApp does the same. Persisted
+  per device, read from one Koin singleton by both the switch and the composer, so the two cannot
+  disagree.
+
+### Added — Storage Usage leads somewhere, and can free space
+
+- **The Storage card is tappable and the screen behind it can actually free space** (#546). It was
+  four numbers with nowhere to go. The new screen separates the two things that card was blurring:
+  - **On this device** — the app's cache directory: Coil's image cache plus the camera, voice-note
+    and transcription temp files that are written before an upload and never cleaned up afterwards.
+    Measured, and clearable. Nothing there is a message, a setting or a wallpaper, and everything
+    there can be downloaded again.
+  - **On the server** — the four existing totals, now labelled for what they are: media *you sent*,
+    stored in MinIO. They are not on the phone, so deleting them would free nothing locally.
+  Deliberately **not** built, and said on screen rather than left as a mystery: the per-conversation
+  breakdown (`media_files.conversation_id` exists in the schema and has never been written to, so
+  every row is NULL — and reconstructing it by matching URLs against object keys is the
+  substring-matching mistake #541 and #679 were both filed about, here deciding what to delete),
+  server-side deletion (#541 owns that, and it needs the media id on the message), and "delete
+  anything older than N months", which depends on the breakdown existing first.
+
+
 ### Security — blocking someone now works in both directions on stories
 
 - **You kept seeing the stories of the person you blocked** (#687). The fix above closed the other

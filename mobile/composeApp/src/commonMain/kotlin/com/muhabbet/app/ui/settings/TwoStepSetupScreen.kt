@@ -47,7 +47,6 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetScaffold
-import com.muhabbet.designsystem.components.MuhabbetTextField
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
 import com.muhabbet.designsystem.theme.MuhabbetDepth
@@ -79,7 +78,6 @@ fun TwoStepSetupScreen(
     var pin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var currentPin by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
     var state by remember { mutableStateOf<TwoStepState>(TwoStepState.Loading) }
     var reloadToken by remember { mutableStateOf(0) }
     var isSaving by remember { mutableStateOf(false) }
@@ -93,6 +91,7 @@ fun TwoStepSetupScreen(
         notEnabled = stringResource(Res.string.two_step_error_not_enabled),
         sessionExpired = stringResource(Res.string.two_step_error_session_expired),
         malformedPin = stringResource(Res.string.two_step_pin_length),
+        lockedOut = stringResource(Res.string.two_step_error_locked),
     )
     val pinMismatchMsg = stringResource(Res.string.two_step_pin_mismatch)
     val pinLengthMsg = stringResource(Res.string.two_step_pin_length)
@@ -111,7 +110,7 @@ fun TwoStepSetupScreen(
                     else -> {
                         isSaving = true
                         val failure = runCatchingCancellable {
-                            twoStepRepository.enable(pin, email.ifBlank { null })
+                            twoStepRepository.enable(pin)
                         }.exceptionOrNull()
                         if (failure == null) state = TwoStepState.Known(enabled = true)
                         else Log.e(TAG, "Two-step setup failed", failure)
@@ -206,8 +205,6 @@ fun TwoStepSetupScreen(
                         onPinChange = { pin = it },
                         confirmPin = confirmPin,
                         onConfirmPinChange = { confirmPin = it },
-                        email = email,
-                        onEmailChange = { email = it },
                         isSaving = isSaving,
                         onSubmit = setUpTwoStep
                     )
@@ -265,15 +262,13 @@ private fun EnabledCard(
     }
 }
 
-/** The "it is off" form: a PIN, its confirmation, and an optional recovery address. */
+/** The "it is off" form: a PIN and its confirmation. */
 @Composable
 private fun SetupForm(
     pin: String,
     onPinChange: (String) -> Unit,
     confirmPin: String,
     onConfirmPinChange: (String) -> Unit,
-    email: String,
-    onEmailChange: (String) -> Unit,
     isSaving: Boolean,
     onSubmit: () -> Unit
 ) {
@@ -285,11 +280,12 @@ private fun SetupForm(
 
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    // Honest about what enabling this does today: the PIN is stored, and no sign-in asks for it
-    // yet. Delete this line the moment the login path enforces it — and not before, because a
-    // padlock that protects nothing is worse than no padlock (the standing rule from #61).
+    // The sign-in gate landed with #566, so the PIN is now genuinely asked for. What replaced the
+    // "not enforced yet" line is the other honest thing this screen owes the user: there is no way
+    // back. No mail sender exists, so a forgotten PIN cannot be reset, and the same rule from #61
+    // applies to a promise of recovery as to a padlock — do not make one the code cannot keep.
     Text(
-        text = stringResource(Res.string.two_step_not_enforced_note),
+        text = stringResource(Res.string.two_step_no_recovery_warning),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -310,19 +306,6 @@ private fun SetupForm(
         value = confirmPin,
         onValueChange = onConfirmPinChange,
         label = stringResource(Res.string.two_step_confirm_pin),
-        imeAction = ImeAction.Next,
-        onImeAction = null
-    )
-
-    Spacer(Modifier.height(MuhabbetSpacing.Medium))
-
-    MuhabbetTextField(
-        value = email,
-        onValueChange = onEmailChange,
-        modifier = Modifier.fillMaxWidth(),
-        label = stringResource(Res.string.two_step_email_hint),
-        singleLine = true,
-        keyboardType = KeyboardType.Email,
         imeAction = ImeAction.Done,
         onImeAction = onSubmit
     )
@@ -400,6 +383,7 @@ private class TwoStepErrorMessages(
     val notEnabled: String,
     val sessionExpired: String,
     val malformedPin: String,
+    val lockedOut: String,
 ) {
     /**
      * [generic] covers everything else — a 500, a dead network, a proxy error page — because those
@@ -411,6 +395,7 @@ private class TwoStepErrorMessages(
         "AUTH_2FA_ALREADY_ENABLED" -> alreadyEnabled
         "AUTH_2FA_PIN_INVALID" -> pinInvalid
         "AUTH_2FA_NOT_ENABLED" -> notEnabled
+        "AUTH_2FA_LOCKED" -> lockedOut
         "AUTH_UNAUTHORIZED", "AUTH_TOKEN_EXPIRED" -> sessionExpired
         "VALIDATION_ERROR" -> malformedPin
         else -> generic

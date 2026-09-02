@@ -37,6 +37,16 @@ class OtpPersistenceAdapter(
     override fun claimAttempt(otpRequest: OtpRequest, maxAttempts: Int): Boolean =
         springDataOtpRepository.claimAttempt(otpRequest.id, maxAttempts) == 1
 
+    /**
+     * REQUIRES_NEW for the mirror image of [claimAttempt]'s reason: the caller refunds the attempt
+     * and then throws `AUTH_2FA_PIN_REQUIRED`, so a refund that joined the caller's transaction
+     * would be rolled back with it and the round trip would be charged after all.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    override fun refundAttempt(otpRequest: OtpRequest) {
+        springDataOtpRepository.refundAttempt(otpRequest.id)
+    }
+
     override fun markVerified(otpRequest: OtpRequest) {
         springDataOtpRepository.markVerified(otpRequest.id)
     }

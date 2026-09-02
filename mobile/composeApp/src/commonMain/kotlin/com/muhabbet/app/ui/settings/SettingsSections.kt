@@ -32,11 +32,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.PrivacySettingsController
+import com.muhabbet.app.util.formatBytes
+import com.muhabbet.app.data.local.ComposerSettingsController
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.NotificationPermission
 import com.muhabbet.app.platform.NotificationPermissionState
+import androidx.compose.ui.semantics.Role
+import com.muhabbet.designsystem.modifier.pressable
 import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.theme.MuhabbetThemeMode
 import com.muhabbet.designsystem.theme.MuhabbetElevation
@@ -140,7 +144,19 @@ internal fun SettingsSectionTitle(title: String) {
 }
 
 @Composable
-internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageResponse?) {
+internal fun StorageSection(
+    storageLoading: Boolean,
+    storageUsage: StorageUsageResponse?,
+    /**
+     * Where tapping the card goes, or null when it is already the destination.
+     *
+     * Null on `StorageUsageScreen`, which reuses this card to show the same four numbers — a card
+     * that navigates to the screen it is on would be a dead tap, and the ripple would say
+     * otherwise. The whole surface is the target rather than a separate "manage" row: the numbers
+     * are the thing being asked about, so they are the thing to press (#546).
+     */
+    onOpenDetail: (() -> Unit)? = null
+) {
     SettingsSectionTitle(stringResource(Res.string.storage_title))
     Spacer(Modifier.height(MuhabbetSpacing.Medium))
 
@@ -159,8 +175,27 @@ internal fun StorageSection(storageLoading: Boolean, storageUsage: StorageUsageR
         }
     } else if (storageUsage != null) {
         val storageCardShape = MaterialTheme.shapes.small
+        val openLabel = stringResource(Res.string.storage_open_detail)
         Surface(
-            modifier = Modifier.fillMaxWidth().depth(MuhabbetDepth.Raised, storageCardShape),
+            modifier = Modifier
+                .fillMaxWidth()
+                .depth(MuhabbetDepth.Raised, storageCardShape)
+                // Through `pressable` rather than a bare `clickable`, so the ripple follows the
+                // card corners instead of flashing a rectangle over them (#703). The label is what
+                // a screen reader announces for the action, which a card of four numbers otherwise
+                // gives no clue about.
+                .then(
+                    if (onOpenDetail != null) {
+                        Modifier.pressable(
+                            shape = storageCardShape,
+                            onClickLabel = openLabel,
+                            role = Role.Button,
+                            onClick = onOpenDetail
+                        )
+                    } else {
+                        Modifier
+                    }
+                ),
             color = MuhabbetDepth.Raised.containerColor(),
             shape = storageCardShape
         ) {
@@ -413,6 +448,28 @@ internal fun HapticsSection(themeController: ThemeController) {
     )
 }
 
+/**
+ * Whether Enter sends (#516).
+ *
+ * A switch beside haptics rather than a two-row picker: it is a binary with an obvious default, and
+ * both halves are named in the subtitle, which is the part that matters — a user who wants the other
+ * behaviour needs to be told which key gives it to them, and on a soft keyboard the answer is
+ * "turn this off", not "hold Shift".
+ *
+ * Reads the same [ComposerSettingsController] the composer does. There is deliberately no local
+ * `remember` copy here; see that class for what a second copy costs.
+ */
+@Composable
+internal fun EnterToSendSection(composerSettings: ComposerSettingsController = koinInject()) {
+    val enabled by composerSettings.enterToSend.collectAsState()
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_enter_to_send),
+        subtitle = stringResource(Res.string.settings_enter_to_send_subtitle),
+        checked = enabled,
+        onCheckedChange = { composerSettings.setEnterToSend(it) }
+    )
+}
+
 @Composable
 internal fun AccountSection(phoneNumber: String) {
     SettingsSectionTitle(stringResource(Res.string.settings_account_section))
@@ -458,23 +515,4 @@ private fun StorageRow(label: String, bytes: Long, count: Int, color: Color) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-}
-
-private fun formatBytes(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val kb = bytes / 1024.0
-    if (kb < 1024) return "${formatDecimal(kb, 1)} KB"
-    val mb = kb / 1024.0
-    if (mb < 1024) return "${formatDecimal(mb, 1)} MB"
-    val gb = mb / 1024.0
-    return "${formatDecimal(gb, 2)} GB"
-}
-
-private fun formatDecimal(value: Double, places: Int): String {
-    var factor = 1L
-    repeat(places) { factor *= 10 }
-    val rounded = ((value * factor) + 0.5).toLong()
-    val intPart = rounded / factor
-    val fracPart = (rounded % factor).toString().padStart(places, '0')
-    return "$intPart.$fracPart"
 }

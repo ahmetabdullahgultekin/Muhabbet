@@ -2,6 +2,7 @@ package com.muhabbet.auth.domain.service
 
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.InMemoryTwoStepAttemptRepository
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -31,6 +32,7 @@ class TwoStepVerificationServiceTest {
 
     private lateinit var userRepository: UserRepository
     private lateinit var passwordEncoder: PasswordEncoder
+    private lateinit var attempts: InMemoryTwoStepAttemptRepository
     private lateinit var service: TwoStepVerificationService
 
     private val userId = TestData.USER_ID_1
@@ -58,7 +60,8 @@ class TwoStepVerificationServiceTest {
     fun setUp() {
         userRepository = mockk()
         passwordEncoder = ReversibleEncoder()
-        service = TwoStepVerificationService(userRepository, passwordEncoder)
+        attempts = InMemoryTwoStepAttemptRepository()
+        service = TwoStepVerificationService(userRepository, passwordEncoder, attempts)
     }
 
     @Test
@@ -189,6 +192,52 @@ class TwoStepVerificationServiceTest {
 
         assertTrue(service.verifyPin(userId, "123456"))
         assertFalse(service.verifyPin(userId, "654321"))
+    }
+
+    @Test
+    fun `should lock verify out after five wrong PINs`() {
+        // `/verify` answers whether a PIN is right, which makes it an oracle: unmetered, an attacker
+        // holding a stolen token could find the PIN here and then use it at sign-in, where the
+        // limiter would never have seen the guesses. Same counter, so the guesses come out of the
+        // same five (#566).
+        every { userRepository.findById(userId) } returns
+            user(pinHash = "hashed:123456", enabledAt = Instant.now())
+
+        repeat(5) { assertFalse(service.verifyPin(userId, "654321")) }
+
+        val thrown = assertThrows(BusinessException::class.java) { service.verifyPin(userId, "123456") }
+        assertEquals(ErrorCode.AUTH_2FA_LOCKED, thrown.errorCode)
+    }
+
+    @Test
+    fun `should lock disable out after five wrong PINs`() {
+        // Turning the second factor OFF is the most valuable thing a guessed PIN buys, so this
+        // endpoint has to be metered at least as tightly as the sign-in gate.
+        every { userRepository.findById(userId) } returns
+            user(pinHash = "hashed:123456", enabledAt = Instant.now())
+
+        repeat(5) {
+            val wrong = assertThrows(BusinessException::class.java) { service.disablePin(userId, "654321") }
+            assertEquals(ErrorCode.AUTH_2FA_PIN_INVALID, wrong.errorCode)
+        }
+
+        val thrown = assertThrows(BusinessException::class.java) { service.disablePin(userId, "123456") }
+        assertEquals(ErrorCode.AUTH_2FA_LOCKED, thrown.errorCode)
+    }
+
+    @Test
+    fun `should clear a stale lockout when a new PIN is set`() {
+        // Reachable: lock yourself out at sign-in, then open the app on a device that is already
+        // signed in. Carrying the old window over would keep punishing failures against a PIN that
+        // no longer exists.
+        every { userRepository.findById(userId) } returns user()
+        every { userRepository.save(any()) } answers { firstArg() }
+        repeat(5) { attempts.claimAttempt(userId, 5, java.time.Duration.ofSeconds(900)) }
+        assertTrue(attempts.isLocked(userId))
+
+        service.setupPin(userId, "123456", null)
+
+        assertFalse(attempts.isLocked(userId))
     }
 
     @Test

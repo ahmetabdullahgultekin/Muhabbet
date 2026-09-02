@@ -60,7 +60,9 @@ class AuthServiceTestNumberTest {
             // fail on the quota rather than on what it is testing. The quota itself is
             // covered by RedisOtpQuotaAdapterTest against a real Redis.
             io.mockk.every { it.tryConsume(any()) } returns true
-        }
+        },
+            firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
+            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
         )
 
     @Test

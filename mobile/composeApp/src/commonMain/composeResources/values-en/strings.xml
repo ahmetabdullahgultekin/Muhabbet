@@ -382,6 +382,21 @@
         <item quantity="other">%1$d items</item>
     </plurals>
 
+    <!-- Storage detail screen (#546) -->
+    <string name="storage_open_detail">Manage storage</string>
+    <string name="storage_device_section">On this device</string>
+    <string name="storage_device_cache">Cache</string>
+    <string name="storage_device_cache_subtitle">Downloaded copies of photos, thumbnails and audio, plus temporary files waiting to be sent. Clearing it removes no messages; anything needed is downloaded again.</string>
+    <string name="storage_device_measuring">Calculating…</string>
+    <string name="storage_free_up">Free up space</string>
+    <string name="storage_free_up_confirm_title">Clear the cache?</string>
+    <string name="storage_free_up_confirm_body">Downloaded copies are deleted. Your messages, media and settings stay on the device.</string>
+    <string name="storage_freed">Freed %1$s</string>
+    <string name="storage_server_section">On the server</string>
+    <string name="storage_server_explanation">How much room the media you have sent takes up on the server. These files are not on your phone, so deleting them would not free space here.</string>
+    <string name="storage_server_not_deletable">These cannot be deleted from here: the same files appear in the chats of everyone who received them, and there is no server-side deletion yet.</string>
+    <string name="storage_no_per_chat">No per-chat breakdown yet: the server stores uploaded media without recording which chat it belongs to.</string>
+
     <!-- Calls -->
     <string name="calls_title">Calls</string>
     <string name="call_incoming">Incoming Call</string>
@@ -554,7 +569,6 @@
     <string name="two_step_description">Create a 6-digit PIN to protect your account</string>
     <string name="two_step_pin_hint">6-digit PIN</string>
     <string name="two_step_confirm_pin">Confirm PIN</string>
-    <string name="two_step_email_hint">Recovery email (optional)</string>
     <string name="two_step_enable">Enable</string>
     <string name="two_step_disable">Disable</string>
     <string name="two_step_enabled">Two-step verification is enabled</string>
@@ -563,10 +577,11 @@
     <string name="two_step_disabled">Two-step verification turned off</string>
     <string name="two_step_current_pin">Current PIN</string>
     <string name="two_step_status_unavailable">Could not find out whether two-step verification is on</string>
-    <string name="two_step_not_enforced_note">Note: for now the PIN is only saved, it is not asked for at sign-in yet.</string>
+    <string name="two_step_no_recovery_warning">If you forget this PIN you will not be able to sign in on a new device. There is no reset yet.</string>
     <string name="two_step_error_already_enabled">Two-step verification is already on</string>
     <string name="two_step_error_pin_invalid">That PIN is not correct</string>
     <string name="two_step_error_not_enabled">Two-step verification is not on</string>
+    <string name="two_step_error_locked">Too many incorrect PIN attempts. Try again later.</string>
     <string name="two_step_error_session_expired">Your session has expired. Sign out and back in.</string>
 
     <!-- Mute Duration -->
@@ -834,10 +849,15 @@
     <string name="communities_empty">No communities yet</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_subtitle">Vibrate on taps and swipes</string>
+    <string name="settings_enter_to_send">Enter key sends</string>
+    <string name="settings_enter_to_send_subtitle">When off, Enter starts a new line. When on, Shift+Enter starts a new line.</string>
     <string name="otp_error_invalid">That verification code is not correct</string>
     <string name="otp_error_expired">That verification code has expired. Request a new one.</string>
     <string name="otp_error_max_attempts">Too many incorrect attempts. Request a new code.</string>
     <string name="otp_error_cooldown">Wait a moment before requesting a new code</string>
+    <string name="otp_two_step_prompt">This account has two-step verification on. Enter your 6-digit PIN.</string>
+    <string name="otp_error_two_step_invalid">That PIN is not correct</string>
+    <string name="otp_error_two_step_locked">Too many incorrect PIN attempts. Try again later.</string>
     <string name="search_failed">Search failed</string>
     <string name="status_post_failed">Could not post your status</string>
     <!-- Contact-sync consent (KVKK explicit consent, #425) -->

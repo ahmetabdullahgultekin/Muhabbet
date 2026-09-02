@@ -34,6 +34,28 @@ interface TokenStorage {
     // default would silently disable haptics app-wide with nothing to show for it.
     fun getHapticsEnabled(): Boolean
     fun setHapticsEnabled(enabled: Boolean)
+
+    /**
+     * Whether pressing Enter in the chat composer sends the message (#516).
+     *
+     * Defaults to **true** — the messenger convention, and what the issue asked for — so a device
+     * that has never opened the setting behaves like WhatsApp does out of the box. The alternative
+     * is not "Enter does nothing": with this off, Enter inserts a newline, which is what the field
+     * did before the setting existed.
+     *
+     * Abstract, for the eighth time in this file and for the same reason as every neighbour that
+     * says so. A defaulted no-op getter returning false would leave Enter inserting newlines on
+     * every device forever while the switch in Settings appeared to move — which is precisely the
+     * class of defect (#377, #378, #380, #383) the 2026-08-15 audit found a whole screen of, and it
+     * would compile. Store and read, or fail to build.
+     *
+     * A per-device preference, deliberately not synced to the account: which key sends is a property
+     * of the keyboard in front of you, and the right answer on a laptop is often the wrong one on a
+     * phone.
+     */
+    fun getEnterToSend(): Boolean
+    fun setEnterToSend(enabled: Boolean)
+
     fun getLastSyncTimestamp(): String? = null
     fun setLastSyncTimestamp(timestamp: String) {}
 
