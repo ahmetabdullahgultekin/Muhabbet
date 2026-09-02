@@ -5,8 +5,11 @@ import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -15,17 +18,36 @@ open class StatusService(
     private val statusRepository: StatusRepository,
     private val conversationRepository: ConversationRepository,
     private val userDirectory: UserDirectoryPort,
-    private val blockPolicy: BlockPolicyPort
+    private val blockPolicy: BlockPolicyPort,
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort
 ) : ManageStatusUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * A status URL reaches every contact's screen the moment they open the status tray, which is the
+     * same unasked-for fetch a message's `mediaUrl` causes and the same fix (#679) — on a wider
+     * audience, since a status goes to everyone you share a conversation with rather than to one
+     * chat.
+     *
+     * Only the origin test applies here: `POST /statuses` takes a URL and no media id, so there is
+     * nothing for the server to resolve. Giving statuses the id would be the same work #719 records
+     * for messages and is not this change.
+     */
+    private fun requireAllowedOrigin(url: String?): String? {
+        if (url == null) return null
+        if (!mediaAttachmentPolicy.isAllowedOrigin(url)) {
+            throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+        }
+        return url
+    }
 
     @Transactional
     override fun createStatus(userId: UUID, content: String?, mediaUrl: String?): Status {
         val status = Status(
             userId = userId,
             content = content,
-            mediaUrl = mediaUrl
+            mediaUrl = requireAllowedOrigin(mediaUrl)
         )
         val saved = statusRepository.save(status)
         log.info("Status created: id={}, user={}", saved.id, userId)
@@ -44,7 +66,7 @@ open class StatusService(
         val status = Status(
             userId = userId,
             content = content,
-            mediaUrl = mediaUrl,
+            mediaUrl = requireAllowedOrigin(mediaUrl),
             visibility = visibility,
             excludedUserIds = excludedUserIds,
             includedUserIds = includedUserIds

@@ -10,13 +10,17 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -77,7 +81,8 @@ class GroupServiceTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             messageBroadcaster = messageBroadcaster,
-            blockPolicy = blockPolicy
+            blockPolicy = blockPolicy,
+            transactions = InlineTransactionRunner()
         )
     }
 
@@ -849,6 +854,107 @@ class GroupServiceTest {
             groupService.leaveGroup(groupId, memberId)
 
             verify { messageBroadcaster.broadcastToUsers(match { it.size == 2 }, any()) }
+        }
+    }
+
+    /**
+     * The write half of #509 — the half the group screen was never actually reaching.
+     *
+     * These live in the service rather than the controller because that is where the check moved:
+     * the route used to do the member lookup, the role comparison and the `copy` inline, which put
+     * a permission decision in an adapter. `MessagingServiceTest` covers what the stored flag then
+     * does to a send.
+     */
+    @Nested
+    inner class SetAnnouncementMode {
+
+        @Test
+        fun `should store announcement mode when requester is an admin`() {
+            val group = groupConversation()
+            val saved = slot<Conversation>()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, adminId) } returns
+                    member(groupId, adminId, MemberRole.ADMIN)
+            every { conversationRepository.updateConversation(capture(saved)) } answers { saved.captured }
+
+            val result = groupService.setAnnouncementMode(groupId, adminId, enabled = true)
+
+            assertTrue(saved.captured.announcementOnly)
+            assertTrue(result.announcementOnly)
+        }
+
+        @Test
+        fun `should clear announcement mode when an owner turns it off`() {
+            val group = groupConversation().copy(announcementOnly = true)
+            val saved = slot<Conversation>()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, ownerId) } returns
+                    member(groupId, ownerId, MemberRole.OWNER)
+            every { conversationRepository.updateConversation(capture(saved)) } answers { saved.captured }
+
+            val result = groupService.setAnnouncementMode(groupId, ownerId, enabled = false)
+
+            assertFalse(saved.captured.announcementOnly)
+            assertFalse(result.announcementOnly)
+        }
+
+        @Test
+        fun `should throw GROUP_PERMISSION_DENIED when a plain member tries to set it`() {
+            val group = groupConversation()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, memberId) } returns
+                    member(groupId, memberId, MemberRole.MEMBER)
+
+            val ex = assertThrows<BusinessException> {
+                groupService.setAnnouncementMode(groupId, memberId, enabled = true)
+            }
+
+            assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.updateConversation(any()) }
+        }
+
+        @Test
+        fun `should throw GROUP_NOT_MEMBER when the requester is not in the group`() {
+            val group = groupConversation()
+
+            every { conversationRepository.findById(groupId) } returns group
+            every { conversationRepository.findMember(groupId, newUserId) } returns null
+
+            val ex = assertThrows<BusinessException> {
+                groupService.setAnnouncementMode(groupId, newUserId, enabled = true)
+            }
+            assertEquals(ErrorCode.GROUP_NOT_MEMBER, ex.errorCode)
+        }
+
+        /**
+         * A one-to-one chat has no admins, so "only admins may post" would mute both people with no
+         * control anywhere to undo it. The old route accepted this.
+         */
+        @Test
+        fun `should refuse a direct conversation`() {
+            val direct = directConversation()
+
+            every { conversationRepository.findById(direct.id) } returns direct
+
+            val ex = assertThrows<BusinessException> {
+                groupService.setAnnouncementMode(direct.id, ownerId, enabled = true)
+            }
+
+            assertEquals(ErrorCode.GROUP_CANNOT_MODIFY_DIRECT, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.updateConversation(any()) }
+        }
+
+        @Test
+        fun `should throw GROUP_NOT_FOUND when the conversation does not exist`() {
+            every { conversationRepository.findById(groupId) } returns null
+
+            val ex = assertThrows<BusinessException> {
+                groupService.setAnnouncementMode(groupId, ownerId, enabled = true)
+            }
+            assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
         }
     }
 }

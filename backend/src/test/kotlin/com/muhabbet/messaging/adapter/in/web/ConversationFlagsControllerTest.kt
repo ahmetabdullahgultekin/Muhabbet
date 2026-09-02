@@ -62,7 +62,7 @@ class ConversationFlagsControllerTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            presenceVisibility = PresenceVisibility(blockPolicy)
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
 
         every { userRepository.findAllByIds(any()) } returns listOf(TestData.user(id = me))
@@ -93,6 +93,7 @@ class ConversationFlagsControllerTest {
         name = null,
         avatarUrl = null,
         lastMessagePreview = null,
+        lastMessageContentType = null,
         lastMessageAt = null,
         unreadCount = 0,
         participantIds = listOf(me),

@@ -68,7 +68,7 @@ class ConversationPresenceBlockTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            presenceVisibility = PresenceVisibility(blockPolicy)
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
 
         every { userRepository.findAllByIds(any()) } returns listOf(
@@ -85,6 +85,7 @@ class ConversationPresenceBlockTest {
                     name = null,
                     avatarUrl = null,
                     lastMessagePreview = null,
+                    lastMessageContentType = null,
                     lastMessageAt = null,
                     unreadCount = 0,
                     participantIds = listOf(me, other)
@@ -123,6 +124,22 @@ class ConversationPresenceBlockTest {
     @Test
     fun `should withhold the online dot for a participant who has blocked the viewer`() {
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns setOf(other)
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
+
+        assertFalse(otherParticipantIsOnline())
+    }
+
+    /**
+     * The direction this endpoint never covered (#711).
+     *
+     * A block is not a request to be less visible; it is a request to be done with someone. Asking
+     * only "who has blocked me" left the person who pressed Block watching their blocked contact's
+     * dot in the chat list every day — the half they were actually asking for.
+     */
+    @Test
+    fun `should withhold the online dot for a participant the viewer has blocked`() {
+        every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns setOf(other)
 
         assertFalse(otherParticipantIsOnline())
     }
@@ -130,28 +147,9 @@ class ConversationPresenceBlockTest {
     @Test
     fun `should show the online dot when no one has blocked the viewer`() {
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
 
         assertTrue(otherParticipantIsOnline())
-    }
-
-    @Test
-    fun `should withhold the online dot for a participant the viewer has blocked`() {
-        // The other direction of the same control (#711). Blocking someone is not a request to be
-        // less visible to them; it is a request to be done with them. Until this, the blocker kept
-        // watching the blocked person's green dot in their own chat list every day.
-        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns setOf(other)
-
-        assertFalse(otherParticipantIsOnline())
-    }
-
-    @Test
-    fun `should ask both directions about the same participant set`() {
-        // Contract, not decoration. The bug this replaces was one direction being asked and the
-        // other not, on a surface whose answer the app renders as a live dot.
-        controller.getConversations(null, 20)
-
-        verify(exactly = 1) { blockPolicy.findBlockedBy(me, listOf(other)) }
-        verify(exactly = 1) { blockPolicy.findBlockedAmong(me, listOf(other)) }
     }
 
     @Test
@@ -159,10 +157,26 @@ class ConversationPresenceBlockTest {
         // The viewer is filtered out before the query: asking whether you have blocked yourself is
         // meaningless, and leaving yourself in would hide your own dot from your own chat list.
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
 
         val page = controller.getConversations(null, 20).body?.data
         val self = page?.items?.single()?.participants?.single { it.userId == me.toString() }
 
         assertEquals(true, self?.isOnline)
+    }
+
+    @Test
+    fun `should ask each direction once for the whole page rather than once per participant`() {
+        // Contract, not decoration, and it covers both halves of the bug: one direction being
+        // asked and the other not, on a surface the app renders as a live dot; and this being the
+        // app's busiest call, where either direction resolved per row is an N+1 on the screen
+        // users open first.
+        every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
+
+        controller.getConversations(null, 20)
+
+        verify(exactly = 1) { blockPolicy.findBlockedBy(me, listOf(other)) }
+        verify(exactly = 1) { blockPolicy.findBlockedAmong(me, listOf(other)) }
     }
 }

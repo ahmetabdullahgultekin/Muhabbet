@@ -125,6 +125,12 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     ),
     COMMUNITY_INVALID_NAME(HttpStatus.BAD_REQUEST, "Geçersiz topluluk adı"),
 
+    // #446: names are unique per creator, not globally — two different people may both call a
+    // community "Aile". 409 rather than 400: the request is well-formed and would have been
+    // accepted a moment earlier, which is also what tells the client to offer a different name
+    // rather than to report that the field is malformed.
+    COMMUNITY_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bu isimde bir topluluğunuz zaten var"),
+
     // Leaving would strand the community with no member and no owner. #407 added a real delete
     // endpoint (owner only) as the honest way to remove one; leave still refuses for a sole member
     // so the escape hatch is an explicit, auditable delete rather than an implicit one on the way out.
@@ -140,6 +146,12 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     MSG_VIEW_ONCE_ALREADY_VIEWED(HttpStatus.CONFLICT, "Bu mesaj zaten görüntülendi"),
     MSG_PIN_LIMIT_REACHED(HttpStatus.CONFLICT, "Sabitlenmiş mesaj sınırına ulaşıldı"),
     MSG_ANNOUNCEMENT_ONLY(HttpStatus.FORBIDDEN, "Bu grupta sadece yöneticiler mesaj gönderebilir"),
+
+    // A message or status named a media address this server does not serve (#679). BAD_REQUEST, not
+    // FORBIDDEN: nothing about the sender's permissions is wrong, the attachment itself is not one
+    // this application can hand to a recipient's device. Deliberately not 401 — an ErrorCode mapped
+    // to 401 is replayed by the client's Ktor auth plugin and arrives twice (#400).
+    MSG_MEDIA_NOT_ACCESSIBLE(HttpStatus.BAD_REQUEST, "Medya adresi bu sunucuya ait değil"),
 
     // Broadcast Lists
     BROADCAST_LIST_NOT_FOUND(HttpStatus.NOT_FOUND, "Yayın listesi bulunamadı"),

@@ -46,6 +46,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.ui.conversations.toChatTarget
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.ConversationResponse
@@ -77,7 +78,12 @@ import com.muhabbet.designsystem.components.MuhabbetIconButton
  */
 @Composable
 fun MediaViewer(
-    imageUrl: String,
+    /**
+     * Anything Coil can load: a URL for ordinary media, or a `ByteArray` for a view-once photo,
+     * whose bytes arrive in the burn response and whose object no longer exists to have a URL
+     * (#541).
+     */
+    image: Any,
     onDismiss: () -> Unit,
     onForward: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
@@ -130,7 +136,7 @@ fun MediaViewer(
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
-                model = imageUrl,
+                model = image,
                 contentDescription = stringResource(Res.string.a11y_image_full_screen),
                 modifier = Modifier
                     .fillMaxSize()
@@ -214,10 +220,10 @@ fun MediaViewer(
 /** Backward-compatible wrapper — used by ChatScreen where no actions are needed yet */
 @Composable
 fun FullImageViewer(
-    imageUrl: String,
+    image: Any,
     onDismiss: () -> Unit
 ) {
-    MediaViewer(imageUrl = imageUrl, onDismiss = onDismiss)
+    MediaViewer(image = image, onDismiss = onDismiss)
 }
 
 @Composable
@@ -235,6 +241,9 @@ fun ForwardPickerDialog(
 ) {
     val cancelText = stringResource(Res.string.cancel)
     val defaultChatName = stringResource(Res.string.chat_default_name)
+    // Choosing who to forward to is choosing a person, so the picker names them the way every other
+    // surface does — address book first (#549), not the bare number it used to list.
+    val contactNames = rememberContactNames()
     MuhabbetDialog(
         onDismiss = onDismiss,
         title = stringResource(Res.string.chat_forward_title),
@@ -254,7 +263,7 @@ fun ForwardPickerDialog(
                         // The whole target is kept, not just its name: taking `.name` and dropping
                         // the rest is what left the chat you land in after forwarding with no
                         // avatar and a dead tap on the title (#555).
-                        val convTarget = conv.toChatTarget(currentUserId, defaultChatName)
+                        val convTarget = conv.toChatTarget(currentUserId, defaultChatName, contactNames)
                         val convName = convTarget.name
                         Row(
                             modifier = Modifier

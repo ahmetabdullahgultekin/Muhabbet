@@ -10,12 +10,15 @@ import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
@@ -225,6 +228,92 @@ class CommunityPersistenceAdapterIntegrationTest {
         val reloaded = communityRepository.findById(communityId)
         assertEquals("Yeni Mahalle", reloaded?.name)
         assertEquals("Yeni açıklama", reloaded?.description)
+    }
+
+    // ─── #446: one community name per creator ────────────────────────
+    //
+    // The fold that decides what "the same name" means lives in `community_name_key`, defined by
+    // V23, and the unique index over it is what actually enforces this. Both are database objects,
+    // so these are the only tests that can say whether either one works — a mocked repository would
+    // agree with whatever definition it was handed, including a wrong one.
+
+    @Test
+    fun `should refuse a second community with the same name under one creator`() {
+        val thrown = assertThrows<BusinessException> {
+            communityRepository.save(Community(name = "Mahalle", createdBy = creatorId))
+        }
+
+        assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, thrown.errorCode)
+    }
+
+    @Test
+    fun `should treat case and surrounding whitespace as the same name`() {
+        // "Mahalle" and "  mahaLLe " are one name to anyone reading the list, so they are one name
+        // to the index.
+        val thrown = assertThrows<BusinessException> {
+            communityRepository.save(Community(name = "  mahaLLe ", createdBy = creatorId))
+        }
+
+        assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, thrown.errorCode)
+    }
+
+    @Test
+    fun `should collapse the Turkish dotted and dotless i onto one name`() {
+        // The trap V23's translate step exists for. `lower('I')` is 'ı' under a Turkish locale and
+        // 'i' everywhere else, and `lower('İ')` is two code points under an invariant one — so a
+        // plain `lower(name)` index would give a different answer depending on the server's
+        // collation. All four of I/ı/i/İ have to land on the same key.
+        communityRepository.save(Community(name = "İstanbul", createdBy = creatorId))
+
+        val thrown = assertThrows<BusinessException> {
+            communityRepository.save(Community(name = "ISTANBUL", createdBy = creatorId))
+        }
+
+        assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, thrown.errorCode)
+    }
+
+    @Test
+    fun `should allow another person to use a name that is already taken`() {
+        val otherCreatorId = seedUser()
+
+        val saved = communityRepository.save(Community(name = "Mahalle", createdBy = otherCreatorId))
+
+        assertEquals("Mahalle", communityRepository.findById(saved.id)?.name)
+    }
+
+    @Test
+    fun `should free the name again once the community is deleted`() {
+        // `communities` has no `deleted_at` — the adapter's delete is a real DELETE — so nothing is
+        // left behind holding the name. This is the assertion that would fail first if a soft
+        // delete were ever introduced without a partial index to go with it.
+        communityRepository.delete(communityId)
+
+        val saved = communityRepository.save(Community(name = "Mahalle", createdBy = creatorId))
+
+        assertEquals("Mahalle", communityRepository.findById(saved.id)?.name)
+    }
+
+    @Test
+    fun `should refuse renaming a community onto another of the same creator's names`() {
+        val otherId = communityRepository.save(Community(name = "Okul", createdBy = creatorId)).id
+
+        val thrown = assertThrows<BusinessException> {
+            communityRepository.update(Community(id = otherId, name = "MAHALLE", createdBy = creatorId))
+        }
+
+        assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, thrown.errorCode)
+    }
+
+    @Test
+    fun `should find the creator's community by a differently spelled name`() {
+        // What `CommunityService`'s pre-flight check calls. It has to fold the name the same way the
+        // index does, or the service reports a name as free and the insert then rejects it.
+        assertEquals(communityId, communityRepository.findByCreatorAndName(creatorId, "  MAHALLE  ")?.id)
+    }
+
+    @Test
+    fun `should not find another creator's community by name`() {
+        assertNull(communityRepository.findByCreatorAndName(seedUser(), "Mahalle"))
     }
 
     private fun seedUser(): UUID {

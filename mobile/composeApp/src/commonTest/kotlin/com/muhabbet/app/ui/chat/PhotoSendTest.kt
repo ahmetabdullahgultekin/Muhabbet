@@ -28,6 +28,7 @@ class PhotoSendTest {
         caption = "Fotoğraf",
         mediaUrl = "https://cdn.example/blob.jpg",
         thumbnailUrl = "https://cdn.example/thumb.jpg",
+        mediaId = "media-1",
         viewOnce = viewOnce,
         sentAt = Instant.fromEpochMilliseconds(1_700_000_000_000)
     )
@@ -66,5 +67,13 @@ class PhotoSendTest {
         assertEquals("https://cdn.example/thumb.jpg", sent.frame.thumbnailUrl)
         assertEquals("msg-1", sent.frame.messageId)
         assertEquals("req-1", sent.frame.requestId)
+    }
+
+    @Test
+    fun should_name_the_uploaded_object_so_a_burn_can_destroy_it() {
+        // Without this the server has no server-resolved reference to the blob, so burning a
+        // view-once photo hides it and leaves the bytes in the bucket behind a presigned URL —
+        // #541, the seven-day window. The URL is for rendering; this is what can be deleted.
+        assertEquals("media-1", photo(viewOnce = true).frame.mediaId)
     }
 }

@@ -1,6 +1,8 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import java.util.UUID
 
 /**
@@ -21,8 +23,8 @@ import java.util.UUID
  *
  * **The returned set is symmetric, which is why one call serves both readings.** "Whose presence
  * must be withheld from this user" and "who must not be told about this user's presence" are the
- * same set, so [hiddenFrom] answers a REST projection and a WebSocket fan-out without either
- * caller having to work out which direction it is in — the thing that went wrong.
+ * same set, so [hiddenFromPresenceOf] answers a REST projection and a WebSocket fan-out without
+ * either caller having to work out which direction it is in — the thing that went wrong.
  *
  * The two port questions stay separate below rather than being merged into one because messaging
  * has four call sites that are deliberately **one**-directional and carry a comment saying so:
@@ -33,20 +35,53 @@ import java.util.UUID
  * Not a use case and not annotated: it is a rule, wired as a bean in `AppConfig` like every other
  * domain service so the domain stays Spring-free.
  */
-class PresenceVisibility(private val blockPolicy: BlockPolicyPort) {
+class PresenceVisibility(
+    private val blockPolicy: BlockPolicyPort,
+    private val conversationRepository: ConversationRepository
+) {
 
     /**
      * Which of [candidateIds] must exchange no presence with [userId] — those [userId] has blocked
      * and those who have blocked [userId].
+     *
+     * The same `findBlockedBy + findBlockedAmong` union `StatusService` has applied to the Updates
+     * tab since #687, now also serving the chat list and the presence broadcast.
      *
      * Batched by contract: one query per direction for the whole set, never one per candidate. The
      * chat list resolves every participant on the page the moment it opens and the WebSocket
      * resolves every contact on connect, so a per-candidate question here is an N+1 on the two
      * busiest moments the app has. Empty in, empty out, and no query at all.
      */
-    fun hiddenFrom(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
+    fun hiddenFromPresenceOf(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
         if (candidateIds.isEmpty()) return emptySet()
         return blockPolicy.findBlockedBy(userId, candidateIds) +
             blockPolicy.findBlockedAmong(userId, candidateIds)
+    }
+
+    /**
+     * Which of [recipientIds] must not be told that [userId] is typing in [conversationId].
+     *
+     * Symmetric like the presence frame, and for a sharper reason: a chat where one side sees
+     * typing and the other does not announces the block and the moment it happened.
+     *
+     * **Direct conversations only**, which is the deliberate limit rather than an oversight. A
+     * block does not stop a group message either — `MessageService` drops only direct sends — so
+     * filtering group typing would make the two disagree: the blocked member's messages would
+     * arrive while their typing did not, which reads as a bug and half-announces the block to the
+     * room. The dot itself is still hidden everywhere, because [hiddenFromPresenceOf] is not scoped
+     * to a conversation; this carve-out costs only the typing line inside a shared group.
+     *
+     * The pair question is asked before the conversation is loaded, so the ordinary case — no block
+     * between these two — costs two indexed lookups and no extra row. Typing arrives on every
+     * keystroke burst, and a third query on that path is worth paying only when there is something
+     * to hide.
+     */
+    fun hiddenFromTypingIn(conversationId: UUID, userId: UUID, recipientIds: List<UUID>): Set<UUID> {
+        val other = recipientIds.singleOrNull() ?: return emptySet()
+        val blocked = blockPolicy.hasBlocked(userId, other) || blockPolicy.hasBlocked(other, userId)
+        if (!blocked) return emptySet()
+
+        val isDirect = conversationRepository.findById(conversationId)?.type == ConversationType.DIRECT
+        return if (isDirect) setOf(other) else emptySet()
     }
 }

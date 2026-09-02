@@ -131,6 +131,7 @@ open class ConversationService(
                 name = conv.name,
                 avatarUrl = conv.avatarUrl,
                 lastMessagePreview = lastMessage?.content?.take(100),
+                lastMessageContentType = lastMessage?.contentType,
                 lastMessageAt = lastMessage?.serverTimestamp?.toString(),
                 unreadCount = unreadCountMap[conv.id] ?: 0,
                 participantIds = members.map { it.userId },

@@ -111,9 +111,23 @@ management:
         # if the ranking is ever inverted.
         order: DOWN,OUT_OF_SERVICE,UP,MEDIA_UNAVAILABLE,UNKNOWN
         http-mapping:
-          # Explicit rather than inherited. The default mapper answers 200 for anything that is not
-          # DOWN or OUT_OF_SERVICE, so this is belt and braces — but the deploy gate reads nothing
-          # except this number, and it should not depend on a default.
+          # This block REPLACES the built-in mapping, it does not extend it — which is the opposite
+          # of the `order` list above, and the reason DOWN and OUT_OF_SERVICE have to be written out
+          # here even though both are Spring defaults. HttpCodeStatusMapper.of() falls back to
+          # SimpleHttpCodeStatusMapper.DEFAULT_MAPPINGS only when this map is EMPTY; give it any
+          # entry at all and the lookup becomes getOrDefault(code, 200) over these entries alone.
+          #
+          # So listing MEDIA_UNAVAILABLE by itself silently dropped DOWN -> 503, and /actuator/health
+          # answered 200 with a body saying DOWN. Both gates read the status code and nothing else
+          # (`curl -sf` in deploy-hetzner.yml, `curl -f` in the compose healthcheck, both piped to
+          # /dev/null), so a release with a dead database would have passed the gate that exists to
+          # catch precisely that, and the container would have kept being reported healthy.
+          # HealthHttpStatusMappingTest drives the real mapper with this block and fails if either
+          # failure mapping goes missing again.
+          DOWN: 503
+          OUT_OF_SERVICE: 503
+          # 200 is also what an unlisted status would get; stated explicitly because it is a
+          # decision (#494) and not a fallback — a MinIO outage must not fail a deploy.
           MEDIA_UNAVAILABLE: 200
   metrics:
     tags:
@@ -159,6 +173,13 @@ muhabbet:
     max-video-size: 104857600        # 100 MB
     thumbnail-width: 320
     thumbnail-height: 320
+    # Origins other than our own MinIO that a message or status may point media at (#679). The
+    # defaults are GIPHY's CDN hosts, because the GIF/sticker picker sends a URL straight off it and
+    # never re-hosts the file — without them the send path would refuse every GIF. See
+    # MediaProperties.attachmentOrigins for why a closed list of third parties does not reopen the
+    # issue. Override to add a host; the list replaces the default, so include GIPHY if you still
+    # want GIFs.
+    attachment-origins: ${MEDIA_ATTACHMENT_ORIGINS:https://media.giphy.com,https://media0.giphy.com,https://media1.giphy.com,https://media2.giphy.com,https://media3.giphy.com,https://media4.giphy.com,https://i.giphy.com,https://stickers.giphy.com}
 
   invite:
     # Base of the shareable group invite URL the server puts in InviteLinkResponse.inviteUrl.

@@ -15,9 +15,9 @@ import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
-import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
@@ -39,18 +39,18 @@ open class MessageService(
     private val userDirectory: UserDirectoryPort,
     private val readReceiptPolicy: ReadReceiptPolicyPort,
     private val blockPolicy: BlockPolicyPort,
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort,
     private val transactions: TransactionRunner
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        /**
-         * Moved to [ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES] (#597) so the app can enforce the
-         * same rule in its context menu instead of letting the user discover it by failing. Kept as
-         * an alias rather than inlined at the call site so the name still reads at line 371.
-         */
-        private const val EDIT_WINDOW_MINUTES = ValidationRules.MESSAGE_EDIT_WINDOW_MINUTES
+        // The `EDIT_WINDOW_MINUTES` alias that stood here is gone. #597 moved the rule into
+        // `ValidationRules.isWithinEditWindow` so the app and the server compute the same answer,
+        // and `editMessage` has called that directly ever since — the alias was left behind
+        // referring to a call site that no longer used it, which is why detekt had it as an unused
+        // property. One entry off `detekt-baseline.xml` (79 → 78).
 
         /**
          * How many due messages one scheduled run will take on.
@@ -76,7 +76,12 @@ open class MessageService(
      * block into a probe, telling a harasser exactly who has blocked them and when they unblock.
      */
     override fun sendMessage(command: SendMessageCommand): Message {
-        val outcome = transactions.inTransaction { persistSend(command) }
+        // Before the transaction, because resolving a media id reads the media table and asks
+        // object storage to sign a URL, and #491's rule is that nothing which talks to something
+        // outside this database holds a Hikari connection while it does. A text message — every
+        // message with no media reference at all — never reaches the port and pays nothing.
+        val vetted = vetMediaAttachment(command)
+        val outcome = transactions.inTransaction { persistSend(vetted) }
 
         // Outside the transaction, and that is the entire point of #491.
         //
@@ -107,13 +112,59 @@ open class MessageService(
      */
     private data class SendOutcome(val message: Message, val recipients: List<ConversationMember>?)
 
+    /**
+     * Settles what this message's media URLs will be before anything is written (#679).
+     *
+     * The URL on a message is not decoration: the recipient's client fetches it to draw the bubble,
+     * with no tap and no confirmation. Whatever string wins here is a request the server has decided
+     * every recipient's device will make, so it may not be a string the sender chose freely.
+     *
+     * Two outcomes, no third:
+     *
+     *  * The sender named a `mediaId` the server can confirm is their own upload → **the server's
+     *    own URLs replace whatever the client sent**, which is discarded unread. This is the case
+     *    the photo path takes, and after it `media_url` holds a value this process minted.
+     *  * Otherwise — a forward, a GIF or sticker off GIPHY's CDN, a client older than `mediaId`, or
+     *    an id that buys nothing — the client's string survives only if it sits on one of the
+     *    origins this deployment publishes media from.
+     *
+     * A URL that is neither is refused, and refused here rather than at the controller so both
+     * transports get it: the WebSocket frame and the REST fallback are the same use case.
+     *
+     * What this does not claim: for the second case the URL is still a string a client wrote, and
+     * "on an allowed origin" is weaker than "this sender's blob". It is as strong as a forward can
+     * be — forwarding deliberately carries no id, because claiming the original sender's blob would
+     * hand the forwarder the power to destroy it (#541) — and it closes every harm in #679, all of
+     * which need the *sender* to own the server the recipient's phone is made to talk to.
+     */
+    private fun vetMediaAttachment(command: SendMessageCommand): SendMessageCommand {
+        if (command.mediaUrl == null && command.thumbnailUrl == null && command.mediaId == null) {
+            return command
+        }
+
+        val resolved = command.mediaId?.let { mediaAttachmentPolicy.resolveOwnUpload(it, command.senderId) }
+
+        // The thumbnail falls back to the client's value when the blob has none of its own — a voice
+        // note or a document has no thumbnail row — and that fallback is checked like any other
+        // client string rather than trusted because its sibling resolved.
+        return command.copy(
+            mediaUrl = resolved?.mediaUrl ?: requireAllowedOrigin(command.mediaUrl),
+            thumbnailUrl = resolved?.thumbnailUrl ?: requireAllowedOrigin(command.thumbnailUrl)
+        )
+    }
+
+    private fun requireAllowedOrigin(url: String?): String? {
+        if (url == null) return null
+        if (!mediaAttachmentPolicy.isAllowedOrigin(url)) {
+            throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+        }
+        return url
+    }
+
     private fun persistSend(command: SendMessageCommand): SendOutcome {
         // Validate content
         if (command.contentType == ContentType.TEXT) {
-            if (!ValidationRules.isValidMessageContent(command.content)) {
-                if (command.content.isBlank()) throw BusinessException(ErrorCode.MSG_EMPTY_CONTENT)
-                throw BusinessException(ErrorCode.MSG_CONTENT_TOO_LONG)
-            }
+            requireValidContent(command.content)
         }
 
         // Verify sender is member
@@ -160,6 +211,12 @@ open class MessageService(
             replyToId = command.replyToId,
             mediaUrl = command.mediaUrl,
             thumbnailUrl = command.thumbnailUrl,
+            // Recorded as the client asserted it, and trusted by nothing on this path.
+            // `ViewOnceService` checks that the object really was this sender's upload immediately
+            // before it destroys anything — the check belongs next to the consequence, and putting
+            // it here would make every text message in the app carry a media dependency it never
+            // uses (#541).
+            mediaId = command.mediaId,
             serverTimestamp = now,
             clientTimestamp = command.clientTimestamp,
             expiresAt = expiresAt,
@@ -269,11 +326,51 @@ open class MessageService(
         return MessagePage(items = page, nextCursor = nextCursor, hasMore = hasMore)
     }
 
-    @Transactional
+    /**
+     * The busiest of the sites #669 left behind: this runs on every delivery and every read
+     * receipt, roughly once per message delivered. It carries no `@Transactional` for the same
+     * reason [sendMessage] does not — the annotation would hold a pool connection across the
+     * status fan-out — and because [TransactionRunner] propagates as REQUIRED, leaving one on
+     * would have made the inner boundary a no-op that joined the outer transaction.
+     *
+     * The trade the move accepts: a broadcast that fails after the commit means a stored status
+     * nobody was pushed, so the sender keeps one tick until their client next loads history, which
+     * resolves the status from the same rows. Handing a client a receipt for a row a rollback then
+     * removed is the worse of the two, and that is the one this removes.
+     */
     override fun updateStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
+        val outcome = transactions.inTransaction { persistStatus(messageId, userId, status) }
+
+        val message = outcome.message ?: return
+        messageBroadcaster.broadcastStatusUpdate(
+            messageId,
+            message.conversationId,
+            userId,
+            message.senderId,
+            outcome.published
+        )
+
+        log.debug(
+            "Delivery status updated: msg={}, user={}, stored={}, published={}",
+            messageId,
+            userId,
+            status,
+            outcome.published
+        )
+    }
+
+    /**
+     * What the status transaction produced. A null [message] means the id did not resolve, so
+     * there is nobody to tell — the same early return the method used to take mid-transaction,
+     * expressed as a value because [TransactionRunner.inTransaction] binds its result to a
+     * non-null type.
+     */
+    private data class StatusOutcome(val message: Message?, val published: DeliveryStatus)
+
+    private fun persistStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): StatusOutcome {
         messageRepository.updateDeliveryStatus(messageId, userId, status)
 
-        val message = messageRepository.findById(messageId) ?: return
+        val message = messageRepository.findById(messageId) ?: return StatusOutcome(null, status)
         // A reader who has turned read receipts off still gets their own row stored as READ — that
         // row is what clears their unread badge — but the sender must not be told. We downgrade what
         // is *published*, never what is stored, because one column serves both concerns.
@@ -284,9 +381,7 @@ open class MessageService(
         } else {
             status
         }
-        messageBroadcaster.broadcastStatusUpdate(messageId, message.conversationId, userId, message.senderId, published)
-
-        log.debug("Delivery status updated: msg={}, user={}, stored={}, published={}", messageId, userId, status, published)
+        return StatusOutcome(message, published)
     }
 
     /**
@@ -369,16 +464,32 @@ open class MessageService(
         // One batched lookup for the whole recipient list — resolving names one at a time was an N+1.
         val displayInfo = userDirectory.findDisplayInfo(statuses.map { it.userId })
 
+        // The third publish path, and the one that was missed. updateStatus downgrades the live WS
+        // broadcast and resolveDeliveryStatuses downgrades the history aggregate, but "Info" names
+        // each recipient individually and printed the stored row verbatim — so a reader who had
+        // turned read receipts off still appeared under "Read by", with the time they opened it.
+        // Same batched, READ-only lookup as the aggregate above (#620).
+        val receiptsDisabled = readReceiptPolicy.findReadReceiptsDisabled(
+            statuses.filter { it.status == DeliveryStatus.READ && it.userId != requesterId }
+                .map { it.userId }
+        )
+
         return MessageInfo(
             message = message,
             recipients = statuses.map { status ->
                 val user = displayInfo[status.userId]
+                // Your own state is always truthful to you — the same rule resolveDeliveryStatuses
+                // applies when the requester is a recipient. The setting governs what others are
+                // told about you, not what you are told about yourself.
+                val published =
+                    if (status.userId == requesterId) status.status
+                    else publishableStatus(status.userId, status.status, receiptsDisabled)
                 MessageRecipient(
                     userId = status.userId,
                     displayName = user?.displayName,
                     avatarUrl = user?.avatarUrl,
-                    status = status.status,
-                    updatedAt = status.updatedAt
+                    status = published,
+                    updatedAt = if (published == status.status) status.updatedAt else null
                 )
             }
         )
@@ -386,26 +497,59 @@ open class MessageService(
 
     // ─── Message Management ──────────────────────────────────
 
-    @Transactional
-    override fun deleteMessage(messageId: UUID, requesterId: UUID) {
+    /**
+     * The message [requesterId] is allowed to change, or the reason they are not.
+     *
+     * Deleting and editing ask the same three questions in the same order, and used to ask them in
+     * three copied guard clauses each. One helper is the DRY answer, and it also keeps the
+     * precedence deliberate: a message that does not exist and a message that is not yours are
+     * answered differently, and "already deleted" is only reachable once ownership is established.
+     */
+    private fun requireOwnLiveMessage(messageId: UUID, requesterId: UUID): Message {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 
-        if (message.senderId != requesterId) {
-            throw BusinessException(ErrorCode.MSG_NOT_SENDER)
-        }
-        if (message.isDeleted) {
-            throw BusinessException(ErrorCode.MSG_ALREADY_DELETED)
-        }
+        rejectionFor(message, requesterId)?.let { throw BusinessException(it) }
+        return message
+    }
 
-        messageRepository.softDelete(messageId)
+    /** Why [requesterId] may not change [message], or null if they may. */
+    private fun rejectionFor(message: Message, requesterId: UUID): ErrorCode? = when {
+        message.senderId != requesterId -> ErrorCode.MSG_NOT_SENDER
+        message.isDeleted -> ErrorCode.MSG_ALREADY_DELETED
+        else -> null
+    }
 
-        val members = conversationRepository.findMembersByConversationId(message.conversationId)
+    /**
+     * The one place text content is judged, for both the send path and the edit path — which is the
+     * point, because an edit that accepted what a send rejects would be a way around the limit.
+     */
+    private fun requireValidContent(content: String) {
+        if (ValidationRules.isValidMessageContent(content)) return
+        throw BusinessException(
+            if (content.isBlank()) ErrorCode.MSG_EMPTY_CONTENT else ErrorCode.MSG_CONTENT_TOO_LONG
+        )
+    }
+
+    /**
+     * No `@Transactional`, and the fan-out is after the commit — #669, the same move [sendMessage]
+     * made in #491. A delete announces itself to every member of the conversation, so the write
+     * that used to hold a pool connection across that fan-out held it for as many blocking socket
+     * writes as the group has people.
+     *
+     * The trade: if the broadcast fails after the commit, the row is deleted and an open chat goes
+     * on rendering it until the client reloads history, which no longer returns it. The reverse —
+     * telling everyone a message is gone and then rolling the delete back — leaves them unable to
+     * see a message that still exists, with nothing to correct it.
+     */
+    override fun deleteMessage(messageId: UUID, requesterId: UUID) {
+        val outcome = transactions.inTransaction { persistDelete(messageId, requesterId) }
+
         messageBroadcaster.broadcastToUsers(
-            members.map { it.userId },
+            outcome.recipients,
             WsMessage.MessageDeleted(
                 messageId = messageId.toString(),
-                conversationId = message.conversationId.toString(),
+                conversationId = outcome.conversationId.toString(),
                 deletedBy = requesterId.toString(),
                 timestamp = System.currentTimeMillis()
             )
@@ -414,17 +558,60 @@ open class MessageService(
         log.info("Message {} soft-deleted by {}", messageId, requesterId)
     }
 
-    @Transactional
-    override fun editMessage(messageId: UUID, requesterId: UUID, newContent: String): Message {
-        val message = messageRepository.findById(messageId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
+    /** What the delete transaction produced: who to tell, and which conversation to name. */
+    private data class DeleteOutcome(val conversationId: UUID, val recipients: List<UUID>)
 
-        if (message.senderId != requesterId) {
-            throw BusinessException(ErrorCode.MSG_NOT_SENDER)
+    private fun persistDelete(messageId: UUID, requesterId: UUID): DeleteOutcome {
+        val message = requireOwnLiveMessage(messageId, requesterId)
+
+        messageRepository.softDelete(messageId)
+
+        val members = conversationRepository.findMembersByConversationId(message.conversationId)
+        return DeleteOutcome(message.conversationId, members.map { it.userId })
+    }
+
+    /**
+     * No `@Transactional`, and the fan-out is after the commit — #669. `MessageEdited` goes to
+     * every member, so this had the same connection-per-fan-out shape as [deleteMessage].
+     *
+     * The trade: a broadcast that fails after the commit leaves an open chat showing the old text
+     * until it reloads, where it will read the new one. The old shape could push the new text and
+     * then roll the write back, leaving readers with a version of the message that exists nowhere.
+     */
+    override fun editMessage(messageId: UUID, requesterId: UUID, newContent: String): Message {
+        val outcome = transactions.inTransaction { persistEdit(messageId, requesterId, newContent) }
+
+        // A null recipient list is the block case: nothing was written, so nothing goes out.
+        outcome.recipients?.let { recipients ->
+            messageBroadcaster.broadcastToUsers(
+                recipients,
+                WsMessage.MessageEdited(
+                    messageId = messageId.toString(),
+                    conversationId = outcome.message.conversationId.toString(),
+                    editedBy = requesterId.toString(),
+                    newContent = newContent,
+                    editedAt = outcome.editedAt.toEpochMilli()
+                )
+            )
+            log.info("Message {} edited by {}", messageId, requesterId)
         }
-        if (message.isDeleted) {
-            throw BusinessException(ErrorCode.MSG_ALREADY_DELETED)
-        }
+
+        return outcome.message
+    }
+
+    /**
+     * What the edit transaction produced. A null [recipients] means the edit was dropped because
+     * the recipient has blocked the sender — nothing was written and nothing may go out — as
+     * distinct from an empty list. Same convention as [SendOutcome].
+     */
+    private data class EditOutcome(
+        val message: Message,
+        val editedAt: Instant,
+        val recipients: List<UUID>?
+    )
+
+    private fun persistEdit(messageId: UUID, requesterId: UUID, newContent: String): EditOutcome {
+        val message = requireOwnLiveMessage(messageId, requesterId)
 
         // Through the shared rule rather than a local Duration, so the answer the app computed
         // before offering "Düzenle" and the answer the server computes here cannot disagree.
@@ -436,90 +623,27 @@ open class MessageService(
             throw BusinessException(ErrorCode.MSG_EDIT_WINDOW_EXPIRED)
         }
 
-        if (!ValidationRules.isValidMessageContent(newContent)) {
-            if (newContent.isBlank()) throw BusinessException(ErrorCode.MSG_EMPTY_CONTENT)
-            throw BusinessException(ErrorCode.MSG_CONTENT_TOO_LONG)
-        }
+        requireValidContent(newContent)
 
         val editedAt = Instant.now()
 
         // `updateContent` is the *second* way message content reaches a recipient, and guarding only
-        // `sendMessage` left it open: for EDIT_WINDOW_MINUTES after their last pre-block message, a
+        // `sendMessage` left it open: for the edit window after their last pre-block message, a
         // blocked sender could rewrite it to anything and MessageEdited would push the new text into
         // the blocker's open chat — repeatedly, on the same message. Same silence as the send path:
         // the caller is told it worked, nothing is written and nothing is broadcast.
         val conversation = conversationRepository.findById(message.conversationId)
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
+        val edited = message.copy(content = newContent, editedAt = editedAt)
+
         if (isBlockedDirectSend(conversation, members, requesterId)) {
             log.info("Message edit dropped, recipient has blocked the sender: id={}", messageId)
-            return message.copy(content = newContent, editedAt = editedAt)
+            return EditOutcome(edited, editedAt, recipients = null)
         }
 
         messageRepository.updateContent(messageId, newContent, editedAt)
 
-        messageBroadcaster.broadcastToUsers(
-            members.map { it.userId },
-            WsMessage.MessageEdited(
-                messageId = messageId.toString(),
-                conversationId = message.conversationId.toString(),
-                editedBy = requesterId.toString(),
-                newContent = newContent,
-                editedAt = editedAt.toEpochMilli()
-            )
-        )
-
-        log.info("Message {} edited by {}", messageId, requesterId)
-        return message.copy(content = newContent, editedAt = editedAt)
-    }
-
-    // ─── View-Once ────────────────────────────────────────────
-
-    /**
-     * Burns a view-once message and hands back its media, once.
-     *
-     * The order matters and every step earns its place:
-     *
-     * - **Authorize before anything else** — a non-member who knows the messageId must not be able
-     *   to burn someone else's message (the IDOR closed by #55).
-     * - **The sender is refused**, so opening your own view-once photo cannot consume the
-     *   recipient's one look. The sender's own copy is stripped by `toSharedMessage` too; a
-     *   view-once photo is not re-viewable by anyone once it leaves the composer.
-     * - **The write is the arbiter, not the read.** `viewedAt != null` above is a cheap rejection
-     *   for the common case, but two taps can both pass it. The conditional UPDATE can only match
-     *   once, so a zero row count means someone else won and this caller gets nothing.
-     */
-    @Transactional
-    override fun markViewOnceViewed(messageId: UUID, userId: UUID): ViewOnceReveal {
-        val message = messageRepository.findById(messageId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
-
-        conversationRepository.findMember(message.conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
-
-        if (!message.viewOnce) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR)
-        }
-
-        if (message.viewedAt != null) {
-            throw BusinessException(ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED)
-        }
-
-        if (message.senderId == userId) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR)
-        }
-
-        val viewedAt = Instant.now()
-        if (messageRepository.markViewOnceViewed(messageId, userId, viewedAt) == 0) {
-            throw BusinessException(ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED)
-        }
-
-        log.info("View-once message viewed: msg={}, user={}", messageId, userId)
-        return ViewOnceReveal(
-            messageId = messageId,
-            mediaUrl = message.mediaUrl,
-            thumbnailUrl = message.thumbnailUrl,
-            viewedAt = viewedAt
-        )
+        return EditOutcome(edited, editedAt, members.map { it.userId })
     }
 
     // ─── Scheduled Messages ──────────────────────────────────

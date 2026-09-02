@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.chat
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +32,7 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.firstUrlOrNull
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
+import com.muhabbet.designsystem.modifier.pressable
 
 /**
  * Delegates to `util/TextUtils.findUrlSpans`, which is now the one place that decides where a URL
@@ -77,7 +77,7 @@ fun LinkPreviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MuhabbetSpacing.XSmall, vertical = 2.dp)
-            .clickable { onOpenUrl(url) }
+            .pressable(shape = MaterialTheme.shapes.small) { onOpenUrl(url) }
     ) {
         Column(modifier = Modifier.padding(MuhabbetSpacing.Small)) {
             if (p.imageUrl != null) {

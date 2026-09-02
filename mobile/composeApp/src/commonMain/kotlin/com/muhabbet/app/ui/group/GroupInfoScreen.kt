@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
-import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.util.Log
@@ -69,6 +68,8 @@ import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.chat.MediaViewer
+import com.muhabbet.designsystem.modifier.pressable
+import androidx.compose.foundation.shape.CircleShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,8 +83,7 @@ fun GroupInfoScreen(
     conversationRepository: ConversationRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
-    mediaUploadHelper: MediaUploadHelper = koinInject(),
-    apiClient: ApiClient = koinInject()
+    mediaUploadHelper: MediaUploadHelper = koinInject()
 ) {
     var conversation by remember { mutableStateOf<ConversationResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -92,6 +92,8 @@ fun GroupInfoScreen(
     var showInviteLinkSheet by remember { mutableStateOf(false) }
     var showAddMembersSheet by remember { mutableStateOf(false) }
     var announcementOnly by remember { mutableStateOf(false) }
+    // Held while the PUT is in flight so the switch cannot be tapped twice into a race.
+    var isSavingAnnouncement by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var isUploadingPhoto by remember { mutableStateOf(false) }
     // Only ever set true when conversation?.avatarUrl is non-null — see the render sites below.
@@ -235,7 +237,7 @@ fun GroupInfoScreen(
 
     if (showPhotoViewer) {
         conversation?.avatarUrl?.let { url ->
-            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+            MediaViewer(image = url, onDismiss = { showPhotoViewer = false })
         }
     }
 
@@ -302,7 +304,7 @@ fun GroupInfoScreen(
                                 contentDescription = stringResource(Res.string.cd_group_avatar),
                                 // No photo means no navigation: a full-screen gradient isn't worth it (#615).
                                 modifier = if (groupAvatarUrl != null) {
-                                    Modifier.clickable { showPhotoViewer = true }
+                                    Modifier.pressable(shape = CircleShape) { showPhotoViewer = true }
                                 } else {
                                     Modifier
                                 }
@@ -429,22 +431,31 @@ fun GroupInfoScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f)
                             )
+                            // Deliberately NOT optimistic (#509). The switch shows what the server
+                            // stored, and only after it has stored it: this decides who may speak
+                            // in the group, so a display that runs ahead of the server is wrong in
+                            // whichever direction it lands. `enabled` is never assigned to the
+                            // state — `setAnnouncementMode` returns the server's value and that is
+                            // what gets rendered. The switch is disabled for the round trip so a
+                            // second tap cannot race the first.
                             MuhabbetSwitch(
                                 checked = announcementOnly,
+                                enabled = !isSavingAnnouncement,
                                 onCheckedChange = { enabled ->
-                                    announcementOnly = enabled
                                     scope.launch {
-                                        try {
-                                            apiClient.patch<Unit>(
-                                                "/api/v1/conversations/$conversationId",
-                                                mapOf("announcementOnly" to enabled)
-                                            )
-                                            conversation = conversation?.copy(announcementOnly = enabled)
+                                        isSavingAnnouncement = true
+                                        val stored = runCatchingCancellable {
+                                            groupRepository.setAnnouncementMode(conversationId, enabled)
+                                        }
+                                        isSavingAnnouncement = false
+                                        stored.onSuccess { serverValue ->
+                                            announcementOnly = serverValue
+                                            conversation = conversation?.copy(announcementOnly = serverValue)
                                             snackbarHostState.showSnackbar(
-                                                if (enabled) announcementEnabledMsg else announcementDisabledMsg
+                                                if (serverValue) announcementEnabledMsg else announcementDisabledMsg
                                             )
-                                        } catch (_: Exception) {
-                                            announcementOnly = !enabled
+                                        }.onFailure { failure ->
+                                            Log.e(TAG, "Failed to set announcement mode", failure)
                                             snackbarHostState.showSnackbar(updateFailedMsg)
                                         }
                                     }

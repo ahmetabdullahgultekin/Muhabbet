@@ -1,0 +1,83 @@
+# redis.conf.example — template for the Redis config file that holds `requirepass` (#448)
+#
+# Copy this to `redis.conf` NEXT TO THE COMPOSE FILE THAT USES IT, fill in the password, and set
+# the ownership described below. `redis.conf` is gitignored; this example never contains a secret.
+#
+# ---------------------------------------------------------------------------------------------
+# WHY A FILE AND NOT `--requirepass` OR `environment:`
+#
+# Compose interpolates `${REDIS_PASSWORD}` at parse time, so with either of those forms the
+# plaintext password is baked into the container's stored configuration and `docker inspect`
+# prints it back. On the production host that is readable by the `deploy` user, and the
+# self-hosted CI runner is that same host executing code from pull requests.
+#
+# Measured with a dummy value against a real redis:7-alpine container:
+#
+#     command: redis-server --requirepass ${REDIS_PASSWORD}   -> 3 hits in `docker inspect`
+#     environment: REDIS_PASSWORD: ${REDIS_PASSWORD}          -> 1 hit  (.Config.Env)
+#     command: redis-server /usr/local/etc/redis/redis.conf   -> 0 hits
+#
+# `environment:` is a lateral move, not a fix. Only a file the container reads at runtime keeps
+# the value out of the container's configuration.
+#
+# Redis masks its own process title (`ps` shows `redis-server *:6379`, never the password), so
+# Docker's stored config was the whole exposure for the server. The old healthcheck was worse
+# than the server: `redis-cli -a <password> ping` ran as a real, argv-visible process every 10
+# seconds for the life of the container. The replacement needs no credential at all — an
+# unauthenticated PING against a protected server answers "NOAUTH Authentication required",
+# which proves liveness just as well as PONG.
+#
+# ---------------------------------------------------------------------------------------------
+# OWNERSHIP — GET THIS WRONG AND REDIS WILL NOT START
+#
+# The obvious instinct is "readable only by root". That crash-loops the container:
+#
+#     Fatal error, can't open config file '/usr/local/etc/redis/redis.conf': Permission denied
+#
+# The redis:7-alpine image drops to uid 999 (user `redis`) before reading its config. The file
+# must be readable by that uid, not by root:
+#
+#     sudo chown 999:999 redis.conf
+#     sudo chmod 400 redis.conf
+#
+# That is still root-or-redis only on the host; it is not world-readable.
+#
+# ---------------------------------------------------------------------------------------------
+# APPLYING THIS TO THE SHARED CONTAINER
+#
+# The Redis that Muhabbet actually uses is `shared-redis`, which is defined OUTSIDE this
+# repository (the multi-project stack under /opt/projects/infra). This repo cannot change how it
+# starts. To apply the same fix there:
+#
+#   1. Create the conf file next to that stack's compose file, with the ownership above.
+#   2. Change that service to:
+#        command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+#        volumes: [ "./redis.conf:/usr/local/etc/redis/redis.conf:ro", ... ]
+#      and the credential-free healthcheck:
+#        test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -qE 'PONG|NOAUTH'"]
+#   3. ROTATE the password. The current one has been in `argv` for the life of the container and
+#      is in whatever shell histories, logs and support bundles have touched this host. Put the
+#      new value in the conf file AND in REDIS_PASSWORD in /opt/projects/Muhabbet/.env.prod.
+#   4. Restart Redis, then restart the backend:
+#        cd /opt/projects/Muhabbet
+#        docker compose --env-file .env.prod -f docker-compose.prod.yml up -d muhabbet-backend
+#      `--env-file .env.prod` is mandatory; without it every secret resolves to empty and the JWT
+#      boot guard crash-loops the container on a misleading "secret too short".
+#   5. Confirm nothing leaked back:
+#        docker inspect shared-redis | grep -c '<the new password>'   # must print 0
+#
+# Nothing of value is lost by rotating: presence keys, typing state, the WS fan-out channel and
+# the OTP quota counters are all transient, and user sessions are JWTs that do not live in Redis.
+#
+# ---------------------------------------------------------------------------------------------
+
+# The secret. Replace the placeholder — do not commit a filled-in copy of this file.
+requirepass CHANGE_ME
+
+# Everything below matches the tuning that used to be passed as command-line flags.
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+timeout 600
+tcp-keepalive 300
+databases 2
+lazyfree-lazy-eviction yes

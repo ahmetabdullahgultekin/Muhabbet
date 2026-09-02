@@ -21,6 +21,7 @@ import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestData
+import com.muhabbet.shared.TestMediaAttachmentPolicy
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -79,6 +80,7 @@ class MessagingServiceTest {
             userDirectory = userDirectory,
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
+            mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
             transactions = InlineTransactionRunner()
         )
     }
@@ -243,6 +245,110 @@ class MessagingServiceTest {
         assertEquals("Hello!", result.content)
         verify { messageRepository.save(any()) }
         verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
+    }
+
+    /**
+     * The enforcement half of #509, tested because nothing tested it before.
+     *
+     * The bug filed there was on the *client* — the switch PATCHed a field the update-group route
+     * does not have, so `announcement_only` never turned on. Repointing the switch is only worth
+     * anything if the flag it now sets actually stops someone posting, and until these three tests
+     * there was not one assertion in the repository that it did. Restoring persistence without
+     * proving the mechanism is exactly how this project has shipped switches that look fixed.
+     */
+    @Test
+    fun `should throw MSG_ANNOUNCEMENT_ONLY when a plain member posts to an announcement-only group`() {
+        val convId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.MEMBER)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { conversationRepository.findById(convId) } returns Conversation(
+            id = convId,
+            type = ConversationType.GROUP,
+            announcementOnly = true
+        )
+
+        val ex = assertThrows<BusinessException> {
+            messageService.sendMessage(
+                SendMessageCommand(
+                    messageId = UUID.randomUUID(),
+                    conversationId = convId,
+                    senderId = userA,
+                    content = "Hello!",
+                    clientTimestamp = Instant.now()
+                )
+            )
+        }
+
+        assertEquals(ErrorCode.MSG_ANNOUNCEMENT_ONLY, ex.errorCode)
+        // Refused before anything is written or broadcast — not saved-then-hidden.
+        verify(exactly = 0) { messageRepository.save(any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
+    }
+
+    @Test
+    fun `should let an admin post to an announcement-only group`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val admin = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.ADMIN)
+
+        every { conversationRepository.findMember(convId, userA) } returns admin
+        every { conversationRepository.findById(convId) } returns Conversation(
+            id = convId,
+            type = ConversationType.GROUP,
+            announcementOnly = true
+        )
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            admin,
+            ConversationMember(conversationId = convId, userId = userB, role = MemberRole.MEMBER)
+        )
+
+        val result = messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "Duyuru",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        assertEquals(messageId, result.id)
+        verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
+    }
+
+    @Test
+    fun `should let a plain member post once announcement mode is off`() {
+        val convId = UUID.randomUUID()
+        val messageId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA, role = MemberRole.MEMBER)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { conversationRepository.findById(convId) } returns Conversation(
+            id = convId,
+            type = ConversationType.GROUP,
+            announcementOnly = false
+        )
+        every { messageRepository.existsById(messageId) } returns false
+        every { messageRepository.save(any()) } answers { firstArg() }
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            member,
+            ConversationMember(conversationId = convId, userId = userB, role = MemberRole.OWNER)
+        )
+
+        val result = messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "Merhaba",
+                clientTimestamp = Instant.now()
+            )
+        )
+
+        assertEquals(messageId, result.id)
     }
 
     @Test
@@ -790,122 +896,38 @@ class MessagingServiceTest {
         assertEquals(ErrorCode.MSG_NOT_FOUND, ex.errorCode)
     }
 
-    // ─── markViewOnceViewed IDOR guard ───────────────────
+    // ─── The media reference a burn will act on (#541) ───
 
     @Test
-    fun `markViewOnceViewed should mark when requester is a member and not the sender`() {
+    fun `should store the media reference the sender reported`() {
+        // Stored verbatim and trusted by nobody here. `ViewOnceService` checks that the object
+        // really was this sender's upload immediately before it destroys anything — that is where
+        // the consequence is, and putting the check on this path instead would make every text
+        // message in the app carry a media dependency it never uses.
         val convId = UUID.randomUUID()
-        val message = Message(
-            id = UUID.randomUUID(),
-            conversationId = convId,
-            senderId = userA,
-            content = "peek",
-            viewOnce = true,
-            clientTimestamp = Instant.now()
+        val messageId = UUID.randomUUID()
+        val mediaId = UUID.randomUUID()
+        val member = ConversationMember(conversationId = convId, userId = userA)
+
+        every { conversationRepository.findMember(convId, userA) } returns member
+        every { messageRepository.existsById(messageId) } returns false
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(member)
+        val saved = slot<Message>()
+        every { messageRepository.save(capture(saved)) } answers { firstArg() }
+
+        messageService.sendMessage(
+            SendMessageCommand(
+                messageId = messageId,
+                conversationId = convId,
+                senderId = userA,
+                content = "photo",
+                contentType = ContentType.IMAGE,
+                mediaUrl = "https://cdn.example/blob?sig=abc",
+                mediaId = mediaId,
+                clientTimestamp = Instant.now()
+            )
         )
-        every { messageRepository.findById(message.id) } returns message
-        every { conversationRepository.findMember(convId, userB) } returns
-            ConversationMember(conversationId = convId, userId = userB)
-        every { messageRepository.markViewOnceViewed(message.id, userB, any()) } returns 1
 
-        messageService.markViewOnceViewed(message.id, userB)
-
-        verify(exactly = 1) { messageRepository.markViewOnceViewed(message.id, userB, any()) }
-    }
-
-    @Test
-    fun `markViewOnceViewed should release the media exactly once`() {
-        val convId = UUID.randomUUID()
-        val message = Message(
-            id = UUID.randomUUID(),
-            conversationId = convId,
-            senderId = userA,
-            content = "peek",
-            contentType = ContentType.IMAGE,
-            mediaUrl = "https://cdn.example/blob?sig=abc",
-            thumbnailUrl = "https://cdn.example/thumb?sig=abc",
-            viewOnce = true,
-            clientTimestamp = Instant.now()
-        )
-        every { messageRepository.findById(message.id) } returns message
-        every { conversationRepository.findMember(convId, userB) } returns
-            ConversationMember(conversationId = convId, userId = userB)
-        every { messageRepository.markViewOnceViewed(message.id, userB, any()) } returns 1
-
-        val reveal = messageService.markViewOnceViewed(message.id, userB)
-
-        // No other response in the API carries this URL, so if the burn did not hand it back the
-        // recipient would have burned a photo they were never shown.
-        assertEquals("https://cdn.example/blob?sig=abc", reveal.mediaUrl)
-        assertEquals("https://cdn.example/thumb?sig=abc", reveal.thumbnailUrl)
-    }
-
-    @Test
-    fun `markViewOnceViewed should refuse a second opener when the burn updates no row`() {
-        val convId = UUID.randomUUID()
-        val message = Message(
-            id = UUID.randomUUID(),
-            conversationId = convId,
-            senderId = userA,
-            content = "peek",
-            mediaUrl = "https://cdn.example/blob?sig=abc",
-            viewOnce = true,
-            clientTimestamp = Instant.now()
-        )
-        every { messageRepository.findById(message.id) } returns message
-        every { conversationRepository.findMember(convId, userB) } returns
-            ConversationMember(conversationId = convId, userId = userB)
-        // Still viewedAt == null on the row this transaction read, so the cheap check above passes.
-        // The conditional UPDATE is what actually decides, and it matched nothing: someone else won.
-        every { messageRepository.markViewOnceViewed(message.id, userB, any()) } returns 0
-
-        val ex = assertThrows<BusinessException> {
-            messageService.markViewOnceViewed(message.id, userB)
-        }
-        assertEquals(ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED, ex.errorCode)
-    }
-
-    @Test
-    fun `markViewOnceViewed should refuse the sender so a self-view cannot spend the recipient's look`() {
-        val convId = UUID.randomUUID()
-        val message = Message(
-            id = UUID.randomUUID(),
-            conversationId = convId,
-            senderId = userA,
-            content = "peek",
-            viewOnce = true,
-            clientTimestamp = Instant.now()
-        )
-        every { messageRepository.findById(message.id) } returns message
-        every { conversationRepository.findMember(convId, userA) } returns
-            ConversationMember(conversationId = convId, userId = userA)
-
-        assertThrows<BusinessException> {
-            messageService.markViewOnceViewed(message.id, userA)
-        }
-        verify(exactly = 0) { messageRepository.markViewOnceViewed(any(), any(), any()) }
-    }
-
-    @Test
-    fun `markViewOnceViewed should throw MSG_NOT_MEMBER and not burn the message for a non-member`() {
-        val convId = UUID.randomUUID()
-        val message = Message(
-            id = UUID.randomUUID(),
-            conversationId = convId,
-            senderId = userA,
-            content = "peek",
-            viewOnce = true,
-            clientTimestamp = Instant.now()
-        )
-        every { messageRepository.findById(message.id) } returns message
-        // userC knows the messageId but is NOT a member
-        every { conversationRepository.findMember(convId, userC) } returns null
-
-        val ex = assertThrows<BusinessException> {
-            messageService.markViewOnceViewed(message.id, userC)
-        }
-        assertEquals(ErrorCode.MSG_NOT_MEMBER, ex.errorCode)
-        // The whole point of the IDOR: a non-member must NOT be able to burn the view-once.
-        verify(exactly = 0) { messageRepository.markViewOnceViewed(any(), any(), any()) }
+        assertEquals(mediaId, saved.captured.mediaId)
     }
 }

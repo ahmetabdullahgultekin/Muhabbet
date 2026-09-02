@@ -1,10 +1,14 @@
 package com.muhabbet.messaging
 
+import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.adapter.`in`.web.ConversationController
+import com.muhabbet.messaging.adapter.`in`.websocket.CallFrameHandler
 import com.muhabbet.messaging.adapter.`in`.websocket.ChatWebSocketHandler
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
+import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.ConversationPage
 import com.muhabbet.messaging.domain.port.`in`.ConversationSummary
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
@@ -13,10 +17,8 @@ import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
-import com.muhabbet.messaging.domain.port.out.CallRoomProvider
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
-import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.protocol.WsMessage
@@ -118,7 +120,7 @@ class PresenceBlockAgreementTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            presenceVisibility = PresenceVisibility(blockPolicy)
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
 
         val rateLimiter = mockk<WebSocketRateLimiter>()
@@ -130,11 +132,10 @@ class PresenceBlockAgreementTest {
             updateDeliveryStatusUseCase = mockk<UpdateDeliveryStatusUseCase>(relaxed = true),
             conversationRepository = conversationRepository,
             presencePort = presencePort,
-            userRepository = mockk(relaxed = true),
-            callSignalingService = mockk<CallSignalingService>(relaxed = true),
-            callRoomProvider = mockk<CallRoomProvider>(relaxed = true),
+            recordLastSeenUseCase = mockk<RecordLastSeenUseCase>(relaxed = true),
+            callFrameHandler = mockk<CallFrameHandler>(relaxed = true),
             webSocketRateLimiter = rateLimiter,
-            presenceVisibility = PresenceVisibility(blockPolicy)
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
 
         stubAWorldWithNoReasonToHideAnything(getConversationsUseCase)
@@ -157,6 +158,10 @@ class PresenceBlockAgreementTest {
             ConversationMember(conversationId = convId, userId = blocker),
             ConversationMember(conversationId = convId, userId = blocked)
         )
+        // A direct chat, which is the only shape the typing filter applies to: a block does not
+        // stop a group message either, so filtering group typing would make the two disagree.
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT)
         every { getConversationsUseCase.getConversations(any(), null, 20) } returns ConversationPage(
             items = listOf(
                 ConversationSummary(
@@ -165,6 +170,7 @@ class PresenceBlockAgreementTest {
                     name = null,
                     avatarUrl = null,
                     lastMessagePreview = null,
+                    lastMessageContentType = null,
                     lastMessageAt = null,
                     unreadCount = 0,
                     participantIds = listOf(blocker, blocked)

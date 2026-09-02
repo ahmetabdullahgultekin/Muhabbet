@@ -20,8 +20,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import com.muhabbet.app.data.local.ContactsAccess
-import com.muhabbet.app.data.local.ContactsAccessController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.ui.connection.ConnectionStrip
@@ -32,7 +30,6 @@ import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.shared.dto.UserStatusGroup
-import com.muhabbet.app.platform.ContactsProvider
 import com.muhabbet.shared.model.Message
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
@@ -41,15 +38,13 @@ import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
-import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -77,8 +72,6 @@ fun ConversationListScreen(
     messageRepository: MessageRepository = koinInject(),
     wsClient: WsClient = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
-    contactsProvider: ContactsProvider = koinInject(),
-    contactsAccessController: ContactsAccessController = koinInject(),
     statusRepository: StatusRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject()
 ) {
@@ -97,11 +90,10 @@ fun ConversationListScreen(
     // Track online status by userId (updated by PresenceUpdate messages)
     val onlineUsers = remember { mutableStateMapOf<String, Boolean>() }
 
-    // Map of normalized E.164 phone → device contact saved name
-    val contactNameMap = remember { mutableStateMapOf<String, String>() }
-
-    // The app's one answer about contacts access (#691), rather than a private read of the OS.
-    val contactsAccess by contactsAccessController.access.collectAsState()
+    // Address-book names, from the app's one copy of them (#549). This used to be a
+    // `remember { mutableStateMapOf() }` filled by a LaunchedEffect right here, which is why this
+    // was the only screen in the app that could show "Anne" instead of +90500....
+    val contactNameMap = rememberContactNames()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleteTargetConv by remember { mutableStateOf<ConversationResponse?>(null) }
@@ -220,33 +212,6 @@ fun ConversationListScreen(
                 }
                 else -> {}
             }
-        }
-    }
-
-    // Load device contacts for name resolution (contact name > nickname > phone).
-    //
-    // Keyed on the shared access flow, not on `Unit` (#691). As `LaunchedEffect(Unit)` reading
-    // `contactsProvider.hasPermission()` this ran exactly once, at the first composition of the
-    // conversation list — which on a fresh account is before the user has ever been asked, so it
-    // read false and stopped. Granting the permission afterwards, from anywhere, changed nothing:
-    // returning from system settings tears down no composition, so the effect never re-ran and this
-    // list went on showing raw phone numbers. That looks precisely like the grant not having
-    // worked, which is why the same permission kept being granted over and over.
-    LaunchedEffect(contactsAccess) {
-        if (contactsAccess != ContactsAccess.Granted) return@LaunchedEffect
-        try {
-            val deviceContacts = withContext(Dispatchers.Default) {
-                contactsProvider.readContacts()
-            }
-            deviceContacts.forEach { contact ->
-                val digits = contact.phoneNumber.filter { c -> c.isDigit() || c == '+' }
-                val normalized = normalizeToE164(digits)
-                if (normalized != null) {
-                    contactNameMap[normalized] = contact.name
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read device contacts", e)
         }
     }
 

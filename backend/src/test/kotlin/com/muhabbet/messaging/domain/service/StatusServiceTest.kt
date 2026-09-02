@@ -7,8 +7,12 @@ import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.TestData
+import com.muhabbet.shared.TestMediaAttachmentPolicy
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -47,7 +51,9 @@ class StatusServiceTest {
         // in this file keeps meaning what it meant. Both directions, for the same reason.
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
         every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
-        service = StatusService(statusRepository, conversationRepository, userDirectory, blockPolicy)
+        service = StatusService(
+            statusRepository, conversationRepository, userDirectory, blockPolicy, TestMediaAttachmentPolicy()
+        )
     }
 
     private fun status(
@@ -466,6 +472,127 @@ class StatusServiceTest {
 
             verify(exactly = 1) { blockPolicy.findBlockedBy(viewer, contacts) }
             verify(exactly = 1) { blockPolicy.findBlockedAmong(viewer, contacts) }
+        }
+    }
+
+    /**
+     * #588 — the author could not see the status she had just posted, while her contact could.
+     *
+     * The mechanism is structural rather than accidental, which is why it is worth pinning here
+     * instead of only in the client. `findAllContactUserIds` filters `m.userId != :userId`, so the
+     * caller is excluded from the set that query describes — correct for "my contacts", and the
+     * only set [StatusService.getContactStatusesForUser] builds its authors from. There is no
+     * arrangement of that method's inputs that makes it return the viewer's own row, so a client
+     * that asks it alone is asking a question whose answer can never include the user.
+     *
+     * The answer to the other half is [StatusService.getMyStatuses], which existed, worked, and had
+     * no caller anywhere in the app. That is the whole bug: not a broken reader, an unwired one.
+     *
+     * These two tests are a pair on purpose. The first says the reader works; the second says the
+     * split is deliberate, so anyone tempted to "fix" #588 by unioning the caller into the contact
+     * set has to delete an assertion that explains why not — doing so would put the viewer's own
+     * status inside the block and audience filters that exist to describe *other people*, and
+     * would make `getContactStatusesForUser` disagree with the presence and last-seen surfaces
+     * that define "contact" the same way.
+     */
+    @Nested
+    inner class OwnStatuses {
+
+        @Test
+        fun `should return the author's own active statuses`() {
+            val mine = listOf(status(viewer, content = "posted a moment ago"))
+            every { statusRepository.findActiveByUserId(viewer) } returns mine
+
+            assertEquals(mine, service.getMyStatuses(viewer))
+        }
+
+        @Test
+        fun `should return nothing when the author has posted nothing that is still active`() {
+            every { statusRepository.findActiveByUserId(viewer) } returns emptyList()
+
+            assertTrue(service.getMyStatuses(viewer).isEmpty())
+        }
+
+        @Test
+        fun `should not include the viewer's own status in the contacts feed`() {
+            // The contact set never contains the viewer, so their own status is not merely filtered
+            // out downstream — it is never asked for. Asserting on the argument rather than only on
+            // the result is what makes that visible.
+            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { statusRepository.findActiveByUserIds(any()) } returns listOf(status(contact))
+            every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
+
+            val groups = service.getContactStatusesForUser(viewer)
+
+            assertAll(
+                { assertEquals(listOf(contact), groups.map { it.userId }) },
+                {
+                    verify {
+                        statusRepository.findActiveByUserIds(match { authors -> viewer !in authors })
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * #679 on the status surface. A status URL is fetched by every contact's phone as soon as they
+     * open the Updates tab, so an address the author chose freely is a request each of them makes
+     * without knowing it.
+     */
+    @Nested
+    inner class MediaAddress {
+
+        @Test
+        fun `should refuse a status whose media address is not ours`() {
+            val thrown = org.junit.jupiter.api.assertThrows<BusinessException> {
+                service.createStatus(viewer, "look", "https://attacker.test/beacon.gif")
+            }
+
+            assertAll(
+                { assertEquals(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE, thrown.errorCode) },
+                // Nothing was written, so no contact will ever be handed the address.
+                { verify(exactly = 0) { statusRepository.save(any()) } }
+            )
+        }
+
+        @Test
+        fun `should refuse an audience-scoped status whose media address is not ours`() {
+            val thrown = org.junit.jupiter.api.assertThrows<BusinessException> {
+                service.createStatusWithAudience(
+                    userId = viewer,
+                    content = "look",
+                    mediaUrl = "https://attacker.test/beacon.gif",
+                    visibility = "contacts",
+                    excludedUserIds = emptyList(),
+                    includedUserIds = emptyList()
+                )
+            }
+
+            assertAll(
+                { assertEquals(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE, thrown.errorCode) },
+                { verify(exactly = 0) { statusRepository.save(any()) } }
+            )
+        }
+
+        @Test
+        fun `should keep a status whose media is on our own host`() {
+            val saved = slot<Status>()
+            every { statusRepository.save(capture(saved)) } answers { saved.captured }
+
+            service.createStatus(viewer, "look", "https://cdn.example/statuses/1.jpg?sig=abc")
+
+            assertEquals("https://cdn.example/statuses/1.jpg?sig=abc", saved.captured.mediaUrl)
+        }
+
+        @Test
+        fun `should keep a status with no media at all`() {
+            val saved = slot<Status>()
+            every { statusRepository.save(capture(saved)) } answers { saved.captured }
+
+            service.createStatus(viewer, "just text", null)
+
+            assertNull(saved.captured.mediaUrl)
         }
     }
 }

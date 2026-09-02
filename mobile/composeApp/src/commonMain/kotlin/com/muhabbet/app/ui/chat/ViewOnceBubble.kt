@@ -1,7 +1,6 @@
 package com.muhabbet.app.ui.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +24,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.modifier.pressable
 
 /**
  * The sealed bubble a view-once message renders as.
@@ -77,7 +77,10 @@ fun ViewOnceBubble(
         Surface(
             shape = MaterialTheme.shapes.large,
             color = bubbleColor,
-            modifier = Modifier.clickable(enabled = !hasBeenViewed && !isOwn) { onViewOnce() }
+            modifier = Modifier.pressable(
+                shape = MaterialTheme.shapes.large,
+                enabled = !hasBeenViewed && !isOwn
+            ) { onViewOnce() }
         ) {
             if (hasBeenViewed) {
                 // Viewed state

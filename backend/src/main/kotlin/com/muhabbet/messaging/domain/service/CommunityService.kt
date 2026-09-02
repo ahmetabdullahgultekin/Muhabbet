@@ -38,6 +38,9 @@ open class CommunityService(
     @Transactional
     override fun create(name: String, description: String?, creatorId: UUID): CommunitySummary {
         requireValidName(name)
+        // Validity first, availability second: a blank name is malformed (400), a taken one is a
+        // conflict (409), and answering "already exists" to an empty field would be nonsense.
+        requireNameAvailable(creatorId, name, keeping = null)
         val community = Community(
             name = name,
             description = description,
@@ -77,6 +80,10 @@ open class CommunityService(
 
         requireAdminOrOwner(communityId, requesterId)
         requireValidName(name)
+        // Asked about the community's creator, not the caller: an admin may rename a community
+        // somebody else created, and the index is on (created_by, name). Asking about the caller's
+        // own names would let the rename past here and fail at the database instead.
+        requireNameAvailable(community.createdBy, name, keeping = communityId)
 
         val saved = communityRepository.update(
             community.copy(name = name, description = description, updatedAt = Instant.now())
@@ -448,6 +455,28 @@ open class CommunityService(
     private fun requireValidName(name: String) {
         if (!ValidationRules.isValidCommunityName(name)) {
             throw BusinessException(ErrorCode.COMMUNITY_INVALID_NAME)
+        }
+    }
+
+    /**
+     * Refuses [name] if [creatorId] already has a community under it (#446) — three rows called
+     * "Muhabbet" in one list are indistinguishable, so neither the owner nor the app can tell which
+     * one a tap is about.
+     *
+     * [keeping] is the community being renamed, excluded from the match so that saving a community
+     * under the name it already has is not a conflict with itself; `null` when creating, where
+     * there is no such row yet.
+     *
+     * The comparison is the database's, not this service's: [CommunityRepository.findByCreatorAndName]
+     * applies the same fold as the unique index. This check exists to produce a clean 409 with a
+     * usable message, not to be the guarantee — two concurrent creates can both pass it, and the
+     * index plus `CommunityPersistenceAdapter`'s translation of the violation are what actually hold
+     * the invariant.
+     */
+    private fun requireNameAvailable(creatorId: UUID, name: String, keeping: UUID?) {
+        val existing = communityRepository.findByCreatorAndName(creatorId, name) ?: return
+        if (existing.id != keeping) {
+            throw BusinessException(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS)
         }
     }
 }

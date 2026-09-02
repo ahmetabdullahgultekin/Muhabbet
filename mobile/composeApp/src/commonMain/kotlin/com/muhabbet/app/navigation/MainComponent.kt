@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.app.ui.contacts.rememberContactNames
 import com.muhabbet.app.ui.conversations.toChatTarget
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.ConversationDirectory
@@ -442,6 +443,11 @@ private fun OpenChatFromOutside(component: MainComponent) {
     val conversationDirectory: ConversationDirectory = koinInject()
     val tokenStorage: TokenStorage = koinInject()
     val defaultChatName = stringResource(Res.string.chat_default_name)
+    // The chat a notification opens is named by the same rule as the one opened from the list —
+    // address book first (#549). Read here because it is a composable read and the effect below is
+    // not; the effect stays keyed on `pending` alone, since a notification arriving is the only
+    // thing that should make it navigate.
+    val contactNames = rememberContactNames()
 
     val pending by pendingChatOpen.pending.collectAsState()
 
@@ -465,7 +471,8 @@ private fun OpenChatFromOutside(component: MainComponent) {
 
         val target = conversation?.toChatTarget(
             currentUserId = runCatching { tokenStorage.getUserId() }.getOrNull(),
-            fallbackName = request.displayName ?: defaultChatName
+            fallbackName = request.displayName ?: defaultChatName,
+            contactNames = contactNames
         ) ?: ChatTarget(
             conversationId = request.conversationId,
             name = request.displayName ?: defaultChatName,

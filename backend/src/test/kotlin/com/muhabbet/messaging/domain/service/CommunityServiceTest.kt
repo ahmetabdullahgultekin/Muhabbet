@@ -46,6 +46,9 @@ class CommunityServiceTest {
         // in this file keeps meaning what it meant.
         every { blockPolicy.hasBlocked(any(), any()) } returns false
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        // Same idea for #446: by default no name is taken, so every expectation written before the
+        // uniqueness check existed still describes what it described.
+        every { communityRepository.findByCreatorAndName(any(), any()) } returns null
         service = CommunityService(communityRepository, conversationRepository, userDirectoryPort, blockPolicy)
     }
 
@@ -99,6 +102,45 @@ class CommunityServiceTest {
 
             assertEquals(ErrorCode.COMMUNITY_INVALID_NAME, ex.errorCode)
             verify(exactly = 0) { communityRepository.save(any()) }
+        }
+
+        @Test
+        fun `should refuse a name the creator already used`() {
+            // #446: three communities called "Muhabbet" under one account are indistinguishable in
+            // the list, so neither the owner nor the app can tell which row a tap is about.
+            every { communityRepository.findByCreatorAndName(userId, "Muhabbet") } returns
+                Community(name = "Muhabbet", createdBy = userId)
+
+            val ex = assertThrows<BusinessException> { service.create("Muhabbet", null, userId) }
+
+            assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, ex.errorCode)
+            verify(exactly = 0) { communityRepository.save(any()) }
+        }
+
+        @Test
+        fun `should allow a name only another person has used`() {
+            // Per creator, not global: two households both calling a community "Aile" is not a
+            // collision. The lookup is keyed on the creator, so a name held by somebody else does
+            // not come back here at all.
+            every { communityRepository.findByCreatorAndName(userId, "Aile") } returns null
+            every { communityRepository.save(any()) } answers { firstArg() }
+            every { communityRepository.saveMember(any()) } answers { firstArg() }
+
+            assertEquals("Aile", service.create("Aile", null, userId).community.name)
+        }
+
+        @Test
+        fun `should refuse a taken name before checking anything else about it`() {
+            // The blank-name case above proves validity is checked first. This is the other order
+            // that matters: nothing is written — not the community, not the creator's membership,
+            // not an announcement channel — when the name is refused.
+            every { communityRepository.findByCreatorAndName(userId, "Mahalle") } returns
+                Community(name = "Mahalle", createdBy = userId)
+
+            assertThrows<BusinessException> { service.create("Mahalle", null, userId) }
+
+            verify(exactly = 0) { communityRepository.saveMember(any()) }
+            verify(exactly = 0) { conversationRepository.save(any()) }
         }
 
         @Test
@@ -787,6 +829,47 @@ class CommunityServiceTest {
             val ex = assertThrows<BusinessException> { service.update(communityId, userId, "a".repeat(257), null) }
 
             assertEquals(ErrorCode.COMMUNITY_INVALID_NAME, ex.errorCode)
+        }
+
+        @Test
+        fun `should refuse renaming to a name the creator already used`() {
+            stubUpdatable(MemberRole.OWNER)
+            every { communityRepository.findByCreatorAndName(userId, "Okul") } returns community(name = "Okul")
+
+            val ex = assertThrows<BusinessException> { service.update(communityId, userId, "Okul", null) }
+
+            assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, ex.errorCode)
+            verify(exactly = 0) { communityRepository.update(any()) }
+        }
+
+        @Test
+        fun `should allow a community to keep the name it already has`() {
+            // The collision check has to exclude the row being edited. Without that, editing only
+            // the description would be refused because the community's name is taken — by itself.
+            stubUpdatable(MemberRole.OWNER)
+            every { communityRepository.findByCreatorAndName(userId, "Mahalle") } returns
+                community(name = "Mahalle", id = communityId)
+
+            val summary = service.update(communityId, userId, "Mahalle", "Yeni açıklama")
+
+            assertEquals("Yeni açıklama", summary.community.description)
+        }
+
+        @Test
+        fun `should check the rename against the creator's names rather than the caller's`() {
+            // An admin who did not create the community may still rename it, and the index is on
+            // (created_by, name). Asking about the caller's own names would let a rename through
+            // here and then lose at the database.
+            val creatorId = UUID.randomUUID()
+            every { communityRepository.findById(communityId) } returns
+                community(id = communityId).copy(createdBy = creatorId)
+            stubCommunityRole(MemberRole.ADMIN)
+            every { communityRepository.findByCreatorAndName(creatorId, "Okul") } returns community(name = "Okul")
+
+            val ex = assertThrows<BusinessException> { service.update(communityId, userId, "Okul", null) }
+
+            assertEquals(ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS, ex.errorCode)
+            verify(exactly = 0) { communityRepository.update(any()) }
         }
 
         private fun stubUpdatable(role: MemberRole, groupCount: Int = 0, memberCount: Int = 1) {

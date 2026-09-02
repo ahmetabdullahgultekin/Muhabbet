@@ -28,9 +28,13 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 - **The hot path stays cheap.** Typing frames drop offline recipients first, with an in-process
   lookup and no query, and return before asking about blocks or even encoding the frame when that
   leaves nobody — strictly less work than before for a frame that reaches no one. Only a frame about
-  to be delivered costs a question, and then one batched query per direction over just the online
-  recipients. Deliberately not cached: a cache puts a staleness window on a privacy control, which
-  is the class of half-fix this issue is about.
+  to be delivered costs a question, and the pair is answered from two indexed lookups before the
+  conversation is loaded, so the ordinary case reads no extra row. Deliberately not cached: a cache
+  puts a staleness window on a privacy control, which is the class of half-fix this issue is about.
+- **Typing is filtered in direct conversations only**, which is a limit rather than an oversight: a
+  block does not stop a group *message* either, so filtering group typing would make the two
+  disagree — the blocked member's messages would arrive while their typing did not, which reads as
+  a bug and half-announces the block to the room. The dot itself is hidden everywhere regardless.
 - **The regression tests drive both transports from one block**, through a fake that knows only who
   blocked whom. A test that exercises one transport is how this survived two green suites.
 

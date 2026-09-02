@@ -153,6 +153,16 @@ fun appModule(): Module = module {
             tokenStorage = get()
         )
     }
+    // Address-book names (#549) — singleton for the fourth time and the same reason. This map used
+    // to be a `remember { mutableStateMapOf() }` inside ConversationListScreen, so the first rung of
+    // the name resolution existed on exactly one screen and every other surface showed a bare phone
+    // number. One read, one flow, read by all of them. Nothing here persists or uploads a name.
+    single {
+        com.muhabbet.app.data.local.ContactNameDirectory(
+            contactsProvider = get(),
+            contactsAccess = get()
+        )
+    }
     // What a session switches on when it starts and — the half that had no call sites anywhere —
     // off when it ends (#349). BackgroundSyncManager comes from the platform module, which is
     // loaded alongside this one; both collaborators are named through their narrow interfaces so

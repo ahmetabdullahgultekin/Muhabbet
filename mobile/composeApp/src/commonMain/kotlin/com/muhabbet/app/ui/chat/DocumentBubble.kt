@@ -1,6 +1,5 @@
 package com.muhabbet.app.ui.chat
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -20,6 +19,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import org.jetbrains.compose.resources.stringResource
+import com.muhabbet.designsystem.modifier.pressable
 
 /**
  * A file attachment: an icon, the file name, and a tap that hands the file to whatever the platform
@@ -42,7 +42,7 @@ fun DocumentBubble(
     Surface(
         shape = MaterialTheme.shapes.small,
         color = onBubbleColor.copy(alpha = 0.1f),
-        modifier = modifier.clickable { onOpen() }
+        modifier = modifier.pressable(shape = MaterialTheme.shapes.small) { onOpen() }
     ) {
         Row(
             modifier = Modifier.padding(MuhabbetSizes.AttachmentPadding),

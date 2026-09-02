@@ -5,8 +5,10 @@ import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.messaging.domain.service.PresenceVisibility
+import com.muhabbet.shared.dto.AnnouncementModeResponse
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.ConversationResponse
+import com.muhabbet.shared.dto.SetAnnouncementModeRequest
 import com.muhabbet.shared.dto.CreateConversationRequest
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.ParticipantResponse
@@ -47,11 +49,23 @@ class ConversationController(
      * mobile chat list seeds its dot straight from `ParticipantResponse.isOnline`. A guard on
      * `GET /users/{id}` alone would have left the live indicator on the screen users open first.
      *
+     * **Both directions (#711)**, the same union `StatusService` applies to the Updates tab. This
+     * asked only "who has blocked me", so the person who pressed Block went on watching their
+     * blocked contact's dot light up in the chat list every day — the half they were actually
+     * asking for, and the half that was missing. A block is not a request to be less visible; it is
+     * a request to be done with someone, and presence is the channel that makes "done" visible.
+     *
+     * The union is not spelled out here. It is one call into [PresenceVisibility], which the
+     * WebSocket presence broadcast also asks, because the same rule written twice from memory is
+     * how these two came to filter opposite directions in the first place. It still costs two
+     * batched queries for the whole page and not two per participant — this is the app's busiest
+     * call, and either direction resolved per row would be an N+1 on the screen users open first.
+     *
      * The viewer is filtered out before the question is asked: whether you have blocked yourself is
      * meaningless, and leaving yourself in would hide your own dot from your own chat list.
      */
     private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> =
-        presenceVisibility.hiddenFrom(viewerId, participantIds.filter { it != viewerId })
+        presenceVisibility.hiddenFromPresenceOf(viewerId, participantIds.filter { it != viewerId })
 
     @PostMapping
     fun createConversation(@RequestBody request: CreateConversationRequest): ResponseEntity<ApiResponse<ConversationResponse>> {
@@ -131,6 +145,13 @@ class ConversationController(
                     )
                 },
                 lastMessagePreview = summary.lastMessagePreview,
+                // Backend domain enum → shared enum, the same hand-off `MessageMapper` makes. The
+                // two are kept separate on purpose (the domain must not import the wire format), so
+                // the name is the contract; `valueOf` on a member the shared enum lacks would throw
+                // and take the whole list with it, hence the null fallback.
+                lastMessageContentType = summary.lastMessageContentType?.let {
+                    runCatching { com.muhabbet.shared.model.ContentType.valueOf(it.name) }.getOrNull()
+                },
                 lastMessageAt = summary.lastMessageAt,
                 unreadCount = summary.unreadCount,
                 createdAt = "",
@@ -236,27 +257,24 @@ class ConversationController(
 
     // ─── Announcement Mode ────────────────────────────────────
 
+    /**
+     * The body is the shared [SetAnnouncementModeRequest], and the reply echoes what was stored.
+     *
+     * Both halves of that matter (#509). The group screen used to PATCH `{"announcementOnly": …}`
+     * at the update-group route instead, where the field does not exist and `ignoreUnknownKeys`
+     * discarded it behind a 200; sharing the DTO with the client is what stops that shape drifting
+     * again. And returning the stored value lets the switch show server truth rather than flipping
+     * on hope — for a control that decides who may speak, being wrong in either direction is bad.
+     */
     @PutMapping("/{conversationId}/announcement")
     fun setAnnouncementMode(
         @PathVariable conversationId: UUID,
-        @RequestBody request: AnnouncementRequest
-    ): ResponseEntity<ApiResponse<Unit>> {
+        @RequestBody request: SetAnnouncementModeRequest
+    ): ResponseEntity<ApiResponse<AnnouncementModeResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        val conversation = conversationRepository.findById(conversationId)
-            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.CONV_NOT_FOUND)
-
-        // Only admin/owner can toggle announcement mode
-        val member = conversationRepository.findMember(conversationId, userId)
-            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.GROUP_NOT_MEMBER)
-        if (member.role == com.muhabbet.messaging.domain.model.MemberRole.MEMBER) {
-            throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.GROUP_PERMISSION_DENIED)
-        }
-
-        val updated = conversation.copy(announcementOnly = request.enabled, updatedAt = java.time.Instant.now())
-        conversationRepository.updateConversation(updated)
-        return ApiResponseBuilder.ok(Unit)
+        val updated = manageGroupUseCase.setAnnouncementMode(conversationId, userId, request.enabled)
+        return ApiResponseBuilder.ok(AnnouncementModeResponse(announcementOnly = updated.announcementOnly))
     }
 }
 
 data class MuteRequest(val duration: String)
-data class AnnouncementRequest(val enabled: Boolean)

@@ -1,7 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
-import com.muhabbet.auth.domain.port.out.UserRepository
-import com.muhabbet.messaging.domain.model.CallStatus
+import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
@@ -9,9 +8,6 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
-import com.muhabbet.messaging.domain.service.CallBusyException
-import com.muhabbet.messaging.domain.port.out.CallRoomProvider
-import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -24,7 +20,6 @@ import com.muhabbet.shared.security.WebSocketRateLimiter
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.PongMessage
 import org.springframework.web.socket.TextMessage
@@ -42,9 +37,8 @@ class ChatWebSocketHandler(
     private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
     private val conversationRepository: ConversationRepository,
     private val presencePort: PresencePort,
-    private val userRepository: UserRepository,
-    private val callSignalingService: CallSignalingService,
-    private val callRoomProvider: CallRoomProvider,
+    private val recordLastSeenUseCase: RecordLastSeenUseCase,
+    private val callFrameHandler: CallFrameHandler,
     private val webSocketRateLimiter: WebSocketRateLimiter,
     private val presenceVisibility: PresenceVisibility
 ) : TextWebSocketHandler() {
@@ -54,14 +48,14 @@ class ChatWebSocketHandler(
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val token = extractToken(session)
         if (token == null) {
-            sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Missing token query parameter")
+            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Missing token query parameter")
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
 
         val claims = jwtProvider.validateToken(token)
         if (claims == null) {
-            sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Invalid or expired JWT")
+            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Invalid or expired JWT")
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
@@ -85,14 +79,14 @@ class ChatWebSocketHandler(
 
         // Per-connection rate limiting
         if (!webSocketRateLimiter.allowMessage(userId)) {
-            sendError(session, ErrorCode.RATE_LIMITED, "Too many messages, please slow down")
+            sessionManager.sendError(session, ErrorCode.RATE_LIMITED, "Too many messages, please slow down")
             return
         }
 
         val wsMessage = try {
             wsJson.decodeFromString<WsMessage>(message.payload)
         } catch (e: Exception) {
-            sendError(session, ErrorCode.VALIDATION_ERROR, "Invalid message format: ${e.message}")
+            sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR, "Invalid message format: ${e.message}")
             return
         }
 
@@ -121,17 +115,17 @@ class ChatWebSocketHandler(
                     presencePort.setOnline(userId)
                     sendPong(session)
                 }
-                is WsMessage.CallInitiate -> handleCallInitiate(session, userId, wsMessage)
-                is WsMessage.CallAnswer -> handleCallAnswer(session, userId, wsMessage)
-                is WsMessage.CallIceCandidate -> handleCallIce(userId, wsMessage)
-                is WsMessage.CallEnd -> handleCallEnd(userId, wsMessage)
-                else -> sendError(session, ErrorCode.VALIDATION_ERROR, "Unexpected message type from client")
+                is WsMessage.CallInitiate -> callFrameHandler.handleInitiate(session, userId, wsMessage)
+                is WsMessage.CallAnswer -> callFrameHandler.handleAnswer(session, userId, wsMessage)
+                is WsMessage.CallIceCandidate -> callFrameHandler.handleIce(userId, wsMessage)
+                is WsMessage.CallEnd -> callFrameHandler.handleEnd(userId, wsMessage)
+                else -> sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR, "Unexpected message type from client")
             }
         } catch (e: BusinessException) {
-            sendError(session, e.errorCode, e.message)
+            sessionManager.sendError(session, e.errorCode, e.message)
             log.warn("Frame rejected: type={}, {} - {}", wsMessage::class.simpleName, e.errorCode, e.message)
         } catch (e: Exception) {
-            sendError(session, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
+            sessionManager.sendError(session, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
             log.error("Unexpected failure handling frame: type={}", wsMessage::class.simpleName, e)
         }
     }
@@ -152,14 +146,8 @@ class ChatWebSocketHandler(
 
         // If no remaining sessions, mark offline and clean up
         if (userId != null && !sessionManager.isOnline(userId)) {
-            presencePort.setOffline(userId)
             webSocketRateLimiter.removeUser(userId)
-            try {
-                userRepository.updateLastSeenAt(userId, Instant.now())
-            } catch (e: Exception) {
-                log.warn("Failed to persist last_seen_at for {}: {}", userId, e.message)
-            }
-            broadcastPresence(userId, PresenceStatus.OFFLINE)
+            goOffline(userId)
         }
         log.info("WebSocket disconnected: userId={}, status={}", userId, status)
     }
@@ -170,14 +158,35 @@ class ChatWebSocketHandler(
         sessionManager.unregister(session)
 
         if (userId != null && !sessionManager.isOnline(userId)) {
-            presencePort.setOffline(userId)
-            try {
-                userRepository.updateLastSeenAt(userId, Instant.now())
-            } catch (e: Exception) {
-                log.warn("Failed to persist last_seen_at for {}: {}", userId, e.message)
-            }
-            broadcastPresence(userId, PresenceStatus.OFFLINE)
+            goOffline(userId)
         }
+    }
+
+    /**
+     * Everything that has to happen once a user's last socket is gone, in one place because the two
+     * ways a socket can end — a close frame and a transport error — must not drift apart. They had
+     * two copies of this, identical down to the log message.
+     *
+     * The `last_seen_at` write goes through [RecordLastSeenUseCase] rather than straight to the
+     * repository. That is the fix for #402: the write is a `@Modifying` query, this thread has no
+     * transaction, and calling the repository from here threw `No active transaction for update or
+     * delete query` on every single disconnect. The transaction now belongs to the service behind
+     * that port, and it only exists because this call crosses a Spring proxy — moving the write back
+     * into a private method here, or into any call this class makes on itself, brings the bug back
+     * unchanged.
+     *
+     * The failure is logged at ERROR with the exception, not warned about with `e.message`. A write
+     * that had never once succeeded produced a WARN line that read like noise for months; if this
+     * ever fails again it should look like what it is.
+     */
+    private fun goOffline(userId: UUID) {
+        presencePort.setOffline(userId)
+        try {
+            recordLastSeenUseCase.recordLastSeen(userId, Instant.now())
+        } catch (e: Exception) {
+            log.error("Failed to persist last_seen_at for {}", userId, e)
+        }
+        broadcastPresence(userId, PresenceStatus.OFFLINE)
     }
 
     private fun handleSendMessage(session: WebSocketSession, senderId: UUID, msg: WsMessage.SendMessage) {
@@ -190,14 +199,20 @@ class ChatWebSocketHandler(
 
             val message = sendMessageUseCase.sendMessage(
                 SendMessageCommand(
-                    messageId = UUID.fromString(msg.messageId),
-                    conversationId = UUID.fromString(msg.conversationId),
+                    messageId = parseId(msg.messageId, "messageId"),
+                    conversationId = parseId(msg.conversationId, "conversationId"),
                     senderId = senderId,
                     content = msg.content,
                     contentType = contentType,
-                    replyToId = msg.replyToId?.let { UUID.fromString(it) },
+                    replyToId = msg.replyToId?.let { parseId(it, "replyToId") },
                     mediaUrl = msg.mediaUrl,
                     thumbnailUrl = msg.thumbnailUrl,
+                    // A malformed id is treated as absent rather than rejected: this is a hint
+                    // about a blob, not a request that can fail, and the worst it costs is a
+                    // view-once photo that cannot be destroyed. Whether the id names something
+                    // this sender actually uploaded is settled at burn time, next to the delete
+                    // (#541).
+                    mediaId = msg.mediaId?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
                     clientTimestamp = Instant.now(),
                     forwardedFrom = msg.forwardedFrom?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
                     viewOnce = msg.viewOnce,
@@ -244,11 +259,11 @@ class ChatWebSocketHandler(
         if (status == DeliveryStatus.READ) {
             // Bulk-update ALL messages in the conversation as read in DB
             updateDeliveryStatusUseCase.markConversationRead(
-                UUID.fromString(msg.conversationId), userId
+                parseId(msg.conversationId, "conversationId"), userId
             )
         }
         // Always broadcast StatusUpdate for the specific message to the sender
-        updateDeliveryStatusUseCase.updateStatus(UUID.fromString(msg.messageId), userId, status)
+        updateDeliveryStatusUseCase.updateStatus(parseId(msg.messageId, "messageId"), userId, status)
     }
 
     /**
@@ -271,16 +286,17 @@ class ChatWebSocketHandler(
     /**
      * "Typing…" is presence, and it had no block check in either direction (#711) — so in a chat
      * where one of the two had blocked the other it flowed both ways. It says the person is holding
-     * their phone *right now*, which is the same thing the green dot leaks and a more immediate one,
-     * so it is filtered on exactly the rule the dot uses and cannot drift away from it again.
+     * their phone *right now*, which is the same thing the green dot leaks and a more immediate one.
+     * [PresenceVisibility] decides who must not be told, so this cannot drift away from the rule the
+     * dot uses, which is how the two came to filter opposite directions.
      *
-     * The order of the three steps is what keeps this cheap, and it is deliberate. Offline
-     * recipients are dropped first, with an in-process map lookup and no query; if that leaves
-     * nobody, the frame reaches no one and the method returns before asking about blocks or even
-     * encoding the JSON — which is strictly less work than this did before. Only when a frame is
-     * actually about to be delivered do we ask, and then in one batched question per direction over
-     * just the online recipients, so a fifty-member group with three people online costs a query
-     * about three. Nothing here opens a transaction, so no connection is held across the fan-out.
+     * The order of the steps is what keeps this cheap, and it is deliberate. Offline recipients are
+     * dropped first, with an in-process map lookup and no query; if that leaves nobody, the frame
+     * reaches no one and the method returns before asking about blocks or even encoding the JSON —
+     * which is strictly less work than this did before. Only a frame actually about to be delivered
+     * asks, and the pair question is answered from two indexed lookups before the conversation is
+     * loaded, so the ordinary case — no block between these two — costs no extra row. Nothing here
+     * opens a transaction, so no connection is held across the fan-out.
      *
      * Deliberately not cached. A cache would put a staleness window on a privacy control, which is
      * the class of half-fix #711 is about; and the client debounces these to roughly two frames per
@@ -288,13 +304,10 @@ class ChatWebSocketHandler(
      * no per-keystroke query here to avoid.
      */
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
-        val conversationId = UUID.fromString(msg.conversationId)
-        val online = conversationRepository.findMembersByConversationId(conversationId)
+        val conversationId = parseId(msg.conversationId, "conversationId")
+        val recipientIds = conversationRepository.findMembersByConversationId(conversationId)
             .map { it.userId }
             .filter { it != userId && sessionManager.isOnline(it) }
-        if (online.isEmpty()) return
-
-        val recipientIds = online - presenceVisibility.hiddenFrom(userId, online)
         if (recipientIds.isEmpty()) return
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
@@ -305,157 +318,12 @@ class ChatWebSocketHandler(
         )
         val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
 
-        recipientIds.forEach { recipientId -> sessionManager.sendToUser(recipientId, json) }
-    }
-
-    // ─── Call Signaling Handlers ────────────────────────────
-
-    private fun handleCallInitiate(session: WebSocketSession, callerId: UUID, msg: WsMessage.CallInitiate) {
-        val calleeId = try {
-            UUID.fromString(msg.targetUserId)
-        } catch (e: Exception) {
-            sendError(session, ErrorCode.CALL_INVALID_TARGET, "Invalid target user ID")
-            return
-        }
-
-        // Map shared CallType to backend domain CallType
-        val callType = com.muhabbet.messaging.domain.model.CallType.valueOf(msg.callType.name)
-
-        try {
-            callSignalingService.initiateCall(msg.callId, callerId, calleeId, callType)
-        } catch (e: CallBusyException) {
-            // Send call.end with BUSY reason back to caller
-            val busy = WsMessage.CallEnd(callId = msg.callId, reason = com.muhabbet.shared.model.CallEndReason.BUSY)
-            sessionManager.send(session, wsJson.encodeToString<WsMessage>(busy))
-            return
-        }
-
-        // Check if callee is online
-        if (!sessionManager.isOnline(calleeId)) {
-            // Callee offline — end call with MISSED
-            callSignalingService.endCall(msg.callId, CallStatus.MISSED)
-            val missed = WsMessage.CallEnd(callId = msg.callId, reason = com.muhabbet.shared.model.CallEndReason.MISSED)
-            sessionManager.send(session, wsJson.encodeToString<WsMessage>(missed))
-            return
-        }
-
-        // Lookup caller name for the incoming notification
-        val callerName = userRepository.findById(callerId)?.displayName
-
-        // Forward call.incoming to callee
-        val incoming = WsMessage.CallIncoming(
-            callId = msg.callId,
-            callerId = callerId.toString(),
-            callerName = callerName,
-            callType = msg.callType
-        )
-        sessionManager.sendToUser(calleeId, wsJson.encodeToString<WsMessage>(incoming))
-
-        // Also forward the SDP offer if present (caller's offer → callee)
-        if (msg.sdpOffer != null) {
-            val initiateForward = WsMessage.CallInitiate(
-                callId = msg.callId,
-                targetUserId = msg.targetUserId,
-                callType = msg.callType,
-                sdpOffer = msg.sdpOffer
-            )
-            sessionManager.sendToUser(calleeId, wsJson.encodeToString<WsMessage>(initiateForward))
-        }
-
-        log.info("Call initiated: callId={}, caller={}, callee={}", msg.callId, callerId, calleeId)
-    }
-
-    private fun handleCallAnswer(session: WebSocketSession, userId: UUID, msg: WsMessage.CallAnswer) {
-        val callSession = callSignalingService.getCall(msg.callId)
-        if (callSession == null) {
-            sendError(session, ErrorCode.CALL_NOT_FOUND, "Call ${msg.callId} not found")
-            return
-        }
-
-        val otherParty = callSignalingService.getOtherParty(msg.callId, userId) ?: return
-
-        if (msg.accepted) {
-            callSignalingService.answerCall(msg.callId)
-
-            // Create LiveKit room and send tokens to both participants
-            try {
-                val room = callRoomProvider.createRoom(msg.callId, otherParty, userId)
-                if (room.serverUrl.isNotBlank()) {
-                    val callerName = userRepository.findById(otherParty)?.displayName
-                    val calleeName = userRepository.findById(userId)?.displayName
-
-                    val callerToken = callRoomProvider.generateParticipantToken(room.roomName, otherParty, callerName)
-                    val calleeToken = callRoomProvider.generateParticipantToken(room.roomName, userId, calleeName)
-
-                    // Send room info to caller
-                    val callerRoomInfo = WsMessage.CallRoomInfo(
-                        callId = msg.callId,
-                        serverUrl = room.serverUrl,
-                        token = callerToken,
-                        roomName = room.roomName
-                    )
-                    sessionManager.sendToUser(otherParty, wsJson.encodeToString<WsMessage>(callerRoomInfo))
-
-                    // Send room info to callee
-                    val calleeRoomInfo = WsMessage.CallRoomInfo(
-                        callId = msg.callId,
-                        serverUrl = room.serverUrl,
-                        token = calleeToken,
-                        roomName = room.roomName
-                    )
-                    sessionManager.send(session, wsJson.encodeToString<WsMessage>(calleeRoomInfo))
-
-                    log.info("LiveKit room created: callId={}, room={}", msg.callId, room.roomName)
-                }
-            } catch (e: Exception) {
-                log.warn("Failed to create LiveKit room for callId={}: {}", msg.callId, e.message)
+        val hidden = presenceVisibility.hiddenFromTypingIn(conversationId, userId, recipientIds)
+        recipientIds.forEach { recipientId ->
+            if (recipientId !in hidden) {
+                sessionManager.sendToUser(recipientId, json)
             }
-        } else {
-            callSignalingService.endCall(msg.callId, CallStatus.DECLINED)
         }
-
-        // Forward the answer to the other party
-        val json = wsJson.encodeToString<WsMessage>(msg)
-        sessionManager.sendToUser(otherParty, json)
-
-        log.info("Call answer: callId={}, userId={}, accepted={}", msg.callId, userId, msg.accepted)
-    }
-
-    private fun handleCallIce(userId: UUID, msg: WsMessage.CallIceCandidate) {
-        val otherParty = callSignalingService.getOtherParty(msg.callId, userId) ?: return
-
-        // Forward ICE candidate to the other party
-        val json = wsJson.encodeToString<WsMessage>(msg)
-        sessionManager.sendToUser(otherParty, json)
-    }
-
-    private fun handleCallEnd(userId: UUID, msg: WsMessage.CallEnd) {
-        val callSession = callSignalingService.getCall(msg.callId) ?: return
-        val otherParty = callSignalingService.getOtherParty(msg.callId, userId)
-
-        // Map shared CallEndReason to domain CallStatus
-        val status = when (msg.reason) {
-            com.muhabbet.shared.model.CallEndReason.DECLINED -> CallStatus.DECLINED
-            com.muhabbet.shared.model.CallEndReason.MISSED -> CallStatus.MISSED
-            else -> CallStatus.ENDED
-        }
-
-        callSignalingService.endCall(msg.callId, status)
-
-        // Close the LiveKit room
-        try {
-            callRoomProvider.closeRoom("call-${msg.callId}")
-        } catch (e: Exception) {
-            log.warn("Failed to close LiveKit room for callId={}: {}", msg.callId, e.message)
-        }
-
-        // Forward call.end to the other party
-        if (otherParty != null) {
-            val json = wsJson.encodeToString<WsMessage>(msg)
-            sessionManager.sendToUser(otherParty, json)
-        }
-
-        log.info("Call ended: callId={}, userId={}, reason={}", msg.callId, userId, msg.reason)
     }
 
     // ─── Messaging Helpers ────────────────────────────────────
@@ -481,19 +349,6 @@ class ChatWebSocketHandler(
         sessionManager.send(session, wsJson.encodeToString<WsMessage>(pong))
     }
 
-    /**
-     * [code] is an [ErrorCode] rather than a String on purpose. Every call site already passed a
-     * real one; the single place that did not was the send-failure ack, which invented
-     * `MSG_SEND_FAILED` and shipped it for months (#572). A String parameter is what allowed that,
-     * so the type is the guard.
-     */
-    private fun sendError(session: WebSocketSession, code: ErrorCode, message: String) {
-        val error = WsMessage.Error(code = code.name, message = message)
-        if (session.isOpen) {
-            sessionManager.send(session, wsJson.encodeToString<WsMessage>(error))
-        }
-    }
-
     private fun broadcastPresence(userId: UUID, status: PresenceStatus) {
         val lastSeenAt = if (status == PresenceStatus.OFFLINE) System.currentTimeMillis() else null
         val presenceUpdate = WsMessage.PresenceUpdate(
@@ -512,11 +367,16 @@ class ChatWebSocketHandler(
         // profile screen alone would have been cosmetic: the chat list they already have renders
         // exactly this feed.
         //
-        // This filtered "who blocked me" only, which is the opposite of what GET /conversations
-        // filtered, so between them each direction leaked through one transport (#711). Both now
-        // ask PresenceVisibility, and its answer is symmetric — the same set covers "must not be
-        // told about this user" and "must not be shown to this user".
-        val hidden = presenceVisibility.hiddenFrom(userId, contactUserIds)
+        // Both directions (#711), and this frame is why the REST guard alone was not enough. The
+        // filter here used to hide the *broadcaster* from whoever had blocked them, which is the
+        // exact opposite of what `ConversationController` withheld — so each channel closed the
+        // direction the other left open, and the pair leaked both ways. The blocked person opened
+        // the chat list to no dot, then watched it light up seconds later when the blocker's socket
+        // connected, because `ConversationListScreen` writes this frame straight into its state.
+        // Both now ask the same question of PresenceVisibility, whose answer is symmetric: one set
+        // covers "must not be told about this user" and "must not be shown to this user", so
+        // neither caller has to work out which direction it is in.
+        val hidden = presenceVisibility.hiddenFromPresenceOf(userId, contactUserIds)
         contactUserIds.filterNot { it in hidden }.forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {
                 sessionManager.sendToUser(contactId, json)

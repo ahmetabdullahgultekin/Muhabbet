@@ -64,6 +64,8 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetLoadingState
+import com.muhabbet.designsystem.modifier.pressable
+import androidx.compose.foundation.shape.CircleShape
 import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -191,7 +193,7 @@ fun UserProfileScreen(
 
     if (showPhotoViewer) {
         profile?.avatarUrl?.let { url ->
-            MediaViewer(imageUrl = url, onDismiss = { showPhotoViewer = false })
+            MediaViewer(image = url, onDismiss = { showPhotoViewer = false })
         }
     }
 
@@ -228,7 +230,7 @@ fun UserProfileScreen(
                             size = MuhabbetSizes.AvatarHero,
                             // No photo means no navigation: a full-screen gradient isn't worth it (#615).
                             modifier = if (p.avatarUrl != null) {
-                                Modifier.clickable { showPhotoViewer = true }
+                                Modifier.pressable(shape = CircleShape) { showPhotoViewer = true }
                             } else {
                                 Modifier
                             }
@@ -486,8 +488,10 @@ fun UserProfileScreen(
  * a 40.dp box once padding was taken off: the label overlapped the icon and was clipped at both
  * ends. Turkish and English labels differ in width too, so the width has to follow the text.
  *
- * `clip` before `clickable` so the press ripple follows the rounded shape instead of the node's
- * bounding box (#703).
+ * Through `pressable` rather than a hand-rolled `clip`/`clickable` pair, so the press ripple follows
+ * the rounded shape instead of the node's bounding box (#703). This was the one call site that fix
+ * had to skip: clipping a box whose content already overflowed it would have cropped the label
+ * rather than rounding the ripple. The `sizeIn` above is what made it safe.
  */
 @Composable
 private fun ProfileActionButton(
@@ -498,8 +502,7 @@ private fun ProfileActionButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
+            .pressable(MaterialTheme.shapes.medium, onClick = onClick)
             .sizeIn(
                 minWidth = MuhabbetSizes.MinTouchTarget,
                 minHeight = MuhabbetSizes.MinTouchTarget

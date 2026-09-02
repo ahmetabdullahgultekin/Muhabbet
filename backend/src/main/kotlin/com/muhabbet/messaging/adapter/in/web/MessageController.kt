@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 
 @RestController
@@ -39,7 +41,8 @@ class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val manageMessageUseCase: ManageMessageUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
-    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
+    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
+    private val burnViewOnceUseCase: BurnViewOnceUseCase
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -171,7 +174,9 @@ class MessageController(
                 displayName = recipient.displayName ?: recipient.userId.toString().take(8),
                 avatarUrl = recipient.avatarUrl,
                 status = recipient.status.name,
-                updatedAt = recipient.updatedAt.toString()
+                // Null when the status was downgraded for a recipient with read receipts off; the
+                // client already renders the row without a time in that case.
+                updatedAt = recipient.updatedAt?.toString()
             )
         }
         val info = MessageInfoResponse(
@@ -212,18 +217,24 @@ class MessageController(
     /**
      * Opens a view-once message: burns it and returns its media, once.
      *
-     * The only endpoint in the API that hands out a view-once blob URL. Every other response nulls
-     * it (see [toSharedMessage]), which is what makes the seal a seal rather than a drawing of one —
-     * before #515 the sealed bubble and a fully working URL for the photo behind it travelled in the
-     * same payload.
+     * The only endpoint in the API that hands out a view-once photo at all. Every other response
+     * nulls it (see [toSharedMessage]), which is what makes the seal a seal rather than a drawing of
+     * one — before #515 the sealed bubble and a fully working URL for the photo behind it travelled
+     * in the same payload.
+     *
+     * Since #541 it hands out **bytes**, not a URL, and the object they came from is deleted before
+     * this responds. A presigned URL needs no credential and expires on its own schedule; the one
+     * the message used to carry lasted seven days, so "burned" meant hidden and not gone.
      */
     @PostMapping("/messages/{messageId}/view-once")
     fun markViewOnceViewed(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<ViewOnceRevealResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        val reveal = manageMessageUseCase.markViewOnceViewed(messageId, userId)
+        val reveal = burnViewOnceUseCase.markViewOnceViewed(messageId, userId)
         return ApiResponseBuilder.ok(
             ViewOnceRevealResponse(
                 messageId = reveal.messageId.toString(),
+                mediaBase64 = reveal.mediaBytes?.let { Base64.getEncoder().encodeToString(it) },
+                mediaContentType = reveal.mediaContentType,
                 mediaUrl = reveal.mediaUrl,
                 thumbnailUrl = reveal.thumbnailUrl,
                 viewedAt = reveal.viewedAt.toEpochMilli()

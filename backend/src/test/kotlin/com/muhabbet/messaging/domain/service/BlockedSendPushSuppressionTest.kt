@@ -17,6 +17,7 @@ import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.InlineTransactionRunner
+import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -105,6 +106,7 @@ class BlockedSendPushSuppressionTest {
             userDirectory = userDirectory,
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
+            mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
             transactions = InlineTransactionRunner()
         )
 
