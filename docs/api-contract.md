@@ -75,9 +75,17 @@ Verify OTP and receive JWT tokens.
   "phoneNumber": "+905321234567",
   "otp": "123456",
   "deviceName": "Samsung Galaxy S24",
-  "platform": "android"
+  "platform": "android",
+  "twoStepPin": null
 }
 ```
+
+`twoStepPin` is optional and only relevant when the account has two-step verification on (#566).
+The client cannot know that in advance, so the exchange is: send without it, receive
+`AUTH_2FA_PIN_REQUIRED`, then send **the same code** again with the PIN. Repeating the code is
+correct and costs nothing — the server hands back the attempt it claimed, because a code it found
+correct was never a guess. `POST /api/v1/auth/firebase-verify` takes the same field and applies the
+same gate; gating one path and not the other would leave the ungated one as a bypass.
 
 **Response (200):**
 ```json
@@ -99,6 +107,9 @@ Verify OTP and receive JWT tokens.
 | `AUTH_OTP_INVALID` | 401 | Wrong OTP code |
 | `AUTH_OTP_EXPIRED` | 401 | OTP has expired |
 | `AUTH_OTP_MAX_ATTEMPTS` | 401 | Too many wrong attempts |
+| `AUTH_2FA_PIN_REQUIRED` | 403 | Code accepted; the account needs its two-step PIN too |
+| `AUTH_2FA_PIN_INVALID` | 401 | Wrong two-step PIN |
+| `AUTH_2FA_LOCKED` | 429 | Five wrong PINs; locked for 15 minutes, correct PIN included |
 
 ---
 

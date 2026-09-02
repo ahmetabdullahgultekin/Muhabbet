@@ -64,6 +64,14 @@ fun OtpVerifyScreen(
     // The code this screen has already spent an attempt on. Null means nothing is outstanding.
     // A code and not a flag — see [shouldSubmitOtp].
     var submittedCode by remember { mutableStateOf<String?>(null) }
+    // The second factor (#566). `twoStepRequired` is set only by the server's own
+    // AUTH_2FA_PIN_REQUIRED — never guessed — so an account without one never sees this step.
+    var twoStepRequired by remember { mutableStateOf(false) }
+    var twoStepPin by remember { mutableStateOf("") }
+    // The Firebase ID token from the first attempt, kept so the PIN retry does not have to redeem
+    // the SMS code a second time. Firebase refuses a verification code it has already consumed, so
+    // without this the retry would fail before it ever reached our own backend.
+    var firebaseIdToken by remember { mutableStateOf<String?>(null) }
     var countdown by remember { mutableStateOf(if (firebaseVerificationId != null) 60 else 300) }
     var isResending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -78,6 +86,8 @@ fun OtpVerifyScreen(
         expired = stringResource(Res.string.otp_error_expired),
         maxAttempts = stringResource(Res.string.otp_error_max_attempts),
         cooldown = stringResource(Res.string.otp_error_cooldown),
+        twoStepInvalid = stringResource(Res.string.otp_error_two_step_invalid),
+        twoStepLocked = stringResource(Res.string.otp_error_two_step_locked),
     )
 
     LaunchedEffect(Unit) {
@@ -91,6 +101,8 @@ fun OtpVerifyScreen(
     // the button can still submit, without the verify path existing twice.
     val submit = submit@{
         val code = otp
+        // Null until the server has said a PIN is needed, so an ordinary sign-in sends nothing new.
+        val pin = twoStepPin.takeIf { twoStepRequired }
         // Guarded HERE, inside the handler, and not by the button's `enabled` alone. `enabled` is a
         // composition input: it is re-read when Compose recomposes, so two dispatches landing in the
         // same frame — the field auto-submitting on the sixth digit plus a tap, or two fast taps —
@@ -98,21 +110,27 @@ fun OtpVerifyScreen(
         // visible to the very next read on the same thread, so the second caller sees what the first
         // wrote microseconds earlier. `enabled` below still mirrors the same predicate, so the
         // button is visibly dead rather than silently inert.
-        if (!shouldSubmitOtp(code, inFlight = isLoading, alreadySubmitted = submittedCode)) {
+        if (!shouldSubmitOtp(code, pin, inFlight = isLoading, alreadySubmitted = submittedCode)) {
             return@submit
         }
-        submittedCode = code
+        submittedCode = attemptKey(code, pin)
         isLoading = true
         error = null
         scope.launch {
             try {
                 if (useFirebase && firebasePhoneAuth != null && firebaseVerificationId != null) {
                     // Firebase: verify code → get ID token → exchange with backend
-                    val idToken = firebasePhoneAuth.verifyCode(firebaseVerificationId, code)
+                    // Remembered across attempts: Firebase refuses a verification code it has
+                    // already redeemed, so a PIN retry that asked for a second token would fail
+                    // before it ever reached our own backend.
+                    val idToken = firebaseIdToken
+                        ?: firebasePhoneAuth.verifyCode(firebaseVerificationId, code)
+                            .also { firebaseIdToken = it }
                     val result = authRepository.verifyFirebaseToken(
                         idToken = idToken,
                         deviceName = getDeviceModel(),
-                        platform = getPlatformName()
+                        platform = getPlatformName(),
+                        twoStepPin = pin
                     )
                     onOtpVerified(result.isNewUser)
                 } else {
@@ -121,7 +139,8 @@ fun OtpVerifyScreen(
                         phoneNumber = phoneNumber,
                         otp = code,
                         deviceName = getDeviceModel(),
-                        platform = getPlatformName()
+                        platform = getPlatformName(),
+                        twoStepPin = pin
                     )
                     onOtpVerified(result.isNewUser)
                 }
@@ -132,7 +151,14 @@ fun OtpVerifyScreen(
                 // a 5xx, a Firebase error — releases the latch, so Verify stays usable without
                 // making the user retype a code that was never found wrong.
                 if (!consumedAnAttempt(e)) submittedCode = null
-                error = otpErrors.forFailure(e, verifyFailedMsg)
+                if (requiresTwoStepPin(e)) {
+                    // Not a failure to report — a step to show. The code was accepted; the account
+                    // simply has a second factor, and the same code goes out again with the PIN.
+                    twoStepRequired = true
+                    error = null
+                } else {
+                    error = otpErrors.forFailure(e, verifyFailedMsg)
+                }
             } finally {
                 isLoading = false
             }
@@ -214,11 +240,46 @@ fun OtpVerifyScreen(
             onFilled = { submit() }
         )
 
+        // Appears only after the server has asked for it. The account's own answer decides this,
+        // never a client-side guess — a screen that offered a PIN box on spec would be telling the
+        // user something about an account it has not been told anything about.
+        if (twoStepRequired) {
+            Spacer(Modifier.height(MuhabbetSpacing.Large))
+
+            Text(
+                text = stringResource(Res.string.otp_two_step_prompt),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(MuhabbetSpacing.Medium))
+
+            MuhabbetOtpField(
+                value = twoStepPin,
+                onValueChange = {
+                    twoStepPin = it
+                    error = null
+                    // Same latch rule as the code: any edit is a new attempt.
+                    submittedCode = null
+                },
+                modifier = Modifier.testTag("two_step_pin_input"),
+                length = TwoStepPinLength,
+                isError = error != null,
+                enabled = !isLoading,
+                // Unlike the SMS code, the PIN is a secret the user already knows, and this screen
+                // is used in public. The setup screen masks it; so does this one.
+                masked = true,
+                onFilled = { submit() }
+            )
+        }
+
         // One error slot, showing the newest reason. Once the code has expired, "that code is not
         // correct" is no longer true of anything — the code it referred to is gone — so showing both
         // left the user to work out which of two red messages applied (#403). Expiry is rendered
         // below and supersedes it.
-        if (countdown > 0) {
+        // `|| twoStepRequired` for the same reason the button ignores the clock there: a wrong-PIN
+        // message must not be swallowed by an expiry notice about a code the server just accepted.
+        if (countdown > 0 || twoStepRequired) {
             error?.let {
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 Text(
@@ -287,8 +348,17 @@ fun OtpVerifyScreen(
 
         Button(
             onClick = submit,
-            enabled = shouldSubmitOtp(otp, inFlight = isLoading, alreadySubmitted = submittedCode) &&
-                countdown > 0,
+            enabled = shouldSubmitOtp(
+                otp,
+                twoStepPin.takeIf { twoStepRequired },
+                inFlight = isLoading,
+                alreadySubmitted = submittedCode
+            // The countdown gate does not apply once the PIN step is open. It is a client-side
+            // clock, and reaching this step means the server accepted the code seconds ago — on the
+            // Firebase path that clock is 60s, which is not long to be handed a second factor and
+            // asked to remember a PIN. If the code really has expired the server says so, and the
+            // screen shows that instead of a dead button with no explanation.
+            ) && (countdown > 0 || twoStepRequired),
             modifier = Modifier.fillMaxWidth().testTag("otp_verify")
         ) {
             if (isLoading) {
@@ -315,6 +385,13 @@ fun OtpVerifyScreen(
 /** Digits in a verification code. Both the field and the submit guard read it. */
 internal const val OtpLength = 6
 
+/**
+ * Digits in a two-step PIN. Kept equal to `ValidationRules.TWO_STEP_PIN_LENGTH`, which is what both
+ * the setup screen and the server enforce — a field that accepted a different length would offer a
+ * PIN no account could ever hold.
+ */
+internal const val TwoStepPinLength = 6
+
 private const val TAG = "OtpVerifyScreen"
 
 /**
@@ -335,8 +412,26 @@ private const val TAG = "OtpVerifyScreen"
  * [inFlight] closes the same-frame race on its own terms: it is read inside the event handler rather
  * than through the button's `enabled`, which Compose only re-evaluates on recomposition.
  */
-internal fun shouldSubmitOtp(code: String, inFlight: Boolean, alreadySubmitted: String?): Boolean =
-    code.length == OtpLength && !inFlight && code != alreadySubmitted
+internal fun shouldSubmitOtp(
+    code: String,
+    pin: String?,
+    inFlight: Boolean,
+    alreadySubmitted: String?
+): Boolean =
+    code.length == OtpLength &&
+        (pin == null || pin.length == TwoStepPinLength) &&
+        !inFlight &&
+        attemptKey(code, pin) != alreadySubmitted
+
+/**
+ * What the latch actually holds: the code, plus the PIN when there is one (#566).
+ *
+ * The latch could not stay keyed on the code alone once a second factor existed. The two-step step
+ * resends the **same** six digits with a different PIN, so a code-only key would refuse every
+ * correction the user made to a mistyped PIN — the screen would go dead holding a wrong answer.
+ */
+internal fun attemptKey(code: String, pin: String?): String =
+    if (pin == null) code else "$code:$pin"
 
 /**
  * The rejections that mean the server already counted an attempt against the code just sent.
@@ -358,6 +453,16 @@ internal fun consumedAnAttempt(e: Throwable): Boolean =
     (e as? ApiException)?.code in AttemptConsumingCodes
 
 /**
+ * Whether [e] means "the code was right, but this account has a second factor" (#566).
+ *
+ * Deliberately not in [AttemptConsumingCodes]: the server hands the OTP attempt back in this case,
+ * because a correct code is not a guess and the round trip that discovers a PIN is needed must not
+ * be charged to the SMS budget. The screen must therefore be free to resend the same digits.
+ */
+internal fun requiresTwoStepPin(e: Throwable): Boolean =
+    (e as? ApiException)?.code == "AUTH_2FA_PIN_REQUIRED"
+
+/**
  * The four rejections the OTP endpoints report in normal use, in the device's language.
  *
  * A mistyped code is not a malfunction, it is the expected answer to a typo, and this screen is the
@@ -374,6 +479,8 @@ private class OtpErrorMessages(
     val expired: String,
     val maxAttempts: String,
     val cooldown: String,
+    val twoStepInvalid: String,
+    val twoStepLocked: String,
 ) {
     /**
      * [fallback] covers everything else — a 500, a dead network, a Firebase failure — because those
@@ -384,6 +491,8 @@ private class OtpErrorMessages(
         "AUTH_OTP_EXPIRED" -> expired
         "AUTH_OTP_MAX_ATTEMPTS" -> maxAttempts
         "AUTH_OTP_COOLDOWN", "AUTH_OTP_RATE_LIMIT" -> cooldown
+        "AUTH_2FA_PIN_INVALID" -> twoStepInvalid
+        "AUTH_2FA_LOCKED" -> twoStepLocked
         else -> fallback
     }
 }

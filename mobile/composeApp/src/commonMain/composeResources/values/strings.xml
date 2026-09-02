@@ -579,7 +579,6 @@
     <string name="two_step_description">Hesabınızı korumak için 6 haneli PIN oluşturun</string>
     <string name="two_step_pin_hint">6 haneli PIN</string>
     <string name="two_step_confirm_pin">PIN'i onaylayın</string>
-    <string name="two_step_email_hint">Kurtarma e-postası (isteğe bağlı)</string>
     <string name="two_step_enable">Etkinleştir</string>
     <string name="two_step_disable">Devre Dışı Bırak</string>
     <string name="two_step_enabled">İki adımlı doğrulama etkin</string>
@@ -588,10 +587,11 @@
     <string name="two_step_disabled">İki adımlı doğrulama kapatıldı</string>
     <string name="two_step_current_pin">Mevcut PIN</string>
     <string name="two_step_status_unavailable">İki adımlı doğrulamanın açık mı kapalı mı olduğu öğrenilemedi</string>
-    <string name="two_step_not_enforced_note">Not: PIN şimdilik yalnızca kaydediliyor, girişte henüz sorulmuyor.</string>
+    <string name="two_step_no_recovery_warning">PIN'inizi unutursanız hesabınıza yeni bir cihazdan giremezsiniz. Sıfırlama yöntemi henüz yok.</string>
     <string name="two_step_error_already_enabled">İki adımlı doğrulama zaten açık</string>
     <string name="two_step_error_pin_invalid">PIN doğru değil</string>
     <string name="two_step_error_not_enabled">İki adımlı doğrulama açık değil</string>
+    <string name="two_step_error_locked">Çok fazla hatalı PIN denemesi. Bir süre sonra tekrar deneyin.</string>
     <string name="two_step_error_session_expired">Oturumunuzun süresi dolmuş. Çıkıp yeniden girin.</string>
 
     <!-- Mute Duration -->
@@ -870,6 +870,9 @@
     <string name="otp_error_expired">Doğrulama kodunun süresi doldu. Yeni bir kod isteyin.</string>
     <string name="otp_error_max_attempts">Çok fazla hatalı deneme yapıldı. Yeni bir kod isteyin.</string>
     <string name="otp_error_cooldown">Yeni kod istemeden önce biraz bekleyin</string>
+    <string name="otp_two_step_prompt">Bu hesapta iki adımlı doğrulama açık. 6 haneli PIN'inizi girin.</string>
+    <string name="otp_error_two_step_invalid">PIN doğru değil</string>
+    <string name="otp_error_two_step_locked">Çok fazla hatalı PIN denemesi. Bir süre sonra tekrar deneyin.</string>
     <string name="search_failed">Arama yapılamadı</string>
     <string name="status_post_failed">Durum paylaşılamadı</string>
     <!-- Contact-sync consent (KVKK explicit consent, #425) -->

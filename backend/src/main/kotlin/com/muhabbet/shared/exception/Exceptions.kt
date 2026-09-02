@@ -106,6 +106,15 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     AUTH_2FA_ALREADY_ENABLED(HttpStatus.CONFLICT, "İki adımlı doğrulama zaten etkin"),
     AUTH_2FA_NOT_ENABLED(HttpStatus.BAD_REQUEST, "İki adımlı doğrulama etkin değil"),
 
+    /**
+     * Too many wrong PINs; the second factor is locked for a while (#566).
+     *
+     * 429 rather than 401 so it cannot be mistaken for "that PIN is wrong" by anything counting
+     * failures — including the client, which must stop resending rather than let the user burn
+     * through the lock window one guess at a time.
+     */
+    AUTH_2FA_LOCKED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla hatalı PIN denemesi, lütfen bekleyin"),
+
     // Invite Links
     INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "Davet bağlantısı bulunamadı"),
     INVITE_LINK_EXPIRED(HttpStatus.GONE, "Davet bağlantısının süresi dolmuş"),

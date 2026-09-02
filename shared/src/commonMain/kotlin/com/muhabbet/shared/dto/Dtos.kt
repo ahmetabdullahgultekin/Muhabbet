@@ -39,7 +39,15 @@ data class VerifyOtpRequest(
     val phoneNumber: String,
     val otp: String,
     val deviceName: String,
-    val platform: String                // "android" or "ios"
+    val platform: String,               // "android" or "ios"
+    /**
+     * The two-step PIN, when the account has one (#566).
+     *
+     * Additive and defaulted so an older build keeps working: it simply never sends the field, and
+     * an account with two-step on answers `AUTH_2FA_PIN_REQUIRED` — which is a refusal it can show,
+     * rather than a sign-in it silently gets away with.
+     */
+    val twoStepPin: String? = null
 )
 
 @Serializable
@@ -56,7 +64,9 @@ data class AuthTokenResponse(
 data class FirebaseVerifyRequest(
     val idToken: String,
     val deviceName: String,
-    val platform: String
+    val platform: String,
+    /** See [VerifyOtpRequest.twoStepPin]. Both token-minting paths carry the same second factor. */
+    val twoStepPin: String? = null
 )
 
 @Serializable

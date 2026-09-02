@@ -44,6 +44,23 @@ interface SpringDataOtpRepository : JpaRepository<OtpRequestJpaEntity, UUID> {
     fun claimAttempt(@Param("id") id: UUID, @Param("maxAttempts") maxAttempts: Int): Int
 
     /**
+     * Undoes one [claimAttempt] for a code that was found correct — see `OtpRepository.refundAttempt`.
+     *
+     * `attempts > 0` is a floor, not an optimisation: without it a stray refund would drive the
+     * counter negative and quietly hand out extra guesses.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        UPDATE OtpRequestJpaEntity o
+           SET o.attempts = o.attempts - 1
+         WHERE o.id = :id
+           AND o.attempts > 0
+        """
+    )
+    fun refundAttempt(@Param("id") id: UUID): Int
+
+    /**
      * Marks verified with an UPDATE rather than by mutating a managed entity.
      *
      * The caller's persistence context is holding this row from the lookup that started `verifyOtp`,

@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
-data class ResetPinRequest(val email: String)
-
 /** Must match `TwoStepRepository.BASE_PATH` on the mobile client. */
 const val TWO_STEP_BASE_PATH = "/api/v1/auth/two-step"
 
@@ -74,13 +72,6 @@ class TwoStepVerificationController(
     fun disablePin(@RequestBody request: DisableTwoStepRequest): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         twoStepVerificationUseCase.disablePin(userId, request.currentPin)
-        return ApiResponseBuilder.ok(Unit)
-    }
-
-    @PostMapping("/reset")
-    fun resetPinViaEmail(@RequestBody request: ResetPinRequest): ResponseEntity<ApiResponse<Unit>> {
-        val userId = AuthenticatedUser.currentUserId()
-        twoStepVerificationUseCase.resetPinViaEmail(userId, request.email)
         return ApiResponseBuilder.ok(Unit)
     }
 }

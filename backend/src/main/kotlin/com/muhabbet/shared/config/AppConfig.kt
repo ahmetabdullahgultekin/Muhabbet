@@ -3,7 +3,9 @@ package com.muhabbet.shared.config
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
+import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
 import com.muhabbet.auth.domain.port.out.OtpQuotaPort
+import com.muhabbet.auth.domain.port.out.TwoStepAttemptRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
@@ -83,7 +85,8 @@ import org.springframework.security.crypto.password.PasswordEncoder
     SmsProperties::class,
     MediaProperties::class,
     MultiDeviceProperties::class,
-    InviteLinkProperties::class
+    InviteLinkProperties::class,
+    TwoStepProperties::class
 )
 class AppConfig {
 
@@ -103,7 +106,10 @@ class AppConfig {
         otpProperties: OtpProperties,
         jwtProperties: JwtProperties,
         otpVerifier: OtpVerifier?,
-        otpQuotaPort: OtpQuotaPort
+        otpQuotaPort: OtpQuotaPort,
+        firebaseTokenVerifier: FirebaseTokenVerifier,
+        twoStepAttemptRepository: TwoStepAttemptRepository,
+        twoStepProperties: TwoStepProperties
     ): AuthService = AuthService(
         userRepository = userRepository,
         otpRepository = otpRepository,
@@ -121,7 +127,11 @@ class AppConfig {
         refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
         mockEnabled = otpProperties.mockEnabled,
         testNumbers = otpProperties.testNumbers.toSet(),
-        otpQuotaPort = otpQuotaPort
+        otpQuotaPort = otpQuotaPort,
+        firebaseTokenVerifier = firebaseTokenVerifier,
+        twoStepAttemptRepository = twoStepAttemptRepository,
+        twoStepMaxAttempts = twoStepProperties.maxAttempts,
+        twoStepLockSeconds = twoStepProperties.lockSeconds
     )
 
     /**
@@ -398,10 +408,15 @@ class AppConfig {
     @Bean
     fun twoStepVerificationService(
         userRepository: UserRepository,
-        passwordEncoder: PasswordEncoder
+        passwordEncoder: PasswordEncoder,
+        twoStepAttemptRepository: TwoStepAttemptRepository,
+        twoStepProperties: TwoStepProperties
     ): TwoStepVerificationService = TwoStepVerificationService(
         userRepository = userRepository,
-        passwordEncoder = passwordEncoder
+        passwordEncoder = passwordEncoder,
+        twoStepAttemptRepository = twoStepAttemptRepository,
+        maxAttempts = twoStepProperties.maxAttempts,
+        lockSeconds = twoStepProperties.lockSeconds
     )
 
     @Bean

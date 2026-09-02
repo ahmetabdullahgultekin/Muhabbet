@@ -48,7 +48,8 @@ class AuthController(
             phoneNumber = request.phoneNumber,
             otp = request.otp,
             deviceName = request.deviceName,
-            platform = request.platform
+            platform = request.platform,
+            twoStepPin = request.twoStepPin
         )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
@@ -67,7 +68,8 @@ class AuthController(
         val result = firebaseVerifyUseCase.verifyFirebaseToken(
             idToken = request.idToken,
             deviceName = request.deviceName,
-            platform = request.platform
+            platform = request.platform,
+            twoStepPin = request.twoStepPin
         )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
