@@ -54,18 +54,23 @@ module/
 - `user` — Profile endpoints in auth module for now (`GET/PATCH /users/me`)
 
 ### Cross-Cutting (`shared/` package in backend)
-Five packages, 23 files — verified 2026-08-21.
-- `config/` — `AppConfig` (33 `@Bean` methods; this is where domain services are wired so they stay
-  Spring-free), `WebSocketConfig`, `RedisConfig`, `AsyncConfig`, `FirebaseConfig`, `JsonConfig`,
-  and the `@ConfigurationProperties` holders. **`SecurityConfig` is NOT here** — it is in
-  `security/`, which is where you should look for it.
+Five packages — the list is stable, the counts are not. It said "23 files" on 2026-08-21 and was
+**25** on 2026-09-02; `AppConfig` said 33 `@Bean`s and had **36**. Count them, do not quote them —
+this is the same trap as the test counts in the build section, and it has already caught this file.
+- `config/` — `AppConfig` (where domain services are wired so they stay Spring-free),
+  `WebSocketConfig`, `RedisConfig`, `AsyncConfig`, `FirebaseConfig`, `JsonConfig`, and the
+  `@ConfigurationProperties` holders (`MediaProperties`, `OtpProperties`, `SmsProperties`,
+  `InviteLinkProperties`, `MultiDeviceProperties`) plus `MessageServicePorts`.
+  **`SecurityConfig` is NOT here** — it is in `security/`, which is where you should look for it.
 - `security/` — `SecurityConfig`, `JwtProvider`, `JwtAuthFilter`, `JwtProperties`,
   `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`
-- `exception/` — `GlobalExceptionHandler`, `BusinessException`, `ErrorCode` enum (92 entries)
+- `exception/` — two files. `GlobalExceptionHandler.kt`, and `Exceptions.kt` holding both
+  `BusinessException` and the `ErrorCode` enum. **There is no `ErrorCode.kt`** — grep `Exceptions.kt`
+  for the entry you want rather than looking for a file named after the enum.
 - `web/` — `ApiResponseBuilder`, the only place the response envelope is built
 - `analytics/` — `AnalyticsEvent`
 - ~~`event/` — DomainEvent marker interface~~ — **does not exist**, and neither does the mechanism
-  it implies (corrected 2026-08-21 from two independent checks). There is no `DomainEvent` type
+  it implies (corrected 2026-08-21 from two independent checks, re-verified 2026-09-02). There is no `DomainEvent` type
   anywhere in the repository, and not a single `@EventListener`, `@TransactionalEventListener` or
   `publishEvent` call in the backend. `messaging/domain/event/MessagingEvents.kt` declares two POJOs
   that nothing publishes or listens to, and `EncryptionService` takes an `ApplicationEventPublisher`
@@ -218,7 +223,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Cache | Redis 7 |
 | Media storage | MinIO (S3-compatible) |
 | Build system | Gradle 9.7.0 (Kotlin DSL) |
-| SMS gateway | Netgsm |
+| SMS gateway | Twilio Verify in prod (`SMS_PROVIDER=twilio-verify`); Netgsm and mock adapters also exist |
 | Push | FCM (Firebase Cloud Messaging) |
 | Monitoring | SLF4J + Logback (JSON) + Spring Actuator + Sentry |
 | Testing | JUnit 5 + MockK + Testcontainers + ArchUnit |
@@ -244,8 +249,9 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `docs/api-contract.md` — REST + WebSocket API specification
 - `docs/qa/` — QA engineering documentation (9 ISO/IEC 25010 documents + UI/UX analysis)
 - `backend/detekt.yml` — detekt static analysis configuration
-- `backend/detekt-baseline.xml` — the 82 pre-existing findings detekt is allowed to ignore. Anything
-  outside it fails the build. Shrink it, never regenerate it.
+- `backend/detekt-baseline.xml` — the pre-existing findings detekt is allowed to ignore. Anything
+  outside it fails the build. Shrink it, never regenerate it — and it *is* being shrunk (82 on
+  2026-08-21, 78 on 2026-09-02), so count the `<ID>` elements rather than trusting a number here.
 - `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
 - `docs/design/muhabbet-design-system.md` — **The design system's reference document.** Module
   architecture, the Copper palette and its rationale, Manrope, depth/gradient/blur/motion/haptic
@@ -263,7 +269,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - `mobile/designsystem/.../theme/MuhabbetTypography.kt` — Manrope type scale. `MuhabbetTextStyles`
   is a **class** provided via `LocalTextStyles`, never an object — as an object it silently keeps
   the system font on every chat/list surface.
-- `gradle/ui-guardrails.gradle.kts` + `ui-guardrails-baseline.properties` — ratcheted UI checks
+- `gradle/ui-guardrails.gradle.kts` + `gradle/ui-guardrails-baseline.properties` — ratcheted UI checks
   (`./gradlew verifyUi`, runs without an Android SDK). Scans three roots: `composeApp/ui`,
   `composeApp/navigation`, and all of `mobile/designsystem`.
 - `mobile/composeApp/.../navigation/MuhabbetStackAnimations.kt` — **the only place allowed to build a
@@ -284,19 +290,30 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
   `Children` never creates the `AnimatedVisibilityScope` that plain `sharedElement()` requires.
   **Not device-verified** — see `docs/design/muhabbet-design-system.md` §10.
 - `mobile/.../util/DateTimeFormatter.kt` — Centralized date/time formatting (DRY utility)
-- `mobile/.../ui/components/SectionHeader.kt` — Reusable section header component
-- `mobile/.../ui/components/ConfirmDialog.kt` — Reusable confirm/dismiss dialog
+- `mobile/designsystem/.../components/SectionHeader.kt` — Reusable section header. It moved out of
+  `composeApp/ui/components/` into the design-system module; so did the confirm/dismiss dialog,
+  which is now the `ConfirmDialog` composable inside
+  `mobile/designsystem/.../components/MuhabbetDialog.kt` and **not a file of its own**.
 - `mobile/.../util/TextUtils.kt` — firstGrapheme() + parseFormattedText() utilities
-- `mobile/.../BuildInfo.kt` — Centralized version constant
+- `mobile/.../BuildInfo.kt` — Centralized version constant, pinned to `versionName`/`versionCode` by
+  the `verifyBuildInfoVersion` Gradle task, so the three cannot drift apart
 - `docs/qa/mobile-ui-audit.md` — 87-issue mobile UI audit report
 - `mobile/.../data/repository/MediaUploadHelper.kt` — Centralized media upload with guaranteed compression
-- `mobile/.../data/local/MuhabbetDatabase.sq` — SQLDelight schema (CachedConversation, CachedMessage, PendingMessage)
-- `mobile/.../crypto/PersistentSignalProtocolStore.kt` — Android EncryptedSharedPreferences Signal store
+- `mobile/composeApp/src/commonMain/sqldelight/com/muhabbet/app/db/MuhabbetDatabase.sq` — SQLDelight
+  schema (CachedConversation, CachedMessage, PendingMessage). It is in the `sqldelight` source set,
+  not under `kotlin/`.
 - `mobile/.../crypto/KeychainHelper.kt` — iOS Keychain CRUD for secure token/key storage
+- `mobile/.../ui/settings/AppLockGate.kt` — the lock screen itself, mounted in `RootComponent` as the
+  last child of the root `Box` so it draws over everything (#378)
+- `mobile/.../ui/chat/ChatWallpaper.kt` — the reader half of the wallpaper setting (#380)
 - `mobile/.../platform/BackgroundSyncManager.kt` — expect/actual periodic message sync (WorkManager/BGTask)
 - `mobile/.../platform/CameraPicker.kt` — expect/actual camera capture (TakePicture/UIImagePickerController)
 - `mobile/.../platform/SpeechTranscriber.kt` — expect/actual on-device ASR (SpeechRecognizer/SFSpeechRecognizer)
-- `mobile/.../ui/settings/PrivacyDashboardScreen.kt` — KVKK privacy controls UI
+- `mobile/.../ui/privacy/PrivacyDashboardScreen.kt` — KVKK privacy controls UI. **`ui/privacy/`, not
+  `ui/settings/`** — this file said the latter for months.
+- `docs/design/T2-voice-and-video-calls.md` + `docs/adr/0009-call-media-infrastructure.md` — the
+  calling design and the one decision that blocks it. Read these instead of any summary of calls,
+  here or elsewhere; see the Phase 3 entry below.
 
 ## Current Phase
 
@@ -322,22 +339,28 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 > 2026-08-15 CI had never once built the mobile app (see #366), so nothing caught any of it. The
 > owner found the first instances by installing a build on a real phone.
 >
-> Corrections to specific claims below, each with an issue carrying the evidence:
+> Corrections to specific claims below, each with an issue carrying the evidence. **Everything here
+> has since been fixed except calls** (re-checked against `dev` on 2026-09-02, issue states included).
+> The rows are kept because the pattern is the lesson, not because the code is still broken — and the
+> one that is still broken is the one nobody could fix without a decision. Each row says which it is.
 >
 > | Claimed | Actually |
 > |---|---|
-> | Phase 3 "Voice Calls" | **Has never worked.** The client never sends `call.initiate` — zero mobile references. No mic track is ever published. LiveKit is unconfigured in prod, so `NoOpCallRoomProvider` is the live bean. Three independent fatal breaks. #367–#373 |
+> | Phase 3 "Voice Calls" | **Still true — has never worked.** The client never sends `call.initiate` — zero mobile references. No mic track is ever published. LiveKit is unconfigured in prod, so `NoOpCallRoomProvider` is the live bean. #367–#373 all **open**. The app is at least honest now: the Calls tab, profile call button and new-call picker say *"Arama özelliği yakında"* rather than minting a fake call id. Design and the blocking decision: `docs/design/T2-voice-and-video-calls.md`, `docs/adr/0009-call-media-infrastructure.md`, umbrella #715 |
 > | "KVKK Privacy Dashboard — DONE" | Was: **all four controls local state**, nothing loaded, nothing saved. **#377 fixed** — three controls now load and save through `PrivacySettingsController` (shared with Settings, so the two read-receipt switches cannot disagree), plus a new `GET /users/me/privacy`. The audit understated it: of the three fields the PATCH accepted, only `onlineStatusVisibility` had a **reader** — `aboutVisibility` and `readReceiptsEnabled` were stored and never consulted, so wiring the client alone would have produced a screen that saves and still changes nothing. Both now enforce server-side. The fourth control (profile photo) had **no column at all** and was removed, not faked. |
-> | Communities | Create and read work (8 rows in prod). You **cannot add a person** — no UI, no client method, no list-members endpoint. No announcement channel. #376 |
-> | App Lock (settings) | No persistence, no reader, and **no lock mechanism exists at all** — no biometric dependency, no PIN, no lifecycle gate. #378 |
-> | Wallpaper / HD media quality | Wrote to a sink; nothing outside their own picker read them. **HD media quality (#383) fixed** — `TokenStorage` members are now abstract and overridden on all three implementations, and `MediaUploadHelper` resolves a `MediaQuality` profile per upload instead of hardcoding 1280/80. **Wallpaper (#380) still open**; a complete backend wallpaper vertical still sits unused. |
-> | Voice transcription | **Crashes on Android 8–11** (API 31 call, `minSdk` 26, no guard) and opens the live mic on newer versions. #381 |
+> | Communities | Was: create and read work (8 rows in prod), but you **cannot add a person** — no UI, no client method, no list-members endpoint. **#376 fixed.** Enrolment is still restricted rather than solved — see the #375 note below and #387, which is **open**. |
+> | App Lock (settings) | Was: no persistence, no reader, and **no lock mechanism at all**. **#378 fixed**, and it is the model for what "fixed" means here — all three halves landed together. Persistence: `TokenStorage` app-lock members are abstract and stored in *encrypted* prefs, not the plain ones theme and wallpaper use. Reader: `data/local/AppLockController.kt`, a Koin singleton exposing StateFlows. Mechanism: `ui/settings/AppLockGate.kt` mounted in `RootComponent`, `isLocked` starting **true**, a monotonic background-time check against the grace period, `BiometricPrompt` behind `androidx.biometric`, and `FLAG_SECURE` while armed. **Android only** — the iOS authenticator returns `false`, so the gate is off there rather than locking the user out. |
+> | Wallpaper / HD media quality | Both fixed. **HD media quality (#383)** — `TokenStorage` members are now abstract and overridden on all three implementations, and `MediaUploadHelper` resolves a `MediaQuality` profile per upload instead of hardcoding 1280/80. **Wallpaper (#380)** — `ui/chat/ChatWallpaper.kt` is the reader, called from `ChatScreen` above the loading skeleton so it paints before messages arrive. It stays device-local deliberately; the unused backend wallpaper vertical is still unused, and that is a decision, not an oversight. |
+> | Voice transcription | Was: crashes on Android 8–11 (API 31 call, `minSdk` 26, no guard) and opens the live mic on newer versions. **#381 fixed**, and the fix moved the floor to **API 33, not 31** — 31–32 has the on-device recognizer but no file-source extra, so it would still have opened the microphone. Audio is decoded to PCM and fed through a `ParcelFileDescriptor` pipe; below 33 the button is hidden rather than offered. |
 > | E2E "flag-OFF, no effect" | Was: `registerKeys()` **not** gated on `E2EConfig.ENABLED`, so every launch wrote `noop-identity-key-<random>` to the production backend. **#379 fixed** — `App.kt:181` now reads `if (E2EConfig.ENABLED && loggedIn)`, verified 2026-08-21. Rows already written are still there. |
 >
 > Two more that are not feature claims but invalidate reasoning about all of them:
-> - **`ApiClient` never checks the HTTP status** (#374). A 403/500 decodes cleanly to `data = null`,
->   so server errors reach the user as success toasts or empty screens. **Fix this before wiring
->   anything else**, or the new wiring will look like it works and will not.
+> - **`ApiClient` never checked the HTTP status** (#374) — a 403/500 decoded cleanly to `data = null`,
+>   so server errors reached the user as success toasts or empty screens. **Fixed.** Every verb now
+>   goes through `bodyOfSuccessful`, which throws `ApiException` unless `response.status.isSuccess()`;
+>   empty bodies are handled separately so a 204 is not a false failure. This is worth knowing
+>   historically: any mobile behaviour observed before 2026-08-15 was observed through a client that
+>   could not tell success from failure, so old "it works" reports prove nothing.
 > - **Authorization gaps** (#375) — **fixed.** Reading a community now requires membership;
 >   `addGroup` requires the caller to be a member of the conversation and the conversation to be a
 >   GROUP. `addMember` is restricted, not solved: an owner may only enrol someone already in one of
@@ -346,9 +369,14 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 >
 > **The standing rule this produced:** for anything user-visible, check all three of *persistence*,
 > *a reader*, and *a mechanism* before calling it fixed. Adding persistence alone to App Lock or
-> Wallpaper makes them look repaired while the app still never locks and the chat still renders the
-> theme default — worse than leaving them visibly broken. And there is **no emulator on this host**
-> (see the build section), so motion, layout and gesture cannot be signed off here at all.
+> Wallpaper would have made them look repaired while the app still never locked and the chat still
+> rendered the theme default — worse than leaving them visibly broken. Both were eventually fixed by
+> landing all three halves at once, which is what the rule is for.
+>
+> The rule still holds; the sentence that used to follow it did not. It said there is "no emulator on
+> this host", which is **wrong on the Windows dev machine and right only on the Hetzner CI host** —
+> collapsing those two is what shipped 0.3.7 broken (#633). See the build section, which spells the
+> distinction out, and run the app before signing anything off.
 
 > **Update (2026-06-19) — status check + 2 real backend bug fixes (branch `claude/project-status-check-iae145`):**
 > Verified gates on this host (no Docker): commonMain compile GREEN, `:shared:jvmTest` 53/53,
@@ -489,35 +517,44 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   **4.1.0**. Run `./gradlew` from repo root. All four are declared in the root `build.gradle.kts`
   plugins block and `gradle/wrapper/gradle-wrapper.properties` — read them there rather than here.
 - **Backend tests:** `./gradlew :backend:test` — JUnit5 + MockK + Testcontainers + ArchUnit.
-  **Without Docker the baseline was 672 / 10 at `dev` on 2026-08-17** — and it was 539 the day
-  before, and 416 for months before that. It moves every day. **Measure it, do not read it here.**
-  Run the suite on the unmodified base commit first, then on your branch, and compare the two
-  runs. The ten are
-  `@Testcontainers` classes failing at class-init on "Could not find a valid Docker environment"
-  rather than running — they are not skipped, so ten integration tests are silently unexecuted.
-  Start Docker before trusting a run; with it, expect one pre-existing failure,
-  `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when target visibility is
-  nobody` (#269). Aggregate counts from `backend/build/test-results/test/*.xml`.
+  **Measure it, do not read it here.** The figure has been 416 for months, then 539, then 672 on
+  2026-08-17, and it was larger again on 2026-09-02. It moves every day. Run the suite on the
+  unmodified base commit first, then on your branch, and compare the two runs.
+  Without Docker, every `@Testcontainers` class fails at class-init on "Could not find a valid Docker
+  environment" rather than running — they are **not** skipped, so those integration tests are
+  silently unexecuted, and the number of them grows as integration tests are added (it was ten on
+  2026-08-17 and thirteen on 2026-09-02). Count them in your own run.
+  Start Docker before trusting a result that touches anything they cover; with Docker, expect one
+  pre-existing failure, `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when
+  target visibility is nobody` (#269).
+  **Take the count from Gradle's own `N tests completed, M failed` line, not from the report
+  directory.** On 2026-09-02 a *failing* run left `backend/build/test-results/test/` **empty** and
+  the HTML report in `backend/build/reports/tests/test/` still showing the previous run's totals, so
+  aggregating the XML answered with a figure fifteen days old while the console had just printed a
+  different one for the run that had this second finished. Neither number is worth recording; the
+  trap is. A passing run writes both reports normally, so this bites exactly when you most want the
+  detail. If you do aggregate the XML, check the file timestamps are from your run first.
   Three separate agents rediscovered the staleness of the old figure independently on one day, and
   three more did the same the next. If you are about to write a test count into this file, write the
   instruction to measure instead.
 - **"N failures, all Testcontainers" is not a green light — it is N tests that did not run.** On
   2026-08-17 that habit shipped a regression to production (#598). A `@Bean` added to
   `WebSocketConfig` for #493 threw in every `@SpringBootTest`, because `webEnvironment = MOCK` has no
-  embedded servlet container to publish `jakarta.websocket.server.ServerContainer`. Locally those ten
+  embedded servlet container to publish `jakarta.websocket.server.ServerContainer`. Locally those
   classes die *earlier*, at Testcontainers init, so the new failure hid behind the documented old
   one; and CI had not completed a job all day (#563), so nothing else executed it. When CI finally
   ran: `796 tests completed, 32 failed`. **A change to Spring configuration is exactly the class of
-  change only those ten catch** — start Docker before trusting a run that touches one.
+  change only those classes catch** — start Docker before trusting a run that touches one.
 - **Redis is required for the integration tests**, not just Postgres. `RedisConfig` registers
   `redisMessageListenerContainer`, which the `test` profile's autoconfigure exclusion does not cover,
   so the Spring context fails without one: `docker run -d -p 6379:6379 redis:7-alpine`. CI supplies
   it as a service container, which is why this only bites locally.
 - **Shared KMP tests:** `./gradlew :shared:jvmTest` — **measure it, do not read it here.** The same
   rule as the backend suite, for the same reason: this line said "56 tests" while the real figure had
-  moved to 66. A count in a document is a claim about a moment; a suite is a thing you run. Aggregate
-  from `shared/build/test-results/jvmTest/*.xml`. Expect zero failures — unlike the backend, nothing
-  here needs Docker, so any failure is real.
+  moved to 66, and by 2026-09-02 it had moved again. A count in a document is a claim about a moment;
+  a suite is a thing you run. Aggregate from `shared/build/test-results/jvmTest/*.xml` — this suite
+  passes, so its reports are written and are current, unlike the backend's after a failure. Expect
+  zero failures: nothing here needs Docker, so any failure is real.
 - **A red check may be GitHub, not the branch** (#563, first seen 2026-08-17). Jobs died in **Set up
   job** with `429 (Too Many Requests)` downloading `actions/checkout` from `codeload.github.com`.
   It was the host and the hostname, not the workflow — `curl` to the same URL from the runner
@@ -563,18 +600,26 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   Data's writes join the shared transaction and doom the commit, so the catch swallows an exception
   that has already decided the outcome and the run reports success before dying at commit.
 - **detekt runs, and it is blocking** (#279, fixed 2026-08-21 — it had not analysed a single file for
-  months before that). `./gradlew :backend:detekt` scans **442 Kotlin files** and prints the count; if
-  the output has no `number of kt files:` line, the tool did not run and the result means nothing.
+  months before that). `./gradlew :backend:detekt` prints a `number of kt files:` line; **if that line
+  is absent the tool did not run and the result means nothing.** Check the count is in the right
+  order of magnitude too — it scans `main` *and* `test` (479 files on 2026-09-02, against 357 in
+  `main` alone), so a number near the main-only figure means the test source set has dropped out.
   That is the whole lesson of #279: it died at startup on "detekt was compiled with Kotlin 2.0.21 but
   is currently running with 2.4.10", and because CI marked the step `continue-on-error: true`, a
-  crashed linter and a clean one produced the same green tick.
+  crashed linter and a clean one produced the same green tick. **CI no longer sets
+  `continue-on-error` on the analysis step** — `backend-ci.yml` carries a comment forbidding its
+  return. (The step that *uploads* the detekt report keeps it; that is quota tolerance, not
+  analysis being skipped.)
   - **The fix is a Kotlin pin scoped to the detekt classpath**, in `backend/build.gradle.kts`:
     `configurations.matching { it.name == "detekt" }` forces `org.jetbrains.kotlin:*` to `2.0.21`,
     the version detekt 1.23.8 embeds. It does not touch the compiler that builds the project. Bump
     `detektKotlinVersion` only in lockstep with the detekt version — never to match project Kotlin.
-  - **`backend/detekt-baseline.xml` freezes the 82 findings that existed on the day it started
-    working** (86 raw, deduplicated to 82 signatures). `build.maxIssues` is `0`, so anything not in
-    the baseline fails the build. **Shrink the baseline; never regenerate it to bury a new finding.**
+  - **`backend/detekt-baseline.xml` freezes the findings that existed on the day it started
+    working** — 86 raw, deduplicated to 82 signatures, and **78 on 2026-09-02** as they get paid off
+    one or two at a time. `build.maxIssues` is `0`, so anything not in the baseline fails the build.
+    **Shrink the baseline; never regenerate it to bury a new finding.** A clean run reports
+    `0 number of total code smells`, because everything still outstanding is baselined — that zero
+    means "nothing new", not "nothing left".
   - `build.maxIssues` must live under `build:` in `backend/detekt.yml`. It sat at the top level for
     months, where detekt's config validation rejects it outright — so the file was inert twice over.
   - `shared/` and `mobile/` still have **no static analysis at all** (#696). Note the trap before
@@ -610,9 +655,15 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   What still cannot be signed off on the emulator: colour on a real panel, haptics, and anything
   about a physical device's camera or microphone. Say plainly what was not seen.
 - **Module layout:** `backend/` (Spring Boot, hexagonal modules: auth · messaging · media ·
-  moderation · presence · notification + `shared/` config/security/web), `shared/` (KMP: model ·
-  dto · protocol/WsMessage · validation · port), `mobile/composeApp/` (CMP; androidMain full, iosMain
-  partial — calls/Signal/Firebase-auth/APNs stubbed). Migrations: `backend/.../db/migration/V##__*.sql`.
+  moderation, plus `shared/` analytics/config/exception/security/web — **there is no `presence` and
+  no `notification` module**, see the Modules section above), `shared/` (KMP: model · dto ·
+  protocol/WsMessage · validation · port), `mobile/composeApp/` (CMP; androidMain full, iosMain
+  partial — calls/Signal/Firebase-auth/APNs stubbed) and `mobile/designsystem/` (the visual language,
+  a separate module that cannot see `composeApp`).
+  Migrations: `backend/.../db/migration/V##__*.sql`, contiguous `V1`–`V26` on 2026-09-02.
+  **Check the highest number on `dev` before writing a new one** — two agents working in parallel
+  each wrote a `V24` on 2026-08-27, and Flyway refuses to start on a duplicate version, so the
+  result is a backend that will not boot rather than a test failure.
 
 MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group chat:
 1. ~~Auth (OTP + JWT)~~ — **DONE**
@@ -644,15 +695,24 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 
 ### Completed Phases
 - **Phase 2 (Beta Quality)**: ChatScreen refactored (1,771→405 lines), MessagingService split into 3, 5 controllers use use cases, 201 backend tests (251 total incl. mobile/shared), Stickers & GIFs, Profile viewing (mutual groups, shared media, action buttons)
-- **Phase 3 (Voice Calls)** — **NOT WORKING, and never has (audited 2026-08-15, #367–#373).** What
-  exists: WS message types, `CallSignalingService`, the `call_history` table, a LiveKit room adapter
-  and a NoOp fallback. What does not: the client **never sends `call.initiate`** (zero references
-  outside the shared protocol, one test and the backend handler), so nothing reaches the network;
-  no microphone track is ever published, so a connected call would be silent; and `LIVEKIT_*` is
-  absent from the deploying compose file, `.env.prod` and the running container, so the **NoOp
-  provider is the live bean** and `CallRoomInfo` is never sent. `call_history` has 0 rows in prod.
-  The "outgoing call initiation in MainComponent" named here mints a local timestamp as a fake call
-  id and pushes a screen. Group calls are a complete backend vertical with no code path at all.
+- **Phase 3 (Voice Calls)** — **NOT WORKING, and never has.** A vertical slice was built from both
+  ends and the two ends were never joined: `call_history` holds 0 rows against 9 production users.
+  **Do not read a summary of calls — including this one — instead of
+  [`docs/design/T2-voice-and-video-calls.md`](docs/design/T2-voice-and-video-calls.md).** That
+  document was written 2026-08-21 against the source with line numbers, lists exactly what exists and
+  what is missing, and supersedes every earlier account here. Two things from it are worth carrying:
+  - **Nothing starts before an owner decision.**
+    [`docs/adr/0009-call-media-infrastructure.md`](docs/adr/0009-call-media-infrastructure.md) is
+    *Proposed*, and it decides where the SFU runs. The production host is disqualified three ways
+    over (UFW opens no media UDP port, Traefik holds the 443 LiveKit's TLS fallback wants, and it is
+    also the single CI runner). Cost is not the discriminator — every option is under €100/year at
+    this scale.
+  - **Calls will not be end-to-end encrypted, and must never be described as such.** An SFU
+    terminates each participant's DTLS-SRTP session, so whoever runs it can listen.
+
+  Work is staged against milestone `0.7.0 — Live` under umbrella issue **#715**; #367–#373 are the
+  stage issues and are all **open**. Group calls remain a complete backend vertical with no client
+  code path at all.
 - **Phase 4 (Trust & Security)**: E2E encryption key exchange endpoints + DB migrations, KVKK data export + account deletion, message backup system (BackupService, BackupController, BackupPersistenceAdapter)
 - **Phase 5 (iOS + Scale)**: All iOS platform modules implemented — AudioPlayer, AudioRecorder, ContactsProvider, PushTokenProvider, ImagePicker, FilePicker, ImageCompressor, CrashReporter, LocaleHelper, FirebasePhoneAuth. Redis Pub/Sub message broadcaster for horizontal WS scaling
 - **Phase 6 (Growth)**: Channel analytics (daily stats, subscriber tracking, REST API), Bot platform (create/manage bots, API token auth, webhook support, permissions system)
@@ -671,7 +731,7 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 - **Mobile Test Infrastructure**: kotlin-test + coroutines-test + ktor-mock + koin-test; FakeTokenStorageTest, AuthRepositoryTest, PhoneNormalizationTest, WsMessageSerializationTest (25+ tests)
 - **Stabilization (Phase 1)**: WebSocket rate limiting (50 msg/10s sliding window — **in-process** `ConcurrentHashMap` in `WebSocketRateLimiter`, NOT Redis; per-instance, so move to Redis if scaling out), deep linking (`muhabbet://` scheme + universal links), structured analytics event tracking, LiveKit config in application.yml
 - **Content Moderation (Phase 2)**: Report/block system (BTK Law 5651 compliance), ModerationService + ModerationController, ReportRepository + BlockRepository, V15 migration for moderation/analytics/backup/bot tables, ~32 new backend tests (DeliveryStatus, CallSignaling, Encryption, Moderation, RateLimiter)
-- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (15 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. Total: 364 tests (314 backend + 23 mobile + 27 shared)
+- **QA Engineering**: JaCoCo code coverage + detekt static analysis + ArchUnit architecture tests (15 rules), TestData factory, 18 controller test files (100+ tests covering all REST controllers), k6 load test scripts, 9 ISO/IEC 25010 QA documents in `docs/qa/` (including Lead UI/UX Engineer analysis), CI pipeline with JaCoCo/detekt/coverage-comments. (The test total recorded here at the time has been overtaken several times since — measure, per the build section.)
 - **UI/UX Remediation (Phase 1)**: Semantic color tokens (`LocalSemanticColors`), spacing/size tokens (`MuhabbetSpacing`, `MuhabbetSizes`), 28+ a11y contentDescription fixes, touch target fixes (36→48dp), IME actions on all inputs, skeleton loading states, edit mode visual banner, testTags on critical elements, 12 new localized strings (TR+EN)
 - **UI/UX Remediation (Phase 2)**: Reusable components (`DateTimeFormatter` utility consolidating 6 duplicate formatters, `SectionHeader` component, `ConfirmDialog` wrapper), elevation tokens (`MuhabbetElevation`), full spacing token migration (`MuhabbetSpacing`) across 30+ UI files, elevation token migration across 7 files
 - **Mobile UI Audit + 87 Fixes**: Lead Mobile Engineer audit (87 issues across 6 severity levels). Fixed: 5 critical bugs (dead condition, hardcoded colors, infinite timer loop, stringly-typed state, hardcoded version), 6 ship-blocking feature gaps (copy to clipboard, group sender names, emoji button, block/report dialogs, privacy settings, channels filter), expanded design system (7 semantic colors, avatar tokens, duration/gesture tokens), 62 new localized strings (TR+EN), 15+ `!!` assertion removals, 4 WCAG touch target fixes. Files: 15 modified, 784 insertions, 173 deletions
@@ -679,10 +739,11 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
 
 ### Current Phase: Production Hardening (Feb 2026) — "COMPLETE" as written, not as audited
 The nine items below were marked complete in Feb 2026 on the strength of the code existing. The
-2026-08-15 audit re-checked them and two do not hold: **#28 Privacy Dashboard** (visibility controls
-are local state) and **#33 voice transcription** (crashes below API 31). Read the corrections inline;
-where an item has no correction, it was not individually re-audited either — absence of a note here
-is not evidence that it works.
+2026-08-15 audit re-checked them and two did not hold (**#28 Privacy Dashboard** and **#33 voice
+transcription**); both have since been fixed. A third, **#30 persistent E2E key storage**, turns out
+not to hold today for a different reason — see the item. Read the corrections inline; where an item
+has no correction, it was not individually re-audited either — absence of a note here is not
+evidence that it works.
 
 25. ~~Mobile UI audit + 87 issue fixes~~ — **DONE** (critical bugs, feature gaps, design system, a11y)
 26. ~~SQLDelight offline caching~~ — **DONE** (conversations + messages cached in local DB, cache-first repository pattern)
@@ -702,17 +763,25 @@ is not evidence that it works.
     field, no reader, and `avatarUrl` is returned unconditionally — there was nothing to connect
     it to. It returns with the column, the field and the gate, together.
 29. ~~Media compression pipeline~~ — **DONE** (MediaUploadHelper: images 1280px/80%, profiles 512px/75%, thumbnails 320px/60%)
-30. ~~Persistent E2E key storage~~ — **DONE** (Android: EncryptedSharedPreferences, iOS: Keychain for tokens)
+30. Persistent E2E key storage — **not true today.**
+    `PersistentSignalProtocolStore.kt` is one of the four `*.kt.disabled` files and does not compile
+    into the app; libsignal is not a dependency at all (see the libsignal section). The iOS half
+    stands: `KeychainHelper` stores tokens and ids. There is no Signal key storage on either
+    platform right now because there is no Signal. This returns with libsignal, not before.
 31. ~~Background message sync~~ — **DONE** (backend GET /api/v1/messages/since, Android WorkManager 15min, iOS BGTask)
 32. ~~iOS platform modules~~ — **DONE** (CameraPicker, AudioRecorder fix, KeychainHelper for secure storage)
-33. Voice message transcription — **BROKEN (#381)**: crashes on Android 8–11 (unguarded API 31
-    call), and opens the live microphone instead of reading the audio file on API 31+
+33. ~~Voice message transcription~~ — **#381 FIXED.** Was: crashed on Android 8–11 on an unguarded
+    API 31 call, and opened the live microphone instead of reading the file above that. Now floored
+    at **API 33** (31–32 has the recognizer but no file-source extra, so it would still have opened
+    the mic), audio decoded to PCM and fed through a `ParcelFileDescriptor` pipe, and the button
+    hidden below 33 rather than offered and failing.
 
 ### Implementation Architecture
 
 #### SQLDelight Offline Cache
-- **Plugin**: `app.cash.sqldelight:2.2.1` (already declared in root build.gradle.kts)
-- **Schema**: `MuhabbetDatabase.sq` with tables: `CachedConversation`, `CachedMessage`, `PendingMessage`
+- **Plugin**: `app.cash.sqldelight` (declared in root build.gradle.kts — read the version there)
+- **Schema**: `MuhabbetDatabase.sq` with tables: `CachedConversation`, `CachedMessage`, `PendingMessage`.
+  It lives in the `sqldelight` source set (`commonMain/sqldelight/com/muhabbet/app/db/`), not `kotlin/`.
 - **Pattern**: Repository-level cache — repositories check local DB first, fetch from API on miss, write-through on success
 - **Offline queue**: `PendingMessage` table stores unsent messages, drained on WS reconnect
 - **Platform drivers**: Android `AndroidSqliteDriver`, iOS `NativeSqliteDriver`
@@ -723,10 +792,16 @@ is not evidence that it works.
 - **Deduplication**: `clientMessageId` (UUID generated client-side) used as idempotency key
 - **Exponential backoff**: Already implemented (1s→30s), enhanced with jitter
 
-#### Persistent E2E Key Storage
-- **Android**: `PersistentSignalProtocolStore` using `EncryptedSharedPreferences` for identity key pair, sessions, pre-keys, signed pre-keys, sender keys
-- **iOS**: `KeychainHelper` for secure token storage (access/refresh tokens, user/device IDs); E2E keys use NoOp until Signal Protocol is bridged
-- **Migration**: `InMemorySignalProtocolStore` → `PersistentSignalProtocolStore` — `SignalKeyManager` now takes store via constructor injection
+#### Persistent E2E Key Storage — **not in the build**
+- **Android**: `PersistentSignalProtocolStore` (`EncryptedSharedPreferences` for identity key pair,
+  sessions, pre-keys, signed pre-keys, sender keys) is **`PersistentSignalProtocolStore.kt.disabled`**
+  and does not compile. It is one of four disabled Signal files; libsignal is not a dependency.
+  Describing this as done — as this file did until 2026-09-02 — reads as "keys are stored securely"
+  when in fact no Signal keys exist at all.
+- **iOS**: `KeychainHelper` **is** live and stores access/refresh tokens and user/device ids. That
+  half is real; it is not E2E key storage.
+- **Encrypted preferences are used elsewhere and do work** — the App Lock settings go through them
+  deliberately, unlike theme and wallpaper which use the plain store.
 
 #### Media Compression Pipeline
 - **Images**: Already implemented via `ImageCompressor` (1280px max, JPEG 80%). Extended to all upload paths
@@ -766,22 +841,33 @@ is not evidence that it works.
   not storage-time.
 - **A backend deploy is required** for any of the above to take effect.
 
-#### Voice Message Transcription — **BROKEN (#381)**
-- **Android**: crashes on **Android 8–11**. `createOnDeviceSpeechRecognizer` is API 31, `minSdk` is
-  26, there is no `SDK_INT` guard, and the surrounding `catch (_: Exception)` does not catch
-  `NoSuchMethodError`. On API 31+ the audio file is passed as a `String` under a key that expects a
-  `ParcelFileDescriptor`, so the file never arrives and `startListening` opens the **live
-  microphone** instead of transcribing the message. `SpeechTranscriber.android.kt:46,50,74`.
-- **Android (as designed)**: `SpeechRecognizer` API (on-device, Turkish tr-TR supported)
+#### Voice Message Transcription — **fixed (#381)**
+- **Android**: on-device `SpeechRecognizer`, floored at **API 33**, guarded twice
+  (`isAvailable()` and `recognizeFromPcm`). The floor is 33 rather than the recognizer's own 31
+  on purpose: 31–32 has `createOnDeviceSpeechRecognizer` but no file-source extra, so a call there
+  transcribes the **live microphone** instead of the message — which is exactly what the original
+  bug did. Below 33 the Transcribe button is hidden rather than offered and failing.
+- **How the audio gets in**: OGG/Opus is decoded to raw PCM and written into a
+  `ParcelFileDescriptor.createPipe()`, whose read side is passed as `EXTRA_AUDIO_SOURCE` with the
+  matching encoding/channel/sample-rate extras. Passing a file *path* string under that key is what
+  silently opened the microphone before. The recognizer construction is wrapped in
+  `catch (Throwable)` for OEM linkage errors — `NoSuchMethodError` is not an `Exception`, and
+  catching only `Exception` is what turned the original API-level mistake into a crash.
 - **iOS**: `SFSpeechRecognizer` (Apple Speech framework, on-device when available)
 - **UI**: "Transcribe" button on VoiceBubble, downloads audio + runs on-device ASR, shows inline transcript
 - **Language**: Turkish (tr) primary, auto-detect for multilingual messages
+- **Not device-verified** — the fix compiles and is right by inspection; nobody has watched it
+  transcribe a real voice note on a real phone.
 
 ### Remaining Work (Post-Production Hardening)
 - ~~WebRTC client integration (LiveKit)~~ — **DONE** (LiveKit Android SDK + CallEngine + backend room management)
-- E2E encryption client (Signal Protocol) — **INFRA DONE, send/receive path WIRED but flag OFF**
-  (libsignal-android + SignalKeyManager + E2ESetupService + PR #31 `MessageEncryptor`/`E2EEnvelope`,
-  `E2EConfig.ENABLED=false`). 1:1 text only; groups/media/iOS pending. See `docs/e2e-rollout-runbook.md`.
+- E2E encryption client (Signal Protocol) — **flag OFF, and the primitive is not in the build.**
+  The send/receive path is wired (`MessageEncryptor`/`E2EEnvelope`, `E2ESetupService`) and
+  `E2EConfig.ENABLED` and `MEDIA_ENABLED` are both `false`, so messages and media travel as
+  plaintext under TLS. Underneath that, **libsignal is not a dependency and the four Signal source
+  files are `.disabled`** — so this is not "wired but switched off", it is wired to nothing. Flipping
+  the flag would not encrypt anything. Blocked on the libsignal rewrite above.
+  See `docs/e2e-rollout-runbook.md`.
 - iOS APNs delivery, TestFlight, App Store
 - iOS LiveKit integration (bridge LiveKit Swift SDK via Kotlin/Native)
 - iOS Signal Protocol integration (bridge libsignal-client via Kotlin/Native)
@@ -791,17 +877,26 @@ is not evidence that it works.
 
 ### Known Technical Debt
 - **Backend enum duplication**: `ContentType`, `ConversationType`, `MemberRole` exist in both backend domain and shared module — intentional for hexagonal purity, but requires mapper conversions. Consider type aliases if maintenance burden grows.
-- **Transactions and the message hot path (#490/#491/#492 — fixed 2026-08-21, not yet load-tested).**
-  `MessageService.sendMessage` is **no longer `@Transactional`**. It runs the persistence half
-  inside `TransactionRunner.inTransaction { }` and fans out **after** that commits, because a
-  `@Transactional` method holds its Hikari connection across everything it does afterwards — which
-  was the whole WebSocket/Redis/FCM fan-out, capping the instance at twenty concurrent sends.
-  `@TransactionalEventListener(AFTER_COMMIT)` was rejected for this: it runs before
+- **Transactions and the message hot path (#490/#491/#492 fixed 2026-08-21, #669 finished it
+  2026-09-02 — none of it load-tested).**
+  **No broadcast happens inside a transaction any more.** Every fan-out site — `MessageService`
+  `sendMessage`/`updateStatus`/`deleteMessage`/`editMessage`/`deliverScheduledMessages`, the five
+  `GroupService` mutations, and `DisappearingMessageService.expireDueMessages` — now runs its
+  persistence half inside `TransactionRunner.inTransaction { }` and fans out **after** that commits.
+  Method-level `@Transactional` is gone from all of them; the annotations that remain in those
+  services (`getMessages`, `markConversationRead`, `setAnnouncementMode`, the read paths) do not
+  broadcast.
+  The reason is that a `@Transactional` method holds its Hikari connection across everything it does
+  afterwards — which was the whole WebSocket/Redis/FCM fan-out, capping the instance at twenty
+  concurrent sends. `@TransactionalEventListener(AFTER_COMMIT)` was rejected for this: it runs before
   `cleanupAfterCompletion`, so whether the connection is back in the pool depends on Hibernate's
-  `connection.handling_mode`, which this application never sets.
-  **The other nine broadcast-inside-a-transaction call sites are still there** (`MessageService`
-  `updateStatus`/`deleteMessage`/`editMessage`/`deliverScheduledMessages`, `GroupService` ×5) — the
-  mechanism now exists to fix them and they are filed separately.
+  `connection.handling_mode`, which this application never sets. That reasoning is preserved as a
+  comment in `TransactionRunner.kt`.
+  **Guard tests pin the boundary** — `SendMessageTransactionBoundaryTest`,
+  `MessageMutationTransactionBoundaryTest`, `GroupMutationTransactionBoundaryTest`,
+  `ScheduledDeliveryTransactionBoundaryTest` and `ScheduledDeliveryIsolationTest`. Adding a new
+  fan-out means adding it outside the `inTransaction` block, and one of these will tell you if you
+  did not.
   Also: **nothing on the send path may call `repository.save` for a new row.** Every JPA entity here
   has an assigned id and none implements `Persistable`, so `SimpleJpaRepository.save` is always a
   `merge`, which reads before it writes. Use `entityManager.persist` in the adapter, as
@@ -810,6 +905,14 @@ is not evidence that it works.
   every session in a `ConcurrentWebSocketSessionDecorator`; writers go through
   `sessionManager.send(session, json)` or `sendToUser(...)`. A direct `session.sendMessage(...)` in
   `ChatWebSocketHandler` fails `HandlerWritesThroughManagerTest`.
+- **A sender may not choose the address a recipient's phone connects to (#679, fixed 2026-09-02).**
+  A message's media is resolved server-side from a `media_id` the sender owns, through
+  `MediaAttachmentPolicyPort` → `MediaAttachmentPolicyAdapter`; a URL that arrives on the wire must
+  match `MediaProperties.attachmentOrigins` (the GIPHY hosts) or the send is refused with
+  `MSG_MEDIA_NOT_ACCESSIBLE`. `StatusService` enforces the same rule. Before this, a `mediaUrl` went
+  from one user's request straight into another user's image loader, which is an SSRF onto the
+  recipient's device. **Any new field that becomes a URL a client will fetch needs the same
+  treatment** — resolve it from an id you own, or check it against the allowlist.
 - **~~Single-server architecture~~**: Redis Pub/Sub broadcaster (`RedisMessageBroadcaster`) provides cross-instance WS fan-out. **NOTE (2026-06-19):** the subscriber half was never wired — `RedisBroadcastListener` existed but no `RedisMessageListenerContainer` registered it, so cross-instance delivery silently dropped. Now fixed (`RedisConfig.kt` subscribes `ws:broadcast:*`). True multi-instance correctness (presence-aware push suppression; Redis-backed rate-limit) remains a documented follow-up — see `docs/findings/2026-06-19-infra-tech-assessment.md`. **Prod runs a single instance**, so multi-instance is latent (YAGNI) until horizontal scale is actually needed.
 - **Conversation focus is per-user, in-process, and rebuilt by the client on every new socket**
   (#618 wrote it, #667 finished it). `WebSocketSessionManager.activeConversation` is a
@@ -889,8 +992,11 @@ is not evidence that it works.
 - **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.116.203.222.213.nip.io`
   (Traefik file-provider route → `shared-minio:9000`, `passHostHeader: false` so presigned SigV4
   validates). Both are temporary nip.io/subdomain names pending a real domain.
-- **Containers**: `muhabbet-backend` only. Postgres, Redis and MinIO are the **shared** instances
-  (`shared-postgres`, `shared-redis`, `shared-minio`); there is no nginx in this stack.
+- **Containers**: `muhabbet-backend` and `muhabbet-site` (the static site from `docs/site/`, on
+  `muhabbet.rollingcatsoftware.com`), plus a one-shot `minio-init`. Postgres, Redis and MinIO are
+  the **shared** instances (`shared-postgres`, `shared-redis`, `shared-minio`). There is no nginx
+  fronting the API or media in this stack — Traefik does that; `muhabbet-site` runs nginx only to
+  serve its own static files.
 - **Docker runtime**: Java 21 (eclipse-temurin:21-jdk-jammy for build, 21-jre-jammy for runtime)
 - **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials path via `FIREBASE_CREDENTIALS_PATH` env var
 - **Deploy** — `--env-file .env.prod` is **mandatory**:
@@ -991,11 +1097,11 @@ is not evidence that it works.
   - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
 - **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
 - **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever
-- **MinIO pre-signed URLs in Docker**: MinIO runs inside Docker network (`http://minio:9000`). Pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client with a public endpoint — the SDK makes internal API calls (GetBucketLocation) to the endpoint which fail through nginx. **Solution**: Generate URLs with internal client, then string-replace the endpoint: `url.replace(internalEndpoint, publicEndpoint)`. Nginx proxies `/muhabbet-media/` to `http://minio:9000/muhabbet-media/` with `Host minio:9000` header so signatures validate.
+- **MinIO pre-signed URLs in Docker**: MinIO is reached inside the Docker network; pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client configured with the public endpoint — the SDK makes internal API calls (GetBucketLocation) against it that fail through the proxy. **Solution**: generate with the internal client, then string-replace the endpoint — `url.replace(mediaProperties.minio.endpoint, publicEndpoint)`, in `MinioMediaStorageAdapter` and `MinioBackupArchiveAdapter`, with `MINIO_PUBLIC_ENDPOINT` supplying the public half. **The proxy is Traefik, not nginx** (the nginx description belonged to the legacy `infra/` stack that no longer deploys): a file-provider route sends `cdn-muhabbet.116.203.222.213.nip.io` to `shared-minio:9000` with `passHostHeader: false`, which is what makes the SigV4 signature validate.
 - **KoinApplication vs KoinContext**: `KoinApplication` composable starts a NEW Koin instance — crashes with `KoinApplicationAlreadyStartedException` when Android Activity recreates. **Fix**: Use `GlobalContext.getOrNull() ?: startKoin { ... }.koin` + `KoinContext(context = koin)`.
 - **WsClient.send() callers must try-catch**: Even though `send()` correctly throws when disconnected, ALL callers in Composables must wrap in try-catch. Uncaught exceptions in `LaunchedEffect`/`scope.launch` kill the coroutine silently or crash the collector.
 - **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` from `util/PhoneNormalization.kt` (shared utility — do NOT duplicate).
-- **Nginx location trailing slash matters**: `location /muhabbet-media/` does NOT match `/muhabbet-media?query` (no trailing slash). MinIO SDK sends bucket location requests without trailing slash, causing 301 redirects then signature failures.
+- **Nginx location trailing slash matters** — *historical, from the legacy `infra/` nginx stack that no longer deploys.* `location /muhabbet-media/` does NOT match `/muhabbet-media?query` (no trailing slash). MinIO SDK sends bucket location requests without trailing slash, causing 301 redirects then signature failures. Kept because the same class of path-prefix mistake is available in a Traefik `PathPrefix` rule.
 - **No hardcoded strings in UI**: All user-visible strings must go through `composeResources/values/strings.xml` (Turkish) and `values-en/strings.xml` (English) using `stringResource(Res.string.*)`. Never use Turkish text directly in Kotlin files.
 - **stringResource in coroutine blocks**: `stringResource()` is a `@Composable` function — cannot be called inside `scope.launch {}`. Resolve it as a `val` at the top of the composable, then reference the val inside the coroutine.
 - **RECORD_AUDIO permission**: Dangerous permission requiring both manifest declaration AND runtime request via `rememberAudioPermissionRequester`. Without it, `MediaRecorder.setAudioSource()` crashes.
