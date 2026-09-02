@@ -26,15 +26,23 @@ class AuthRepository(
         return response.data ?: throw Exception(response.error?.message ?: "OTP_REQUEST_FAILED")
     }
 
+    /**
+     * @param twoStepPin the account's two-step PIN, when it has one (#566). Null on the first
+     *   attempt: the client cannot know whether an account has a second factor until the server
+     *   answers `AUTH_2FA_PIN_REQUIRED`, at which point the screen asks and resends the **same**
+     *   code with the PIN. Resending the same code is deliberate and costs nothing — the server
+     *   hands the attempt back when the code was right and only the PIN was missing.
+     */
     suspend fun verifyOtp(
         phoneNumber: String,
         otp: String,
         deviceName: String,
-        platform: String
+        platform: String,
+        twoStepPin: String? = null
     ): AuthTokenResponse {
         val response = apiClient.post<AuthTokenResponse>(
             "/api/v1/auth/otp/verify",
-            VerifyOtpRequest(phoneNumber, otp, deviceName, platform)
+            VerifyOtpRequest(phoneNumber, otp, deviceName, platform, twoStepPin)
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "VERIFY_OTP_FAILED")
 
@@ -48,14 +56,16 @@ class AuthRepository(
         return data
     }
 
+    /** See [verifyOtp] for [twoStepPin]. The gate is on both sign-in paths or it is on neither. */
     suspend fun verifyFirebaseToken(
         idToken: String,
         deviceName: String,
-        platform: String
+        platform: String,
+        twoStepPin: String? = null
     ): AuthTokenResponse {
         val response = apiClient.post<AuthTokenResponse>(
             "/api/v1/auth/firebase-verify",
-            FirebaseVerifyRequest(idToken, deviceName, platform)
+            FirebaseVerifyRequest(idToken, deviceName, platform, twoStepPin)
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "FIREBASE_VERIFY_FAILED")
 

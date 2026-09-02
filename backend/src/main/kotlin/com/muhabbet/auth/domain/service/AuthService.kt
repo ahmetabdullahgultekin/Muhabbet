@@ -15,6 +15,7 @@ import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
 import com.muhabbet.auth.domain.port.`in`.TokenResult
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
 import com.muhabbet.auth.domain.port.out.OtpQuotaPort
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
@@ -22,6 +23,7 @@ import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRecord
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
+import com.muhabbet.auth.domain.port.out.TwoStepAttemptRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -68,7 +70,20 @@ open class AuthService(
      * defaulted: a no-op default would silently remove the only ceiling on the provider bill, which
      * is the failure #440 is about.
      */
-    private val otpQuotaPort: OtpQuotaPort
+    private val otpQuotaPort: OtpQuotaPort,
+    /**
+     * Verifies the Firebase ID token on the other sign-in path. Behind a port so the two-step gate
+     * on that path can be exercised at all — see [FirebaseTokenVerifier].
+     */
+    private val firebaseTokenVerifier: FirebaseTokenVerifier,
+    /**
+     * The guess budget for the second factor (#566). Required rather than defaulted for the same
+     * reason [otpQuotaPort] is: a no-op default would leave a six-digit PIN with no ceiling, and the
+     * whole point of the gate is that guessing it must be expensive.
+     */
+    private val twoStepAttemptRepository: TwoStepAttemptRepository,
+    private val twoStepMaxAttempts: Int = 5,
+    private val twoStepLockSeconds: Long = 900
 ) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -179,7 +194,8 @@ open class AuthService(
         phoneNumber: String,
         otp: String,
         deviceName: String,
-        platform: String
+        platform: String,
+        twoStepPin: String?
     ): AuthResult {
         val activeOtp = otpRepository.findActiveByPhoneNumber(phoneNumber)
             ?: throw BusinessException(ErrorCode.AUTH_OTP_EXPIRED)
@@ -202,42 +218,113 @@ open class AuthService(
             throw BusinessException(ErrorCode.AUTH_OTP_INVALID)
         }
 
+        // The code is right. Knowing it is now only the first of two things the account may require.
+        // This read is also the one authenticatePhone uses below, so a sign-in is one query, not two.
+        val existing = userRepository.findByPhoneNumber(phoneNumber)
+        if (existing != null && hasTwoStep(existing)) {
+            // Hand the attempt back before refusing. The code was not guessed wrong — it was
+            // correct, and the client is about to present it again alongside the PIN. Charging both
+            // halves of one sign-in would spend the SMS budget on the PIN's mistakes and report them
+            // as "too many attempts" on the code (#688's shape). The PIN's own counter governs from
+            // here.
+            otpRepository.refundAttempt(activeOtp)
+            requireTwoStepPin(existing, twoStepPin)
+        }
+
         otpRepository.markVerified(activeOtp)
 
-        return authenticatePhone(phoneNumber, deviceName, platform, "OTP verified")
+        return authenticatePhone(phoneNumber, deviceName, platform, "OTP verified", existing)
     }
 
     @Transactional
     override fun verifyFirebaseToken(
         idToken: String,
         deviceName: String,
-        platform: String
+        platform: String,
+        twoStepPin: String?
     ): AuthResult {
-        val decodedToken = try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().verifyIdToken(idToken)
-        } catch (e: Exception) {
+        val phoneNumber = try {
+            firebaseTokenVerifier.phoneNumberOf(idToken)
+        } catch (e: IllegalArgumentException) {
             log.warn("Firebase token verification failed: {}", e.message)
             throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID, "Firebase token geçersiz")
-        }
-
-        val phoneNumber = decodedToken.claims["phone_number"] as? String
-            ?: throw BusinessException(ErrorCode.AUTH_INVALID_PHONE, "Telefon numarası bulunamadı")
+        } ?: throw BusinessException(ErrorCode.AUTH_INVALID_PHONE, "Telefon numarası bulunamadı")
 
         if (!ValidationRules.isValidTurkishPhone(phoneNumber)) {
             throw BusinessException(ErrorCode.AUTH_INVALID_PHONE)
         }
 
-        return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified")
+        // Same gate as the OTP path, and it has to be here rather than in authenticatePhone: only
+        // the two entry points know which factor they have just checked, and putting it in the
+        // shared tail would also gate the new-user creation branch, where there is no PIN to know.
+        val existing = userRepository.findByPhoneNumber(phoneNumber)
+        if (existing != null && hasTwoStep(existing)) {
+            requireTwoStepPin(existing, twoStepPin)
+        }
+
+        return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified", existing)
     }
 
+    /** Two-step is on only when both halves are present; either alone is a half-written row. */
+    private fun hasTwoStep(user: User): Boolean =
+        user.twoStepEnabledAt != null && user.twoStepPinHash != null
+
+    /**
+     * The gate itself: past this point the caller has proved both factors, or has not got past it.
+     *
+     * Order matters. The lockout is claimed **before** the PIN is compared, so a locked account
+     * answers `AUTH_2FA_LOCKED` without the hash being consulted at all — otherwise the lock would
+     * be a message rather than a control, and a client that ignored it would keep guessing.
+     *
+     * A missing PIN is not a failed guess and costs nothing: the client cannot know an account has a
+     * second factor until it is told, and charging it for asking would mean every sign-in started
+     * one attempt down.
+     */
+    private fun requireTwoStepPin(user: User, pin: String?) {
+        twoStepRejection(user, pin)?.let { throw BusinessException(it) }
+        // A correct PIN ends the window, so five typos spread over a year never add up to a lockout.
+        twoStepAttemptRepository.clear(user.id)
+    }
+
+    /**
+     * Why this sign-in may not proceed, or null when it may. Split out from [requireTwoStepPin] so
+     * the decision is a series of guards with one exit rather than four scattered throws.
+     */
+    private fun twoStepRejection(user: User, pin: String?): ErrorCode? {
+        val storedHash = user.twoStepPinHash ?: return ErrorCode.AUTH_2FA_NOT_ENABLED
+        if (pin == null) {
+            log.info("Two-step PIN required: userId={}", user.id)
+            return ErrorCode.AUTH_2FA_PIN_REQUIRED
+        }
+        val granted = twoStepAttemptRepository.claimAttempt(
+            userId = user.id,
+            maxAttempts = twoStepMaxAttempts,
+            lockFor = Duration.ofSeconds(twoStepLockSeconds)
+        )
+        if (!granted) {
+            log.warn("Two-step PIN locked out: userId={}", user.id)
+            return ErrorCode.AUTH_2FA_LOCKED
+        }
+        if (!passwordEncoder.matches(pin, storedHash)) {
+            log.warn("Two-step PIN rejected: userId={}", user.id)
+            return ErrorCode.AUTH_2FA_PIN_INVALID
+        }
+        return null
+    }
+
+    /**
+     * @param existingUser the account both entry points have already read to decide the two-step
+     *   gate. Passed in rather than read again: two reads of the same row would be one query more
+     *   than the sign-in needs, and would let the gate and the session be decided about *different*
+     *   states of the account.
+     */
     private fun authenticatePhone(
         phoneNumber: String,
         deviceName: String,
         platform: String,
-        logPrefix: String
+        logPrefix: String,
+        existingUser: User?
     ): AuthResult {
-        // Find or create user
-        val existingUser = userRepository.findByPhoneNumber(phoneNumber)
         val isNewUser = existingUser == null
         val user = existingUser ?: userRepository.save(
             User(
