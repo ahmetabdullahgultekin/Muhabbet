@@ -938,11 +938,11 @@
     <string name="release_notes_version">Sürüm %1$s</string>
     <string name="release_notes_current">Şu an kullandığınız sürüm</string>
 
-    <string name="whatsnew_0_3_11_line_1">Arşivlediğiniz sohbetler artık listenin en üstündeki tek bir satırda toplanıyor ve kendi ekranında açılıyor. Arşive kaldırdığınız bir sohbeti aramak zorunda değilsiniz.</string>
-    <string name="whatsnew_0_3_11_line_2">Zamanlanmış mesajlarda bir tanesi gönderilemediğinde arkasındakiler de takılıp kalıyordu. Artık her mesaj kendi başına yola çıkıyor.</string>
+    <string name="whatsnew_0_3_11_line_1">Uygulamaya ilk girdiğinizde artık ne yapmanız gerektiği anlatılıyor. Rehber erişimini neden istediğimizi — numaralarınızın telefonunuzdan çıkmadığını, yalnızca geri döndürülemez özetlerinin gönderildiğini — okuyup karar veriyorsunuz, ve isterseniz atlıyorsunuz.</string>
+    <string name="whatsnew_0_3_11_line_2">Arşivlediğiniz sohbetler artık listenin en üstündeki tek bir satırda toplanıyor ve kendi ekranında açılıyor. Arşive kaldırdığınız bir sohbeti aramak zorunda değilsiniz.</string>
     <string name="whatsnew_0_3_11_line_3">Bir mesaj gönderilemediğinde uygulama nedenini söylüyor: mesaj çok uzun, o gruba yazma yetkiniz yok ya da bağlantı koptu.</string>
-    <string name="whatsnew_0_3_11_line_4">Karşı taraf yazarken bağlantınızın sessizce kopabilmesi sorunu giderildi. Sohbet artık kendi kendine susmuyor.</string>
-    <string name="whatsnew_0_3_11_line_5">Aynı anda çok kişi mesaj gönderdiğinde sunucuda oluşan tıkanıklık kaldırıldı. Kalabalık gruplarda mesajlar belirgin şekilde daha hızlı ulaşıyor.</string>
+    <string name="whatsnew_0_3_11_line_4">Zamanlanmış mesajlarda bir tanesi gönderilemediğinde arkasındakiler de takılıp kalıyordu. Artık her mesaj kendi başına yola çıkıyor.</string>
+    <string name="whatsnew_0_3_11_line_5">Okunabilirlik düzeltmeleri: silinen mesajlar her duvar kağıdında okunuyor, duvar kağıdı seçicisinde hiçbir renk zemine karışıp kaybolmuyor, ve basma efekti dokunduğunuz şeyin gerçek şekline oturuyor.</string>
     <string name="whatsnew_0_3_11_line_6">Bir güncellemeden sonra neyin değiştiğini artık bu ekranda görüyorsunuz. Eski sürümlerin notlarına Ayarlar → Hakkında → Sürüm notları üzerinden istediğiniz zaman ulaşabilirsiniz.</string>
 
     <string name="whatsnew_0_3_10_line_1">Engelleme ve şikayet artık gerçekten çalışıyor. Engellediğiniz kişileri Ayarlar'daki listeden görebilir, dilediğinizde geri alabilirsiniz.</string>
