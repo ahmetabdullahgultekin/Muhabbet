@@ -7,8 +7,12 @@ import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.TestData
+import com.muhabbet.shared.TestMediaAttachmentPolicy
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -47,7 +51,9 @@ class StatusServiceTest {
         // in this file keeps meaning what it meant. Both directions, for the same reason.
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
         every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
-        service = StatusService(statusRepository, conversationRepository, userDirectory, blockPolicy)
+        service = StatusService(
+            statusRepository, conversationRepository, userDirectory, blockPolicy, TestMediaAttachmentPolicy()
+        )
     }
 
     private fun status(
@@ -526,6 +532,67 @@ class StatusServiceTest {
                     }
                 }
             )
+        }
+    }
+
+    /**
+     * #679 on the status surface. A status URL is fetched by every contact's phone as soon as they
+     * open the Updates tab, so an address the author chose freely is a request each of them makes
+     * without knowing it.
+     */
+    @Nested
+    inner class MediaAddress {
+
+        @Test
+        fun `should refuse a status whose media address is not ours`() {
+            val thrown = org.junit.jupiter.api.assertThrows<BusinessException> {
+                service.createStatus(viewer, "look", "https://attacker.test/beacon.gif")
+            }
+
+            assertAll(
+                { assertEquals(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE, thrown.errorCode) },
+                // Nothing was written, so no contact will ever be handed the address.
+                { verify(exactly = 0) { statusRepository.save(any()) } }
+            )
+        }
+
+        @Test
+        fun `should refuse an audience-scoped status whose media address is not ours`() {
+            val thrown = org.junit.jupiter.api.assertThrows<BusinessException> {
+                service.createStatusWithAudience(
+                    userId = viewer,
+                    content = "look",
+                    mediaUrl = "https://attacker.test/beacon.gif",
+                    visibility = "contacts",
+                    excludedUserIds = emptyList(),
+                    includedUserIds = emptyList()
+                )
+            }
+
+            assertAll(
+                { assertEquals(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE, thrown.errorCode) },
+                { verify(exactly = 0) { statusRepository.save(any()) } }
+            )
+        }
+
+        @Test
+        fun `should keep a status whose media is on our own host`() {
+            val saved = slot<Status>()
+            every { statusRepository.save(capture(saved)) } answers { saved.captured }
+
+            service.createStatus(viewer, "look", "https://cdn.example/statuses/1.jpg?sig=abc")
+
+            assertEquals("https://cdn.example/statuses/1.jpg?sig=abc", saved.captured.mediaUrl)
+        }
+
+        @Test
+        fun `should keep a status with no media at all`() {
+            val saved = slot<Status>()
+            every { statusRepository.save(capture(saved)) } answers { saved.captured }
+
+            service.createStatus(viewer, "just text", null)
+
+            assertNull(saved.captured.mediaUrl)
         }
     }
 }

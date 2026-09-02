@@ -150,16 +150,36 @@ services:
           memory: 64M
 
   # Initialize MinIO bucket for Muhabbet media
+  #
+  # The credentials reach `mc` through the environment, not through the entrypoint (#448). Written
+  # as `${MINIO_ROOT_PASSWORD}` they were interpolated by Compose at parse time and baked into
+  # .Config.Entrypoint, so `docker inspect muhabbet-minio-init` printed the MinIO root password —
+  # and unlike redis, which masks its own process title, `mc` does not, so it was also in
+  # `docker ps --no-trunc` and in /proc/<pid>/cmdline while the container ran. The container exits
+  # after a few seconds but its configuration keeps the secret until it is removed.
+  #
+  # `$$` escapes the interpolation so the string reaches the container literally and the
+  # container's own shell expands it from the environment below.
+  #
+  # This does not reach zero the way the Redis fix does — .Config.Env is inspectable too — but it
+  # opens no channel that was not already open: muhabbet-backend above must carry the same value
+  # as MINIO_SECRET_KEY in its own environment regardless. What it removes is the argv and
+  # process-table exposure, which was unique to this container. Closing the .Config.Env half needs
+  # a secret file mounted from the host, which is a change to the host's deployment contract
+  # rather than to this repository — see infra/redis.conf.example for that shape.
   minio-init:
     image: minio/mc:latest
     container_name: muhabbet-minio-init
     depends_on:
       muhabbet-backend:
         condition: service_started
+    environment:
+      MINIO_INIT_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_INIT_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
     entrypoint: >
       /bin/sh -c "
       sleep 5;
-      mc alias set local http://shared-minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_ROOT_PASSWORD};
+      mc alias set local http://shared-minio:9000 \"$$MINIO_INIT_ACCESS_KEY\" \"$$MINIO_INIT_SECRET_KEY\";
       mc mb local/muhabbet-media --ignore-existing;
       mc anonymous set download local/muhabbet-media/thumbnails;
       echo 'MinIO bucket initialized.';

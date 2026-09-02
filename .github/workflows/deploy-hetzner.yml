@@ -103,16 +103,32 @@ jobs:
                 # and its failing is the only reason a healthy deployment survived the bad health
                 # check above. The stack that actually runs is the repo-root compose file, with
                 # .env.prod alongside it and the service named muhabbet-backend.
-                docker tag "$PREV_IMAGE_ID" "$PREV_IMAGE_REF"
+                # `|| true` on the tag as well as the restart. `set -e` is active, so a failing
+                # `docker tag` — a pruned image ID, a digest-pinned ref — would abort the script
+                # here, before the "Deploy failed health check" line and before the loop below
+                # says whether production came back. The run would still be red, but it would be
+                # red with no statement of whether the rollback worked, which is the one thing
+                # the operator needs at 3am.
+                docker tag "$PREV_IMAGE_ID" "$PREV_IMAGE_REF" || true
                 cd /opt/projects/Muhabbet
                 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-build muhabbet-backend || true
+                ROLLED_BACK=0
                 for i in 1 2 3 4 5 6; do
                   sleep 10
                   if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
-                    echo "Rollback to previous image is healthy."
+                    echo "Rollback to previous image is healthy. Production is on the PREVIOUS build."
+                    ROLLED_BACK=1
                     break
                   fi
                 done
+                # The old loop simply ended when it ran out of attempts, so a rollback that never
+                # recovered read exactly like one that did: no line either way. A silent safety net
+                # is the same failure mode as the wrong-stack rollback this issue is about.
+                if [ "$ROLLED_BACK" != "1" ]; then
+                  echo "ROLLBACK ALSO FAILED after 60s — production is DOWN. Manual intervention required now."
+                  docker ps --filter name=muhabbet-backend --format '{{.Names}} {{.Status}}' || true
+                  docker logs --tail 50 muhabbet-backend 2>&1 || true
+                fi
               else
                 echo "No previous image captured — cannot auto-roll back. Manual intervention required."
               fi
