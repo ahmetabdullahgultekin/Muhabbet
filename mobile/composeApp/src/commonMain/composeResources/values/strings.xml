@@ -402,6 +402,21 @@
         <item quantity="other">%1$d öğe</item>
     </plurals>
 
+    <!-- Storage detail screen (#546) -->
+    <string name="storage_open_detail">Depolamayı yönet</string>
+    <string name="storage_device_section">Bu cihazda</string>
+    <string name="storage_device_cache">Önbellek</string>
+    <string name="storage_device_cache_subtitle">İndirilen fotoğraf, küçük resim ve ses kopyaları ile gönderilmeyi bekleyen geçici dosyalar. Silmek hiçbir mesajı kaldırmaz; gerektiğinde yeniden indirilir.</string>
+    <string name="storage_device_measuring">Hesaplanıyor…</string>
+    <string name="storage_free_up">Yer aç</string>
+    <string name="storage_free_up_confirm_title">Önbellek temizlensin mi?</string>
+    <string name="storage_free_up_confirm_body">İndirilen kopyalar silinir. Mesajlarınız, medyanız ve ayarlarınız cihazda kalır.</string>
+    <string name="storage_freed">%1$s yer açıldı</string>
+    <string name="storage_server_section">Sunucuda</string>
+    <string name="storage_server_explanation">Gönderdiğiniz medyanın sunucuda kapladığı yer. Bu dosyalar telefonunuzda değildir; silinmeleri cihazınızda yer açmaz.</string>
+    <string name="storage_server_not_deletable">Bu dosyalar buradan silinemiyor: aynı dosyalar karşı taraftaki sohbetlerde de görünüyor ve sunucu tarafında silme henüz yok.</string>
+    <string name="storage_no_per_chat">Sohbet başına döküm henüz yok: sunucu yüklenen medyayı hangi sohbete ait olduğunu kaydetmeden saklıyor.</string>
+
     <!-- Calls -->
     <string name="calls_title">Aramalar</string>
     <string name="call_incoming">Gelen Arama</string>
@@ -866,6 +881,8 @@
     <string name="communities_empty">Henüz topluluk yok</string>
     <string name="settings_haptics">Dokunsal geri bildirim</string>
     <string name="settings_haptics_subtitle">Dokunma ve kaydırmalarda titreşim</string>
+    <string name="settings_enter_to_send">Enter tuşu gönderir</string>
+    <string name="settings_enter_to_send_subtitle">Kapalıyken Enter alt satıra geçer. Açıkken Shift+Enter alt satıra geçer.</string>
     <string name="otp_error_invalid">Doğrulama kodu hatalı</string>
     <string name="otp_error_expired">Doğrulama kodunun süresi doldu. Yeni bir kod isteyin.</string>
     <string name="otp_error_max_attempts">Çok fazla hatalı deneme yapıldı. Yeni bir kod isteyin.</string>

@@ -102,6 +102,14 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putBoolean("haptics_enabled", enabled).apply()
     }
 
+    // Defaults to true when never written — see TokenStorage.getEnterToSend. Plain prefs, not the
+    // encrypted store: which key sends is a convenience, not a secret.
+    override fun getEnterToSend(): Boolean = plainPrefs.getBoolean("enter_to_send", true)
+
+    override fun setEnterToSend(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("enter_to_send", enabled).apply()
+    }
+
     override fun getTheme(): String? = plainPrefs.getString("app_theme", null)
 
     override fun setTheme(theme: String) {

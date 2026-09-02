@@ -382,6 +382,21 @@
         <item quantity="other">%1$d items</item>
     </plurals>
 
+    <!-- Storage detail screen (#546) -->
+    <string name="storage_open_detail">Manage storage</string>
+    <string name="storage_device_section">On this device</string>
+    <string name="storage_device_cache">Cache</string>
+    <string name="storage_device_cache_subtitle">Downloaded copies of photos, thumbnails and audio, plus temporary files waiting to be sent. Clearing it removes no messages; anything needed is downloaded again.</string>
+    <string name="storage_device_measuring">Calculating…</string>
+    <string name="storage_free_up">Free up space</string>
+    <string name="storage_free_up_confirm_title">Clear the cache?</string>
+    <string name="storage_free_up_confirm_body">Downloaded copies are deleted. Your messages, media and settings stay on the device.</string>
+    <string name="storage_freed">Freed %1$s</string>
+    <string name="storage_server_section">On the server</string>
+    <string name="storage_server_explanation">How much room the media you have sent takes up on the server. These files are not on your phone, so deleting them would not free space here.</string>
+    <string name="storage_server_not_deletable">These cannot be deleted from here: the same files appear in the chats of everyone who received them, and there is no server-side deletion yet.</string>
+    <string name="storage_no_per_chat">No per-chat breakdown yet: the server stores uploaded media without recording which chat it belongs to.</string>
+
     <!-- Calls -->
     <string name="calls_title">Calls</string>
     <string name="call_incoming">Incoming Call</string>
@@ -834,6 +849,8 @@
     <string name="communities_empty">No communities yet</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_subtitle">Vibrate on taps and swipes</string>
+    <string name="settings_enter_to_send">Enter key sends</string>
+    <string name="settings_enter_to_send_subtitle">When off, Enter starts a new line. When on, Shift+Enter starts a new line.</string>
     <string name="otp_error_invalid">That verification code is not correct</string>
     <string name="otp_error_expired">That verification code has expired. Request a new one.</string>
     <string name="otp_error_max_attempts">Too many incorrect attempts. Request a new code.</string>
