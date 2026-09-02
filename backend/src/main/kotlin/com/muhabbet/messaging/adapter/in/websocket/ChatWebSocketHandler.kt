@@ -8,6 +8,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.PresenceStatus
@@ -282,10 +283,32 @@ class ChatWebSocketHandler(
         sessionManager.setActiveConversation(userId, conversationId)
     }
 
+    /**
+     * "Typing…" is presence, and it had no block check in either direction (#711) — so in a chat
+     * where one of the two had blocked the other it flowed both ways. It says the person is holding
+     * their phone *right now*, which is the same thing the green dot leaks and a more immediate one.
+     * [PresenceVisibility] decides who must not be told, so this cannot drift away from the rule the
+     * dot uses, which is how the two came to filter opposite directions.
+     *
+     * The order of the steps is what keeps this cheap, and it is deliberate. Offline recipients are
+     * dropped first, with an in-process map lookup and no query; if that leaves nobody, the frame
+     * reaches no one and the method returns before asking about blocks or even encoding the JSON —
+     * which is strictly less work than this did before. Only a frame actually about to be delivered
+     * asks, and the pair question is answered from two indexed lookups before the conversation is
+     * loaded, so the ordinary case — no block between these two — costs no extra row. Nothing here
+     * opens a transaction, so no connection is held across the fan-out.
+     *
+     * Deliberately not cached. A cache would put a staleness window on a privacy control, which is
+     * the class of half-fix #711 is about; and the client debounces these to roughly two frames per
+     * composed message (`ChatScreen` guards on `isTypingSent`), not one per keystroke, so there is
+     * no per-keystroke query here to avoid.
+     */
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
         val conversationId = parseId(msg.conversationId, "conversationId")
-        val members = conversationRepository.findMembersByConversationId(conversationId)
-        val recipientIds = members.map { it.userId }.filter { it != userId }
+        val recipientIds = conversationRepository.findMembersByConversationId(conversationId)
+            .map { it.userId }
+            .filter { it != userId && sessionManager.isOnline(it) }
+        if (recipientIds.isEmpty()) return
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
         val presenceUpdate = WsMessage.PresenceUpdate(
@@ -297,7 +320,7 @@ class ChatWebSocketHandler(
 
         val hidden = presenceVisibility.hiddenFromTypingIn(conversationId, userId, recipientIds)
         recipientIds.forEach { recipientId ->
-            if (recipientId !in hidden && sessionManager.isOnline(recipientId)) {
+            if (recipientId !in hidden) {
                 sessionManager.sendToUser(recipientId, json)
             }
         }
@@ -338,10 +361,11 @@ class ChatWebSocketHandler(
         // Single query to get all unique user IDs across all conversations (replaces N+1 pattern)
         val contactUserIds = conversationRepository.findAllContactUserIds(userId)
 
-        // Someone who blocked you is still a "contact" — you share a conversation — so without this
-        // they keep receiving your live online/offline stream and the last-seen stamp that rides
-        // the OFFLINE transition. Hiding presence on the profile screen alone would have been
-        // cosmetic: the chat list they already have renders exactly this feed.
+        // Someone a block stands between is still a "contact" — the conversation the two shared
+        // outlives the block — so without this they keep receiving this user's live online/offline
+        // stream and the last-seen stamp that rides the OFFLINE transition. Hiding presence on the
+        // profile screen alone would have been cosmetic: the chat list they already have renders
+        // exactly this feed.
         //
         // Both directions (#711), and this frame is why the REST guard alone was not enough. The
         // filter here used to hide the *broadcaster* from whoever had blocked them, which is the
@@ -349,6 +373,9 @@ class ChatWebSocketHandler(
         // direction the other left open, and the pair leaked both ways. The blocked person opened
         // the chat list to no dot, then watched it light up seconds later when the blocker's socket
         // connected, because `ConversationListScreen` writes this frame straight into its state.
+        // Both now ask the same question of PresenceVisibility, whose answer is symmetric: one set
+        // covers "must not be told about this user" and "must not be shown to this user", so
+        // neither caller has to work out which direction it is in.
         val hidden = presenceVisibility.hiddenFromPresenceOf(userId, contactUserIds)
         contactUserIds.filterNot { it in hidden }.forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {

@@ -9,6 +9,7 @@ import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
@@ -67,7 +68,7 @@ class ConversationPresenceBlockTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            blockPolicy = blockPolicy
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
 
         every { userRepository.findAllByIds(any()) } returns listOf(
@@ -99,6 +100,12 @@ class ConversationPresenceBlockTest {
             null,
             emptyList()
         )
+
+        // Neither direction blocked unless a test says so. Both are stubbed because presence is
+        // withheld symmetrically (#711) and a test that stubbed only one would pass while the
+        // other direction went unasked.
+        every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
     }
 
     @AfterEach
@@ -160,8 +167,10 @@ class ConversationPresenceBlockTest {
 
     @Test
     fun `should ask each direction once for the whole page rather than once per participant`() {
-        // Contract, not decoration: this is the app's busiest call, and either direction resolved
-        // per row would be an N+1 on the screen users open first.
+        // Contract, not decoration, and it covers both halves of the bug: one direction being
+        // asked and the other not, on a surface the app renders as a live dot; and this being the
+        // app's busiest call, where either direction resolved per row is an N+1 on the screen
+        // users open first.
         every { blockPolicy.findBlockedBy(me, listOf(other)) } returns emptySet()
         every { blockPolicy.findBlockedAmong(me, listOf(other)) } returns emptySet()
 

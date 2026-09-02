@@ -8,6 +8,7 @@ import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.dto.SetAnnouncementModeRequest
@@ -63,7 +64,10 @@ class ConversationAnnouncementControllerTest {
             conversationRepository = mockk<ConversationRepository>(relaxed = true),
             userRepository = mockk<UserRepository>(),
             presencePort = mockk<PresencePort>(),
-            blockPolicy = mockk<BlockPolicyPort>()
+            presenceVisibility = PresenceVisibility(
+                mockk<BlockPolicyPort>(relaxed = true),
+                mockk<ConversationRepository>(relaxed = true)
+            )
         )
 
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(

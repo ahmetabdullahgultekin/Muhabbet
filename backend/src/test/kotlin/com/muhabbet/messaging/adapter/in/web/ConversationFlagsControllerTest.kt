@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.TestData
@@ -61,7 +62,7 @@ class ConversationFlagsControllerTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            blockPolicy = blockPolicy
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
         )
 
         every { userRepository.findAllByIds(any()) } returns listOf(TestData.user(id = me))

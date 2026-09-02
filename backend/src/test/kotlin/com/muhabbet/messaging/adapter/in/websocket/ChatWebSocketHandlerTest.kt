@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtClaims
@@ -75,8 +76,10 @@ class ChatWebSocketHandlerTest {
 
         // Rate limiter always allows in tests
         every { webSocketRateLimiter.allowMessage(any()) } returns true
-        // Nobody has blocked anybody, so presence fans out to every contact as before.
+        // Nobody has blocked anybody, so presence fans out to every contact as before. Both
+        // directions are stubbed because presence is withheld symmetrically (#711).
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
+        every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
 
         handler = ChatWebSocketHandler(
             jwtProvider = jwtProvider,
@@ -596,12 +599,15 @@ class ChatWebSocketHandlerTest {
     inner class PresenceBlocks {
 
         private val blockerId = UUID.randomUUID()
+        private val blockedId = UUID.randomUUID()
         private val friendId = UUID.randomUUID()
 
         @BeforeEach
         fun stubContacts() {
-            every { conversationRepository.findAllContactUserIds(userId) } returns setOf(blockerId, friendId)
+            every { conversationRepository.findAllContactUserIds(userId) } returns
+                setOf(blockerId, blockedId, friendId)
             every { sessionManager.isOnline(blockerId) } returns true
+            every { sessionManager.isOnline(blockedId) } returns true
             every { sessionManager.isOnline(friendId) } returns true
         }
 
@@ -640,57 +646,41 @@ class ChatWebSocketHandlerTest {
         }
 
         @Test
-        fun `should ask about the whole contact set in one call rather than one per contact`() {
-            // Contract, not decoration: the chat list resolves every contact on open, and a
-            // per-contact question here is an N+1 on the app's busiest moment.
-            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
-
-            handler.afterConnectionEstablished(createSession(generateValidToken()))
-
-            verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
-        }
-
-        // ─── The other direction (#711) ──────────────────────
-        //
-        // Everything above asks "does someone who blocked me still see me". This frame used to
-        // answer only that, which is the opposite of what `GET /conversations` withheld — so the
-        // pair of channels leaked in both directions at once. The blocked person opened the chat
-        // list to no dot and then watched it light up seconds later, from here.
-
-        @Test
         fun `should not tell someone this user has blocked that they came online`() {
-            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
-            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockerId)
+            // The direction this handler had backwards (#711). It filtered on "who blocked me" and
+            // therefore kept streaming the blocker's own dot to the person they blocked — handing
+            // back, seconds after connect, exactly what GET /conversations suppresses.
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockedId)
 
             handler.afterConnectionEstablished(createSession(generateValidToken()))
 
-            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 0) { sessionManager.sendToUser(blockedId, any()) }
             verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
         }
 
         @Test
         fun `should not leak the last seen stamp to someone this user has blocked`() {
-            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
-            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockerId)
+            every { blockPolicy.findBlockedAmong(userId, any()) } returns setOf(blockedId)
             val session = createSession()
             every { sessionManager.getUserId(session) } returns userId
             every { sessionManager.isOnline(userId) } returns false
 
             handler.afterConnectionClosed(session, CloseStatus.NORMAL)
 
-            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 0) { sessionManager.sendToUser(blockedId, any()) }
             verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
         }
 
         @Test
-        fun `should ask both directions once each rather than one question per contact`() {
-            every { blockPolicy.findBlockedBy(userId, any()) } returns emptySet()
-            every { blockPolicy.findBlockedAmong(userId, any()) } returns emptySet()
-
+        fun `should ask about the whole contact set in one call per direction`() {
+            // Contract, not decoration: the chat list resolves every contact on open, and a
+            // per-contact question here is an N+1 on the app's busiest moment. One call per
+            // direction, never one per contact.
             handler.afterConnectionEstablished(createSession(generateValidToken()))
 
-            verify(exactly = 1) { blockPolicy.findBlockedBy(userId, setOf(blockerId, friendId)) }
-            verify(exactly = 1) { blockPolicy.findBlockedAmong(userId, setOf(blockerId, friendId)) }
+            val contacts = setOf(blockerId, blockedId, friendId)
+            verify(exactly = 1) { blockPolicy.findBlockedBy(userId, contacts) }
+            verify(exactly = 1) { blockPolicy.findBlockedAmong(userId, contacts) }
         }
     }
 
@@ -768,6 +758,26 @@ class ChatWebSocketHandlerTest {
             sendTyping()
 
             verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+        }
+
+        @Test
+        fun `should ask nothing and send nothing when no recipient is online`() {
+            // Offline recipients are dropped first, from an in-process map: if that leaves
+            // nobody the frame reaches no one, so the method returns before asking about blocks
+            // or even encoding the JSON.
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+                ConversationMember(conversationId = convId, userId = userId),
+                ConversationMember(conversationId = convId, userId = otherUserId)
+            )
+            every { sessionManager.isOnline(otherUserId) } returns false
+
+            val typing = WsMessage.TypingIndicator(conversationId = convId.toString(), isTyping = true)
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(typing)))
+
+            verify(exactly = 0) { blockPolicy.hasBlocked(any(), any()) }
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
         }
 
         @Test

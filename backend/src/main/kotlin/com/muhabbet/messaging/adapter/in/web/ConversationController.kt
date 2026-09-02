@@ -3,8 +3,8 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
-import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.PresencePort
+import com.muhabbet.messaging.domain.service.PresenceVisibility
 import com.muhabbet.shared.dto.AnnouncementModeResponse
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.ConversationResponse
@@ -37,11 +37,13 @@ class ConversationController(
     private val conversationRepository: com.muhabbet.messaging.domain.port.out.ConversationRepository,
     private val userRepository: UserRepository,
     private val presencePort: PresencePort,
-    private val blockPolicy: BlockPolicyPort
+    private val presenceVisibility: PresenceVisibility
 ) {
 
     /**
-     * The set of participants whose online dot must be withheld from [viewerId].
+     * The set of participants whose online dot must be withheld from [viewerId] — anyone a block
+     * stands between, whichever of the two placed it. [PresenceVisibility] owns that rule; this
+     * only decides who to ask about.
      *
      * This endpoint, not the profile screen, is where a blocked person actually watches you: the
      * mobile chat list seeds its dot straight from `ParticipantResponse.isOnline`. A guard on
@@ -53,13 +55,17 @@ class ConversationController(
      * asking for, and the half that was missing. A block is not a request to be less visible; it is
      * a request to be done with someone, and presence is the channel that makes "done" visible.
      *
-     * Two batched queries for the whole page, not two per participant — this is the app's busiest
+     * The union is not spelled out here. It is one call into [PresenceVisibility], which the
+     * WebSocket presence broadcast also asks, because the same rule written twice from memory is
+     * how these two came to filter opposite directions in the first place. It still costs two
+     * batched queries for the whole page and not two per participant — this is the app's busiest
      * call, and either direction resolved per row would be an N+1 on the screen users open first.
+     *
+     * The viewer is filtered out before the question is asked: whether you have blocked yourself is
+     * meaningless, and leaving yourself in would hide your own dot from your own chat list.
      */
-    private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> {
-        val others = participantIds.filter { it != viewerId }
-        return blockPolicy.findBlockedBy(viewerId, others) + blockPolicy.findBlockedAmong(viewerId, others)
-    }
+    private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> =
+        presenceVisibility.hiddenFromPresenceOf(viewerId, participantIds.filter { it != viewerId })
 
     @PostMapping
     fun createConversation(@RequestBody request: CreateConversationRequest): ResponseEntity<ApiResponse<ConversationResponse>> {
