@@ -48,6 +48,7 @@ import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
 import com.muhabbet.app.ui.chat.MediaViewer
 import com.muhabbet.app.ui.notice.TestBuildNoticeCard
+import com.muhabbet.app.ui.share.rememberShareMuhabbetAction
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -342,6 +343,21 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
 
+                // Share Muhabbet (#591). Above About rather than buried at the bottom: for an app
+                // whose whole value is that the people you talk to are on it too, handing it to
+                // someone is a first-class action, not an afterthought. The second entry point is
+                // the empty contacts list, which is where the person with a reason to invite
+                // actually ends up.
+                val shareMuhabbet = rememberShareMuhabbetAction()
+                SettingsNavRow(
+                    title = stringResource(Res.string.share_app_title),
+                    subtitle = stringResource(Res.string.share_app_subtitle),
+                    icon = Muhabbet.icons.Share,
+                    iconContentDescription = stringResource(Res.string.share_app_title),
+                    onClick = shareMuhabbet
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+
                 // The only route into AboutScreen — build info and the three legal documents that,
                 // before #614, existed on the website but were unreachable from inside the app.
                 SettingsNavRow(
@@ -388,6 +404,13 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = MuhabbetSpacing.Large))
 
                 EnterToSendSection()
+
+                // Media visibility (#593). Next to the other per-device behaviour switches rather
+                // than under Privacy: the question it answers is "where do my chat photos end up",
+                // which is about this phone, not about what other people can see.
+                HorizontalDivider(modifier = Modifier.padding(vertical = MuhabbetSpacing.Large))
+
+                MediaVisibilitySection()
 
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()

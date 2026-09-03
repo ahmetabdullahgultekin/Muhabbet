@@ -52,6 +52,10 @@ class FakeTokenStorage : TokenStorage {
     override fun getEnterToSend(): Boolean = enterToSend
     override fun setEnterToSend(enabled: Boolean) { enterToSend = enabled }
 
+    private var saveMediaToGallery: Boolean = false
+    override fun getSaveMediaToGallery(): Boolean = saveMediaToGallery
+    override fun setSaveMediaToGallery(enabled: Boolean) { saveMediaToGallery = enabled }
+
     override fun getMediaQuality(): String? = mediaQuality
     override fun setMediaQuality(quality: String) { mediaQuality = quality }
 

@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import com.muhabbet.app.data.repository.PhoneLookupResult
-import com.muhabbet.app.platform.rememberShareLauncher
+import com.muhabbet.app.ui.share.rememberShareMuhabbetAction
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.normalizeToE164
 import com.muhabbet.app.util.runCatchingCancellable
@@ -74,10 +74,10 @@ fun PersonByNumberSheet(
     var failed by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
-    val shareLauncher = rememberShareLauncher()
-
-    // Resolved here rather than inside scope.launch: stringResource is @Composable.
-    val inviteText = stringResource(Res.string.start_by_number_invite_text)
+    // The app's one invite payload (#591), so the only pre-existing invite path also carries the
+    // store link. It used to share `start_by_number_invite_text`, which said Muhabbet exists and
+    // gave the reader no way to get it — the recipient had to go and search for it by name.
+    val shareMuhabbet = rememberShareMuhabbetAction()
 
     // Derived, not stored: a second copy of the field's validity is a second thing to keep in sync,
     // and the one that goes stale is always the one the button reads.
@@ -184,7 +184,7 @@ fun PersonByNumberSheet(
                 Spacer(Modifier.height(MuhabbetSpacing.Medium))
                 MuhabbetButton(
                     text = stringResource(Res.string.start_by_number_invite),
-                    onClick = { shareLauncher(inviteText) },
+                    onClick = shareMuhabbet,
                     modifier = Modifier.fillMaxWidth(),
                     role = MuhabbetButtonRole.Secondary,
                 )

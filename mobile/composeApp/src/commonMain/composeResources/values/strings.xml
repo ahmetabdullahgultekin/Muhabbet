@@ -119,7 +119,6 @@
     <string name="start_by_number_searching">Aranıyor…</string>
     <string name="start_by_number_not_registered">Bu numara Muhabbet'te kayıtlı değil.</string>
     <string name="start_by_number_invite">Muhabbet'e davet et</string>
-    <string name="start_by_number_invite_text">Muhabbet'te bana ulaşabilirsin. Muhabbet, KVKK uyumlu yerli mesajlaşma uygulamasıdır.</string>
     <string name="start_by_number_own_number">Bu sizin kendi numaranız.</string>
 
     <!-- Choosing people without handing over the address book (#520) -->
@@ -980,4 +979,15 @@
     <string name="whatsnew_0_3_8_line_1">0.3.7 sürümü açılışta çöküyor, kimsede açılmıyordu. Bu sürüm onu düzeltiyor.</string>
     <string name="whatsnew_0_3_8_line_2">Bir mesajı düzenlemek için 15 dakikanız olduğu artık menüde yazıyor. Süre dolduğunda seçenek pasif görünüyor ve nedenini söylüyor.</string>
     <string name="whatsnew_0_3_8_line_3">Okundu bilgisi ayarının açıklaması yanlıştı. Bu ayarı kapatmak karşı tarafın okundu bilgisini görmenizi engellemez; yalnızca sizinkini paylaşmayı durdurur.</string>
+
+    <!-- Share Muhabbet (#591) -->
+    <string name="share_app_title">Muhabbet'i Paylaş</string>
+    <string name="share_app_subtitle">Arkadaşlarını davet et</string>
+    <string name="share_app_text">Muhabbet'i deniyorum — Türkiye'de geliştirilen, gizliliğe önem veren bir mesajlaşma uygulaması. Sen de gel: %1$s</string>
+    <string name="contacts_none_found_invite_hint">Rehberindeki kimse henüz Muhabbet kullanmıyor. İlk davet eden sen ol.</string>
+
+    <!-- Media visibility (#593) -->
+    <string name="settings_media_visibility">Medya görünürlüğü</string>
+    <string name="settings_media_visibility_subtitle">Açıkken, bundan sonra gelen fotoğraf ve videolar telefonunun galerisine kaydedilir. Tek seferlik ve kaybolan medya kaydedilmez.</string>
+
 </resources>

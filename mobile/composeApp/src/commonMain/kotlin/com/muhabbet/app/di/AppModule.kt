@@ -21,6 +21,7 @@ import com.muhabbet.app.data.repository.ModerationRepository
 import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.data.repository.PhoneNumberLookup
 import com.muhabbet.app.data.repository.PushTokenRegistrar
+import com.muhabbet.app.data.repository.ReceivedMediaAutoSaver
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.data.repository.TwoStepRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
@@ -140,6 +141,15 @@ fun appModule(): Module = module {
     // App Lock (#378) — singleton for the same reason: AppLockScreen writes it, AppLockGate
     // (mounted once, above the whole authenticated app) reads it, and a second copy could disagree.
     single { com.muhabbet.app.data.local.AppLockController(tokenStorage = get()) }
+    // Media visibility (#593) — singleton for the same reason yet again: the switch is in Settings
+    // and the reader is the app-wide auto-saver below, composed once at the root.
+    single { com.muhabbet.app.data.local.MediaVisibilityController(tokenStorage = get()) }
+    single {
+        ReceivedMediaAutoSaver(
+            mediaRepository = get(),
+            mediaVisibility = get()
+        )
+    }
     // Foreground/background state. Written in exactly one place (App.kt, from the lifecycle
     // RootComponent already carries) and read by any screen that must act when the user comes back
     // — an open chat re-asserting its read receipt, today. A singleton because a second copy could

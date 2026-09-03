@@ -115,6 +115,15 @@ class IosTokenStorage : TokenStorage {
         defaults.synchronize()
     }
 
+    // `boolForKey` already answers false for an absent key, which is the wanted default here (#593
+    // is opt-in), so unlike enter-to-send above there is nothing to special-case.
+    override fun getSaveMediaToGallery(): Boolean = defaults.boolForKey("save_media_to_gallery")
+
+    override fun setSaveMediaToGallery(enabled: Boolean) {
+        defaults.setBool(enabled, forKey = "save_media_to_gallery")
+        defaults.synchronize()
+    }
+
     override fun getMediaQuality(): String? = defaults.stringForKey("media_quality")
 
     override fun setMediaQuality(quality: String) {
