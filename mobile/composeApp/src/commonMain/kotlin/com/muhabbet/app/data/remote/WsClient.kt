@@ -228,10 +228,10 @@ class WsClient(
                         val text = frame.readText()
                         try {
                             val decoded = wsJson.decodeFromString<WsMessage>(text)
-                            // Dedup: skip already-processed messages
-                            val msgId = extractMessageId(decoded)
-                            if (msgId != null && !processedMessageIds.add(msgId)) {
-                                Log.d(TAG, "Skipping duplicate message: $msgId")
+                            // Dedup: skip frames this connection has already acted on
+                            val key = dedupKey(decoded)
+                            if (key != null && !processedMessageIds.add(key)) {
+                                Log.d(TAG, "Skipping duplicate frame: $key")
                                 continue
                             }
                             trimProcessedIds()
@@ -595,18 +595,38 @@ class WsClient(
 
     // --- Deduplication ---
 
-    private fun extractMessageId(message: WsMessage): String? {
+    /**
+     * What a frame is deduplicated by, or null for a frame that must never be deduplicated.
+     *
+     * Every key carries its frame type, and that is the whole point of this function (#726). One
+     * set is shared across all frame types, so two frames *about the same message* have to produce
+     * different keys or the second is silently discarded as a repeat of the first. `MessageDeleted`
+     * returned the bare `messageId` — exactly what the `NewMessage` that delivered that message had
+     * already put in the set. A "delete for everyone" arriving over the socket that carried the
+     * original was therefore dropped, and the message stayed on screen for the one recipient most
+     * likely to be looking at it. A recipient who had reconnected in between got a fresh set and saw
+     * it work, which is what made the bug look intermittent and like a server fault.
+     *
+     * Suffixing one branch at a time is how it got there: `_edited`, and later `_expired`, were each
+     * added by an author who noticed the collision for their own frame and fixed that one instance.
+     * The type prefix removes the class instead — every branch is distinct by construction,
+     * including the pairs nobody has thought of yet.
+     *
+     * The other half of "identifies the event, not the message": a key must also tell two *real*
+     * events of the same type apart, or the later one is dropped just as silently. That is why
+     * [WsMessage.StatusUpdate] carries the status and [WsMessage.MessageEdited] the edit time — a
+     * message edited twice produced a single key under `_edited`, so the second edit never reached
+     * the screen. Only a frame that can genuinely happen once per message — a deletion, an expiry —
+     * keys on the id alone.
+     */
+    private fun dedupKey(message: WsMessage): String? {
         return when (message) {
-            is WsMessage.NewMessage -> message.messageId
-            is WsMessage.ServerAck -> message.requestId
-            is WsMessage.StatusUpdate -> "${message.messageId}_${message.status}"
-            is WsMessage.MessageDeleted -> message.messageId
-            is WsMessage.MessageEdited -> "${message.messageId}_edited"
-            // Suffixed like `_edited` above, and for the reason `MessageDeleted` should have been:
-            // this set is shared across frame types, so a bare messageId here would collide with
-            // the `NewMessage` that delivered the same message and the expiry would be discarded as
-            // a duplicate — the message would then never leave the screen, which is the bug.
-            is WsMessage.MessageExpired -> "${message.messageId}_expired"
+            is WsMessage.NewMessage -> "new:${message.messageId}"
+            is WsMessage.ServerAck -> "ack:${message.requestId}"
+            is WsMessage.StatusUpdate -> "status:${message.messageId}:${message.status}"
+            is WsMessage.MessageDeleted -> "deleted:${message.messageId}"
+            is WsMessage.MessageEdited -> "edited:${message.messageId}:${message.editedAt}"
+            is WsMessage.MessageExpired -> "expired:${message.messageId}"
             else -> null // Don't dedup typing, presence, pong etc.
         }
     }

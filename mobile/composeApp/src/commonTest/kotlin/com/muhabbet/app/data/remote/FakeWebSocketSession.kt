@@ -52,6 +52,18 @@ internal class FakeWebSocketSession : WebSocketSession {
         received.close()
     }
 
+    /**
+     * Puts a frame on the wire the way the server does, so the client's receive path — decode,
+     * dedup, emit — runs for real.
+     *
+     * The fake could only ever be written to before this. That is enough to observe what the client
+     * *sends* on connect, and nothing at all about what it does with what it is given, which is
+     * where the dedup key lives (#726).
+     */
+    fun deliverText(json: String) {
+        received.trySend(Frame.Text(json))
+    }
+
     /** Everything written so far, as text, drained from the channel. */
     fun writtenText(): List<String> = buildList {
         while (true) {
