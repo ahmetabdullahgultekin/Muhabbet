@@ -195,6 +195,58 @@ jobs:
         if: steps.changes.outputs.mobile == 'true'
         run: ./gradlew :mobile:designsystem:testDebugUnitTest :mobile:composeApp:testDebugUnitTest
 
+      # The commonTest suite is SHARED code, but until #729 it only ever compiled for one platform.
+      # Three backticked test names contained a comma — legal on the JVM/Android backend, rejected
+      # by Kotlin/Native as an identifier — so `compileTestKotlinIosSimulatorArm64` had NEVER
+      # succeeded in `shared` or in `composeApp`, while `testDebugUnitTest` was green and looked like
+      # coverage. Same shape as the detekt breakage in #279: a target that cannot compile and a
+      # target that passes are indistinguishable from outside unless something runs the failing task.
+      #
+      # Only the comma is rejected. Hyphens in a backticked name are fine and several tests use them,
+      # so this is not a "no punctuation in test names" convention — it is one specific character.
+      #
+      # This is a COMPILE, not a run. Kotlin/Native cross-compiles to the iOS target from Linux
+      # perfectly well, so this needs no macOS runner and no GitHub-hosted minutes — which matters,
+      # because every GitHub-hosted job on this account is currently refused before it starts
+      # (billing), and that is exactly why the `ios-framework` job below is gated off.
+      #
+      # Do NOT "upgrade" this to `iosSimulatorArm64Test` or `linkDebugTestIosSimulatorArm64` hoping
+      # to actually run the tests. On a non-Mac host the Kotlin Gradle plugin marks both SKIPPED and
+      # the build still reports SUCCESS — verified on Linux. That would be a step that can
+      # never fail: strictly worse than no check, and the precise trap this issue is about. Running
+      # these tests needs a macOS host; compiling them does not, and the compile is what catches the
+      # regression class that has actually bitten us.
+      #
+      # All three modules are listed explicitly. composeApp depends on the other two, but a
+      # dependency contributes only its MAIN klib — its commonTest source set is never compiled as a
+      # side effect, and `shared` carried a third comma of its own that this would otherwise miss.
+      - name: Compile iOS test targets (Kotlin/Native, no macOS needed)
+        if: steps.changes.outputs.mobile == 'true'
+        run: |
+          set -euo pipefail
+          log="${RUNNER_TEMP:-/tmp}/ios-test-compile.log"
+          ./gradlew --console=plain \
+            :shared:compileTestKotlinIosSimulatorArm64 \
+            :mobile:designsystem:compileTestKotlinIosSimulatorArm64 \
+            :mobile:composeApp:compileTestKotlinIosSimulatorArm64 2>&1 | tee "$log"
+
+          # A green exit code is not sufficient evidence here. Gradle reports BUILD SUCCESSFUL for a
+          # task it decided to SKIP, and a task silently skipped is how this defect survived in the
+          # first place. Assert each task actually produced a real outcome.
+          status=0
+          for task in \
+            ':shared:compileTestKotlinIosSimulatorArm64' \
+            ':mobile:designsystem:compileTestKotlinIosSimulatorArm64' \
+            ':mobile:composeApp:compileTestKotlinIosSimulatorArm64'; do
+            line=$(grep -F "> Task $task" "$log" | tail -1 || true)
+            case "$line" in
+              '')                       echo "ERROR: $task never ran." >&2; status=1 ;;
+              *SKIPPED*|*'NO-SOURCE'*)  echo "ERROR: $task was skipped ($line) — this check proves nothing." >&2; status=1 ;;
+              *)                        echo "OK: $task -> ${line#*Task }" ;;
+            esac
+          done
+          exit $status
+
       # Uploading a report is a convenience, not a gate. It has failed the whole Android job on
       # "Artifact storage quota has been hit" — an account-level condition with nothing to do with
       # the code — and because the job stopped there, the APK build never ran and the run read as a

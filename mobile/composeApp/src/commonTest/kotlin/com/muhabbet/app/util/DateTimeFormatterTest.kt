@@ -47,7 +47,7 @@ class DateTimeFormatterTest {
     }
 
     @Test
-    fun `yesterday shows the word, not a date`() {
+    fun `yesterday shows the word rather than a date`() {
         val formatted = DateTimeFormatter.formatConversationTimestamp(isoDaysAgo(1), labels)
         assertEquals("Dün", formatted)
     }
