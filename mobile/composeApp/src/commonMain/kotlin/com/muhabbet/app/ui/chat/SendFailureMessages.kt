@@ -27,11 +27,21 @@ internal class SendFailureMessages(
     private val tooLong: String,
     private val notMember: String,
     private val announcementOnly: String,
+    /**
+     * The refusal that used to arrive as nothing at all (#725).
+     *
+     * `WebSocketRateLimiter` answered with a bare `WsMessage.Error`, which the chat screen dropped,
+     * so a rate-limited send produced no sentence, no failed bubble and no reason — just a clock
+     * that never settled. The server now answers it on the ack like every other refusal, which is
+     * what lets it be one more line here instead of a second failure channel.
+     */
+    private val rateLimited: String,
 ) {
     fun forCode(code: String?): String = when (code) {
         "MSG_CONTENT_TOO_LONG" -> tooLong
         "MSG_NOT_MEMBER" -> notMember
         "MSG_ANNOUNCEMENT_ONLY" -> announcementOnly
+        "RATE_LIMITED" -> rateLimited
         else -> generic
     }
 }

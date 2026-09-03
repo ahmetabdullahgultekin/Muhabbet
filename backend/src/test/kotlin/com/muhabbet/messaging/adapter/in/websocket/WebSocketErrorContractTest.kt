@@ -8,6 +8,7 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtProvider
@@ -152,6 +153,33 @@ class WebSocketErrorContractTest {
         verify(exactly = 0) { session.close(any()) }
         val error = wsJson.decodeFromString<WsMessage>(sent.single()) as WsMessage.Error
         assertEquals(ErrorCode.VALIDATION_ERROR.name, error.code)
+    }
+
+    @Test
+    fun `should answer a rate-limited send on the ack the sender is waiting for`() {
+        // #725. The refusal used to be a bare Error frame, which carries no requestId — so the
+        // sender's bubble had nothing to settle it and kept its clock icon forever. Every
+        // message.send now gets exactly one reply, and it is always an ack.
+        every { rateLimiter.allowMessage(userId) } returns false
+
+        val ack = ackOf(send(sendMessageFrame()).single())
+
+        assertEquals(AckStatus.ERROR, ack.status)
+        assertEquals(ErrorCode.RATE_LIMITED.name, ack.errorCode)
+        assertEquals("req-1", ack.requestId)
+        verify(exactly = 0) { sendMessageUseCase.sendMessage(any()) }
+    }
+
+    @Test
+    fun `should still answer a rate-limited frame that is not a send with a bare error`() {
+        // A typing indicator has no requestId to answer on and nothing on the client is waiting for
+        // a reply to it, so the protocol-level error frame stays what it always was.
+        every { rateLimiter.allowMessage(userId) } returns false
+
+        val sent = send(WsMessage.TypingIndicator(conversationId = conversationId.toString(), isTyping = true))
+
+        val error = wsJson.decodeFromString<WsMessage>(sent.single()) as WsMessage.Error
+        assertEquals(ErrorCode.RATE_LIMITED.name, error.code)
     }
 
     @Test

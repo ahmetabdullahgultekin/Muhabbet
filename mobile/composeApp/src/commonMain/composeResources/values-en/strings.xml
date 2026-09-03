@@ -16,6 +16,7 @@
     <string name="error_send_too_long">Message is too long. Shorten it and try again.</string>
     <string name="error_send_not_member">You are no longer a member of this conversation</string>
     <string name="error_send_announcement_only">Only admins can post in this group</string>
+    <string name="error_send_rate_limited">You are sending messages too quickly. Wait a moment and try again.</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="delete">Delete</string>
@@ -523,6 +524,9 @@
     <string name="status_sent">Sent</string>
     <string name="status_delivered">Delivered</string>
     <string name="status_read">Read</string>
+    <string name="status_failed">Not sent</string>
+
+    <string name="chat_context_retry">Send again</string>
 
     <!-- Call screen -->
     <string name="call_switch_camera">Switch Camera</string>

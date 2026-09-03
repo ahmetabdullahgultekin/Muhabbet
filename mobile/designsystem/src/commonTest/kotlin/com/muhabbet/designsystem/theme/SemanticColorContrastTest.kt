@@ -140,6 +140,7 @@ class SemanticColorContrastTest {
         Pair("$name statusRead/bubbleOwn", c.statusRead, c.bubbleOwn.container, nonTextFloor),
         Pair("$name statusDelivered/bubbleOwn", c.statusDelivered, c.bubbleOwn.container, nonTextFloor),
         Pair("$name statusSending/bubbleOwn", c.statusSending, c.bubbleOwn.container, nonTextFloor),
+        Pair("$name statusFailed/bubbleOwn", c.statusFailed, c.bubbleOwn.container, nonTextFloor),
         Pair("$name statusOnline/inputBar", c.statusOnline, c.inputBar.container, nonTextFloor),
         Pair("$name callMissed/inputBar", c.callMissed, c.inputBar.container, nonTextFloor),
         // A divider is a rule, not prose, and it is the one place the palette is deliberately quiet.

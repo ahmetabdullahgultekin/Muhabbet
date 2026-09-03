@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Group
@@ -152,6 +153,15 @@ object MuhabbetIcons {
     val Sent: ImageVector get() = Icons.Default.Check
     val Delivered: ImageVector get() = Icons.Default.DoneAll
     val Pending: ImageVector get() = Icons.Default.AccessTime
+
+    /**
+     * The mark on an outgoing message the server refused (#725).
+     *
+     * Deliberately not a tick or a clock. The other three delivery marks are a progression and are
+     * told apart by how far along it they are; this one is not on that line at all, and a message
+     * that is never going to arrive must not be drawn as one that has not arrived yet.
+     */
+    val SendFailed: ImageVector get() = Icons.Default.ErrorOutline
 
     // Media
     val Image: ImageVector get() = Icons.Default.Image
