@@ -21,7 +21,7 @@ class ReactionAllowListTest {
         s.map { c -> "U+" + c.code.toString(16).uppercase().padStart(4, '0') }
 
     @Test
-    fun `the allow list holds exactly the six reactions the bar offers, byte for byte`() {
+    fun `the allow list holds exactly the six reactions the bar offers byte for byte`() {
         val expected = listOf(
             listOf("U+2764", "U+FE0F"),          // heart, with its variation selector
             listOf("U+D83D", "U+DC4D"),          // thumbs up
