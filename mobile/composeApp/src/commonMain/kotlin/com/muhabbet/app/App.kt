@@ -13,6 +13,7 @@ import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.PushTokenRegistrar
+import com.muhabbet.app.data.repository.ReceivedMediaAutoSaver
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.di.bootstrapOrReuseKoin
@@ -21,6 +22,7 @@ import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.navigation.isSessionActive
 import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.CrashReporter
+import com.muhabbet.app.platform.rememberMediaGallerySaver
 import com.muhabbet.app.session.SessionWiring
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
@@ -30,6 +32,9 @@ import com.muhabbet.shared.protocol.WsMessage
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.filterIsInstance
 import org.koin.core.module.Module
 
 @Composable
@@ -160,6 +165,41 @@ private fun SessionLifecycle(root: RootComponent) {
         }
     }
 
+    // Media visibility (#593): copy received photos and videos into the phone's gallery, when the
+    // user has switched that on.
+    //
+    // A collector of its own rather than a branch inside the ack pump above, for two reasons. A
+    // download takes seconds and `collect` is sequential, so sharing the pump would delay every
+    // DELIVERED receipt behind whatever photo is being fetched — the ticks would visibly lag the
+    // message. And the two have different failure tolerances: the pump must never die, while an
+    // auto-save that throws should be absorbed and logged. `incoming` is a SharedFlow, so a second
+    // collector sees the same frames rather than competing for them.
+    //
+    // `buffer(DROP_OLDEST)` is load-bearing, not decoration. `_incoming` is a MutableSharedFlow with
+    // 64 slots and the default SUSPEND overflow, so a collector that takes seconds per frame
+    // back-pressures the socket read loop once those fill — every chat on the device would stop
+    // receiving while one photo downloaded. The buffer decouples this collector from that; under a
+    // burst big enough to fill it, a photo is skipped rather than the app stalling, which is the
+    // right trade for a convenience feature. Saving each frame in its own `launch` would avoid the
+    // stall too, but with no bound at all: two hundred forwarded photos would be two hundred
+    // concurrent downloads held in memory.
+    //
+    // Keyed on `loggedIn` for the third time on this screen and the same reason (#349): mounted
+    // above the auth switch, a Unit key would sample isLoggedIn() once, on the login screen.
+    val autoSaver: ReceivedMediaAutoSaver = koinInject()
+    val gallerySaver = rememberMediaGallerySaver()
+    LaunchedEffect(loggedIn, gallerySaver) {
+        if (loggedIn) {
+            val currentUserId = tokenStorage.getUserId() ?: return@LaunchedEffect
+            wsClient.incoming
+                .filterIsInstance<WsMessage.NewMessage>()
+                .buffer(capacity = AUTO_SAVE_QUEUE, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+                .collect { message ->
+                    autoSaver.onMessageReceived(message, currentUserId, gallerySaver)
+                }
+        }
+    }
+
     // The language the app is *rendering*, read out of strings.xml itself, so it accounts for the
     // in-app language picker and — when nothing has been picked — for the phone's own language.
     // Push text is composed on the server, which has no other way to learn either: every
@@ -221,3 +261,10 @@ private fun SessionLifecycle(root: RootComponent) {
         if (loggedIn) sessionWiring.onSessionActive() else sessionWiring.onSessionEnded()
     }
 }
+
+/**
+ * How many freshly arrived media frames may queue for the gallery writer before the oldest is
+ * dropped. Deliberately far smaller than the socket's own 64-slot buffer, so this collector is
+ * never the thing holding the read loop back — see the effect that uses it.
+ */
+private const val AUTO_SAVE_QUEUE = 16
