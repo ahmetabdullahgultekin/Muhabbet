@@ -10,7 +10,21 @@ enum class MessageStatus {
     SENDING,    // client-only: queued locally
     SENT,       // server ACKed receipt
     DELIVERED,  // recipient device received
-    READ        // recipient opened conversation
+    READ,       // recipient opened conversation
+
+    /**
+     * Client-only, like [SENDING]: the server answered this send with an error ack and will not be
+     * sending another one.
+     *
+     * It exists because there was no way to draw that (#725). A refused message kept the clock
+     * [SENDING] gave it, forever — the same picture as a message still on its way, on a message
+     * that is never going anywhere. That is worst for a rate-limited send, where the clock invites
+     * exactly the retry the limiter is trying to stop, but it was true of every refusal.
+     *
+     * Never put on the wire in either direction. The server has its own `DeliveryStatus` and no
+     * concept of this; a client sending it in a `message.ack` would be ignored.
+     */
+    FAILED
 }
 
 @Serializable

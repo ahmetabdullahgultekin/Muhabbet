@@ -56,7 +56,7 @@ class SessionWiringTest {
     // ─── The session starting ───
 
     @Test
-    fun `should attach the user who signed in during this session, not the snapshot taken before login`() {
+    fun `should attach the user who signed in during this session rather than the snapshot from before login`() {
         // The shape of #349: on a fresh install the first composition happens on the LOGIN screen,
         // where getUserId() is null. Reading it there and never again is exactly what left a whole
         // session's crash reports unattributed.

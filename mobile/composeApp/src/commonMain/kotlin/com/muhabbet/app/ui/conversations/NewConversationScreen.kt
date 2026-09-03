@@ -30,10 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.KnownPerson
 import com.muhabbet.app.data.repository.KnownPeopleSource
 import com.muhabbet.app.ui.people.PeoplePickerActionRow
+import com.muhabbet.app.ui.share.rememberShareMuhabbetAction
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -113,6 +115,11 @@ fun NewConversationScreen(
     val errorMsg = stringResource(Res.string.error_generic)
     val contactsSyncingLabel = stringResource(Res.string.contacts_syncing)
     val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
+
+    // #591. Resolved here rather than at the call site: both halves of the share action —
+    // the platform launcher and the invite string — are @Composable-only, and the empty
+    // state that uses it sits inside a `when` branch deep in the layout.
+    val shareMuhabbet = rememberShareMuhabbetAction()
 
     // The sync is slow enough that the placeholder always earns its place, but it goes through the
     // same gate as every other screen so there is one answer to "when does a skeleton appear".
@@ -328,6 +335,24 @@ fun NewConversationScreen(
                             Text(
                                 stringResource(Res.string.contacts_none_found),
                                 style = MaterialTheme.typography.bodyLarge
+                            )
+                            // #591: this screen used to end here. Someone who has just synced their
+                            // address book and matched nobody is exactly the person with a reason
+                            // to invite one — and until now the app gave them no way to, which for
+                            // a messenger is the growth mechanism missing at the one moment it is
+                            // wanted.
+                            Spacer(Modifier.height(MuhabbetSpacing.Large))
+                            Text(
+                                stringResource(Res.string.contacts_none_found_invite_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(MuhabbetSpacing.Medium))
+                            MuhabbetButton(
+                                text = stringResource(Res.string.share_app_title),
+                                onClick = shareMuhabbet,
+                                role = MuhabbetButtonRole.Primary
                             )
                         }
                     }

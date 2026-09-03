@@ -8,6 +8,16 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!--
+        Media visibility / auto-save (#593). Capped at 28 on purpose: from API 29 scoped storage
+        lets an app insert its own rows into MediaStore with no permission at all, so asking a
+        modern device for storage access would be a prompt with nothing behind it. API 26–28 has no
+        MediaStore write path and needs the legacy file write — see MediaGallerySaver.android.kt.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application

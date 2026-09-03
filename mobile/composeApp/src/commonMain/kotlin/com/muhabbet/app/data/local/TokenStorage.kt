@@ -56,6 +56,27 @@ interface TokenStorage {
     fun getEnterToSend(): Boolean
     fun setEnterToSend(enabled: Boolean)
 
+    /**
+     * Whether media received in chats is copied into the phone's own gallery (#593).
+     *
+     * Defaults to **false**, unlike WhatsApp's equivalent. Two reasons, and neither is timidity:
+     * writing someone's chat photos into a shared album that every other app on the phone can read
+     * is a privacy decision this app does not get to make on their behalf, and a default-on switch
+     * would have started copying received photos out of the sandbox on every existing install the
+     * moment they updated, without anyone being asked. It is also permission-bearing below API 29,
+     * and a default that needs a permission the user never granted is a setting that silently does
+     * nothing.
+     *
+     * Abstract, for the same reason as every neighbour that says so. A defaulted no-op would read
+     * back false forever, so the switch in Settings would move and no photo would ever reach the
+     * gallery — the #377/#378/#380 failure exactly, and it would compile.
+     *
+     * A per-device preference, deliberately not synced to the account: which phone's gallery holds
+     * your chat photos is a property of the phone, not of the person.
+     */
+    fun getSaveMediaToGallery(): Boolean
+    fun setSaveMediaToGallery(enabled: Boolean)
+
     fun getLastSyncTimestamp(): String? = null
     fun setLastSyncTimestamp(timestamp: String) {}
 

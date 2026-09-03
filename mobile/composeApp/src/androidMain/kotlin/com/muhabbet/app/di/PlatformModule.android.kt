@@ -110,6 +110,17 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putBoolean("enter_to_send", enabled).apply()
     }
 
+    // Defaults to false when never written — see TokenStorage.getSaveMediaToGallery for why the
+    // opt-in direction is the deliberate one. Plain prefs: where photos go is a preference, and it
+    // must be readable before the encrypted store is up so the auto-saver can decide on the first
+    // message of a session.
+    override fun getSaveMediaToGallery(): Boolean =
+        plainPrefs.getBoolean("save_media_to_gallery", false)
+
+    override fun setSaveMediaToGallery(enabled: Boolean) {
+        plainPrefs.edit().putBoolean("save_media_to_gallery", enabled).apply()
+    }
+
     override fun getTheme(): String? = plainPrefs.getString("app_theme", null)
 
     override fun setTheme(theme: String) {

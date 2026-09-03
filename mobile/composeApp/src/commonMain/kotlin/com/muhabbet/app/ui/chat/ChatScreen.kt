@@ -188,6 +188,7 @@ fun ChatScreen(
         tooLong = stringResource(Res.string.error_send_too_long),
         notMember = stringResource(Res.string.error_send_not_member),
         announcementOnly = stringResource(Res.string.error_send_announcement_only),
+        rateLimited = stringResource(Res.string.error_send_rate_limited),
     )
 
     // One place decides what a send that did not reach the wire looks like.
@@ -203,6 +204,48 @@ fun ChatScreen(
         if (error is MessageQueuedException) return
         messages = messages.filter { it.id != messageId }
         snackbarHostState.showSnackbar(errorSendMsg)
+    }
+
+    /**
+     * Puts a refused message back on the wire, from what its own bubble is already holding (#725).
+     *
+     * The affordance the failed state needs: a terminal red mark with no way out of it is only half
+     * an improvement on a clock that never settles. Every field a resend needs — the text, the media
+     * url, what it was replying to — is on the [Message] the list is drawing, so nothing has to be
+     * remembered per send site.
+     *
+     * The **messageId is deliberately reused**. It is the server's idempotency key, so if a refusal
+     * ever crossed with a success the second attempt is answered `MSG_DUPLICATE`, which this screen
+     * already treats as the acceptance it is — the message settles to SENT rather than arriving
+     * twice. Only the `requestId` is fresh, because that is what an ack correlates on, and because
+     * `WsClient` deduplicates acks by it.
+     *
+     * What it cannot carry back is `mediaId`, which the bubble never held: a retried view-once photo
+     * falls back to the weaker seal (the blob outlives the burn) rather than failing. That is the
+     * documented behaviour for any send that omits it, not a new hole.
+     */
+    fun retrySend(message: Message) {
+        messages = messages.map { m -> if (m.id == message.id) m.copy(status = MessageStatus.SENDING) else m }
+        scope.launch {
+            try {
+                wsClient.send(
+                    WsMessage.SendMessage(
+                        requestId = generateMessageId(),
+                        messageId = message.id,
+                        conversationId = conversationId,
+                        content = message.content,
+                        contentType = message.contentType,
+                        replyToId = message.replyToId,
+                        mediaUrl = message.mediaUrl,
+                        thumbnailUrl = message.thumbnailUrl,
+                        forwardedFrom = message.forwardedFrom,
+                        viewOnce = message.viewOnce
+                    )
+                )
+            } catch (e: Exception) {
+                reportSendOutcome(message.id, e)
+            }
+        }
     }
 
     // Documents, link previews and shared locations all end here. Opening can genuinely fail —
@@ -567,7 +610,16 @@ fun ChatScreen(
                     // error ack carries no serverTimestamp, so the existing one is kept.
                     if (ws.status == AckStatus.OK || serverAlreadyHasMessage(ws.errorCode)) {
                         messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
-                    } else scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
+                    } else {
+                        // The bubble is marked as well as the snackbar shown (#725). A snackbar is
+                        // gone in four seconds and the message it was about is still sitting there
+                        // wearing a clock; a sender who looks away for a moment is left with the
+                        // same picture a message still in flight gives them, on one that is not
+                        // coming back. FAILED is terminal — nothing else will arrive for this
+                        // messageId — and its bubble offers "send again" on long press.
+                        messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.FAILED) else m }
+                        scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
+                    }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
                     messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
@@ -914,6 +966,7 @@ fun ChatScreen(
                                 snackbarHostState.showSnackbar(errorActionMsg) } } },
                             onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                             onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
+                            onRetry = { msg -> contextMenuMessageId = null; retrySend(msg) },
                             onImageClick = { fullImage = it },
                             onReactionToggle = { msg, emoji ->
                                 scope.launch {

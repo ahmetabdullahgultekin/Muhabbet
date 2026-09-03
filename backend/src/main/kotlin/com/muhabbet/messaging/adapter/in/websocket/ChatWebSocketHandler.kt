@@ -78,7 +78,7 @@ class ChatWebSocketHandler(
 
         // Per-connection rate limiting
         if (!webSocketRateLimiter.allowMessage(userId)) {
-            sessionManager.sendError(session, ErrorCode.RATE_LIMITED, "Too many messages, please slow down")
+            sessionManager.refuseRateLimited(session, message.payload)
             return
         }
 
@@ -237,14 +237,14 @@ class ChatWebSocketHandler(
             // sentence or the server's Turkish text shown to someone reading the app in English.
             // The REST path never had this problem — GlobalExceptionHandler answers with
             // `errorCode.name` — so this is the WebSocket path being brought into line with it.
-            respondSendFailed(session, msg, e.errorCode, e.message)
+            sessionManager.sendFailedAck(session, msg, e.errorCode, e.message)
             log.warn("Message rejected: {} - {}", e.errorCode, e.message)
         } catch (e: Exception) {
             // A genuine fault, and kept distinct from a refusal on both channels: the client is told
             // INTERNAL_ERROR rather than something from the message domain, and the log carries the
             // stack trace instead of just `e.message`. GlobalExceptionHandler draws the same line
             // for the same reason — so this line stays worth paging on.
-            respondSendFailed(session, msg, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
+            sessionManager.sendFailedAck(session, msg, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
             log.error("Unexpected failure sending message: conv={}", msg.conversationId, e)
         }
     }
@@ -304,22 +304,6 @@ class ChatWebSocketHandler(
     }
 
     // ─── Messaging Helpers ────────────────────────────────────
-
-    private fun respondSendFailed(
-        session: WebSocketSession,
-        msg: WsMessage.SendMessage,
-        code: ErrorCode,
-        message: String?
-    ) {
-        val ack = WsMessage.ServerAck(
-            requestId = msg.requestId,
-            messageId = msg.messageId,
-            status = AckStatus.ERROR,
-            errorCode = code.name,
-            errorMessage = message
-        )
-        sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
-    }
 
     private fun sendPong(session: WebSocketSession) {
         val pong = WsMessage.Pong

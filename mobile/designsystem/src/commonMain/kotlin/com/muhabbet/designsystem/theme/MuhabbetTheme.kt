@@ -119,6 +119,17 @@ data class MuhabbetSemanticColors(
     val statusRead: Color,
     val statusDelivered: Color,
     val statusSending: Color,
+
+    /**
+     * The mark on an outgoing message the server refused (#725).
+     *
+     * The one delivery mark that carries colour as well as shape. The note above explains why the
+     * other three do not: they are a progression, the glyph already says how far along it a message
+     * is, and separating them by colour cost the app its contrast floor on the copper bubble. This
+     * one is not on that progression — it means "stopped, and it needs you" — and alarm is the
+     * thing colour is genuinely for. It is measured against the own bubble like the rest.
+     */
+    val statusFailed: Color,
     val callMissed: Color,
     val linkColor: Color,
     val dividerColor: Color,
@@ -208,6 +219,7 @@ val LightSemanticColors = MuhabbetSemanticColors(
     statusRead = MuhabbetPalette.InfoBlue,
     statusDelivered = MuhabbetPalette.Ink.I50,
     statusSending = MuhabbetPalette.Ink.I50,
+    statusFailed = MuhabbetPalette.Danger,
     callMissed = MuhabbetPalette.Danger,
     linkColor = MuhabbetPalette.Copper.C40,
     dividerColor = MuhabbetPalette.Ink.I80,
@@ -240,6 +252,7 @@ val DarkSemanticColors = MuhabbetSemanticColors(
     statusRead = MuhabbetPalette.InfoBlueOnDark,
     statusDelivered = MuhabbetPalette.Ink.I60,
     statusSending = MuhabbetPalette.Ink.I60,
+    statusFailed = MuhabbetPalette.DangerOnDark,
     callMissed = MuhabbetPalette.DangerOnDark,
     linkColor = MuhabbetPalette.Copper.C80,
     dividerColor = MuhabbetPalette.Ink.I20,

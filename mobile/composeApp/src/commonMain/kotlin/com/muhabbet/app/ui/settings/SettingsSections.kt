@@ -34,11 +34,14 @@ import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.PrivacySettingsController
 import com.muhabbet.app.util.formatBytes
 import com.muhabbet.app.data.local.ComposerSettingsController
+import com.muhabbet.app.data.local.MediaVisibilityController
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.NotificationPermission
 import com.muhabbet.app.platform.NotificationPermissionState
+import com.muhabbet.app.platform.rememberGallerySavePermissionRequester
+import com.muhabbet.app.platform.rememberMediaGallerySaver
 import androidx.compose.ui.semantics.Role
 import com.muhabbet.designsystem.modifier.pressable
 import com.muhabbet.designsystem.components.EditableAvatar
@@ -467,6 +470,46 @@ internal fun EnterToSendSection(composerSettings: ComposerSettingsController = k
         subtitle = stringResource(Res.string.settings_enter_to_send_subtitle),
         checked = enabled,
         onCheckedChange = { composerSettings.setEnterToSend(it) }
+    )
+}
+
+/**
+ * Media visibility — whether photos and videos received in chats are copied to the phone's gallery
+ * (#593).
+ *
+ * Three things this row does that a plain switch would not:
+ *
+ * - **It is absent where it would be a lie.** A platform that cannot write to a shared gallery (iOS
+ *   without `NSPhotoLibraryAddUsageDescription` in the host app) gets no row at all, rather than a
+ *   switch that saves a preference nothing can act on.
+ * - **It asks for the permission when you turn it on**, not when the first photo happens to arrive.
+ *   Below Android API 29 this needs storage access; without it the auto-saver would return
+ *   PERMISSION_REQUIRED for every message and the switch would sit on, doing nothing.
+ * - **It refuses to turn on if the permission is denied**, so the stored value and what the app can
+ *   actually do never disagree. Turning it *off* is unconditional — revoking a preference must
+ *   never be blocked on a dialog.
+ *
+ * Reads the same [MediaVisibilityController] the auto-saver does; see that class for what a second
+ * copy of this value would cost.
+ */
+@Composable
+internal fun MediaVisibilitySection(
+    mediaVisibility: MediaVisibilityController = koinInject()
+) {
+    val gallerySaver = rememberMediaGallerySaver()
+    if (!gallerySaver.isSupported()) return
+
+    val enabled by mediaVisibility.saveToGallery.collectAsState()
+    val requestPermission = rememberGallerySavePermissionRequester { granted ->
+        if (granted) mediaVisibility.setSaveToGallery(true)
+    }
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_media_visibility),
+        subtitle = stringResource(Res.string.settings_media_visibility_subtitle),
+        checked = enabled,
+        onCheckedChange = { wantsOn ->
+            if (wantsOn) requestPermission() else mediaVisibility.setSaveToGallery(false)
+        }
     )
 }
 

@@ -16,6 +16,7 @@
     <string name="error_send_too_long">Message is too long. Shorten it and try again.</string>
     <string name="error_send_not_member">You are no longer a member of this conversation</string>
     <string name="error_send_announcement_only">Only admins can post in this group</string>
+    <string name="error_send_rate_limited">You are sending messages too quickly. Wait a moment and try again.</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="delete">Delete</string>
@@ -116,7 +117,6 @@
     <string name="start_by_number_searching">Searching…</string>
     <string name="start_by_number_not_registered">This number is not on Muhabbet.</string>
     <string name="start_by_number_invite">Invite to Muhabbet</string>
-    <string name="start_by_number_invite_text">You can reach me on Muhabbet, a KVKK-compliant Turkish messaging app.</string>
     <string name="start_by_number_own_number">That is your own number.</string>
 
     <!-- Choosing people without handing over the address book (#520) -->
@@ -523,6 +523,9 @@
     <string name="status_sent">Sent</string>
     <string name="status_delivered">Delivered</string>
     <string name="status_read">Read</string>
+    <string name="status_failed">Not sent</string>
+
+    <string name="chat_context_retry">Send again</string>
 
     <!-- Call screen -->
     <string name="call_switch_camera">Switch Camera</string>
@@ -944,4 +947,15 @@
     <string name="whatsnew_0_3_8_line_1">Version 0.3.7 crashed on launch and would not start for anyone. This release undoes that.</string>
     <string name="whatsnew_0_3_8_line_2">The menu now tells you that you have 15 minutes to edit a message. Past that window the option is greyed out and says why.</string>
     <string name="whatsnew_0_3_8_line_3">The read receipts setting described itself wrongly. Turning it off does not stop you seeing other people's receipts; it only stops you sharing yours.</string>
+
+    <!-- Share Muhabbet (#591) -->
+    <string name="share_app_title">Share Muhabbet</string>
+    <string name="share_app_subtitle">Invite your friends</string>
+    <string name="share_app_text">I am using Muhabbet — a privacy-first messenger built in Turkey. Come and join me: %1$s</string>
+    <string name="contacts_none_found_invite_hint">Nobody in your contacts is on Muhabbet yet. Be the one who invites them.</string>
+
+    <!-- Media visibility (#593) -->
+    <string name="settings_media_visibility">Media visibility</string>
+    <string name="settings_media_visibility_subtitle">When on, photos and videos you receive from now on are saved to your phone's gallery. View-once and disappearing media are never saved.</string>
+
 </resources>
