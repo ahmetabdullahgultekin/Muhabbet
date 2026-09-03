@@ -568,6 +568,13 @@ All frames are JSON with a `type` discriminator:
 }
 ```
 
+**Every `message.send` is answered by exactly one `ack`** — never by an `error` frame (#725). A
+refusal arrives as `"status": "ERROR"` with `errorCode` set to the real `ErrorCode`, including
+`RATE_LIMITED` when the send was over the limit. Only `error` carries no `requestId`, so a client
+has nothing to correlate it with; a refused send that came back that way left the sender's bubble
+pending forever. `error` remains the answer for frames with no reply of their own — auth failure,
+an unparseable frame, a typing indicator that was rate-limited.
+
 ---
 
 ## Error Code Registry

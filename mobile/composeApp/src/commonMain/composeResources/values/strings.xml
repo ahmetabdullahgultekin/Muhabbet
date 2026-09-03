@@ -16,6 +16,10 @@
     <string name="error_send_too_long">Mesaj çok uzun. Kısaltıp tekrar deneyin.</string>
     <string name="error_send_not_member">Artık bu konuşmanın üyesi değilsiniz</string>
     <string name="error_send_announcement_only">Bu grupta sadece yöneticiler mesaj gönderebilir</string>
+    <!-- The refusal that used to reach the sender as nothing at all (#725): too many messages too
+         quickly. It says what to do, because the alternative the user reaches for is to send it
+         again, which is the one thing that makes it worse. -->
+    <string name="error_send_rate_limited">Çok hızlı mesaj gönderiyorsunuz. Biraz bekleyip tekrar deneyin.</string>
     <string name="cancel">İptal</string>
     <string name="save">Kaydet</string>
     <string name="delete">Sil</string>
@@ -547,6 +551,10 @@
     <string name="status_sent">Gönderildi</string>
     <string name="status_delivered">İletildi</string>
     <string name="status_read">Okundu</string>
+    <string name="status_failed">Gönderilemedi</string>
+
+    <!-- Offered on a message the server refused, and only on that one (#725). -->
+    <string name="chat_context_retry">Tekrar gönder</string>
 
     <!-- Call screen -->
     <string name="call_switch_camera">Kamerayı Değiştir</string>

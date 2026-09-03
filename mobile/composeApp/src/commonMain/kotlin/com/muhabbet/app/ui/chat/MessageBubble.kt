@@ -93,6 +93,7 @@ fun MessageBubble(
     onStar: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
+    onRetry: () -> Unit = {},
     onImageClick: (String) -> Unit = {},
     onReactionToggle: (String) -> Unit = {},
     onInfo: () -> Unit = {},
@@ -412,12 +413,17 @@ fun MessageBubble(
                                 MessageStatus.SENT -> Muhabbet.icons.Sent to onBubbleColor.copy(alpha = 0.7f)
                                 MessageStatus.DELIVERED -> Muhabbet.icons.Delivered to onBubbleColor.copy(alpha = 0.7f)
                                 MessageStatus.READ -> Muhabbet.icons.Delivered to semanticColors.statusRead
+                                // Not dimmed like the marks above it. Those recede on purpose —
+                                // they are bookkeeping nobody needs to act on. This one is the only
+                                // thing telling the sender their message did not go (#725).
+                                MessageStatus.FAILED -> Muhabbet.icons.SendFailed to semanticColors.statusFailed
                             }
                             val statusDesc = when (message.status) {
                                 MessageStatus.SENDING -> stringResource(Res.string.status_sending)
                                 MessageStatus.SENT -> stringResource(Res.string.status_sent)
                                 MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
                                 MessageStatus.READ -> stringResource(Res.string.status_read)
+                                MessageStatus.FAILED -> stringResource(Res.string.status_failed)
                             }
                             // The tick changes because the other device answered, so it is worth
                             // showing rather than swapping. Effects spring, not spatial: this is a
@@ -490,6 +496,19 @@ fun MessageBubble(
                     onClick = onInfo
                 )
                 if (isOwn) {
+                    // First, and only on a message the server actually refused (#725). A failed
+                    // bubble needs somewhere to go: the mark says the message did not send, and
+                    // without this the only way to act on it is to type it again from scratch.
+                    // Offering it on a message that is merely still in flight would invite a
+                    // duplicate, which is why it is gated on the terminal state rather than on
+                    // "not yet SENT".
+                    if (message.status == MessageStatus.FAILED) {
+                        MuhabbetMenuItem(
+                            text = stringResource(Res.string.chat_context_retry),
+                            icon = Muhabbet.icons.Refresh,
+                            onClick = onRetry
+                        )
+                    }
                     if (message.contentType == ContentType.TEXT) {
                         // The server has always refused an edit after fifteen minutes; the app used
                         // to offer it anyway, let the user retype the message, and only then fail

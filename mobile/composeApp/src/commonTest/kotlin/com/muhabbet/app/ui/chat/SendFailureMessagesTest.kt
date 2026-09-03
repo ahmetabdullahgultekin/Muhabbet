@@ -19,6 +19,7 @@ class SendFailureMessagesTest {
         tooLong = "too-long",
         notMember = "not-member",
         announcementOnly = "announcement-only",
+        rateLimited = "rate-limited",
     )
 
     @Test
@@ -26,13 +27,16 @@ class SendFailureMessagesTest {
         assertEquals("too-long", messages.forCode("MSG_CONTENT_TOO_LONG"))
         assertEquals("not-member", messages.forCode("MSG_NOT_MEMBER"))
         assertEquals("announcement-only", messages.forCode("MSG_ANNOUNCEMENT_ONLY"))
+        // #725: the refusal that reached the user as silence until the server started answering it
+        // on the ack.
+        assertEquals("rate-limited", messages.forCode("RATE_LIMITED"))
     }
 
     @Test
     fun should_give_a_different_sentence_to_every_cause_it_recognises() {
         // The whole of #572 in one assertion: a user whose message was too long and a user who was
         // removed from the group used to be told the same thing.
-        val rendered = listOf("MSG_CONTENT_TOO_LONG", "MSG_NOT_MEMBER", "MSG_ANNOUNCEMENT_ONLY")
+        val rendered = listOf("MSG_CONTENT_TOO_LONG", "MSG_NOT_MEMBER", "MSG_ANNOUNCEMENT_ONLY", "RATE_LIMITED")
             .map { messages.forCode(it) }
         assertEquals(rendered.size, rendered.toSet().size, "each recognised code must render differently")
         assertFalse("generic" in rendered, "a recognised code must not fall back to the generic sentence")

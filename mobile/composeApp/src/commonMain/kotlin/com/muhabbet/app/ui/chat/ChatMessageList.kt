@@ -56,6 +56,8 @@ internal class ChatMessageActions(
     val onStar: (Message, Boolean) -> Unit,
     val onEdit: (Message) -> Unit,
     val onDelete: (Message) -> Unit,
+    /** Puts a message the server refused back on the wire (#725). */
+    val onRetry: (Message) -> Unit,
     val onImageClick: (String) -> Unit,
     val onReactionToggle: (Message, String) -> Unit,
     val onQuickReaction: (Message, String) -> Unit,
@@ -191,6 +193,7 @@ internal fun ChatMessageList(
                                 onStar = { actions.onStar(message, isStarred) },
                                 onEdit = { actions.onEdit(message) },
                                 onDelete = { actions.onDelete(message) },
+                                onRetry = { actions.onRetry(message) },
                                 onImageClick = { actions.onImageClick(it) },
                                 onReactionToggle = { emoji -> actions.onReactionToggle(message, emoji) },
                                 onInfo = { actions.onInfo(message) },

@@ -69,7 +69,9 @@ class PendingAckQueue(private val maxSize: Int = DEFAULT_MAX_SIZE) {
      */
     private fun rank(status: MessageStatus): Int =
         when (status) {
-            MessageStatus.SENDING -> 0
+            // Neither is a receipt at all — one has not reached the server, the other was refused
+            // by it — so they rank below the weakest thing that can be sent.
+            MessageStatus.SENDING, MessageStatus.FAILED -> 0
             MessageStatus.SENT -> 1
             MessageStatus.DELIVERED -> 2
             MessageStatus.READ -> 3

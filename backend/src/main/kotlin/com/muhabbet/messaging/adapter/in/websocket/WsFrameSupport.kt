@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import kotlinx.serialization.encodeToString
@@ -29,6 +30,67 @@ internal fun WebSocketSessionManager.sendError(session: WebSocketSession, code: 
     val error = WsMessage.Error(code = code.name, message = message)
     if (session.isOpen) {
         send(session, wsJson.encodeToString<WsMessage>(error))
+    }
+}
+
+/**
+ * Refuses a `message.send` on the ack the sender is waiting for.
+ *
+ * The counterpart of [sendError] for the one frame type that has a reply of its own. Both take an
+ * [ErrorCode] for the same reason — the string this used to build by hand is how `MSG_SEND_FAILED`,
+ * which is not a member of the enum, reached clients for months (#572).
+ */
+internal fun WebSocketSessionManager.sendFailedAck(
+    session: WebSocketSession,
+    msg: WsMessage.SendMessage,
+    code: ErrorCode,
+    message: String?
+) {
+    val ack = WsMessage.ServerAck(
+        requestId = msg.requestId,
+        messageId = msg.messageId,
+        status = AckStatus.ERROR,
+        errorCode = code.name,
+        errorMessage = message
+    )
+    send(session, wsJson.encodeToString<WsMessage>(ack))
+}
+
+/**
+ * Answers a frame the rate limiter refused — with an ack, when the frame was a send (#725).
+ *
+ * A refusal used to leave the socket with a bare [WsMessage.Error]. The sender's bubble is settled
+ * by the `ServerAck` correlated to its `requestId` and by nothing else, so a refused send got no
+ * answer it could act on: the clock icon it was given on send stayed there forever,
+ * indistinguishable from a slow network, and the natural response is to send it again — which is
+ * the one thing the limiter exists to prevent.
+ *
+ * The alternative was to teach the chat screen to read `Error` frames and correlate them itself. It
+ * cannot: an `Error` carries a code and a sentence, no `requestId` and no `messageId`, so there is
+ * nothing to attach it to and no way to tell which of several in-flight sends it refers to. Widening
+ * that frame would have invented a second, parallel way to fail a send alongside the one #572 had
+ * just finished making coherent. Answering on the ack instead means every `message.send` gets
+ * exactly one reply, always of the same type, and `RATE_LIMITED` lands in the client's existing
+ * code→sentence mapping with no new client concept at all.
+ *
+ * Parsing here costs one decode of a frame that is about to be discarded, and only for frames over
+ * the limit — an accepted frame is still decoded exactly once, by the caller. The error frame this
+ * writes back costs more than the parse that addresses it.
+ *
+ * Anything that is not a send keeps the bare error: a typing indicator or an ack has no `requestId`
+ * to answer on, and nothing on the client is waiting for a reply to it.
+ */
+internal fun WebSocketSessionManager.refuseRateLimited(session: WebSocketSession, payload: String) {
+    val send = try {
+        wsJson.decodeFromString<WsMessage>(payload) as? WsMessage.SendMessage
+    } catch (e: Exception) {
+        log.debug("Rate-limited frame could not be parsed: {}", e.message)
+        null
+    }
+    if (send != null) {
+        sendFailedAck(session, send, ErrorCode.RATE_LIMITED, ErrorCode.RATE_LIMITED.defaultMessage)
+    } else {
+        sendError(session, ErrorCode.RATE_LIMITED, ErrorCode.RATE_LIMITED.defaultMessage)
     }
 }
 
