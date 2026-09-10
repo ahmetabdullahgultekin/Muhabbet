@@ -84,7 +84,7 @@
     <string name="chat_delete_title">Mesajı Sil</string>
     <string name="chat_delete_confirm">Bu mesaj silinecek. Bu işlem geri alınamaz.</string>
     <string name="chat_edit_mode">Mesajı düzenle</string>
-    <string name="chat_message_deleted">🚫 Bu mesaj silindi</string>
+    <string name="chat_message_deleted">Bu mesaj silindi</string>
     <string name="chat_edited">düzenlendi</string>
     <string name="chat_context_reply">Yanıtla</string>
     <string name="chat_context_forward">İlet</string>
