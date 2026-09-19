@@ -40,11 +40,21 @@ data class MediaProperties(
         "https://stickers.giphy.com"
     )
 ) {
+    /**
+     * S3 connection for media. Every value comes from the environment (`MINIO_*`); there are no
+     * credential or endpoint defaults here, so a missing one fails at startup in
+     * [ObjectStorageClientFactory] instead of silently signing with a well-known key.
+     * `application-dev.yml` supplies the local MinIO of `infra/docker-compose.yml`.
+     */
     data class MinioProperties(
-        val endpoint: String = "http://localhost:9000",
+        val endpoint: String = "",
         val publicEndpoint: String? = null,
-        val accessKey: String = "minioadmin",
-        val secretKey: String = "minioadmin",
-        val bucket: String = "muhabbet-media"
+        val accessKey: String = "",
+        val secretKey: String = "",
+        val bucket: String = "muhabbet-media",
+        /** Signing region. Blank lets the SDK discover it; Garage needs `garage`. */
+        val region: String? = null,
+        /** `http://host/bucket/key` when true, `http://bucket.host/key` when false. */
+        val pathStyle: Boolean = true
     )
 }

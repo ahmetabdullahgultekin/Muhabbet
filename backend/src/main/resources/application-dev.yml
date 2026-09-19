@@ -20,3 +20,10 @@ muhabbet:
     mock-enabled: true  # Logs OTP to console instead of sending SMS
   fcm:
     enabled: false      # No push notifications in dev
+  media:
+    # The local MinIO from infra/docker-compose.yml, which creates the bucket itself (minio-init).
+    # Env vars still win, so the same profile can point at a local Garage instead.
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}

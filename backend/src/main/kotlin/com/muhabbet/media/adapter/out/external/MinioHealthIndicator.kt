@@ -1,6 +1,7 @@
 package com.muhabbet.media.adapter.out.external
 
 import com.muhabbet.shared.config.MediaProperties
+import com.muhabbet.shared.config.ObjectStorageClientFactory
 import io.minio.BucketExistsArgs
 import io.minio.MinioClient
 import org.springframework.boot.health.contributor.Health
@@ -104,10 +105,7 @@ class MinioHealthIndicator(
 class MinioBucketProbe(private val mediaProperties: MediaProperties) : MinioHealthIndicator.BucketProbe {
 
     private val client: MinioClient by lazy {
-        MinioClient.builder()
-            .endpoint(mediaProperties.minio.endpoint)
-            .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
-            .build()
+        ObjectStorageClientFactory.create(mediaProperties.minio)
             .apply { setTimeout(PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS, PROBE_TIMEOUT_MS) }
     }
 
