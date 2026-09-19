@@ -2,10 +2,10 @@ package com.muhabbet.media.adapter.out.external
 
 import com.muhabbet.media.domain.port.out.MediaStoragePort
 import com.muhabbet.shared.config.MediaProperties
+import com.muhabbet.shared.config.ObjectStorageClientFactory
 import io.minio.BucketExistsArgs
 import io.minio.GetObjectArgs
 import io.minio.GetPresignedObjectUrlArgs
-import io.minio.MakeBucketArgs
 import io.minio.MinioClient
 import io.minio.PutObjectArgs
 import io.minio.RemoveObjectArgs
@@ -26,25 +26,33 @@ class MinioMediaStorageAdapter(
 
     private lateinit var client: MinioClient
 
+    /**
+     * Builds the client and checks, once, that the bucket is there. It never creates one: the
+     * bucket and the key scoped to it are provisioned by infra, and the app key is deliberately not
+     * allowed to create buckets. Idempotent and read-only, so it is safe on every start. A missing
+     * or unreachable bucket is logged and left to [MinioHealthIndicator], which keeps reporting it.
+     */
     @PostConstruct
     fun init() {
-        client = MinioClient.builder()
-            .endpoint(mediaProperties.minio.endpoint)
-            .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
-            .build()
+        client = ObjectStorageClientFactory.create(mediaProperties.minio)
 
         if (!mediaProperties.minio.publicEndpoint.isNullOrBlank()) {
-            log.info("MinIO public endpoint configured: {}", mediaProperties.minio.publicEndpoint)
+            log.info("Object storage public endpoint configured: {}", mediaProperties.minio.publicEndpoint)
         }
 
+        val bucket = mediaProperties.minio.bucket
         try {
-            val bucket = mediaProperties.minio.bucket
             if (!client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
-                client.makeBucket(MakeBucketArgs.builder().bucket(bucket).build())
-                log.info("Created MinIO bucket: {}", bucket)
+                log.error(
+                    "Object storage bucket {} does not exist at {}: media uploads fail until it is provisioned",
+                    bucket, mediaProperties.minio.endpoint
+                )
             }
         } catch (e: Exception) {
-            log.warn("MinIO not reachable at startup ({}): media uploads unavailable until connected", mediaProperties.minio.endpoint)
+            log.warn(
+                "Object storage not reachable at startup ({}): media uploads unavailable until connected: {}",
+                mediaProperties.minio.endpoint, e.message
+            )
         }
     }
 
@@ -68,13 +76,7 @@ class MinioMediaStorageAdapter(
                 .expiry(expirySeconds, TimeUnit.SECONDS)
                 .build()
         )
-        // Rewrite internal MinIO endpoint to public URL for external access
-        val publicEndpoint = mediaProperties.minio.publicEndpoint
-        return if (!publicEndpoint.isNullOrBlank()) {
-            url.replace(mediaProperties.minio.endpoint, publicEndpoint)
-        } else {
-            url
-        }
+        return ObjectStorageClientFactory.toPublicUrl(mediaProperties.minio, url)
     }
 
     override fun deleteObject(key: String) {

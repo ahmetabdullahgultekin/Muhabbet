@@ -34,15 +34,24 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      MINIO_ENDPOINT: http://shared-minio:9000
-      # Presigned URLs are signed against MINIO_ENDPOINT and then rewritten to this
-      # host, so the Traefik route behind it must forward the signed host upstream
-      # (cdn-muhabbet sets passHostHeader=false). Without this the app hands clients
-      # a shared-minio:9000 URL that only resolves inside Docker.
-      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-https://cdn-muhabbet.116.203.222.213.nip.io}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: muhabbet-media
+      # Object storage, S3 API. Production runs Garage (the shared MinIO it replaced is archived
+      # upstream and unpatched). The bucket and a per-app key granted on it are provisioned by infra;
+      # the backend never creates buckets and never holds a root or admin credential.
+      #
+      # `:?` makes compose refuse to render the stack when a value is missing, instead of starting
+      # a backend with blank credentials. DEPLOY.md lists the values.
+      #
+      # Presigned URLs are signed against MINIO_ENDPOINT (SigV4 signs the Host header) and then
+      # rewritten to MINIO_PUBLIC_ENDPOINT, so the reverse proxy route behind the public host must
+      # forward the signed internal host upstream, not the public one (Traefik: passHostHeader
+      # false on that service). MINIO_ENDPOINT must therefore match the proxy's upstream exactly.
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:?set MINIO_ENDPOINT in .env.prod}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?set MINIO_PUBLIC_ENDPOINT in .env.prod}
+      MINIO_REGION: ${MINIO_REGION:?set MINIO_REGION in .env.prod}
+      MINIO_BUCKET: ${MINIO_BUCKET:?set MINIO_BUCKET in .env.prod}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY in .env.prod}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env.prod}
+      MINIO_PATH_STYLE: ${MINIO_PATH_STYLE:-true}
       # SMS_PROVIDER selects the OtpSender/OtpVerifier implementation: mock (default, writes the
       # code to the log), netgsm, twilio (Messages API, needs a purchased number) or twilio-verify
       # (no number needed). These live here because THIS is the compose that deploys —
@@ -148,45 +157,6 @@ services:
         limits:
           # It serves four files. 64M is already generous for nginx with no upstream.
           memory: 64M
-
-  # Initialize MinIO bucket for Muhabbet media
-  #
-  # The credentials reach `mc` through the environment, not through the entrypoint (#448). Written
-  # as `${MINIO_ROOT_PASSWORD}` they were interpolated by Compose at parse time and baked into
-  # .Config.Entrypoint, so `docker inspect muhabbet-minio-init` printed the MinIO root password —
-  # and unlike redis, which masks its own process title, `mc` does not, so it was also in
-  # `docker ps --no-trunc` and in /proc/<pid>/cmdline while the container ran. The container exits
-  # after a few seconds but its configuration keeps the secret until it is removed.
-  #
-  # `$$` escapes the interpolation so the string reaches the container literally and the
-  # container's own shell expands it from the environment below.
-  #
-  # This does not reach zero the way the Redis fix does — .Config.Env is inspectable too — but it
-  # opens no channel that was not already open: muhabbet-backend above must carry the same value
-  # as MINIO_SECRET_KEY in its own environment regardless. What it removes is the argv and
-  # process-table exposure, which was unique to this container. Closing the .Config.Env half needs
-  # a secret file mounted from the host, which is a change to the host's deployment contract
-  # rather than to this repository — see infra/redis.conf.example for that shape.
-  minio-init:
-    image: minio/mc:latest
-    container_name: muhabbet-minio-init
-    depends_on:
-      muhabbet-backend:
-        condition: service_started
-    environment:
-      MINIO_INIT_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_INIT_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-    entrypoint: >
-      /bin/sh -c "
-      sleep 5;
-      mc alias set local http://shared-minio:9000 \"$$MINIO_INIT_ACCESS_KEY\" \"$$MINIO_INIT_SECRET_KEY\";
-      mc mb local/muhabbet-media --ignore-existing;
-      mc anonymous set download local/muhabbet-media/thumbnails;
-      echo 'MinIO bucket initialized.';
-      "
-    networks:
-      - backend
-    restart: "no"
 
 networks:
   backend:

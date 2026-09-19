@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.out.external
 
 import com.muhabbet.messaging.domain.port.out.BackupArchivePort
 import com.muhabbet.shared.config.MediaProperties
+import com.muhabbet.shared.config.ObjectStorageClientFactory
 import io.minio.GetPresignedObjectUrlArgs
 import io.minio.Http
 import io.minio.MinioClient
@@ -31,17 +32,9 @@ class MinioBackupArchiveAdapter(
 
     @PostConstruct
     fun init() {
-        // Bucket creation is handled by MinioMediaStorageAdapter (same bucket); here we only
-        // build the client. Wrapped defensively so a missing MinIO at boot doesn't fail the
-        // Spring context (see CLAUDE.md gotcha).
-        try {
-            client = MinioClient.builder()
-                .endpoint(mediaProperties.minio.endpoint)
-                .credentials(mediaProperties.minio.accessKey, mediaProperties.minio.secretKey)
-                .build()
-        } catch (e: Exception) {
-            log.warn("MinIO client init failed for backups: {}", e.message)
-        }
+        // Same bucket as media, provisioned by infra. Building the client does not connect, so an
+        // unreachable store cannot fail the Spring context; missing configuration does, on purpose.
+        client = ObjectStorageClientFactory.create(mediaProperties.minio)
     }
 
     override fun upload(
@@ -68,12 +61,7 @@ class MinioBackupArchiveAdapter(
                 .expiry(expirySeconds, TimeUnit.SECONDS)
                 .build()
         )
-        val publicEndpoint = mediaProperties.minio.publicEndpoint
-        val presigned = if (!publicEndpoint.isNullOrBlank()) {
-            url.replace(mediaProperties.minio.endpoint, publicEndpoint)
-        } else {
-            url
-        }
+        val presigned = ObjectStorageClientFactory.toPublicUrl(mediaProperties.minio, url)
         log.info("Backup archive uploaded: key={}, bytes={}", key, bytes.size)
         return BackupArchivePort.StoredArchive(storageKey = key, presignedUrl = presigned)
     }

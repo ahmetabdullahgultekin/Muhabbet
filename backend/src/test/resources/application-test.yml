@@ -22,6 +22,13 @@ muhabbet:
     max-attempts: 5
     cooldown-seconds: 60
     mock-enabled: true
+  media:
+    # Never contacted by the context tests, but the client factory refuses empty credentials, as
+    # production must, so the test profile states some.
+    minio:
+      endpoint: http://localhost:9000
+      access-key: test-access-key
+      secret-key: test-secret-key
   rate-limit:
     # Every test in a @SpringBootTest class shares one client IP and one filter instance, so the
     # production 10/min budget is spent by the class rather than by any single test. Raised here so

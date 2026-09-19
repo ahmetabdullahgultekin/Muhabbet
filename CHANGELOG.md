@@ -8,6 +8,25 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Changed: media storage moves from the shared MinIO to Garage
+
+- **Every storage value now comes from `.env.prod`**: endpoint, public endpoint, region, bucket,
+  access key and secret key (`MINIO_*`, listed in `DEPLOY.md` and `.env.example`). The production
+  compose no longer names a storage host, no longer falls back to a default access key, and no
+  longer passes the store's root password to the backend; a missing value stops `docker compose`
+  before anything is replaced. The base `application.yml` carries no endpoint or credential
+  default either; the local MinIO credentials live in `application-dev.yml`.
+- **`MINIO_REGION` and `MINIO_PATH_STYLE`.** Garage signs only for its own region (`garage`); the
+  region is now stated instead of discovered. Path-style stays the default.
+- **`minio-init` is gone.** Infra provisions the bucket, a key scoped to it and the anonymous read
+  of `thumbnails/`. The backend no longer tries to create the bucket (the app key may not); it
+  checks once at startup, logs an error if the bucket is missing, and the media health component
+  keeps reporting it without failing a deploy.
+- **One client factory** (`ObjectStorageClientFactory`) for the media, backup and health-probe
+  clients, and a host rewrite for presigned URLs that no longer depends on the configured endpoint
+  matching the signed URL character for character. Covered by unit tests and by an integration test
+  against a Garage container (skipped where Docker is unavailable).
+
 ### Added — Enter sends, and you can say whether it does
 
 - **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired
