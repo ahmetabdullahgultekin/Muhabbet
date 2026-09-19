@@ -221,7 +221,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Mobile framework | CMP (Compose Multiplatform) |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
-| Media storage | MinIO (S3-compatible) |
+| Media storage | S3-compatible: Garage in production, MinIO in local dev |
 | Build system | Gradle 9.7.0 (Kotlin DSL) |
 | SMS gateway | Twilio Verify in prod (`SMS_PROVIDER=twilio-verify`); Netgsm and mock adapters also exist |
 | Push | FCM (Firebase Cloud Messaging) |
@@ -959,7 +959,7 @@ evidence that it works.
 
 > **There are two prod compose files and only one of them deploys.** The **repo-root**
 > `docker-compose.prod.yml` is what runs: it carries the Traefik labels and uses the shared
-> `shared-postgres` / `shared-redis` / `shared-minio` containers. `infra/docker-compose.prod.yml`
+> `shared-postgres` / `shared-redis` containers and the host's S3 store (see `DEPLOY.md`). `infra/docker-compose.prod.yml`
 > is the **legacy nginx stack** with its own postgres/redis/minio — nothing deploys it. Editing it
 > changes nothing, and believing it caused the 2026-08-11 login outage (the app was pinned to a
 > host only that file mentioned).
@@ -989,12 +989,18 @@ evidence that it works.
   The token is minted from the service-account key with the OAuth2 JWT-bearer flow rather than
   `google-github-actions/auth`, because that action calls `iamcredentials.googleapis.com`, which is
   disabled on the project and made the first real run fail.
-- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.116.203.222.213.nip.io`
-  (Traefik file-provider route → `shared-minio:9000`, `passHostHeader: false` so presigned SigV4
-  validates). Both are temporary nip.io/subdomain names pending a real domain.
+- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.rollingcatsoftware.com`
+  (Traefik file-provider route → the S3 API at `MINIO_ENDPOINT`, `passHostHeader: false` so presigned
+  SigV4 validates: the app signs against the internal host and rewrites only scheme and host).
+- **Object storage** is any S3 store set by six `MINIO_*` values in `.env.prod` (endpoint, public
+  endpoint, region, bucket, access key, secret key; `DEPLOY.md` has the table and the switch and
+  rollback steps). Production moves from the shared MinIO to Garage: region `garage`, a per-app key,
+  bucket provisioned by infra. The app never creates buckets and there is no `minio-init` any more.
+  A missing value stops compose (`${VAR:?}`); an empty credential stops startup
+  (`ObjectStorageClientFactory`).
 - **Containers**: `muhabbet-backend` and `muhabbet-site` (the static site from `docs/site/`, on
-  `muhabbet.rollingcatsoftware.com`), plus a one-shot `minio-init`. Postgres, Redis and MinIO are
-  the **shared** instances (`shared-postgres`, `shared-redis`, `shared-minio`). There is no nginx
+  `muhabbet.rollingcatsoftware.com`). Postgres and Redis are the **shared** instances
+  (`shared-postgres`, `shared-redis`). There is no nginx
   fronting the API or media in this stack — Traefik does that; `muhabbet-site` runs nginx only to
   serve its own static files.
 - **Docker runtime**: Java 21 (eclipse-temurin:21-jdk-jammy for build, 21-jre-jammy for runtime)
@@ -1006,10 +1012,10 @@ evidence that it works.
   sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d muhabbet-backend
   ```
   There is **no `.env`** in that directory, only `.env.prod`, and Compose reads `.env` by default.
-  Omit the flag and `JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `MINIO_ROOT_PASSWORD`
-  all resolve to empty; the JWT boot guard then refuses to start and the container crash-loops.
-  The error says the secret is too short, which is misleading — the secret in `.env.prod` is fine,
-  it simply was never loaded.
+  Omit the flag and compose now refuses outright, because the `MINIO_*` values are required
+  (`${VAR:?}`). Before that, `JWT_SECRET`, `POSTGRES_PASSWORD` and `REDIS_PASSWORD` silently
+  resolved to empty and the JWT boot guard crash-looped the container with a misleading "secret
+  too short": the secret in `.env.prod` was fine, it simply was never loaded.
 - **Before deploying**, tag the current image so `latest` being overwritten does not strand you:
   `docker tag <image-id> muhabbet-muhabbet-backend:rollback-$(date +%F)`
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
@@ -1097,7 +1103,7 @@ evidence that it works.
   - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
 - **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
 - **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever
-- **MinIO pre-signed URLs in Docker**: MinIO is reached inside the Docker network; pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client configured with the public endpoint — the SDK makes internal API calls (GetBucketLocation) against it that fail through the proxy. **Solution**: generate with the internal client, then string-replace the endpoint — `url.replace(mediaProperties.minio.endpoint, publicEndpoint)`, in `MinioMediaStorageAdapter` and `MinioBackupArchiveAdapter`, with `MINIO_PUBLIC_ENDPOINT` supplying the public half. **The proxy is Traefik, not nginx** (the nginx description belonged to the legacy `infra/` stack that no longer deploys): a file-provider route sends `cdn-muhabbet.116.203.222.213.nip.io` to `shared-minio:9000` with `passHostHeader: false`, which is what makes the SigV4 signature validate.
+- **MinIO pre-signed URLs in Docker**: MinIO is reached inside the Docker network; pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client configured with the public endpoint: the SDK makes internal API calls (GetBucketLocation) against it that fail through the proxy. **Solution**: generate with the internal client, then swap scheme and host for `MINIO_PUBLIC_ENDPOINT` in `ObjectStorageClientFactory.toPublicUrl`, used by `MinioMediaStorageAdapter` and `MinioBackupArchiveAdapter`. It takes the origin from the signed URL rather than string-matching the configured endpoint, so a trailing slash cannot turn it into a no-op. **The proxy is Traefik, not nginx** (the nginx description belonged to the legacy `infra/` stack that no longer deploys): a file-provider route sends `cdn-muhabbet.rollingcatsoftware.com` to the S3 API with `passHostHeader: false`, which is what makes the SigV4 signature validate. `GarageObjectStorageIntegrationTest` shows both halves: 200 with the internal host, 403 with the public one.
 - **KoinApplication vs KoinContext**: `KoinApplication` composable starts a NEW Koin instance — crashes with `KoinApplicationAlreadyStartedException` when Android Activity recreates. **Fix**: Use `GlobalContext.getOrNull() ?: startKoin { ... }.koin` + `KoinContext(context = koin)`.
 - **WsClient.send() callers must try-catch**: Even though `send()` correctly throws when disconnected, ALL callers in Composables must wrap in try-catch. Uncaught exceptions in `LaunchedEffect`/`scope.launch` kill the coroutine silently or crash the collector.
 - **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` from `util/PhoneNormalization.kt` (shared utility — do NOT duplicate).
@@ -1116,6 +1122,6 @@ evidence that it works.
 - **VM IP changes**: If a VM is resized or reprovisioned, the IP may change. Update DNS A records accordingly. Android caches DNS aggressively — toggle airplane mode to flush.
 - **Spring Boot 4.x `@AutoConfigureMockMvc`**: Import path changed to `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`. The old 3.x path `org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc` is NOT available — causes "Unresolved reference 'web'" compile error.
 - **Flyway `validate-on-migrate: false`**: Lets an already-applied migration file be edited without the app refusing to start. Belongs only in `application-dev.yml` / `application-test.yml` (#429 — it had leaked into the main `application.yml`, so production silently ignored edited migrations too). In prod, never modify existing migrations — add a new one.
-- **MinIO `@PostConstruct` in tests**: Any `@PostConstruct` that connects to MinIO on startup will crash the Spring test context if MinIO isn't running. Wrap in try-catch and log a warning instead of failing.
+- **Object storage `@PostConstruct` in tests**: Any `@PostConstruct` that connects to the store on startup will crash the Spring test context if it isn't running. Wrap the connection in try-catch and log instead of failing. Missing *configuration* is different and does fail: `application-test.yml` therefore sets placeholder credentials.
 - **MockK test stubs must match what the controller actually calls**: If the controller calls `statusService.getContactStatusesForUser(userId)`, stub THAT — not a different method like `manageStatusUseCase.getContactStatuses()`. Stubs that don't match throw `MockKException: no answer found`.
 - **Firebase credentials**: `infra/firebase-adminsdk.json` (gitignored, mounted in docker-compose.prod.yml).
