@@ -34,8 +34,8 @@ kotlin {
     sourceSets {
         val decompose = "3.5.0"
         val koin = "4.2.2"
-        val ktor = "3.5.2"
-        val coil = "3.5.0"
+        val ktor = "3.6.0"
+        val coil = "3.6.3"
 
         commonMain.dependencies {
             // Shared KMP module
@@ -79,7 +79,7 @@ kotlin {
             implementation("io.coil-kt.coil3:coil-network-ktor3:$coil")
 
             // Local DB — SQLDelight
-            implementation("app.cash.sqldelight:coroutines-extensions:2.3.2")
+            implementation("app.cash.sqldelight:coroutines-extensions:2.4.1")
         }
 
         androidMain.dependencies {
@@ -93,7 +93,7 @@ kotlin {
             // Pulls in androidx.fragment transitively — BiometricPrompt hosts a headless Fragment
             // internally, which is also why MainActivity now extends FragmentActivity.
             implementation("androidx.biometric:biometric:1.1.0")
-            implementation("app.cash.sqldelight:android-driver:2.3.2")
+            implementation("app.cash.sqldelight:android-driver:2.4.1")
 
             // Reads the EXIF Orientation tag before we decode+re-encode photos, so compression
             // doesn't silently discard the rotation a phone recorded (#408). Works below API 24,
@@ -101,18 +101,18 @@ kotlin {
             implementation("androidx.exifinterface:exifinterface:1.4.2")
 
             // WorkManager — background sync
-            implementation("androidx.work:work-runtime-ktx:2.11.2")
+            implementation("androidx.work:work-runtime-ktx:2.12.0")
 
             // Firebase Auth (Phone verification) + Cloud Messaging
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.17.0"))
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:35.0.0"))
             implementation("com.google.firebase:firebase-auth")
             implementation("com.google.firebase:firebase-messaging")
 
             // Sentry — crash reporting
-            implementation("io.sentry:sentry-android:8.52.0")
+            implementation("io.sentry:sentry-android:8.60.0")
 
             // LiveKit — WebRTC voice/video calls
-            implementation("io.livekit:livekit-android:2.27.0")
+            implementation("io.livekit:livekit-android:2.29.0")
 
             // Signal Protocol — E2E encryption (X3DH + Double Ratchet)
             // libsignal is NOT a dependency while E2E is off. Every Signal source file is
@@ -135,7 +135,7 @@ kotlin {
 
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:$ktor")
-            implementation("app.cash.sqldelight:native-driver:2.3.2")
+            implementation("app.cash.sqldelight:native-driver:2.4.1")
         }
     }
 }
