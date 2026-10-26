@@ -37,10 +37,10 @@ dependencies {
     //   NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)
     // on the OTP request path. Unit tests passed throughout — the mismatch only appears where
     // Spring drives a suspend function.
-    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.11.0"))
+    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.12.0"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
     // Spring Boot 4 serialises HTTP with Jackson 3 (tools.jackson), so the Jackson 2 Kotlin module
     // below is on the classpath but never consulted. Without the Jackson 3 generation, Kotlin
@@ -67,17 +67,17 @@ dependencies {
     implementation("io.minio:minio:9.0.3")
 
     // HTML parsing for link previews
-    implementation("org.jsoup:jsoup:1.23.1")
+    implementation("org.jsoup:jsoup:1.23.2")
 
     // Firebase Cloud Messaging
-    implementation("com.google.firebase:firebase-admin:9.10.0")
+    implementation("com.google.firebase:firebase-admin:9.11.0")
 
     // Twilio SMS
-    implementation("com.twilio.sdk:twilio:12.1.1")
+    implementation("com.twilio.sdk:twilio:13.1.0")
 
     // Monitoring
     implementation("io.micrometer:micrometer-registry-prometheus")
-    implementation("io.sentry:sentry-spring-boot-4:8.52.0")
+    implementation("io.sentry:sentry-spring-boot-4:8.61.1")
 
     // Shared KMP module (domain models, protocol, DTOs)
     implementation(project(":shared"))
@@ -89,10 +89,10 @@ dependencies {
     testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("org.testcontainers:junit-jupiter:1.21.4")
     testImplementation("org.testcontainers:postgresql:1.21.4")
-    testImplementation("com.redis:testcontainers-redis:2.2.4")
+    testImplementation("com.redis:testcontainers-redis:3.0.0")
 
     // Architecture testing
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.0")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
 }
 
 kotlin {
