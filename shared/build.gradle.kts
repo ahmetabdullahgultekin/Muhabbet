@@ -39,10 +39,10 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             // Serialization (JSON protocol shared between backend & mobile)
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
 
             // Coroutines
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.12.0")
 
             // DateTime
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
