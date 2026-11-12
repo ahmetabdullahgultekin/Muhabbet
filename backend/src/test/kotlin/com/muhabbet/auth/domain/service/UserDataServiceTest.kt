@@ -151,6 +151,22 @@ class UserDataServiceTest {
         }
 
         @Test
+        fun `should export the declared birth date and its assurance level when one is on record`() {
+            val birthDate = java.time.LocalDate.of(1990, 5, 1)
+            every { userRepository.findById(userId) } returns TestData.user(id = userId).copy(
+                birthDate = birthDate,
+                ageAssuranceLevel = com.muhabbet.auth.domain.model.AgeAssuranceLevel.SELF_DECLARED,
+                ageAssuredAt = java.time.Instant.now()
+            )
+            stubEmptyExportDependencies()
+
+            val export = service.exportUserData(userId)
+
+            assertEquals(birthDate, export.profile.birthDate)
+            assertEquals("SELF_DECLARED", export.profile.ageAssuranceLevel)
+        }
+
+        @Test
         fun `should map devices sessions login approvals and linked device sessions from their own repositories`() {
             every { userRepository.findById(userId) } returns TestData.user(id = userId)
             stubEmptyExportDependencies()

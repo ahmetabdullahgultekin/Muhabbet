@@ -47,7 +47,13 @@ data class VerifyOtpRequest(
      * an account with two-step on answers `AUTH_2FA_PIN_REQUIRED` — which is a refusal it can show,
      * rather than a sign-in it silently gets away with.
      */
-    val twoStepPin: String? = null
+    val twoStepPin: String? = null,
+    /**
+     * Date of birth as an ISO-8601 calendar date (`yyyy-MM-dd`), required only when the number has
+     * no account yet (#751). Additive: an older build never sends it, and a new account then answers
+     * `AUTH_AGE_REQUIRED` without spending the code.
+     */
+    val birthDate: String? = null
 )
 
 @Serializable
@@ -57,7 +63,9 @@ data class AuthTokenResponse(
     val expiresIn: Long,                // seconds until access token expires
     val userId: String,
     val deviceId: String,
-    val isNewUser: Boolean
+    val isNewUser: Boolean,
+    /** The account has no assured age yet (#751): ask for a date of birth and send it to `PATCH /users/me/birth-date`. */
+    val ageVerificationRequired: Boolean = false
 )
 
 @Serializable
@@ -66,7 +74,9 @@ data class FirebaseVerifyRequest(
     val deviceName: String,
     val platform: String,
     /** See [VerifyOtpRequest.twoStepPin]. Both token-minting paths carry the same second factor. */
-    val twoStepPin: String? = null
+    val twoStepPin: String? = null,
+    /** See [VerifyOtpRequest.birthDate]. Both paths create accounts, so both carry the age gate. */
+    val birthDate: String? = null
 )
 
 @Serializable
@@ -75,6 +85,18 @@ data class RefreshTokenRequest(
 )
 
 // ─── User DTOs ───────────────────────────────────────────
+
+/** `PATCH /api/v1/users/me/birth-date` (#751). ISO-8601 calendar date, `yyyy-MM-dd`; accepted once. */
+@Serializable
+data class DeclareBirthDateRequest(
+    val birthDate: String
+)
+
+/** Whether the caller's account still needs a date of birth (#751). */
+@Serializable
+data class AgeStatusResponse(
+    val ageVerificationRequired: Boolean
+)
 
 @Serializable
 data class UpdateProfileRequest(

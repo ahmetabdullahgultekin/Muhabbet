@@ -74,6 +74,15 @@ object ValidationRules {
         return minutesElapsed <= MESSAGE_EDIT_WINDOW_MINUTES
     }
 
+    // Age gate (#751)
+    //
+    // The youngest age at which an account may be created or kept, and the oldest age a declared
+    // date of birth may imply before it is treated as a typo. The server is the authority; the app
+    // reads the same numbers only so it can say "too young" before a round trip, never instead of
+    // one. Constants only, so this stays free of a date library on both sides.
+    const val MIN_AGE_YEARS = 15
+    const val MAX_PLAUSIBLE_AGE_YEARS = 120
+
     // Group name
     const val GROUP_NAME_MIN = 1
     const val GROUP_NAME_MAX = 128

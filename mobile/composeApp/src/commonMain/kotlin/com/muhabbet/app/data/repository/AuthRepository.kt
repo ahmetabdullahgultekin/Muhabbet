@@ -2,7 +2,9 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.shared.dto.AgeStatusResponse
 import com.muhabbet.shared.dto.AuthTokenResponse
+import com.muhabbet.shared.dto.DeclareBirthDateRequest
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
 import com.muhabbet.shared.dto.PrivacySettingsResponse
 import com.muhabbet.shared.dto.RegisterPushTokenRequest
@@ -12,6 +14,7 @@ import com.muhabbet.shared.dto.UpdatePrivacyRequest
 import com.muhabbet.shared.dto.UpdateProfileRequest
 import com.muhabbet.shared.dto.VerifyOtpRequest
 import com.muhabbet.shared.model.UserProfile
+import kotlinx.datetime.LocalDate
 
 class AuthRepository(
     private val apiClient: ApiClient,
@@ -32,17 +35,21 @@ class AuthRepository(
      *   answers `AUTH_2FA_PIN_REQUIRED`, at which point the screen asks and resends the **same**
      *   code with the PIN. Resending the same code is deliberate and costs nothing — the server
      *   hands the attempt back when the code was right and only the PIN was missing.
+     * @param birthDate the same pattern for the age gate (#751): null until the server answers
+     *   `AUTH_AGE_REQUIRED`, which it does only for a number with no account yet, and then the same
+     *   code goes out again with the date.
      */
     suspend fun verifyOtp(
         phoneNumber: String,
         otp: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String? = null
+        twoStepPin: String? = null,
+        birthDate: LocalDate? = null
     ): AuthTokenResponse {
         val response = apiClient.post<AuthTokenResponse>(
             "/api/v1/auth/otp/verify",
-            VerifyOtpRequest(phoneNumber, otp, deviceName, platform, twoStepPin)
+            VerifyOtpRequest(phoneNumber, otp, deviceName, platform, twoStepPin, birthDate?.toString())
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "VERIFY_OTP_FAILED")
 
@@ -56,16 +63,20 @@ class AuthRepository(
         return data
     }
 
-    /** See [verifyOtp] for [twoStepPin]. The gate is on both sign-in paths or it is on neither. */
+    /**
+     * See [verifyOtp] for [twoStepPin] and [birthDate]. Both gates are on both sign-in paths or they
+     * are on neither.
+     */
     suspend fun verifyFirebaseToken(
         idToken: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String? = null
+        twoStepPin: String? = null,
+        birthDate: LocalDate? = null
     ): AuthTokenResponse {
         val response = apiClient.post<AuthTokenResponse>(
             "/api/v1/auth/firebase-verify",
-            FirebaseVerifyRequest(idToken, deviceName, platform, twoStepPin)
+            FirebaseVerifyRequest(idToken, deviceName, platform, twoStepPin, birthDate?.toString())
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "FIREBASE_VERIFY_FAILED")
 
@@ -77,6 +88,19 @@ class AuthRepository(
         )
 
         return data
+    }
+
+    /**
+     * Declares the signed-in account's date of birth, once (#751). For accounts that existed before
+     * the age gate; a new account declares it at sign-in instead. `toString()` on a [LocalDate] is
+     * the ISO `yyyy-MM-dd` form the server parses.
+     */
+    suspend fun declareBirthDate(birthDate: LocalDate): AgeStatusResponse {
+        val response = apiClient.patch<AgeStatusResponse>(
+            "/api/v1/users/me/birth-date",
+            DeclareBirthDateRequest(birthDate.toString())
+        )
+        return response.data ?: throw Exception(response.error?.message ?: "BIRTH_DATE_DECLARE_FAILED")
     }
 
     suspend fun getProfile(): UserProfile {

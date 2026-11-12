@@ -8,7 +8,6 @@ import com.arkivanov.decompose.router.stack.childStack
 import com.arkivanov.decompose.DelicateDecomposeApi
 import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.push
-import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.ui.auth.OtpVerifyScreen
@@ -40,13 +39,15 @@ class AuthComponent(
         navigation.push(Config.OtpVerify(phoneNumber, mockCode, firebaseVerificationId))
     }
 
+    /**
+     * An account from before the age gate (#751) is not asked here. It is asked by
+     * `AgeVerificationGate` over the signed-in app, which reads the flag from the server on every
+     * session start — so the question survives the app being killed between sign-in and answer,
+     * and reaches accounts that were already signed in when the gate shipped.
+     */
     @OptIn(DelicateDecomposeApi::class)
     fun onOtpVerified(isNewUser: Boolean) {
-        if (isNewUser) {
-            navigation.push(Config.ProfileSetup)
-        } else {
-            onAuthComplete()
-        }
+        if (isNewUser) navigation.push(Config.ProfileSetup) else onAuthComplete()
     }
 
     fun onProfileSetupComplete() {
@@ -88,7 +89,7 @@ fun AuthContent(component: AuthComponent) {
                 onPhoneSubmitted = { phone, mockCode, firebaseVerificationId ->
                     component.onPhoneSubmitted(phone, mockCode, firebaseVerificationId)
                 },
-                onFirebaseAutoVerified = { isNewUser -> component.onOtpVerified(isNewUser) }
+                onFirebaseAutoVerified = component::onOtpVerified
             )
             is AuthComponent.Config.OtpVerify -> OtpVerifyScreen(
                 phoneNumber = config.phoneNumber,

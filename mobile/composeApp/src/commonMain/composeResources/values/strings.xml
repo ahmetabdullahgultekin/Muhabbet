@@ -980,4 +980,12 @@
     <string name="whatsnew_0_3_8_line_1">0.3.7 sürümü açılışta çöküyor, kimsede açılmıyordu. Bu sürüm onu düzeltiyor.</string>
     <string name="whatsnew_0_3_8_line_2">Bir mesajı düzenlemek için 15 dakikanız olduğu artık menüde yazıyor. Süre dolduğunda seçenek pasif görünüyor ve nedenini söylüyor.</string>
     <string name="whatsnew_0_3_8_line_3">Okundu bilgisi ayarının açıklaması yanlıştı. Bu ayarı kapatmak karşı tarafın okundu bilgisini görmenizi engellemez; yalnızca sizinkini paylaşmayı durdurur.</string>
+    <!-- Age gate (#751). Says what is asked and why; claims nothing about legal compliance. -->
+    <string name="birth_date_title">Doğum tarihiniz</string>
+    <string name="birth_date_subtitle">Muhabbet'i kullanmak için en az %1$d yaşında olmalısınız. Doğum tarihiniz bir kez kaydedilir ve sonradan değiştirilemez.</string>
+    <string name="birth_date_day">Gün</string>
+    <string name="birth_date_month">Ay</string>
+    <string name="birth_date_year">Yıl</string>
+    <string name="birth_date_error_invalid">Geçerli bir doğum tarihi girin.</string>
+    <string name="birth_date_error_below_minimum">Muhabbet %1$d yaşından küçükler için kullanılamaz.</string>
 </resources>

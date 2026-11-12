@@ -39,7 +39,9 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.platform.getDeviceModel
 import com.muhabbet.app.platform.getPlatformName
 import com.muhabbet.app.platform.rememberFirebasePhoneAuth
+import com.muhabbet.shared.validation.ValidationRules
 import kotlinx.coroutines.delay
+import kotlinx.datetime.LocalDate
 import kotlinx.coroutines.launch
 import com.muhabbet.app.BuildInfo
 import com.muhabbet.composeapp.generated.resources.Res
@@ -68,6 +70,10 @@ fun OtpVerifyScreen(
     // AUTH_2FA_PIN_REQUIRED — never guessed — so an account without one never sees this step.
     var twoStepRequired by remember { mutableStateOf(false) }
     var twoStepPin by remember { mutableStateOf("") }
+    // The age gate (#751), on the same pattern: set only by the server's AUTH_AGE_REQUIRED, which it
+    // answers only for a number with no account yet, so an existing user never sees this step here.
+    var birthDateRequired by remember { mutableStateOf(false) }
+    var declaredBirthDate by remember { mutableStateOf<LocalDate?>(null) }
     // The Firebase ID token from the first attempt, kept so the PIN retry does not have to redeem
     // the SMS code a second time. Firebase refuses a verification code it has already consumed, so
     // without this the retry would fail before it ever reached our own backend.
@@ -89,6 +95,8 @@ fun OtpVerifyScreen(
         twoStepInvalid = stringResource(Res.string.otp_error_two_step_invalid),
         twoStepLocked = stringResource(Res.string.otp_error_two_step_locked),
     )
+    val birthDateInvalidMsg = stringResource(Res.string.birth_date_error_invalid)
+    val belowMinimumMsg = stringResource(Res.string.birth_date_error_below_minimum, ValidationRules.MIN_AGE_YEARS)
 
     LaunchedEffect(Unit) {
         while (countdown > 0) {
@@ -103,6 +111,7 @@ fun OtpVerifyScreen(
         val code = otp
         // Null until the server has said a PIN is needed, so an ordinary sign-in sends nothing new.
         val pin = twoStepPin.takeIf { twoStepRequired }
+        val birthDate = declaredBirthDate.takeIf { birthDateRequired }
         // Guarded HERE, inside the handler, and not by the button's `enabled` alone. `enabled` is a
         // composition input: it is re-read when Compose recomposes, so two dispatches landing in the
         // same frame — the field auto-submitting on the sixth digit plus a tap, or two fast taps —
@@ -130,7 +139,8 @@ fun OtpVerifyScreen(
                         idToken = idToken,
                         deviceName = getDeviceModel(),
                         platform = getPlatformName(),
-                        twoStepPin = pin
+                        twoStepPin = pin,
+                        birthDate = birthDate
                     )
                     onOtpVerified(result.isNewUser)
                 } else {
@@ -140,7 +150,8 @@ fun OtpVerifyScreen(
                         otp = code,
                         deviceName = getDeviceModel(),
                         platform = getPlatformName(),
-                        twoStepPin = pin
+                        twoStepPin = pin,
+                        birthDate = birthDate
                     )
                     onOtpVerified(result.isNewUser)
                 }
@@ -156,14 +167,38 @@ fun OtpVerifyScreen(
                     // simply has a second factor, and the same code goes out again with the PIN.
                     twoStepRequired = true
                     error = null
+                } else if (requiresBirthDate(e)) {
+                    // Also a step, not a failure: the code was accepted and handed back, and it goes
+                    // out again with the date of birth.
+                    birthDateRequired = true
+                    error = null
                 } else {
-                    error = otpErrors.forFailure(e, verifyFailedMsg)
+                    error = birthDateErrorFor(e, birthDateInvalidMsg, belowMinimumMsg)
+                        ?: otpErrors.forFailure(e, verifyFailedMsg)
                 }
             } finally {
                 isLoading = false
             }
         }
         Unit
+    }
+
+    if (birthDateRequired) {
+        BirthDateStep(
+            isLoading = isLoading,
+            error = error,
+            // Nothing is recorded for a refused registration, so there is no reason to send it.
+            sendBelowMinimum = false,
+            onSubmit = { date ->
+                declaredBirthDate = date
+                // A new date makes this a new attempt with the same code; release the latch.
+                submittedCode = null
+                submit()
+            },
+            secondaryActionLabel = stringResource(Res.string.otp_change_number),
+            onSecondaryAction = onBack
+        )
+        return
     }
 
     Column(

@@ -123,6 +123,15 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
      */
     AUTH_2FA_LOCKED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla hatalı PIN denemesi, lütfen bekleyin"),
 
+    // Age gate (#751, ADR 0029 rule 1). None of these is a 401: Ktor's Auth plugin resends every
+    // 401 (#400), and a refusal about age is not a token problem.
+    /** A new account was requested without a date of birth. The code is not spent; resend with one. */
+    AUTH_AGE_REQUIRED(HttpStatus.BAD_REQUEST, "Doğum tarihi gerekli"),
+    AUTH_AGE_BELOW_MINIMUM(HttpStatus.FORBIDDEN, "Yaş sınırının altında"),
+    AUTH_BIRTH_DATE_INVALID(HttpStatus.BAD_REQUEST, "Geçersiz doğum tarihi"),
+    /** A date of birth is declared once; it cannot be replaced through the API. */
+    AUTH_BIRTH_DATE_ALREADY_SET(HttpStatus.CONFLICT, "Doğum tarihi zaten kayıtlı"),
+
     // Invite Links
     INVITE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "Davet bağlantısı bulunamadı"),
     INVITE_LINK_EXPIRED(HttpStatus.GONE, "Davet bağlantısının süresi dolmuş"),

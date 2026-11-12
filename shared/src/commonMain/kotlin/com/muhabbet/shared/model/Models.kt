@@ -150,7 +150,9 @@ data class UserProfile(
     val avatarUrl: String?,
     val about: String? = null,
     val isOnline: Boolean = false,
-    val lastSeenAt: Instant? = null
+    val lastSeenAt: Instant? = null,
+    /** Only meaningful on the caller's own profile (`GET /users/me`); false for everyone else (#751). */
+    val ageVerificationRequired: Boolean = false
 )
 
 @Serializable

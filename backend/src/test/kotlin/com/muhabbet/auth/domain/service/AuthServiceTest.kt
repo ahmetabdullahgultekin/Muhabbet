@@ -86,7 +86,8 @@ class AuthServiceTest {
             io.mockk.every { it.tryConsume(any()) } returns true
         },
             firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
-            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
+            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository(),
+            ageAssurancePort = com.muhabbet.auth.adapter.out.external.SelfDeclarationAssurance()
         )
     }
 
@@ -154,7 +155,11 @@ class AuthServiceTest {
         every { deviceRepository.save(any()) } answers { firstArg() }
         every { refreshTokenRepository.save(any()) } answers { firstArg() }
 
-        val result = authService.verifyOtp(validPhone, validOtp, "Test Device", "android")
+        // A new account must declare a date of birth (#751); see AgeGateRegistrationTest.
+        val result = authService.verifyOtp(
+            validPhone, validOtp, "Test Device", "android",
+            birthDate = java.time.LocalDate.of(1990, 5, 1)
+        )
 
         assertNotNull(result.accessToken)
         assertNotNull(result.refreshToken)

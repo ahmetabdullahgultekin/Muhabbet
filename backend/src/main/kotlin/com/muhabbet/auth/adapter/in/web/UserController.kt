@@ -177,7 +177,8 @@ class UserController(
                 phoneNumber = user.phoneNumber,
                 displayName = user.displayName,
                 avatarUrl = user.avatarUrl,
-                about = user.about
+                about = user.about,
+                ageVerificationRequired = user.ageVerificationRequired
             )
         )
     }

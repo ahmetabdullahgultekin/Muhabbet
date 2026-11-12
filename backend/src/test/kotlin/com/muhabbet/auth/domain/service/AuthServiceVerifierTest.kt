@@ -72,7 +72,8 @@ class AuthServiceVerifierTest {
             io.mockk.every { it.tryConsume(any()) } returns true
         },
             firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
-            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
+            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository(),
+            ageAssurancePort = com.muhabbet.auth.adapter.out.external.SelfDeclarationAssurance()
         )
     }
 
@@ -154,7 +155,8 @@ class AuthServiceVerifierTest {
             io.mockk.every { it.tryConsume(any()) } returns true
         },
             firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
-            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
+            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository(),
+            ageAssurancePort = com.muhabbet.auth.adapter.out.external.SelfDeclarationAssurance()
         )
 
     private fun activeRequest() = OtpRequest(

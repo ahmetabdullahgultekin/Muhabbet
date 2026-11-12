@@ -117,6 +117,7 @@ class TwoStepSignInGateTest {
             otpQuotaPort = mockk<OtpQuotaPort>().also { every { it.tryConsume(any()) } returns true },
             firebaseTokenVerifier = firebaseVerifier,
             twoStepAttemptRepository = attempts,
+            ageAssurancePort = com.muhabbet.auth.adapter.out.external.SelfDeclarationAssurance(),
             twoStepMaxAttempts = 5,
             twoStepLockSeconds = 900
         )
@@ -221,7 +222,9 @@ class TwoStepSignInGateTest {
         every { userRepository.findByPhoneNumber(phone) } returns null
         every { userRepository.save(any()) } answers { firstArg() }
 
-        val result = authService.verifyOtp(phone, "111111", "Pixel", "android")
+        val result = authService.verifyOtp(
+            phone, "111111", "Pixel", "android", birthDate = java.time.LocalDate.of(1990, 5, 1)
+        )
 
         assertNotNull(result.accessToken)
         assertEquals(0, attempts.claims)

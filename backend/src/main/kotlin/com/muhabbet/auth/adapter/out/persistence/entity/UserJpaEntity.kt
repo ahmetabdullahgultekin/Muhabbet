@@ -1,5 +1,6 @@
 package com.muhabbet.auth.adapter.out.persistence.entity
 
+import com.muhabbet.auth.domain.model.AgeAssuranceLevel
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
 import jakarta.persistence.Column
@@ -9,6 +10,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 @Entity
@@ -68,7 +70,22 @@ class UserJpaEntity(
     // Set by hand in SQL (V21), never by a request. Round-tripped through toDomain/fromDomain
     // because every profile write rebuilds this entity from the domain model.
     @Column(name = "is_admin", nullable = false)
-    var isAdmin: Boolean = false
+    var isAdmin: Boolean = false,
+
+    // Age gate (#751, V30). Insertable but never updatable through the entity: every profile and
+    // privacy write is a merge of a User read earlier, and a copy read before a concurrent
+    // PATCH /birth-date committed would otherwise write these back to NULL — letting the user
+    // declare again, including a different year after an under-age refusal. The only writer after
+    // the INSERT is SpringDataUserRepository.recordBirthDate, a JPQL UPDATE, which ignores this.
+    @Column(name = "birth_date", updatable = false)
+    var birthDate: LocalDate? = null,
+
+    @Column(name = "age_assurance_level", length = 32, updatable = false)
+    @Enumerated(EnumType.STRING)
+    var ageAssuranceLevel: AgeAssuranceLevel? = null,
+
+    @Column(name = "age_assured_at", updatable = false)
+    var ageAssuredAt: Instant? = null
 ) {
     fun toDomain(): User = User(
         id = id,
@@ -87,7 +104,10 @@ class UserJpaEntity(
         readReceiptsEnabled = readReceiptsEnabled,
         onlineStatusVisibility = onlineStatusVisibility,
         aboutVisibility = aboutVisibility,
-        isAdmin = isAdmin
+        isAdmin = isAdmin,
+        birthDate = birthDate,
+        ageAssuranceLevel = ageAssuranceLevel,
+        ageAssuredAt = ageAssuredAt
     )
 
     companion object {
@@ -108,7 +128,10 @@ class UserJpaEntity(
             readReceiptsEnabled = user.readReceiptsEnabled,
             onlineStatusVisibility = user.onlineStatusVisibility,
             aboutVisibility = user.aboutVisibility,
-            isAdmin = user.isAdmin
+            isAdmin = user.isAdmin,
+            birthDate = user.birthDate,
+            ageAssuranceLevel = user.ageAssuranceLevel,
+            ageAssuredAt = user.ageAssuredAt
         )
     }
 }

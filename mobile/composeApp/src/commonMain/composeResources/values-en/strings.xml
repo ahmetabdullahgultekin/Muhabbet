@@ -944,4 +944,12 @@
     <string name="whatsnew_0_3_8_line_1">Version 0.3.7 crashed on launch and would not start for anyone. This release undoes that.</string>
     <string name="whatsnew_0_3_8_line_2">The menu now tells you that you have 15 minutes to edit a message. Past that window the option is greyed out and says why.</string>
     <string name="whatsnew_0_3_8_line_3">The read receipts setting described itself wrongly. Turning it off does not stop you seeing other people's receipts; it only stops you sharing yours.</string>
+    <!-- Age gate (#751). Says what is asked and why; claims nothing about legal compliance. -->
+    <string name="birth_date_title">Your date of birth</string>
+    <string name="birth_date_subtitle">You need to be at least %1$d to use Muhabbet. Your date of birth is saved once and cannot be changed later.</string>
+    <string name="birth_date_day">Day</string>
+    <string name="birth_date_month">Month</string>
+    <string name="birth_date_year">Year</string>
+    <string name="birth_date_error_invalid">Enter a valid date of birth.</string>
+    <string name="birth_date_error_below_minimum">Muhabbet is not available to anyone under %1$d.</string>
 </resources>

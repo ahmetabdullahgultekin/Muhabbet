@@ -1,5 +1,7 @@
 package com.muhabbet.auth.domain.port.`in`
 
+import java.time.LocalDate
+
 interface VerifyOtpUseCase {
     /**
      * Exchanges a verification code for tokens — unless the account has two-step verification on,
@@ -14,13 +16,18 @@ interface VerifyOtpUseCase {
      * @param twoStepPin null on the first attempt, since the client cannot know whether the account
      *   has a second factor until it is told. A correct code with a missing PIN does **not** spend
      *   the code — see `OtpRepository.refundAttempt`.
+     * @param birthDate required when the number has no account yet (#751): a new account without one
+     *   is refused with `AUTH_AGE_REQUIRED` and the code is not spent, and one below the minimum age
+     *   with `AUTH_AGE_BELOW_MINIMUM`. Ignored for an existing account, which declares it through
+     *   [DeclareBirthDateUseCase] instead.
      */
     fun verifyOtp(
         phoneNumber: String,
         otp: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String? = null
+        twoStepPin: String? = null,
+        birthDate: LocalDate? = null
     ): AuthResult
 }
 
@@ -30,5 +37,7 @@ data class AuthResult(
     val expiresIn: Long,
     val userId: String,
     val deviceId: String,
-    val isNewUser: Boolean
+    val isNewUser: Boolean,
+    /** The account has no assured age yet (#751); the client asks for a date of birth before going on. */
+    val ageVerificationRequired: Boolean = false
 )

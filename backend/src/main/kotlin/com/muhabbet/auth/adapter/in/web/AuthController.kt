@@ -49,7 +49,8 @@ class AuthController(
             otp = request.otp,
             deviceName = request.deviceName,
             platform = request.platform,
-            twoStepPin = request.twoStepPin
+            twoStepPin = request.twoStepPin,
+            birthDate = parseBirthDate(request.birthDate)
         )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
@@ -58,7 +59,8 @@ class AuthController(
                 expiresIn = result.expiresIn,
                 userId = result.userId,
                 deviceId = result.deviceId,
-                isNewUser = result.isNewUser
+                isNewUser = result.isNewUser,
+                ageVerificationRequired = result.ageVerificationRequired
             )
         )
     }
@@ -69,7 +71,8 @@ class AuthController(
             idToken = request.idToken,
             deviceName = request.deviceName,
             platform = request.platform,
-            twoStepPin = request.twoStepPin
+            twoStepPin = request.twoStepPin,
+            birthDate = parseBirthDate(request.birthDate)
         )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
@@ -78,7 +81,8 @@ class AuthController(
                 expiresIn = result.expiresIn,
                 userId = result.userId,
                 deviceId = result.deviceId,
-                isNewUser = result.isNewUser
+                isNewUser = result.isNewUser,
+                ageVerificationRequired = result.ageVerificationRequired
             )
         )
     }

@@ -58,6 +58,10 @@ fun PhoneInputScreen(
     val phoneNumber = COUNTRY_CODE + nationalDigits
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Instant verification produced an ID token for a number with no account yet, and the server
+    // asked for a date of birth (#751). Held only in composition — never in saved state — and sent
+    // again with the date; Firebase ID tokens stay valid for about an hour.
+    var pendingIdToken by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     val firebasePhoneAuth = rememberFirebasePhoneAuth()
@@ -66,6 +70,41 @@ fun PhoneInputScreen(
     val invalidPhoneMsg = stringResource(Res.string.phone_invalid)
     // Resolved here (not inside scope.launch) because stringResource is @Composable.
     val authFailedMsg = stringResource(Res.string.phone_auth_failed)
+    val birthDateInvalidMsg = stringResource(Res.string.birth_date_error_invalid)
+    val belowMinimumMsg = stringResource(Res.string.birth_date_error_below_minimum, ValidationRules.MIN_AGE_YEARS)
+
+    pendingIdToken?.let { idToken ->
+        BirthDateStep(
+            isLoading = isLoading,
+            error = error,
+            sendBelowMinimum = false,
+            onSubmit = { date ->
+                isLoading = true
+                error = null
+                scope.launch {
+                    try {
+                        val authResult = authRepository.verifyFirebaseToken(
+                            idToken = idToken,
+                            deviceName = getDeviceModel(),
+                            platform = getPlatformName(),
+                            birthDate = date
+                        )
+                        onFirebaseAutoVerified(authResult.isNewUser)
+                    } catch (e: Exception) {
+                        error = birthDateErrorFor(e, birthDateInvalidMsg, belowMinimumMsg) ?: authFailedMsg
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            },
+            secondaryActionLabel = stringResource(Res.string.otp_change_number),
+            onSecondaryAction = {
+                pendingIdToken = null
+                error = null
+            }
+        )
+        return
+    }
 
     Column(
         // safeDrawingPadding, not a Scaffold: this screen has no app bar to consume insets, and
@@ -142,12 +181,18 @@ fun PhoneInputScreen(
                                 }
                                 is PhoneVerificationResult.AutoVerified -> {
                                     // Auto-verified, exchange Firebase token for our JWT
-                                    val authResult = authRepository.verifyFirebaseToken(
-                                        idToken = result.idToken,
-                                        deviceName = getDeviceModel(),
-                                        platform = getPlatformName()
-                                    )
-                                    onFirebaseAutoVerified(authResult.isNewUser)
+                                    try {
+                                        val authResult = authRepository.verifyFirebaseToken(
+                                            idToken = result.idToken,
+                                            deviceName = getDeviceModel(),
+                                            platform = getPlatformName()
+                                        )
+                                        onFirebaseAutoVerified(authResult.isNewUser)
+                                    } catch (e: ApiException) {
+                                        // A new number: ask for the date of birth, then resend.
+                                        if (!requiresBirthDate(e)) throw e
+                                        pendingIdToken = result.idToken
+                                    }
                                 }
                                 is PhoneVerificationResult.Error -> {
                                     // Firebase rate-limited OR misconfigured — fallback to backend OTP.
