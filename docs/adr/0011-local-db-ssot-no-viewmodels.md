@@ -12,7 +12,7 @@ The review traced four defects to that shape:
 
 | Finding | Defect | Root cause |
 |---|---|---|
-| MOB-03 | Incoming `message.new` is never persisted; DELIVERED is acked from RAM (`App.kt:126-138`), and `ConversationListScreen` sends a second DELIVERED and refetches the whole list on every event (`ConversationListScreen.kt:183-213`) | No store the UI observes |
+| MOB-03 | Incoming `message.new` is never persisted; DELIVERED is acked from RAM (`App.kt:135-156`), and `ConversationListScreen` sends a second DELIVERED and refetches the whole list on every event (`ConversationListScreen.kt:183-213`) | No store the UI observes |
 | MOB-06 | `ChatScreen` is a ~985-line composable owning state, network calls and ten `WsMessage.SendMessage` sites | UI speaks wire frames |
 | MOB-08 | No domain layer: UI consumes DTOs and protocol frames | Same |
 | MOB-11 | `WsClient` fuses transport, outbox, dedup and the E2E hook; nothing for a second transport to sit behind | Same |
@@ -20,7 +20,8 @@ The review traced four defects to that shape:
 `grep -rn 'wsClient.send' mobile/composeApp/src` on `dev` @ 2434324 returns **17** call sites:
 16 under `ui/` (ChatScreen, ChatDialogs, ConversationListScreen, ActiveCallScreen,
 IncomingCallScreen) and one `wsClient.sendAck` in `App.kt`. `WsMessage` is referenced 49 times in 9
-files under `ui/`. These, not "ten in ChatScreen", are the migration inventory.
+files under `ui/`. These, plus the socket connect/disconnect lifecycle in `App.kt`, not "ten in
+ChatScreen", are the migration inventory.
 
 Any additional path (pull, push hint, LAN, Nearby) needs one place to converge. Without a durable
 store that every screen observes, each path would need its own merge logic in each screen.
@@ -36,7 +37,9 @@ store that every screen observes, each path would need its own merge logic in ea
 3. **Commands.** Writes go through one Koin-singleton facade, `MessagingEngine`, in
    `:mobile:messaging` (ADR-0012). Its use cases are `SendMessage`, `MarkRead`, `RetryDelivery`,
    `ObserveConversation` and `SessionTeardown`. This is **light CQRS**: one database, separate read
-   projections, no command or event buses.
+   projections, no command or event buses. `MessagingEngine.start(session)` / `stop()` own the
+   server-link lifecycle (today `wsClient.connect()` / `disconnect(generation)` keyed on login in
+   `App.kt`); `App.kt` calls only the engine on login/logout.
 4. **Every write path persists first.** The optimistic row and its outbox entry are written in one
    transaction (ADR-0013). Inbound events from every `InboundSource` are upserted before any ack.
 5. **No ViewModel layer.** The documented §4 decision stays. `MessagingEngine` is a domain singleton
@@ -81,6 +84,14 @@ are searchable only through on-device FTS inside the encrypted DB (1.0, ADR-0019
   must add it explicitly.
 - `CachedConversation`, `CachedMessage` and `PendingMessage` are replaced by the SSOT schema in a
   fresh encrypted DB at 0.5 (ADR-0020) and dropped after the `engine.enabled` overlap release.
+
+> **Reviewer note (open):** inherited from the brief (ADR-0020 + §13). During the 0.5.0
+> `engine.enabled` overlap the legacy `WsClient` path (flag off) still needs `PendingMessage` and
+> `Cached*`, but ADR-0020 copies `PendingMessage` into `outbox_entry` and deletes the plaintext
+> file, so a flag-off user's queued messages would land in a table the legacy path never drains.
+> The 0.5.0 encrypted DB must also carry the legacy tables during the overlap, and the migration
+> must copy pending rows into the store of whichever path `engine.enabled` selects (or the flag is
+> evaluated before migration). The owner of ADR-0020 must confirm.
 - `ConversationListScreen`'s refetch storm and duplicate DELIVERED ack disappear (MOB-03).
 - `MessagingEngine` becomes the cross-screen state holder for messaging; the §4 rule "a value two
   screens show must come from one singleton" now covers messages.
@@ -105,7 +116,7 @@ are searchable only through on-device FTS inside the encrypted DB (1.0, ADR-0019
 
 | Check | Method | When |
 |---|---|---|
-| `WsMessage`/`wsClient` count in `ui/` and `App.kt` reaches 0 | `verifyUi` ratchet rule | 0.5 exit |
+| `WsMessage`/`wsClient` count in `ui/` and `App.kt` (sends, acks and connect lifecycle) reaches 0 | `verifyUi` ratchet rule | 0.5 exit |
 | `:mobile:messaging` has no Compose, Koin-annotation or `WsMessage` dependency | Build-enforced module dependencies + guardrail | 0.5 exit |
 | An incoming message is in the DB before DELIVERED is sent | Crash-point test between commit and ack (ADR-0013) | 0.4 (MOB-03 fix) and 0.5 |
 | A message received while the app is killed is in the DB before the notification is tapped | Owner observation on emulator-5554 (P13) | 0.6 exit |

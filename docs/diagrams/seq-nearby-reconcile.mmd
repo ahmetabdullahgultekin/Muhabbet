@@ -33,7 +33,8 @@ sequenceDiagram
     AX->>AX: match tag against own contacts only
 
     A->>AE: send text in 1:1 E2E chat
-    AE->>AE: one tx - row + outbox_entry, sealed by libsignal (SealResult.Sealed), QUEUED
+    AE->>AE: one tx - row + outbox_entry PENDING_SEAL
+    AE->>AE: seal outside tx by libsignal (SealResult.Sealed), PENDING_SEAL to QUEUED
     Note over AE,AX: Demand for peer - Happy-Eyeballs at link establishment, never per message
     AE->>AX: open LanLink (same network)
     AE->>AX: open NearbyLink after ATTEMPT_DELAY_MS = 250 ms
@@ -64,7 +65,7 @@ sequenceDiagram
     AE->>AE: CAS IN_FLIGHT to HOP_ACKED(peer, serverOwed = true)
     AE-->>A: two ticks + "not yet synced" (never a relayed tick)
 
-    Note over A,S: Later - internet returns on either side
+    Note over A,S: Later - Alice's ServerLink returns (Bob's server copy appears only after Alice's upload,<br/>Bob uploads his DELIVERED receipt on his own reconnect)
     AE->>AE: ServerLinkUp - HOP_ACKED(serverOwed) to QUEUED (server-only)
     AE->>S: message.send {clientMessageId, conversationId, envelopes} (same clientMessageId)
     S->>S: idempotent on (sender_device_id, client_message_id), assign seq

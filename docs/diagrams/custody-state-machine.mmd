@@ -22,7 +22,7 @@ stateDiagram-v2
         state "CREATED<br/>outbox entry has no eligible direct path" as C_Created
         state "OFFERED(custodian)<br/>next in hierarchy order" as C_Offered
         state "DECLINED(reason)<br/>quota, policy or link lost" as C_Declined
-        state "IN_CUSTODY(custodian, expiresAt)<br/>outbox HOP_ACKED(serverOwed)<br/>UI: clock + handed to (device or contact)" as C_InCustody
+        state "IN_CUSTODY(custodian, expiresAt)<br/>custodian 1 (mailbox): outbox SERVER_ACCEPTED(seq), one tick<br/>(LOCAL_ONLY mailbox custody: spec T18, Reviewer note R-1)<br/>custodians 2-3: outbox HOP_ACKED(serverOwed),<br/>UI clock + handed to (device or contact)" as C_InCustody
         state "DELIVERED_RECEIPT<br/>authenticated DELIVERED or SeqObserved" as C_Delivered
         state "RELEASED" as C_Released
         state "EXPIRED" as C_Expired

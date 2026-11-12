@@ -231,7 +231,7 @@ Product ADRs are 0010–0029. Process ADRs are 0030–0033. Existing documents a
   - A runtime boolean per adapter.
   - A capability flag on a fat port.
   - Relying on BLE pairing or Nearby UKEY2. These authenticate the radio peer, not the recipient.
-- **Consequences.** No non-server transport can carry content before 1.0, by construction. ADR-003 is marked *Superseded by ADR-0016/0017*.
+- **Consequences.** No non-server transport can carry content before 1.0, by construction. ADR-003 is marked *Superseded by ADR-0016* (ADR-0017 related).
 
 ### ADR-0017: E2E library and licence. libsignal at the platform edge; `mobile/` relicensed to AGPL-3.0-or-later; `shared/` and `backend/` stay MIT
 - **Decision.**
@@ -581,7 +581,7 @@ Product ADRs are 0010–0029. Process ADRs are 0030–0033. Existing documents a
   - **No long-lived signing, device-CA, uplink or crypto key is created until this ADR is in force**, and none lives on a host that runs PR code.
 - **Rationale.** CICD-01/02/03/05/06. Docker-group membership is equivalent to root on the production host.
 - **Rejected alternatives.** Relying on the fork-approval setting alone. Rotating only `JWT_SECRET`.
-- **Consequences.** CI capacity changes. The rotation forces every user to log in again (JWT).
+- **Consequences.** CI capacity changes. The rotation invalidates old access tokens; users are not logged out, because refresh tokens do not depend on `JWT_SECRET` (corrected 2026-11-12, ADR-0031 reviewer note). Forcing re-login is a separate owner decision (incident record A4).
 
 #### ADR-0032: Agent identity and the verification gate
 - **Decision.**
@@ -1355,7 +1355,7 @@ R-DTN contact mules, sealed sender and anonymous tokens, key transparency, messa
 ## 14. Prerequisite fixes outside the design (in priority order)
 
 **Security emergencies (Phase 0; incident response, recommended for the owner to authorise now, independent of design approval):**
-1. **CICD-06:** rotate every value ever in `.env.prod` (commit 3925f708 on a public repo: `JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ROOT_PASSWORD`). This forces a re-login. Replace the gitleaks path allowlist with a commit-scoped record. Enable secret scanning and push protection.
+1. **CICD-06:** rotate every value ever in `.env.prod` (commit 3925f708 on a public repo: `JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ROOT_PASSWORD`). This invalidates old access tokens; it does not force a re-login unless the owner also revokes all refresh tokens (corrected 2026-11-12, ADR-0031 reviewer note; incident record A4). Replace the gitleaks path allowlist with a commit-scoped record. Enable secret scanning and push protection.
 2. **CICD-01:** stop `pull_request` jobs on the production self-hosted runner. Disable them or route them to a non-prod runner until CI is off the box (CICD-04: fix the GitHub-hosted billing lock, which is free for public repos).
 3. **CICD-03:** identify or deregister `muhabbet-mordecai`.
 4. **CICD-02:** move signing, Play and deploy secrets into protected environments (`release`, `production`) restricted to `main`/tags with a reviewer.

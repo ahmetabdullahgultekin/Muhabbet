@@ -44,26 +44,24 @@ Conditions: <free text or empty>
 ```
 
 Parsing rule for the hook: find the line `### Scope: <id>`; within that block (up to the next line
-starting with `### `), the scope is open iff a line matches `^Status: Approved$`. Text in the rest of
+starting with `### `), the scope is open iff a line, after stripping a trailing CR, equals exactly `Status: Approved`
+(ADR-0033 G6). CRLF line endings are tolerated; trailing spaces and list markers are not. Text in the rest of
 this file is never parsed. Do not reformat the blocks into a table, and do not add trailing
 spaces or list markers to these lines. (Rendered Markdown joins the four lines into one paragraph;
 edit the raw file.)
 
-While the gate is armed, agent edits are always allowed under `docs/**`,
-`.github/ISSUE_TEMPLATE/**`, `.github/pull_request_template.md`, `CODEOWNERS` and `.claude/**`
-(ADR-0033). Any other path requires the relevant scope to be open.
+While the gate is armed, agent edits are always allowed under `docs/**` except this file,
+`.github/ISSUE_TEMPLATE/**`, `.github/pull_request_template.md`, `CODEOWNERS` (root or `.github/`)
+and `.claude/**` (ADR-0033 G2). This file is never agent-editable (G3). Any other path requires the
+scope named in `.claude/active-scope` to be open here (G4–G5); a missing or invalid declaration is
+denied.
 
-> **Reviewer note (open):** the brief says the hook blocks edits "while `APPROVAL.md` does not contain
-> an owner-signed `Status: Approved` line for the scope being edited", but it does not define how
-> the hook knows **which scope an edit belongs to**. Paths do not map to milestones (a 0.4 and a 0.5
-> change both touch `backend/**`), and the ADR-0030 branch convention `<type>/<issue#>-<slug>` carries
-> no milestone. Proposed for owner decision: the active scope is declared in a one-line file
-> `.claude/active-scope` (or an environment variable), and the hook allows the edit iff that scope is
-> open here; with no declaration the edit is refused. A second gap: `docs/**` is on the always-allowed
-> list, so an agent can technically edit this file and open its own gate. Since the hook is "a guard
-> for agents, not a security boundary", the proposed mitigation is that the hook refuses agent edits
-> to `docs/architecture/multi-transport/APPROVAL.md` itself, and `CODEOWNERS` assigns this file to
-> the owner. Both points need to be settled in ADR-0033 before the hook is written.
+> **Reviewer note (open):** ADR-0033 resolves scope attribution with `.claude/active-scope` (G5) and
+> self-approval with G3. Both go beyond the brief's ADR-0033 text and need the owner to accept them as
+> an amendment in the §3 disposition row for 0033. `.claude/active-scope` sits under the
+> always-allowed `.claude/**`, so an agent can select any already-approved scope; that is accepted as
+> 'a guard, not a boundary'. No CODEOWNERS file exists yet; ADR-0032/0033 must create it, with this
+> file and `.claude/**` owned by the owner.
 
 > **Reviewer note (open):** until ADR-0033 is approved (scope `process`) and the hook exists, nothing
 > enforces this file mechanically. The no-code rule holds by convention (owner decision 4) during
@@ -78,7 +76,8 @@ Date:
 Conditions:
 
 *Covers:* security emergencies of brief §14 items 1–6 (rotate every value ever in `.env.prod` —
-CICD-06; stop `pull_request` jobs on `muhabbet-cx43` — CICD-01; identify or deregister
+CICD-06; stop `pull_request` jobs on `muhabbet-cx43` — CICD-01 — per ADR-0031 D2: the runner on cx43 stopped and
+deregistered, or the accepted-risk variant recorded under Conditions with an expiry; identify or deregister
 `muhabbet-mordecai` — CICD-03; protected `release`/`production` environments — CICD-02; SHA-pin
 actions and remove `trivy-action@master` — CICD-05; correct the SECURITY.md phone-hash claim —
 GOV-08); engaging counsel with the question list; threat model and DPIA screening; opening the
@@ -98,7 +97,7 @@ release), BE-07, BE-12 (+ JWT out of query string), BE-13, atomic prekey claim a
 device-scoped idempotency, BE-08 ArchUnit rules. Mobile: MOB-01 `SessionTeardown`, MOB-03
 persist-before-ack, MOB-05, MOB-04 stopgap (delete `PendingMessage` only on `ServerAck`), group
 receipt aggregation, version catalog, one convention plugin, `.sqm` migrations + `verifyMigrations`,
-`:shared:jvmTest` in CI. *ADRs:* 0013, 0014, 0018 (part), 0020 (part), 0028 (prerequisites), 0029.
+`:shared:jvmTest` in CI. *ADRs:* 0013, 0014, 0018 (part), 0020 (part), 0022 (plane A auth), 0028 (prerequisites), 0029.
 *Entry:* phase-0 exit; ROADMAP's existing 0.4 conditions.
 
 ### Scope: 0.5
@@ -161,7 +160,8 @@ Conditions:
 
 *Covers:* 1.1 Direct (gated). `WebRtcP2PSession` for 1:1 calls (DTLS-SRTP E2E); relay-only for
 non-contacts; TURN sized from 0.7 data. *ADR:* 0023 (1.1 part). *Gate artefacts:* 0.7 telemetry
-showing benefit; TURN egress budget; iOS WebRTC bridge spike if iOS is in scope. *Owner question:*
+showing benefit; TURN egress budget; iOS WebRTC bridge spike if iOS is in scope; written counsel
+opinions Q-L6 (if the TURN host is abroad) and Q-L8 (ADR-0029); DT-3 DPIA revision. *Owner question:*
 Q-O5 (kill threshold).
 
 ### Scope: 1.2
@@ -172,7 +172,7 @@ Conditions:
 
 *Covers:* 1.2 Nearby (gated). Device certificates and CRL (V35) with the signer off PR-job hosts;
 link keys and vetted `LinkAuthenticator`; rotating tags; `LanLink`, `NearbyLink`, `PathPolicy`;
-Nearby-mode screen; 1:1, verified, E2E only; `serverOwed`. *ADRs:* 0015, 0018, 0024, 0029.
+Nearby-mode screen; 1:1, verified, E2E only; `serverOwed`. *ADRs:* 0012 (`PathPolicy`/second link), 0015, 0018 (items 4–5), 0022 (plane C), 0024, 0029.
 *Gate artefacts (G-PROXIMITY, all required):* 1.0 exit; 0.6 iOS decision honoured; published 2-week
 device-matrix spike; handshake library chosen; signed proximity DPIA; counsel opinion covering E2E
 over BLE/Wi-Fi; ADR-0031 in force; HMS share in Turkey measured. *Owner questions:* Q-O6, Q-O7.
@@ -184,7 +184,7 @@ Date:
 Conditions:
 
 *Covers:* 1.3 Relay (gated, droppable). `OwnDeviceCustody`; then single-hop sealed uplink
-(`UplinkBundle`, `/api/v1/uplink`, quotas, uplink key on a non-CI host). *ADR:* 0025. *Gate
+(`UplinkBundle`, `/api/v1/uplink`, quotas, uplink key on a non-CI host). *ADRs:* 0018, 0022 (`UplinkBundle`), 0025, 0029. *Gate
 artefacts:* 1.2 shipped; telemetry above the owner's threshold; external crypto review of uplink
 sealing; written KVKK opinion on contacts transiently holding ciphertext; DPIA. *Owner questions:*
 Q-O5, Q-O7.
@@ -221,23 +221,23 @@ to match only after a row here is filled.
 | ADR | Title | Proposed status | Disposition | Amendment / notes | Date |
 |---|---|---|---|---|---|
 | 0010 | Hybrid backbone | Proposed | | | |
-| 0011 | Local DB is the SSOT; no ViewModel layer | Proposed | | | |
-| 0012 | Delivery engine and ISP-split link ports | Proposed | | | |
-| 0013 | Delivery semantics and honest ticks | Proposed | | | |
-| 0014 | Ordering: seq + change feed | Proposed | | | |
-| 0015 | Path scopes and rule-based policy | Proposed | | | |
-| 0016 | E2E fail-closed type gate (supersedes ADR-003) | Proposed | | | |
-| 0017 | libsignal and licence boundary | Proposed | | | |
-| 0018 | Identity, keys, link keys, device certificates | Proposed | | | |
-| 0019 | Wake-only push; no server plaintext for E2E at 1.0 | Proposed | | | |
-| 0020 | SQLCipher and crypto-erase | Proposed | | | |
+| 0011 | Local DB is the SSOT | Proposed | | | |
+| 0012 | Delivery engine and link ports | Proposed | | | |
+| 0013 | Delivery semantics and ticks | Proposed | | | |
+| 0014 | Ordering | Proposed | | | |
+| 0015 | Path scopes and policy | Proposed (gated: `PathPolicy` built at 1.2) | | | |
+| 0016 | E2E fail-closed type gate | Proposed | | | |
+| 0017 | E2E library and licence | Proposed | | | |
+| 0018 | Identity, keys, certificates | Proposed (items 4–5 gated, 1.2) | | | |
+| 0019 | Wake-only push | Proposed | | | |
+| 0020 | Data at rest and erasure | Proposed | | | |
 | 0021 | Amendment to ADR 0008 | Proposed | | | |
-| 0022 | Wire protocol | Proposed | | | |
-| 0023 | Internet-direct: ICE + own TURN | Proposed (1.1 part gated) | | | |
-| 0024 | Proximity: LAN + Nearby | Proposed (gated) | | | |
-| 0025 | Store-and-forward custody | Proposed (gated) | | | |
-| 0026 | Meshtastic, legally gated | Proposed (gated) | | | |
-| 0027 | Rejected-transports record | Proposed | | | |
+| 0022 | Wire protocol | Proposed (plane C + UplinkBundle gated, 1.2/1.3) | | | |
+| 0023 | Internet-direct | Proposed (1.1 part gated) | | | |
+| 0024 | Proximity | Proposed (gated) | | | |
+| 0025 | Store-and-forward | Proposed (gated) | | | |
+| 0026 | Meshtastic | Proposed (gated) | | | |
+| 0027 | Rejected transports | Proposed | | | |
 | 0028 | KMP module structure | Proposed | | | |
 | 0029 | Compliance boundary | Proposed | | | |
 | 0030 | Trunk and release flow | Proposed (process) | | | |
@@ -246,7 +246,7 @@ to match only after a row here is filled.
 | 0033 | Claude Code hooks | Proposed (process) | | | |
 
 Existing records changed by the package (disposition follows the ADR that changes them): ADR-003
-→ *Superseded by 0016/0017*; ADR 0008 → *Amended by 0021*; ADR 0007 → crypto realised by 0018;
+→ *Superseded by 0016* (0017 related); ADR 0008 → *Amended by 0021*; ADR 0007 → crypto realised by 0018;
 ARCHITECTURE.md §4/§5/§8 → rewritten per 0010/0011/0012.
 
 ## 4. Owner questions (brief §17)

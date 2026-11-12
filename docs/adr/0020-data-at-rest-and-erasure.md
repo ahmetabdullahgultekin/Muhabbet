@@ -5,7 +5,8 @@
 ## Context
 
 - **Logout and account deletion leave the plaintext DB on the device** (MOB-01, critical, verified):
-  `RootComponent.kt:61-63` `onLogout` only clears tokens; `clearConversations`, `clearMessages` and
+  `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/navigation/RootComponent.kt:92-95`
+  `onLogout` only clears tokens; `clearConversations`, `clearMessages` and
   `clearPendingMessages` exist (`LocalCache.kt:73,184,225`) but have no callers. The next user on the
   same phone sees the previous user's conversation list, and `WsClient.drainPendingMessages` sends the
   previous user's queued messages over the new user's socket. Background sync is never cancelled
@@ -54,11 +55,11 @@ each is idempotent, and a failure in one does not stop later ones.
 | # | Step | Notes |
 |---|---|---|
 | 1 | Best-effort server revoke | Queued; never blocks local erasure |
-| 2 | Cancel WorkManager / BGTask jobs and reset the sync watermark | MISS-02 |
+| 2 | Cancel WorkManager / BGTask jobs and reset the sync watermark | MISS-02 (mobile verifier) |
 | 3 | Close all links (`ServerLink`, sealed links) and stop Nearby mode | No frame leaves after this point |
-| 4 | **Destroy the wrapped DB key** (`SecureKeyStorePort.destroy`) | From here the DB file is unreadable ciphertext |
+| 4 | **Destroy the DB key** (`SecureKeyStorePort.destroy`): close the SQLCipher connection (drops the in-memory key), then delete the Android Keystore wrapping-key entry (`KeyStore.deleteEntry(alias)`; hardware-backed/StrongBox where present) and the wrapped-key blob. On iOS, delete the Keychain item | From here the DB file is unreadable ciphertext. Deleting only the wrapped-key blob is not enough: it is a file on flash and not robust against wear-levelling |
 | 5 | Delete the DB, media cache, outbox, identity keys / libsignal store, relay/custody store, tokens | Belt and braces after step 4 |
-| 6 | Verify | Assert: DB file absent, key alias absent, no scheduled jobs, in-memory queues empty |
+| 6 | Verify | Assert: DB file absent, Keystore alias absent (`containsAlias == false`) / Keychain item absent, no scheduled jobs, in-memory queues empty |
 
 ```kotlin
 // :mobile:messaging (use case, brief §4.3)
@@ -80,8 +81,9 @@ account deletion, and the refresh-token-rejected path in `ApiClient`.
 
 ## Why
 
-- MOB-01 is a KVKK erasure failure on the device itself; crypto-erase (destroying one key) is the only
-  erasure that is fast, verifiable and robust against flash wear-levelling.
+- MOB-01 is a KVKK erasure failure on the device itself; crypto-erase is the only erasure that is
+  fast, verifiable and robust against flash wear-levelling — provided the key destroyed is the
+  hardware-backed Keystore wrapping key (or iOS Keychain item), not merely the wrapped blob on flash.
 - File-based encryption/Data Protection protects a powered-off device, not a logged-out user on a
   powered-on one, and not the next user of the same phone.
 - Background delivery (wake-only push, ADR-0019; WorkManager) needs the key without user interaction,
@@ -92,6 +94,9 @@ account deletion, and the refresh-token-rejected path in `ApiClient`.
 ## Consequences
 
 - A small CPU/IO cost for SQLCipher; measured on a low-end device in the 0.5 exit.
+- Because teardown deletes the libsignal identity, a logout followed by a login registers a new
+  device (ADR 0018). Peers see a safety-number change, and verified contacts see the blocking
+  interstitial. This is intended, and the logout confirmation says so.
 - An **erasure test and a forensic check** are part of the 0.5 exit (RQ-08).
 - iOS encryption depends on KMP-01; until then the iOS driver is unchanged and iOS makes no
   at-rest claim.

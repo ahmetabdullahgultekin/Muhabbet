@@ -77,7 +77,7 @@ deliveries are final without a server `seq` (ADR-0010 rule 5).
 |---|---|
 | 1 | From the cutover release, **new** messages in 1:1 and small-group conversations are E2E (protocol v2, ADR-0022) |
 | 2 | Each client downloads that conversation's existing history into its encrypted local DB (ADR-0020) by `seq` |
-| 3 | Users are notified; after a **30-day grace period** the server copy (`messages.content`, server search index rows, cached previews) is deleted — or, if the user opted in, encrypted to their backup key first |
+| 3 | Users are notified. After a **30-day grace period** the server copy (`messages.content`, server search index rows, cached previews) is deleted. If the user opted in to backup, their client, which already holds the history from step 2, encrypts it under the user-held backup key and uploads the opaque blob before the deletion date. The server never encrypts history on the user's behalf |
 | 4 | A conversation is **labelled E2E only once the server holds no readable copy of it** — i.e. after step 3 for that conversation |
 
 Until step 4 completes, the conversation UI says "new messages are end-to-end encrypted; earlier
@@ -143,3 +143,4 @@ history is still on the server until <date>".
 | RQ-05 | Lost hints converge through the same `/changes` cursor before and after 1.0 | `SimulatedLink` test | 0.5 / 1.0 |
 | — | A conversation is never labelled E2E while any readable server copy exists | UI test against fake server state + claims-register inspection | 1.0 exit |
 | — | LOCAL_ONLY is not offered while Q-O3 is undecided | Inspection (feature flag absent from release) | 1.0 |
+| — | Backup blob is produced client-side; no server code path reads `content` to build it | Inspection + test | 1.0 |

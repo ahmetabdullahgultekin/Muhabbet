@@ -26,12 +26,12 @@ messages (C5, GEM-13).
 
 ## Decision
 
-### 1. Server sequence (V28, 0.4, additive)
+### 1. Server sequence (V28–V29, 0.4, additive)
 
 | Column | Meaning |
 |---|---|
 | `conversations.last_seq BIGINT NOT NULL DEFAULT 0` | Allocation counter |
-| `messages.seq BIGINT` | Position of the message; `UNIQUE (conversation_id, seq)`; `NULL` for unreleased scheduled messages |
+| `messages.seq BIGINT` | Position of the message; `UNIQUE (conversation_id, seq)`; `NULL` for unreleased scheduled messages (V29) |
 | `messages.change_seq BIGINT` | Last change to the row (insert, edit, delete, reaction, expiry) |
 
 - Allocation happens inside the send transaction:
@@ -46,15 +46,22 @@ messages (C5, GEM-13).
 
 ### 2. Change feed — the authoritative read
 
-- `GET /api/v1/conversations/{id}/changes?afterSeq=&limit=` → `{items, lastSeq, hasMore}`, ordered
-  by `change_seq`, membership-checked, hiding unreleased scheduled messages.
+- `GET /api/v1/conversations/{id}/changes?afterSeq=&limit=` → `{items, nextAfterSeq, lastSeq, hasMore}`,
+  ordered by `change_seq`, membership-checked, hiding unreleased scheduled messages and any other
+  per-requester-hidden change.
+- The cursor is **server-driven**. `nextAfterSeq` is the highest `change_seq` the server scanned for
+  this request, visible to the requester or not. `lastSeq` (in `/changes`, the conversation list and
+  hints) is the conversation's allocation high-water (`conversations.last_seq`).
 - The conversation list returns `lastSeq` per conversation.
 - WS `message.new` and FCM are **hints** carrying `(conversationId, seq)` (`sync.hint` frame,
   ADR-0022). Pull is truth, push is a hint (P6).
-- The client watermark is over `change_seq`. A gap is detected by comparing the watermark with a
-  hinted `seq` or the list's `lastSeq`, **not** by contiguity: superseded edits leave holes in the
-  `change_seq` stream that are not gaps. The client pulls until `hasMore = false` and the watermark
-  reaches `lastSeq`.
+- The client watermark is over `change_seq` and is set to `nextAfterSeq`, **never** to
+  max(`item.change_seq`): changes the requester cannot see (an edit or reaction to an unreleased
+  scheduled message, BE-02) still advance `last_seq`, so an item-derived watermark could never reach
+  it and the client would pull forever.
+- A gap is `watermark < hinted seq` or `watermark < listed lastSeq`, **not** a hole in contiguity:
+  superseded edits and hidden changes leave holes that are not losses. The gap is closed when the
+  server answers with `nextAfterSeq ≥` that value.
 - Scheduled messages get their `seq` when released, each in its own transaction (BEV-M1). They are
   invisible before release, which closes BE-02 structurally.
 
@@ -69,7 +76,10 @@ data class CausalHeader(
 )
 ```
 
-- A gap in `deviceCounter` from a sender device triggers a pull. A replayed counter is dropped.
+- `deviceCounter` is assigned at **seal time** (QUEUED → IN_FLIGHT), never at enqueue, so a
+  CANCELLED or EXPIRED outbox entry (ADR-0013) leaves no counter gap.
+- A gap in `deviceCounter` from a sender device triggers **at most one** pull per (sender device,
+  gap) and never blocks display. A replayed counter is dropped.
 
 ### 4. Display order
 
@@ -107,8 +117,10 @@ data class CausalHeader(
 > **Reviewer note (open):** The brief speaks of "seq-gap pulls" without defining a gap. Because edits,
 > deletes and reactions consume `last_seq` values and overwrite a row's `change_seq`, the stream a
 > client sees has holes that are not losses. This ADR therefore defines gap detection as
-> *watermark < hinted seq or listed `lastSeq`* (Decision §2), not as contiguity. Owner/brief to
-> confirm; the ICD must state the same rule.
+> *watermark < hinted seq or listed `lastSeq`* (Decision §2), not as contiguity, and makes the
+> cursor server-driven (`nextAfterSeq`), because changes hidden from a requester still advance
+> `last_seq`. Owner/brief to confirm; the ICD must state the same rule, including the
+> `nextAfterSeq` field and "watermark := `nextAfterSeq`".
 
 ## Alternatives considered
 
@@ -133,5 +145,7 @@ data class CausalHeader(
 | RQ-04 | 50 concurrent senders produce gapless, unique `seq` per conversation | Testcontainers (Postgres), Docker running | 0.4 exit |
 | RQ-05 | Dropping 100% of hints still converges via pull on reconnect, foreground or WorkManager | `SimulatedLink` test | 0.5 exit |
 | — | An unreleased scheduled message never appears in `/changes` | Integration test | 0.4 |
+| — | An edited unreleased scheduled message does not cause repeated pulls by recipients (`nextAfterSeq` reaches `lastSeq`) | Testcontainers integration test | 0.5 |
+| — | A cancelled outbox entry causes no counter gap and no repeated pulls | `SimulatedLink` test | 0.5 |
 | — | A far-future `senderTimeMs` cannot move a row out of `[receivedAt − 5 min, receivedAt]` | Unit test with `TestClock` | 0.5 (logic) / 1.2 (off-server rows) |
 | — | Watermark never derives from the device clock | Code inspection + unit test | 0.5 |

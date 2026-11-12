@@ -37,7 +37,8 @@ flowchart TB
     push -- "Wake (best effort)" --> companion
     push -- "Wake (best effort)" --> user
     stores -- "Signed APK/AAB<br/>(build once, promote same artefact)" --> user
-    muhabbet -- "Takedown, legal-request log,<br/>transparency counters" --> authority
+    authority -- "Takedown orders, legal requests" --> muhabbet
+    muhabbet -- "Transparency reporting,<br/>legal-request responses" --> authority
 
     user -. "SealedFrame over LAN / Nearby<br/>[TransportFrame, rotating tags]<br/>1.2, 1:1, verified, E2E" .-> nearbyContact
     user -. "Sealed UplinkBundle over LAN / Nearby<br/>[HPKE to server]<br/>1.3" .-> mule

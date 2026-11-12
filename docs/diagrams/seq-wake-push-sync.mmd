@@ -15,6 +15,7 @@ sequenceDiagram
     autonumber
     participant SM as SendMessageService
     participant HP as DeliveryHintPublisher
+    participant HPort as DeliveryHintPort<br/>(WsAndFcmHintAdapter)
     participant WR as WsSessionRegistry
     participant WP as WakePushService<br/>(WakePushPort, FcmWakePush)
     participant FCM as FCM (APNs later)<br/>external processor
@@ -28,14 +29,15 @@ sequenceDiagram
     participant WM as WorkManager / BGTask
 
     SM-)HP: MessageAccepted(conversationId, seq) after commit
-    HP->>WR: live socket for recipient device?
-    alt live socket
-        HP-)WR: WS sync.hint / message.new (see seq-send-receive)
-    else no live socket
-        HP->>WP: wake(device, WakeHint(conversationId, seq), collapseKey = conversationId)
+    HP->>HPort: hint(device, conversationId, seq) for every recipient device
+    par WS hint to every live session
+        HPort-)WR: sync.hint / message.new (see seq-send-receive)
+    and wake to every recipient device, including the sender's own other devices
+        HPort->>WP: wake(device, WakeHint(conversationId, seq), collapseKey = conversationId)
         WP->>FCM: high-priority data-only message {type: "wake", conversationId, seq}
         FCM-)FH: deliver (best effort, may be delayed or dropped by OEM)
     end
+    Note over HP,WP: presence-aware suppression for devices with a live WS session is a later refinement (brief section 4.2, ICD W-5)
 
     FH->>SC: InboundEvent.Hint(conversationId, seq)
     SC->>IB: watermark(conversationId)
@@ -43,10 +45,11 @@ sequenceDiagram
         SC->>RF: changes(conversationId, afterSeq = watermark, limit)
         RF->>API: GET /api/v1/conversations/{id}/changes?afterSeq&limit over TLS
         API-->>RF: {items, lastSeq, hasMore}
-        RF-->>IB: page
+        RF-->>SC: page
+        SC->>IB: apply page
         IB->>IB: one tx - upsert items + advance watermark (repeat while hasMore)
         IB->>RS: committed up to seq
-        RS->>API: message.ack {conversationId, uptoSeq, DELIVERED} (after commit, P4)
+        RS->>RS: enqueue CONTROL message.ack {conversationId, uptoSeq, DELIVERED} in outbox<br/>(after commit, P4), flushed when ServerLink is Ready (see spec R-5)
         IB->>NT: compose notification text locally from DB rows
     else seq at or below watermark (duplicate or stale hint)
         SC->>SC: no-op

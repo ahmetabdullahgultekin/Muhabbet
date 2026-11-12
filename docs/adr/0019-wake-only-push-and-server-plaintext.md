@@ -31,7 +31,7 @@ client-side and silently weaken that guarantee (target-state proposal; security 
 | Item | Rule |
 |---|---|
 | Payload | **Data-only** message: `{ "type": "wake", "conversationId": "<uuid>", "seq": <long> }`. No `notification` block, no title, no body, no sender name |
-| Priority | High-priority data message, collapse key per conversation |
+| Priority | High priority only for wakes that will produce a user-visible notification (new message from another user). Normal priority for receipt, edit, delete and sync hints. Collapse key per conversation |
 | Client | `FcmHintSource` (an `InboundSource`, ADR-0012) emits `Hint(conv, seq)` → `SyncCoordinator` pulls `/changes?afterSeq=` over TLS → commits to the DB (ADR-0013 P4) → **composes the notification text locally** from the DB |
 | Server port | `WakePushPort.wake(device, hint, collapseKey): PushResult`, implemented by `FcmWakePush` (later `ApnsWakePush`). `PushNotificationComposer`'s body composition is deleted, not flag-gated |
 | Pull is truth | A lost or throttled wake is repaired by the next pull (P6); push never carries anything the client cannot fetch |
@@ -55,8 +55,9 @@ client-side and silently weaken that guarantee (target-state proposal; security 
 | Push | Wake-only (from 0.5) | Wake-only | — |
 
 Channels and communities remain **server-plaintext by design** and are labelled as such in the UI
-(ADR-0016 wording rule); the table above does not apply to them. Groups are E2E (sender keys,
-brief §8.3) whatever their size; the off-server cap only limits which *paths* they may use.
+(ADR-0016 wording rule); the table above does not apply to them. Groups use sender keys (brief
+§8.3). Which group sizes are E2E at 1.0 follows the brief ("1:1 and small groups"). The off-server
+cap separately limits which paths groups may use.
 
 ### 3. What the server still sees (explicit metadata list, from 1.0)
 
@@ -138,5 +139,7 @@ Consequences for #377 settings:
 > that two devices receive wakes for the same conversation at the same moments, i.e. who talks to
 > whom and when. A per-device opaque hint (e.g. only `{type:"wake"}`, or a random per-device token
 > mapped server-side) would remove that link at the cost of per-conversation collapse keys and a
-> slightly larger pull. The brief's payload is kept; the owner and counsel (Q-L6) should decide
-> whether the `conversationId` is acceptable or should be replaced before 0.5 ships.
+> slightly larger pull. The clear `seq` also exposes per-conversation message counts to the push
+> provider; both fields fall under the same decision. The brief's payload is kept; the owner and
+> counsel (Q-L6) should decide whether `conversationId` and `seq` are acceptable or should be
+> replaced before 0.5 ships.

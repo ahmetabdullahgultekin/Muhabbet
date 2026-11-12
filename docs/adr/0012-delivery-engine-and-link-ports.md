@@ -4,7 +4,7 @@
 
 ## Context
 
-`WsClient` (`mobile/.../data/remote/WsClient.kt`, ~620 lines) fuses four responsibilities: the
+`WsClient` (`mobile/.../data/remote/WsClient.kt`, ~680 lines) fuses four responsibilities: the
 connect/backoff loop, an at-most-once offline queue (MOB-04: `session?.outgoing?.send(...)` followed
 unconditionally by `cache.deletePendingMessage(...)`), in-memory dedup that drops every edit after
 the first (MOB-05), and the E2E hook with its plaintext fallback (C9). The UI addresses it directly
@@ -42,9 +42,11 @@ interface ServerLink {                       // carries ServerFrame (TLS to our 
     val state: StateFlow<LinkState>
     suspend fun submit(frame: ServerFrame): SubmitResult
 }
-interface SealedLink {                       // carries only SealedFrame (ADR-0016)
-    val scope: PathScope                     // ADR-0015
-    val caps: LinkCapabilities
+sealed interface ServerFrame {
+    class Plain internal constructor(val envelope: OutgoingEnvelope) : ServerFrame // only via ConversationCrypto.None
+    data class Envelopes(val frames: List<SealedFrame>) : ServerFrame
+}
+interface SealedLink {                       // carries only SealedFrame (ADR-0016); 0.5 shape
     val state: StateFlow<LinkState>
     suspend fun send(to: PeerRoute, frame: SealedFrame): SubmitResult
 }
@@ -63,11 +65,16 @@ Rules:
 
 1. `ServerLink` may carry TLS-only plaintext **only** for conversations with
    `encryptionState = NONE`, until 1.0, as today. From 1.0, E2E conversations reach it only as
-   sealed envelopes (ADR-0016, ADR-0022).
+   sealed envelopes (ADR-0016, ADR-0022). This is a type fact: `ServerFrame.Plain` can be built
+   only from a `ConversationCrypto.None` token, and an E2E conversation can only produce
+   `ServerFrame.Envelopes`.
 2. `SealedLink` accepts only `SealedFrame`, whose constructor is `internal` to `:mobile:crypto`.
    Plaintext on a non-server path is a compile error, not a runtime check.
 3. Pull-only sources are `InboundSource`s and never implement `send()` (no LSP violation).
-4. No adapter returns success it did not observe. `HopAcked` requires an authenticated hop ack;
+4. At 0.5 `SealedLink` is `send(to, frame)` + `state` only. `scope: PathScope` and
+   `caps: LinkCapabilities` are added at 1.2 together with ADR-0015 and `PathPolicy`, their first
+   consumer (KISS, P7).
+5. No adapter returns success it did not observe. `HopAcked` requires an authenticated hop ack;
    `ServerAccepted` requires a `ServerAck` with a `seq`.
 
 | Port | Implementations now | Second real implementation (P7) |
@@ -115,12 +122,16 @@ deleted in 0.5.2 or later.
 ## Why
 
 - `InboundSource` has three real implementations today, so the abstraction pays for itself now.
-- `ServerLink` has one production implementation plus `SimulatedLink`; its type-level counterpart
-  `SealedLink` has scheduled real implementations in 1.2. That satisfies principle P7.
+- This is a recorded P7 exception: `ServerLink` exists to make the plaintext/sealed split a type
+  distinction (ADR-0016), not for substitutability. Its only other implementation is
+  `SimulatedLink`. `SealedLink` has scheduled real implementations in 1.2.
 - The ISP split turns "E2E-only on off-server paths" from a runtime boolean into a compile-time
   guarantee. All three judges endorsed this graft from the risk-first proposal.
 - Per-link senders and per-conversation FIFO fix GEM-01, GEM-02 and the Gemini-verifier MISS-01 by
   construction: a slow link stalls only itself.
+
+> **Reviewer note (open):** brief §3 ADR-0012 rationale names `LanLink` as `ServerLink`'s second
+> implementation; `LanLink` is a `SealedLink` (brief §5). The brief should adopt the §5 wording.
 
 ## Consequences
 
@@ -146,7 +157,7 @@ deleted in 0.5.2 or later.
 
 - Findings: MOB-04, MOB-05, MOB-11, MOB-13, C9, GEM-01, GEM-02, GEM-05, GEM-17, GEM-22,
   MISS-01 (Gemini verifier), KMP-03, KMP-05.
-- Code: `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/data/remote/WsClient.kt:490-517`,
+- Code: `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/data/remote/WsClient.kt:534-569` (`drainPendingMessages`),
   `.../commonTest/kotlin/com/muhabbet/app/data/remote/WsClientReconnectTest.kt`.
 
 ## Verification
@@ -154,6 +165,7 @@ deleted in 0.5.2 or later.
 | Check | Method | When |
 |---|---|---|
 | Only `:mobile:crypto` constructs `SealedFrame`; no `SealedLink` receives anything else | Compile + architecture test | 0.5 |
+| An E2E conversation cannot produce `ServerFrame.Plain` | Compile + architecture test | 1.0 |
 | `:mobile:messaging` has no Compose, Koin-annotation or `WsMessage` dependency | Build-enforced + guardrail | 0.5 |
 | A slow or backpressured link does not delay another link or another conversation | `SimulatedLink` test with two conversations and a stalled lane | 0.5 |
 | No transport adapter depends on identity/ordering ports (ADR-0010) | Konsist rule | 0.5 |

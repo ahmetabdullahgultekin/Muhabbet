@@ -35,8 +35,8 @@
 | # | Step | Agent action | Gate |
 |---|---|---|---|
 | 1 | Pick work | Only issues with evidence and a milestone, or explicit owner instruction. `status:needs-evidence` items are verified first (ROADMAP "verify, then schedule"). | — |
-| 2 | Check the scope | Is the milestone's scope `Approved` in `APPROVAL.md`? If not, stop at docs. Set `.claude/active-scope` to that scope id in the branch. | Design gate hook (ADR-0033) refuses code edits otherwise |
-| 3 | Claim | Branch `<type>/<issue#>-<slug>`; first push opens a **draft PR** with `Closes #N` (or `Refs #N` for device-criterion issues, see §5); board item → *In progress* (WIP ≤ 3) | — |
+| 2 | Check the scope | Is the milestone's scope `Approved` in `APPROVAL.md`? If not, stop at docs. Write that scope id to `.claude/active-scope` in the working tree (gitignored, never committed; ADR-0033 G5). At most one milestone scope is open at a time (ADR-0033 D1a); if a different one is open, the work is not approved — stop and ask. | Design gate hook (ADR-0033) refuses code edits otherwise |
+| 3 | Claim | Branch `<type>/<issue#>-<slug>`; first push opens a **draft PR** with `Closes #N` (ADR-0032 decision 6). For an issue with a device criterion, `#N` is the implementation sub-issue; the `[O]` criterion lives in its parent issue, which stays open (§5 rule 1); board item → *In progress* (WIP ≤ 3) | — |
 | 4 | Build | Follow CLAUDE.md hard rules (hexagonal layering, i18n, `ErrorCode`, no `!!`); one concern per PR | Hook; CODEOWNERS |
 | 5 | Gate | Run the relevant gates and **measure**: `:backend:test` (Docker running for any Spring-config or migration change), `:shared:jvmTest`, `compileCommonMainKotlinMetadata`, `verifyUi`. Report base-vs-branch counts from the XML results. | PR template "Gates that ran" |
 | 6 | Report honestly | PR body states: what was run and its output; what was **not** checked; which acceptance criteria need the owner's device | — |
@@ -86,8 +86,11 @@ An agent leaves the field empty. A PR or issue that fills it without an owner co
 | **Verified (observed by / where)** | Logic-only: CI evidence on the released SHA. Device: the owner saw it on a named device or emulator | — |
 
 Rules:
-1. An issue with a device criterion stays **open** until *Verified*. Until the Projects status field
-   exists, PRs reference it with `Refs #N`, not `Closes #N`, so merging does not close it (GOV-02).
+1. An issue with a device criterion stays **open** until *Verified*. Default (github-governance §3,
+   §10, R-7 option (a)): the `[O]` criterion lives in a **parent** issue; the PR `Closes` an
+   implementation **sub-issue**, so merging closes only the sub-issue and the parent waits for the
+   owner (GOV-02). A bare `Refs #N` fails ADR-0032 check A6; using `Refs` instead needs R-7 option
+   (b) (A6 changed to "draft PR cross-referenced in the timeline") and the owner's decision.
 2. CLAUDE.md, ROADMAP and release notes say "fixed on `main`", "released in vX.Y.Z" or "verified on
    <device>" — never "DONE" without one of these (SSOT-11).
 3. Milestone progress counts *Verified* items only when judging exit criteria.

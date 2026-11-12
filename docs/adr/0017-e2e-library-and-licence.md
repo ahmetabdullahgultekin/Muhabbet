@@ -1,6 +1,6 @@
 # ADR 0017 — E2E library and licence: libsignal at the platform edge; `mobile/` relicensed to AGPL-3.0-or-later; `shared/` and `backend/` stay MIT
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The licence change additionally requires preconditions (a)–(c) below, independently of design approval · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0017; §8.3; §13 (1.0.0); §17 Q-O1, Q-O2, Q-L7](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Supersedes** [ADR-003](003-defer-e2e-encryption.md) together with ADR-0016 (the gate) · Depends on ADR-0016, ADR-0028, ADR-0029, ADR-0031. Realises the crypto half of [ADR 0007](0007-companion-device-trust.md) via ADR-0018.
+**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The licence change additionally requires preconditions (a)–(c) below, independently of design approval · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0017; §8.3; §13 (1.0.0); §17 Q-O1, Q-O2, Q-L7](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Related to** [ADR-003](003-defer-e2e-encryption.md), which ADR-0016 supersedes (brief §3) · Depends on ADR-0016, ADR-0028, ADR-0029, ADR-0031. Realises the crypto half of [ADR 0007](0007-companion-device-trust.md) via ADR-0018.
 
 ## Context
 
@@ -22,7 +22,7 @@ State on `dev` @ 2434324:
   `LibSignalClient` package, which has no Objective-C surface, so Kotlin/Native needs an `@objc`
   wrapper (KMP-13, and the same bridge shape MISS-3 describes for LiveKit Swift).
 - **Distribution moved.** libsignal versions above 0.86.5 are published only to Signal's own Maven
-  repository, already added to `settings.gradle.kts:18-21`.
+  repository, already added to `settings.gradle.kts:18-22`.
 - **iOS cannot launch at all** (KMP-01): no entry point, no Xcode project, no wired DI.
 - Hand-written crypto is forbidden (CLAUDE.md "do not guess crypto"; ADR 0007; principle P12).
   Gemini proposed a "PQXDH + Double Ratchet engine in Kotlin" (C1); that is exactly the thing this
@@ -49,9 +49,10 @@ Java/Android and Swift bindings expose SPQR to third-party apps, and from which 
 | Envelope | Every ciphertext is **protocol-tagged** (`protocol` field, ADR-0022), so a library change does not ripple into wire, storage or UI |
 
 ```kotlin
-// :mobile:crypto, commonMain — the only crypto surface the engine sees (signatures from brief §5)
+// :mobile:crypto, commonMain — the only crypto surface the engine sees (signatures from brief §5,
+// except safetyNumber: per device identity key, ADR 0018 §6 — libsignal fingerprints cover one key per side)
 interface SessionCryptoPort {
-    suspend fun safetyNumber(peer: UserId): SafetyNumber
+    suspend fun safetyNumber(peer: DeviceAddress): SafetyNumber
     suspend fun processBundle(b: DevicePreKeyBundle)
 }
 // EnvelopeSealer / SealResult / SealedFrame: defined by ADR-0016.
@@ -70,6 +71,11 @@ Mechanics on acceptance: a `mobile/LICENSE` with the AGPL-3.0 text, SPDX headers
 `REUSE`-style mapping) stating the per-tree licence, a README licence section, and an in-app
 "source code" link satisfying the AGPL source offer for the exact released version. The root
 `LICENSE` continues to cover everything outside `mobile/`.
+
+> **Reviewer note (open):** relicensing `mobile/` is a choice, not a legal requirement. MIT-licensed
+> `mobile/` sources could be conveyed inside an AGPL-licensed binary, as `shared/` is. Counsel
+> (Q-L7) should confirm which is preferable, and also whether AGPL-3.0 §6 Installation Information
+> duties apply to iOS/App Store conveyance.
 
 ### 3. Preconditions (all three, before the dependency is restored)
 
@@ -107,7 +113,7 @@ because there is none). iOS E2E then follows as 1.0.x.
 - **libsignal is the only option that gives PQXDH, a deployed ratchet, sender keys and an upgrade
   path to SPQR without writing crypto.** Every alternative either loses post-quantum handshakes
   (vodozemac), is not designed for 1:1 (OpenMLS) or is hand-rolled (forbidden).
-- **Relicensing only `mobile/` is the minimal correct boundary.** Risk-first's draft relicensed
+- **Relicensing only `mobile/` is the boundary chosen.** Risk-first's draft relicensed
   `shared/` too, which is inconsistent: the MIT backend links `shared/`, and `shared/` never links
   libsignal. Keeping `shared/` and `backend/` MIT keeps the server free of copyleft obligations it
   does not trigger.
@@ -151,7 +157,7 @@ because there is none). iOS E2E then follows as 1.0.x.
 - Findings: KMP-13, KMP-M3, KMP-01, C1, C9, SSOT-05, GOV-06, MISS-3 (networking verifier, Swift
   bridge cost).
 - Code: `LICENSE:1`, `mobile/composeApp/build.gradle.kts:118-126, 195-203`,
-  `settings.gradle.kts:18-21`, `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/crypto/`.
+  `settings.gradle.kts:18-22`, `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/crypto/`.
 - External (from the digests): https://github.com/signalapp/libsignal,
   https://signal.org/docs/specifications/pqxdh/, https://signal.org/blog/spqr/,
   https://signal.org/docs/specifications/x3dh/.

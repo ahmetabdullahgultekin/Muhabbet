@@ -106,6 +106,10 @@ link layer adds peer authentication and metadata protection, not content protect
    Nearby endpoint names and mDNS service-instance names are **random per session**.
 4. A scanner matches observed tags only against the tags of its **own verified contacts** for the
    current and adjacent epoch, and ignores everything else.
+5. **Carrier:** Nearby `endpointInfo` = per-session random nonce ‖ tags; mDNS = random instance
+   name + a TXT key carrying tags. Only tags of peers with current demand (§6 Trigger) are
+   advertised, bounded by the carrier's size limit; re-advertise at each epoch boundary. The
+   `endpointInfo` and TXT size limits are measured in the 1.2 spike.
 
 ```kotlin
 // :mobile:crypto
@@ -147,6 +151,7 @@ Constants live in companion objects (CLAUDE.md "no magic numbers").
 | Location | Only if the library requires it on that API level | Required for the Nearby hotspot join; without it the join is silently rejected |
 | Hotspot join | — | System confirmation prompt (Nearby Wi-Fi upgrade) |
 | Foreground service | `connectedDevice` type, notification | n/a (foreground only) |
+| Wi-Fi without internet while cellular is up | `LanLink` binds its sockets to the Wi-Fi `Network` from `ConnectivityManager` (it is usually not the default network); to be verified in the spike | to be measured in the spike |
 
 Every cell is **unmeasured** until the device-matrix spike publishes it in
 `transport-capability-matrix.md` (P13: only the owner's observation counts).
@@ -246,4 +251,6 @@ published matrix.
 > **Reviewer note (open):** many public and guest Wi-Fi access points isolate clients and drop
 > multicast, which defeats both mDNS discovery and peer TCP. The brief's `LanLink` exit ("shared
 > Wi-Fi") should name a non-isolating network, and the device matrix should add an isolated-AP row
-> marked as an expected failure, so the UI does not imply LAN works on every Wi-Fi.
+> marked as an expected failure, so the UI does not imply LAN works on every Wi-Fi. It should also add
+> the row "Wi-Fi without internet while cellular is up" (§8): the airplane-mode exit test has no
+> cellular and therefore hides the Android default-network binding case.

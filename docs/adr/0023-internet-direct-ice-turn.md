@@ -9,7 +9,7 @@
   bean. There is **no media-path infrastructure** at all: no LiveKit server, no STUN/TURN, no UDP
   port opened (MISS-1, networking verifier). ADR 0009 proposes a dedicated LiveKit host off the
   production box; its placement is still open (Q-O8).
-- The repo already depends on `io.livekit:livekit-android:2.27.0`
+- The repo already depends on `io.livekit:livekit-android:2.28.0`
   (`mobile/composeApp/build.gradle.kts:115`); LiveKit ships an embedded TURN server with TURN/TLS on
   443 (ICE-1). There is no official LiveKit KMP client; iOS needs a Swift bridge through an `@objc`
   shim (LIB-1, MISS-3).
@@ -49,10 +49,17 @@ Signalling (`call.*` frames) travels over the existing server WS as **CONTROL**-
 through the engine (ADR-0012, brief §6.5) with a 60 s lifetime. Scopes are `IP_RELAYED` (TURN/SFU on
 our infrastructure) and `IP_DIRECT` (ICE host/srflx, calls only) (ADR-0015).
 
+**Sealed fingerprints (1.1 rule).** From 1.1, the SDP offer and answer (at minimum the DTLS
+`a=fingerprint` lines) travel inside sealed plane-B content (`Content.Control{callOffer|callAnswer}`,
+ADR-0022) through `EnvelopeSealer` between the two devices' libsignal sessions. The client aborts the
+call if the DTLS certificate presented does not match the sealed fingerprint. `call.*` server frames
+carry only routing and ringing. Without this rule the signalling server could swap fingerprints and
+sit in the middle of the media, so DTLS-SRTP would not be end to end.
+
 | Milestone | Implementation | Media path | E2E? | Credential source |
 |---|---|---|---|---|
 | **0.7 Live** | `LiveKitSession` | LiveKit SFU with embedded TURN/TLS on 443, on a **separate host** (ADR 0009) | **No** — SFU can access media; disclosed in UI | Backend-minted LiveKit token, short TTL |
-| **1.1 Direct** (gated) | `WebRtcP2PSession` for **1:1 calls** | WebRTC peer connection; ICE over **our own TURN** | **Yes** — DTLS-SRTP end to end between the two devices | `TurnCredentialPort`; LiveKit-embedded TURN or a standalone TURN with HMAC credentials, chosen by the 1.1 spike |
+| **1.1 Direct** (gated) | `WebRtcP2PSession` for **1:1 calls** | WebRTC peer connection; ICE over **our own TURN** | **Yes, only when the fingerprints are exchanged sealed** (rule above) — DTLS-SRTP end to end between the two devices; otherwise **No** | `TurnCredentialPort`; LiveKit-embedded TURN or a standalone TURN with HMAC credentials, chosen by the 1.1 spike |
 | Group calls | `LiveKitSession` | SFU | No (disclosed) | as 0.7 |
 
 ### 2. Privacy defaults
@@ -63,7 +70,7 @@ our infrastructure) and `IP_DIRECT` (ICE host/srflx, calls only) (ADR-0015).
 | User override | "Always relay calls" setting in Privacy (forces `relay` for everyone) |
 | SFU disclosure | If an SFU carries a 1:1 call, the call UI states that the server can access the media |
 | Telemetry | ICE telemetry records **only** selected candidate type (host/srflx/relay), IP family and ASN — **never IP addresses** — with a KVKK notice (Q-L8) |
-| Credentials | Minted per session and device, TTL ≤ 10 minutes, never cached across calls |
+| Credentials | Minted per session and device, TTL ≤ 10 minutes, never cached across calls. The TTL applies to starting new allocations; the 0.7/1.1 spike verifies that a 30-minute call survives allocation refresh and ICE restart (re-minting over WS if needed) |
 
 ### 3. What is not built
 
@@ -144,7 +151,9 @@ our infrastructure) and `IP_DIRECT` (ICE host/srflx, calls only) (ADR-0015).
 | RQ-14 | A call connects, carries audio both ways and appears in history, on **two physical devices on two operators, one of them TT Mobil** | Demonstration, owner (P13) | 0.7 exit |
 | RQ-15 | A call with a non-contact uses only relay candidates | Test (policy unit test) + Inspection (ICE stats) | 0.7 exit |
 | — | TURN credentials expire ≤ 10 min after minting and are per device and session | Backend unit/integration test | 0.7 |
+| — | A 30-minute call survives TURN allocation refresh and an ICE restart despite the ≤ 10 min credential TTL | Spike on physical devices | 0.7 / 1.1 spike |
 | — | ICE telemetry rows contain no IP address | Test + inspection of stored rows | 0.7 |
 | — | One week of relayed share and TURN egress measured | Analysis of telemetry | 0.7 exit |
 | — | 1:1 P2P call: per-ASN setup success and latency A/B vs SFU; no IP exposure to non-contacts | Analysis + candidate inspection | 1.1 exit |
 | — | Two-operator physical-device P2P call | Demonstration, owner | 1.1 exit |
+| — | A call whose server-relayed SDP fingerprint was tampered with fails to connect | Integration test with a MITM signalling fake | 1.1 exit |

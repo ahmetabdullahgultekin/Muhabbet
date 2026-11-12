@@ -20,7 +20,14 @@
 
 ## 1. Evidence marks
 
-Every cell carries exactly one mark.
+Every cell carries exactly one mark, under these three conventions:
+
+1. **Row mark.** Where a table has a `Mark` or `Sources` column holding a single mark, that mark applies
+   to every cell of the row that carries none of its own.
+2. **Composite cell.** A cell stating two distinct facts (platform vs app, or one fact per side) uses
+   the form `platform: MARK / app: MARK` (or `A: MARK; i: MARK`); each part carries exactly one mark.
+   Two marks on one undivided fact are not allowed.
+3. **Design decisions** are marked **DECIDED (source)**, never with a bare "brief".
 
 | Mark | Meaning | Who may set it |
 |---|---|---|
@@ -32,6 +39,7 @@ Every cell carries exactly one mark.
 | **BLOCKED (x)** | Cannot be measured or shipped until prerequisite *x* is met. | Any author |
 | **NO (doc)** | Documented as impossible or unavailable; VERIFIED-DOC by construction. | Any author, citing the finding |
 | **N/A** | Not a capability of this scope by design (ADR). | Any author, citing the ADR |
+| **DECIDED (ADR-nnnn / brief §x)** | A design decision, not an empirical fact; true by decree until the ADR changes. | Any author, citing the ADR or brief section |
 
 **Global rule for iOS cells.** The iOS app cannot launch today (KMP-01: no entry point, no Xcode
 project, iOS DI never wired). Every `i↔i` and `A↔i` *Muhabbet* capability is therefore
@@ -49,12 +57,12 @@ Q-O2), the iOS columns stay blocked until a later ADR re-opens them.
 |---|---|---|---|---|
 | Wi-Fi with internet | `SERVER_RELAY`, `IP_RELAYED`, `IP_DIRECT`, `LAN` | OS default route; ICE gathers all interfaces | — | VERIFIED-DOC (LINK-1, `ConnectivityManager`) |
 | Ethernet / USB-C adapter | same as Wi-Fi | OS | "just another IP interface" | VERIFIED-DOC (LINK-1) |
-| Cellular 4G/5G | `SERVER_RELAY`, `IP_RELAYED`, `IP_DIRECT` | OS / ICE | IPv6 ~22 % overall, ~1 % on TT Mobil | VERIFIED-DOC (NAT-3/NAT-4, https://stats.labs.apnic.net/ipv6/TR) |
-| Starlink / LEO broadband | `SERVER_RELAY` (+ ICE scopes) | OS | ordinary IP; may set `constrained` | brief §12 #65 |
+| Cellular 4G/5G | `SERVER_RELAY`, `IP_RELAYED`, `IP_DIRECT` | OS / ICE | IPv6 ~22 % overall, ~1 % on TT Mobil | VERIFIED-DOC (NAT-3, https://stats.labs.apnic.net/ipv6/TR) |
+| Starlink / LEO broadband | `SERVER_RELAY` (+ ICE scopes) | OS | ordinary IP; may set `constrained` | DECIDED (brief §12 #65) |
 | Satellite direct-to-cell / NTN | `SERVER_RELAY` with `constrained = true` | carrier / OS | not a transport; no TR D2C data service | VERIFIED-DOC (RF-06) |
 | Wi-Fi without internet (shared AP) | `LAN` | — | fails on client-isolating APs (§13.4 scenario X3) | UNMEASURED |
-| BLE / Wi-Fi P2P radios | `PROXIMITY` (via Nearby Connections only) | the library | no custom BLE/Wi-Fi Direct adapter (ADR-0024) | brief |
-| LoRa via external node | `EXTERNAL_RF` | — | 1.4, TR-excluded | brief |
+| BLE / Wi-Fi P2P radios | `PROXIMITY` (via Nearby Connections only) | the library | no custom BLE/Wi-Fi Direct adapter (ADR-0024) | DECIDED (ADR-0024) |
+| LoRa via external node | `EXTERNAL_RF` | — | 1.4, TR-excluded | DECIDED (ADR-0026) |
 
 ### 2.2 Adapter catalogue
 
@@ -65,12 +73,12 @@ Q-O2), the iOS columns stay blocked until a later ADR re-opens them.
 | `SERVER_RELAY` | `FcmHintSource` / APNs later | `InboundSource` | `:mobile:composeApp` | 0.5 / iOS | FCM carries content today (BE-15); APNs absent | VERIFIED-REPO |
 | `SERVER_RELAY` | media HTTP upload (BULK) | — (media worker) | `:mobile:composeApp` | existing → 0.5 resumable | single multipart POST, server cap 100 MB | VERIFIED-REPO (`application.yml:61`) |
 | `IP_RELAYED` | `LiveKitSession` (SFU + embedded TURN/TLS 443) | `LiveSessionPort` | `:mobile:composeApp` | 0.7 | `livekit-android:2.28.0` linked; **no server deployed, calls have never worked** (#367–#373) | VERIFIED-REPO (`build.gradle.kts:115`), NET MISS-1 |
-| `IP_DIRECT` | `WebRtcP2PSession` (1:1 calls only) | `LiveSessionPort` | `:mobile:composeApp` | 1.1 (gated) | none | — |
+| `IP_DIRECT` | `WebRtcP2PSession` (1:1 calls only) | `LiveSessionPort` | `:mobile:composeApp` | 1.1 (gated) | none | VERIFIED-REPO (absent: no WebRTC peer-connection code in `mobile/`) |
 | `LAN` | `LanLink` (mDNS/DNS-SD + length-prefixed TCP + `LinkAuthenticator`) | `SealedLink`, `InboundSource` | `:mobile:transport-lan` | 1.2 (gated) | none | VERIFIED-REPO (no proximity code, PROX-11) |
 | `PROXIMITY` | `NearbyLink` (Google Nearby Connections; iOS Swift package only if the spike passes) | `SealedLink`, `InboundSource` | `:mobile:transport-nearby` | 1.2 (gated) | none | VERIFIED-REPO (PROX-11) |
-| `UPLINK_RELAY` | `UplinkHandover` (hop rides `LanLink`/`NearbyLink`; mule POSTs `/api/v1/uplink`) | `SealedLink`, `CustodyTarget` | `:mobile:messaging` + transports | 1.3 (gated, droppable) | none | — |
-| (custody) | `OwnDeviceCustody` (rides `LanLink`/`NearbyLink` between one user's devices) | `CustodyTarget` | `:mobile:messaging` | 1.3 (gated) | multi-device linking exists default OFF (ADR 0007) | brief |
-| `EXTERNAL_RF` | `MeshtasticLink` + `AirtimeLedger` | `SealedLink` | `:mobile:transport-meshtastic` (excluded from TR flavours) | 1.4 (gated, droppable) | none | — |
+| `UPLINK_RELAY` | `UplinkHandover` (hop rides `LanLink`/`NearbyLink`; mule POSTs `/api/v1/uplink`) | `SealedLink`, `CustodyTarget` | `:mobile:messaging` + transports | 1.3 (gated, droppable) | none | VERIFIED-REPO (absent, PROX-11) |
+| (custody) | `OwnDeviceCustody` (rides `LanLink`/`NearbyLink` between one user's devices) | `CustodyTarget` | `:mobile:messaging` | 1.3 (gated) | no custody code; multi-device linking exists default OFF (ADR 0007, V18) | VERIFIED-REPO (absent; V18 present) |
+| `EXTERNAL_RF` | `MeshtasticLink` + `AirtimeLedger` | `SealedLink` | `:mobile:transport-meshtastic` (excluded from TR flavours) | 1.4 (gated, droppable) | none | VERIFIED-REPO (absent) |
 
 ### 2.3 Declared `LinkCapabilities` (ADR-0015)
 
@@ -81,7 +89,7 @@ runtime EWMAs and are **never** hard-coded from this document.
 |---|---|---|---|---|---|
 | `WsServerLink` | n/a (`ServerLink` declares no caps; BULK goes over HTTP ≤ 100 MB) | no | via HTTP worker | false | brief §5, §6.7 |
 | `LanLink` | 64 KiB per record | no | yes (offset-resume) | true | brief §6.7 |
-| `NearbyLink` | the library's BYTES payload limit, **read at runtime** | no | yes (FILE/STREAM payloads) | true | brief §6.7, PROX MISS-03 |
+| `NearbyLink` | the library's BYTES payload limit, **read at runtime** | no | yes (FILE/STREAM payloads) | true | DECIDED (brief §6.7, §10 "MTU negotiated"); the limit value is UNVERIFIED until the spike reads the library constant |
 | `UplinkHandover` | inherits the hop link | no | per-bundle cap of ADR-0025 (value open) | true | brief §9 |
 | `MeshtasticLink` | 200 B, single frame | no | no | true | brief §6.7, ADR-0026 |
 
@@ -101,9 +109,9 @@ Both ends talk to the server; the "pair" is the two clients.
 | Text | in production; at-most-once outbox and RAM acks until 0.4/0.5 (MOB-03/04) | BLOCKED (KMP-01) | BLOCKED (KMP-01) | VERIFIED-REPO |
 | Bulk (media) | HTTP upload ≤ 100 MB; resumable 1 MiB ranges from 0.5 (not built) | BLOCKED | BLOCKED | VERIFIED-REPO (`application.yml:61`) |
 | Live | N/A (see `IP_RELAYED`) | N/A | N/A | ADR-0023 |
-| Prompts / permissions | Android: notifications permission (`platform/NotificationPermission.kt` exists); no others for messaging | iOS: notification authorisation (UNVERIFIED, not built) | as each side | VERIFIED-REPO / UNVERIFIED |
+| Prompts / permissions | Android: notifications permission (`platform/NotificationPermission.kt` exists); no others for messaging — VERIFIED-REPO | iOS: notification authorisation — UNVERIFIED (not built) | A: VERIFIED-REPO; i: UNVERIFIED | `platform/NotificationPermission.kt` |
 | Min OS | Android `minSdk 26`, `targetSdk 36` | none defined (no Xcode project) | — | VERIFIED-REPO (`mobile/composeApp/build.gradle.kts:145-150`), KMP-01 |
-| Legal gate | Baseline only: OTT classification (LEG-01, 5809 Art. 9(14) → Q-L1), 5651/7578 age gate (LEG-02, ADR-0029, 0.4), KVKK Art. 9 for push (Q-L6) | same | same | brief ADR-0029 |
+| Legal gate | Baseline only: OTT classification (LEG-01, 5809 Art. 9(14) → Q-L1), 5651/7578 age gate (LEG-02, ADR-0029, 0.4), KVKK Art. 9 for push (Q-L6) | same | same | DECIDED (ADR-0029) |
 
 `constrained = true` (metered, low-bandwidth, satellite-optimised bearer) restricts the server path to
 CONTROL + INTERACTIVE and defers BULK (brief §7 `ConstrainedRule`). Detection source per platform
@@ -117,44 +125,44 @@ CONTROL + INTERACTIVE and defers BULK (brief §7 `ConstrainedRule`). Detection s
 | Text / bulk | N/A — **no messaging over WebRTC data channels** | N/A | N/A | ADR-0023, ICE-1 |
 | Live (`IP_RELAYED`, LiveKit SFU + TURN/TLS 443) | UNMEASURED — 0.7 exit: two physical devices, two operators, one TT Mobil (owner) | BLOCKED (KMP-01; iOS LiveKit Swift bridge not built, NET MISS-3, LIB-1) | BLOCKED (same) | brief §13 0.7 |
 | Live (`IP_DIRECT`, ICE host/srflx, 1:1, mutual contacts only) | UNMEASURED (1.1 per-ASN A/B) | BLOCKED | BLOCKED | brief §13 1.1 |
-| Expected relay share | budget 30–50 % relayed until measured; hole-punch success is not a planning number (≈63 % birthday estimate, ≈70 % DCUtR in IPFS, ≈0 % EDM↔EDM) | — | — | NAT-1 (https://tailscale.com/blog/how-nat-traversal-works), P2P-2 (https://arxiv.org/abs/2510.27500) |
+| Expected relay share | budget 30–50 % relayed until measured (DECIDED, ADR-0023); hole-punch success is not a planning number (≈63 % birthday estimate, ≈70 % DCUtR in IPFS, ≈0 % EDM↔EDM) — VERIFIED-DOC | — | — | NAT-1 (https://tailscale.com/blog/how-nat-traversal-works), P2P-2 (https://arxiv.org/abs/2510.27500) |
 | Turkish CGNAT behaviour | **UNVERIFIED** — no published measurement; ICE telemetry (no IPs) at 0.7 replaces any survey | — | — | NAT-2, NAT-3 |
-| Prompts / permissions | microphone (camera for video) | iOS microphone/camera usage strings (UNVERIFIED, not built) | both | — |
-| Server prerequisite | LiveKit + TURN on a **separate host**, UDP range open, `LIVEKIT_*` in `.env.prod`; none exists | — | — | NET MISS-1, ADR 0009 |
-| Legal / privacy gate | `iceTransportPolicy = relay` unless mutual contacts with a conversation; "always relay" setting; SFU disclosure; DPIA for TURN/ICE logging; Q-L6, Q-L8 | same | same | NET MISS-2, ADR-0023, ADR-0029 rule 6 |
+| Prompts / permissions | microphone (camera for video) — UNMEASURED | iOS microphone/camera usage strings — BLOCKED (KMP-01; not built) | UNMEASURED / BLOCKED (KMP-01) per side | ADR-0023 (call media) |
+| Server prerequisite | LiveKit + TURN on a **separate host**, UDP range open, `LIVEKIT_*` in `.env.prod`; none exists — VERIFIED-REPO (absent) | — | — | NET MISS-1, ADR 0009 |
+| Legal / privacy gate | `iceTransportPolicy = relay` unless mutual contacts with a conversation; "always relay" setting; SFU disclosure; DPIA for TURN/ICE logging; Q-L6, Q-L8 | same | same | DECIDED (ADR-0023, ADR-0029 rule 6); NET MISS-2 |
 
 ## 5. Matrix — `LAN` (`LanLink`, 1.2)
 
 | Capability | A↔A | i↔i | A↔i | Sources |
 |---|---|---|---|---|
 | Discovery, foreground | `NsdManager` (DNS-SD); reliability problems and Wi-Fi multicast power-save filtering reported, **UNVERIFIED** → UNMEASURED | Bonjour via Network.framework with types declared in `NSBonjourServices`; Local Network prompt — platform fact **VERIFIED-DOC** (PROX MISS-01, tn3179); app UNMEASURED/BLOCKED | UNMEASURED / BLOCKED | LAN-1 (https://developer.apple.com/forums/thread/663875, https://developer.apple.com/news/?id=0oi77447), https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy.md |
-| Discovery, background | N/A by design: only while Nearby mode (Android `connectedDevice` FGS) is on | N/A: iOS foreground only | N/A | ADR-0024 |
-| Raw multicast | not used (would need Apple's restricted multicast entitlement) | not used | — | LAN-1 (https://developer.apple.com/tutorials/data/documentation/bundleresources/entitlements/com.apple.developer.networking.multicast.md) |
+| Discovery, background | within Nearby mode (Android `connectedDevice` FGS, ≤ 15 min auto-off): UNMEASURED (X4); outside Nearby mode: N/A by design | N/A: iOS foreground only (ADR-0024, link state L13) | A side within Nearby mode: UNMEASURED (X4) / BLOCKED (KMP-01); otherwise N/A | ADR-0024 |
+| Raw multicast | not used (would need Apple's restricted multicast entitlement) — DECIDED (ADR-0024) | not used — DECIDED | — | LAN-1 (https://developer.apple.com/tutorials/data/documentation/bundleresources/entitlements/com.apple.developer.networking.multicast.md) |
 | Text (sealed, ≤ 64 KiB records) | UNMEASURED | BLOCKED | BLOCKED | brief §6.7 |
 | Bulk (offset-resume) | UNMEASURED | BLOCKED | BLOCKED | brief §6.7 |
-| Live | N/A | N/A | N/A | §2.3 |
+| Live | N/A | N/A | N/A | ADR-0023, §2.3 |
 | Client-isolating / guest AP | expected **failure** (mDNS and peer TCP dropped) — UNMEASURED | same | same | ADR-0024 reviewer note |
 | HMS (no Play services) | expected to work (no Google dependency) — UNMEASURED | — | UNMEASURED | ADR-0024 |
 | Prompts / permissions | Android: no runtime prompt expected for NSD + TCP; a local-network permission on newer Android versions is reported (`ACCESS_LOCAL_NETWORK`, Android 17) — **UNVERIFIED** | Local Network prompt (VERIFIED-DOC); `NSLocalNetworkUsageDescription` | both | factcheck-proximity proposals; PROX MISS-01 |
-| Min OS | runtime gate API 29 for Nearby mode (ADR-0024); the NSD API itself predates `minSdk 26` (UNVERIFIED, not re-fetched) | none defined (KMP-01) | — | ADR-0024 |
-| Legal gate | Q-L2 (E2E over Wi-Fi/LAN, Art. 39/63(6)); proximity DPIA; G-PROXIMITY | same | same | ADR-0029 rule 7, R6 |
+| Min OS | gate API 29: DECIDED (ADR-0024) / NSD API predates `minSdk 26`: UNVERIFIED (not re-fetched) | none defined — VERIFIED-REPO (KMP-01) | — | ADR-0024 |
+| Legal gate | Q-L2 (E2E over Wi-Fi/LAN, Art. 39/63(6)); proximity DPIA; G-PROXIMITY | same | same | DECIDED (ADR-0029 rule 7); R6 |
 
 ## 6. Matrix — `PROXIMITY` (`NearbyLink`, 1.2)
 
 | Capability | A↔A | i↔i | A↔i | Sources |
 |---|---|---|---|---|
 | What the library does | BLE discovery, then Wi-Fi bandwidth upgrade — **VERIFIED-DOC** | Swift package: BLE discover/advertise, Wi-Fi LAN (local-network permission), optional Wi-Fi hotspot — **VERIFIED-DOC**; package is open source and marked "not officially supported" (UNVERIFIED wording) | **interop not stated by Google — UNVERIFIED**; spike decides | PROX-06 (https://developers.google.com/nearby/connections/overview, https://developers.google.com/nearby/connections/strategies, https://developers.google.com/nearby/connections/android/get-started, https://developers.google.com/nearby/connections/swift/get-started, https://github.com/google/nearby) |
-| Discovery, foreground | UNMEASURED | BLOCKED / UNMEASURED | BLOCKED / UNMEASURED | §13 |
-| Discovery, background | N/A by design (Nearby mode only); Android needs a live process or FGS — VERIFIED-DOC | iOS↔iOS background BLE only via overflow-area UUIDs at degraded rates — VERIFIED-DOC; still N/A by design | **NO (doc)**: a backgrounded iPhone's overflow-area advertisement is not decodable by Android | PROX-02 (Core Bluetooth background guide: https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html, https://developer.apple.com/forums/thread/837516, https://developer.android.com/develop/connectivity/bluetooth/ble/background) |
+| Discovery, foreground | UNMEASURED | platform: UNMEASURED / app: BLOCKED (KMP-01) | platform: UNMEASURED / app: BLOCKED (KMP-01) | §13 |
+| Discovery, background | within Nearby mode (FGS, ≤ 15 min): UNMEASURED (X4); outside Nearby mode: N/A by design (ADR-0024); platform fact "needs a live process or FGS": VERIFIED-DOC | iOS↔iOS background BLE only via overflow-area UUIDs at degraded rates — VERIFIED-DOC; still N/A by design | **NO (doc)**: a backgrounded iPhone's overflow-area advertisement is not decodable by Android | PROX-02 (Core Bluetooth background guide: https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html, https://developer.apple.com/forums/thread/837516, https://developer.android.com/develop/connectivity/bluetooth/ble/background) |
 | Text (BYTES payloads) | UNMEASURED | BLOCKED | BLOCKED | §13 |
 | Bulk (FILE/STREAM; Wi-Fi upgrade) | UNMEASURED | BLOCKED; hotspot join requires location authorisation, without which iOS silently rejects the join — VERIFIED-DOC | BLOCKED; iPhone joins the Android peer's hotspot after a system prompt (prompt: UNVERIFIED) | PROX-06, PROX MISS-01 |
-| BLE-only throughput reference (not Muhabbet's) | — | measured 1 MB iPhone↔iPhone transfers ≈ 36–138 kbit/s; Apple best case ≈ 197–394 kbit/s with tuning | plan for 50–150 kbit/s | PROX-01 — VERIFIED-DOC (https://developer.apple.com/forums/thread/89644) |
+| BLE-only throughput reference (not Muhabbet's) | — | measured 1 MB iPhone↔iPhone transfers ≈ 36–138 kbit/s; Apple best case ≈ 197–394 kbit/s with tuning | planning assumption 50–150 kbit/s (PROX-01 recommendation) — UNMEASURED | PROX-01 — VERIFIED-DOC (https://developer.apple.com/forums/thread/89644) |
 | Wi-Fi P2P throughput / range | unsourced; Gemini's 50–250 Mbps / 50–200 m are PHY ceilings, not goodput — **UNVERIFIED** | same | same | PROX-08 |
 | Live | N/A | N/A | N/A | §2.3 |
 | HMS (no Play services) | **expected unavailable** (library depends on Play services); the register's verifier notes this was asserted without evidence — UNVERIFIED; HMS share in TR to be measured (G-PROXIMITY) | — | — | PROX-06 verifier note, brief §13 1.2 |
 | Prompts / permissions | Android runtime permissions for Bluetooth scan/advertise/connect and nearby Wi-Fi devices, location on older API levels, `connectedDevice` FGS — exact set **required by the library per API level: UNMEASURED** (spike enumerates) | Bluetooth, Local Network (VERIFIED-DOC), Location for hotspot (VERIFIED-DOC), hotspot-join confirmation (UNVERIFIED) | union of both | PROX-02 sources (https://developer.android.com/develop/connectivity/bluetooth/bt-permissions, https://developer.android.com/develop/connectivity/wifi/wifi-permissions), PROX MISS-01 |
-| Min OS | runtime gate API 29 (ADR-0024); library's own minimum UNVERIFIED | Swift package minimum iOS **UNVERIFIED** | — | ADR-0024 |
-| Legal gate | Q-L2 (E2E over BLE and Wi-Fi Direct via Nearby); proximity DPIA; certificate + verified safety number + both opted in; G-PROXIMITY | same | same | ADR-0024, ADR-0029, R6 |
+| Min OS | gate API 29: DECIDED (ADR-0024) / library minimum: UNVERIFIED | Swift package minimum iOS — **UNVERIFIED** | — | ADR-0024 |
+| Legal gate | Q-L2 (E2E over BLE and Wi-Fi Direct via Nearby); proximity DPIA; certificate + verified safety number + both opted in; G-PROXIMITY | same | same | DECIDED (ADR-0024, ADR-0029); R6 |
 
 ## 7. Matrix — `UPLINK_RELAY` and own-device custody (1.3)
 
@@ -163,25 +171,25 @@ platform-pair cell **inherits §5/§6**. Only the differences are listed.
 
 | Capability | Own-device custody | Contact uplink (mule) | Sources |
 |---|---|---|---|
-| Who may hold | the same user's linked devices (ADR 0007, multi-device default OFF) | a **verified** contact's online phone; strangers never | ADR-0025, PROX-03 |
-| What is held | normal per-device E2E envelopes | opaque bucket-padded HPKE blob (sealed to the server's uplink key) | brief §9, §10 |
-| Text | inherits hop | inherits hop; mule → server is `SERVER_RELAY` HTTPS POST | brief |
-| Bulk | open (ADR-0025 per-bundle cap) | ≤ 50 bundles / 10 MB per mule, 24 h hold | brief §9 |
-| Live | N/A | N/A | — |
+| Who may hold | the same user's linked devices (ADR 0007, multi-device default OFF) | a **verified** contact's online phone; strangers never | DECIDED (ADR-0025); PROX-03 |
+| What is held | normal per-device E2E envelopes | opaque bucket-padded HPKE blob (sealed to the server's uplink key) | DECIDED (brief §9, §10) |
+| Text | inherits hop (§5/§6 marks) | inherits hop; mule → server is `SERVER_RELAY` HTTPS POST | DECIDED (brief §9) |
+| Bulk | open (ADR-0025 per-bundle cap) | ≤ 50 bundles / 10 MB per mule, 24 h hold | DECIDED (brief §9) |
+| Live | N/A | N/A | ADR-0023 |
 | Device cells | UNMEASURED (1.3 exit: phone offline, tablet online over LAN) | UNMEASURED (1.3 exit) | brief §13 |
-| Legal / entry gate | DPIA; no third-party data | Q-L5 (KVKK role of the mule), written KVKK opinion, external crypto review of the uplink seal, telemetry above the owner's threshold (Q-O5), uplink key off the CI/prod host (ADR-0031) | ADR-0025, LEG-04 |
+| Legal / entry gate | DPIA; no third-party data — DECIDED | DECIDED: Q-L5 (KVKK role of the mule), written KVKK opinion, external crypto review of the uplink seal, telemetry above the owner's threshold (Q-O5), uplink key off the CI/prod host (ADR-0031) | ADR-0025, LEG-04 |
 
 ## 8. Matrix — `EXTERNAL_RF` (`MeshtasticLink`, 1.4)
 
 | Capability | A↔A (via nodes) | i↔i (via nodes) | A↔i (via nodes) | Sources |
 |---|---|---|---|---|
-| Phone ↔ node link | BLE or serial to a certified Meshtastic node — UNMEASURED | BLE — UNMEASURED / BLOCKED | — | ADR-0026 |
+| Phone ↔ node link | BLE or serial to a certified Meshtastic node — UNMEASURED | BLE — platform: UNMEASURED / app: BLOCKED (KMP-01) | — | ADR-0026 |
 | Text and receipts | ≤ 200 B single frame — UNMEASURED | BLOCKED | BLOCKED | ADR-0026 |
-| Bulk / live | **NO** | **NO** | **NO** | ADR-0026, RF-07 |
-| Expected rate | single-digit messages per hour at SF12; one 200 B SF12/125 kHz packet ≈ 7.2 s on air | — | — | RF-07 (reasoning in the digest) — UNVERIFIED as a measurement |
+| Bulk / live | **DECIDED: NO** | **DECIDED: NO** | **DECIDED: NO** | ADR-0026, RF-07 |
+| Expected rate | single-digit messages per hour at SF12 (RF-07); one 200 B packet ≈ 7.2 s on air — computed in this document with the Semtech time-on-air method used in GEM-20 (SF12, BW 125 kHz, CR 4/5, explicit header, CRC on, LDRO on, 8-symbol preamble) | — | — | RF-07, GEM-20 — UNVERIFIED as a measurement |
 | Duty cycle | 1 % on 868.0–868.6 MHz; 10 % on 869.4–869.65 MHz (Meshtastic EU_868 slot), per hour per sub-band; enforced by `AirtimeLedger` | same | same | RF-07 (https://meshtastic.org/docs/configuration/radio/lora); the BTK table read was marked TASLAĞI (draft) → in-force figures **UNVERIFIED** (ADR-0026 reviewer note) |
-| Prompts | Bluetooth permissions for node pairing | Bluetooth | — | — |
-| Legal gate | **Compiled out of TR flavours by Gradle** until a written opinion on Law 5809 Art. 39/63(6), the 2010 coded/encrypted communications regulation and KET conformity; certified hardware only | same | same | LEG-03, RF-07, Q-L2, ADR-0026 |
+| Prompts | Bluetooth permissions for node pairing — UNMEASURED | Bluetooth — platform: UNMEASURED / app: BLOCKED (KMP-01) | — | ADR-0026 |
+| Legal gate | DECIDED: **compiled out of TR flavours by Gradle** until a written opinion on Law 5809 Art. 39/63(6), the 2010 coded/encrypted communications regulation and KET conformity; certified hardware only | same | same | LEG-03, RF-07, Q-L2, ADR-0026 |
 
 ## 9. Watch-list and rejected (no cells are filled for these)
 
@@ -204,11 +212,11 @@ platform-pair cell **inherits §5/§6**. Only the differences are listed.
 | Item | Value | Mark | Source |
 |---|---|---|---|
 | App `minSdk` / `targetSdk` / `compileSdk` | 26 / 36 / 36 | VERIFIED-REPO | `mobile/composeApp/build.gradle.kts:145-150` |
-| Proximity runtime gate (both 1.2 adapters) | API 29 | brief decision | ADR-0024 |
+| Proximity runtime gate (both 1.2 adapters) | API 29 | DECIDED (ADR-0024) | ADR-0024 |
 | BLE L2CAP CoC (fallback only) | Android API 29; iOS 11 | VERIFIED-DOC | PROX-01 |
 | `WifiP2pConfig.Builder` | API 29 | VERIFIED-DOC | PROX-04 |
 | Wi-Fi Aware pairing API | API 34 | VERIFIED-DOC | PROX-05 |
-| BLE-assisted Wi-Fi Direct R2 pairing | API 36 | verifier miss | PROX MISS-02 |
+| BLE-assisted Wi-Fi Direct R2 pairing | API 36 | VERIFIED-DOC (PROX MISS-02) | PROX MISS-02 |
 | Wi-Fi Aware on iOS | iOS 26, iPhone 12+ | VERIFIED-DOC | PROX-05 |
 | iOS deployment target of the app | **none** (no Xcode project) | VERIFIED-REPO | KMP-01 |
 | Nearby Connections Swift package minimum iOS | — | UNVERIFIED | — |
@@ -267,11 +275,11 @@ the `LinkAuthenticator` library. Outputs, all signed by the owner (P13):
 
 | # | Precondition | Source |
 |---|---|---|
-| P1 | 1.0 exit (real E2E, fail-closed) — needed for the 1.2 **milestone**, not for the spike's throwaway harness | brief §13 |
-| P2 | Spike code explicitly authorised in `APPROVAL.md` (reviewer note SP-1) | owner decision 4 |
-| P3 | Harness apps are throwaway, outside the product modules, never shipped, carrying no user data | this protocol |
-| P4 | Device list available (§13.3); Play services version recorded on every Android device | brief |
-| P5 | Pass thresholds set by the owner before the first run (§13.5) | this protocol |
+| SP-P1 | 1.0 exit (real E2E, fail-closed) — needed for the 1.2 **milestone**, not for the spike's throwaway harness | brief §13 |
+| SP-P2 | Spike code explicitly authorised in `APPROVAL.md` (reviewer note SP-1) | owner decision 4 |
+| SP-P3 | Harness apps are throwaway, outside the product modules, never shipped, carrying no user data | this protocol |
+| SP-P4 | Device list available (§13.3); Play services version recorded on every Android device | brief |
+| SP-P5 | Pass thresholds set by the owner before the first run (§13.5) | this protocol |
 
 ### 13.3 Devices and pairs
 
@@ -284,7 +292,7 @@ the `LinkAuthenticator` library. Outputs, all signed by the owner (P13):
 | iPhone 15 or later | iOS | current |
 | *(recommended)* Huawei / HMS device | Android without Play services | verifies the `LanLink`-on-HMS claim (reviewer note SP-2) |
 
-Pairs: every A↔A combination of the three Android devices with the Pixel as one side (3 pairs), the
+Pairs: every A↔A combination of the three Android devices — Pixel–Samsung, Pixel–Xiaomi, Samsung–Xiaomi (3 pairs) — the
 iPhone pair (i↔i), and Pixel↔iPhone 12, Samsung↔iPhone 15+, Xiaomi↔iPhone 15+ (A↔i). HMS device: LAN
 scenarios only.
 
@@ -308,11 +316,11 @@ Distances: 1 m and 10 m indoor line-of-sight for X1/X2/X5/X6.
 
 ### 13.5 Metrics and thresholds
 
-| Metric | Definition | Repetitions | Reported | Proposed pass threshold (owner sets, P5) |
+| Metric | Definition | Repetitions | Reported | Proposed pass threshold (owner sets, SP-P5) |
 |---|---|---|---|---|
 | Time to discover (fg) | Nearby mode opened on the second device → peer tag matched | 10 | median, p90 | median ≤ 10 s |
-| Background behaviour | discovered / not discovered while peer backgrounded; time to rediscover after foreground | 5 | pass/fail + median | reported only (N/A by design) |
-| Text RTT | send → sealed DELIVERED back, app-level | 100 msgs × 3 runs | median, p90 | median ≤ 1 s, p90 ≤ 3 s |
+| Background behaviour | discovered / not discovered while peer backgrounded; time to rediscover after foreground | 5 | pass/fail + median | reported only (Android within Nearby mode is in scope, X4; iOS is N/A by design) |
+| Text RTT | send → harness application-level ack back over the candidate authenticated link (X11 handshake, test keys; no product E2E exists before 1.0) | 100 msgs × 3 runs | median, p90 | median ≤ 1 s, p90 ≤ 3 s |
 | 5 MB goodput | acked application bytes / wall time (never PHY rate) | 5 | median, p10 | completes, SHA-256 matches; goodput reported |
 | Resume | bytes re-sent after X7 / bytes total | 3 | ratio | resumes without restart from 0 |
 | Prompts | number and names, per platform version | 1 per device | list | recorded, no threshold |

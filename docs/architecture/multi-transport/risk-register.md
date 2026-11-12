@@ -10,8 +10,8 @@
 |---|---|
 | **Date** | 2026-11-12 (living after approval; reviewed at every milestone entry and exit) |
 | **Base** | `dev` @ 2434324, branch `claude/muhabbet-p2p-architecture-wdan5r` |
-| **Source of truth** | [decision brief](decision-brief-2026-11-12.md) §15 (R1–R22). Rows R1–R22 keep the brief's wording, ratings, mitigations, owners and triggers; this register adds status, linkage and review points. **R23–R40 are added by this document** from the findings register, the threat model and the reviewer notes of the package; their ratings are proposals for the owner. |
-| **Companions** | [`roadmap.md`](roadmap.md) (gates and kill criteria), [`vv-plan.md`](vv-plan.md) (RQ IDs), [`threat-model.md`](threat-model.md) (T-* IDs, RN-1…RN-5) |
+| **Source of truth** | [decision brief](decision-brief-2026-11-12.md) §15 (R1–R22). Rows R1–R22 keep the brief's wording, ratings, mitigations, owners and triggers; this register adds status, linkage and review points. **R23–R43 are added by this document** from the findings register, the threat model and the reviewer notes of the package; their ratings are proposals for the owner. |
+| **Companions** | [`roadmap.md`](roadmap.md) (gates and kill criteria), [`vv-plan.md`](vv-plan.md) (RQ IDs), [`threat-model.md`](threat-model.md) (T-* IDs, RN-1…RN-6) |
 
 ---
 
@@ -34,8 +34,8 @@ evidence on `dev` shows a mitigation partly in effect.
 | | I = L | I = M | I = H | I = Critical |
 |---|---|---|---|---|
 | **L = H** | R34 | R9, R19, R36 | R4, R27, R38 | R1 |
-| **L = M** | R16, R22, R26, R33 | R10, R11, R13, R17, R18, R21, R31, R35, R40 | R3, R5, R7, R8, R20, R24, R25, R28, R37, R39 | R2 |
-| **L = L–M** | | R32 | R6, R30 | R23 |
+| **L = M** | R16, R22, R26, R33 | R10, R11, R13, R17, R18, R21, R31, R35, R40, R42 | R3, R5, R7, R8, R20, R24, R25, R28, R37, R39, R41 | R2 |
+| **L = L–M** | | R32 | R6, R30, R43 | R23 |
 | **L = L** | | R12, R15 | | R14, R29 |
 
 ## 3. Register
@@ -53,7 +53,7 @@ evidence on `dev` shows a mitigation partly in effect.
 | R7 | Self-declared age gate judged insufficient (*yaş doğrulama*) | M | H | Counsel/Owner | Regulator guidance or opinion | `AgeAssurancePort`; do not claim compliance; e-Devlet/NFC path | **Open** | LEG-02, MISS-04 (legal); Q-L3; T-REG-03; RQ-10 | 0.4 exit; on opinion |
 | R8 | AGPL on the App Store or Play deemed incompatible | M | H | Counsel/Owner | Opinion | Opinion first; vodozemac fallback; Android-only 1.0 | **Open** | KMP-13; Q-L7 (sharpened per ADR-0017 reviewer note); RQ-40, RQ-44 | 1.0 entry |
 | R9 | iOS still cannot launch (KMP-01), so cross-platform claims are hypothetical | H | M | Owner | 0.6 entry | Blocking 0.6 gate; scoping ADR | **Open** | KMP-01, KMP-02, KMP-09, FT-04, #79, #729, #735; RQ-42 | 0.6 exit |
-| R10 | libsignal iOS bridge (Swift-only, `@objc`) harder than planned | M | M | Owner | Spike fails | Pre-1.0 spike; Android-only 1.0 | **Open** | MISS-3 (networking), KMP-13; RQ-41, RQ-42 | 1.0 entry |
+| R10 | libsignal iOS bridge (Swift-only, `@objc`) harder than planned | M | M | Owner | Spike fails | Pre-1.0 spike; Android-only 1.0 | **Open** | ADR-0017 pre-1.0 spike; MISS-3 (networking) by analogy (LiveKit bridge), KMP-13; RQ-41, RQ-42 | 1.0 entry |
 | R11 | Wake-only push delays notifications on aggressive OEMs | M | M | Owner | Measured p90 latency above the agreed bound | High-priority data messages, foreground pull, WorkManager, battery-exemption prompt; measure on Xiaomi/Oppo | **Open** — bound not yet agreed by the owner | BE-15, #502; T-PSH-04; QS-17; RQ-49 | 0.5 exit |
 | R12 | Hot `last_seq` row in large groups or channels | L | M | Owner | p99 send latency regression | Measure; per-channel sequence sharding later | **Open** | BE-06; ADR-0014 | 0.4 exit (baseline), then on trigger |
 | R13 | Nearby iOS interop fails or HMS share is high | M | M | Owner | Spike result | LanLink as the cross-platform floor; Ditto fallback; publish the matrix | **Open** | PROX-06, PROX-10; capability matrix SP-2; RQ-63 | 1.2 entry |
@@ -67,7 +67,7 @@ evidence on `dev` shows a mitigation partly in effect.
 | R21 | KVKK: relaying devices hold third-party data | M | M | Counsel/Owner | 1.3 entry | Contacts-only, sealed opaque blobs, quotas, DPIA | **Open** | LEG-04; Q-L5; T-UPL-01; RQ-67, RQ-68 | 1.3 entry |
 | R22 | detekt is fixed on `dev` (db9e59f) but `main` still runs the dead config, so the gate is only real after the dev→main merge | M | L | Owner | dev→main merge | ADR-0030 merge; keep the frozen baseline ratcheting down | **Mitigating** — fixed on `dev` only | CICD-11; R28 | process scope (dev→main) |
 
-### 3.2 Added risks (R23–R40)
+### 3.2 Added risks (R23–R43)
 
 | ID | Risk | L | I | Owner | Trigger | Mitigation (proposed) | Status | Links | Review point |
 |---|---|---|---|---|---|---|---|---|---|
@@ -86,9 +86,12 @@ evidence on `dev` shows a mitigation partly in effect.
 | R35 | **Approval gate ambiguity.** The design gate cannot tell which scope an edit belongs to; `docs/**` is always writable, so an agent could edit `APPROVAL.md`; spikes need code before their scope can be approved | M | M | Owner | First agent edit refused or allowed wrongly; a spike started without a recorded condition | Declared active scope + hook refuses edits to `APPROVAL.md` + CODEOWNERS (APPROVAL.md reviewer notes); spike approval as a scope condition (roadmap RN-R4) | **Open** | ADR-0033; APPROVAL.md reviewer notes; capability matrix SP-1 | process scope |
 | R36 | **Owner observation is the bottleneck.** P13 makes the owner the only signer for every device criterion; each milestone exit needs several emulator and physical-device sessions | H | M | Owner | A milestone whose only open items are [O] criteria for more than one release | Batch device sessions per milestone (ROADMAP "batch is the unit of verification"); agents prepare scripts and logs; possible CI emulator pre-check (vv-plan RN-V1) to filter failures before the owner's session | **Open** | P13, ADR-0032; R4, R20 | every milestone exit |
 | R37 | **PR CI disabled.** ADR-0031 removes PR jobs from cx43; if the GitHub-hosted billing lock persists, PR workflows are disabled and changes merge without any automated gate | M | H | Owner | ADR-0031 applied while CICD-04 is unresolved | Resolve the billing lock first (free for public repos) or provision a separate non-production runner; until then run the gates on E-LOCAL and attach reports to every PR | **Open** | CICD-04, #108, CICD-16; vv-plan §5 | Phase 0 exit |
-| R38 | **Age rule may already apply while the gate is unbuilt.** The brief records the under-15 rule as in force on 2026-11-01; the age gate is a 0.4 build item, so registration currently has no gate | H | H | Owner/Counsel | Counsel confirmation of the in-force date; a regulator request | Prioritise the 0.4 age-gate item; confirm the date with counsel (SAD reviewer note); any interim measure (e.g. pausing open registration) is an owner decision, not proposed here | **Open** | LEG-02, MISS-04 (legal); SAD reviewer note on the date; dpia-screening note on age data; RQ-10 | 0.4 entry |
+| R38 | **Age rule may already apply while the gate is unbuilt.** The brief records the under-15 rule as in force on 2026-11-01; the age gate is a 0.4 build item, so registration currently has no gate | H | H | Owner/Counsel | Counsel confirms the in-force date → re-rate; a regulator request | Prioritise the 0.4 age-gate item — impossible while 0.4 entry is the full Phase 0 exit, see roadmap RN-R11 (option (b) authorises it under `phase-0`); confirm the date with counsel (SAD reviewer note); any interim measure (e.g. pausing open registration) is an owner decision, not proposed here | **Open** — rating conditional on the unverified in-force date (sad.md reviewer note; Q-L3) | LEG-02, MISS-04 (legal); SAD reviewer note on the date; dpia-screening note on age data; RQ-10 | 0.4 entry |
 | R39 | **Erasure gap behind public claims.** Account deletion leaves media and content (#327); public documents claim KVKK compliance; disappearing messages do not disappear (#328) | M | H | Owner | Erasure request; complaint; 1.0 claims register | Keep #327 open and correct the claims (SSOT-09); claims register at 1.0 (RQ-20); media erasure is a backend item outside this design | **Open** | MISS-02 (governance), SSOT-09, MISS-03/MISS-04 (product), #314, #327, #328 | 0.4 exit; 1.0 exit |
 | R40 | **Bought-component dependence.** Nearby Connections is closed, Play-services-only, with an unofficial iOS package and unknown data flows to Google; libsignal's distribution moved to Signal's own repository and its API changed incompatibly across versions | M | M | Owner | Spike finds data sent to Google; a libsignal release breaks the adapter; the unofficial iOS package is abandoned | 1.2 spike answers Nearby data flows from documentation and a traffic capture (DPIA processor question); `LanLink` as floor; libsignal behind `SessionCryptoPort` with a contract suite; pinned version with verification metadata (R24) | **Open** | PROX-06, KMP-13, KMP-M3, C1; dpia-screening reviewer note; ADR-0024 | 1.0 entry; 1.2 entry |
+| R41 | **Verification hardware unavailable.** The plan's exits assume two Android phones on two operators (one TT Mobil), a Xiaomi/Oppo-class device, Pixel, Samsung A, iPhone 12, iPhone 15+, a recommended Huawei, and a macOS host for 06-3 "iOS launches on a simulator" and RQ-42; no iOS CI exists (KMP-02). Nothing records that the owner has these | M | H | Owner | 0.6 G-iOS "fixed" branch chosen; 1.2 spike planned; any [O] row whose device is missing | Device inventory as an APPROVAL condition of `0.6`, `0.7` and `1.2`; scoping ADR for iOS if there is no macOS host | **Open** | KMP-02, FT-04; capability matrix SP-2, SP-3; vv-plan E-PHYS; RQ-14, RQ-42, RQ-49 | 0.6 entry; 0.7 entry; 1.2 entry |
+| R42 | **LiveKit host and TURN egress cost.** The SFU and TURN must live off cx43 (0.7) and TURN capacity grows with 1.1 P2P relaying; neither host nor budget is decided | M | M | Owner | Q-O8 answer; first week of RQ-61 telemetry | Owner decides host and budget (Q-O8) before 0.7 entry; size 1.1 TURN from 0.7 data; 1.1 kill criterion if cost exceeds benefit | **Open** | Q-O8; NAT-3; RQ-61; roadmap §9, §11 | 0.7 entry/exit; 1.1 entry |
+| R43 | **Meshtastic module present in a TR build.** A Gradle or flavour mistake ships `:mobile:transport-meshtastic` in a TR release before counsel signs off | L–M | H | Owner | A TR release classpath containing the module; flavour change | Gradle exclusion with a classpath check in CI; `RegulatoryRule` denies `EXTERNAL_RF` in TR | **Open** | LEG-03, RF-07; RQ-37; ADR-0026 | 1.4 entry; every 1.4+ release |
 
 ---
 
@@ -100,10 +103,13 @@ evidence on `dev` shows a mitigation partly in effect.
 | process scope (ADR-0030…0033 applied) | R22, R28, R35 |
 | 0.4 entry / exit | R7, R12, R26, R31, R38, R39 |
 | 0.5 entry / exit | R3, R11, R30, R32 |
-| 0.6 exit | R9 |
+| 0.6 entry / exit | R9, R41 |
+| 0.7 entry / exit | R2 (LiveKit host off cx43), R19, R41, R42 |
 | 1.0 entry / exit | R5, R8, R10, R17, R18, R23, R24, R25, R39, R40 |
-| 1.2 entry / exit | R2, R6, R13, R14, R15, R16, R33, R34, R40 |
+| 1.1 entry | R42 |
+| 1.2 entry / exit | R2, R6, R13, R14, R15, R16, R33, R34, R40, R41 |
 | 1.3 entry | R2, R14, R21 |
+| 1.4 entry | R6, R43 |
 | every milestone | R4, R19, R20, R36 |
 
 ## 5. Maintenance rules
@@ -130,6 +136,7 @@ evidence on `dev` shows a mitigation partly in effect.
 | R21, R39 | LEG-04, MISS-02 (governance), SSOT-09; KVKK text <https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6698.pdf> |
 | R27, R35, R36 | GOV-02, GOV-03, GOV-06, SSOT-01, SSOT-03; APPROVAL.md reviewer notes; capability matrix SP-1 |
 | R30, R31 | #289; FT-01, FT-02, FT-03 |
+| R41, R42, R43 | KMP-02, FT-04, capability matrix SP-2/SP-3; Q-O8, NAT-3; LEG-03, RF-07 |
 
 ## 7. Verification of this register
 

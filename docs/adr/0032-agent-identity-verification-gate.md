@@ -1,8 +1,10 @@
-# ADR 0032 — Agent identity and the owner-observed verification gate
+# ADR 0032 — Agent identity and the verification gate
 
 **Status:** Proposed (process) — pending owner approval; no code may be written, and no GitHub setting changed, against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) (scope `process`) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0032; principle P13](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/agent-workflow.md`](../process/agent-workflow.md) · Supersedes nothing; makes ROADMAP.md "Definition of done" item 3 enforceable.
 
 ## Context
+
+The verification gate is **owner-observed**: criteria about device behaviour are signed off by the owner, never by an agent (principle P13).
 
 | Fact (evidence) | Consequence |
 |---|---|
@@ -24,8 +26,9 @@
      any case).
    - Commits carry the agent identity as author; the session link stays in the commit trailer.
 2. **The owner approves agent PRs.** This makes ADR-0030's 1-approval rule satisfiable without
-   bypass. The owner's own PRs use the audited ruleset bypass (owner only), which never skips required
-   checks.
+   bypass. The owner's own PRs use the audited bypass of the `main-review` ruleset (owner only,
+   pull-request mode), which skips review only: required checks live in the separate `main-checks`
+   ruleset, whose bypass list is empty (ADR-0030 D4).
 3. **CODEOWNERS** assigns the owner to: `/.github/`, `/.claude/`, `CODEOWNERS`,
    `/docs/architecture/multi-transport/APPROVAL.md`, `/docs/adr/`,
    `/backend/src/main/resources/db/migration/`, `/mobile/**/crypto/`, `/shared/**/port/`,

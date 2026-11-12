@@ -39,8 +39,9 @@
 1. **One version, one release.** A Flyway version ships in exactly one release, and versions ascend in
    release order. `outOfOrder` stays `false`, so a lower version shipped after a higher one would
    fail validation in production.
-2. **Dotted versions** (`V31.1`, `V33.1`) carry a later-release follow-up of a family — the contract
-   step of an earlier expand, or a split forced by rule 1. They sort between the integers.
+2. **Dotted versions** (`V28.1`, `V29.1`, `V31.1`, `V34.1`) carry a follow-up of a family: the contract step
+   of an earlier expand (later release), a split forced by rule 1, **or a same-release split** forced
+   by rule 6 (a non-transactional `CREATE INDEX CONCURRENTLY` script). They sort between the integers.
 3. **Expand / contract** (CICD-09). Release N may add nullable columns, tables, indexes, `NOT VALID`
    constraints and dual writes. Only release N+1 or later may set `NOT NULL`, `VALIDATE CONSTRAINT`,
    drop columns or tables, or stop dual writes. Every migration below names its contract step.
@@ -70,24 +71,27 @@
 
 | Version | Release | Content | Expand / contract | Brief ref |
 |---|---|---|---|---|
-| **V28** | 0.4 | `conversations.last_seq`; `messages.seq`, `messages.change_seq`; backfill; unique indexes | expand | §11.1 V28 |
+| **V28** | 0.4 | `conversations.last_seq`, `conversations.seq_ready`; `messages.seq`, `messages.change_seq` (columns only; backfill is `SeqSweeper`) | expand | §11.1 V28 |
+| **V28.1** | 0.4 | `CREATE UNIQUE INDEX CONCURRENTLY` × 2 (non-transactional, same-release split, rule 6) | expand | §11.1 V28 |
 | **V29** | 0.4 | `messages.sender_device_id`, `messages.client_message_id`; device-scoped idempotency key | expand | §11.1 V29 |
+| **V29.1** | 0.4 | `CREATE UNIQUE INDEX CONCURRENTLY` on `(sender_device_id, client_message_id)` (same-release split, rule 6) | expand | §11.1 V29 |
 | **V30** | 0.4 | Age gate storage | expand | §11.1 V30 |
 | **V31** | 0.4 | Contact-lookup daily quota | expand | §11.1 V31 (0.4 part) |
 | **V31.1** | 0.5.0 | Contract of V28/V29: seq presence check, identity-rule check | contract | (this doc) |
 | **V31.2** | 0.6.0 | `users.discoverable_by_phone` | expand | §11.1 V31 (0.6 part) |
 | **V32** | 0.6.0 | Per-device delivery | expand (dual write) | §11.1 V32 |
 | **V33** | 0.6.0 | Device-scoped key directory | expand | §11.1 V33 |
-| **V33.1** | 0.7.0 | Contract: drop legacy `message_delivery_status`, `encryption_keys`, `one_time_pre_keys` | contract | (this doc) |
+| *(none)* | 0.7.0 | **No DDL.** Stop the dual write to `message_delivery_status`; switch the legacy key endpoints off the old tables (§3.8) | contract (code only) | (this doc) |
 | **V34** | 1.0.0 | Mailbox `message_envelopes`; encryption state; nullable `content` | expand | §11.1 V34 |
+| **V34.1** | 1.0.0 | Contract: drop `message_delivery_status`, `one_time_pre_keys`, `encryption_keys` (unused since 0.7, so the 0.7 image — N-1 of 1.0 — never touches them); drop `conversations.seq_ready` | contract | (this doc) |
 | **V35** | 1.2 (gated) | Link keys, device certificates, CRL deltas | expand | §11.1 V35 |
 | **V36** | 1.3 (gated) | Uplink keys and quotas | expand | §11.1 V36 |
 
 > **Reviewer note (open):** brief §11.1 assigns V29 to "0.4/0.5" and V31 to "0.4 (cap) / 0.6".
 > Under rule 1 a version cannot straddle two releases. This document resolves V29 to **0.4** (brief
 > §13 lists V28/V29 under the 0.4 "EARLY ENGINE" scope) and splits V31 into V31 (0.4, cap) and
-> V31.2 (0.6, discoverability). The dotted contract steps V31.1 and V33.1 are additions required by
-> CICD-09's expand/contract rule; the brief names no contract migrations.
+> V31.2 (0.6, discoverability). The dotted steps V28.1, V29.1, V31.1 and V34.1 are additions required by
+> rule 6 and CICD-09's expand/contract rule; the brief names no contract migrations.
 
 ---
 
@@ -106,37 +110,64 @@ linked_by_device_id, locale, …)`, `message_delivery_status(message_id, user_id
 **Purpose.** BE-06/C13: total, gap-detectable order; BEV-M2: a cursor that is not a timestamp.
 
 ```sql
+-- V28 (transactional): columns only — catalogue changes, no rewrite (constant defaults, PG ≥ 11)
 SET lock_timeout = '5s';
-ALTER TABLE conversations ADD COLUMN last_seq   BIGINT NOT NULL DEFAULT 0;  -- constant default: no rewrite (PG ≥ 11)
-ALTER TABLE messages      ADD COLUMN seq        BIGINT;                     -- NULL = unreleased scheduled
-ALTER TABLE messages      ADD COLUMN change_seq BIGINT;                     -- last change to the row
+SET statement_timeout = '30s';
+ALTER TABLE conversations ADD COLUMN last_seq   BIGINT  NOT NULL DEFAULT 0;
+ALTER TABLE conversations ADD COLUMN seq_ready  BOOLEAN NOT NULL DEFAULT false; -- existing rows: history not yet numbered
+ALTER TABLE conversations ALTER COLUMN seq_ready SET DEFAULT true;              -- new conversations have no history
+ALTER TABLE messages      ADD COLUMN seq        BIGINT;  -- NULL = unreleased scheduled, or not yet swept
+ALTER TABLE messages      ADD COLUMN change_seq BIGINT;  -- last change to the row
 
--- Backfill (idempotent; batch by conversation if large): released rows ordered by (server_timestamp, id)
-WITH ordered AS (
-  SELECT id, row_number() OVER (PARTITION BY conversation_id ORDER BY server_timestamp, id) AS n
-  FROM messages WHERE is_scheduled = false AND seq IS NULL)
-UPDATE messages m SET seq = o.n, change_seq = o.n FROM ordered o WHERE m.id = o.id;
-
-UPDATE conversations c SET last_seq = s.max_seq
-FROM (SELECT conversation_id, max(change_seq) AS max_seq FROM messages GROUP BY conversation_id) s
-WHERE c.id = s.conversation_id AND c.last_seq < s.max_seq;
-
-CREATE UNIQUE INDEX ux_messages_conv_seq        ON messages (conversation_id, seq);
-CREATE UNIQUE INDEX ux_messages_conv_change_seq ON messages (conversation_id, change_seq);
+-- V28.1 (non-transactional script; same release): no SHARE lock on messages during the build
+SET lock_timeout = '5s';
+SET statement_timeout = '0';   -- a concurrent build is long by design; it does not block writers
+CREATE UNIQUE INDEX CONCURRENTLY ux_messages_conv_seq        ON messages (conversation_id, seq);
+CREATE UNIQUE INDEX CONCURRENTLY ux_messages_conv_change_seq ON messages (conversation_id, change_seq);
+-- A failed concurrent build leaves an INVALID index: the script drops it (DROP INDEX CONCURRENTLY
+-- IF EXISTS) and rebuilds; the PR states this as its reverse/repair SQL.
 ```
+
+**Backfill is not in the migration.** It is `SeqSweeper` (below), one conversation per transaction,
+so no statement holds locks on all of `messages` and the work is resumable:
+
+```sql
+-- per conversation :c that is NOT seq_ready or has released rows with seq IS NULL; one transaction
+-- (statement_timeout set per batch)
+SELECT last_seq FROM conversations WHERE id = :c FOR UPDATE;   -- same lock as allocation
+WITH ordered AS (
+  SELECT id, :last_seq + row_number() OVER (ORDER BY server_timestamp, id) AS n
+  FROM messages WHERE conversation_id = :c AND is_scheduled = false AND seq IS NULL)
+UPDATE messages m SET seq = o.n, change_seq = o.n FROM ordered o WHERE m.id = o.id;
+UPDATE conversations SET last_seq = :last_seq + :rows, seq_ready = true WHERE id = :c;
+```
+
+Numbering starts from the conversation's current `last_seq` under its row lock, so a re-run on a
+partially numbered conversation continues instead of restarting at 1 and colliding.
 
 | Item | Rule |
 |---|---|
-| Allocation | `ConversationSequencePort.next(conv)` = `UPDATE conversations SET last_seq = last_seq + :n WHERE id = :conv RETURNING last_seq`, inside the caller's transaction. A single insert uses `n = 1` and sets `seq = change_seq = value`. A bulk operation (expiry sweep) allocates a contiguous range `[v − n + 1, v]` and stamps one value per row |
-| What bumps `change_seq` | insert, edit, delete, reaction add/remove (on the target message), expiry soft-delete, scheduled release. **Not** receipts (they would make every read a hot-row write; receipts have their own cursor, V32) |
+| Allocation | `ConversationSequencePort.next(conv)` = `UPDATE conversations SET last_seq = last_seq + :n WHERE id = :conv AND seq_ready RETURNING last_seq`, inside the caller's transaction. A single insert uses `n = 1` and sets `seq = change_seq = value`. A bulk operation (expiry sweep) allocates a contiguous range `[v − n + 1, v]` and stamps one value per row. **No row returned** (`seq_ready = false`: history not yet numbered) → the row is inserted with `seq = NULL` and `SeqSweeper` numbers it in `(server_timestamp, id)` order with the history, so a new message can never be numbered before older ones. A send that replays never allocates, and a send whose INSERT conflicts rolls the allocation back (V29) |
+| What bumps `change_seq` | insert, edit, delete, reaction add/remove (on the target message), **poll vote** add/change (on the poll message, V7 `poll_votes`), expiry soft-delete, scheduled release. **Not** receipts (they would make every read a hot-row write; receipts have their own cursor, V32), **not** pin/unpin (V20 `pinned_messages`, conversation state), **not** membership changes (conversation state; repaired by the conversation list, ICD §3.10 H-1) |
 | Invariants | `UNIQUE (conversation_id, seq)` and `UNIQUE (conversation_id, change_seq)` (a double allocation is a constraint violation, not silent corruption); `change_seq ≥ seq`; `last_seq ≥ max(change_seq)` per conversation |
 | Backfill semantics | Existing edits/deletes get `change_seq = seq`: a client's first pull sees the current row state, which is all a first pull needs |
 | `updated_at` trigger | `update_conversations_updated_at` fires on every allocation. Decide at implementation: accept it as "last activity", or redefine the trigger as `BEFORE UPDATE OF <metadata columns>`. Recommended: restrict it, so `updated_at` keeps meaning "metadata changed" |
 | Indexes kept | `idx_messages_conversation_time` / `idx_messages_conversation_latest` stay until `/messages/since` is removed (one release after `/changes`, ADR-0014) |
 | N-1 safety | N-1 code ignores the new columns. Rows it inserts during a rollback window get `seq IS NULL`; edits it makes do not bump `change_seq` |
-| Repair job (ships with V28's code) | `SeqSweeper`: assigns `seq`/`change_seq` to rows with `seq IS NULL AND is_scheduled = false`, oldest first, one conversation per transaction; and after a roll-forward, bumps `change_seq` for rows with `edited_at`/`deleted_at` inside the rollback window. Idempotent; reports a count |
-| Contract | V31.1 (0.5) |
-| Verification | RQ-04: 50 concurrent senders → gapless unique `seq` (Testcontainers); backfill test on a fixture with equal `server_timestamp`s |
+| Backfill and repair job (ships with V28's code) | `SeqSweeper`: per conversation, under the conversation row lock, numbers rows with `seq IS NULL AND is_scheduled = false` from `last_seq + 1` in `(server_timestamp, id)` order and sets `seq_ready` (SQL above); after a roll-forward it also numbers rows N-1 inserted during the rollback window (a bounded misorder against rows allocated after roll-forward is accepted) and bumps `change_seq` for rows with `edited_at`/`deleted_at` inside that window. Idempotent; reports a count; never in the request path (rule 7) |
+| Contract | V31.1 (0.5); `seq_ready` dropped in V34.1 |
+| Verification | RQ-04: 50 concurrent senders, including duplicate retries → gapless unique `seq` (Testcontainers); backfill test on a fixture with equal `server_timestamp`s; sweeper re-run on a half-numbered conversation; insert into a not-yet-ready conversation sorts after its history |
+
+> **Reviewer note (open):** this section deviates from brief §11.1 V28 in three ways. (a) The brief
+> puts "backfill by `(server_timestamp, id)`" inside V28; here V28 is columns only and the backfill
+> is a code component, `SeqSweeper`, that the brief does not name. Reason: a single backfill
+> `UPDATE` over all of `messages` would hold row locks for the whole table on the co-tenant
+> `shared-postgres` (rule 6, lock hygiene), and a per-conversation sweep is resumable after a failed
+> deploy. (b) It adds `conversations.seq_ready`, absent from the brief, so that a send into a
+> conversation whose history is not yet numbered cannot be numbered before older rows (dropped in
+> V34.1). (c) It adds a second unique index on `(conversation_id, change_seq)`, so a double
+> allocation of a change sequence is a constraint violation rather than silent corruption. The
+> brief should either adopt these or the owner should reject them before 0.4.
 
 ### 3.2 V29 — sender device and device-scoped idempotency (0.4)
 
@@ -147,22 +178,38 @@ SET lock_timeout = '5s';
 ALTER TABLE messages ADD COLUMN sender_device_id  UUID REFERENCES devices(id) ON DELETE SET NULL;
 ALTER TABLE messages ADD COLUMN client_message_id UUID;
 
-UPDATE messages SET client_message_id = id WHERE client_message_id IS NULL;   -- batched by id
+-- Backfill client_message_id = id: SeqSweeper-style job, batched by id, outside the migration (rule 7)
 
-CREATE UNIQUE INDEX ux_messages_sender_device_client_id
+-- V29.1 (non-transactional script; same release, rule 6)
+SET lock_timeout = '5s';
+SET statement_timeout = '0';
+CREATE UNIQUE INDEX CONCURRENTLY ux_messages_sender_device_client_id
   ON messages (sender_device_id, client_message_id);
 ```
 
 | Item | Rule |
 |---|---|
 | **Identity rule** | `messages.id = client_message_id` for every row. The id is minted by the sender device (UUIDv7), so `Edit`/`Delete`/`Reaction`/`reply_to` inside E2E `Content` can reference a message offline and before it has a `seq` (ICD §6.3) |
-| Idempotent insert | `INSERT … ON CONFLICT (sender_device_id, client_message_id) DO NOTHING RETURNING …`; on no row returned, read the original `(seq, server_timestamp)` and replay it (`replay = true`, ICD §3.6) |
-| Foreign collision | A conflict on the PK `id` with a **different** `sender_device_id` is `MSG_ID_CONFLICT`; another device's ack is never replayed |
+| Idempotent insert (order is normative; ICD §3.6 A-1) | (1) `SELECT seq, server_timestamp FROM messages WHERE sender_device_id = ? AND client_message_id = ?` — found → replay (`replay = true`) **without allocating**. (2) Otherwise allocate (V28) and `INSERT` (no `ON CONFLICT`). (3) A unique violation on either key (a concurrent retry, or an id collision) rolls back the whole transaction — the allocation with it, so no seq is ever spent — and step (1) is re-run on a fresh read. `seq` is a column of the INSERT, so allocating first and then `INSERT … ON CONFLICT DO NOTHING` would commit an allocated value with no row on every replay; that form is not used |
+| Foreign collision | A conflict on the PK `id` with a row of a **different user** is `MSG_ID_CONFLICT` before 1.2 and `MSG_ID_SQUATTED` from 1.2 (ICD §3.6 A-2); another device's ack is never replayed |
+| Pre-V29 / N-1 replay | A PK conflict whose existing row has `sender_device_id IS NULL` and `sender_id` = the requester is a **replay** (ICD §3.6 A-2b) — the 0.5 upgrade (§5.3 step 4) resubmits `pendingMessage` rows that 0.4 or N-1 code may already have committed |
 | Historical rows | `sender_device_id` stays `NULL` for rows sent before V29 (the device is not recoverable). NULLs are distinct in the unique index, so they never collide; their idempotency was the global PK |
 | `sender_device_id` source | The JWT `deviceId` claim (present today) — never a client-supplied field |
 | Scheduled messages | Inserted with `seq = change_seq = NULL`, `is_scheduled = true`. Release (BEV-M1): one transaction per message — claim with `UPDATE … WHERE id = ? AND is_scheduled RETURNING`, allocate, set `seq = change_seq`, `is_scheduled = false`, commit, then hint (BE-02 closed structurally) |
 | N-1 safety | N-1 inserts leave both columns NULL; V31.1's checks are written to tolerate pre-cut-over NULLs |
 | Contract | V31.1 |
+
+> **Reviewer note (open) — deviation from brief §11.1 V29.** The brief says
+> `UNIQUE(sender_device_id, client_message_id)` "replaces the global client-id PK check". This
+> document keeps `messages.id = client_message_id` as a globally unique PK (identity rule above,
+> enforced by V31.1's `ck_messages_identity_rule`) and adds the device-scoped key beside it, so the
+> PK check is not replaced. Consequences and mitigations: the upgrade-retry case is a replay by the
+> rule above; from 1.2 an off-server recipient learns `Routing.client_message_id` before the server
+> and can squat it (ICD §3.6 reviewer note; reported as `MSG_ID_SQUATTED`, never
+> `FAILED_PERMANENT`). The brief-literal alternative — server-minted `messages.id`, references inside
+> `Content` by `(sender_device_id, client_message_id)`, mobile `message` keyed by that pair — removes
+> the squat path and drops `ck_messages_identity_rule`. Owner / 1.2 design review to choose before 1.0
+> freezes ICD §6.2.
 
 ### 3.3 V30 — age gate (0.4)
 
@@ -222,7 +269,7 @@ ALTER TABLE users ADD COLUMN discoverable_by_phone BOOLEAN NOT NULL DEFAULT TRUE
 
 | Item | Rule |
 |---|---|
-| Counting | One statement: `INSERT … ON CONFLICT (user_id, day) DO UPDATE SET new_numbers = new_numbers + :k WHERE contact_lookup_quota.new_numbers + :k <= :cap RETURNING` — no row returned means over the cap (`CONTACT_SYNC_LIMIT_EXCEEDED`, existing code) |
+| Counting | One statement, with the cap checked on **both** branches: `INSERT INTO contact_lookup_quota (user_id, day, new_numbers) SELECT :u, :d, :k WHERE :k <= :cap ON CONFLICT (user_id, day) DO UPDATE SET new_numbers = contact_lookup_quota.new_numbers + EXCLUDED.new_numbers WHERE contact_lookup_quota.new_numbers + EXCLUDED.new_numbers <= :cap RETURNING new_numbers` — no row returned means over the cap (`CONTACT_SYNC_LIMIT_EXCEEDED`, existing code). Without the `WHERE :k <= :cap` guard a first lookup of `k > cap` numbers would pass |
 | Retention | `contact_lookup_seen` is "who looked up which number" — personal data. Purged after `CONTACT_LOOKUP_SEEN_RETENTION` *(config)*; a DPIA screening item (ADR-0029 rule 6) |
 | Reader (0.6) | `ContactLookupService` excludes users with `discoverable_by_phone = false` and users who blocked the requester; the integration test proves enumeration is throttled (RQ-12) |
 | Default | `TRUE` keeps today's behaviour; privacy-by-default `FALSE` is an owner choice with a growth cost |
@@ -231,7 +278,8 @@ ALTER TABLE users ADD COLUMN discoverable_by_phone BOOLEAN NOT NULL DEFAULT TRUE
 ### 3.5 V31.1 — contract of V28 / V29 (0.5.0)
 
 ```sql
--- Precondition: SeqSweeper reports 0 rows with seq IS NULL AND is_scheduled = false.
+-- Precondition: SeqSweeper reports 0 rows with seq IS NULL AND is_scheduled = false,
+-- and every conversation has seq_ready = true.
 ALTER TABLE messages ADD CONSTRAINT ck_messages_seq_present
   CHECK (is_scheduled OR seq IS NOT NULL) NOT VALID;
 ALTER TABLE messages VALIDATE CONSTRAINT ck_messages_seq_present;
@@ -267,6 +315,7 @@ CREATE TABLE conversation_device_cursor (
   device_id           UUID   NOT NULL REFERENCES devices(id)       ON DELETE CASCADE,
   delivered_up_to_seq BIGINT NOT NULL DEFAULT 0,
   read_up_to_seq      BIGINT NOT NULL DEFAULT 0,
+  addressed_from_seq  BIGINT,          -- first seq this device is an E2E recipient of; NULL = never addressed
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (conversation_id, device_id),
   CHECK (read_up_to_seq <= delivered_up_to_seq)
@@ -275,19 +324,22 @@ CREATE TABLE conversation_device_cursor (
 
 | Item | Rule |
 |---|---|
-| Ack write | One conditional statement, monotonic: `UPDATE conversation_device_cursor SET delivered_up_to_seq = :s … WHERE conversation_id = :c AND device_id = :d AND delivered_up_to_seq < :s` (READ also raises `delivered_up_to_seq`). Broadcast only if a row changed (BE-03). Authorisation per ICD §3.8 |
+| Ack write | One conditional upsert, monotonic, with an insert path for a device's first ack: `INSERT INTO conversation_device_cursor (conversation_id, device_id, delivered_up_to_seq, read_up_to_seq) VALUES (:c, :d, :s, :r) ON CONFLICT (conversation_id, device_id) DO UPDATE SET delivered_up_to_seq = greatest(conversation_device_cursor.delivered_up_to_seq, EXCLUDED.delivered_up_to_seq), read_up_to_seq = greatest(conversation_device_cursor.read_up_to_seq, EXCLUDED.read_up_to_seq), updated_at = now() WHERE conversation_device_cursor.delivered_up_to_seq < EXCLUDED.delivered_up_to_seq OR conversation_device_cursor.read_up_to_seq < EXCLUDED.read_up_to_seq RETURNING …` (READ also raises `delivered_up_to_seq`, so `:r ≤ :s`). Broadcast only if a row was returned (BE-03). Authorisation per ICD §3.8; the client only sends `:s ≤` its complete-through point (ICD §3.8 R-ACK, store invariant S-3) |
+| Addressability (`addressed_from_seq`) | Set to `conversations.last_seq + 1`, under the conversation row lock, when this device first becomes an E2E recipient in this conversation: the member joins (or re-joins — overwritten), the device is linked while its user is a member, or the device first registers a `sealed`-capable identity key (V33). Cleared to `NULL` when the member leaves. An ack upsert never sets it. It is the source of ICD §4.1's `NOT_ADDRESSED` (`addressed_from_seq IS NULL OR seq < addressed_from_seq`) vs `PURGED` (otherwise, no envelope row), so neither state needs per-message rows. One write per (device, conversation) on join/link, not per message |
 | Per-message rows | Expanded from the cursor delta, `INSERT … SELECT id FROM messages WHERE conversation_id = :c AND seq > :old AND seq <= :new AND sender_device_id IS DISTINCT FROM :d ON CONFLICT DO UPDATE` with the monotonic rank guard, multi-row (BE-18 "batch inserts") |
 | User-level aggregate | `max` over a user's devices, the sender's own devices excluded; the #377 `readReceiptsEnabled` downgrade applied at publish (WS) and in `GET …/receipts` (ICD §4.4) |
-| Dual write | 0.6 writes both `message_delivery_status` (legacy, per user) and the new tables; reads switch to the new tables in the same release behind the existing aggregate port; the legacy table is dropped in V33.1 |
-| Backfill | None. Messages sent before V32 keep their user-level status from the legacy table until V33.1; after that their ticks show the aggregate as of the drop (frozen, historically accurate) |
+| Dual write | 0.6 writes both `message_delivery_status` (legacy, per user) and the new tables; reads switch to the new tables in the same release behind the existing aggregate port. **0.7 stops the dual write (code only, no DDL)**, so the 0.6 image still runs against the 0.7 schema (rules 3–4). The legacy table is dropped in V34.1 (1.0.0), when N-1 (0.7) no longer touches it |
+| Backfill | None. Messages sent before V32 keep their user-level status from the legacy table until 0.7 stops reading it; after that their ticks show the aggregate as of 0.6 (frozen, historically accurate) |
 
 > **Reviewer note (open):** ADR-0013 makes acks cumulative (`ack{conversationId, uptoSeq, kind}`),
 > so per-device delivery state is two integers per (conversation, device). The brief's V32 stores one
 > row per (message, device), which is O(messages × devices) writes and is fully derivable from the
 > cursor. This document keeps V32 as the brief specifies and **adds** `conversation_device_cursor` as
 > the write target and tick source; the owner may drop `message_device_delivery` entirely if no
-> consumer needs per-message rows (`GET /messages/{id}/info` is the only candidate today). The same
-> reasoning applies to the mobile `receipt` table (§5.4).
+> consumer needs per-message rows (`GET /messages/{id}/info` is the only candidate today). Dropping it
+> does **not** affect ICD §4.1's `envelopeState`: recipient membership is answered by
+> `conversation_device_cursor.addressed_from_seq`, not by per-message `SENT` rows. The same
+> reasoning applies to the mobile `receipt` table (§5.6).
 
 ### 3.7 V33 — device-scoped key directory (0.6.0)
 
@@ -350,14 +402,29 @@ CREATE UNIQUE INDEX ux_kyber_last_resort ON kyber_prekeys (device_id)           
 | No silent replacement | `identity_keys.device_id` is the PK; the adapter exposes insert only. A different key for an existing device → `ENCRYPTION_IDENTITY_REPLACEMENT_REJECTED`; a new key means a new `devices` row and an `IdentityKeyChanged` event (ICD §3.11) |
 | Low water | Counting `one_time_prekeys`/`kyber_prekeys` per device after a claim emits the replenish hint below `PREKEY_LOW_WATER` *(config)* |
 | No backfill | Production `encryption_keys` contains NoOp placeholder identities written by every launch (#379). They are **not** copied; the new tables start empty and are populated by real 1.0 clients |
-| Contract | V33.1 drops `encryption_keys` and `one_time_pre_keys` once nothing reads them |
+| Contract | 0.7 switches the legacy key endpoints off `encryption_keys` / `one_time_pre_keys` (§3.8, no DDL); V34.1 (1.0.0) drops the tables |
 
-### 3.8 V33.1 — contract (0.7.0)
+### 3.8 Contract of V32 / V33 — 0.7.0 code switch, V34.1 drop (1.0.0)
+
+Stopping a write and dropping its table never happen in the same release (rule 3): the 0.6 image
+dual-writes `message_delivery_status` and still serves the per-user key endpoints (the 0.4 atomic
+claim; #379 NoOp key registration from older clients), so a 0.7 that dropped those tables could not
+be rolled back to 0.6.
+
+| Release | Change | DDL |
+|---|---|---|
+| 0.7.0 | Stop the dual write to `message_delivery_status`; stop reading it. The legacy per-user key endpoints stop reading and writing `encryption_keys` / `one_time_pre_keys`: registration and claim go only through the V33 device-scoped path; a legacy-shaped call returns HTTP 410 with a defined error code (proposed new `ErrorCode` `ENCRYPTION_KEY_API_RETIRED`; old clients treat it as a generic failure, ICD §10 rule 9) | none |
+| 1.0.0 (V34.1) | Drop the tables; N-1 (0.7) no longer touches them | below |
 
 ```sql
-DROP TABLE message_delivery_status;   -- after V32 reads have switched (0.6)
-DROP TABLE one_time_pre_keys;         -- after V33 claim path is the only path (0.6)
+-- V34.1 (1.0.0)
+SET lock_timeout = '5s';
+DROP TABLE message_delivery_status;
+DROP TABLE one_time_pre_keys;
 DROP TABLE encryption_keys;
+ALTER TABLE conversations DROP COLUMN seq_ready;   -- ready everywhere since V31.1 (0.5); the allocation
+                                                    -- predicate `AND seq_ready` is removed from code in 0.6,
+                                                    -- so N-1 (0.7) never reads the column
 ```
 
 ### 3.9 V34 — mailbox and encryption state (1.0.0)
@@ -370,7 +437,8 @@ SET lock_timeout = '5s';
 ALTER TABLE conversations ADD COLUMN encryption_state   VARCHAR(12) NOT NULL DEFAULT 'NONE'
   CHECK (encryption_state IN ('NONE', 'E2E_V1'));
 ALTER TABLE conversations ADD COLUMN storage_mode       VARCHAR(12) NOT NULL DEFAULT 'CLOUD'
-  CHECK (storage_mode IN ('CLOUD', 'BYO', 'LOCAL_ONLY'));   -- only if the T3 work has not added it
+  CHECK (storage_mode IN ('CLOUD', 'BYO', 'LOCAL_ONLY'));   -- unconditional: absent in V1–V27; any T3 work
+                                                              -- that needs it earlier moves this line, not a copy
 ALTER TABLE conversations ADD COLUMN e2e_since_seq      BIGINT;       -- first seq sent E2E (cutover)
 ALTER TABLE conversations ADD COLUMN plaintext_purge_at TIMESTAMPTZ;  -- end of the notified grace period (Q-O4)
 
@@ -386,7 +454,8 @@ CREATE TABLE message_envelopes (
   message_id          UUID   NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
   recipient_device_id UUID   NOT NULL REFERENCES devices(id)  ON DELETE CASCADE,
   conversation_id     UUID   NOT NULL,      -- denormalised from messages for the ack delete and the feed
-  seq                 BIGINT NOT NULL,      -- denormalised (immutable once assigned)
+  seq                 BIGINT NOT NULL,      -- denormalised (immutable once assigned); NOT NULL holds because
+                                            -- scheduled send is unavailable for E2E (ICD §3.5 reviewer note, option b)
   protocol            VARCHAR(32) NOT NULL
     CHECK (protocol IN ('signal-prekey/1', 'signal-message/1', 'sender-key/1', 'sender-key-distribution/1')),
   ciphertext          BYTEA  NOT NULL,
@@ -399,14 +468,14 @@ CREATE INDEX ix_envelopes_expiry          ON message_envelopes (expires_at);
 
 | Item | Rule |
 |---|---|
-| E2E row | `messages` keeps the metadata row (`id`, `conversation_id`, `seq`, `change_seq`, `sender_id`, `sender_device_id`, timestamps, `encryption_state = 'E2E_V1'`, `content_type = 'sealed'`), `content = NULL`. One `message_envelopes` row per recipient device, written in the send transaction |
+| E2E row | `messages` keeps the metadata row (`id`, `conversation_id`, `seq`, `change_seq`, `sender_id`, `sender_device_id`, timestamps, `encryption_state = 'E2E_V1'`, `content_type = 'SEALED'`), `content = NULL`. `SEALED` is a new value of the backend `ContentType` enum (`messaging/domain/model/Message.kt`; existing rows use the uppercase enum names, V25: `'IMAGE'`, `'VOICE'`) and of the shared `ContentType` mapper; a lowercase literal would fail JPA `EnumType` mapping. One `message_envelopes` row per recipient device, written in the send transaction. `messages.expires_at` for an E2E row is computed **server-side** from the conversation's disappearing timer at insert, never from `Content.expires_at_ms` (ICD §3.5 note) |
 | Edits, deletes, reactions in E2E conversations | Travel as their own E2E messages (`Content.Edit/Delete/Reaction`, own `seq`). The server cannot mutate an E2E row's content; `change_seq` moves for E2E rows only on expiry tombstoning |
 | Ack delete | `MailboxPort.deleteUpTo(device, conv, seq)` = `DELETE FROM message_envelopes WHERE recipient_device_id = ? AND conversation_id = ? AND seq <= ?` (index above) |
 | TTL purge | `purgeExpired(now)` deletes `expires_at <= now` in batches; default TTL 30 days, `muhabbet.mailbox.ttl` (ADR-0021) |
-| Feed projection | `/changes` for an E2E row joins the requesting device's envelope; `envelopeState` is `PRESENT`, `PURGED` (no row, device was a recipient) or `NOT_ADDRESSED` (ICD §4.1). "Was a recipient" is answered from `message_device_delivery`/`conversation_device_cursor` membership at send time — recorded as a `SENT` row per recipient device in V32 |
+| Feed projection | `/changes` for an E2E row joins the requesting device's envelope; `envelopeState` is `PRESENT` (row exists), `NOT_ADDRESSED` (`conversation_device_cursor.addressed_from_seq IS NULL OR seq < addressed_from_seq`) or `PURGED` (otherwise; acked or past TTL — ADR-0021's `envelopeExpired`) (ICD §4.1). No per-message rows are needed (§3.6) |
 | Cutover purge (ADR-0021 §4) | After `plaintext_purge_at`, a job sets `content = NULL, content_purged_at = now()` for `seq < e2e_since_seq`, one conversation per transaction. It does **not** bump `change_seq` (clients that hold the content keep it); new devices see `purged = true` (ICD §4.1). The UI labels a conversation E2E only when every row has `content IS NULL` |
-| Erasure completeness | `idx_messages_conversation_latest` **INCLUDEs `content`**: the plaintext also lives in the index and in dead tuples until `VACUUM`; the purge job runs `VACUUM (ANALYZE) messages` after each batch window, and backup retention is aligned with the grace period. RQ-13 is asserted on a dump taken after vacuum |
-| Contract (1.0.x) | Drop `idx_messages_conversation_latest`'s `INCLUDE (content)` (recreate without it) once `/messages/since` is gone; drop the `server_timestamp` cursor indexes |
+| Erasure completeness | Three indexes hold `content`: **V1 `idx_messages_conversation_latest`** (`INCLUDE content`), **V14 `idx_messages_conv_latest_covering`** (`content` is a key column) and **V14 `idx_messages_content_trgm`** (GIN trigram on `content`). Purged plaintext survives in them and in dead tuples until `VACUUM` / rebuild; the purge job runs `VACUUM (ANALYZE) messages` after each batch window, and backup retention is aligned with the grace period. RQ-13 is asserted on a dump taken after vacuum **and** after the 1.0.x contract below |
+| Contract (1.0.x) | `DROP INDEX CONCURRENTLY idx_messages_content_trgm` (server search ends at 1.0, ADR-0019 / ADR-0021); recreate `idx_messages_conversation_latest` and `idx_messages_conv_latest_covering` **without** `content` (`CREATE INDEX CONCURRENTLY` new, then `DROP INDEX CONCURRENTLY` old) once `/messages/since` is gone, or drop them with the `server_timestamp` cursor indexes. Each step is its own non-transactional dotted version (rule 6) |
 | Group storage note | Sender-key ciphertext is identical for all recipient devices of one message; per-device rows duplicate it. Deduplicated storage is a later optimisation if measured storage warrants it |
 
 ### 3.10 V35 — link keys, device certificates, CRL (1.2, gated)
@@ -506,6 +575,34 @@ CREATE TABLE uplink_sender_quota (           -- per sender device (addition, see
 | No relationship log | No table records which mule carried which sender's bundle; ingested messages are indistinguishable from direct sends apart from the quota counters. The mule↔sender pairing would be new relationship metadata (DPIA, LEG-04) |
 | Retention | Quota rows older than `UPLINK_QUOTA_RETENTION` *(config)* are deleted |
 
+### 3.12 Erasure and export (KVKK) for the new personal data
+
+Users are **soft-deleted** (`UserJpaEntity.deletedAt`); the `users` row survives account deletion.
+Every `REFERENCES users(id) ON DELETE CASCADE` in this document is therefore **inert on account
+deletion** and erases nothing. Account erasure is
+`UserDataQueryPort.erasePersonalData(userId)` (`backend/.../auth/domain/port/out/UserDataQueryPort.kt`,
+adapter `UserDataQueryPersistenceAdapter`), which **hard-deletes** `devices` (and today
+`encryption_keys` / `one_time_pre_keys`). Device-FK cascades (`ON DELETE CASCADE` / `SET NULL` on
+`devices(id)`) therefore **do** fire. Each new table must be added to that method and, where it is the
+user's own data, to the export (`UserDataExport`) in the same PR as its migration.
+
+| Version | Table / column | Personal data | Action in `erasePersonalData` | In export | Retention |
+|---|---|---|---|---|---|
+| V29 | `messages.sender_device_id` | which device sent | `SET NULL` by device-FK cascade (fires) | no (device ids are internal) | life of the message |
+| V30 | `users.birth_date`, `age_assurance_level`, `age_assured_at` (or `user_age_assurance`, §3.3 note) | date of birth | **explicit** `UPDATE … SET … = NULL` (or `DELETE FROM user_age_assurance`) — user FK inert | yes | until erasure |
+| V31 | `contact_lookup_quota` | daily counter | **explicit** `DELETE … WHERE user_id = ?` | no (operational counter) | `CONTACT_LOOKUP_SEEN_RETENTION` |
+| V31 | `contact_lookup_seen` | the set of phone hashes the user looked up — effectively the address book | **explicit** `DELETE … WHERE user_id = ?` | yes (as hashes) | `CONTACT_LOOKUP_SEEN_RETENTION` *(config)* |
+| V31.2 | `users.discoverable_by_phone` | setting | reset to default with the profile | yes (privacy settings) | until erasure |
+| V32 | `message_device_delivery`, `conversation_device_cursor` | per-device receipt state | device-FK cascade (fires) | receipt watermarks: no (others' correspondence metadata) | life of the device |
+| V33 | `identity_keys`, `signed_prekeys`, `one_time_prekeys`, `kyber_prekeys` | public keys | device-FK cascade (fires) | summary only, as `findEncryptionKeySummary` today | life of the device |
+| V34 | `message_envelopes` addressed to the user's devices | ciphertext for the user | device-FK cascade (fires) | no (ciphertext the server cannot read) | TTL 30 d |
+| V35 | `device_link_keys`, `device_certificates` | public keys, certificate | **first** revoke with reason `ACCOUNT_DELETED` and append a `crl_deltas` row, **then** the device delete cascades | no | `CERT_RETENTION` |
+| V36 | `uplink_quota` | mule counters | **explicit** `DELETE … WHERE mule_user_id = ?` — user FK inert | no | `UPLINK_QUOTA_RETENTION` |
+| V36 | `uplink_sender_quota` | sender counters | device-FK cascade (fires) | no | `UPLINK_QUOTA_RETENTION` |
+
+Messages a user sent into other people's conversations are not erased (the existing "rights of
+others" carve-out documented on `erasePersonalData`, #426); the sender is anonymised.
+
 ---
 
 ## 4. Backend entity-relationship view (after V36)
@@ -524,7 +621,7 @@ erDiagram
   devices ||--o{ conversation_device_cursor : acks
   messages ||--o{ message_envelopes : "mailbox (V34)"
   devices ||--o{ message_envelopes : "recipient_device_id"
-  devices ||--|| identity_keys : "V33"
+  devices ||--o| identity_keys : "V33"
   devices ||--o{ signed_prekeys : "V33"
   devices ||--o{ one_time_prekeys : "V33"
   devices ||--o{ kyber_prekeys : "V33"
@@ -654,8 +751,20 @@ fun createStoreDriver(context: Context, key: ByteArray): SqlDriver =
         context = context,
         name = "muhabbet-store.db",
         factory = SupportOpenHelperFactory(key),   // sqlcipher-android; exact API verified at 0.5
+        callback = object : AndroidSqliteDriver.Callback(MuhabbetDatabase.Schema) {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                db.setForeignKeyConstraintsEnabled(true)   // = PRAGMA foreign_keys = ON
+            }
+        },
     )
 ```
+
+**Foreign keys.** The `ON DELETE CASCADE` clauses below (`message → conversation`,
+`receipt_watermark`, `media_transfer`) do nothing unless SQLite foreign keys are on, and they are off
+by default; neither `AndroidSqliteDriver` nor `NativeSqliteDriver` enables them. Both drivers enable
+them on every open (Android callback above; iOS via the native driver's connection configuration,
+`PRAGMA foreign_keys = ON`). A store test asserts `PRAGMA foreign_keys` returns `1` and that deleting a
+`conversation` removes its `message` rows.
 
 **Key loss.** If the wrapped key cannot be unwrapped (Keystore entry invalidated), the store is
 unreadable by design: delete it and re-sync. Before 1.0 nothing is lost; from 1.0, E2E history not in
@@ -672,7 +781,8 @@ CREATE TABLE conversation (
   storage_mode             TEXT    NOT NULL DEFAULT 'CLOUD' CHECK (storage_mode IN ('CLOUD', 'BYO', 'LOCAL_ONLY')),
   encryption_state         TEXT    NOT NULL DEFAULT 'NONE'  CHECK (encryption_state IN ('NONE', 'E2E_V1')),
   last_seq                 INTEGER NOT NULL DEFAULT 0,  -- head last learned (heads, hints, pages)
-  watermark_seq            INTEGER NOT NULL DEFAULT 0,  -- applied through, over change_seq (ICD §3.10)
+  watermark_seq            INTEGER NOT NULL DEFAULT 0,  -- applied through, over change_seq (ICD §3.10); moves per page
+  complete_through_seq     INTEGER NOT NULL DEFAULT 0,  -- C: every seq ≤ C stored; the only DELIVERED bound (ICD §3.8 R-ACK)
   my_read_up_to_seq        INTEGER NOT NULL DEFAULT 0,  -- own read position; unread = derived
   disappear_after_seconds  INTEGER,
   is_pinned                INTEGER NOT NULL DEFAULT 0,
@@ -770,13 +880,13 @@ CREATE TABLE kv_meta (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL);
 |---|---|---|
 | S-1 | Send: the optimistic `message` row (`state = LOCAL`, `seq = NULL`, `anchor_seq = conversation.last_seq`) and its `outbox_entry` are inserted in **one** transaction | ADR-0013, MOB-04 |
 | S-2 | Outbox transitions are compare-and-set: `UPDATE outbox_entry SET state = :to … WHERE id = :id AND state = :from`, then `SELECT changes()` in the same transaction; 0 means another worker won | ADR-0013 |
-| S-3 | Inbox: one transaction per event or page — insert, or update only if the incoming `change_seq` is newer; advance `watermark_seq` per ICD §3.10 in the same transaction; enqueue DELIVERED only after commit | P4, MOB-03, MOB-05 |
+| S-3 | Inbox: one transaction per event or page — insert, or update only if the incoming `change_seq` is newer; advance `watermark_seq` per ICD §3.10 in the same transaction; advance `complete_through_seq` only when a pull ends with `hasMore = false` (to `lastSeq`) or a `message.new` advances `watermark_seq` contiguously from `complete_through_seq`; enqueue DELIVERED only after commit, with `upto = complete_through_seq`, never a pushed or mid-pull seq | P4, MOB-03, MOB-05, ICD §3.8 R-ACK |
 | S-4 | `SERVER_ACCEPTED(seq)` sets `message.seq`, `change_seq`, `state = ACCEPTED` in the same transaction as the outbox transition | ADR-0013 |
 | S-5 | Display order: `ORDER BY coalesce(seq, anchor_seq), seq IS NULL, local_id` (uses `ix_message_display`). A provisional row sorts after the last `seq` its creator knew and re-sorts stably when its `seq` arrives | ADR-0014 |
-| S-6 | Ticks are derived, never stored: one tick = `seq IS NOT NULL`; two ticks = every other member's `delivered_up_to_seq ≥ seq`; read = every other member's `read_up_to_seq ≥ seq` | ADR-0013 |
+| S-6 | Ticks are derived, never stored: one tick = `seq IS NOT NULL`; two ticks = every other member's `delivered_up_to_seq ≥ seq`; read = every other member's `read_up_to_seq ≥ seq`. From 1.2, a row with `seq IS NULL` shows two ticks + "not yet synced" when a sealed E2E DELIVERED receipt from every recipient user is recorded in the `receipt` table (§5.6; delivery-engine-spec §5); once a `seq` arrives the `receipt` rows are folded into `receipt_watermark` and the seq-based rule applies | ADR-0013 |
 | S-7 | Unread count = `COUNT(*) WHERE conversation_id = ? AND is_own = 0 AND seq > my_read_up_to_seq AND deleted = 0` | — |
 | S-8 | `inbound_dedup` rows older than `DEDUP_TTL` ≥ the maximum message lifetime (30 d) are purged | ADR-0013 |
-| S-9 | Read receipts are **not** persisted (regenerated on chat open); DELIVERED is cumulative and re-derived after every committed page | ADR-0013 |
+| S-9 | Read receipts are **not** persisted (regenerated on chat open); DELIVERED is cumulative, sent only as `upto = complete_through_seq`, and only after a **completed** pull or a contiguous push (S-3); READ is also bounded by `complete_through_seq`. Invariant: every message with `seq ≤ complete_through_seq` has a committed `message` row | ADR-0013, ICD §3.8 R-ACK |
 | S-10 | No wire type (`WsMessage`, DTO) is stored or read by UI code; screens observe flows over these tables | P5, ADR-0011 |
 
 > **Reviewer note (open):** brief §11.2 sketches the message index as
@@ -872,12 +982,12 @@ key alias `db-custody` and its own quota (ADR-0020, ADR-0025).
 ```sql
 CREATE TABLE custody_bundle (
   id            TEXT    NOT NULL PRIMARY KEY,     -- random per bundle; never a message or device id
-  role          TEXT    NOT NULL CHECK (role IN ('OWN_DEVICE', 'UPLINK_MULE')),
+  role          TEXT    NOT NULL CHECK (role IN ('OWN_DEVICE', 'CONTACT_UPLINK')),  -- = CustodianKind (ADR-0025)
   blob          BLOB    NOT NULL,                 -- opaque: SealedFrame (own device) or UplinkSubmission (mule)
   size_bucket   INTEGER NOT NULL,
   received_at   INTEGER NOT NULL,
   expires_at    INTEGER NOT NULL,                 -- mule: received_at + 24 h; own device: bundle lifetime
-  state         TEXT    NOT NULL CHECK (state IN ('IN_CUSTODY', 'OFFERED', 'RELEASED')),
+  state         TEXT    NOT NULL CHECK (state IN ('HELD')),  -- custodian side (spec §9.2 K01–K06); row deleted on release, expiry or decline
   attempts      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX ix_custody_expiry ON custody_bundle (expires_at);
@@ -886,9 +996,9 @@ CREATE TABLE custody_quota (day TEXT NOT NULL PRIMARY KEY, bytes INTEGER NOT NUL
 
 | Rule | Statement |
 |---|---|
-| No identifiers | No sender, recipient, conversation or tag column for `UPLINK_MULE` rows (C7, D-6). `OWN_DEVICE` rows belong to the same user; routing is read from inside the blob when handing over |
+| No identifiers | No sender, recipient, conversation or tag column for `CONTACT_UPLINK` rows (C7, D-6). `OWN_DEVICE` rows belong to the same user; routing is read from inside the blob when handing over |
 | Eviction | FIFO by `expires_at` when the quota is full; expired rows deleted on every open and by a periodic job |
-| Release | Mule: delete on any 2xx/400/413/422 from `/uplink` (ICD §8.4). Own device: delete on an authenticated DELIVERED |
+| Release | Custodian-side states are those of delivery-engine-spec §9.2 and custody-state-machine.mmd: only `HELD` is stored; `RELEASED`, `EXPIRED` and `DECLINED` are realised as row deletion (no tombstones). `OFFERED`/`IN_CUSTODY` are sender-side outbox states and never appear here. Mule (`CONTACT_UPLINK`): delete on any 2xx/400/413/422 from `/uplink` (ICD §8.4). Own device: delete on an authenticated DELIVERED |
 | Erasure | Leaving relay mode deletes `custody.db` and destroys `db-custody` immediately; `SessionTeardown` does the same |
 
 ### 5.8 `SessionTeardown` (data view, ADR-0020)
@@ -985,6 +1095,11 @@ erDiagram
 | RQ-08 | After logout no readable store, custody DB or legacy file; key aliases gone | Forensic check (owner) + instrumented test | 0.5 exit |
 | — | Display order and re-sort on `seq` arrival (S-5) | `:mobile:messaging` jvmTest with `InMemoryMessageStore` and the SQLDelight store | 0.5 |
 | — | FTS: delete trigger leaves no tokens; Turkish dotted/dotless fixture | Instrumented test | 1.0 |
+| RQ-03 | Paged pull with an edited old message (low `seq`, high `change_seq` on a later page) never acks an unstored seq; `complete_through_seq` unchanged mid-pull; from 1.0 the envelope is not purged before the device stores it | Testcontainers + `SimulatedLink` | 0.5 / 1.0 |
+| — | After `erasePersonalData`, no row in the V30, V31, V32, V33, V34, V35 or V36 tables references the user or any of their (deleted) devices; age columns are NULL | Testcontainers, Docker running | each release that adds a table |
+| — | `PRAGMA foreign_keys = 1` on every store open; cascades fire | Store test | 0.5 |
+| — | Duplicate and concurrent-duplicate sends allocate no seq; `last_seq` stays gapless | Testcontainers | 0.4 |
+| — | V28.1/V29.1 built `CONCURRENTLY` without blocking concurrent inserts; `SeqSweeper` re-run resumes; an insert into a not-ready conversation sorts after its history | Migration test | 0.4 |
 
 ---
 
@@ -1006,6 +1121,12 @@ none changes a decision.
 | `ca_intermediate_keys` (V35) | ADR-0018 intermediate record delivered with each renewal |
 | `uplink_sender_quota` (V36) | ADR-0025 "per-sender upload quota on `/uplink`" |
 | `media_transfer`, `kv_meta`, `receipt_watermark`, `conversation.my_read_up_to_seq`, `message.anchor_seq` / `local_id` (mobile) | Resumable upload (§6.7), ADR-0014 display order, derived ticks/unread, FTS rowid stability |
+| Brief `message.local_order` **renamed** `local_id` (mobile) | Same role (receive order, display tiebreak); `local_id` is also the FTS rowid, so one column serves both |
+| `conversation.complete_through_seq` (mobile) | ICD §3.8 R-ACK: the DELIVERED bound must not move mid-pull |
+| `conversations.seq_ready` (V28, dropped V34.1) | Lets `SeqSweeper` number history before a conversation's first allocation |
+| `conversation_device_cursor.addressed_from_seq` (V32) | ICD §4.1 `NOT_ADDRESSED` vs `PURGED` without per-message rows |
+| Backend `ContentType.SEALED` (V34) | E2E metadata rows (uppercase enum names, V25) |
+| §3.12 erasure/export mapping | KVKK erasure under soft delete |
 | `safety_verification` (mobile 1.0) | Brief §12 #43 (QR at 1.0) and 1.2 eligibility |
 
 ## 8. Open items
@@ -1021,3 +1142,31 @@ none changes a decision.
 | 7 | `conversations.updated_at` trigger on seq allocation | Decide at implementation (recommended: restrict trigger) |
 | 8 | SQLCipher build: FTS5 `contentless_delete` support, exact `SupportOpenHelperFactory` API | Verify at 0.5 / 1.0 |
 | 9 | Retention values for `contact_lookup_seen`, quotas, certificates | *(config)*; DPIA screening |
+| 10 | `messages.id = client_message_id` kept beside the device-scoped key (deviation from brief §11.1 V29) | Reviewer note (open), §3.2 |
+| 11 | Scheduled send in E2E conversations (decides whether `message_envelopes.seq` may be NULL) | Reviewer note (open), ICD §3.5 |
+| 12 | ER diagrams are inline here; house style puts diagrams in `docs/diagrams/*.mmd` (`data-model-backend.mmd`, `data-model-mobile.mmd`). Moving them is outside this document's edit scope | Follow-up for the diagrams owner |
+| 13 | V28 backfill moved to `SeqSweeper`; added `conversations.seq_ready` and `UNIQUE (conversation_id, change_seq)` (deviations from brief §11.1 V28) | Reviewer note (open), §3.1 |
+
+## 9. Rollout and rollback
+
+| Concern | Where it is specified |
+|---|---|
+| Release order of every migration; dotted same-release splits and contract steps | §2.1 rules 1–2, §2.2 release map |
+| Expand → contract; stop-write and drop never in one release | §2.1 rule 3; §3.6 dual write; §3.8 (0.7 code switch, V34.1 drop) |
+| Rollback = previous image on the expanded schema; N-1-on-N CI | §2.1 rules 4 and 8 (CICD-09) |
+| Rows N-1 writes during a rollback window | §3.1 `SeqSweeper`; §3.2 A-2b replay |
+| Lock and timeout hygiene on `shared-postgres` | §2.1 rule 6; V28 / V28.1 / V29.1 |
+| Mobile schema migration and the one-time 0.5 store upgrade | §5.2, §5.3 upgrade procedure (crash-safe at every step) |
+| Wire compatibility across mixed client/server versions | ICD §2.4 matrix, §3.15, §10 |
+| Feature flags | `engine.enabled` (mobile 0.5, brief §13); `muhabbet.multi-device.enabled` (existing). No schema change is behind a flag; schema is always expanded first |
+
+## 10. Risks
+
+| Risk (register ID) | Data-model exposure | Mitigation here |
+|---|---|---|
+| R11 wake-only push latency | Correctness does not depend on push: pull by `seq` from `heads()` | §5.10 head/watermark mapping; ICD §5 |
+| R12 hot `conversations.last_seq` row | Every insert/edit/reaction/expiry allocates under the row lock; receipts deliberately do not | §3.1 "What bumps `change_seq`"; measure p99 send latency |
+| R16 provisional off-server ordering reorders | `anchor_seq` display order, re-sort on `seq` | §5.3 S-5 and reviewer note |
+| R19 host disk ~92%, single runner | Concurrent index builds and `VACUUM` after cutover purge need headroom on the co-tenant DB host | §2.1 rule 6; §3.9 erasure row; check `df` before V28.1 and the 1.0.x contract |
+| (this doc) Identity-rule squat from 1.2 | `messages.id` globally unique and client-minted | §3.2 reviewer note |
+| (this doc) Erasure gaps under soft delete | User-FK cascades are inert | §3.12 |

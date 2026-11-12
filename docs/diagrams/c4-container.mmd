@@ -51,7 +51,8 @@ flowchart LR
     app -- "WSS /ws, JSON WsMessage<br/>hello / welcome, first-frame auth<br/>(no JWT in query string)" --> backend
     app -- "HTTPS GET /changes?afterSeq<br/>REST /api/v1/**" --> backend
     app -- "HTTPS presigned, resumable 1 MiB ranges" --> minio
-    app -- "WebRTC DTLS-SRTP, ICE<br/>credentials at most 10 min [0.7 / 1.1 P2P]" --> livekit
+    app -- "WebRTC via SFU, DTLS-SRTP,<br/>TURN creds at most 10 min [0.7]" --> livekit
+    app -. "1.1 P2P 1:1 calls, ICE over our TURN<br/>(relay-only for non-contacts)" .-> peer
     backend -- "JDBC; seq via UPDATE ... RETURNING" --> pg
     backend -- "pub/sub ws:broadcast:*,<br/>session revocation" --> redis
     backend -- "S3 API, presign" --> minio

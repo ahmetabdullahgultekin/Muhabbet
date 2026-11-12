@@ -37,7 +37,7 @@ policy (§17).
 | Level | Consequence if the requirement fails | Minimum verification | Waiver |
 |---|---|---|---|
 | **4** | Content or keys exposed; plaintext where E2E is claimed; legal exposure (age, RF, 5651/5809, KVKK); production compromise | Test **and** a second method (inspection, analysis or owner demonstration); independent review where named (crypto reviewer, counsel) | Never; the milestone does not exit |
-| **3** | Message lost, duplicated, mis-ordered, or a tick/label that lies | Automated test in CI plus owner demonstration where device-dependent | Owner only, dated, with a follow-up issue in the next milestone |
+| **3** | Message lost, duplicated, mis-ordered, or a tick/label that lies | Automated test in CI plus owner demonstration where device-dependent (exception: the S-3 full property run executes on E-LOCAL, owner-signed, until CI is off cx43) | Owner only, dated, with a follow-up issue in the next milestone |
 | **2** | Degraded performance, UX friction, operational burden | Test or analysis | Owner |
 | **1** | Hygiene, maintainability | Inspection or automated guardrail | Reviewer |
 
@@ -72,8 +72,8 @@ policy (§17).
 
 | ID | Environment | Runs | Constraints | Signs |
 |---|---|---|---|---|
-| E-LOCAL | Agent or owner workstation (cloud session or Windows dev host); JDK 21; Docker for Testcontainers | V1–V3 | Without Docker the `@Testcontainers` classes fail at class-init and **do not run** (#598); Redis is required as well as Postgres | nobody (pre-check only) |
-| E-CI | Today: one self-hosted runner on the production host `muhabbet-cx43`, one job at a time, ~92% disk, **no KVM**. After ADR-0031: PR jobs never on cx43; GitHub-hosted runners once the billing lock is fixed (CICD-04), otherwise PR workflows disabled | V1–V3, golden vectors, short fuzz runs, 1 000-seed property subset per PR | Heavy suites (10 000 seeds, long fuzzing) only on merge/nightly and only once CI is off the production host (R19, R37) | CI report |
+| E-LOCAL | Agent or owner workstation (cloud session or Windows dev host); JDK 21; Docker for Testcontainers | V1–V3 | Without Docker the `@Testcontainers` classes fail at class-init and **do not run** (#598); Redis is required as well as Postgres | nobody, except the S-3 full property run until CI is off cx43: the owner attaches the report (seed list, commit, JUnit XML) and signs it |
+| E-CI | Today: self-hosted runners `muhabbet-cx43` (the production host; one job at a time, ~92% disk, **no KVM**) and the unidentified `muhabbet-mordecai` (CICD-03). A CI report is accepted as evidence only if it ran on a documented runner. After ADR-0031: PR jobs never on cx43; GitHub-hosted runners once the billing lock is fixed (CICD-04), otherwise PR workflows disabled | V1–V3, golden vectors, short fuzz runs, 1 000-seed property subset per PR | Heavy suites (10 000 seeds, long fuzzing) only on merge/nightly and only once CI is off the production host (R19, R37) | CI report |
 | E-EMU | `emulator-5554` on the owner's Windows PC | V4: release-artefact launch, two-number flows, airplane-mode script, killed-app notification | Points at **production** (hard-coded `BASE_URL`, MOB-15); backend changes must be deployed, or the temporary `BASE_URL` build change used and reverted (CLAUDE.md) | Owner |
 | E-PHYS | Owner's physical phones: two Android on two operators (one TT Mobil); one aggressive-OEM device (Xiaomi/Oppo class); spike set (Pixel, Samsung A, Xiaomi, iPhone 12, iPhone 15+; one Huawei/HMS recommended, capability matrix SP-2) | V5 | Availability of the owner is the bottleneck (R36) | Owner |
 | E-PROD | Production backend with test numbers | V4 read-only checks | No fault injection on production: it is a shared host with other projects (TC-9, R23) | Owner |
@@ -112,7 +112,7 @@ threats (T-*), quality scenarios (QS-*), engine invariants (I*).
 | RQ-19 | Duty cycle respected | 4 | V1, V6 | T, D | CI, FIELD | 1.4 | Ledger tests with time-on-air golden vectors; one-hour field log | ADR-0026; RF-07, GEM-20; T-RF-02 |
 | RQ-20 | Every privacy claim true | 4 | all | I + all | all | 1.0 (register), every release after | Claims register: each UI/doc claim → test or observation | SSOT-09; ADR-0017, ADR-0021; DPIA S-16 |
 
-### 6.2 Extended requirements (RQ-21…RQ-81, derived from ADR verification sections and principles)
+### 6.2 Extended requirements (RQ-21…RQ-90, derived from ADR verification sections and principles)
 
 Every row cites the ADR verification item it comes from. Requirement text is the testable form of
 that item; nothing here adds scope beyond the brief and the ADRs.
@@ -180,6 +180,15 @@ that item; nothing here adds scope beyond the brief and the ADRs.
 | RQ-79 | ADR status hygiene: product ADRs for 1.1+ stay *Proposed (gated)* until spikes and opinions exist; process ADRs are grouped separately | 1 | VA | I (status lint) | — | every ADR change | P14 | SSOT-08 |
 | RQ-80 | Migrations are rollback-compatible: additive first, destructive one release later; the previous release starts against the new schema | 3 | V3 | T | CI | 0.4 onward | brief §11.1 | CICD-09, #295 |
 | RQ-81 | Every port names its second real implementation, already scheduled; a port with only a speculative second implementation is rejected | 1 | VA | I | — | every port PR | P7 | — |
+| RQ-82 | Contact lookup filters out users who blocked the requester (or whom the requester blocked) before any result is returned | 4 | V3 | T | CI | 0.4 | ADR-0029; brief §11.1 (V31) | C8, M3 |
+| RQ-83 | Reuse of a revoked refresh token revokes every token of that device and forces re-login; concurrent rotation succeeds once | 4 | V3 | T | CI | 0.4 | ADR-0022 (plane A auth) | BE-13; T-SRV-03 |
+| RQ-84 | A second and later edit of the same message is applied; the dedup key includes `editedAt` | 3 | V2 | T | CI | 0.4 | ADR-0013 | MOB-05 |
+| RQ-85 | Group READ/DELIVERED status aggregates per member, not per message | 3 | V2 | T | CI | 0.4 | ADR-0013 | MISS-01 (mobile) |
+| RQ-86 | Each new port is inspected against ADR-0010 Decision §1 (no adapter mints identity or order) | 3 | VA | I | — | every port PR | ADR-0010 | — |
+| RQ-87 | ADR-0027 watch-list re-checked yearly or on trigger, with a dated note | 1 | VA | I | — | yearly / on trigger | ADR-0027 | — |
+| RQ-88 | ArchUnit/Konsist boundary rules fail on a seeded violation (backend messaging) | 3 | V1 | T | CI | 0.4 | ADR-0028 prerequisites | BE-08, #322 |
+| RQ-89 | No service implements more than three use-case interfaces; `MessageService` split | 1 | VA | I | — | 0.5 | CLAUDE.md SRP rule | BE-11 |
+| RQ-90 | Aydınlatma metni updated for wake-only push before 0.5 ships | 4 | VA | I | — | 0.5 | ADR-0019; `dpia-screening.md` §3.1 | BE-15 |
 
 ### 6.3 ADR verification-item index
 
@@ -188,7 +197,7 @@ untraced.
 
 | ADR | Items → RQ |
 |---|---|
-| 0010 | boundary rule → RQ-21 · `serverOwed`/"not yet synced" → RQ-22 · no off-server without session + conversation → RQ-23 · boundary review → RQ-81 |
+| 0010 | boundary rule → RQ-21 · `serverOwed`/"not yet synced" → RQ-22 · no off-server without session + conversation → RQ-23 · boundary review → RQ-86 |
 | 0011 | `ui/` count 0 → RQ-24 · module purity → RQ-25 · DB before DELIVERED → RQ-03 · killed-app receive → RQ-26 · `verifyMigrations` → RQ-27 |
 | 0012 | `SealedFrame` only → RQ-06 · purity → RQ-25 · no HOL across links → RQ-28 · adapter boundary → RQ-21 · parity → RQ-29 · jvmTest in CI → RQ-30 |
 | 0013 | RQ-01, RQ-02, RQ-03 · kill mid-send → RQ-01/RQ-02 (D) · replay seq → RQ-02 · ack authorisation → RQ-31 |
@@ -205,7 +214,7 @@ untraced.
 | 0024 | RQ-06 · RQ-16 · RQ-02/RQ-04 on reconnect · RQ-17 · RQ-18 · E1–E7 → RQ-35 · auto-off → RQ-62 · matrix → RQ-63 |
 | 0025 | RQ-01 (bundles) and custody release → RQ-64 · tablet → RQ-65 · uplink attribution → RQ-66 · opaque blobs → RQ-67 · quotas → RQ-68 · RQ-02 |
 | 0026 | opinion → RQ-40 · RQ-19 (×2) · RQ-06 · TR exclusion and `RegulatoryRule` → RQ-37 · two nodes → RQ-69 |
-| 0027 | no rejected identifiers → RQ-70 · matrix cites ADR → inspection in doc review · watch-list re-check → RQ-79 (dated note) |
+| 0027 | no rejected identifiers → RQ-70 · matrix cites ADR → inspection in doc review · watch-list re-check → RQ-87 (dated note) |
 | 0028 | catalog → RQ-71 · `verifyMigrations` → RQ-27 · jvmTest → RQ-30 · purity → RQ-25 · `SealedFrame` → RQ-06 · testkit/Meshtastic classpath → RQ-06/RQ-37 · `ui/` count → RQ-24 · iOS → RQ-42 |
 | 0029 | RQ-10 (×2) · RQ-09 · RQ-18 · block lists → RQ-72 · `ScopeRule` → RQ-36 · offline report → RQ-73 · DPIA per trigger → RQ-40 · RQ-20 |
 | 0030 | V1–V4, V8 → RQ-74 · V5–V7 → RQ-75 |
@@ -241,11 +250,11 @@ V&V **exit** = which RQs must pass, with which evidence, for the milestone to ex
 
 | Milestone | V&V entry (test readiness) | RQs that must pass at exit | Owner-observed (D) | V&V report |
 |---|---|---|---|---|
-| Phase 0 | None | RQ-76 (F1–F4, F7 at minimum), RQ-74 after ADR-0030 is applied | rotation login check | Phase 0 epic comment |
-| 0.4 | Docker-capable E-LOCAL; base-commit backend suite measured; crash-point test scaffold; Testcontainers concurrency harness | RQ-01 (D), RQ-02, RQ-03, RQ-04, RQ-08 (logical), RQ-09, RQ-10, RQ-11 (claim), RQ-12 (cap), RQ-27, RQ-30 (`:shared`), RQ-31 (auth), RQ-32, RQ-45 (limits), RQ-71, RQ-75, RQ-80 | RQ-01, RQ-03, RQ-08, RQ-09, RQ-10, ROADMAP four conditions, release launch | Milestone tracking issue |
-| 0.5.0 | `SimulatedLink` harness, `TestClock`, `CrashPoints`, `FakeServer` (spec §14) merged **before** the engine; seed policy (§9); plane-A golden vectors; fuzz targets scaffolded | RQ-01, RQ-02, RQ-05, RQ-06, RQ-07, RQ-08 (forensic), RQ-21, RQ-24, RQ-25, RQ-28, RQ-29 (0.5.1), RQ-30, RQ-33, RQ-34, RQ-39 (fake), RQ-43 (rule), RQ-48 (A), RQ-49, RQ-50, RQ-51, RQ-52, RQ-55, RQ-56, RQ-58, RQ-70, RQ-72, RQ-73, RQ-75 | RQ-07 capture, RQ-08, RQ-29, RQ-49, RQ-51, release launch | Same |
+| Phase 0 | None | RQ-76 (F1–F8), RQ-74 after ADR-0030 is applied | rotation login check | Phase 0 epic comment |
+| 0.4 | Docker-capable E-LOCAL; base-commit backend suite measured; crash-point test scaffold; Testcontainers concurrency harness | RQ-01 (D), RQ-02, RQ-03, RQ-04, RQ-08 (logical), RQ-09, RQ-10, RQ-11 (claim), RQ-12 (cap), RQ-27, RQ-30 (`:shared`), RQ-31 (auth), RQ-32, RQ-40 (DT-4 DPIA), RQ-45 (limits), RQ-71, RQ-75, RQ-80, RQ-82, RQ-83, RQ-84, RQ-85, RQ-88 | RQ-01, RQ-03, RQ-08, RQ-09, RQ-10, ROADMAP four conditions, release launch | Milestone tracking issue |
+| 0.5.0 | `SimulatedLink` harness, `TestClock`, `CrashPoints`, `FakeServer` (spec §14) merged **before** the engine; seed policy (§9); plane-A golden vectors; fuzz targets scaffolded; p90 wake-to-notification bound and device recorded as an APPROVAL `0.5` condition before measurement (§4 rule A, R11) | RQ-01, RQ-02, RQ-05, RQ-06, RQ-07, RQ-08 (forensic), RQ-21, RQ-24, RQ-25, RQ-28, RQ-29 (0.5.1), RQ-30, RQ-33, RQ-34, RQ-39 (fake), RQ-43 (rule), RQ-48 (A), RQ-49, RQ-50, RQ-51, RQ-52, RQ-55, RQ-56, RQ-58, RQ-70, RQ-72, RQ-73, RQ-75, RQ-89, RQ-90 | RQ-07 capture, RQ-08, RQ-29, RQ-49, RQ-51, release launch | Same |
 | 0.6.0 | Per-device fixtures; iOS decision path chosen | RQ-11 (swap), RQ-12 (reader), RQ-26, RQ-31 (per device), RQ-40 (contact DPIA), RQ-42, RQ-45, RQ-75 | RQ-26, RQ-42 (if iOS kept), release launch | Same |
-| 0.7.0 | Separate LiveKit host reachable from a test environment; telemetry schema reviewed against DPIA | RQ-14, RQ-15, RQ-40 (TURN/ICE DPIA), RQ-59, RQ-60, RQ-61, RQ-75 | RQ-14, RQ-15 capture, release launch | Same |
+| 0.7.0 | Separate LiveKit host reachable from a test environment; telemetry schema reviewed against DPIA | RQ-14, RQ-15, RQ-24 (`ui/call/` sites, if roadmap RN-R10 option (a)), RQ-40 (TURN/ICE DPIA), RQ-59, RQ-60, RQ-61, RQ-75 | RQ-14, RQ-15 capture, release launch | Same |
 | 1.0.0 | Crypto contract suite against `FakeSealer`; plane-B golden vectors; external reviewer engaged; claims register drafted | RQ-06, RQ-08, RQ-13, RQ-20, RQ-39, RQ-40, RQ-41, RQ-42, RQ-43, RQ-44, RQ-48 (B), RQ-50, RQ-52 (FTS), RQ-53, RQ-54, RQ-75 | RQ-08, RQ-41, RQ-20 sign-off, release launch | Same + external review report |
 | 1.1 | 0.7 telemetry analysed (RQ-61 part 1) | RQ-14, RQ-15, RQ-61 (A/B), RQ-75 | RQ-14 (P2P), candidate capture | Same |
 | 1.2 | G-PROXIMITY artefacts filed (RQ-40, RQ-63); `SimulatedSealedLink` multi-node scenarios; plane-C golden vectors; OTA capture procedure written | RQ-02, RQ-04, RQ-06, RQ-16, RQ-17, RQ-18, RQ-22, RQ-23, RQ-35, RQ-36, RQ-38, RQ-46, RQ-47, RQ-57, RQ-62, RQ-72, RQ-75 | RQ-16, RQ-17, RQ-18, RQ-62, release launch | Same + spike report |
@@ -453,7 +462,7 @@ Open anomalies: <issues>
 | Basis | Source |
 |---|---|
 | RQ-01…RQ-20, harness, owner-only items | brief §16.1–§16.3 |
-| RQ-21…RQ-81 | Verification sections of ADR-0010…0033; brief §2 principles, §11.1 |
+| RQ-21…RQ-90 | Verification sections of ADR-0010…0033; brief §2 principles, §11.1; RQ-82…RQ-85, RQ-88…RQ-90 trace roadmap 0.4/0.5 scope items (BE-08, BE-11, BE-13, MOB-05, MISS-01 mobile, C8/M3, ADR-0019) |
 | Harness components and suites | `delivery-engine-spec.md` §3, §14 |
 | Golden vectors and fuzzing | `icd-wire-protocol.md` §11, §12 |
 | CI host limits | CLAUDE.md build section; CICD-01, CICD-04, CICD-16, CICD-17; R19 |

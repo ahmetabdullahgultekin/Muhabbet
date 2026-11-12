@@ -18,8 +18,9 @@ transports. Verified facts:
 | **Turkish law** | Law 5809 Art. 39 reserves encrypted communication over *telsiz* to authorised bodies; Art. 63(6) makes a breach a crime (judicial fine). A 2010 regulation on coded/encrypted communication may impose key-deposit duties; whether it covers app-level E2E over licence-exempt (KET) devices is **unclear** | LEG-03 |
 | Source quality | The BTK frequency table read by the reviewer is marked *TASLAĞI* (draft); the in-force KET text was not fetched | RF-07 |
 
-Muhabbet's E2E payloads are, in the plain words of Art. 39, "encrypted communication over *telsiz*"
-once they ride a LoRa link.
+On a literal reading of Art. 39 (LEG-03), Muhabbet's E2E payloads over LoRa would be "encrypted
+communication over *telsiz*"; whether that reading applies to licence-exempt KET devices is counsel
+question 1 (§1).
 
 ## Decision
 
@@ -63,13 +64,20 @@ data class DutyCycleLimit(val fraction: Double, val window: Duration = 1.hours)
 1. Time-on-air is **computed** per frame from the node's modulation parameters (SF, BW, CR,
    preamble, header and payload length), never assumed.
 2. Enforcement is a **sliding one-hour window per sub-band**: 1% on 868.0–868.6 MHz; 10% on
-   869.4–869.65 MHz (EU868, the Meshtastic EU_868 slot). Limits are **configuration**, not
+   869.4–869.65 MHz (the Meshtastic EU_868 slot). Limits are **configuration**, not
    constants, so the counsel-confirmed in-force figures replace the draft-table values without code
    change.
 3. Reserve **before** send. If the reservation fails, `send` returns `Backpressure(after =
    nextAvailable)` (ADR-0012); nothing is transmitted.
-4. Remaining budget feeds `LinkMetrics.constrained` so `PathPolicy` ranks RF last and sends only
-   CONTROL and INTERACTIVE (ADR-0015 `ConstrainedRule`).
+4. `MeshtasticLink` declares `LinkCapabilities(maxFrameBytes = negotiated ≈ 200 B, supportsLive =
+   false, supportsBulk = false, offServer = true)`. `SizeRule` and the Preference table
+   (`EXTERNAL_RF` last, ADR-0015) do the rest. An exhausted budget surfaces as
+   `Backpressure(after)`, not as `constrained`, which marks a bearer on the **server** path only
+   (ADR-0015 §2).
+
+> **Reviewer note (open):** brief §13 (1.4) lists a "constrained policy" in scope. If that is meant to
+> extend the `constrained` flag to off-server RF links, it needs an ADR-0015 amendment; this ADR
+> reads it as the capability- and size-based restriction above.
 5. The ledger is defence in depth; the certified firmware's own regional limits stay on.
 
 ### 4. Compiled out of TR builds
@@ -96,15 +104,20 @@ data class DutyCycleLimit(val fraction: Double, val window: Duration = 1.hours)
 
 - **This may never ship in Turkey.** The architecture guarantees only that it would be one adapter
   plus one admission rule.
-- Capacity is tiny: expect **single-digit messages per hour at SF12** (RF-07). The UI must not
-  imply chat-like behaviour over RF.
-- **A libsignal session must already exist.** A PQXDH prekey message carries an ML-KEM-1024
-  ciphertext (1568 bytes for Kyber-1024 alone), which cannot fit a ≈ 200 B frame; RF can carry only
-  messages inside an established session. The ICD's padding buckets (ADR-0022) need an RF-sized
-  bucket.
+- Capacity is tiny. At SF12/125 kHz a 200 B frame is ≈ 7.2 s on air: ≈ 5 frames/h on a 1%
+  sub-band, ≈ 50 frames/h on the 10% sub-band that Meshtastic EU_868 uses, with receipts consuming
+  the same budget (RF-07). The UI must not imply chat-like behaviour over RF.
 - Entry to 1.4 also requires G-PROXIMITY in place (certificates, link authentication, `PathPolicy`).
 - Exit: ledger tests plus a **one-hour field log within the duty cycle**; text and receipts
   delivered between two certified nodes (owner observation, P13).
+
+> **Reviewer note (open):** not stated in the brief. A PQXDH prekey message carries a Kyber-1024 /
+> ML-KEM-1024 ciphertext (PQXDH spec, https://signal.org/docs/specifications/pqxdh/; the 1568-byte
+> ciphertext size is the standard ML-KEM-1024 parameter, not a figure from the review digests), which
+> cannot fit a ≈ 200 B frame. RF can therefore carry only messages inside an **established** session,
+> and a conversation is eligible only after the recipient has replied in the session (no pending
+> PreKeySignalMessage, since libsignal keeps sending those until the peer replies). ADR-0022 is asked
+> to define an RF-sized padding bucket.
 
 ## Alternatives considered
 
@@ -136,7 +149,7 @@ data class DutyCycleLimit(val fraction: Double, val window: Duration = 1.hours)
 | Req | Check | Method | Signed off by | When |
 |---|---|---|---|---|
 | — | Written opinion covering §1 items 1–3 exists and is filed with the 1.4 approval conditions | Inspection | Owner | before any code |
-| RQ-19 | Ledger refuses a frame that would exceed the hourly budget on each sub-band; time-on-air matches golden vectors (incl. 200 B @ SF12/125 kHz ≈ 7.2 s) | Unit tests with TestClock | CI | 1.4 |
+| RQ-19 | Ledger refuses a frame that would exceed the hourly budget on each sub-band; time-on-air matches golden vectors: 200 B @ SF12, BW 125 kHz, CR 4/5, preamble 8, explicit header, CRC on, LDRO on ≈ 7.2 s; plus one vector per Meshtastic modem preset actually used, with parameters read from the node config (§3 item 1) | Unit tests with TestClock | CI | 1.4 |
 | RQ-19 | One-hour field log stays within the duty cycle | Demonstration | **Owner** | 1.4 exit |
 | RQ-06 | `MeshtasticLink` accepts only `SealedFrame` | Compile + `SealedLink` contract suite | CI | 1.4 |
 | — | Module absent from every TR release runtime classpath | Gradle build check | CI | from module creation |

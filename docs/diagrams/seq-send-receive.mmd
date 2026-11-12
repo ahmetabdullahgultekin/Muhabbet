@@ -20,6 +20,7 @@ sequenceDiagram
     participant HP as DeliveryHintPublisher
     participant ACK as DeliveryAckPolicy
     participant BL as Recipient WsServerLink + WsInboundSource<br/>+ RestChangeFeedSource
+    participant FH as Recipient FcmHintSource
     participant BE as Recipient Inbox + SyncCoordinator<br/>+ ReceiptService + DB
     participant BUI as Recipient UI
 
@@ -49,10 +50,11 @@ sequenceDiagram
     AE-->>AUI: one tick (server custody)
 
     SM-)HP: MessageAccepted event (after commit)
-    par live socket
+    par WS hint (live sessions)
         HP-)BL: message.new {messageId, seq, changeSeq, content or envelope} (hint)
-    and no live socket
-        HP-)BL: FCM data-only wake {conversationId, seq} (see seq-wake-push-sync)
+    and FCM wake (all recipient devices, suppression later, brief section 4.2)
+        HP-)FH: FCM data-only wake {type: wake, conversationId, seq} (see seq-wake-push-sync)
+        FH->>BE: InboundEvent.Hint(conv, seq)
     end
 
     BL->>BE: InboundEvent.Message or Hint(conv, seq)
@@ -69,7 +71,7 @@ sequenceDiagram
     BE->>BL: enqueue CONTROL - message.ack {conversationId, uptoSeq, DELIVERED}<br/>only AFTER commit (P4)
     BL->>WS: message.ack {conversationId, uptoSeq, DELIVERED}
     WS->>ACK: AcknowledgeDeliveryUseCase.ack(device, conv, uptoSeq, DELIVERED)
-    ACK->>PG: accept only from a non-sender member's device, only existing seqs<br/>upsert message_device_delivery (V32)
+    ACK->>PG: accept only from a non-sender member's device, only existing seqs<br/>upsert per-device delivery row (V32 from 0.6, message_delivery_status before)
     Note over ACK,PG: 1.0 - also MailboxPort.deleteUpTo(device, conv, uptoSeq)
     ACK-)WS: publish status (aggregate from per-device rows, server-side only)
     WS-)AL: message.status to sender devices

@@ -2,8 +2,9 @@
 
 > **Status: Proposed — pending owner approval.** Nothing in this document is accepted until the
 > owner records it in [`APPROVAL.md`](APPROVAL.md). No code may be written for any scope until
-> approval for that scope is recorded there. A signed DPIA for each applicable trigger is a
-> **milestone entry artefact** (brief P8, §13): it is listed under `Conditions` of the scope it gates.
+> approval for that scope is recorded there. A signed DPIA for each applicable trigger is required
+> **before the change ships** (ADR-0029 rule 6) and, for 1.2 and 1.3, is a **milestone entry
+> artefact** (brief P8, §13); it is listed under `Conditions` of the scope it gates.
 
 | | |
 |---|---|
@@ -45,7 +46,7 @@ rule (ADR-0029 rule 6, brief P8). It is not described as a statutory filing in a
 |---|---|---|---|
 | 1. Screen | Author of the change (agent or owner) | When an ADR, migration, new adapter, processor, host or telemetry field is proposed | A **screening record** (§5) in the PR description or the milestone issue |
 | 2. Decide | Owner | Before the milestone's entry gate | "DPIA required" if any §3 trigger fires or any §4 question is *Yes*; otherwise "screened out" with reasons |
-| 3. Assess | Owner, with counsel where a Q-L is linked | Before the milestone starts (gated milestones: part of the entry gate) | A **full DPIA** from the template (§6) |
+| 3. Assess | Owner, with counsel where a Q-L is linked | Before the change ships; for 1.2 and 1.3, part of the entry gate (brief §13) | A **full DPIA** from the template (§6) |
 | 4. Sign | Owner (and counsel's opinion reference) | Before the change ships | Signed DPIA referenced in `APPROVAL.md` → scope → `Conditions` |
 | 5. Verify | CI + owner observation (P13) | Milestone exit | Evidence column of the DPIA filled; threat-model rows updated |
 | 6. Review | Owner | On any change to the processing, a counsel opinion, an incident, or at the next milestone | Revised DPIA (versioned) |
@@ -63,9 +64,9 @@ Any one of these makes a full DPIA **mandatory** before the change ships.
 |---|---|---|---|---|---|---|
 | DT-1 | **Proximity scanning** (BLE / Wi-Fi / mDNS discovery) | 1.2 | G-PROXIMITY ("DPIA for proximity scanning signed") | T-PRX-05/06/07/13, L-02, D-02, I-03 | Q-L2 | §6.1 |
 | DT-2 | **Uplink relay** (contacts transiently holding ciphertext); also own-device custody | 1.3 | 1.3 entry ("DPIA") | T-UPL-*, T-OWN-*, D-03, U-04, Nc-06, Nr-01 | Q-L5 | §6.2 |
-| DT-3 | **TURN/ICE logging or telemetry** (candidate type, IP family, ASN) | 0.7 | 0.7 entry | T-CAL-01/04/05, I-02, DD-05 | Q-L8, Q-L6, Q-L9 | §6.3 |
-| DT-4 | **Contact-discovery changes** | 0.4 (cap) / 0.6 (discoverability) | 0.4 and 0.6 entry | T-DIR-01/02/03, L-03 | — | §6.4 |
-| DT-5 | **A new processor, or a new foreign host** | any | entry of the milestone that adds it | T-PSH-02, RR-3, Nc-01 | Q-L6 | §6.5 |
+| DT-3 | **TURN/ICE logging or telemetry** (candidate type, IP family, ASN) | 0.7 | Before the change ships (0.7 exit) | T-CAL-01/04/05, I-02, DD-05 | Q-L8, Q-L6, Q-L9 | §6.3 |
+| DT-4 | **Contact-discovery changes** | 0.4 (cap) / 0.6 (discoverability) | Before the change ships (0.4 and 0.6 exit) | T-DIR-01/02/03, L-03 | — | §6.4 |
+| DT-5 | **A new processor, or a new foreign host** | any | Before the change ships (exit of the milestone that adds it) | T-PSH-02, RR-3, Nc-01 | Q-L6 | §6.5 |
 | DT-6 | **Telemetry used for kill criteria** (e.g. share of Nearby sessions where one side lacked internet) | 1.2 | G-PROXIMITY (collection starts in 1.2 to decide 1.3) | — | Q-L8 by analogy | §6.6 |
 
 > **Reviewer note (open):** the brief's ADR-0029 item 6 lists **five** triggers (proximity scanning,
@@ -82,10 +83,10 @@ Any one of these makes a full DPIA **mandatory** before the change ships.
 | Phase 0 | Secret rotation, CI trust boundary | none | Screened out (security fix, no new processing) |
 | 0.4 | Age gate: `birth_date`, `age_assurance_level`, `age_assured_at` (V30), possible e-Devlet/NFC-ID later | §4 S-01 (new data category), S-07 (children) | **DPIA recommended** — not on the trigger list; see reviewer note in §8 |
 | 0.4 | Contact-lookup daily cap, block filter (V31) | DT-4 | **DPIA required** (§6.4) |
-| 0.4 | Device-scoped idempotency, `sender_device_id` (V29) | S-04 (new attribution data) | Screening record; DPIA not required unless counsel links it to Q-L9 |
-| 0.5 | Wake-only push | DT-5 (changes what a processor receives — a reduction) | Screening record; update the DT-5 DPIA for FCM and the aydınlatma metni (ADR-0019) |
+| 0.4 | Device-scoped idempotency, `sender_device_id` (V29) | S-04 (new attribution data) | Screening record; screened out pending owner-recorded reason (§4) — candidate reason: attribution data required by 5651, unless counsel links it to Q-L9 |
+| 0.5 | Wake-only push | S-03/S-06 (reduction of what FCM receives; DT-5 does not fire — no new processor or host) | Screening record; screened out pending owner-recorded reason (§4); update the baseline FCM DPIA and the aydınlatma metni (ADR-0019) |
 | 0.5 | SQLCipher, `SessionTeardown` | S-12 (security measure change) | Screening record (risk reduction) |
-| 0.6 | Discoverable-by-phone setting with reader; per-device delivery rows (V32); per-device keys (V33) | DT-4; S-04 | **DPIA required** for DT-4 (revision of the 0.4 DPIA) |
+| 0.6 | Discoverable-by-phone setting with reader (V31.2); per-device delivery rows (V32); per-device keys (V33) | DT-4; S-04 | **DPIA required** for DT-4 (revision of the 0.4 DPIA) |
 | 0.6 / iOS | APNs | DT-5 | **DPIA required** when iOS ships |
 | 0.7 | LiveKit host (placement open, Q-O8), TURN credentials, ICE telemetry | DT-3, DT-5 (if the host is new or foreign) | **DPIA required** |
 | 1.0 | E2E cutover: server copy deleted after grace or encrypted to user backup (Q-O4); envelopes with TTL; on-device FTS | S-05 (retention), S-10 (rights) | Screening record + DPIA revision for the server store; claims register (RQ-20) |
@@ -163,9 +164,9 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 |---|---|
 | Purpose | Deliver E2E messages between **verified 1:1 contacts** without internet while both have Nearby mode open (ADR-0024) |
 | Data subjects | Users in Nearby mode; **bystanders** whose devices advertise or scan in range (their tags are seen and discarded) |
-| Data items | Rotating pairwise tag (8 bytes, 15-min epoch); random mDNS instance / Nearby endpoint names; app-level service type / service id (fixed — RN-2); OS-level radio identifiers (randomisation is the OS's); `TransportFrame` sizes (padded) and timing; co-location of two contacts; device certificate (`userId`, `deviceId`, `linkKey`) exchanged **inside** the authenticated link only |
+| Data items | Rotating pairwise tag (8 bytes, 15-min epoch); random mDNS instance / Nearby endpoint names; app-level service type / service id (fixed — RN-2); OS-level radio identifiers (randomisation is the OS's); `TransportFrame` sizes (padded) and timing; co-location of two contacts; device certificate (`userId`, `deviceId`, `linkKey`), revealed only after mutual proof of the pairwise secret (threat model T-PRX-14) |
 | Processors | Google Play services (Nearby Connections) on Android; the unofficial Nearby Swift package on iOS only if the spike passes. **Whether Nearby Connections sends any data to Google is unknown** and must be established by the spike (see §8) |
-| Stores | `peer_link`, `crl_entry` in the encrypted mobile DB; no server store of proximity events |
+| Stores | `peer_link`, `crl_entry` in the encrypted mobile DB; no explicit server store of proximity events; the server can infer co-located delivery from receipt and seq timing (threat model L-06) |
 | Retention | Tags: never stored beyond the epoch; peer links: until certificate expiry or contact removal; kill-criteria counters: see DT-6 |
 | Lawful basis | To be stated per item by counsel; the feature is user-started and opt-in on both sides (ADR-0024) |
 | OS consents | Consent matrix (MISS-01 proximity): Bluetooth, Local Network (iOS), Location (where required), Nearby devices (Android), hotspot join |
@@ -180,7 +181,7 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 |---|---|
 | Purpose | Get a message from a sender with no connectivity to the server through (a) the user's own linked device, then (b) a verified contact's online phone (ADR-0025) |
 | Data subjects | Sender; recipient(s); **the mule** (a contact who carries data that is not theirs) |
-| Data items | `UplinkBundle` = HPKE-sealed blob containing the sender-device signature, routing and per-device E2E envelopes; visible to the mule: bucket size, time of hand-over, the fact that the sender lacked connectivity; per-mule quota counters (`uplink_quota`) server-side |
+| Data items | `UplinkBundle` = HPKE-sealed blob containing the sender-device signature, routing and per-device E2E envelopes; visible to the mule: bucket size, time of hand-over, the fact that the sender lacked connectivity; per-mule quota counters (`uplink_quota`) server-side; server-side: mule account ↔ sender device linkage per bundle (threat model L-05) |
 | Stores | Mule: separate encrypted `custody.db`, ≤ 50 bundles / 10 MB, deleted on 2xx or after 24 h; server: normal message ingest |
 | Roles | **Open — Q-L5.** LEG-04: Muhabbet sets purposes and means of relaying (controller, Art. 3(1)(ı)); relaying users fall outside the household exemption (Art. 28(1)(a)) and are not contracted processors (Art. 12(2)) |
 | Key risks | Mule learns metadata (T-UPL-08, D-03); mule unaware of its role (U-04); non-repudiable signature retained (RN-1, Nr-01); quota abuse (T-UPL-05); uplink key compromise (T-UPL-07) |
@@ -208,7 +209,7 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 |---|---|
 | Purpose | Tell a user which of their address-book contacts use Muhabbet |
 | Data subjects | Users; **non-users** whose numbers sit in users' address books |
-| Data items | Unsalted SHA-256 of E.164 numbers (reversible by brute force over the Turkish mobile space — C8; the server also stores users' numbers in plaintext); per-account quota counters (V31); discoverability setting; response: display name and avatar of matches |
+| Data items | Unsalted SHA-256 of E.164 numbers (reversible by brute force over the Turkish mobile space — C8; the server also stores users' numbers in plaintext); per-account quota counters (V31, 0.4); discoverability setting (`users.discoverable_by_phone`, V31.2, 0.6); response: display name and avatar of matches |
 | Key risks | Enumeration (T-DIR-01), blocked-user leakage (T-DIR-02), false privacy claim (T-DIR-03, U-01) |
 | Key measures | Per-account daily cap on new numbers; block filter; discoverable-by-phone setting **with a server-side reader**; stop calling the hash a privacy measure (`SECURITY.md`, KVKK texts); OPRF/PSI is research |
 | Notice | Correct the aydınlatma metni: hashes are not a privacy protection; matching is server-side |
@@ -218,9 +219,9 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 
 | Section | Pre-filled content |
 |---|---|
-| Inventory today | Hetzner (hosting, Germany), Google FCM (push), Twilio Verify (OTP in production), GitHub (CI/CD; build data, not user data); later: Apple APNs (iOS), LiveKit host (0.7), signer host or hardware token (1.2/1.3, Q-O7) |
+| Inventory today | Hetzner (hosting, Germany), Google FCM (push), Twilio Verify (OTP in production), Google Firebase Authentication (phone number, verification SMS, device signals; client-side, before the backend-OTP fallback — `FirebasePhoneAuth`), Sentry (crash and error reports from the backend and Android app — `backend/build.gradle.kts:80`, `mobile/composeApp/build.gradle.kts:112`; content depends on scrubbing; active only if `SENTRY_DSN` is set; the owner confirms which), GitHub (CI/CD; build data, not user data); later: Apple APNs (iOS), LiveKit host (0.7), signer host or hardware token (1.2/1.3, Q-O7) |
 | Per recipient | Country; Art. 9 mechanism: adequacy decision (9(1)) or a standard contract (9(4)(c)) **notified within five business days** (9(5)), or another 9(4) safeguard; **not** explicit consent as the systematic basis (LEG-04; `docs/legal/03-acik-riza-metni.md` currently does this) |
-| Data per recipient | FCM: device token, wake hint `{conversationId, seq}`, timing (after 0.5); Twilio: phone number, OTP verification; Hetzner: all server data |
+| Data per recipient | FCM: device token, wake hint `{conversationId, seq}`, timing (after 0.5); Twilio: phone number, OTP verification; Firebase Authentication: phone number, verification SMS, device signals; Sentry: crash/error reports (stack traces, device and request context, possibly identifiers unless scrubbed); Hetzner: all server data |
 | Key risks | Content to processor (T-PSH-01, fixed at 0.5), wake metadata (T-PSH-02, RR-3), foreign compulsion (§6.17 of the threat model) |
 | Verification | RQ-07 payload capture; contract and notification records listed in the DPIA |
 | Counsel | Q-L6 |
@@ -231,9 +232,9 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 |---|---|
 | Purpose | Decide whether 1.3 Relay is built: share of Nearby sessions where one side lacked internet (ADR-0025, Q-O5) |
 | Data items | Aggregate counters only (SAD §8.5: "aggregate and counted, not per-user traces"); no peer identity, no tags, no location |
-| Retention | Until the 1.3 entry decision is recorded, then deleted or kept aggregate only |
+| Retention | Proposed: until the 1.3 entry decision is recorded, then deleted or kept aggregate only |
 | Key risks | Re-identification by joining with server logs |
-| Measures | Counters computed on-device and uploaded as aggregates; no device id in the payload (to be specified by the 1.2 telemetry design) |
+| Measures | Counters computed on-device; upload over an unauthenticated endpoint, or aggregate server-side with the per-request identity discarded at ingest (an upload on the authenticated channel is account-linked even without a device id in the payload); to be specified by the 1.2 telemetry design |
 | Verification | Payload capture by the owner; schema inspection |
 
 ---
@@ -244,7 +245,7 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 |---|---|---|---|---|
 | DT-4 contact discovery | — | — | — | 0.4 / 0.6 |
 | Age gate (recommended, §8) | — | — | Q-L3 | 0.4 |
-| DT-5 FCM / Hetzner / Twilio (baseline) | — | — | Q-L6 | 0.5 |
+| DT-5 FCM / Hetzner / Twilio / Firebase Auth / Sentry (baseline) | — | — | Q-L6 | 0.5 |
 | DT-3 TURN/ICE | — | — | Q-L8, Q-L9 | 0.7 |
 | DT-1 proximity, DT-6 telemetry | — | — | Q-L2 | 1.2 |
 | DT-2 relay | — | — | Q-L5 | 1.3 |
@@ -271,3 +272,11 @@ All rows are **Not started** as of 2026-11-12.
 > discovery and connection. DT-1 cannot be completed without it; the 1.2 spike should answer it
 > from Google's documentation and a traffic capture, and Google becomes a DT-5 processor for this
 > feature if it does.
+
+> **Reviewer note (open):** ADR-0029 rule 6 requires a DPIA "before the change ships"; brief §13
+> makes one an **entry** criterion only for 1.2 (G-PROXIMITY) and 1.3. DT-3, DT-4 and DT-5 are
+> therefore placed at milestone exit here. If the owner wants DPIAs as 0.x **entry** gates, that is a
+> new decision to record in ADR-0029 and §13, not something this document asserts.
+
+> **Reviewer note (open):** VERBIS registration (KVKK Art. 16, Veri Sorumluları Sicili) is not
+> covered by any brief artefact; it is put to counsel as Q-L6(f).

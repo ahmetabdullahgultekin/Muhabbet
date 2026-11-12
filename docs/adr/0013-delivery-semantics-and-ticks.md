@@ -8,7 +8,7 @@ Milestone 0.4 is "the app tells the truth": a tick must mean what it says. Today
 
 | Finding | Defect |
 |---|---|
-| MOB-04 | `PendingMessage` is deleted on socket write, not on `ServerAck`; a null session is a silent no-op that still deletes the row; exhausted retries vanish; the rebuilt `SendMessage` drops `viewOnce`, `thumbnailUrl`, `forwardedFrom` (`WsClient.kt:490-517`) |
+| MOB-04 | `PendingMessage` is deleted on socket write, not on `ServerAck`; a null session is a silent no-op that still deletes the row; exhausted retries vanish; the rebuilt `SendMessage` drops `viewOnce`, `thumbnailUrl`, `forwardedFrom` (`WsClient.kt:534-569`, `drainPendingMessages`) |
 | MOB-03 | DELIVERED is acked when a coroutine sees the frame in RAM, before any durable write |
 | MOB-05 | Dedup key drops every edit after the first |
 | MISS-01 (mobile verifier) | In a group, one member's READ turns all own messages blue |
@@ -37,6 +37,8 @@ sketch conflated server commit with a peer hop ack (architecture judge).
 | PREPARING | UploadDone(blobRef) | QUEUED / PENDING_SEAL | Resumable upload, 1 MiB ranges |
 | PREPARING | UploadFailed(retryable) | PREPARING (backoff) | |
 | PENDING_SEAL / QUEUED | SealFailed(NoSession) | PENDING_SEAL | Never a plaintext fallback (ADR-0016); triggers prekey fetch |
+| PENDING_SEAL / QUEUED | SealFailed(UntrustedIdentity) | PENDING_SEAL(reason = UNTRUSTED_IDENTITY) | Left only by a user decision event (ADR-0016) |
+| PENDING_SEAL / QUEUED | SealFailed(Failed(code)) | RETRY_WAIT or FAILED_PERMANENT(code) | Decided by the code (ADR-0016) |
 | PENDING_SEAL | SessionReady | QUEUED | |
 | QUEUED | Dispatch(link) | IN_FLIGHT(link, attempt, deadline) | Direct call ≤ 1.1, `PathPolicy` ≥ 1.2 |
 | IN_FLIGHT | ServerAccepted(seq) | SERVER_ACCEPTED(seq) | Message row gets its `seq` |
@@ -63,6 +65,11 @@ One transaction per inbound event:
 2. Advance the per-conversation watermark in the same transaction (ADR-0014).
 3. Commit.
 4. **Only after the commit**, enqueue the DELIVERED receipt (CONTROL class).
+
+DELIVERED is not stored separately; it is derived from the committed watermark. On every
+Ready/Authenticated transition the client sends `message.ack{conversationId, uptoSeq = watermark,
+DELIVERED}` for each conversation whose watermark advanced since the last server-confirmed ack. A
+crash between step 3 and step 4 therefore delays the tick but never loses it.
 
 Off-server frames (1.2+) without a `seq` are deduplicated by `inbound_dedup(src_device,
 frame_or_message_id, seen_at)` with a TTL at least the maximum message lifetime.
@@ -146,8 +153,8 @@ frame_or_message_id, seen_at)` with a TTL at least the maximum message lifetime.
 ## Evidence
 
 - Findings: MOB-03, MOB-04, MOB-05, MISS-01 (mobile verifier), BE-03, BE-07, BE-18, GEM-03.
-- Code: `mobile/.../data/remote/WsClient.kt:490-517`, `mobile/.../App.kt:126-138`,
-  `backend/.../MessagePersistenceAdapter.kt:53-63` (per BE-03 verification); issue #669 (BE-03).
+- Code: `mobile/.../data/remote/WsClient.kt:534-569` (`drainPendingMessages`), `mobile/.../App.kt:135-156` (global DELIVERED pump),
+  `backend/.../MessagePersistenceAdapter.kt:53-63` (per BE-03 verification); issues #299 (BE-03, ack authorisation; per backend digest) and #669 (post-commit fan-out).
 
 ## Verification
 
@@ -156,6 +163,8 @@ frame_or_message_id, seen_at)` with a TTL at least the maximum message lifetime.
 | RQ-01 | No message lost after send | `SimulatedLink` property suite: 10k seeded runs with loss, duplication, reorder, partition, process death, 24 h offline, token expiry | 0.5 exit |
 | RQ-02 | Each message appears exactly once in sender and receiver stores | Same suite | 0.5 exit |
 | RQ-03 | Double tick only after the recipient DB holds the row | Crash-point injection between commit and ack; owner on emulator with two test numbers | 0.4 exit |
+| RQ-03 | Kill after inbox commit, before the DELIVERED ack: the ack is sent after relaunch | Crash-point test | 0.5 |
 | — | Kill mid-send gives no loss or duplicate after relaunch | Owner on emulator-5554 (P13) | 0.4 exit |
 | — | Duplicate submit returns the original `seq` with `replay = true` | Testcontainers integration test | 0.4 |
-| — | Ack from a non-member or for a non-existent seq is rejected and not broadcast | Integration test | 0.4 |
+| — | An ack from a non-member or for an unknown `messageId` is rejected and not broadcast; DELIVERED after READ is not broadcast (BE-03) | Integration test | 0.4 |
+| — | `uptoSeq` greater than the conversation's `last_seq` is rejected | Integration test | 0.5 |

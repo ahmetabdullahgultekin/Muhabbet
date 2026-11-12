@@ -15,8 +15,8 @@ Verified legal facts (broadcast-RF-legal digest, checked against the current mev
 | Law 5809 Art. 3(ççç), 9(14), 60(16)–(17) | Muhabbet matches the OTT (*şebekeler üstü hizmet*) definition: BTK authorisation through a Turkish company; fines of 1–30 M TL; throttling up to 95% or blocking. Art. 9(14) deems an OTT provider an *işletmeci* (operator) for whatever duties the Authority assigns — retention and interception cooperation may follow. The architecture does not change the classification | LEG-01, MISS-01 (legal) |
 | Law 5809 Art. 39, 63(6); 2010 coded/encrypted communications regulation | Encrypted communication over *telsiz* is reserved; a breach is a crime. Coverage of app-level E2E over licence-exempt radio is unclear | LEG-03 |
 | Law 5651 (consolidated through Law 7590, 24/7/2026) | Authority moved to the **Siber Güvenlik Başkanlığı**. If Muhabbet is a *sosyal ağ sağlayıcı* (channels, stories, communities make it more likely): prosecutor data requests, transparency reports, Turkish hosting above 1 M daily access (Ek Md. 4(6)) | LEG-02, MISS-02 (legal) |
-| Law 7578 → 5651 Ek Md. 4(7), in force 2026-11-01 | No service to **under-15s**, with *yaş doğrulama* (age verification) | LEG-02, MISS-04 (legal) |
-| KVKK (Law 6698) Art. 3(ı), 9, 12 | Muhabbet is the controller of relaying; relaying users are neither household-exempt nor contracted processors; Art. 9 allows consent only for incidental (*arızi*) transfers, not systematic hosting abroad; Art. 12 security duties apply. KVKK has no statutory DPIA article | LEG-04 |
+| Law 7578 → 5651 Ek Md. 4(7), in force 2026-11-01 | If Muhabbet is a *sosyal ağ sağlayıcı* (Q-L4): no service to **under-15s**, with *yaş doğrulama* (age verification). The gate is built regardless, so the obligation can be met if the classification applies (MISS-04 legal) | LEG-02, MISS-04 (legal) |
+| KVKK (Law 6698) Art. 3(ı), 9, 12 | On the reviewer's reading (LEG-04, partially confirmed), Muhabbet would be the controller of relaying and relaying users would be neither household-exempt nor contracted processors; Q-L5 asks counsel to confirm. Art. 9 allows consent only for incidental (*arızi*) transfers, not systematic hosting abroad; Art. 12 security duties apply. KVKK has no statutory DPIA article | LEG-04 |
 
 Repo state: no age gate exists ("Kayıt akışında yaş doğrulama kapısı henüz uygulanmamıştır",
 `docs/legal/04-kullanim-kosullari.md:35`); the Terms state 18+ with a 16+/parental-consent alternative pending an
@@ -40,7 +40,7 @@ reach every path.
 | Port | `AgeAssurancePort` (backend out-port): `fun assess(user: UserId, e: AgeEvidence): AgeVerdict` |
 | Now | `SelfDeclarationAssurance` (date of birth at registration) |
 | Later | e-Devlet / NFC-ID adapters behind the same port, if counsel requires (Q-L3) |
-| Refusal | Under the minimum age → registration refused with an `ErrorCode` (no inline strings); nothing else is created |
+| Refusal | Under 15 (statutory floor) → registration refused with an `ErrorCode` (no inline strings); nothing else is created |
 | Claim | **No compliance claim** in any document or UI until counsel confirms whether self-declaration meets *yaş doğrulama* (Q-L3, R7) |
 | From 1.2 | A valid age attestation is a **precondition for a device certificate** (ADR-0018), therefore for every off-server path |
 
@@ -96,23 +96,28 @@ the change ships when any of these is introduced:
 | A new processor, or a new foreign host | any |
 | Telemetry used for kill criteria (e.g. Nearby sessions with one side offline) | 1.2 |
 
+> **Reviewer note (open):** the last row extends brief rule 6, which lists five triggers. It is
+> added because kill-criterion telemetry about proximity sessions (ADR-0025 Consequences) is new
+> personal-data processing that the "TURN/ICE logging or telemetry" trigger does not cover; the brief
+> should adopt it or fold it under that trigger.
+
 ### Rule 7 — The counsel request names every path
 
 The counsel request (brief §17) covers E2E over **BLE and Wi-Fi (Nearby/LAN), Wi-Fi Direct via
 Nearby, and LoRa**, each separately — not LoRa alone (Q-L2, R6).
 
-### 8. Counsel questions and what each one blocks
+### 8. Counsel questions and what each one blocks or informs
 
-| Question (brief §17) | Blocks |
+| Question (brief §17) | Blocks / informs |
 |---|---|
-| Q-L1 OTT authorisation, *işletmeci* duties (5809 Art. 3(ççç)/9(14)) | 1.0 (E2E vs. retention/interception, R5) |
+| Q-L1 OTT authorisation, *işletmeci* duties (5809 Art. 3(ççç)/9(14)) | Must be answered before 1.0 (R5: E2E vs. retention/interception) |
 | Q-L2 Art. 39/63(6) and the 2010 regulation over BLE, Wi-Fi/LAN, Wi-Fi Direct, LoRa | 1.2 (BLE/Wi-Fi), 1.4 (LoRa) |
 | Q-L3 Self-declared age vs. *yaş doğrulama* | any compliance claim about the age gate |
-| Q-L4 *Sosyal ağ sağlayıcı* classification and thresholds; takedown for E2E content | 1.0 |
+| Q-L4 *Sosyal ağ sağlayıcı* classification and thresholds; takedown for E2E content | Informs 1.0 moderation design (R18) |
 | Q-L5 KVKK roles of relaying users | 1.3 |
-| Q-L6 Art. 9 basis for FCM/APNs wake hints and LiveKit/TURN hosting | 0.5 notice update; 0.7 |
+| Q-L6 Art. 9 basis for FCM/APNs wake hints and LiveKit/TURN hosting | Informs the 0.5 KVKK notice update and the 0.7 DPIA; blocks nothing in 0.x |
 | Q-L7 AGPL distribution via Google Play and the App Store | 1.0 licence step (ADR-0017) |
-| Q-L8 ICE telemetry as personal data | 0.7 telemetry |
+| Q-L8 ICE telemetry as personal data | Informs the 0.7 telemetry notice/DPIA; blocks nothing in 0.x |
 | Q-L9 Retention of server-side delivery metadata vs. LOCAL_ONLY | LOCAL_ONLY (with Q-O3) |
 
 ### 9. Per-path compliance matrix
@@ -120,7 +125,7 @@ Nearby, and LoRa**, each separately — not LoRa alone (Q-L2, R6).
 | Path (ADR-0015) | Who may use it | Age gate | Block list | Report path | Ban/takedown reach | Legal gate |
 |---|---|---|---|---|---|---|
 | `SERVER_RELAY` | registered accounts | at registration | server + inbound pipeline | direct | immediate | — |
-| `IP_RELAYED` / `IP_DIRECT` (calls) | registered; relay-only for non-contacts | at registration | call signalling via server | direct | credential TTL ≤ 10 min | Q-L6, Q-L8, DPIA |
+| `IP_RELAYED` / `IP_DIRECT` (calls) | registered; relay-only for non-contacts | at registration | call signalling via server | direct | credential TTL ≤ 10 min | DPIA (rule 6); Q-L6/Q-L8 inform, do not block |
 | `LAN` / `PROXIMITY` | verified 1:1 contacts with valid certificates | certificate precondition | inbound pipeline | outbox command | ≤ 7 days | Q-L2, DPIA (G-PROXIMITY) |
 | `UPLINK_RELAY` | verified contacts as mules | certificate precondition (both) | server on ingest + inbound pipeline | outbox command | server-side, immediate | Q-L5, DPIA, crypto review |
 | `EXTERNAL_RF` | verified contacts; **not in TR builds** | certificate precondition | inbound pipeline | outbox command | ≤ 7 days | Q-L2 (written), KET |
@@ -172,7 +177,7 @@ Nearby, and LoRa**, each separately — not LoRa alone (Q-L2, R6).
 
 | Req | Check | Method | Signed off by | When |
 |---|---|---|---|---|
-| RQ-10 | Under-minimum-age registration is refused; nothing is persisted | Backend test + owner emulator check | CI + owner | 0.4 exit |
+| RQ-10 | Under-15 registration is refused; nothing is persisted | Backend test + owner emulator check | CI + owner | 0.4 exit |
 | RQ-10 | Self-declaration accepted as *yaş doğrulama* | Analysis (written opinion, Q-L3) | Counsel | before any compliance claim |
 | RQ-09 | A banned or revoked device's sockets close within 5 s | Test + demonstration | CI + owner | 0.4 exit |
 | RQ-18 | A banned device is refused off-server within ≤ 7 d (no renewal, CRL delta) | TestClock test + demonstration | CI + owner | 1.2 exit |
@@ -195,6 +200,6 @@ Nearby, and LoRa**, each separately — not LoRa alone (Q-L2, R6).
 
 > **Reviewer note (open):** the brief places the age gate "at registration" and makes it a
 > certificate precondition from 1.2, but says nothing about accounts registered **before** 0.4, which
-> have no `birth_date`. Under 5651 Ek Md. 4(7) the duty is to not serve under-15s, not only to not
-> register them. Recommend a one-time attestation prompt at next login for accounts without an
+> have no `birth_date`. If Muhabbet is a *sosyal ağ sağlayıcı* (Q-L4; LEG-02, MISS-04 legal), 5651
+> Ek Md. 4(7) is a duty to not serve under-15s, not only to not register them. Recommend a one-time attestation prompt at next login for accounts without an
 > assurance level, with counsel confirming the grace period (add to Q-L3).

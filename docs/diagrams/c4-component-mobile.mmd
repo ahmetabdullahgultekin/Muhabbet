@@ -32,6 +32,7 @@ flowchart TB
         sqlStore["<b>SqlDelightMessageStore /<br/>SqlDelightOutboxStore</b><br/>SQLCipher driver [0.5]"]:::adapter
         keyStore["<b>SecureKeyStore</b><br/>Android Keystore (StrongBox) /<br/>iOS Keychain AfterFirstUnlockThisDeviceOnly"]:::adapter
         bgSync["<b>BackgroundSyncManager</b><br/>WorkManager / BGTask, seq-driven [0.5, MOB-10]"]:::adapter
+        lkSess["<b>LiveKitSession</b> [0.7] /<br/>WebRtcP2PSession [1.1, gated]"]:::adapter
         koin["<b>Koin modules</b><br/>bind ports to adapters per platform"]:::adapter
     end
 
@@ -54,6 +55,7 @@ flowchart TB
         pCustody["CustodyTarget [1.3]"]:::port
         pLive["LiveSessionPort [0.7]"]:::port
         pClock["Clock / IdGenerator (injected)"]:::port
+        pKey["SecureKeyStorePort"]:::port
         simLink["<b>SimulatedLink /<br/>SimulatedSealedLink</b><br/>testFixtures, seeded RNG"]:::adapter
     end
 
@@ -107,6 +109,8 @@ flowchart TB
     live --> pLive
     outbox --> pClock
     teardown --> pStore
+    teardown -- "destroy wrapped key (ADR-0020 step 4)" --> pKey
+    teardown -- "cancel WorkManager / BGTask (step 2)" --> bgSync
 
     wsLink -. "implements" .-> pServer
     simLink -. "implements" .-> pServer
@@ -115,6 +119,8 @@ flowchart TB
     restFeed -. "implements" .-> pIn
     restFeed -. "implements" .-> pFeed
     fcmHint -. "implements" .-> pIn
+    lkSess -. "implements" .-> pLive
+    keyStore -. "implements" .-> pKey
     sqlStore -. "implements" .-> pStore
     lan -. "implements" .-> pSealed
     nearby -. "implements" .-> pSealed

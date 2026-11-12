@@ -60,7 +60,11 @@ All packages stay `com.muhabbet.*` (never `tr.gov.*`, GEM-21, LEG-05).
    JVM target).
 2. **One** `build-logic` convention plugin: `muhabbet.kmp.library` (targets, JVM target,
    Android config from the catalog). Further plugins only when a second module needs a different
-   shape.
+   shape. `muhabbet.kmp.library` declares android + iosX64/iosArm64/iosSimulatorArm64 + jvm for
+   `:mobile:crypto`, `:mobile:crypto-testkit` and `:mobile:messaging` (every module on the engine's
+   dependency path must match the targets of `composeApp` plus jvm for `jvmTest`; `:shared` already
+   does). `:mobile:crypto` jvmMain has no `SealedFrame` producer (tests use the testkit). Transport
+   modules declare android + iOS only.
 3. SQLDelight migrations: `1.sqm` representing today's schema, `verifyMigrations` in CI,
    `deriveSchemaFromMigrations` (brief §11.2).
 4. `:shared:jvmTest` in CI now; `:mobile:messaging:jvmTest` in CI from the day the module exists.
@@ -74,6 +78,11 @@ time-limited single-runner host.
 - Stateful platform services are **commonMain interfaces** with implementations bound in the
   platform Koin modules (KMP-10). This applies to every transport, `SessionCryptoPort`,
   `SecureKeyStorePort` and `LiveSessionPort`.
+
+> **Reviewer note (open):** brief §5 labels `SessionCryptoPort` "out (expect/actual edge)". This ADR
+> follows the brief's own ADR-0028 rule instead (stateful services are interfaces + Koin; expect/actual
+> only for leaf functions). Brief §5 should be corrected to "out (platform-bound interface)".
+
 - `expect`/`actual` is used only for leaf functions in `platform/` (and `@Composable` launchers).
 - `:mobile:messaging` code receives `Clock` and `IdGenerator` by injection (P10).
 
@@ -100,7 +109,8 @@ project, DI wired, an iOS CI build), or an ADR scopes iOS out of 1.0. Every cros
   `:mobile:designsystem` as the positive precedent).
 - The type gate (ADR-0016) is only a gate if the constructor's module is separate from everything
   that sends.
-- Four new modules across four milestones fit one engineer and one runner; target-state's 14-module
+- Six new modules across three milestones (0.5, 1.2, 1.4), each created only when first needed, fit
+  one engineer and one runner; target-state's 14-module
   layout plus `linuxX64` did not (feasibility judge, R19).
 - A catalog and one convention plugin stop the version drift (KMP-05) before the module count grows.
 

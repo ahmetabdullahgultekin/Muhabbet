@@ -20,7 +20,7 @@
 | Trunk | `main`. No other long-lived branch. |
 | Work branches | `<type>/<issue#>-<slug>`, short-lived, deleted on merge |
 | Merge method | Squash only; PR title = squash subject; linear history |
-| Gate | Ruleset on `main`: PR + 1 approval + required checks (when they can run, §4.3) |
+| Gate | Rulesets on `main`: `main-checks` (required checks when they can run, linear history; no bypass) + `main-review` (PR + 1 approval; owner bypass in PR mode) (§4.3) |
 | Release (mobile) | Tag on `main` → build once → owner launches those bytes on `emulator-5554` → promote the same AAB |
 | Release (backend) | Build the image once in CI → deploy that digest/SHA → confirm the running commit |
 | Tracker axis | merged (needs verification) → released (vX.Y.Z) → verified (observed by / where) |
@@ -32,10 +32,10 @@ All must hold; record each with evidence in the merge PR body.
 | # | Precondition | Why | Check |
 |---|---|---|---|
 | P-1 | Scope `process` is `Approved` in `APPROVAL.md`; Q-O9 answered | Owner decision 3 | `APPROVAL.md` |
-| P-2 | Phase-0 emergencies done or explicitly scheduled: no PR job on `cx43` (CICD-01), `.env.prod` rotated (CICD-06) | The merge activates more PR-triggered workflows from `dev` (e.g. `dependabot-auto-merge.yml`) on the default branch | [incident record](security-incident-2026-11-env-prod.md) status |
+| P-2 | Phase-0 emergencies done or explicitly scheduled: no runner on `cx43`, or the owner-recorded accepted-risk variant (ADR-0031 D2; CICD-01), `.env.prod` rotated (CICD-06) | The merge activates more PR-triggered workflows from `dev` (e.g. `dependabot-auto-merge.yml`) on the default branch | [incident record](security-incident-2026-11-env-prod.md) status |
 | P-3 | SECURITY.md false phone-hash claim fixed **on `dev`** | The `dev` rewrite kept it; the merge would re-publish it (GOV MISS-03, GOV-08) | `grep -n "SHA-256 hashes" SECURITY.md` on `dev` returns nothing |
 | P-4 | `main` has no commits that `dev` lacks | Otherwise the merge is not a pure promotion | `git rev-list --count origin/dev..origin/main` = 0 (it was 0 on 2026-11-12 in this checkout, 120 the other way — re-measure) |
-| P-5 | Deploy, stale-branch and Dependabot auto-merge workflows disabled | Merging into `main` runs Backend CI on `main` → `deploy-hetzner.yml` (`workflow_run`, branch `main`) deploys **12 weeks of unreleased code**; `stale-branches.yml`'s cron and `dependabot-auto-merge.yml` go live from the default branch | `gh workflow list --all` shows the three as `disabled_manually` |
+| P-5 | Deploy, stale-branch and Dependabot auto-merge workflows disabled, or (stale-branch only) without a `schedule:` trigger | Merging into `main` runs Backend CI on `main` → `deploy-hetzner.yml` (`workflow_run`, branch `main`) deploys **12 weeks of unreleased code**; `stale-branches.yml`'s cron (Mondays 04:00 UTC) and `dependabot-auto-merge.yml` go live from the default branch. `stale-branches.yml` exists only on `dev`, so `gh workflow disable` by name can fail before the merge (its own header: "not found on the default branch") | `gh workflow list --all` shows Deploy and Dependabot auto-merge as `disabled_manually`; `git show origin/dev:.github/workflows/stale-branches.yml` has no `schedule:` (or, if step 7a was used, it is `disabled_manually` immediately after step 7) |
 | P-6 | Backend gate measured with Docker running on `dev` HEAD | `dev` carries Spring-config and migration changes since August; only the ten Testcontainers classes catch that class of failure (CLAUDE.md, #598) | `./gradlew :backend:test` with Docker; counts from `backend/build/test-results/test/*.xml` |
 | P-7 | Open PRs into `dev` listed | Retarget list | `gh pr list --base dev --state open --json number,title,headRefName` (at review time: #690, #718, #736, #738 — re-list) |
 
@@ -50,9 +50,10 @@ Run from a clean full clone (this session's clone is shallow; do not use it).
 | 1 | Owner | `git fetch origin --prune --tags` | — |
 | 2 | Owner | `git merge-base --is-ancestor origin/main origin/dev && echo ancestor` | prints `ancestor` (else stop: P-4 fails) |
 | 3 | Owner | Snapshot both tips: `D=$(date +%F); git tag -a "pre-trunk/main-$D" origin/main -m "ADR-0030 snapshot"; git tag -a "pre-trunk/dev-$D" origin/dev -m "ADR-0030 snapshot"; git push origin "pre-trunk/main-$D" "pre-trunk/dev-$D"` | `git ls-remote --tags origin 'pre-trunk/*'` shows both |
-| 4 | Owner | Disable workflows (P-5): `gh workflow disable "Deploy to Hetzner VPS"`, `gh workflow disable "Stale branch cleanup"`, `gh workflow disable "Dependabot auto-merge"` | `gh workflow list --all` |
+| 4 | Owner | Disable workflows (P-5): `gh workflow disable "Deploy to Hetzner VPS"`, `gh workflow disable "Dependabot auto-merge"`. For `stale-branches.yml` (present only on `dev`): **preferred** — an owner PR into `dev` that removes (comments out) its `schedule:` block, merged before step 5; it is re-added after review (§4.2) | `gh workflow list --all`; `schedule:` absent on `dev` |
 | 5 | Owner | `gh pr create --base main --head dev --title "Promote dev to main (ADR-0030 one-time merge)" --body-file <body with P-1…P-7 evidence>` | PR checks report |
 | 6 | Owner | Read the PR's check results; compare any red check with the same check on `dev` before blaming the merge (ROADMAP DoD 4) | Every red check explained in the PR |
+| 7a | Owner | Only if the `schedule:` was **not** removed in step 4: schedule steps 5–7 away from Sunday/Monday morning UTC, and immediately after step 7 run `gh workflow disable stale-branches.yml` (by file name/id, now resolvable on the default branch) | `gh workflow list --all` shows it `disabled_manually` before the next Monday 04:00 UTC |
 | 7 | Owner | Merge with a **merge commit** — the single permitted exception: `gh pr merge <PR> --merge`. Classic protection on `main` still requires an approval the author cannot give, so this needs `--admin`; record that in the PR. (A fast-forward of `main` to `dev` is equivalent if P-4 holds and the owner prefers it.) | `git fetch && git diff --stat "pre-trunk/dev-$D" origin/main` is empty |
 | 8 | Owner | Retarget every PR from P-7: `gh pr edit <n> --base main` | `gh pr list --base dev --state open` is empty |
 | 9 | Owner | Close Dependabot's grouped PR against the old config (#743 at review time) | — |
@@ -82,7 +83,7 @@ Do not delete the `pre-trunk/*` tags for at least one release cycle.
 | Allow rebase merging | off | `.allow_rebase_merge` → `false` |
 | Allow squash merging | on; default message = PR title (and description) | `.allow_squash_merge` → `true`; `.squash_merge_commit_title` → `PR_TITLE` |
 | Automatically delete head branches | on | `.delete_branch_on_merge` → `true` |
-| Private vulnerability reporting | on (GOV-08) | Security tab |
+| Private vulnerability reporting | on (GOV-08); enabled earlier, in github-governance §12.1 step 2, not with these merge settings | Security tab |
 
 ### 4.2 Workflow edits (one PR into `main`)
 
@@ -99,7 +100,7 @@ Do not delete the `pre-trunk/*` tags for at least one release cycle.
 
 ### 4.3 Rulesets
 
-**Ruleset `main`** (target: default branch):
+**Rules on the default branch** (summary; split into two rulesets below):
 
 | Rule | Value |
 |---|---|
@@ -108,10 +109,22 @@ Do not delete the `pre-trunk/*` tags for at least one release cycle.
 | Required status checks | `Build & Test`, `Android Build`, `Secret Detection` — **only once PR CI runs off the production host** (ADR-0031). Until then: no required checks, and the PR template's "gates that ran" section carries locally measured evidence (ADR-0030 reviewer note). |
 | Require linear history | yes |
 | Block force pushes, block deletion | yes |
-| Bypass list | owner only, in pull-request mode; bypass **does not** exempt required checks |
 
-**Ruleset `release-tags`** (target: tags `v*`): restrict creation to the owner (and later the
-release environment); block update and deletion. GitHub releases are made immutable once published
+A bypass actor bypasses every rule in a ruleset, required checks included; no per-rule setting
+changes that. Rules are therefore split across two rulesets on the default branch:
+
+| Ruleset | Rules | Bypass list |
+|---|---|---|
+| `main-checks` | Require linear history; block force pushes and deletion (from day one); required status checks `Build & Test`, `Android Build`, `Secret Detection` **added** only once PR CI runs off the production host (see above) | **Empty** — nobody bypasses it, the owner included |
+| `main-review` | Require a PR; 1 approval; dismiss stale approvals; code-owner review; conversation resolution | Owner, in pull-request mode |
+
+The owner's bypass skips review only; the checks live in a ruleset nobody can bypass (ADR-0030 D4,
+ADR-0032 D2).
+
+**Tag rulesets** (target: tags `v*`), split for the same bypass reason (ADR-0030 D4,
+github-governance §9.2): **`release-tags-create`** restricts creation (bypass: repository admin role,
+i.e. the owner; later the release environment) and **`release-tags-immutable`** blocks update and
+deletion (empty bypass list). GitHub releases are made immutable once published
 where the account supports it.
 
 ## 5. Branches and commits
@@ -137,12 +150,12 @@ where the account supports it.
 
 | Rule | Detail |
 |---|---|
-| SemVer | `MAJOR.MINOR.PATCH`; tags `vX.Y.Z` on `main` only |
+| SemVer | `MAJOR.MINOR.PATCH`; tags `vX.Y.Z` on `main` only — hotfixes included (§9) |
 | Pre-1.0 | The minor number carries breaking changes (`0.3.x → 0.4.0` may break clients) |
 | Patch | Defects only |
 | 1.0.0 | Reserved for the first release with end-to-end encryption **on** (not negotiable by convenience) |
 | Milestones | Title = the version it produces, optionally with its name: `0.4` "the app tells the truth", `0.5.0` Honest, `0.6.0` Reachable, `0.7.0` Live, `1.0.0` Encrypted; post-1.0 (brief): `1.1` Direct, `1.2` Nearby, `1.3` Relay, `1.4` Off-grid hardware. `0.4.0 — Installable` and Tier 1/2/3 are retired (GOV-05). |
-| Source of the number | `versionName`/`versionCode` in `mobile/composeApp/build.gradle.kts`; `:mobile:composeApp:verifyBuildInfoVersion` checks `BuildInfo.kt`; the build job also asserts `tag == "v$versionName"` (CICD-10) |
+| Source of the number | `versionName`/`versionCode` in `mobile/composeApp/build.gradle.kts`; `:mobile:composeApp:verifyBuildInfoVersion` checks `BuildInfo.kt`; the build job **must** assert `tag == "v$versionName"` (new, CICD-10 — `mobile-release.yml` does not compare today) |
 | `versionCode` | Strictly increasing per Play upload |
 
 ## 7. Mobile release: build once, verify, promote
@@ -155,10 +168,10 @@ where the account supports it.
 | R2 | Gates: `./gradlew :backend:test :shared:jvmTest` with Docker running; base vs branch counts | Agent or owner | Numbers in the release PR |
 | R3 | `CHANGELOG.md`: `Unreleased` → version, with **Known issues** written from the user's side | Agent drafts, owner edits | CHANGELOG |
 | R4 | Bump `versionName`/`versionCode`, run `verifyBuildInfoVersion`, squash-merge, tag `vX.Y.Z` on the merge commit, push the tag | Owner | Tag |
-| R5 | **Build job** (tag push, `release` environment, ADR-0031): assert `tag == v$versionName` and that the tag commit is on `main` (`git merge-base --is-ancestor "$TAG" origin/main`); build the signed APK and AAB **once**; assert the signer SHA-256 (`EXPECTED_SIGNER_SHA256`, existing check); write `SHA256SUMS`; create a **draft** release with the three files; record asset IDs in the job summary | CI | Draft release, `SHA256SUMS`, job summary |
-| R6 | **Launch check on those bytes** on `emulator-5554` (Windows host): `gh release download vX.Y.Z -p "*.apk" -p "*.aab" -p SHA256SUMS`; `sha256sum -c SHA256SUMS`; uninstall the old build; `adb install muhabbet-X.Y.Z.apk`; `adb shell am start -n com.muhabbet.app/.MainActivity`; `adb logcat -d \| grep FATAL` must be empty; screenshot. Then the AAB: `bundletool build-apks --bundle=muhabbet-X.Y.Z.aab --output=u.apks --mode=universal --ks=<release keystore> …`, uninstall, `bundletool install-apks --apks=u.apks`, launch, `FATAL` grep, screenshot | **Owner only** | Release issue comment: observed by, where (`emulator-5554`), date, both hashes, screenshots |
+| R5 | **Build job** (tag push, `release` environment, ADR-0031): checkout with `fetch-depth: 0` (the default depth-1 tag checkout has no `origin/main`); assert `tag == v$versionName`; assert the tag commit is on `main`, **failing closed**: `git rev-parse --verify origin/main` must succeed (else fail), then `git merge-base --is-ancestor "$TAG" origin/main` must exit 0; build the signed APK and AAB **once**; assert the signer SHA-256 (`EXPECTED_SIGNER_SHA256`, existing check); write `SHA256SUMS`; create a **draft** release with the three files; record asset IDs in the job summary | CI | Draft release, `SHA256SUMS`, job summary |
+| R6 | **Launch check on those bytes** on `emulator-5554` (Windows host): `gh release download vX.Y.Z -p "*.apk" -p "*.aab" -p SHA256SUMS`; `sha256sum -c SHA256SUMS`; uninstall the old build; `adb install muhabbet-X.Y.Z.apk`; `adb shell am start -n com.muhabbet.app/.MainActivity`; `adb logcat -d \| grep FATAL` must be empty; screenshot. Then the AAB: `bundletool build-apks --bundle=muhabbet-X.Y.Z.aab --output=u.apks --mode=universal` (**no `--ks`**: bundletool signs with the local debug keystore, so the release key never reaches the workstation; this verifies the AAB's contents, not its signature — R5's signer assertion covers the signature), uninstall, `bundletool install-apks --apks=u.apks`, launch, `FATAL` grep, screenshot | **Owner only** | Release issue comment: observed by, where (`emulator-5554`), date, both hashes, screenshots |
 | R7 | Publish the GitHub release **non-draft** with generated notes plus a hand-written Turkish summary ≤ 500 characters (Play shows the first 500) (GOV-09) | Owner | `gh release list` shows it as Latest |
-| R8 | **Promote job** (`workflow_dispatch`, inputs `tag`, `track`; environment `release`): download the AAB by **release-asset ID**, verify against `SHA256SUMS`, upload to Play. No checkout of source, no Gradle, no `--clobber`. Production track uses a staged rollout (`status: inProgress`, small `userFraction`), completed by a separate dispatch (CICD-10) | Owner dispatches | Run log showing asset ID and matching hash |
+| R8 | **Promote job** (`workflow_dispatch` on the tag ref, input `track`; environment `release`): dispatch with `gh workflow run "Mobile Release" --ref vX.Y.Z -f track=<track>`. `--ref` is mandatory: the `release` environment admits only tag refs `v*`, and a dispatch without it runs on `refs/heads/main` and is rejected. The workflow definition is then taken from the tag, so the promote job that runs is the one released with that version. The tag is `github.ref_name`, not an input. download the AAB by **release-asset ID**, verify against `SHA256SUMS`, upload to Play. No checkout of source, no Gradle, no `--clobber`. Production track uses a staged rollout (`status: inProgress`, small `userFraction`), completed by a separate dispatch (CICD-10) | Owner dispatches | Run log showing asset ID and matching hash |
 | R9 | Status axis: issues fixed in the release move *merged* → *released (vX.Y.Z)* | Agent | Tracker |
 
 The emulator cannot sign off camera, microphone, haptics or colour on a real panel; R6 says so in
@@ -185,10 +198,11 @@ its note (CLAUDE.md).
 
 ## 9. Hotfix
 
-There is no hotfix branch. A fix is `fix/<issue#>-<slug>` → PR into `main` → patch tag `vX.Y.(Z+1)`
-→ §7/§8. If `main` already contains unreleased work that must not ship, the owner tags the fix on top
-of the last release tag on a short-lived `release/X.Y` branch created **only** for that purpose, then
-merges the fix into `main` as usual and deletes `release/X.Y` after the tag.
+There is no hotfix branch and no `release/*` branch (ADR-0030 D5). A fix is `fix/<issue#>-<slug>` →
+PR into `main` → patch tag `vX.Y.(Z+1)` on `main` → §7/§8. Unreleased work already on `main` must be
+behind a default-off flag (as `E2EConfig` / `MultiDeviceConfig` are), so a patch tag on `main` ships
+it dark. If work on `main` cannot be flag-gated and must not ship, revert it on `main` first, tag, then
+re-land it. Tagging off-`main` commits would fail R5's ancestry check by design.
 
 ## 10. Tracker status axis (with ADR-0032)
 
@@ -201,6 +215,8 @@ merges the fix into `main` as usual and deletes `release/X.Y` after the tag.
 | Verified (observed by / where) | Logic-only items: CI evidence on the released SHA. Items with a device criterion: owner observation | Owner for device items; agent may propose with evidence for logic-only items |
 | Done / closed | After *Verified* | Owner |
 
-GitHub closes an issue when a PR with `Closes #N` merges into the default branch. Until the
-Projects status field exists, PR bodies use `Refs #N` for issues with device criteria, so the issue
-stays open until it is verified (GOV-02).
+GitHub closes an issue when a PR with `Closes #N` merges into the default branch. For work with a
+device criterion, the `[O]` criterion lives in a parent issue and the PR `Closes` an implementation
+sub-issue, so the parent stays open until the owner verifies it (GOV-02; github-governance §3, §10,
+R-7 option (a)). A bare `Refs #N` fails ADR-0032 check A6; it is allowed only if the owner adopts
+R-7 option (b).

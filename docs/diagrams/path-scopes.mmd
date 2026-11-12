@@ -9,11 +9,15 @@
 %% Source of truth: decision brief ADR-0015, section 7 (plan() pseudocode), 6.5 (QoS classes), 12 (dispositions).
 %% Evidence: GEM-01, GEM-02, GEM-05, MISS-01 (fitness score, global mutex), NAT-1, P2P-1, P2P-2, QUIC-1, PROX-02,
 %%   PROX-04, PROX-05, PROX-06, PROX-07, PROX-09, RF-02, RF-03, RF-06, RF-07, RF-08, RF-09.
+%% Layout: external nodes link to subgraph POL (not to its inner nodes) so its direction TB takes effect.
 %% Rules:
 %%   1. Scope is never a physical medium. Ethernet, Wi-Fi, 4G/5G and Starlink are IP interfaces chosen by the OS and ICE.
 %%   2. Any Deny removes the candidate; content is never downgraded to fit a path.
 %%   3. Racing (Happy-Eyeballs) happens at link establishment, never per message; no hedged duplicates off-server.
 %%   4. For a durable CLOUD / BYO message the server is the strongest path whenever it is reachable.
+%% > **Reviewer note (open):** brief section 7 BULK footnote ("*unless server constrained/down and LAN/PROX already UP")
+%%   overlaps ConstrainedRule (which already defers BULK on a constrained server link); "down" is redundant because a
+%%   down server link is not a candidate. The brief should state one rule. Quoted verbatim below.
 flowchart LR
     classDef iface fill:#eeeeee,stroke:#888888,color:#000000
     classDef server fill:#438dd5,stroke:#2e6295,color:#ffffff
@@ -28,7 +32,8 @@ flowchart LR
         eth["Ethernet / USB-C LAN"]:::iface
         wifi["Wi-Fi"]:::iface
         cell["4G / 5G"]:::iface
-        sat["Starlink / LEO / satellite D2C<br/>= constrained flag on SERVER_RELAY"]:::iface
+        leo["Starlink / LEO broadband<br/>(ordinary IP, section 12 #65)"]:::iface
+        sat["Satellite D2C / NTN: no TR service;<br/>if ever present, sets constrained on SERVER_RELAY<br/>(section 12 #64, ADR-0027)"]:::iface
     end
 
     subgraph SP["ServerLink port - accepts ServerFrame"]
@@ -50,6 +55,7 @@ flowchart LR
     eth --> SR
     wifi --> SR
     cell --> SR
+    leo --> SR
     sat --> SR
     wifi --> IR
     cell --> IR
@@ -58,10 +64,11 @@ flowchart LR
     wifi --> LAN
     eth --> LAN
 
-    subgraph REJ["Rejected (ADR-0027) - reopened only by a new ADR"]
-        rj1["Ultrasonic / animated QR, 5G sidelink,<br/>5G Broadcast / DVB / RTL-SDR"]:::reject
-        rj2["libp2p / DHT / supernodes, birthday punching,<br/>QUIC migration BLE to Wi-Fi, WebRTC data channels for chat"]:::reject
-        rj3["Custom BLE mesh / GATT / L2CAP, custom Wi-Fi Direct,<br/>amateur VHF/UHF, PMR446 data"]:::reject
+    subgraph REJ["Rejected (ADR-0023/0024/0027) - reopened only by a new ADR"]
+        rj1["Ultrasonic / animated QR, 5G sidelink,<br/>5G Broadcast / DVB / RTL-SDR (ADR-0027)"]:::reject
+        rj2["libp2p / DHT / supernodes, birthday punching,<br/>QUIC migration BLE to Wi-Fi (ADR-0027);<br/>WebRTC data channels for chat (ADR-0023)"]:::reject
+        rj3["Custom BLE mesh, custom Wi-Fi Direct (ADR-0027);<br/>custom BLE GATT / L2CAP (ADR-0024; reconsider only if<br/>Nearby iOS spike fails and demand shown)"]:::reject
+        rj4["Amateur VHF/UHF, PMR446 data:<br/>rejected permanently (RF-08/09, ADR-0027)"]:::reject
     end
 
     subgraph POL["PathPolicy.plan(entry, links, ctx) - Strategy over a Chain of Responsibility [1.2]"]
@@ -70,7 +77,7 @@ flowchart LR
         adm["<b>1. Admission</b> - every rule must Allow<br/>AssuranceRule: offServer requires SealedFrame (type fact)<br/>RelationshipRule: mutual contact, existing conversation, verified safety number<br/>CertificateRule: valid cert + CRL at both ends<br/>ConversationModeRule: ADR 0008 / ADR-0021 mode<br/>ScopeRule: 1:1 only off-server, channels / communities / large groups server-only<br/>ConsentRule: Nearby mode open, OS permissions<br/>RegulatoryRule: RF excluded in TR<br/>QuotaRule: custodian / mule budgets<br/>SizeRule: bytes within maxFrameBytes or supportsBulk<br/>ConstrainedRule: constrained server link carries CONTROL + INTERACTIVE, defers BULK"]:::rule
         none{"Any candidate left?"}:::outcome
         cp["<b>2. CloudPersistence</b><br/>serverOwed = mode in CLOUD, BYO"]:::rule
-        pref["<b>3. Preference</b> (data table, class x mode)<br/>CLOUD/BYO, INTERACTIVE or CONTROL: SERVER_RELAY, LAN, PROXIMITY, EXTERNAL_RF<br/>CLOUD/BYO, BULK: SERVER_RELAY, LAN, PROXIMITY - server first unless it is<br/>constrained or down and a LAN / PROXIMITY link to the peer is already UP<br/>LOCAL_ONLY, any: LAN, PROXIMITY, SERVER_RELAY (mailbox, delete on delivery)<br/>tie-break: rank, rttMs, goodput (acked app bytes/s), costClass"]:::rule
+        pref["<b>3. Preference</b> (data table, class x mode)<br/>CLOUD/BYO, INTERACTIVE or CONTROL: SERVER_RELAY, LAN, PROXIMITY, EXTERNAL_RF<br/>CLOUD/BYO, BULK: SERVER_RELAY*, LAN, PROXIMITY<br/>*unless server constrained/down and LAN/PROX already UP<br/>LOCAL_ONLY, any: LAN, PROXIMITY, SERVER_RELAY (mailbox, delete on delivery)<br/>tie-break: rank, rttMs, goodput (acked app bytes/s), costClass"]:::rule
         send["Send(best, serverOwed and best is not SERVER_RELAY)"]:::outcome
         stay["Stay QUEUED<br/>1.3: CustodyPolicy offers mailbox, own device, contact uplink"]:::outcome
         cand --> adm --> none
@@ -78,11 +85,11 @@ flowchart LR
         none -- "yes" --> cp --> pref --> send
     end
 
-    SR --> cand
-    LAN -.-> cand
-    PROX -.-> cand
-    RF -.-> cand
-    stay -.-> UP
+    SR --> POL
+    LAN -.-> POL
+    PROX -.-> POL
+    RF -.-> POL
+    POL -. "1.3 custody" .-> UP
 
     subgraph QOS["QoS classes (section 6.5)"]
         q1["CONTROL: receipts, call signalling, key change, CRL delta - queued, short TTL"]:::outcome
@@ -90,4 +97,4 @@ flowchart LR
         q3["BULK: media - resumable, out-of-band on server"]:::outcome
         q4["EPHEMERAL: typing, presence - never queued, dropped without a live link"]:::outcome
     end
-    QOS -.-> pref
+    QOS -.-> POL

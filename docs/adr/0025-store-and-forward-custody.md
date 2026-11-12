@@ -17,9 +17,9 @@ never online at the same time, "via other devices" if needed.
   misstate RFC 9171, which moved custody out of the core protocol (C6). PoW admission punishes
   phones (C6, brief §12 #52).
 - **Stranger custody fails both law and security.** Relaying users hold third parties' personal
-  data (recipient identifiers, sizes, timing) even when the payload is E2E; Muhabbet as the party
-  that sets purposes and means is the controller, and relays fall outside the household exemption
-  (LEG-04). App-level stranger meshes were broken cryptographically twice (PROX-03).
+  data (recipient identifiers, sizes, timing) even when the payload is E2E. On the reviewer's reading
+  (LEG-04, partially confirmed), Muhabbet would be the controller of relaying and relaying users
+  would be neither household-exempt nor contracted processors; Q-L5 asks counsel to confirm. App-level stranger meshes were broken cryptographically twice (PROX-03).
 - **Today's E2E is NoOp with a plaintext fallback** (C9). Any custodian other than the server would
   hold plaintext until 1.0 and ADR-0016.
 
@@ -35,9 +35,14 @@ message plus a lifetime.
 | Lifetime | Bounded by the outbox lifetime (30 d default) and the custodian's own TTL (uplink cache 24 h) |
 | Bundle age | Elapsed time carried by custodians, so clockless or skewed nodes still expire bundles |
 | Status reports | `RECEIVED`, `CUSTODY_ACCEPTED`, `DELIVERED`, `DELETED_EXPIRED` |
-| Custody release | Only on an **authenticated** `DELIVERED` (sealed to the sender) or on expiry |
+| Custody release | Only on an **authenticated** `DELIVERED`, on **authenticated transfer to a higher-ranked custodian** (server 2xx over TLS = `CUSTODY_ACCEPTED` by custodian 1), or on expiry |
 
 No BPv7 CBOR codec and no BPSec are adopted (ADR-0022).
+
+> **Reviewer note (open):** brief §6.2 says custody is released "only on authenticated DELIVERED or
+> expiry", which is narrower than its own uplink rule (the mule deletes on the server's 2xx) and the
+> custodian-2 release on `ServerAccepted`. This ADR states the release rule that matches both; brief
+> §6.2 should be amended to name handover to a higher-ranked custodian.
 
 ### 2. Custodian hierarchy (offered strictly in this order)
 
@@ -45,7 +50,7 @@ No BPv7 CBOR codec and no BPSec are adopted (ADR-0022).
 |---|---|---|---|---|---|---|
 | 1 | **Server mailbox** (`messages` + `/changes`; `message_envelopes` from 1.0) | exists; ciphertext from 1.0 | Muhabbet | Metadata only from 1.0 (ADR-0019) | Device `ack uptoSeq`, or TTL (30 d) | none |
 | 2 | **Own linked devices** (e.g. the user's tablet on LAN/Nearby) | 1.3 | The same user | Their own ciphertext; no third-party data | Recipient-device DELIVERED, or upload to server and `ServerAccepted` | 1.3 entry |
-| 3 | **Single-hop sealed uplink** through a **verified contact's** online phone | 1.3, gated, droppable | A verified contact (the "mule") | An opaque bucket-padded blob, its size bucket and the time | Mule: on HTTP 2xx from `/api/v1/uplink`, or after 24 h | 1.3 entry + kill criteria |
+| 3 | **Single-hop sealed uplink** through a **verified contact's** online phone | 1.3, gated, droppable | A verified contact (the "mule") | Sender identity (from link authentication), size bucket and time; never the recipient or the content | Mule: on HTTP 2xx from `/api/v1/uplink`, or after 24 h | 1.3 entry + kill criteria |
 | 4 | **Multi-hop contact mules** | research (R-DTN), not scheduled | Mutual contacts only, never strangers | Rotating tags, Padmé-padded blobs | Sealed "vaccination" receipts | New ADR |
 
 Groups above the off-server cap (in 1.2/1.3: every group), channels and communities **never** use
@@ -60,6 +65,11 @@ interface CustodyTarget {
     suspend fun offer(b: Bundle): CustodyResult     // Accepted(custodian, expiresAt) | Declined(reason) | Retry(after)
 }
 ```
+
+- `CustodianKind` has four values: `SERVER_MAILBOX | PEER_DEVICE | OWN_DEVICE | CONTACT_UPLINK`
+  (= delivery-engine-spec §2). `PEER_DEVICE` is a **hop custodian** recorded only by
+  `OutboxState.HopAcked` when a direct peer acknowledges a hop; it is **not** a `CustodyTarget`
+  implementation and is never offered a bundle by `CustodyPolicy`.
 
 - `ServerMailboxCustody` (via `ServerLink`) is the only implementation before 1.3. **Before 1.3 the
   Outbox does not route through `CustodyTarget` at all** (brief §5, P7 check).
@@ -76,6 +86,7 @@ interface CustodyTarget {
 | OFFERED | `Accepted(expiresAt)` | IN_CUSTODY(custodian, expiresAt) |
 | OFFERED | `Declined` | CREATED (next custodian in order) |
 | IN_CUSTODY | authenticated `DELIVERED` | DELIVERED_RECEIPT |
+| IN_CUSTODY | `CUSTODY_ACCEPTED` by custodian 1 (server 2xx over TLS) | RELEASED |
 | DELIVERED_RECEIPT | custodian deletes | RELEASED |
 | IN_CUSTODY | lifetime or custodian TTL exceeded | EXPIRED |
 
@@ -91,13 +102,24 @@ a "relayed" tick.
    holder has internet (the bundle is the sender's per-device envelope set; the holder adds nothing).
 3. Uses the separate encrypted custody store (§7). No new KVKK controller question: the data
    belongs to the same user.
+4. An own-device custodian hands the bundle up through the **same ingress as custodian 3**: the
+   sender builds an `UplinkBundle` (sealed, sender-device signature, §6 step 1) and the holder POSTs
+   it to `/api/v1/uplink` under its own auth. The server checks the signature and that holder and
+   sender belong to the same user, then ingests idempotently (§6 step 5). There is no second
+   on-behalf submit path.
+
+> **Reviewer note (open):** the brief leaves open how the server authorises and attributes a
+> submission by device B for an envelope set produced by device A (`SendMessageUseCase` takes the
+> authenticated device as sender; the idempotency key is `(sender_device_id, client_message_id)`).
+> Rule 4 closes it by reusing the uplink ingress; it shares the signature-key question raised below
+> for custodian 3.
 
 ### 6. Custodian 3: single-hop sealed uplink (1.3, gated, droppable)
 
 | Step | Actor | Action |
 |---|---|---|
 | 1 | Sender (no connectivity) | Builds `UplinkBundle = HPKE-Seal(serverUplinkPk, info="mbt-uplink-v1", aad=bucketSize, pt = senderDeviceSignature ‖ routing ‖ DeviceEnvelopes)` (ADR-0022, brief §10); pads to a bucket |
-| 2 | Sender → mule | Hands the blob over an authenticated proximity link (ADR-0024 eligibility: verified contact, valid certificates) |
+| 2 | Sender → mule | Hands the blob over an authenticated proximity link (sender–mule hop: ADR-0024 E3 (verified safety number with the mule), E4 (certificates), E5 (consent, Nearby mode), E6; the bundled message itself must pass E1 and E7 for its own conversation) |
 | 3 | Mule | Stores the opaque blob in its custody store, within its **per-mule quota** (default ≤ 50 bundles / 10 MB per 24 h, `application.yml`/client config); cannot read or route it |
 | 4 | Mule → server | `POST /api/v1/uplink` under the **mule's own auth**; deletes the blob on 2xx, or after 24 h |
 | 5 | Server | Unseals with the uplink private key; verifies the sender-device signature (preserves 5651 attribution); enforces per-sender and per-mule quotas (V36 `uplink_quota`); ingests through the normal **idempotent** `SendMessageUseCase` (`UNIQUE(sender_device_id, client_message_id)`, ADR-0013) |
@@ -208,3 +230,8 @@ counsel opinion (Q-L5) and an external crypto review:
 > **Reviewer note (open):** the brief names HPKE for the uplink seal but no implementation. P12
 > forbids hand-written crypto primitives, so the HPKE library (and its availability on Android, iOS
 > and the backend JVM) is a 1.3 selection item for the crypto review, not an implementation detail.
+
+> **Reviewer note (open):** the mule receives the blob over an authenticated proximity link from a
+> verified contact, so it learns the sender's identity and device and that this contact sent
+> something at time T (§2 row 3). Brief §8.2 understates this. `threat-model.md` (LINDDUN) should
+> record it as a residual linkability/identifiability risk of custodian 3.

@@ -1,6 +1,6 @@
 # ADR 0015 — Path-scope model and rule-based path policy (replaces Gemini's link "levels")
 
-**Status:** Proposed (gated) — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The scope vocabulary binds from acceptance; `PathPolicy` is built only at 1.2 behind gate G-PROXIMITY · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0015; §7](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010, ADR-0012, ADR-0016, ADR-0029. Supersedes nothing.
+**Status:** Proposed (gated) — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The scope vocabulary binds from acceptance and is first used in code at 1.2 (`SealedLink.scope`/`caps`, ADR-0012); `PathPolicy` is built only at 1.2 behind gate G-PROXIMITY · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0015; §7](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010, ADR-0012, ADR-0016, ADR-0029. Supersedes nothing.
 
 ## Context
 
@@ -41,14 +41,21 @@ messages.
 data class LinkCapabilities(val maxFrameBytes: Int, val supportsLive: Boolean,
                             val supportsBulk: Boolean, val offServer: Boolean)
 data class LinkMetrics(val rttMs: Int, val lossPpm: Int, val goodputBps: Long,
-                       val costClass: CostClass, val constrained: Boolean)   // rolling 60 s EWMA, injected Clock
-enum class CostClass { FREE, METERED, CONSTRAINED }
+                       val costClass: CostClass, val constrained: Boolean,
+                       val batteryClass: BatteryClass)                       // rolling 60 s EWMA, injected Clock
+enum class CostClass { FREE, METERED }
+enum class BatteryClass { LOW, HIGH }
 ```
 
 - `goodputBps` is **acked application bytes per second**, never PHY rate.
-- `maxFrameBytes` is negotiated per link, never a constant (MISS-03, Gemini verifier).
+- `maxFrameBytes` is negotiated per link, never a constant (MISS-03, proximity verifier).
 - `constrained = true` marks a metered, low-bandwidth or satellite-optimised bearer on the
-  **server** path. It is not a satellite transport (ADR-0027).
+  **server** path. It is not a satellite transport (ADR-0027). "Constrained" is represented only by
+  this Boolean, not also as a `CostClass` value.
+
+> **Reviewer note (open):** brief §7 carries "constrained" twice (as a `CostClass` value and as a
+> Boolean), so the two could disagree. This ADR keeps the Boolean only and adds `batteryClass` per
+> brief §7, because §4 ranks on battery. The brief should drop `CONSTRAINED` from `CostClass`.
 
 ### 3. Selection: Strategy over a Chain of Responsibility
 
@@ -62,7 +69,7 @@ fun interface PathRule { fun apply(ctx: PathContext, c: List<PathCandidate>): Li
 |---|---|---|
 | 1. Admission (ADR-0029 gate) | `AssuranceRule` (off-server ⇒ `SealedFrame`, already a type fact), `RelationshipRule` (mutual contact, existing conversation, verified safety number), `CertificateRule` (valid certificate + CRL, both ends), `ConversationModeRule` (ADR 0008), `ScopeRule` (1:1 only off-server; channels, communities, large groups ⇒ server only), `ConsentRule` (Nearby mode open, OS permissions), `RegulatoryRule` (RF excluded in TR), `QuotaRule` (custodian/mule budgets), `SizeRule` (`bytes ≤ maxFrameBytes` or `supportsBulk`), `ConstrainedRule` (constrained server link: CONTROL + INTERACTIVE only, defer BULK) | Removes candidates. A Deny never downgrades content |
 | 2. CloudPersistence | `serverOwed = mode ∈ {CLOUD, BYO} && chosen.scope ≠ SERVER_RELAY` | Records the upload obligation (ADR-0013) |
-| 3. Preference | Data table by (mode × QoS class); tie-break `rttMs`, then `-goodputBps`, then `costClass` | Picks one link |
+| 3. Preference | Data table by (mode × QoS class); tie-break `rttMs`, then `-goodputBps`, then `costClass`, then `batteryClass` | Picks one link |
 
 Preference table:
 
@@ -105,12 +112,16 @@ reimplemented.
 
 ## Consequences
 
-- The capability matrix document is the data source for `LinkCapabilities` and the preference
-  table; values are measured, not assumed (P13).
+- The [transport capability matrix](../architecture/multi-transport/transport-capability-matrix.md)
+  is the data source for `LinkCapabilities` and the preference table; values are measured, not
+  assumed (P13).
 - New paths add one adapter plus, at most, one admission rule (ADR-0026 relies on this).
 - `ConstrainedRule` covers satellite and metered bearers without a satellite transport (ADR-0027).
-- Nothing here is built before 1.2; accepting this ADR binds only the vocabulary used by ADR-0012,
-  the capability matrix and the threat model.
+- Nothing here is built before 1.2; accepting this ADR binds only the vocabulary used by ADR-0012
+  (from 1.2), the capability matrix and the threat model.
+
+> **Reviewer note (open):** brief ADR-0015 cites a §17 doc plan that does not exist; §17 is open
+> questions.
 
 ## Alternatives considered
 
@@ -123,7 +134,7 @@ reimplemented.
 
 ## Evidence
 
-- Findings: LINK-1, ICE-1, GEM-05, GEM-06, GEM-17, MISS-02 and MISS-03 (Gemini verifier), PROX-01,
+- Findings: LINK-1, ICE-1, GEM-05, GEM-06, GEM-17, MISS-02 (Gemini verifier), MISS-03 (proximity verifier), PROX-01,
   PROX-09, LEG-03.
 - External sources (from the networking and proximity digests):
   https://developer.android.com/reference/android/net/ConnectivityManager,

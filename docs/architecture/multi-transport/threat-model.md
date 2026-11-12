@@ -24,7 +24,7 @@
 | 1 | Data-flow model from the C4 container view (brief §4.1, SAD §5.1): external entities, processes, data stores, data flows, trust boundaries | §3 |
 | 2 | Coverage of **every path scope** of ADR-0015 (plus own-device custody, which rides LAN/PROXIMITY) | §4 |
 | 3 | Attacker catalogue: capabilities, goals, reach per scope | §5 |
-| 4 | **STRIDE per element** (external entity: S, R; process: S, T, R, I, D, E; data store: T, R, I, D; data flow: T, I, D) | §6 |
+| 4 | **STRIDE per element** (external entity: S, R; process: S, T, R, I, D, E; data store: T, R, I, D; data flow: T, I, D). Categories with no distinct threat for an element are omitted after assessment rather than listed empty | §6 |
 | 5 | **LINDDUN** privacy threats (Linking, Identifying, Non-repudiation, Detecting, Data disclosure, Unawareness, Non-compliance) | §7 |
 | 6 | Each threat → mitigation → ADR → milestone → verification (RQ-xx of brief §16.1, a named test, or an owner observation per P13) | §6, §7, §8 |
 | 7 | Residual risks the owner must accept explicitly | §9 |
@@ -146,15 +146,15 @@ until every threat listed for it is *Mitigated* or an accepted residual (§9).
 
 | Scope | Flows | Trust boundaries | Milestone | Attackers in reach | STRIDE threats | LINDDUN |
 |---|---|---|---|---|---|---|
-| `SERVER_RELAY` pre-1.0 (TLS only, honest "not E2E") | DF-1, DF-2, DF-3, DF-4, DF-12 | TB-1, TB-2, TB-9 | existing → 0.6 | AT-1, AT-4, AT-5, AT-6, AT-7, AT-8 | T-SRV-*, T-PSH-*, T-MED-*, T-DIR-*, T-KEY-01/02, T-REG-*, T-DEV-*, T-HST-*, T-SCM-* | L-01, L-03, I-01, D-01, D-04, DD-01…03, U-01, Nc-01…04 |
-| `SERVER_RELAY` 1.0+ (libsignal per device) | as above + `message_envelopes` | TB-1, TB-2, TB-9 | 1.0 | AT-4 (metadata only), AT-5, AT-8 | T-SRV-09/10, T-KEY-03/04, T-E2E-*, T-MED-01/02 | DD-04, D-04, Nr-03, Nc-05 |
+| `SERVER_RELAY` pre-1.0 (TLS only, honest "not E2E") | DF-1, DF-2, DF-3, DF-4, DF-12 | TB-1, TB-2, TB-9 | existing → 0.6 | AT-1, AT-4, AT-5, AT-6, AT-7, AT-8 | T-SRV-*, T-PSH-*, T-MED-*, T-DIR-*, T-KEY-01/02, T-REG-* (incl. T-REG-07 OTP provider), T-DEV-*, T-HST-* (incl. T-HST-08 Redis), T-SCM-* | L-01, L-03, I-01, D-01, D-04, DD-01…03, U-01, Nc-01…04 |
+| `SERVER_RELAY` 1.0+ (libsignal per device) | as above + `message_envelopes` | TB-1, TB-2, TB-9 | 1.0 | AT-4 (metadata only), AT-5, AT-8 | T-SRV-09/10, T-KEY-03/04, T-GRP-01, T-REG-06, T-MOD-01, T-E2E-*, T-MED-01/02 | DD-04, D-04, Nr-03, Nc-05 |
 | `IP_RELAYED` (LiveKit SFU/TURN) | DF-1 (signalling), DF-5, DF-14 | TB-7 | 0.7 | AT-1, AT-4, AT-5, AT-8 | T-CAL-02…06 | I-02, DD-05, U-03 |
 | `IP_DIRECT` (ICE host/srflx, 1:1 calls) | DF-5 | TB-3 (IP between peers) | 1.1 | AT-2, AT-8 | T-CAL-01, T-CAL-03 | I-02 |
-| `LAN` | DF-6 | TB-3 | 1.2 | AT-2, AT-3 | T-PRX-*, T-PKI-* | L-02, D-02, U-03, Nc-06 |
-| `PROXIMITY` | DF-7 | TB-3 | 1.2 | AT-2, AT-3 | T-PRX-*, T-PKI-* | L-02, D-02, I-03, U-03 |
+| `LAN` | DF-6 | TB-3 | 1.2 | AT-2, AT-3 | T-PRX-*, T-PKI-* | L-02, L-06, I-04, D-02, U-03, Nc-06 |
+| `PROXIMITY` | DF-7 | TB-3 | 1.2 | AT-2, AT-3 | T-PRX-*, T-PKI-* | L-02, L-06, D-02, I-03, I-04, U-03 |
 | Own-device custody (custodian 2) | DF-9 | TB-3, TB-8 | 1.3 | AT-3, AT-7 | T-OWN-* | — |
-| `UPLINK_RELAY` (custodian 3) | DF-8 | TB-3, TB-4, TB-6 | 1.3 | AT-2 (as mule), AT-4, AT-8 | T-UPL-* | D-03, Nr-01, U-04, Nc-06 |
-| `EXTERNAL_RF` | DF-10 | TB-3 | 1.4 (TR-excluded) | AT-3, AT-5 (as legal exposure) | T-RF-* | D-05 |
+| `UPLINK_RELAY` (custodian 3) | DF-8 | TB-3, TB-4, TB-6 | 1.3 | AT-2 (as mule), AT-4, AT-8 | T-UPL-* | D-03, L-05, Nr-01, U-04, Nc-06 |
+| `EXTERNAL_RF` | DF-10 | TB-3 | 1.4 (TR-excluded) | AT-3, AT-5 (as legal exposure) | T-RF-* (incl. T-RF-05 node firmware) | D-05 |
 | Cross-cutting: certificates/CRL | DF-11 | TB-6 | 1.2 | AT-4, AT-6 | T-PKI-* | — |
 | Cross-cutting: build and release | DF-13 | TB-5 | Phase 0 | AT-6 | T-SCM-*, T-HST-01/02 | — |
 
@@ -193,7 +193,7 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-SRV-07 | T | Timestamp-only order with no tie-break and no gap detection: reorders and silent loss | AT-1 | Open (BE-06, C13) | Per-conversation `seq` + `change_seq`; pull-by-seq; WS/FCM are hints | 0014 | 0.4 (V28) / 0.5 | **RQ-04**, **RQ-05** |
 | T-SRV-08 | I | Scheduled messages readable by recipients (history, background sync) before they are due | AT-2 | Open (BE-02) | Seq assigned at release; `ChangeFeedService` hides unreleased rows; one transaction per release | 0014 | 0.4 | Test: recipient history, `/changes`, search and media exclude unreleased messages |
 | T-SRV-09 | I | Server stores, searches, previews and pushes plaintext content | AT-4, AT-5 | **Open by design until 1.0** (BE-15) | Pre-1.0: honest "not E2E" UI. 1.0: no server plaintext, search, link previews or media reads for E2E conversations | 0019, 0021 | 1.0 | **RQ-13** (SQL assertion + DB-dump inspection) |
-| T-SRV-10 | T, I | Downgrade: an old or modified client keeps sending `protocolVersion 1` (plaintext body) into an E2E conversation; unknown frame types silently dropped | AT-4, AT-8 | Open (KMP-11) | `hello`/`welcome` negotiation with `minSupported`; server-side minimum protocol version for E2E conversations (`PROTOCOL_TOO_OLD`); `Unknown` → `UNSUPPORTED_FRAME` | 0022, 0016 | 0.5 / 1.0 | Golden vectors; test: a v1 plaintext send into an E2E conversation is rejected |
+| T-SRV-10 | T, I | Downgrade: an old or modified client keeps sending `protocolVersion 1` (plaintext body) into an E2E conversation; unknown frame types silently dropped | AT-4, AT-8 | Open (KMP-11) | `hello`/`welcome` negotiation with `minSupported`; server-side minimum protocol version for E2E conversations (`PROTOCOL_TOO_OLD`); `Unknown` → `UNSUPPORTED_FRAME` | 0022, 0016 | 0.5 / 1.0 | Golden vectors; test: a v1 plaintext send into an E2E conversation is rejected. Server-driven half: T-E2E-06 |
 | T-SRV-11 | D | Message flood or slow consumer exhausts the instance; limiter is in-process per instance | AT-8 | Partial (BE-16 fixed on dev; BE-17) | `ConcurrentWebSocketSessionDecorator` bounds; `AbuseRateLimiter` (Redis token buckets); bounded lanes and `Backpressure` | 0012, brief §4.2, §6.9 | 0.5 / scale-out | Load test against a non-production environment; lane-bound unit tests |
 | T-SRV-12 | E | Inbound adapters bypass use cases; ArchUnit does not enforce module boundaries, so new ports can skip authorisation | AT-8 | Open (BE-08, BE-09) | ArchUnit/Konsist boundary rules **before** new ports; `adapter.in` may not depend on out-ports | 0010 (P1), brief §14 item 10 | 0.4 | Architecture tests in CI |
 | T-SRV-13 | R | Server cannot attribute a message to a device (5651 duty), or a sender denies a message the server attributes | AT-2, AT-5 | Partial: attribution per user, not per device | `messages.sender_device_id` on every row (V29); attribution is server-side only; no long-term content signatures (deliberate, Nr-01) | 0013, 0014, 0029 | 0.4 | Inspection: every message row carries `sender_device_id` |
@@ -234,16 +234,19 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-KEY-03 | S | Silent identity-key replacement for an existing device enables an undetected server-side MITM | AT-4, AT-5 | Open (BE-14) | Changed key for an existing `device_id` rejected; a new key is a new device → `IdentityKeyChanged` → safety-number-changed message; **blocking interstitial for verified contacts** | 0018 | 0.6 / 1.0 | 0.6 exit: replacement attempt returns an error |
 | T-KEY-04 | S | Server adds a ghost device to a user's device list, so fan-out encrypts to an attacker device | AT-4, AT-5 | n/a until 1.0 | Every new device emits `IdentityKeyChanged` to contacts and to the user's own devices; verified contacts see a blocking interstitial. **Residual**: the server is in the identity TCB (A-4); key transparency is research | 0018, 0010 | 1.0 | Test: device addition produces the system message on all peers. Residual RR-1 |
 | T-KEY-05 | I | Per-user key schema would force private-key export for multi-device | — | Open (M2) | Per-device key tables | 0018 | 0.6 (V33) | Migration test |
+| T-GRP-01 | S, I | Server adds a member to a group, so honest clients distribute sender keys to an attacker-controlled account (ghost member; membership changes are sequenced by the server, brief §8.3) | AT-4, AT-5 | n/a until 1.0 | Every membership change produces a client-rendered system message from the sequenced change feed; sender keys are distributed only to members whose addition was observed in order; the new-member notice is never suppressible by the server | 0018, 0021, brief §8.3 | 1.0 | Test: a membership change without a sequenced change event does not trigger sender-key distribution. Residual RR-1 (server in the TCB) |
 
 ### 6.6 Registration, OTP and age — DF-12, PR-4 auth
 
 | ID | Cat | Threat | AT | Today | Mitigation | ADR | MS | Verification |
 |---|---|---|---|---|---|---|---|---|
-| T-REG-01 | S | Account takeover by SIM swap or SMS interception (phone-OTP identity) | AT-1 (carrier-level), AT-5 | Residual, inherent to phone-OTP | The thief's handset is a **new device**: contacts get a safety-number change (1.0); verified contacts get a blocking interstitial | 0018 | 1.0 | See reviewer note RN-4 |
+| T-REG-01 | S | Account takeover by SIM swap or SMS interception (phone-OTP identity) | AT-1 (carrier-level), AT-5 | Residual, inherent to phone-OTP | The thief's handset is a **new device**: contacts get a safety-number change (1.0); verified contacts get a blocking interstitial. Tracked as risk R25 | 0018 | 1.0 | See reviewer note RN-4 |
 | T-REG-02 | E | A user under the statutory minimum age registers and is served on every path | AT-8 | Open (MISS-04 legal) | Age gate at registration behind `AgeAssurancePort`; from 1.2 a valid attestation is a precondition for a device certificate | 0029 R1, 0018 | 0.4 / 1.2 | **RQ-10** |
 | T-REG-03 | S | Self-declared date of birth is false | AT-8 | Residual (R7) | No compliance claim until counsel answers Q-L3; e-Devlet/NFC-ID adapter behind the same port if required | 0029 R1 | 0.4 | Counsel opinion Q-L3 |
-| T-REG-04 | I | The documented test-number path logs OTP codes in full in production logs; anyone with log access can sign in as `+905000000001…5` | AT-4 | Open (documented practice) | Residual: limited to unallocated test numbers; test accounts must hold no real-user conversations | — | — | Residual RR-8 |
-| T-REG-05 | D | OTP pumping (SMS cost, provider throttling) | AT-8 | Partial (per-number cooldown exists) | `AbuseRateLimiter` on OTP requests | brief §4.2 | 0.4 | Rate-limit test |
+| T-REG-04 | I | The documented test-number path logs OTP codes in full in production logs; anyone with log access can sign in as `+905000000001…5` | AT-4 | Open (documented practice) | Residual: limited to unallocated test numbers; test accounts must hold no real-user conversations. Tracked as risk R26 | — | — | Residual RR-8 |
+| T-REG-05 | D | OTP pumping (SMS cost, provider throttling) | AT-8 | Partial (per-number cooldown exists) | `AbuseRateLimiter` on OTP requests | brief §4.2 | — (not scheduled by the brief; owner to schedule) | Rate-limit test |
+| T-REG-06 | S, I | Device-link phishing: the user is induced to approve a link QR for an attacker device, which then receives all future fan-out | AT-8 | Behind `MultiDeviceConfig` (default OFF) | Link approval only on the primary device with an explicit confirm screen naming the device; push and in-app notice of every new linked device to all of the user's devices; linked-device list with revoke; a new companion triggers `IdentityKeyChanged` | 0018, ADR 0007 | 1.0 | Test plus owner observation |
+| T-REG-07 | S | OTP provider (EE-4, Twilio Verify) compromised or coerced: valid OTPs issued for victims' numbers → takeover; Twilio also processes every phone number | AT-4 (processor), AT-5 | Residual | As T-REG-01 (new device → safety-number change); processor basis per DPIA DT-5 and Q-L6 | 0018, 0029 | 1.0 | As T-REG-01; counsel Q-L6 |
 
 ### 6.7 Device at rest — DS-1, DS-2, DS-3, TB-8
 
@@ -264,6 +267,7 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-E2E-03 | S | An untrusted (changed) identity is accepted silently | AT-4 | n/a | `UntrustedIdentity` parks the entry and asks the user | brief §8.7 | 1.0 | Test |
 | T-E2E-04 | I | A conversation is labelled E2E while the server still holds a readable copy of its history | AT-4 | n/a | Label E2E only once the server holds no readable copy (cutover per Q-O4) | 0021 | 1.0 | **RQ-20** (claims register) |
 | T-E2E-05 | I | iOS (NoOp crypto) joins a cross-platform E2E conversation | — | Open (KMP-01; iOS NoOp) | iOS has no `SealedFrame` producer, so its entries stay `PENDING_SEAL`; 1.0 may ship Android-only | 0016, 0017, 0028 | 0.6 gate / 1.0 | Contract suite against the iOS adapter when it exists |
+| T-E2E-06 | T, I | Server-driven downgrade: the server reports an E2E conversation as `encryptionState = NONE` (`messages.encryption_state`, V34; `conversation.encryption_state` in the mobile schema), so the client legitimately uses `NoOpEncryption` on `ServerLink` (ADR-0016 allows it for NONE) and sends plaintext | AT-4, AT-5 | n/a until 1.0 | Client treats `encryptionState` as monotonic: once a conversation is E2E locally it never accepts NONE; from 1.0 new 1:1 and small-group conversations cannot be NONE | 0016, 0021 | 1.0 | Test: a server frame setting NONE on an E2E conversation is rejected and surfaced. See RN-6 |
 
 ### 6.9 Calls — DF-5, DF-14, PR-5 (`IP_RELAYED`, `IP_DIRECT`)
 
@@ -293,6 +297,7 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-PRX-11 | R | An off-server message escapes attribution, moderation or blocking | AT-2 | n/a | CLOUD/BYO final only after server seq (`serverOwed`); reports are durable outbox commands; block list in the inbound pipeline for every source | 0010, 0025, 0029 R3–R4 | 1.2 | Engine test; per-source block-list test |
 | T-PRX-12 | I | Plaintext on a proximity path | AT-3 | n/a | `SealedLink.send` accepts only `SealedFrame` | 0016 | 1.2 | **RQ-06** |
 | T-PRX-13 | I | Co-location disclosed to the contact | AT-2 | n/a | Inherent; both opted in; foreground mode; consent matrix | 0024 | 1.2 | DPIA (proximity trigger) |
+| T-PRX-14 | I | A stranger initiates a handshake and receives the responder's device certificate (`userId`/`deviceId`) before proving a relationship (TLS 1.3 sends the server Certificate before client auth; Noise XX reveals the responder static key to the initiator first) | AT-3 | n/a | Responder reveals its certificate only after the initiator proves knowledge of the pairwise secret: a PSK handshake keyed from `pairKey`/rendezvous secret (e.g. a Noise psk pattern or TLS 1.3 PSK), chosen by the 1.2 spike with **identity hiding against unauthenticated initiators** as a selection criterion; connections whose tag does not match a contact are dropped before any certificate is sent | 0018, 0024, brief §8.5 | 1.2 | Test: an unauthenticated initiator receives no certificate bytes; OTA capture by the owner |
 
 ### 6.11 Sealed uplink — DF-8 (`UPLINK_RELAY`), AT-2 as mule
 
@@ -304,7 +309,7 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-UPL-04 | D | The mule drops or delays a bundle | AT-2 | n/a | Sender keeps the outbox entry with `serverOwed`; UI shows clock + "handed to <contact>"; no delivered tick until the server/recipient acks | 0013, 0025 | 1.3 | Engine test |
 | T-UPL-05 | D | Abuse of mule storage or `/uplink` | AT-2, AT-8 | n/a | Per-mule daily quota and size cap (enforced by mule and server); per-sender upload quota; ≤ 50 bundles / 10 MB per mule, 24 h; FIFO-by-expiry | 0025 | 1.3 | 1.3 exit quota test |
 | T-UPL-06 | T | The mule replays a bundle | AT-2 | n/a | Server idempotency on `(sender_device_id, client_message_id)` | 0013 | 1.3 | Test |
-| T-UPL-07 | I | Uplink private key compromised | AT-4, AT-6 | n/a | Not on the CI/production host; ADR-0031 in force first; published rotation; clients pin current and next keys (content stays E2E inside) | 0025, 0031 | 1.3 | Runbook inspection; R14 |
+| T-UPL-07 | I | Uplink private key compromised; retroactively exposes routing and sender-signature fields of every captured bundle (static-key HPKE, no forward secrecy) | AT-4, AT-6 | n/a | Not on the CI/production host; ADR-0031 in force first; published rotation; clients pin current and next keys (content stays E2E inside); short key validity with published rotation limits the exposure window | 0025, 0031 | 1.3 | Runbook inspection; R14; residual RR-10 |
 | T-UPL-08 | I | The mule learns that the sender is offline, when, and the bucket size | AT-2 | n/a | Inherent; contacts only; disclosed; DPIA | 0025 | 1.3 | DPIA (uplink trigger); residual RR-5 |
 
 ### 6.12 Own-device custody — DF-9
@@ -322,6 +327,7 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-RF-02 | D (legal) | Duty-cycle breach (Gemini's `delay(200)` ≈ 97% at SF12) | — | n/a | `AirtimeLedger`: sliding hour per sub-band (1% 868.0–868.6 MHz; 10% 869.4–869.65 MHz) | 0026 | 1.4 | **RQ-19** (ledger tests + one-hour field log) |
 | T-RF-03 | I | Airtime and frame timing visible to any receiver | AT-3 | n/a | Fixed-size frames; rotating tags; residual | 0026, 0022 | 1.4 | Field log; residual RR-5 |
 | T-RF-04 | S | Peer impersonation | AT-3 | n/a | As T-PRX-01 | 0018 | 1.4 | As T-PRX-01 |
+| T-RF-05 | T, I | Malicious or compromised Meshtastic node firmware (EE-5) sees every frame and the BLE pairing; may drop, delay or inject | AT-3 | n/a | Only `SealedFrame` crosses the node (T-PRX-12 rule); node pairing per Meshtastic; injected frames fail link AEAD and dedup; timing residual | 0016, 0022, 0026 | 1.4 | Test: node-injected frame rejected; residual RR-5 |
 
 ### 6.14 Certificates and CRL — PR-6, DS-8, DF-11
 
@@ -339,24 +345,31 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | T-HST-01 | E | Fork/branch PR code runs on the production host; docker-group membership equals root | AT-6 | Open (CICD-01) | No `pull_request` job on the production host; PR workflows only on a non-production runner or disabled | 0031 | Phase 0 | Phase 0 exit: workflow inspection + a test PR |
 | T-HST-02 | I | Every `.env.prod` value is in public history | AT-1 | Open (CICD-06) | Rotate all; secret scanning and push protection | 0031 | Phase 0 | As T-SRV-04 |
 | T-HST-03 | I | A DB dump yields plaintext phone numbers, the contact graph and (pre-1.0) content; post-1.0 metadata | AT-4, AT-5 | Open by design until 1.0 | 1.0 removes content for E2E conversations; metadata is a written residual (ADR-0019) | 0019, 0021 | 1.0 | **RQ-13** |
-| T-HST-04 | E, I | A co-tenant project on the same host reaches `shared-postgres`/`shared-redis`/`shared-minio` | AT-4 | Open (SAD TC-9) | **Not addressed by the brief** — see RN-3 | — | — | — |
-| T-HST-05 | R | Legal requests and privileged access leave no record | AT-4, AT-5 | Open | Legal-request log and transparency counters in the compliance module | brief §4.2 | 0.4+ | Inspection |
+| T-HST-04 | E, I | A co-tenant project on the same host reaches `shared-postgres`/`shared-redis`/`shared-minio` | AT-4 | Open (SAD TC-9) | Tracked as risk R23 (record isolation at 1.0 security review); not in the brief, see RN-3 | — | 1.0 (review) | Inspection at 1.0 security review |
+| T-HST-05 | R | Legal requests and privileged access leave no record | AT-4, AT-5 | Open | Legal-request log and transparency counters in the compliance module | brief §4.2 | — (not scheduled by the brief; owner to schedule) | Inspection |
 | T-HST-06 | I | Tokens, OTPs or content in logs | AT-4 | Partial | JWT out of query strings; observability rules (SAD §8.5) | 0022 | 0.4 | Log inspection |
 | T-HST-07 | D | One host at ~92% disk carries production and CI | environment | Open (R19) | CI, LiveKit and signer off the host | 0031, 0023 | Phase 0 / 0.7 | `df` trigger in R19 |
+| T-HST-08 | T | Redis fan-out tampering (DS-5): a co-tenant or insider publishes to `ws:broadcast:*` to inject or suppress WS frames | AT-4 | Open (TB-9) | WS hints carry no authority; pull-by-seq is truth (P6); from 1.0 content is sealed and verified on device | 0014, 0016 | 0.5 / 1.0 | Test: an injected broadcast causes at most a pull and no state change |
 
 ### 6.16 CI/CD and supply chain — PR-7, DF-13, TB-5
 
 | ID | Cat | Threat | AT | Today | Mitigation | ADR | MS | Verification |
 |---|---|---|---|---|---|---|---|---|
 | T-SCM-01 | I | Signing key and Play credential are repo-level secrets, readable by any same-repo branch PR; `DEBUG_KEYSTORE` written into the persistent runner home | AT-6 | Open (CICD-02, MISS-03 CI/CD) | `release` environment restricted to tags on `main` with a required reviewer; production environment verified | 0031 | Phase 0 | Environment-settings inspection |
-| T-SCM-02 | T | No action SHA-pinned; `trivy-action@master` ran on the production-host runner during the March 2026 compromise window | AT-6 | Open (CICD-05) | SHA-pin every action; remove `@master` | 0031 | Phase 0 | Workflow inspection |
+| T-SCM-02 | T | No action SHA-pinned; `trivy-action@master` used on the production-host runner; 12 Security runs fell inside the March 2026 Trivy compromise window (CICD-05, partially confirmed; impact unverifiable) | AT-6 | Open (CICD-05) | SHA-pin every action; remove `@master` | 0031 | Phase 0 | Workflow inspection |
 | T-SCM-03 | S | Unknown runner `muhabbet-mordecai` with identical labels receives arbitrary jobs | AT-6 | Open (CICD-03) | Identify or deregister | 0031 | Phase 0 | Runner list inspection |
 | T-SCM-04 | E | Deploy `workflow_run` fires for a PR-triggered run whose head branch is named `main` (fork) | AT-6 | Open (MISS-01 CI/CD) | Deploy only the CI-built artefact/SHA of a push on `main`; PR jobs off the host | 0030, 0031 | Phase 0 / process | Workflow inspection |
 | T-SCM-05 | T | What ships is not what was tested: deploy rebuilds from `git pull`; mobile release builds twice | AT-6 | Open (CICD-07, CICD-10) | Build once → launch that exact APK/AAB on `emulator-5554` → promote the same artefact; deploy the CI-built image | 0030 | process | Release checklist with artefact hash |
-| T-SCM-06 | T | Dependency confusion or tampered dependency (JitPack global, no verification metadata) | AT-6 | Open (CICD-13, KMP-15) | **No ADR decides this** — see RN-5 | — | — | — |
+| T-SCM-06 | T | Dependency confusion or tampered dependency (JitPack global, no verification metadata) | AT-6 | Open (CICD-13, KMP-15) | Tracked as risk R24; no ADR decides it — see RN-5 | — | — | — |
 | T-SCM-07 | I | New secrets committed; Gitleaks never runs on the integration branch | AT-6 | Open (MISS-01 governance) | Gitleaks on every PR without a paths filter; push protection | 0031 | Phase 0 | A seeded test secret is blocked |
 | T-SCM-08 | R | Agents commit as the owner; zero reviews on 231 merged PRs | AT-6 | Open (GOV-06) | Agent identity; owner approves agent PRs | 0032 | process | Ruleset inspection |
 | T-SCM-09 | T | An agent writes code before design approval | agent | Open | Design-gate hook (a guard for agents, **not** a security boundary) | 0033 | process | Hook test: edit to `backend/**` refused while `APPROVAL.md` is unsigned |
+
+### 6.16a Moderation
+
+| ID | Cat | Threat | AT | Today | Mitigation | ADR | MS | Verification |
+|---|---|---|---|---|---|---|---|---|
+| T-MOD-01 | S, R | Fabricated report content attributed to a victim leads to a wrongful ban and, via ADR-0029 rule 5, certificate non-renewal and session closure | AT-8, AT-2 | n/a until 1.0 (server reads content today) | Human review before ban; reporter-supplied content treated as unverified; franking is research | 0029 | 1.0 | Inspection of the moderation workflow |
 
 ### 6.17 Legal compulsion (AT-5) — what can be produced, per era
 
@@ -370,7 +383,7 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | Identify a user | Phone number, device registry | Same | Same | Phone-OTP identity is the subscriber identity (ADR-0018) | Q-L1, Q-L4 |
 | Ghost device / key swap | n/a | Detectable by contacts (T-KEY-04) | n/a | Visible by design | — |
 | Device seizure | DB readable if unlocked | Same after first unlock (T-DEV-04) | — | Residual RR-6 | — |
-| Hosting in Turkey | Hetzner, Germany | Same | Same | Planned before the 1 M daily-access threshold | Q-L4, Q-L6 |
+| Hosting in Turkey | Hetzner, Germany | Same | Same | No decision; Ek md. 4(6) applies above 1 M daily access if Muhabbet is a *sosyal ağ sağlayıcı* (Q-L4(g)); owner decision after counsel | Q-L4, Q-L6 |
 
 ---
 
@@ -382,9 +395,12 @@ Column key: **S/T/R/I/D/E** category · **AT** attacker · **Today** state on `d
 | L-02 | Linking | Rotating tags are linkable within one 15-min epoch | DF-6, DF-7 | Epoch rotation; random per-session names | brief §8.5 | 1.2 | OTA capture | Within-epoch linkability (RR-5) |
 | L-03 | Linking | Contact discovery links phone numbers to accounts | DF-2 | Caps, block filter, discoverability reader | brief §8.6 | 0.4 / 0.6 | **RQ-12** | Matching remains server-side; OPRF research |
 | L-04 | Linking | The same device is linkable between server and radio identities | DF-6, DF-7 | Separate link key (domain separation); in-session rendezvous secret preferred so the server never learns the pair key | 0018, brief §8.5 | 1.2 | Inspection | — |
+| L-05 | Linking | Server links mule account to sender device for each uplinked bundle (co-location, social graph) | DF-8 | Minimise: do not persist mule↔bundle linkage beyond the quota counter; anonymous rate tokens are research | 0025 | 1.3 | Inspection of ingest logging | RR-9 |
+| L-06 | Detecting | Server infers off-server (co-located) delivery from receipt-before-seq ordering and timing (L2 receipt uploaded later; message arrives with `serverOwed` after the recipient acknowledged it) | DF-6, DF-7 | None designed; disclosed | 0013, 0024 | 1.2 | Analysis | RR-9 |
 | I-01 | Identifying | Phone number is the account identity, stored in plaintext server-side | DS-4 | Disclosed honestly (GOV-08 fix); access control (TB-9) | brief §8.6 | Phase 0 | Inspection | Inherent |
 | I-02 | Identifying | IP address identifies a subscriber to a call peer or telemetry | DF-5 | Relay-only for non-contacts; telemetry without IPs | 0023 | 0.7 / 1.1 | **RQ-15** | IPs visible to our TURN (DPIA) |
 | I-03 | Identifying | Advertisements carry account/phone/device identifiers | DF-7 | None carried | brief §8.5 | 1.2 | **RQ-17** | — |
+| I-04 | Identifying | Device certificate disclosed during the link handshake to an unauthenticated initiator | DF-6, DF-7 | PSK/identity-hiding handshake (T-PRX-14) | 0018, 0024 | 1.2 | Test; OTA capture | — |
 | Nr-01 | Non-repudiation | Signed messages, receipts or hash chains create durable proof of what a user said | all | No long-term signatures on messages or receipts; Merkle-DAG rejected (C5) | 0013, 0014 | — | Inspection | **Uplink sender-device signature — see RN-1** |
 | Nr-02 | Non-repudiation | Server-side device attribution (5651) | DF-1 | Deliberate: attribution is a server record, not a cryptographic proof a third party can verify | 0029 | 0.4 | Inspection | Accepted (legal duty) |
 | D-01 | Detecting | Wake timing reveals activity to Google/Apple | DF-3 | Content-free hint; collapse key | 0019 | 0.5 | **RQ-07** | Timing (RR-3) |
@@ -440,15 +456,16 @@ Threats verified by a named test or inspection rather than an RQ are listed in t
 
 | Milestone | Must be *Mitigated* (not merely planned) |
 |---|---|
-| Phase 0 | T-SRV-04, T-HST-01, T-HST-02, T-SCM-01, T-SCM-02, T-SCM-03, T-SCM-07, T-DIR-03 |
-| 0.4 | T-SRV-01, T-SRV-02, T-SRV-03, T-SRV-05, T-SRV-06, T-SRV-08, T-SRV-12, T-KEY-01, T-KEY-02, T-DIR-01 (cap), T-DIR-02, T-REG-02, T-DEV-01, T-DEV-03 |
-| 0.5 | T-SRV-07, T-SRV-10 (hello), T-SRV-14, T-PSH-01, T-DEV-02, T-DEV-05, T-E2E-01 (fallback deleted) |
+| Phase 0 | T-SRV-04, T-HST-01, T-HST-02, T-HST-07 (CI off the host), T-SCM-01, T-SCM-02, T-SCM-03, T-SCM-04, T-SCM-07, T-DIR-03 |
+| 0.4 | T-SRV-01, T-SRV-02, T-SRV-03, T-SRV-05, T-SRV-06, T-SRV-08, T-SRV-12, T-KEY-01, T-KEY-02, T-DIR-01 (cap), T-DIR-02, T-SRV-13, T-REG-02, T-DEV-01, T-DEV-03, T-HST-06 |
+| 0.5 | T-SRV-07, T-SRV-10 (hello), T-SRV-11, T-SRV-14, T-PSH-01, T-PSH-02, T-PSH-03, T-PSH-04, T-HST-08 (hint-only), T-DEV-02, T-DEV-05, T-E2E-01 (fallback deleted) |
 | 0.6 | T-KEY-03, T-KEY-05, T-DIR-01 (discoverability reader) |
-| 0.7 | T-CAL-01 (relay policy), T-CAL-02 (disclosure), T-CAL-03, T-CAL-04, T-CAL-06 |
-| 1.0 | T-SRV-09, T-SRV-10 (minimum version), T-KEY-04 (visibility), T-E2E-*, T-MED-01, T-MED-02, T-HST-03 (content) |
-| 1.2 | T-PRX-*, T-PKI-01…03, T-MED-04 |
+| 0.7 | T-CAL-01 (relay policy), T-CAL-02 (disclosure), T-CAL-03, T-CAL-04, T-CAL-05, T-CAL-06 |
+| 1.0 | T-SRV-09, T-SRV-10 (minimum version), T-KEY-04 (visibility), T-GRP-01, T-REG-06, T-MOD-01, T-E2E-*, T-MED-01, T-MED-02, T-HST-03 (content) |
+| 1.2 | T-PRX-* (incl. T-PRX-14), T-PKI-01…03, T-MED-04 |
 | 1.3 | T-UPL-*, T-OWN-* |
 | 1.4 | T-RF-* |
+| Unscheduled (owner to schedule; not in brief §13) | T-REG-05, T-HST-05 |
 
 ---
 
@@ -459,14 +476,16 @@ row in the risk register. None may be claimed as "solved" in user-facing text.
 
 | ID | Residual | Why it remains | Disclosure | Linked |
 |---|---|---|---|---|
-| RR-1 | The server is in the identity TCB: it can add a ghost device or issue a certificate; contacts detect it only through a safety-number change | Owner decision 1; key transparency without independent auditors would be false assurance | Safety-number UX; transparency text | A-4, T-KEY-04, T-PKI-04 |
+| RR-1 | The server is in the identity TCB: it can add a ghost device or issue a certificate; contacts detect it only through a safety-number change | Owner decision 1; key transparency without independent auditors would be false assurance | Safety-number UX; transparency text | A-4, T-KEY-04, T-GRP-01, T-PKI-04 |
 | RR-2 | Server-visible metadata after 1.0 (sender/recipient devices, seq, sizes, timestamps, receipts) | Needed for mailbox deletion and #377 enforcement | Aydınlatma metni | ADR-0019, DD-04 |
 | RR-3 | Wake timing visible to Google/Apple | Push is the only wake path on mobile OSes | Aydınlatma metni | D-01 |
 | RR-4 | ≤ 7-day offline revocation window | Offline peers cannot learn of revocation sooner | Transparency text (Q-O6) | R15, T-PRX-02 |
 | RR-5 | Size-bucket and timing analysis on radio and uplink paths | Padding hides size, not timing | DPIA | T-PRX-07, T-UPL-08, T-RF-03 |
 | RR-6 | DB key available after first unlock | Background delivery | Settings help text | T-DEV-04 |
-| RR-7 | SIM-swap account takeover | Phone-OTP identity | Safety-number change | T-REG-01, RN-4 |
-| RR-8 | Test-number OTPs in production logs | Documented operational practice | Internal only | T-REG-04 |
+| RR-7 | SIM-swap account takeover | Phone-OTP identity | Safety-number change | T-REG-01, T-REG-06, RN-4, R25 |
+| RR-8 | Test-number OTPs in production logs | Documented operational practice | Internal only | T-REG-04, R26 |
+| RR-9 | Server-inferable co-location from uplink and off-server receipts | The server must attribute uplinked bundles and receive off-server receipts | DPIA DT-1/DT-2; aydınlatma metni | L-05, L-06 |
+| RR-10 | Captured uplink bundles become readable at the routing/signature layer if the static uplink key leaks | Static-key HPKE has no forward secrecy | DPIA DT-2 | T-UPL-07, RN-1 |
 
 ---
 
@@ -518,7 +537,11 @@ This model is updated (and re-signed by the owner) when any of the following hap
 > of authorship for uplinked messages only — a non-repudiation asymmetry between paths (LINDDUN
 > Nr-01). Proposed for the 1.3 ADR revision: sign with a key whose only purpose is uplink
 > authentication, verify at ingest, **do not persist** the signature, and record attribution as for
-> any server-path send. Needs crypto review at 1.3 entry.
+> any server-path send. That still creates a third-party-verifiable artefact in transit and in any
+> captured bundle, which a later uplink-key leak (T-UPL-07, RR-10) would expose. Alternative with
+> deniability: authenticate the bundle with a MAC under a device–server shared secret established at
+> registration; the server can verify it but cannot prove authorship to a third party. Crypto review
+> at the 1.3 entry gate to choose between the two.
 
 > **Reviewer note (open) RN-2 — app-presence disclosure on LAN/Nearby.** Brief §8.5 randomises
 > instance and endpoint names and rotates tags, but a DNS-SD service type and a Nearby service
@@ -531,18 +554,27 @@ This model is updated (and re-signed by the owner) when any of the following hap
 > **Reviewer note (open) RN-3 — co-tenant data stores.** The brief's threat surface does not cover
 > TB-9: `shared-postgres`, `shared-redis` and `shared-minio` serve other projects on the same host
 > (SAD TC-9), so a compromise of a neighbouring project reaches Muhabbet data without crossing TB-1.
-> ADR-0031 removes PR jobs from the host but not co-tenancy. Proposed: add a risk-register row and
-> record the current isolation (separate DB roles, buckets, Redis ACLs/DB numbers) in the 1.0
+> ADR-0031 removes PR jobs from the host but not co-tenancy. Recorded as R23 in
+> [`risk-register.md`](risk-register.md); the brief should adopt it. Proposed: record the current isolation (separate DB roles, buckets, Redis ACLs/DB numbers) in the 1.0
 > crypto/security review; any change is an owner decision.
 
 > **Reviewer note (open) RN-4 — account takeover.** The only control against SIM-swap/OTP takeover
 > is the new-device safety-number change at 1.0. The brief does not say whether a successful OTP on
 > a new handset revokes the victim's existing devices, nor whether a registration lock is wanted.
-> Proposed as an owner question for 1.0 (not a design change here).
+> Proposed as an owner question for 1.0 (not a design change here). Recorded as R25 in
+> [`risk-register.md`](risk-register.md). Companion-device link phishing (T-REG-06) is the
+> multi-device form of the same takeover and should be answered together.
 
 > **Reviewer note (open) RN-5 — dependency integrity.** CICD-13 and KMP-15 (no Gradle dependency
 > verification, JitPack in global resolution, no `distributionSha256Sum`) are supply-chain threats
 > to the very builds that will carry libsignal, but neither ADR-0031 nor any other ADR decides them,
 > and the brief lists only SHA-pinning of actions. Proposed: add dependency verification, wrapper
 > validation and `exclusiveContent` for the Signal repository to ADR-0031 before 1.0 (the Signal
-> repository is the only source for libsignal versions above 0.86.5, ADR-0017).
+> repository is the only source for libsignal versions above 0.86.5, ADR-0017). Recorded as R24 in
+> [`risk-register.md`](risk-register.md); the brief should adopt it.
+
+> **Reviewer note (open) RN-6 — client pinning of encryption state.** The brief does not state that
+> clients pin a conversation's encryption state. Because `encryption_state` is server metadata, a
+> compromised or compelled server could report an E2E conversation as `NONE` and the client would
+> then legitimately send plaintext (T-E2E-06). Proposed as a 1.0 clarification of ADR-0016: the
+> state is monotonic on the client (E2E → NONE is refused and surfaced).

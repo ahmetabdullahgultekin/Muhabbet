@@ -1,6 +1,6 @@
 # ADR 0010 — Hybrid backbone: the server is the authority, every other path is an additional pipe
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0010](../architecture/multi-transport/decision-brief-2026-11-12.md) · Amends [ARCHITECTURE.md §8](../ARCHITECTURE.md) (seams list). Supersedes nothing.
+**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0010](../architecture/multi-transport/decision-brief-2026-11-12.md) · Sets the boundary for the [ARCHITECTURE.md §8](../ARCHITECTURE.md) seams added by ADR-0012. Supersedes nothing.
 
 ## Context
 
@@ -52,7 +52,7 @@ relies on it.
 5. LOCAL_ONLY (ADR 0008 Mode 3) is the only exception to rule 4: the server holds TTL ciphertext and
    delivery metadata only, and the conversation has causal, not total, order (ADR-0014).
 
-### 3. Seams added to ARCHITECTURE.md §8
+### 3. Seams within this boundary (added to ARCHITECTURE.md §8 by ADR-0012)
 
 | Seam | Side | Purpose | First real implementation |
 |---|---|---|---|
@@ -91,12 +91,21 @@ it.
 - When the server is down, there is no new contact, no group change, no key bootstrap and no
   moderation action. Revocation reaches offline peers only within the certificate window
   (≤ 7 days, ADR-0018/0029).
-- ARCHITECTURE.md §8 gains the three seams in Decision §3 (banner added; text change on approval).
+- ADR-0012 adds the seams in Decision §3 to ARCHITECTURE.md §8 (banner added; text change on approval).
 
 > **Reviewer note (open):** Brief §13 lists the ADRs that must be accepted before 0.5 starts
 > (0011/12/13/14/16/19/20/22/28) but not this one, although all of them presuppose it, and 0.4
-> already ships its first consequences (V28/V29 server seq and device-scoped idempotency). Suggest
-> adding ADR-0010 to the 0.4 entry criteria.
+> already ships its first consequences (V28/V29 server seq and device-scoped idempotency). 0.4 also
+> ships artefacts of ADR-0013 (BE-07 replayed ack, MOB-04 stopgap), ADR-0014 (V28/V29), ADR-0028
+> (version catalog, convention plugin, `.sqm` migrations) and ADR-0029 (age gate, V30), yet the 0.4
+> entry requires only "Phase 0 exit", i.e. ADRs dispositioned, possibly Rejected. Suggestion: 0.4
+> entry should require ADR-0010, 0013, 0014, 0028 and 0029 Accepted (or their 0.4 slices explicitly
+> accepted).
+
+> **Reviewer note (open):** the brief is internally inconsistent about who amends ARCHITECTURE.md
+> §8: its §3 intro attributes the update to ADR-0012, while brief ADR-0010's consequences attribute
+> it to ADR-0010. This ADR follows the §3 intro (ADR-0012 amends; ADR-0010 sets the boundary) so
+> that approving one ADR does not leave the amendment ambiguous.
 
 ## Alternatives considered
 

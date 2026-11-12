@@ -31,7 +31,7 @@ flowchart TB
         ackUC["AcknowledgeDeliveryUseCase"]:::inport
         sendSvc["<b>SendMessageService</b><br/>idempotent on (sender_device_id, client_message_id);<br/>duplicate replays ServerAck(replay=true)<br/>[0.4 V29, BE-07]"]:::svc
         mutSvc["<b>MessageMutationService</b><br/>edit / delete / reaction, bumps change_seq<br/>[0.5, BE-11 split]"]:::svc
-        seqr["<b>ConversationSequencer</b><br/>UPDATE conversations SET last_seq = last_seq + 1<br/>RETURNING, inside caller tx [0.4 V28, BE-06]"]:::svc
+        seqr["<b>ConversationSequencer</b><br/>assigns seq / change_seq via ConversationSequencePort<br/>[0.4 V28, BE-06]"]:::svc
         feed["<b>ChangeFeedService</b><br/>items, lastSeq, hasMore;<br/>hides unreleased scheduled msgs<br/>[0.5; 1.0 per-device envelopes]"]:::svc
         ackPol["<b>DeliveryAckPolicy</b><br/>per-device uptoSeq, non-sender member,<br/>existing seq; ReadReceiptPolicyPort<br/>[0.4 BE-03, 0.6 V32 BE-18]"]:::svc
         hintPub["<b>DeliveryHintPublisher</b><br/>after commit: WS sync.hint / message.new<br/>+ wake push, best effort"]:::svc
@@ -75,7 +75,7 @@ flowchart TB
     end
 
     subgraph outadapters["Driven adapters"]
-        jpa["<b>JPA persistence adapters</b><br/>JpaConversationSequenceAdapter,<br/>JpaPrekeyDirectory, JpaMailboxAdapter"]:::adapter
+        jpa["<b>JPA persistence adapters</b><br/>JpaConversationSequenceAdapter<br/>(UPDATE conversations SET last_seq = last_seq + 1<br/>RETURNING, inside caller tx),<br/>JpaPrekeyDirectory, JpaMailboxAdapter"]:::adapter
         wsfcm["<b>WsAndFcmHintAdapter</b>"]:::adapter
         fcmA["<b>FcmWakePush</b> (APNs later)"]:::adapter
         wsRevA["<b>WsSessionRevocationAdapter</b><br/>local + Redis channel"]:::adapter
@@ -107,11 +107,11 @@ flowchart TB
     claimUC --> prekeys
     uplink -.-> sendUC
 
-    sendSvc --> seqPort
-    mutSvc --> seqPort
-    sched --> seqPort
-    seqPort --> seqr
-    seqr --> jpa
+    sendSvc --> seqr
+    mutSvc --> seqr
+    sched --> seqr
+    seqr --> seqPort
+    seqPort --> jpa
     feed --> jpa
     feed -. "1.0" .-> mbPort
     ackPol -. "1.0 deleteUpTo" .-> mbPort
@@ -122,8 +122,8 @@ flowchart TB
     sendSvc -- "event: MessageAccepted (after commit)" --> hintPub
     hintPub --> hintPort
     hintPort --> wsfcm
-    wsfcm --> wake
-    wake --> wakePort
+    wsfcm --> wakePort
+    wake -- "owns (notification module)" --> wakePort
     wakePort --> fcmA
     fcmA --> fcm
     wsfcm --> wsreg

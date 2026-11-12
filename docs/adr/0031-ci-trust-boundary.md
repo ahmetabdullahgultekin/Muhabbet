@@ -1,14 +1,16 @@
-# ADR 0031 — CI trust boundary: no untrusted code on the production host, no long-lived keys before it holds
+# ADR 0031 — CI trust boundary
 
 **Status:** Proposed (process) — pending owner approval; no code may be written, and no GitHub setting changed, against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) (scope `process`; the security emergencies of brief §14 items 1–5 are scope `phase-0` and the brief recommends authorising them now, independently of design approval) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0031; §14 items 1–5](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/ci-trust-boundary.md`](../process/ci-trust-boundary.md) · **Incident record:** [`docs/process/security-incident-2026-11-env-prod.md`](../process/security-incident-2026-11-env-prod.md) · Supersedes the "deliberate trade" recorded in the header of `.github/workflows/mobile-release.yml` and ROADMAP.md "Where the keys live" (signing on the production runner).
 
 ## Context
 
+In one line: no untrusted code on the production host, and no long-lived keys before that holds.
+
 The repository is **public**. Its CI trust boundary does not exist:
 
 | Fact (evidence) | Why it matters |
 |---|---|
-| Every job in all 8 workflows on `dev` runs on `[self-hosted, linux, x64]`; `backend-ci.yml`, `mobile-ci.yml`, `security.yml` and `dependabot-auto-merge.yml` trigger on `pull_request`; no fork guard (CICD-01) | For `pull_request`, the workflow definition comes from the PR's merge ref, so PR code chooses what runs |
+| Every job that runs in the 8 workflows on `dev` runs on `[self-hosted, linux, x64]`, except the variable-gated `ios-framework` job of `mobile-ci.yml` (`macos-latest`, currently off via `vars.ENABLE_MACOS_CI`); `backend-ci.yml`, `mobile-ci.yml`, `security.yml` and `dependabot-auto-merge.yml` trigger on `pull_request`; no fork guard (CICD-01) | For `pull_request`, the workflow definition comes from the PR's merge ref, so PR code chooses what runs |
 | One runner is the production host `muhabbet-cx43`, runner user `deploy`, member of the `docker` group (CICD-01; CLAUDE.md) | Docker-group membership is root-equivalent: `.env.prod`, the shared Postgres/Redis/MinIO of five projects and the running backend are reachable from any job |
 | A second runner `muhabbet-mordecai` (machine `mordecai`) with identical labels, documented nowhere, took jobs from 2026-10-26; registered between 2026-09-02 and 2026-10-26 (CICD-03) | Release-signing and deploy jobs can land on a machine nobody has described |
 | Release keystore and Play service-account key are **repository-level** secrets; `mobile-release.yml` has workflow-level `permissions: contents: write` and no `environment:` (CICD-02) | Any same-repo branch PR (agent, Copilot, Dependabot-bumped plugin) can read them via an edited workflow; a shared persistent `GRADLE_USER_HOME` lets a PR job plant an init script that runs inside the next release build |
@@ -25,9 +27,25 @@ this boundary.
 ## Decision
 
 1. **No `pull_request` job — fork or same-repo branch — ever runs on the production host.**
-2. **Interim, until CI moves off `muhabbet-cx43`:** PR-triggered jobs run only on a non-production
-   runner, or are disabled. Push jobs on `main` (owner-merged code) and tag jobs may continue on
-   `cx43` only after (1) holds and only with a fresh `GRADLE_USER_HOME` per run.
+2. **Interim, until CI moves off `muhabbet-cx43`: the runner service on `cx43` is stopped and
+   deregistered.** The repository then has no CI on that host; the owner runs the gates locally
+   (ADR-0030 reviewer note) until hosted runners or a separate non-production box exist. Rationale:
+   a runner cannot be restricted to "push to `main`" jobs. Workflow files come from the PR or branch
+   being run, so a job-level `if: github.event_name != 'pull_request'` guard (or deleting
+   `pull_request` triggers) stops only well-behaved PRs: (a) a same-repo PR deletes the `if:`;
+   (b) a PR adds a new workflow with `on: pull_request` and `runs-on: [self-hosted, linux, x64]`;
+   (c) any write-access identity — including agents using the owner's token today — pushes a branch
+   carrying a workflow with `on: push` and no branch filter. Each runs as `deploy` (docker group) on
+   `cx43`. Workflow-restricted runner groups, the GitHub control that would bind a runner to named
+   workflows, exist for organisations and enterprises only, not for a user-owned repository.
+   **Accepted-risk variant (owner decision, recorded in `APPROVAL.md` with an expiry):** if the owner
+   keeps `cx43` registered for `main`/tag jobs anyway, that is an explicit accepted risk, permitted
+   only with all of: no write-access identity other than the owner; the agent GitHub App without the
+   `workflows` permission (ADR-0032 D1); "Require approval for all external contributors"; the
+   `if:` guard on every self-hosted job (hygiene, not a boundary); a fresh `GRADLE_USER_HOME` per
+   run; and the adversarial test of F1. The residual risk is the owner's own credential and every
+   workflow the owner merges; no long-lived key of Decision 10 may ever be created or stored on
+   `cx43` under this variant.
 3. **Target:** all `pull_request`, `push` and `schedule` CI on GitHub-hosted ephemeral runners once
    the billing lock is cleared (public repo, so free), or on a separate non-production box with
    ephemeral (JIT) registration and custom labels. Zero runners on the production host. Deploy is a
@@ -38,7 +56,11 @@ this boundary.
 5. **Protected environments.**
    - `release`: holds `MUHABBET_KEYSTORE_BASE64`, `MUHABBET_KEYSTORE_PASSWORD`, `MUHABBET_KEY_ALIAS`,
      `MUHABBET_KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON`; deployment policy = tags `v*`; required
-     reviewer = owner; repository-level copies deleted.
+     reviewer = owner; repository-level copies deleted. Both the build job (tag push) and the promote
+     job run in it; the promote job is therefore dispatched **on the tag ref**
+     (`gh workflow run "Mobile Release" --ref vX.Y.Z -f track=<track>`), because a dispatch on the
+     default branch has ref `refs/heads/main` and the environment rejects it. The workflow definition
+     is then taken from the tag.
    - `production`: holds `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`; deployment policy = branch `main`;
      required reviewer = owner. Its current configuration is **verified**, not assumed.
 6. **Actions are SHA-pinned** (40-character SHA plus `# vX.Y.Z` comment; `trivy-action` ≥ v0.35.0
@@ -75,9 +97,11 @@ conditions of `APPROVAL.md`.
 
 ## Consequences
 
-- CI capacity changes. Until the billing lock is cleared or a second box exists, PRs carry no CI and
-  the owner runs gates locally (see ADR-0030 reviewer note on required checks).
-- Rotating `JWT_SECRET` forces every user to log in again; the four rotations touch **shared**
+- CI capacity changes. Until the billing lock is cleared or a second box exists, there is no CI at
+  all (Decision 2) and the owner runs gates locally (see ADR-0030 reviewer note on required checks).
+  Required status checks (ADR-0030) cannot pass without a runner, so the trunk switch waits for one.
+- Rotating `JWT_SECRET` invalidates every outstanding **access** token (see the reviewer note below
+  on why this does not log users out); the four rotations touch **shared**
   instances (`shared-postgres`, `shared-redis`, `shared-minio`) used by other projects on the host and
   need coordination (incident record §5).
 - Release signing moves to an ephemeral runner with the `release` environment; ROADMAP "Where the
@@ -115,18 +139,34 @@ External: [GitHub security hardening for Actions](https://docs.github.com/en/act
 > `main`". GitHub environment deployment policies can restrict to tag *patterns* (`v*`), not to
 > "tags whose commit is on `main`". The process doc closes the gap with (a) the `v*` tag ruleset of
 > ADR-0030 limiting who can create release tags and (b) a first build step that fails unless
-> `git merge-base --is-ancestor "$TAG" origin/main`. Confirm this is an acceptable reading.
+> `git merge-base --is-ancestor "$TAG" origin/main` (checkout with `fetch-depth: 0`, failing closed
+> if `origin/main` is absent). Release tags exist on `main` only, hotfixes included (ADR-0030 D5).
+> Confirm this is an acceptable reading.
+
+> **Reviewer note (open):** the brief (ADR-0031 Consequences; §14 item 1) says rotating `JWT_SECRET`
+> forces every user to log in again. The code says otherwise: refresh tokens are 32 random bytes
+> stored as a SHA-256 hash (`JwtProvider.kt:99-103`; `AuthService.kt:367-394`) and do not depend on
+> `JWT_SECRET`. After rotation an old access token gets 401 and the client's Ktor Auth refresh
+> (401 → refresh, CLAUDE.md) silently obtains a new one; nobody is logged out. Forcing re-login is a
+> separate owner decision — revoke all refresh tokens (`refresh_tokens.revoked_at`) — taken in
+> incident action A4. Open question: whether anyone holding forged access tokens could have obtained
+> refresh tokens. The brief's Phase-0 exit test ("old JWT failing") remains valid.
+
+> **Reviewer note (open):** the brief's interim wording ("PR jobs off `cx43`") is implemented here as
+> "runner off `cx43`" (Decision 2), because no workflow-level guard can keep PR- or branch-supplied
+> workflow files off a repository-level self-hosted runner. Confirm, or record the accepted-risk
+> variant.
 
 > **Reviewer note (open):** rotation order matters and the brief does not state it. While PR jobs
 > still run on `cx43`, any rotated value written to `/opt/projects/Muhabbet/.env.prod` is again
-> readable by PR code (CICD-01). Rotation should therefore follow Decision 1/2 (PR jobs off `cx43`),
+> readable by PR code (CICD-01). Rotation should therefore follow Decision 2 (runner off `cx43`),
 > or be repeated after it. The incident record orders the actions this way.
 
 ## Verification
 
 | # | Check ("in force" item) | Method |
 |---|---|---|
-| F1 | No PR job runs on `cx43` | Inspect every workflow's `on:`/`runs-on:`/`if:`; open a test PR from a branch and confirm no job is scheduled on `muhabbet-cx43` (Actions run → job → "Runner name") |
+| F1 | No PR- or branch-supplied code can run on `cx43` | Settings → Actions → Runners lists no runner on `cx43`, and on the host `systemctl list-units 'actions.runner.*'` shows none active. **Accepted-risk variant only** (Decision 2), replacing the runner check: (i) Settings → Collaborators lists no write-access identity but the owner; (ii) the agent App's installation shows no `workflows` permission; (iii) adversarial test — using the agent identity, push a throwaway branch that adds a workflow with `on: push` and `runs-on: [self-hosted, linux, x64]`: the push is refused and no job appears on `cx43`. A test PR that merely omits the `if:` guard is not evidence. |
 | F2 | `muhabbet-mordecai` resolved | Settings → Actions → Runners lists only documented runners; ownership recorded |
 | F3 | Environments | `gh api repos/{owner}/{repo}/environments/release` and `/production` show deployment policies and reviewer; `gh secret list` (repository level) no longer lists the five release or three VPS secrets |
 | F4 | Pinning | `grep -hoE 'uses: [^ ]+' .github/workflows/*.yml` — every ref matches `@[0-9a-f]{40}`; lint job green |

@@ -52,7 +52,7 @@ architecture described in §2.
 | Kimlik / Identity | Phone number + SMS OTP (Twilio Verify in production); the number is stored in plaintext server-side |
 | Sunucu / Server | One backend (Spring Boot) hosted by Hetzner in **Germany**; the server stays authoritative for identity, devices, keys, ordering, mailbox, push and moderation in every future mode (ADR-0010) |
 | Şifreleme / Encryption | **Today: none end-to-end** — content is protected by TLS only and is readable by the server. Planned at 1.0: end-to-end encryption with libsignal for 1:1 and small groups; channels and communities stay server-readable by design |
-| İşlemciler / Processors | Hetzner (hosting), Google FCM (push), Twilio (OTP); later Apple APNs, a LiveKit call server (location open), a certificate-signing host |
+| İşlemciler / Processors | Hetzner (hosting), Google FCM (push), Twilio (OTP), Google Firebase Authentication (client-side phone sign-in, tried before the backend-OTP fallback), Sentry (crash reporting, if configured); later Apple APNs, a LiveKit call server (location open), a certificate-signing host |
 | Tüzel kişilik / Entity | Not yet formed (`docs/legal/README.md` uses placeholders) |
 | Ölçek / Scale | MVP, solo developer; far below 1 M daily accesses today |
 | Yaş / Age | No age gate exists yet; Terms say 18+ (or 16+ with parental consent, undecided); a registration age gate is planned for the current milestone (0.4) |
@@ -68,14 +68,16 @@ architecture described in §2.
 | Doğrudan arama / Direct 1:1 call | 1.1 | Encrypted audio between the two phones | — | No |
 | Yerel ağ / LAN (Wi-Fi without internet) | 1.2 | End-to-end ciphertext between **verified contacts** only, user-started foreground mode | The two phones | No |
 | Yakındaki cihazlar / Nearby (BLE → Wi-Fi, Wi-Fi Direct/hotspot via Google Nearby Connections) | 1.2 | Same; advertisements carry only rotating random tags | The two phones | No |
-| Kendi cihazları / Own linked devices | 1.3 | Ciphertext held by the user's own tablet for the user's other device | The user's device, ≤ 24 h | No |
+| Kendi cihazları / Own linked devices | 1.3 | Ciphertext held by the user's own tablet for the user's other device | The user's own device, in a separate encrypted custody store, until delivered or expired (bundle lifetime bounded by the 30-day outbox lifetime; exact custody TTL not yet set, ADR-0025) | No |
 | Kişi aracılığıyla iletim / Uplink via a contact's phone | 1.3 | An opaque, padded blob sealed to the server's key, containing the end-to-end ciphertext | The contact's phone (≤ 24 h, ≤ 50 items / 10 MB), then the server | No |
 | LoRa (Meshtastic) | 1.4 | ≤ ~200-byte encrypted frames over licence-exempt EU868 radio via certified nodes | Nodes in transit | No — **excluded from Turkish builds until Q-L2 is answered** |
 
-Every off-server path is limited to registered users who already share a conversation and whose
-devices hold a server-issued certificate valid for at most 7 days; age attestation is a
-precondition for that certificate (ADR-0029). Channels, communities and groups never use
-off-server paths.
+Every off-server *messaging* path (LAN, Nearby, uplink, LoRa) is limited to registered users who
+already share a 1:1 conversation, hold a verified safety number and have server-issued device
+certificates valid ≤ 7 days, with age attestation as a precondition (ADR-0029). Channels,
+communities and groups above the off-server cap are server-only. In 1.2 the cap is 1:1 only;
+off-server small groups (≤ 32) would need a later ADR. Direct 1:1 calls (1.1) are peer-to-peer
+between mutual contacts and use relay-only ICE otherwise.
 
 ---
 
@@ -98,8 +100,9 @@ register). Counsel should confirm all of them.
 | S-9 | **5651** md. 2(1)(s) | "*Sosyal ağ sağlayıcı:* Sosyal etkileşim amacıyla kullanıcıların internet ortamında metin, görüntü, ses, konum gibi içerikleri oluşturmalarına, görüntülemelerine veya paylaşmalarına imkân sağlayan gerçek veya tüzel kişileri" | Verified (LEG-02) | <https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5651.pdf> |
 | S-10 | 5651 md. 2(1)(v) (Ek: 7590/27) | "*Başkanlık:* Siber Güvenlik Başkanlığını" | Verified | as S-9 |
 | S-11 | 5651 md. 2(1)(j), 2(1)(m), md. 5(3) | *Trafik bilgisi*: "Taraflara ilişkin IP adresi, kaynak ve hedef port bilgisi, verilen hizmetin başlama ve bitiş zamanı, yararlanılan hizmetin türü, aktarılan veri miktarı ve varsa abone kimlik bilgilerini"; *yer sağlayıcı*: "Hizmet ve içerikleri barındıran sistemleri sağlayan veya işleten gerçek veya tüzel kişileri"; md. 5(3): the *yer sağlayıcı* keeps traffic data "bir yıldan az ve iki yıldan fazla olmamak üzere yönetmelikte belirlenecek süre kadar" | Read in the downloaded text; **not separately verified** | as S-9 |
-| S-12 | 5651 Ek md. 4(1), (3), (4), (6) | Thresholds of **more than one million daily accesses from Turkey**: Turkish representative for foreign providers (1); answer applications within 48 hours (3); six-monthly Turkish reports to the Başkanlık (4); "Türkiye'deki kullanıcıların verilerini Türkiye'de barındırma yönünde gerekli tedbirleri alır" (6) | Verified (LEG-02) | as S-9 |
-| S-13 | 5651 Ek md. 4(5) | For listed TCK offences (md. 103, 217/A, 302, 309–316, 328–337), information needed to reach the perpetrators is given to the prosecutor/court "ilgili sosyal ağ sağlayıcının Türkiye'deki temsilcisi tarafından" | Verified | as S-9 |
+| S-12 | 5651 Ek md. 4(1), (3), (4), (6) | Thresholds of **more than one million daily accesses from Turkey**: Turkish representative for foreign providers (1); answer applications within 48 hours (3); six-monthly Turkish reports to the Başkanlık (4); "Türkiye'deki kullanıcıların verilerini Türkiye'de barındırma yönünde gerekli tedbirleri alır" (6) | Verified for (6); (1), (3), (4) read in the downloaded text, not separately verified (LEG-02) | as S-9 |
+| S-12b | 5651 Ek md. 4(20)–(21) (Ek: 22/4/2026-7578/22) | (20) "ebeveyn kontrol araçları": control of *hesap ayarları*; parental permission or approval for *ücrete dayalı işlemler*; monitoring and limiting *kullanım süresi*. (21) "aldatıcı reklamları engelleyici tedbirler". No daily-access threshold in the text | Read in the downloaded text; not separately verified | as S-9 |
+| S-13 | 5651 Ek md. 4(5) | For listed TCK offences (md. 103, 217/A, 302, 309, 311–316, 328–331, 333–337), information needed to reach the perpetrators is given to the prosecutor/court "ilgili sosyal ağ sağlayıcının Türkiye'deki temsilcisi tarafından" | Verified | as S-9 |
 | S-14 | 5651 Ek md. 4(7) (Değişik: 22/4/2026-7578/22) | "Sosyal ağ sağlayıcı, onbeş yaşını doldurmamış çocuklara hizmet sunamaz ve bu hizmetin sunulmaması konusunda yaş doğrulama dâhil gerekli tedbirleri almakla yükümlüdür. Sosyal ağ sağlayıcı, onbeş yaşını doldurmuş çocuklara özgü ayrıştırılmış hizmet sunma konusunda gerekli tedbirleri alır. Bu fıkra kapsamında alınan tedbirler sosyal ağ sağlayıcının kendi internet sitesinde yayınlanır." The consolidated text's *yürürlük* table lists Law 7578 → Ek Madde 4, Ek Madde 5 → **1/11/2026** | Text verified (LEG-02); in-force date read from the table, not separately verified | as S-9 |
 | S-15 | **6698** KVKK md. 3(1)(ğ), (ı) | *Veri işleyen*: processes on the controller's behalf under its authority; *veri sorumlusu*: "Kişisel verilerin işleme amaçlarını ve vasıtalarını belirleyen …" | Verified (LEG-04) | <https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6698.pdf> |
 | S-16 | KVKK md. 9 (Değişik: 2/3/2024-7499/34) | (1) adequacy decision; (4) appropriate safeguards incl. (c) Board-announced standard contract; (5) standard contract notified "imzalanmasından itibaren beş iş günü içinde"; (6) without adequacy or safeguards, "arızi olmak kaydıyla" exceptions, incl. (a) explicit consent after being informed of risks | Verified (LEG-04) | as S-15 |
@@ -166,7 +169,8 @@ Nearby)** and **LoRa (EU868, KET-conformant hardware)**? Answer for each separat
 to listed state bodies; Art. 63(6) makes a breach a crime for those who do it "ve yaptıranlar"
 (S-5, S-6). The *telsiz* definition (S-4) covers any system using electromagnetic waves without a
 physical connection, which on its face includes Wi-Fi and Bluetooth. The review found no statute
-explicitly banning app-level E2E and notes that E2E messengers are used in Turkey, but the risk
+explicitly banning app-level E2E, but that search was not verified (LEG-03: a key source returned
+403); it notes that E2E messengers are used in Turkey, but the risk
 sharpens when the app itself emits encrypted frames over radio (LEG-03). ADR-0029 rule 7 requires
 that this question names BLE and Wi-Fi, not only LoRa. The Meshtastic module is compiled out of
 Turkish builds until a written answer exists (ADR-0026).
@@ -210,7 +214,7 @@ claim** until this question is answered (ADR-0029 rule 1, risk R7). From 1.2 a v
 attestation is a precondition for any off-server path. The published Terms say 18+ (or 16+ with
 parental consent, decision pending), which is stricter than the statute.
 
-**Mevzuat / Statute:** S-9, S-14; KVKK S-15 (date of birth as personal data).
+**Mevzuat / Statute:** S-9, S-12b, S-14; KVKK S-15 (date of birth as personal data).
 
 **Alt sorular / Sub-questions**
 
@@ -223,6 +227,7 @@ parental consent, decision pending), which is stricter than the statute.
 | e | What must be published on the website about the measures taken? |
 | f | Which minimum age should the product enforce, given statute (15) and the published Terms (18, or 16 with parental consent)? |
 | g | What is the lawful basis and retention for the date of birth and any e-Devlet/NFC evidence (KVKK Art. 5, Art. 4(2)(d))? |
+| h | Does Ek md. 4(20) (S-12b) require parental-control tools from Muhabbet if it admits users aged 15–17, regardless of scale? |
 
 **Neyin önünü açar / What it unblocks:** any compliance statement about the 0.4 age gate (RQ-10
 analysis); the Terms update; the age-policy decision (`[AGE-POLICY DECISION]`); whether an e-Devlet
@@ -244,7 +249,7 @@ E2E content?
 **Bağlam / Context.** The definition (S-9) covers anyone enabling users to create, view or share
 text, image, sound or location "sosyal etkileşim amacıyla". Channels, status/stories and
 communities make the classification more likely than for 1:1 chat alone (LEG-02). The architecture
-keeps channels, communities and every group **server-only** so central takedown remains possible
+keeps channels, communities and groups above the off-server cap (all groups in 1.2) **server-only** so central takedown remains possible
 (ADR-0029 rule 2); reports are durable and reach the server even if made offline (rule 3). From
 1.0 the server cannot read 1:1 and small-group content; moderation of that content relies on what a
 reporter supplies (risk R18; message franking is research). Hosting is in Germany.
@@ -331,11 +336,12 @@ for incidental transfers (S-16, LEG-04).
 
 | # | Sub-question |
 |---|---|
-| a | For each recipient — Hetzner (Germany), Google FCM, Apple APNs, Twilio Verify, the future LiveKit host — which Art. 9 mechanism applies (adequacy decision, standard contract with five-business-day notification, other safeguard)? |
+| a | For each recipient — Hetzner (Germany), Google FCM, Apple APNs, Twilio Verify, Firebase Authentication, Sentry, the future LiveKit host — which Art. 9 mechanism applies (adequacy decision, standard contract with five-business-day notification, other safeguard)? |
 | b | Is a content-free wake hint (device token, internal conversation id, sequence number, timing) a transfer of personal data? |
 | c | Does the choice of LiveKit host location (Turkey vs. EU) change the answer materially? |
 | d | What exact changes should be made to `02-aydinlatma-metni.md` and `03-acik-riza-metni.md`? |
 | e | Is there any processing here for which explicit consent remains the right basis? |
+| f | Must the controller register in the Veri Sorumluları Sicili (VERBIS, KVKK Art. 16) once the entity exists, or does a Board exemption apply? |
 
 **Neyin önünü açar / What it unblocks:** the 0.5 aydınlatma update for wake-only push (ADR-0019
 consequences); the 0.7 LiveKit host decision (Q-O8) and DT-3/DT-5 DPIAs; the `docs/legal`
@@ -489,16 +495,20 @@ added by the owner.
 ## 8. Reviewer notes
 
 > **Reviewer note (open):** brief Q-L4 asks "at what user threshold" as if every 5651 Ek md. 4 duty
-> were threshold-bound. In the consolidated text read, paragraphs (1), (3), (4) and (6) carry the
-> one-million daily-access threshold, but paragraph (7) — the under-15 ban with *yaş doğrulama* —
-> does not. The brief's design (age gate in 0.4 regardless of scale) is already the conservative
+> were threshold-bound. In the consolidated text read, paragraphs (7), (13)–(16), (20) and (21)
+> carry no daily-access threshold; (1), (3), (4) and (6) carry 1 M; (22)–(23) carry 10 M. Paragraph
+> (7) is the under-15 ban with *yaş doğrulama*; paragraph (20) (parental-control tools) bears on the
+> 15–17 cohort and is asked in Q-L3(h). The brief's design (age gate in 0.4 regardless of scale) is already the conservative
 > reading, so no design change follows; Q-L3(a) asks counsel to confirm.
 
-> **Reviewer note (open):** ADR-0029 and the SAD carry an open note that the 1/11/2026 in-force
-> date for the 7578 amendment was not in the verified evidence. The consolidated 5651 text
+> **Reviewer note (open):** the SAD (§2, reviewer note at `sad.md:136`) carries an open note that
+> the 1/11/2026 in-force date for the 7578 amendment was not in the verified evidence (ADR-0029 itself
+> states the date without a caveat). The consolidated 5651 text
 > downloaded by the legal fact-check (<https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5651.pdf>) lists
 > "7578 — Ek Madde 4, Ek Madde 5 — 1/11/2026" in its *yürürlük* table. That supports the brief's
-> date; it has not been re-read by an independent verifier and is still put to counsel in Q-L3.
+> date; it has not been re-read by an independent verifier and is still put to counsel in Q-L3. The
+> extracted table is column-scrambled; the 7578 → Ek Madde 4/5 → 1/11/2026 reading should be
+> confirmed against the PDF.
 
 > **Reviewer note (open):** the Law 5809 copy actually used for the excerpts (alomaliye.com,
 > 25-12-2025) predates Law 7590. The verifier confirmed the cited articles are unchanged in the

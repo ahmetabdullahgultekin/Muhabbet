@@ -11,6 +11,12 @@
 %%   3. No attempt cap: only lifetime (default 30 d; CONTROL and call signalling 60 s) ends retries.
 %%   4. Backoff: full jitter 1 s to 30 s on the injected Clock; reset to now on an eligible LinkUp.
 %%   5. Late results from a superseded attempt fail the CAS and are ignored.
+%% > **Reviewer note (open):** brief section 6.1 permits RetryDelivery only from FAILED_PERMANENT and lists EXPIRED as
+%%   terminal; delivery-engine-spec T26 also allows it from EXPIRED. The EXPIRED --> QUEUED edge is therefore NOT drawn
+%%   and is not normative until the owner / brief confirms it.
+%% > **Reviewer note (open):** brief section 6.1 says "any non-terminal -> EXPIRED on lifetime", which would include
+%%   SERVER_ACCEPTED; spec T27 excludes SERVER_ACCEPTED and T28 purges it on LifetimeExceeded instead (spec reviewer
+%%   note R-2). Drawn per the spec reading below; the brief must state one rule.
 stateDiagram-v2
     direction TB
 
@@ -26,7 +32,7 @@ stateDiagram-v2
     state "CANCELLED<br/>row and entry deleted" as CANCELLED
 
     [*] --> QUEUED : Send (text), optimistic row + entry in one tx
-    [*] --> PENDING_SEAL : Send in E2E conversation (1.0+)
+    [*] --> PENDING_SEAL : Send in E2E conversation (1.0+), row + entry in tx, seal requested outside tx [spec T02]
     [*] --> PREPARING : Send (media)
 
     PREPARING --> PREPARING : UploadFailed(retryable), backoff
@@ -35,17 +41,19 @@ stateDiagram-v2
     PREPARING --> FAILED_PERMANENT : UploadFailed(non-retryable) [spec]
 
     PENDING_SEAL --> PENDING_SEAL : SealFailed(NoSession), trigger prekey fetch, NEVER plaintext
-    PENDING_SEAL --> QUEUED : SessionReady or IdentityApproved, then SealOk (sealed once)
+    PENDING_SEAL --> QUEUED : SessionReady, then SealOk (sealed once)
+    PENDING_SEAL --> QUEUED : IdentityApproved (UNTRUSTED_IDENTITY), re-seal, SealOk [spec T11]
     PENDING_SEAL --> FAILED_PERMANENT : SealFailed(non-retryable) [spec]
     QUEUED --> PENDING_SEAL : SealFailed(NoSession) on re-seal
 
     QUEUED --> IN_FLIGHT : Dispatch(link), due + link Ready/UP + lane capacity
-    RETRY_WAIT --> IN_FLIGHT : Dispatch(link), now >= nextAttemptAt
+    RETRY_WAIT --> IN_FLIGHT : Dispatch(link), now >= nextAttemptAt [spec T15]
     RETRY_WAIT --> RETRY_WAIT : EligibleLinkUp, backoff reset to now
 
     IN_FLIGHT --> SERVER_ACCEPTED : ServerAccepted(seq, ts, replay), replay is not an error
     IN_FLIGHT --> HOP_ACKED : HopAcked(peer / own device / mule)
-    IN_FLIGHT --> RETRY_WAIT : Timeout, LinkLost, Retry(after), Backpressure(after)
+    IN_FLIGHT --> RETRY_WAIT : Timeout, LinkLost, Retry(after)
+    IN_FLIGHT --> RETRY_WAIT : Backpressure(after), attempt not incremented [spec T23]
     IN_FLIGHT --> FAILED_PERMANENT : Rejected(code), permanent code
     IN_FLIGHT --> QUEUED : Recover at process start (server is idempotent)
 
@@ -53,14 +61,16 @@ stateDiagram-v2
     HOP_ACKED --> SERVER_ACCEPTED : SeqObserved(seq), a custodian already uploaded [spec]
     HOP_ACKED --> [*] : E2EDelivered and not serverOwed (LOCAL_ONLY), purge
 
-    SERVER_ACCEPTED --> [*] : ReceiptsSettled, purge entry (row and receipts stay)
+    SERVER_ACCEPTED --> [*] : ReceiptsSettled or LifetimeExceeded [T28], purge entry (row and receipts stay)
 
     FAILED_PERMANENT --> QUEUED : RetryDelivery (user)
-    EXPIRED --> QUEUED : RetryDelivery (user) [spec T26]
+    FAILED_PERMANENT --> [*] : user deletes, purge
+    EXPIRED --> [*] : user deletes, purge
 
     QUEUED --> CANCELLED : user deletes
     RETRY_WAIT --> CANCELLED : user deletes
     PENDING_SEAL --> CANCELLED : user deletes
+    PREPARING --> CANCELLED : user deletes [spec T29b]
     CANCELLED --> [*]
 
     PREPARING --> EXPIRED : lifetime exceeded
@@ -73,6 +83,8 @@ stateDiagram-v2
     note right of HOP_ACKED
         Ticks (ADR-0013), one meaning on every path:
         direct to recipient device = two ticks + "not yet synced"
+        once the sealed L2 DELIVERED receipt is stored
+        (HopAck alone = clock)
         own device or mule = clock + "handed to (device or contact)"
         There is never a "relayed to mesh" tick.
     end note

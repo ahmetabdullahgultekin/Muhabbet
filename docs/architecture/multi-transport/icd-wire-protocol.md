@@ -13,7 +13,7 @@
 | **Base** | `dev` @ 2434324 (branch `claude/muhabbet-p2p-architecture-wdan5r`) |
 | **Owning ADRs** | [0022](../../adr/0022-wire-protocol-envelope.md) (envelope, planes), [0013](../../adr/0013-delivery-semantics-and-ticks.md) (acks, idempotency), [0014](../../adr/0014-ordering-seq-change-feed.md) (seq, change feed), [0016](../../adr/0016-e2e-fail-closed-type-gate.md) (type gate), [0018](../../adr/0018-identity-keys-device-certificates.md) (keys, certificates), [0019](../../adr/0019-wake-only-push-and-server-plaintext.md) (wake push), [0021](../../adr/0021-adr0008-amendment-storage-modes-e2e.md) (mailbox), [0025](../../adr/0025-store-and-forward-custody.md) (uplink) |
 | **Companion docs** | [`data-model.md`](data-model.md) (tables behind these interfaces), [`threat-model.md`](threat-model.md), [`sad.md`](sad.md) §6 (runtime views) |
-| **Evidence** | [Findings register](../../reviews/2026-11-12-findings-register.md): KMP-07, KMP-11, KMP-03, BE-02, BE-03, BE-06, BE-07, BE-12, BE-15, BE-18, BE-19, MOB-03, MOB-05, MOB-10, C7, C9, GEM-07, GEM-08, GEM-13, GEM-16, MISS-03 |
+| **Evidence** | [Findings register](../../reviews/2026-11-12-findings-register.md): KMP-07, KMP-11, KMP-03, BE-02, BE-03, BE-06, BE-07, BE-12, BE-15, BE-18, BE-19, MOB-03, MOB-05, MOB-10, C7, C9, GEM-08, GEM-13, GEM-16, MISS-03 (verifier, MTU row: "MTU is negotiated, never constant") |
 | **Audience** | Implementers (backend, `:shared`, `:mobile:messaging`, `:mobile:crypto`), crypto reviewer (§6–§9) |
 
 ---
@@ -30,7 +30,9 @@
    - `bytes16` on the protobuf planes is the 16 raw bytes of the same UUID (big-endian, RFC 4122
      byte order).
    - `clientMessageId` is a **UUIDv7**, minted by the sender device. It is allowed on the JSON plane
-     (TLS to our server) and inside E2E plaintext, **never** on an outer off-server header (P9).
+     (TLS to our server), inside the link-AEAD-protected `SealedFrame.Routing` (§7.2) and inside E2E
+     plaintext; **never** in a cleartext `TransportFrame` header field or an uplink outer field
+     (`UplinkSubmission`, §8.2) (P9).
    - `frameId` is **16 random bytes**, never a UUID of any version (ADR-0022).
 4. **Time** on the JSON plane is epoch milliseconds (`Long`), as today (`serverTimestamp`). There
    are no timestamps on `TransportFrame` (P9); lifetimes travel as a relative `ttlSec`.
@@ -61,7 +63,9 @@
 
 Interfaces that are **unchanged** by this ICD: presence (`presence.*`), typing, group-management
 events (`group.*`), login approval (`auth.login_*`), calls (`call.*`; reworked by ADR-0023 at 0.7,
-specified there), and all REST endpoints not named in §4.
+specified there), and all REST endpoints not named in §4 — except
+`POST /api/v1/messages/{messageId}/delivered` (#596), which is a second ack path and is governed
+by §3.8.
 
 ---
 
@@ -92,11 +96,15 @@ advertise. **Rule C-2.** Unknown capability tokens are ignored by the server (fo
 
 ```text
 server: [minServer .. maxServer]   client: hello.protocolVersions (set), hello.minSupported
-common  = hello.protocolVersions ∩ [minServer .. maxServer]
+if maxServer < hello.minSupported → error{PROTOCOL_UNSUPPORTED}, close 4426   // server too old for this client
+common  = { p ∈ hello.protocolVersions | p ≥ hello.minSupported } ∩ [minServer .. maxServer]
 if common ≠ ∅                      → welcome{protocolVersion = max(common)}
 else if max(hello.protocolVersions) < minServer → error{PROTOCOL_TOO_OLD}, close 4426
 else                               → error{PROTOCOL_UNSUPPORTED}, close 4426
 ```
+
+`hello.minSupported` is the lowest version the **client** will still speak; the server never
+selects a version below it.
 
 **Rule N-1.** A client release MUST keep `minSupported ≤` the highest version supported by the
 previous **server** release, so a client can still talk to a server that was rolled back one
@@ -110,7 +118,7 @@ shipped in the previous **client** release for at least one further release, the
 |---|---|---|---|
 | Client ≤ 0.3.x (query-string token) | works (token accepted until cut-over) | works until cut-over, then HTTP 401 on upgrade | refused |
 | Client 0.4 (header auth, no `hello`) | works | works as **legacy** session: no `seq` frames, legacy ack shape, wake push shows a generic notification (§5.4) | works as legacy until `minServer` is raised; cannot join E2E conversations |
-| Client 0.5 (`hello`, v1) | n/a (no server support yet: client falls back to legacy mode on `UNSUPPORTED_FRAME` / close) | v1 | v1; E2E conversations unavailable (no `sealed`) |
+| Client 0.5 (`hello`, v1) | n/a (no server support yet). Fallback trigger: **any `error` frame in reply to `hello`, or no `welcome` within `HELLO_TIMEOUT`** → reconnect in legacy mode. A 0.4 server predates KMP-11: `ChatWebSocketHandler` answers an undecodable frame with `error{VALIDATION_ERROR, "Invalid message format: …"}` and keeps the socket open, so neither `UNSUPPORTED_FRAME` nor a close ever arrives (that reply also leaks exception text, which §3.12 forbids from 0.4) | v1 | v1; E2E conversations unavailable (no `sealed`) |
 | Client 1.0 (`hello`, v1+v2, `sealed`) | n/a | v1 (rollback window, Rule N-1) | v2 |
 
 ---
@@ -125,7 +133,7 @@ shipped in the previous **client** release for at least one further release, the
 | Auth (preferred) | `Authorization: Bearer <jwt>` on the HTTP upgrade request | 0.4 | BE-12 |
 | Auth (alternative) | `hello.auth.token` in the first frame, for clients that cannot set upgrade headers | 0.5 | BE-12 |
 | Legacy | `?token=` accepted only until the cut-over release; then the upgrade is refused with HTTP 401. Until then, access logs MUST NOT record query strings for `/ws` | 0.4 → cut-over | BE-12 |
-| Device binding | The session binds to `(userId, deviceId, jti, exp)` from the JWT. `hello.deviceId` MUST equal the JWT `deviceId` claim, else close 4401 | 0.5 | BE-12 |
+| Device binding | The session binds to `(deviceId, jti, exp)`; access tokens gain a random `jti` claim at 0.4 (ADR-0022; today's claims are `sub`, `deviceId`, `admin`, `iat`, `exp`, `iss`). `hello.deviceId` MUST equal the JWT `deviceId` claim, else `error{AUTH_DEVICE_MISMATCH}` then close 4401 | 0.4 (`jti`) / 0.5 | BE-12 |
 | `hello` deadline | A session that is not authenticated and has not sent `hello` within `HELLO_TIMEOUT` *(config)* is closed 4400. Before `hello` (v1+), every other frame is answered `error{HELLO_REQUIRED}` and the socket closed 4400 | 0.5 | KMP-11 |
 | Expiry | The server closes the session at JWT `exp` (4401) and within 5 s of logout, device revoke, account deletion or ban (4403). The client refreshes and reconnects | 0.4 | BE-12, RQ-09 |
 | Writes | Every outbound write goes through one `ConcurrentWebSocketSessionDecorator` per session (bounded send time and buffer) | existing on `dev` | BE-16 |
@@ -197,7 +205,7 @@ not change. "Ext" = extended with optional fields (compatible because `ignoreUnk
 | `message.ack` | C→S | changed (dual shape) | 0.4 / 0.5 | §3.8 |
 | `message.status` | S→C | ext | 0.5 | §3.9 |
 | `sync.hint` | S→C | new | 0.5 | §3.10 |
-| `message.edited`, `message.deleted`, `message.reaction`, `message.expired` | S→C | **legacy sessions only** from 0.5 | — | §3.10 |
+| `message.edited`, `message.deleted`, `message.reaction`, `message.expired` | S→C | **sessions without the `seq` capability only** from 0.5 | — | §3.10 |
 | `security.key_changed` | S→C | ext (exists today) | 0.6 | §3.11 |
 | `crl.delta` | S→C | new | 1.2 | §3.11 |
 | `error` | S→C | ext | 0.5 | §3.12 |
@@ -207,17 +215,30 @@ not change. "Ext" = extended with optional fields (compatible because `ignoreUnk
 
 | Field | Type | Req | v | Notes |
 |---|---|---|---|---|
-| `requestId` | String | legacy only | legacy, v1 | Kept for legacy correlation; v1+ correlates by `clientMessageId` |
-| `messageId` | UUID | legacy | legacy | Legacy name of the client message id |
+| `requestId` | String | legacy: yes; v1+: no | legacy, v1 | Kept for legacy correlation; v1+ correlates by `clientMessageId`. Retyped to `String? = null` in the shared type (§3.15) |
+| `messageId` | UUID | legacy: yes; v1+: no | legacy | Legacy name of the client message id. Retyped to `String? = null` (§3.15) |
 | `clientMessageId` | UUID (v7) | yes (v1+) | v1, v2 | Idempotency key with the session's `deviceId` (§3.6). For v1+ it also becomes `messages.id` (data-model V29 identity rule) |
 | `conversationId` | UUID | yes | all | |
 | `encryption` | `"none"` \| `"e2e/v1"` | yes (v1+) | v1, v2 | `"e2e/v1"` only with v2 and `sealed` |
-| `content`, `contentType`, `replyToId`, `mediaId`, `mediaUrl`, `thumbnailUrl`, `forwardedFrom`, `viewOnce`, `scheduledAt` | as today | for `"none"` | all | MUST be absent when `encryption = "e2e/v1"`; everything a user means travels inside `Content` (§6) |
+| `content`, `contentType`, `replyToId`, `mediaId`, `mediaUrl`, `thumbnailUrl`, `forwardedFrom`, `viewOnce` | as today | for `"none"` | all | MUST be absent when `encryption = "e2e/v1"`; everything a user means travels inside `Content` (§6). `content` is retyped to `String? = null` (§3.15) |
+| `scheduledAt` | Long? (ms) | no | all | `"none"`: as today. `"e2e/v1"`: MUST be absent at 1.0 — scheduled send is **unavailable in E2E conversations** until the owner decides otherwise (reviewer note below) |
 | `envelopes` | `List<{recipientDeviceId, protocol, ciphertextB64}>` | for `"e2e/v1"` | v2 | Exactly one per **active device of every member except the sending device**, the sender's own other devices included (brief §8.3) |
 | `clientTs` | Long (ms) | yes (v1+) | v1, v2 | Advisory; stored in `client_timestamp`; never used for order |
 
 `protocol` values (closed set, extended only by ADR): `signal-prekey/1`, `signal-message/1`,
 `sender-key/1`, `sender-key-distribution/1`.
+
+> **Reviewer note (open):** the brief's feature table does not say what happens to scheduled send in
+> E2E conversations, and `Content` has no scheduling field. Two options for the owner: **(a)** keep
+> `scheduledAt` as outer routing metadata for `"e2e/v1"`; the server holds the envelopes until release
+> (`message_envelopes.seq` nullable until the release transaction stamps it, data-model §3.9), and a
+> device that becomes a recipient between send and release is `NOT_ADDRESSED` for that message —
+> which needs the release to compare the envelope set with the active-device set and record the
+> difference; **(b)** record "scheduled send unavailable in E2E conversations" in the brief §12
+> feature table (the UI hides the option there). This ICD is written for **(b)** because it needs no
+> new server state; option (a) changes §3.5, §4.1 and data-model §3.9. Separately, for every E2E row
+> `messages.expires_at` (disappearing messages) is computed **server-side** from the conversation's
+> timer at insert, never from `Content.expires_at_ms` (sender clock, advisory display only, §6.2).
 
 Server validation order (each failure is an `ack{status: ERROR, errorCode}`; nothing is persisted):
 
@@ -256,7 +277,7 @@ Example, v2, E2E 1:1 conversation (recipient has two devices, sender has one oth
 
 | Field | Type | v | Notes |
 |---|---|---|---|
-| `requestId` | String? | legacy, v1 | Echoed when present |
+| `requestId` | String? | legacy, v1 | Echoed when present. Always populated for legacy sessions (§3.15) |
 | `clientMessageId` | UUID | v1+ | Correlation key |
 | `messageId` | UUID | all | Equals `clientMessageId` for v1+ sends (data-model V29) |
 | `status` | `OK` \| `ERROR` | all | |
@@ -268,16 +289,47 @@ Example, v2, E2E 1:1 conversation (recipient has two devices, sender has one oth
 | `details` | Object? | v2 | Only for `MSG_DEVICE_SET_STALE` |
 
 **Rules.**
-- **A-1 Idempotency.** The key is `(sender_device_id, client_message_id)`; insert is
-  `INSERT … ON CONFLICT DO NOTHING RETURNING` (V29). A conflict on that key replays the original
-  `{seq, serverTs}` with `replay = true`, status `OK` (BE-07, ADR-0013).
-- **A-2 Foreign collision.** A conflict on `messages.id` with a **different** sender device is
-  rejected `MSG_ID_CONFLICT` and never replays another device's ack.
+- **A-1 Idempotency, order of operations** (data-model V29). The key is
+  `(sender_device_id, client_message_id)`. In one transaction:
+  1. `SELECT seq, server_timestamp FROM messages WHERE sender_device_id = ? AND client_message_id = ?`
+     — found → replay the original `{seq, serverTs}` with `replay = true`, status `OK`, **without
+     allocating** (BE-07, ADR-0013).
+  2. Not found → allocate (`UPDATE conversations SET last_seq = last_seq + 1 … RETURNING`) and
+     `INSERT` (no `ON CONFLICT`).
+  3. The INSERT raises a unique violation (concurrent retry of the same send, or an id collision) →
+     roll the whole transaction back (the allocation is rolled back with it, so no seq value is ever
+     spent) and re-run step 1 on a fresh read; if still not found, apply A-2 / A-2b.
+- **A-2 Foreign collision.** A conflict on the PK `messages.id` with a row of a **different user** is
+  rejected and never replays another device's ack. Before 1.2 no other user can learn a
+  `clientMessageId` before the server commits it, so this is a client bug: `MSG_ID_CONFLICT`. From 1.2
+  (an off-server recipient learns `Routing.client_message_id` first) it is reported as
+  `MSG_ID_SQUATTED`, never `FAILED_PERMANENT` (reviewer note below).
+- **A-2b Pre-V29 / N-1 replay.** A PK conflict whose existing row has `sender_device_id IS NULL` and
+  `sender_id` = the requester is a **replay** (the 0.5 upgrade copies `pendingMessage` rows sent by
+  0.4 code into the outbox, data-model §5.3 step 4): `OK`, `replay = true`, original `{seq, serverTs}`.
+  The server MAY then set the row's `sender_device_id` to the requesting device.
+- **A-2c Legacy session duplicate (from 0.4).** A legacy session's duplicate send is answered
+  `status OK` with the original `messageId` and `serverTimestamp` (the legacy shape has no `replay` or
+  `seq` field, §3.15). `MSG_DUPLICATE` is retired from 0.4.
 - **A-3 Ack after commit.** The ack is written to the socket only after the transaction commits
   (`TransactionRunner` after-commit hook).
 - **A-4 Scheduled.** A scheduled send is acknowledged `OK` with `seq` absent and `scheduledAt`
   echoed; it receives its `seq` at release (ADR-0014) and the sender learns it through the change
   feed like everyone else. The outbox treats this ack as `SERVER_ACCEPTED` with a pending seq.
+
+> **Reviewer note (open) — deviation from brief §11.1 V29.** The brief says
+> `UNIQUE(sender_device_id, client_message_id)` "replaces the global client-id PK check". This ICD and
+> data-model V29 keep `messages.id = client_message_id` (globally unique PK, so `Edit`/`Delete`/
+> `Reaction`/`reply_to` can reference a message offline by one id, §6.3 rule 1) and add the
+> device-scoped key **beside** it. A-2b closes the upgrade-retry case. The residual cost is a 1.2
+> griefing path: a verified contact who received a message off-server can submit their own message
+> under its id first, and A-2 can only report the squat (`MSG_ID_SQUATTED`; the sender re-mints and
+> resubmits, the recipient's provisional row stays "not yet synced" under the old id, and the squat is
+> an abuse signal against the squatter's account). The alternative that follows the brief literally:
+> `messages.id` server-minted, and every in-`Content` reference carried as the pair
+> `(sender_device_id, client_message_id)` — `sender_device_id` added to `Edit`, `Delete`, `Reaction`
+> and `Text.reply_to` in §6.2 and to the mobile `message` key. That removes the squat path
+> structurally. Owner / 1.2 design review to choose before 1.0 freezes §6.2.
 
 ```json
 {"type":"ack","clientMessageId":"0193a3f1-0a0b-7c0d-8e0f-101112131415",
@@ -305,7 +357,10 @@ Example, v2, E2E 1:1 conversation (recipient has two devices, sender has one oth
 
 **Rules.**
 - **N-1** `message.new` is a **hint that happens to carry data** (P6). The receiver persists it
-  through the Inbox (upsert, then commit), and only after commit enqueues `DELIVERED` (P4, MOB-03).
+  through the Inbox (upsert, then commit), and only after commit enqueues `DELIVERED` with
+  `upto = C`, the conversation's complete-through point (rule R-ACK, §3.8) — **never** the pushed
+  `seq`. A pushed row that advanced `w` contiguously also advanced `C`; one that did not (gap) is not
+  acknowledged until the pull it schedules completes.
 - **N-2** A frame larger than `INLINE_MAX_BYTES` *(config)* is not inlined: the server sends
   `sync.hint` instead and the client pulls.
 - **N-3** Watermark handling follows §3.10 (a pushed row never advances the watermark past a gap).
@@ -328,8 +383,32 @@ Two shapes are accepted; the shape is chosen by the session, not per frame.
 |---|---|---|---|
 | **Cumulative** | v1+ with `seq` | `conversationId`, `uptoSeq: Long`, `kind: DELIVERED \| READ` | Every message in the conversation with `seq ≤ uptoSeq` not sent by this device is acknowledged **for this device** |
 | **Legacy** | legacy, v1 without `seq` | `messageId`, `conversationId`, `status` | One message only. MUST NOT be mapped to a cumulative ack: a legacy client acks out of order, and widening would claim delivery of rows it never stored |
+| **Legacy REST** | any session, FCM path | `POST /api/v1/messages/{messageId}/delivered` (`MessageController`, #596) | Same semantics and **same authorisation** as the legacy WS shape below; never widened to a cumulative ack. Deprecated once wake-only push (§5) removes `messageId` from the push payload: from 0.5 no client can learn a `messageId` from a push, so the endpoint stops being called by 0.4 clients on the FCM path (§5.4); removed one release after the legacy cut-over |
 
-**Authorisation (both shapes, 0.4, BE-03, BE-18).** Accepted only if (a) the session's device
+The shared `AckMessage` type carries both WS shapes with all shape-specific fields optional
+(`messageId: String? = null`, `status: MessageStatus? = null`, `uptoSeq: Long? = null`,
+`kind: ReceiptKind? = null`); the server validates the field set against the **session's** shape and
+rejects a mismatch with `MSG_ACK_INVALID` (§3.15).
+
+**Rule R-ACK (complete-through point; normative for every client, P4).** A device MAY send
+`ack{conversationId, uptoSeq = s, kind = DELIVERED}` only for `s ≤ C`, where `C` is the
+conversation's **complete-through point**, persisted on the device:
+
+| Event | Effect on `C` |
+|---|---|
+| A pull (§4.6) ends with a page whose `hasMore = false` | `C = page.lastSeq` (committed in that page's transaction) |
+| `message.new` with `changeSeq == w + 1` and `w == C` (§3.10) | `C = changeSeq`, in the upsert transaction |
+| Any other `message.new`, any mid-pull page (`hasMore = true`) | `C` unchanged |
+
+Why: pages are ordered by `change_seq`, and an edited old message has a low `seq` and a high
+`change_seq`, so it arrives on a later page. Acking the highest **committed seq** after page 1 would
+acknowledge it unstored; from 1.0 the mailbox deletes that device's envelope on the ack (ADR-0021),
+turning it into a permanent `PURGED` loss. A mid-pull watermark `w` does not imply completeness either,
+because superseded `change_seq` values hide unstored rows. Once a pull completes at `lastSeq`, every
+message with `seq ≤ lastSeq` has been stored in some version (a later edit only re-versions it). READ
+acks are bounded by `C` as well.
+
+**Authorisation (all three shapes, 0.4, BE-03, BE-18).** Accepted only if (a) the session's device
 belongs to a current member of the conversation, (b) the member is not the sender of the acked
 messages for tick-affecting kinds, (c) the referenced `seq`/`messageId` exists in that conversation,
 and (d) the change is monotonic (`rank(status) < rank(new)`, one conditional UPDATE). A rejected ack
@@ -373,10 +452,16 @@ watermarks only; it never promotes to READ because of one member's update (group
 {"type":"sync.hint","conversationId":"0192ffee-aaaa-7bbb-8ccc-dddddddddddd","seq":4815}
 ```
 
-**Server rule H-1.** For `seq` sessions, every change other than a new inlined message (edit,
-delete, reaction, expiry, scheduled release, membership-visible change) produces exactly one
-`sync.hint` after commit. The legacy frames `message.edited|deleted|reaction|expired` are sent only
-to legacy sessions.
+**Server rule H-1.** For sessions **with the `seq` capability**, every change that allocates a
+`change_seq` (data-model §3.1: edit, delete, reaction, poll vote, expiry, scheduled release), other
+than a new inlined message, produces exactly one `sync.hint` after commit. The legacy frames
+`message.edited|deleted|reaction|expired` are sent to every session **without the `seq`
+capability** (legacy and v1-without-`seq` alike), so no session receives neither.
+
+Not in the change feed, and therefore not hinted: membership (`group.*` frames, repaired by
+`GET /api/v1/conversations` on `Syncing(heads)` and foreground), pinned messages (V20; repaired by
+`GET …/pinned-messages` on chat open) and receipts (§4.4). These are conversation state, not
+message changes; their lost frames are repaired by those pulls (P6).
 
 **Client rule H-2 (watermark advance).** The watermark `w` is over `change_seq` (ADR-0014). Holes
 are expected because superseded edits overwrite a row's `change_seq`, so a gap is never inferred
@@ -398,13 +483,14 @@ may cause one unnecessary pull) and never skips a change.
 
 | `type` | Fields | From | Notes |
 |---|---|---|---|
-| `security.key_changed` | existing `userId`, `conversationId?`, `timestamp`; **new** `deviceId` | 0.6 | Emitted on `IdentityKeyChanged` (a new device with a new identity key; replacement for an existing device is rejected, ADR-0018). Client: safety-number-changed system row; blocking interstitial for verified contacts |
+| `security.key_changed` | existing `userId`, `conversationId`, `timestamp`; **new** `deviceId: String? = null` (defaulted so older decoders and older encoders interoperate); `conversationId` retyped `String? = null` (§3.15) | 0.6 | Emitted on `IdentityKeyChanged` (a new device with a new identity key; replacement for an existing device is rejected, ADR-0018). Client: safety-number-changed system row; blocking interstitial for verified contacts |
 | `crl.delta` | `deltaB64` (protobuf `SignedCrlDelta`, §7.6) | 1.2 (gated) | Applied through `DeviceCertificateVerifier.applyCrl`; also fetched on connect via `welcome.crlDelta` |
 
 > **Reviewer note (open):** the brief (§10) and ADR-0022 list `security.key_changed` as **new**, but
-> the frame already exists in `WsMessage.kt` with `userId`, `conversationId?` and `timestamp`. This
-> ICD extends it with `deviceId` instead of creating a second type. ADR-0022's frame table should say
-> "extended".
+> the frame already exists in `WsMessage.kt` with `userId`, `conversationId` and `timestamp`. This
+> ICD extends it with `deviceId` instead of creating a second type. ADR-0022's frame table **and the
+> brief §10 wording** (`security.key_changed{userId, deviceId}`) should both say "extended"; the
+> brief's field list also omits the existing `conversationId` and `timestamp`.
 
 ### 3.12 `error` frame and error-code registry
 
@@ -421,8 +507,10 @@ after KMP-07 the codes the client must branch on are mirrored in `:shared`):
 | `UNSUPPORTED_FRAME` | WS | Server decoded a client frame to `Unknown` (KMP-11) | Log; do not retry that frame | 0.5 |
 | `PROTOCOL_TOO_OLD` | WS | §2.3 | "Update required" | 0.5 |
 | `PROTOCOL_UNSUPPORTED` | WS | §2.3, client newer than server range | Retry later; report | 0.5 |
+| `AUTH_DEVICE_MISMATCH` | WS | `hello.deviceId` ≠ JWT `deviceId` | Bug; re-authenticate | 0.5 |
 | `MSG_ACK_INVALID` | WS | §3.8 authorisation failure (BE-03) | Drop the ack; resync | 0.4 |
-| `MSG_ID_CONFLICT` | WS `ack` | §3.6 A-2 | Mint a new `clientMessageId` only if the entry never reached any recipient; else `FAILED_PERMANENT` | 0.4 |
+| `MSG_ID_CONFLICT` | WS `ack` | §3.6 A-2, before 1.2 (client bug) | Mint a new `clientMessageId` only if the entry never reached any recipient; else `FAILED_PERMANENT` | 0.4 |
+| `MSG_ID_SQUATTED` | WS `ack` | §3.6 A-2, from 1.2: another user's row holds this id | Re-mint and resubmit; not `FAILED_PERMANENT`; report to moderation (reviewer note §3.6) | 1.2 (gated) |
 | `MSG_ENCRYPTION_REQUIRED` | WS `ack` | Plaintext send into an E2E conversation | Outbox → `PENDING_SEAL`; never resend plaintext (ADR-0016) | 1.0 |
 | `MSG_ENCRYPTION_UNSUPPORTED` | WS `ack` | `"e2e/v1"` from a session without `sealed` | Honest UI | 1.0 |
 | `MSG_DEVICE_SET_STALE` | WS `ack` | §3.5 step 5 | Refresh bundles, re-seal, resubmit same id | 1.0 |
@@ -453,6 +541,33 @@ Existing codes reused unchanged: `RATE_LIMITED`, `VALIDATION_ERROR`, `MSG_NOT_ME
 | `INLINE_MAX_BYTES` | outbound `message.new` | send `sync.hint` instead |
 | `HELLO_TIMEOUT` | unauthenticated sockets | close 4400 |
 | Per-device send and ack rates | WS | `RATE_LIMITED` (in-process today; Redis when scaled out, BE-17) |
+
+### 3.15 Shared type changes (`WsMessage.kt`)
+
+Several fields that this ICD makes optional are **non-null without a default** in today's shared
+types; an old decoder fails with `MissingFieldException` on a frame that omits them. The rule that
+keeps §10 rule 3 intact: **the wire contract of each session shape never changes.** Fields become
+nullable only in the Kotlin type; omission is a property of protocol v1/v2, which are new versions.
+
+| Type.field | Today | New Kotlin type | First omitted in | Rule |
+|---|---|---|---|---|
+| `SendMessage.requestId` | `String` | `String? = null` | v1 (client → server) | Server requires it from legacy sessions |
+| `SendMessage.messageId` | `String` | `String? = null` | v1 (replaced by `clientMessageId`) | Server requires it from legacy sessions |
+| `SendMessage.content` | `String` | `String? = null` | v2, `"e2e/v1"` sends | Required for `"none"` |
+| `ServerAck.requestId` | `String` | `String? = null` | v1 (server → client) | **Always populated for legacy sessions** |
+| `NewMessage.content` | `String` | `String? = null` | v2, E2E conversations | **Always populated for legacy sessions** (they cannot join E2E conversations, §2.4) |
+| `NewMessage.contentType` | `ContentType` | `ContentType? = null` | v2, E2E conversations | Same |
+| `AckMessage.messageId` | `String` | `String? = null` | v1 cumulative shape | Required from sessions using the legacy shape (§3.8) |
+| `AckMessage.status` | `MessageStatus` | `MessageStatus? = null` | v1 cumulative shape | Same |
+| `AckMessage.uptoSeq`, `.kind` | — | `Long? = null`, `ReceiptKind? = null` | — (new) | Required from `seq` sessions |
+| `Error.message` | `String` | `String? = null` | v1 | **Always populated for legacy sessions** (a non-localised developer string, never exception text) |
+| `SecurityKeyChanged.conversationId` | `String?` (no default) | `String? = null` | v1 | Always sent (possibly `null`) to legacy sessions |
+| `SecurityKeyChanged.deviceId` | — | `String? = null` | — (new) | §3.11 |
+
+Validation by session shape replaces type-level non-nullability: a frame whose field set does not
+match the session's shape is `VALIDATION_ERROR` (send) or `MSG_ACK_INVALID` (ack). Golden vectors
+(G-1) cover each shape in both directions, including a legacy-shaped vector decoded by **today's**
+type definitions to prove old clients still decode what the server sends them.
 
 ---
 
@@ -492,7 +607,7 @@ Response `data`:
 | `reactions` | `Map<emoji, List<UUID>>` | full current state (last-writer-wins by `changeSeq`) |
 | `contentType`, `content`, `replyToId`, `mediaId`, `thumbnailUrl`, `forwardedFrom` | as today | plaintext conversations and channels |
 | `envelope` | `{protocol, ciphertextB64}` | E2E conversations, v2, when `envelopeState = PRESENT` |
-| `envelopeState` | `PRESENT` \| `PURGED` \| `NOT_ADDRESSED` | E2E conversations only. `PURGED`: acked by this device or past TTL (ADR-0021: "expired before this device received it"); `NOT_ADDRESSED`: this device was not a recipient (linked later, or no `sealed`) |
+| `envelopeState` | `PRESENT` \| `PURGED` \| `NOT_ADDRESSED` | E2E conversations only. `NOT_ADDRESSED`: `seq < addressed_from_seq` of this (conversation, device), or the device was never addressed (linked later, joined later, or no `sealed`); `PURGED`: otherwise, when no envelope row exists (acked by this device or past TTL). Computed from `conversation_device_cursor.addressed_from_seq`, never from per-message rows (data-model §3.6). `PURGED` is ADR-0021's `envelopeExpired` marker ("message expired before this device received it"); ADR-0021 should adopt the name `PURGED` |
 
 Example (pre-1.0, plaintext):
 
@@ -551,7 +666,10 @@ returns `members: []` (no per-member receipts, as today for channels).
    (ADR-0014 invariant).
 2. The feed reads `lastSeq` **first**, then selects `afterSeq < change_seq ≤ lastSeq`. Under READ
    COMMITTED every value `≤ lastSeq` belongs to a committed row or to a superseded `change_seq`, so a
-   page never skips a change.
+   page never skips a change. No path spends a value without a row: a replayed send never allocates,
+   and a send whose INSERT conflicts rolls its allocation back with the transaction (§3.6 A-1). A
+   hole left by any other cause (a superseded value, a hard-deleted row) is harmless, because the
+   client never infers a gap from a hole (§3.10 H-2).
 3. `hasMore = false` therefore entitles the client to set `w = lastSeq`.
 4. Edits, deletes, reactions, expiry and scheduled release each allocate one new value and stamp
    `change_seq` (bulk expiry allocates a contiguous range, data-model V28).
@@ -567,10 +685,16 @@ pull(conv):
       for item in page.items: inbox.upsert(item) // newer change_seq wins
       w = if (page.hasMore) page.items.last().changeSeq else page.lastSeq
       store.setWatermark(conv, w)
+      if (!page.hasMore) store.setCompleteThrough(conv, page.lastSeq)   // C, rule R-ACK
     }
-    receipts.enqueueDelivered(conv, upto = highest committed seq)   // after commit (P4)
-    if (!page.hasMore) break
+    if (!page.hasMore) {
+      receipts.enqueueDelivered(conv, upto = page.lastSeq)   // after commit (P4); never mid-pull
+      break
+    }
 ```
+
+A pull interrupted mid-way (crash, link loss) resumes from the persisted `w`; `C` stays at its last
+complete value, so no ack covers a row the device has not stored (§3.8 R-ACK).
 
 Triggers: reconnect (`Syncing(heads)`), wake push, foreground, WorkManager/BGTask (driven by seq,
 never the device clock — MOB-10), §3.10 rule H-2, and a `deviceCounter` gap in a provisional
@@ -600,10 +724,10 @@ extended.
 | # | Rule | Finding / ADR |
 |---|---|---|
 | W-1 | **Data-only.** No `notification` block, no `android.notification`, no sender name, body, group name, avatar, message id or timestamp. FCM data values are strings | BE-15, ADR-0019 |
-| W-2 | `data` keys are exactly `type`, `v`, `conversationId`, `seq`. Adding a key requires an ICD change and a DPIA screening note (ADR-0029 rule 6) | ADR-0029 |
+| W-2 | `data` keys are exactly `type`, `v`, `conversationId`, `seq`. `v` is an **ICD extension** of the brief / ADR-0019 key set `{type, conversationId, seq}` (payload-format version, so a later key change is detectable; §14 item 10). Adding a key requires an ICD change and a DPIA screening note (ADR-0029 rule 6) | ADR-0029 |
 | W-3 | High priority; one **constant** collapse key `mbt-wake` per app. FCM limits how many distinct collapse keys it keeps per device, and the client pulls **all** heads on wake, so per-conversation keys buy nothing | P6 |
 | W-4 | `conversationId`/`seq` are a scheduling hint only. On wake the client runs `heads()` and pulls every conversation with `lastSeq > w`, then composes notifications **locally** from the committed DB rows | P6, ADR-0019 |
-| W-5 | Sent after commit, never inside the send transaction, to recipient devices (the sender's own other devices included). Presence-aware suppression for devices with a live WS session is a later refinement (brief §4.2) | BE-04 |
+| W-5 | Sent after commit, never inside the send transaction, to recipient devices — the sender's own other devices included, **the sending device excluded** — and **not** to any user whose focused conversation (`WsMessage.ConversationFocus`, held by `WebSocketSessionManager`, #618) is `conversationId`. The existing #618 suppression in `OfflinePushSender` is preserved, not deferred; broader presence-aware suppression for devices with a live WS session is the later refinement (brief §4.2) | BE-04, #618 |
 | W-6 | `WAKE_TTL` *(config)*; a dropped or expired wake is repaired by foreground pull and WorkManager | R11 |
 
 ### 5.3 OEM fallback (ADR-0019)
@@ -618,6 +742,12 @@ back to the app name as title and the localised "new message" string as body whe
 and the `senderName`/`body` data keys are absent. A 0.4 client therefore shows a **content-free
 generic notification** for a wake push. No per-device push-mode column is needed; wake-only applies
 to every device from 0.5.
+
+Two consequences for 0.4 clients, accepted: (1) they post one generic notification per wake,
+including wakes caused by their user's own sends from another device (W-5 excludes only the sending
+device); (2) the #596 FCM-path REST delivered ack (`POST /messages/{messageId}/delivered`, §3.8)
+**stops firing**, because the wake carries no `messageId`. A 0.4 client's DELIVERED therefore arrives
+only when it next opens a WS session and receives the frame there.
 
 ### 5.5 iOS (when the iOS app exists)
 
@@ -740,16 +870,25 @@ Kotlin side (sketch; one class per message, `ByteArray` fields wrapped, §9 rule
 ### 6.3 Field rules
 
 1. `message_id` in `Edit`/`Delete`/`Reaction` and `reply_to` are **client message ids**; they are
-   resolvable offline because `messages.id = client_message_id` (data-model V29).
+   resolvable offline because `messages.id = client_message_id` (data-model V29). This depends on the
+   open identity-rule decision (§3.6 reviewer note); if `messages.id` becomes server-minted, each of
+   these references gains a `sender_device_id` field and is resolved by the pair.
 2. A receiver rejects (drops, logs, pulls) a `Content` whose `causal.sender_device_id` differs from
    the libsignal-authenticated sender device of the session that decrypted it.
-3. `device_counter`: a value ≤ the highest seen from that device in that conversation is a replay
-   and is dropped; a jump > 1 schedules a pull (ADR-0014).
+3. `device_counter` is assigned **at seal time, in dispatch order** (not at message creation: media
+   sits outside the FIFO and send order follows ready order, brief §6.6), and is **kept unchanged**
+   when the same `clientMessageId` is re-sealed after `MSG_DEVICE_SET_STALE`. Replay = the counter is
+   already in the receiver's per-(sender device, conversation) **seen-window** (`inbound_dedup` keyed
+   by `(sender_device_id, client_message_id)` plus the counter); a value below the highest seen but
+   not in the window is a legitimate reorder and is accepted. A value above highest + 1 schedules a
+   pull (ADR-0014); a spurious pull is harmless.
 4. `oneof` support in `kotlinx-serialization-protobuf` (`@ProtoOneOf`) MUST be verified on every KMP
    target before 1.0; if it is unavailable on a target, `Body` is encoded as optional fields with a
    one-set invariant checked in the decoder. Golden vectors make the two encodings byte-identical.
 5. Strings are UTF-8; the decoder rejects invalid UTF-8.
-6. `RECEIPT_KIND_UNSPECIFIED` and `STORAGE_MODE_UNSPECIFIED` are invalid on receipt.
+6. `RECEIPT_KIND_UNSPECIFIED` and `STORAGE_MODE_UNSPECIFIED` are invalid on receipt. An enum number
+   the receiver does not know maps to `UNSPECIFIED` (§10 rule 4) and is therefore rejected here,
+   because both fields are required.
 
 ### 6.4 Inner padding (all E2E envelopes)
 
@@ -873,7 +1012,7 @@ Receiver order (reject = drop the frame, count it, never answer with detail):
 | 1 | Record length ≤ link `maxFrameBytes`; protobuf parse with size-bounded decoder | reject |
 | 2 | `v` supported; `frame_type ≠ UNSPECIFIED`; `frame_id` is 16 bytes; `routing_tag` 8–16 bytes | reject |
 | 3 | `ttl_sec > 0` and within the class bound | reject |
-| 4 | `link_seq` > highest accepted in this session and direction | reject (replay / reorder on a reliable medium) |
+| 4 | `link_seq` > highest **authenticated** in this session and direction (the high-water mark is read here, **updated only after step 6 succeeds**, so a forged frame with a large `link_seq` cannot poison it) | reject (replay / reorder on a reliable medium) |
 | 5 | AEAD open of `body` with AD | reject; three consecutive failures close the link |
 | 6 | Unpad strictly (§7.4) | reject |
 | 7 | `frame_id` not in `inbound_dedup` | ACK again (idempotent), do not re-deliver |
@@ -883,6 +1022,11 @@ Receiver order (reject = drop the frame, count it, never answer with detail):
 A relay or custodian **never re-serializes** a `SealedFrame` it forwards; it forwards the bytes it
 received inside a new `TransportFrame` with a new `frame_id`, a decremented `ttl_sec` and a new
 `link_seq`.
+
+**Retransmission and dedup.** A hop retransmission after a lost `ACK` reuses the **same `frame_id`**
+with a **new `link_seq`** (step 7 then re-ACKs without re-delivery). Because a relay assigns a new
+`frame_id` per hop, `frame_id` dedup is per hop only; **end-to-end** dedup keys on
+`(sender_device_id, client_message_id)` from `SealedFrame.Routing` via `inbound_dedup`.
 
 > **Reviewer note (open):** "fields 1–6 are AEAD associated data" presumes a channel whose AEAD
 > accepts associated data per message, which a Noise transport `CipherState` does. If the 1.2 spike
@@ -1019,8 +1163,16 @@ and time.
 2. **JSON plane, new frame type**: allowed within a version only behind a capability token (Rule C-1).
 3. **JSON plane, rename/remove/retype**: never within a version; requires an ADR and a version bump.
 4. **Protobuf**: field numbers are never reused; removed fields become `reserved`; every enum has a
-   `…_UNSPECIFIED = 0`; unknown fields are skipped on decode; unknown enum values decode to
-   `UNSPECIFIED` and the message is rejected where the field is required.
+   `…_UNSPECIFIED = 0`; unknown fields are skipped on decode. **Enums:** `kotlinx-serialization-protobuf`
+   throws `ProtobufDecodingException` ("… is not among valid … enum proto numbers") on an unknown enum
+   number (`ProtobufDecoding.kt`, `findIndexByTagSlowPath`:
+   <https://raw.githubusercontent.com/Kotlin/kotlinx.serialization/master/formats/protobuf/commonMain/src/kotlinx/serialization/protobuf/internal/ProtobufDecoding.kt>),
+   which would make every older decoder — including relays forwarding opaquely — reject the whole
+   frame when a value is added. Therefore every enum-typed field (`FrameType`, `EnvelopeProtocol`,
+   `ReceiptKind`, `StorageMode`, `LinkControl` kinds, …) is declared as `uint32` in the Kotlin
+   `@Serializable` class (wire-identical varint) and mapped to the Kotlin enum by our own accessor;
+   an unmapped value becomes `UNSPECIFIED`/`Unknown`, and the message is rejected only where the
+   field is required. The `.proto` listings keep the enum names for documentation.
 5. **Forwarded bytes are opaque**: a relay never re-serializes a frame or envelope (§7.5), so unknown
    fields survive custody.
 6. **`v` fields** inside `SealedFrame`, `TransportFrame`, `UplinkSubmission`, certificates and CRL
@@ -1040,7 +1192,7 @@ and time.
 | # | Requirement |
 |---|---|
 | G-1 | Every frame and message in §3 (each `type`, each shape, legacy and v1/v2), §4 (`MessageChange` variants incl. tombstone and each `envelopeState`), §5 (wake data map), §6, §7, §8 has at least one **positive** vector |
-| G-2 | Negative vectors: unknown `type` → `Unknown`; unknown JSON field ignored; unknown protobuf field skipped; `UNSPECIFIED` enum rejected; bad padding rejected; truncated AEAD body rejected; `frame_id` of 15/17 bytes rejected; tampered header field (each of 1–6) fails AEAD |
+| G-2 | Negative vectors: unknown `type` → `Unknown`; unknown JSON field ignored; unknown protobuf field skipped; `UNSPECIFIED` enum rejected; each enum field with value max + 1 decodes to `UNSPECIFIED` **without throwing** (and is rejected only where required); bad padding rejected; truncated AEAD body rejected; `frame_id` of 15/17 bytes rejected; tampered header field (each of 1–6) fails AEAD |
 | G-3 | Vectors live once in `:shared` (e.g. `shared/src/commonTest/golden/<plane>/<name>.{json,hex}` plus an expectation file) and are executed by `:shared:jvmTest`, the backend test suite (reading the same files) and, when present, the iOS native test target |
 | G-4 | JSON vectors assert both `decode(bytes) == expected` and `encode(expected) == bytes` with the shared `Json` configuration; protobuf vectors assert byte-exact encoding |
 | G-5 | Crypto vectors (AEAD, HPKE, signatures, Padmé, proximity tags) use fixed test keys and nonces from `:mobile:crypto-testkit` and run against every adapter (Android, iOS, fake) through the commonTest contract suite (ADR-0017) |
@@ -1068,7 +1220,10 @@ and time.
 | RQ-09 | No token in any request URL; session closes at `exp` and within 5 s of revoke (4401/4403) | Integration test + access-log inspection | 0.4 |
 | — | No frame accepted before `hello`; `PROTOCOL_TOO_OLD` below `minServer`; legacy sessions still served until cut-over | Integration tests | 0.5 |
 | — | `Unknown` handling on both sides (§3.13) | Unit tests | 0.5 |
-| RQ-02 | Duplicate `message.send` replays `{seq, serverTs}` with `replay = true`; foreign `messages.id` collision → `MSG_ID_CONFLICT` | Testcontainers | 0.4 |
+| RQ-02 | Duplicate `message.send` replays `{seq, serverTs}` with `replay = true` and allocates no seq (head unchanged); concurrent duplicate retries leave `last_seq` gapless; pre-V29 row retried by its sender replays (A-2b); legacy duplicate → `OK` with original id (A-2c); foreign `messages.id` collision → `MSG_ID_CONFLICT` | Testcontainers | 0.4 |
+| RQ-03 | Paged pull where an old message (low `seq`) was edited (high `change_seq`, later page) never sends `ack uptoSeq` covering an unstored seq; DELIVERED is sent only at `C`; from 1.0 the envelope is not purged before the device stores it (R-ACK) | Testcontainers + `SimulatedLink` | 0.5 / 1.0 |
+| — | Wake push not sent to the sending device nor to a user focused on the conversation (#618 preserved) | Integration test | 0.5 |
+| — | Legacy-shaped frames from the server decode with today's (pre-§3.15) `WsMessage` types | Golden vectors | 0.5 |
 | — | Ack from a non-member, for a foreign seq, or non-monotonic → `MSG_ACK_INVALID`, nothing broadcast; legacy single-message acks never widened | Testcontainers | 0.4 |
 | RQ-04, RQ-05 | `/changes` never skips a change under 50 concurrent writers (§4.5); 100% hint loss still converges | Testcontainers; `SimulatedLink` | 0.4 / 0.5 |
 | — | Unreleased scheduled messages absent from `/changes` for every requester | Integration test | 0.4 |
@@ -1095,3 +1250,20 @@ and time.
 | 7 | Padding parameters (`INNER_MIN_BYTES`, `LINK_MIN_BYTES`, `UPLINK_BUCKETS`) | §6.4, §7.4 | Set by crypto review; pinned by vectors |
 | 8 | `@ProtoOneOf` availability on all targets | §6.3 rule 4 | Verify before 1.0 |
 | 9 | Exact cut-over release for legacy (no-`hello`, query-token) clients | §2.1, §3.1 | Chosen when 0.4 is planned (ADR-0022) |
+| 10 | Wake `data` key `v` added beyond the brief / ADR-0019 key set | §5.2 W-2 | ICD extension; owner to confirm |
+| 11 | `messages.id = client_message_id` kept beside the brief's device-scoped key (deviation from brief §11.1 V29); squat path from 1.2 | §3.6 | Reviewer note (open) |
+| 12 | Scheduled send in E2E conversations (server-held envelopes vs. unavailable) | §3.5 | Reviewer note (open); this ICD assumes "unavailable" |
+| 13 | ADR-0021 `envelopeExpired` ↔ ICD `PURGED` naming | §4.1 | Align ADR-0021 |
+
+## 15. Rollout, rollback and risks
+
+| Concern | Where |
+|---|---|
+| Version negotiation and support window (rollback of either side by one release) | §2.3 rules N-1, N-2; §10 rule 7 |
+| Mixed client/server versions during the transition | §2.4 matrix (incl. the 0.5-client-on-0.4-server fallback trigger) |
+| Shared type evolution without breaking old decoders | §3.15; §10 rules 1–4 |
+| Schema behind these interfaces (expand → contract, N-1-on-N) | [`data-model.md`](data-model.md) §2.1 rules 3, 4, 8 and §9 |
+| Wake-only push latency | R11 (risk register); §5.3 OEM fallback |
+| Hot `last_seq` row from hints and allocations | R12; data-model §3.1 |
+| Provisional off-server ordering | R16; §6.2 `expected_seq_hint`, data-model §5.3 S-5 |
+| Fuzzing and long CI runs on the production host | R19; §12 F-6 |

@@ -37,7 +37,7 @@ Prekey semantics require a server that dispenses each one-time prekey once and r
 | (3) | **Crypto identity** | One libsignal `IdentityKeyPair` **per device**; directory keyed by `(user_id, device_id)` | Device holds private key; server publishes public key | 0.4 (directory fixes) / 0.6 (schema) / 1.0 (keys in use) |
 | (4) | **Link key** | Separate per-device static key for **link-layer authentication only**, signed by the device identity key | Device; published in `device_link_keys` | 1.2 (gated) |
 | (5) | **DeviceCertificate** | Server-signed binding of (user, device, identity key, link key, validity) | Server CA | 1.2 (gated) |
-| (6) | **Human verification** | Static single-scan QR safety number (libsignal fingerprints) | Users | 1.0 |
+| (6) | **Human verification** | Static single-scan QR safety number per `(userId, deviceId)` identity key (libsignal fingerprint between two device identity keys) | Users | 1.0 |
 | (7) | Key transparency | — | — | **Research, not scheduled** |
 
 No layer is derived from another's private key material. In particular, nothing is derived from
@@ -109,7 +109,7 @@ data class DeviceCertificate(
 | Signing input | `"mbt-devcert-v1" ‖` canonical length-prefixed encoding of all fields except `signature` |
 | Issuance preconditions | Valid age attestation (ADR-0029 rule 1), no active ban, device not revoked, link key published and signature-valid |
 | Renewal | On every online session (`welcome.certRenewal`, ADR-0022) |
-| Revocation | **Non-renewal** plus a **signed delta CRL** pushed over WS (`crl.delta`) and fetched on connect. Offline exposure window ≤ 7 days (Q-O6, disclosed in the transparency text) |
+| Revocation | **Non-renewal** plus a **signed delta CRL** pushed over WS (`crl.delta`) and fetched on connect. CRL deltas carry a monotonic `crlSeq`, are signed by the current intermediate under the label `mbt-crl-v1` (length-prefixed encoding, ADR-0022 rule 2), and a peer rejects a delta whose `crlSeq` is not newer than the last one applied. Offline exposure window ≤ 7 days (Q-O6, disclosed in the transparency text) |
 | Verification on device | `DeviceCertificateVerifier.verify(cert, now)` checks chain, validity window (with `Clock` injected), CRL, and that `identityKey` equals the libsignal identity of the session peer |
 | Format | Our own small protobuf record. **No X.509/PKIX parsing** |
 | Key custody | Root offline. Intermediate in a file-mounted signer (`CertificateSignerPort` → `FileKeyEd25519Signer`) **never on a host that runs PR jobs**; depends on ADR-0031 being in force (Q-O7) |
@@ -119,21 +119,28 @@ Certificate lifecycle (per device, server view):
 | State | Event | Next | Notes |
 |---|---|---|---|
 | — | first online session after 1.2, preconditions hold | ISSUED(serial, notAfter) | |
-| ISSUED | online session, preconditions hold | ISSUED(new serial) | old serial superseded, not revoked |
-| ISSUED | ban, takedown, age finding, device revoke, account deletion | REVOKED | CRL delta published; WS sessions closed (`SessionRevocationPort`) |
+| ISSUED | online session, preconditions hold | ISSUED(new serial) | old serial superseded, not revoked (it stays valid until its own `notAfter`, so one device may hold several unexpired serials) |
+| ISSUED | ban, takedown, age finding, device revoke, account deletion | REVOKED | CRL delta lists the device by `deviceId` with a `revokedAt` cutoff (all certificates for that device with `notBefore` < cutoff are refused), or else every unexpired serial issued to the device; WS sessions closed (`SessionRevocationPort`) |
 | ISSUED | `notAfter` passes without renewal | EXPIRED | peers refuse it; no CRL entry needed |
 | REVOKED / EXPIRED | preconditions hold again (e.g. ban lifted) | ISSUED(new serial) | |
 
 Peer view (link state machine, brief §6.3): `AUTHENTICATING` succeeds only if both certificates
-verify, neither serial is in the local CRL, and the handshake proves possession of the certified
-link key.
+verify, neither certificate is refused by the local CRL (by serial or by `deviceId` cutoff), and the
+handshake proves possession of the certified link key.
 
 ### (6) Verification and eligibility
 
 - Safety number: static single-scan QR of libsignal fingerprints (no animated QR, no ultrasonic;
   ADR-0027). Verified state is stored locally per peer identity key.
+- **Verification unit.** Verification is per `(userId, deviceId)` identity key, using libsignal's
+  fingerprint between the two devices' identity keys. A peer user counts as verified only when every
+  active device key has been verified. A newly linked companion is unverified until scanned, and the
+  UI shows it as such rather than as a key change. The port is therefore
+  `suspend fun safetyNumber(peer: DeviceAddress): SafetyNumber` (ADR 0017 §1), not keyed by `UserId`
+  as the brief §5 sketch has it.
 - **1.2 proximity and 1.3 uplink eligibility require a verified safety number** (ADR-0024/0025).
-- `IdentityKeyChanged` → **blocking interstitial** for verified contacts (verification is reset),
+- `IdentityKeyChanged` (a different key for an existing device, i.e. reinstall or replacement — not
+  a newly linked companion) → **blocking interstitial** for verified contacts (verification is reset),
   visible notice for everyone else (brief §8.4). Outbox entries to that peer park as
   `UntrustedIdentity` (ADR-0016).
 
@@ -189,7 +196,8 @@ link key.
 - Code: `backend/src/main/kotlin/com/muhabbet/messaging/adapter/out/persistence/EncryptionKeyPersistenceAdapter.kt:37-53`,
   `backend/src/main/kotlin/com/muhabbet/messaging/domain/service/EncryptionService.kt`,
   `backend/src/main/resources/db/migration/V11__add_encryption_keys.sql`, `V16`, `V17`,
-  `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/multidevice/DeviceLinkCrypto.kt`.
+  `shared/src/commonMain/kotlin/com/muhabbet/shared/port/DeviceLinkCrypto.kt` (the contract),
+  `mobile/composeApp/src/commonMain/kotlin/com/muhabbet/app/multidevice/DeviceLinkCrypto.kt` (accessor).
 - External (from the crypto digest): https://signal.org/docs/specifications/x3dh/,
   https://signal.org/docs/specifications/pqxdh/, https://getsession.org/session-protocol-v2.
 
@@ -204,5 +212,19 @@ link key.
 | — | Exhausted one-time stock falls back to last-resort Kyber, never to a bundle without a PQ key | Integration test | 0.6 |
 | — | Certificate issuance refused without age attestation or with an active ban | Unit + integration test | 1.2 |
 | RQ-18 | A revoked device is refused off-server after CRL delta or at expiry | `TestClock` test + owner demonstration (P13) | 1.2 exit |
+| — | Revoking a device refuses all of its unexpired serials, including superseded ones | `TestClock` test | 1.2 |
+| — | A CRL delta with a non-increasing `crlSeq` or a bad `mbt-crl-v1` signature is rejected | Unit test | 1.2 |
+| — | Linking a companion leaves existing device verifications intact and shows the companion as unverified (no interstitial) | UI/unit test | 1.0 |
 | — | Signing key absent from every host that runs PR jobs | Inspection (ADR-0031 checklist) | 1.2 entry |
 | — | Signing inputs are length-prefixed and domain-separated | Golden vectors on JVM, backend and iOS | 1.2 |
+
+> **Reviewer note (open):** brief §5 sketches `SessionCryptoPort.safetyNumber(peer: UserId)`. This
+> ADR uses `DeviceAddress` because libsignal's numeric fingerprint covers one identity key per side.
+> If the owner wants one QR per user, note that a multi-key user fingerprint is not a libsignal
+> primitive and must be settled by the 1.0 crypto review, not designed here (P12).
+
+> **Reviewer note (open):** M1 recommends the relationship check ship with the 0.4 rate limit. The
+> owner may pull rule 3 into 0.4. Note that "requester has target as contact" is attacker-controlled.
+> Prefer "target has requester as contact, or they share a conversation the target did not merely
+> receive an invite to", and treat the per-pair limit plus the exhaustion alert (rule 2) as the
+> primary M1 control.

@@ -46,11 +46,16 @@ backend tests, `:shared:jvmTest` and mobile tests (and iOS native when present).
 | C→S | `hello` | `protocolVersions: [1,2]`, `minSupported`, `capabilities: ["seq","wake","sealed"]`, `deviceId`, auth (bearer token in the first frame, or the `Sec-WebSocket-Protocol`/`Authorization` header) |
 | S→C | `welcome` | `protocolVersion` (highest common), `serverTime`, `certRenewal?` (1.2, ADR-0018), `crlDelta?` (1.2) |
 | S→C | `error{PROTOCOL_TOO_OLD}` then close | client below the server's minimum (replaces the `E2EConfig` flags as the server-side floor, ADR-0016) |
+| S→C | `error{AUTH_DEVICE_MISMATCH}` then close | `hello.deviceId` differs from the token's `deviceId` claim |
 
 **The JWT never appears in the query string** (from 0.4, with BE-12: header or first-frame auth;
 from 0.5 the first frame is `hello` and carries it). The session is bound to `(deviceId, jti, exp)` in
 `WsSessionRegistry`; the server closes it at `exp`, logout, device revoke and account deletion
 (BE-12, `SessionRevocationPort`), and the client re-authenticates.
+
+The server closes the socket with `error{AUTH_DEVICE_MISMATCH}` unless `hello.deviceId` equals the
+token's `deviceId` claim. Access tokens gain a random `jti` claim at 0.4 so sessions can be bound and
+revoked per token (today `JwtProvider.kt:89-94` sets only subject, `deviceId`, `admin` and issuer).
 
 **Frames** (type discriminators are the JSON `type` strings; existing ones keep their names):
 
@@ -63,7 +68,7 @@ from 0.5 the first frame is `hello` and carries it). The session is bound to `(d
 | `sync.hint` | S→C | new | `conversationId`, `seq` |
 | `security.key_changed` | S→C | new (0.6) | `userId`, `deviceId` (ADR-0018 `IdentityKeyChanged`) |
 | `crl.delta` | S→C | new (1.2) | signed delta (ADR-0018) |
-| `error` | S→C | extended | `code` incl. **`UNSUPPORTED_FRAME`**, **`PROTOCOL_TOO_OLD`** |
+| `error` | S→C | extended | `code` incl. **`UNSUPPORTED_FRAME`**, **`PROTOCOL_TOO_OLD`**, **`PROTOCOL_UNSUPPORTED`**, **`HELLO_REQUIRED`**, **`AUTH_DEVICE_MISMATCH`** (new `ErrorCode` values; full list: ICD §3.12) |
 
 **REST read:** `GET /api/v1/conversations/{id}/changes?afterSeq&limit` → `{items: [MessageChange], lastSeq, hasMore}` (ADR-0014, ADR-0021).
 
@@ -118,7 +123,7 @@ TransportFrame { 1 v:uint32 = 1
 
 | Property | Rule |
 |---|---|
-| Integrity | The link channel (ADR-0018 `LinkAuthenticator`) AEAD-encrypts `body`; fields 1–6 are associated data. **No sync word, no CRC** — the AEAD tag is the integrity check |
+| Integrity | Integrity, confidentiality, nonce management and replay protection come from the vetted channel only (ADR-0018 `LinkAuthenticator`). With Noise, the frame is sent as `EncryptWithAd(ad = encode(fields 1–6), pt = body)`. With TLS 1.3, the whole encoded `TransportFrame` is the TLS record payload, so the header is protected by the record AEAD. No key export and no application-level AEAD. `linkSeq` is an ordering and duplicate-detection counter, never a nonce. **No sync word, no CRC** |
 | Addressing | Server hop: `deviceId` over TLS. Peer hop: rotating `routingTag`. Inside the envelope: `recipientDeviceId` |
 | Identifiers | `frameId` is 16 random bytes; no stable or timestamp-bearing identifier outside TLS-to-server (P9) |
 | Padding | Body padded to buckets (Padmé), so size reveals only the bucket |
@@ -202,6 +207,8 @@ path.
 | — | Every backend controller response decodes with the shared DTO | Backend contract test | 0.5 |
 | RQ-17 | No stable or timestamp-bearing identifier in any `TransportFrame` | Golden vectors + over-the-air capture (owner) | 1.2 exit |
 | — | A tampered header field 1–6 fails AEAD verification | Unit test | 1.2 |
+| — | No call to an AEAD primitive outside the chosen channel library | P12 dependency rule | 1.2 |
+| — | `hello.deviceId` not matching the token's `deviceId` claim → `AUTH_DEVICE_MISMATCH` and close; access tokens carry `jti` | Integration test | 0.4 / 0.5 |
 | — | Parsers survive fuzzing without crash or unbounded allocation | Fuzz CI job | 0.5 onward |
 
 > **Reviewer note (open):** the brief's `UplinkBundle` carries a `senderDeviceSignature` but does not
@@ -211,3 +218,7 @@ path.
 > authorship of any plaintext (brief §8.3: no long-term signatures on messages). The alternative is a
 > dedicated uplink-signing key in the device certificate. ADR-0025 should fix the choice before 1.3;
 > this ADR only reserves the field.
+
+> **Reviewer note (open):** brief §3 lists query-string removal under 0.5, and §13/§14 put it in 0.4
+> with BE-12. This ADR follows §13 (header or first-frame auth at 0.4, `hello` at 0.5). The owner
+> should confirm, because it makes pre-0.4 clients a forced update.

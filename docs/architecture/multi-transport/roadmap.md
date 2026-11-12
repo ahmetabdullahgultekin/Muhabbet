@@ -12,7 +12,7 @@
 | **Base** | `dev` @ 2434324, branch `claude/muhabbet-p2p-architecture-wdan5r` |
 | **Source of truth** | [decision brief](decision-brief-2026-11-12.md) §13 (phased roadmap), §14 (prerequisite fixes), §15 (risks), §16 (V&V), §17 (open questions). Where this document and the brief disagree, the brief wins; the disagreement is recorded as a `> **Reviewer note (open):**` callout (§13). |
 | **Evidence** | [findings register](../../reviews/2026-11-12-findings-register.md) (IDs such as `BE-06`, `MOB-03`, `CICD-01`); open-issue snapshot from the governance review digest (issue numbers below are **candidates** to re-verify at filing time, GOV-03) |
-| **Companions** | [`vv-plan.md`](vv-plan.md) (requirements RQ-01…RQ-81, harness, environments), [`risk-register.md`](risk-register.md) (R1…R40), [`transport-capability-matrix.md`](transport-capability-matrix.md) §13 (1.2 spike protocol), [`dpia-screening.md`](dpia-screening.md) |
+| **Companions** | [`vv-plan.md`](vv-plan.md) (requirements RQ-01…RQ-90, harness, environments), [`risk-register.md`](risk-register.md) (R1…R43), [`transport-capability-matrix.md`](transport-capability-matrix.md) §13 (1.2 spike protocol), [`dpia-screening.md`](dpia-screening.md) |
 | **Replaces nothing yet** | [`ROADMAP.md`](../../../ROADMAP.md) stays canonical for the method and the 0.x milestone questions. §11 says how this file merges into it after approval. |
 
 ---
@@ -50,7 +50,7 @@
 | Phase 0 | — | Are the emergencies contained and is the design approved? | `phase-0`, `process` | no | none (incident response) |
 | 0.4 | Can a person use the app without being lied to by it? | Does the one existing path stop losing, duplicating and mis-reporting messages, and is the seq foundation in place? | `0.4` | no | Phase 0 exit |
 | 0.5.0 Honest | Does every control the app shows either work or not get shown? | Does every message go through one durable engine into one local SSOT, with content-free push and an encrypted DB? | `0.5` | no | ADRs 0011/12/13/14/16/19/20/22/28 Accepted |
-| 0.6.0 Reachable | Can an existing user bring a new one in, and can a new user find someone to talk to? | Is the per-device key/delivery model in place, and is iOS in or out? | `0.6` | no | **iOS decision (blocking)** |
+| 0.6.0 Reachable | Can an existing user bring a new one in, and can a new user find someone to talk to? | Is the per-device key/delivery model in place, and is iOS in or out? | `0.6` | no | none at entry; the iOS decision is a **blocking exit item** (G-iOS) |
 | 0.7.0 Live | Does a call connect, carry audio both ways, and appear in history? | Does the DIRECT live-session path work over SFU/TURN, privately? | `0.7` | deferrable (1.0 may proceed with 0.7 "explicitly deferred") | ADR 0009 accepted; separate host |
 | 1.0.0 Encrypted | Are all of the app's privacy claims true? | Is E2E real and fail-closed, so non-server paths become *possible*? | `1.0` | no (Android-only fallback) | Licence (a)–(c), crypto reviewer, iOS spike or Android-only |
 | 1.1 Direct | — (new) | Do P2P 1:1 calls buy E2E media and latency worth their cost? | `1.1` | **yes** | 0.7 telemetry; TURN budget |
@@ -88,11 +88,13 @@ flowchart TB
     LIC["Licence preconditions a-c and counsel Q-L7"]
     SPI["Spike: iOS libsignal bridge"]
     XR["External crypto review engaged"]
+    RT["Spike: Android two-device round trip"]
     M10["1.0.0 Encrypted: libsignal, envelopes V34, protocol v2, cutover"]
   end
 
   subgraph G3["Gated post-1.0, droppable"]
     TEL7["0.7 telemetry: relayed share, TURN egress"]
+    CL11["Counsel: Q-L6 and Q-L8 opinions"]
     M11["1.1 Direct: P2P 1:1 calls"]
     SDM["Spike: 2-week device matrix"]
     SHS["Spike: handshake library"]
@@ -104,6 +106,7 @@ flowchart TB
     KV["KVKK opinion Q-L5, DPIA, uplink crypto review"]
     M13["1.3 Relay: own-device custody, sealed uplink V36"]
     LRF["Written opinion Art. 39/63-6, 2010 regulation, KET"]
+    GPX["G-PROXIMITY artefacts"]
     M14["1.4 Off-grid: MeshtasticLink, AirtimeLedger, TR-excluded"]
   end
 
@@ -112,6 +115,7 @@ flowchart TB
   P0 --> APP
   P0 --> GCI
   APP --> PROC
+  PROC --> GCI
   P0 --> M04
   M04 --> M05 --> M06 --> M07
   M06 --> IOS
@@ -121,7 +125,9 @@ flowchart TB
   LIC --> M10
   SPI -.->|"if iOS in scope"| M10
   XR --> M10
+  RT --> M10
   M07 --> TEL7 --> M11
+  CL11 --> M11
   M10 --> M11
   M10 --> M12
   IOS --> M12
@@ -134,7 +140,8 @@ flowchart TB
   M12 --> TEL12 --> M13
   KV --> M13
   GCI --> M13
-  M12 -->|"G-PROXIMITY in place"| M14
+  GPX --> M14
+  M12 -.->|"derived: PathPolicy and SealedLink from 1.2"| M14
   LRF --> M14
   M10 -.-> RES
 ```
@@ -150,8 +157,12 @@ Reading the graph:
 | 0.7 → 1.0 (or deferred) | Brief 1.0 entry: "0.7 shipped or explicitly deferred". |
 | 0.7 telemetry → 1.1 | 1.1 entry needs measured benefit and a TURN budget. **If 0.7 is deferred, 1.1 is blocked too** (reviewer note RN-R5). |
 | 1.0 → 1.1, 1.2 | No non-server path and no P2P E2E claim before E2E is real (brief §1.2, ADR-0016). |
-| G-CI → 1.2, 1.3 | Device-CA and uplink keys must never live on a host that runs PR jobs (ADR-0018, ADR-0025, ADR-0031). |
-| 1.2 → 1.3, 1.4 | Certificates, link keys, `PathPolicy` and the `SealedLink` contract arrive in 1.2. |
+| G-CI → 1.2, 1.3 | Device-CA and uplink keys must never live on a host that runs PR jobs (ADR-0018, ADR-0025, ADR-0031). G-CI is reached through the `process` scope (ADR-0031 is a process ADR), hence `PROC → GCI`. |
+| Android two-device round trip → 1.0 | Brief 1.0 entry ("two-device Android round trip on real builds"); produced by a spike (§16). |
+| Counsel Q-L6/Q-L8 → 1.1 | ADR-0029: the counsel checklist blocks the 1.1 gate (§11 entry). |
+| 1.2 → 1.3 | Certificates, link keys, `PathPolicy` and the `SealedLink` contract arrive in 1.2; brief 1.3 entry is "1.2 shipped". |
+| G-PROXIMITY → 1.4 | Brief 1.4 entry. |
+| 1.2 ⇢ 1.4 (dashed) | **Derived, not brief text:** `PathPolicy` and the `SealedLink` contract exist from 1.2. The brief requires only G-PROXIMITY, so 1.4 could in principle start with the gate artefacts and without 1.2 shipped. |
 
 ---
 
@@ -163,15 +174,15 @@ or the external reviewer) can sign it.
 
 | Gate | Artefact | Required by | Signer | Source |
 |---|---|---|---|---|
-| G-SECRETS | Rotation log for all four `.env.prod` values (incident record §6) with verification evidence | Phase 0 exit | Owner | CICD-06, ADR-0031 F7 |
+| G-SECRETS | Rotation log for all four `.env.prod` values ([incident record §6](../../process/security-incident-2026-11-env-prod.md)) with verification evidence | Phase 0 exit | Owner | CICD-06, ADR-0031 F7 |
 | G-CI | ADR-0031 checks F1–F8 all green | 1.2 entry, 1.3 entry; before any long-lived signing, device-CA, uplink or crypto key is created | Owner | ADR-0031 |
 | G-ADR | ADR disposition row filled in `APPROVAL.md` §3 | entry of every milestone that cites the ADR | Owner | brief §13 |
-| G-iOS | KMP-01 fixed (entry point, Xcode project, DI, iOS CI build) **or** an accepted ADR scoping iOS out of 1.0 | 0.6 exit; 1.0 and 1.2 entry | Owner | ADR-0028, Q-O2 |
+| G-iOS | KMP-01 fixed (entry point, Xcode project, DI, iOS CI build) **or** an accepted ADR scoping iOS out of 1.0; when iOS ships, an APNs DPIA (DT-5) signed before that release (`dpia-screening.md` §3.1) | 0.6 exit; 1.0 and 1.2 entry | Owner | ADR-0028, Q-O2 |
 | G-LICENCE | (a) owner approval Q-O1, (b) contributor audit, (c) written counsel opinion on AGPL via Play and App Store | 1.0 entry (before libsignal is restored) | Owner, counsel | ADR-0017, Q-L7 |
 | G-XREVIEW | External crypto review engaged (1.0); findings closed (1.0 exit); uplink sealing reviewed (1.3 entry) | 1.0, 1.3 | Reviewer | ADR-0017, ADR-0025 |
 | G-PROXIMITY | All eight items of brief §13 1.2 entry | 1.2 entry; 1.4 entry | Owner, counsel | brief §13, ADR-0024 |
-| G-DPIA-*n* | Signed DPIA per ADR-0029 §6 trigger (proximity scanning, uplink relay, TURN/ICE logging, contact-discovery change, new processor or foreign host) | signed before the milestone that ships the trigger is released (ADR-0029 verification): 0.6 (contact discovery), 0.7 (TURN/ICE logging, new host), 1.2 and 1.3 (also entry criteria there, brief §13) | Owner (counsel advises) | ADR-0029, `dpia-screening.md` |
-| G-LEGAL-*n* | Written counsel opinions Q-L1…Q-L9 relevant to the milestone | 1.0 licence step; 1.1, 1.2, 1.3, 1.4 gates (not 0.x, ADR-0029 consequences) | Counsel | brief §17 |
+| G-DPIA-*n* | Signed DPIA per ADR-0029 §6 trigger (proximity scanning, uplink relay, TURN/ICE logging, contact-discovery change, new processor or foreign host) | Timing per [`dpia-screening.md`](dpia-screening.md) §3 and §3.1: **0.4 exit** (DT-4 contact-lookup cap and block filter, V31; age-gate DPIA *recommended*, screening §8 note); **0.6 exit** (DT-4 revision for discoverability; APNs DT-5 when iOS ships, under G-iOS); **0.7 exit** (DT-3 TURN/ICE, DT-5 new host); **1.0 exit** (DPIA revision for the server store after cutover; LOCAL_ONLY only with its own DPIA signed before it is offered); **1.1 entry** (DT-3 revision); **1.2 entry** (DT-1, DT-6; G-PROXIMITY); **1.3 entry** (DT-2); **1.4 entry** (DT-1 radio, with the Q-L2 opinion) | Owner (counsel advises) | ADR-0029, `dpia-screening.md` |
+| G-LEGAL-*n* | Written counsel opinions Q-L1…Q-L9 relevant to the milestone | 1.0 licence step (Q-L7); **1.1: Q-L6 (basis for transfers abroad, if the TURN host is abroad) and Q-L8 (ICE telemetry as personal data)**; 1.2 (Q-L2); 1.3 (Q-L5); 1.4 (Art. 39/63(6) opinion). Not 0.x (ADR-0029 consequences) | Counsel | brief §17 |
 | G-RELEASE | Release APK/AAB installed and launched on `emulator-5554`; same artefact promoted (ADR-0030) | every milestone exit | Owner [O] | ROADMAP release step 6, CICD-07/10 |
 
 ---
@@ -185,24 +196,34 @@ or the external reviewer) can sign it.
 | **APPROVAL scope / ADRs** | `phase-0` (the brief recommends the owner authorise items 1–6 now, independent of design approval); dispositions for ADR-0010…0033 recorded in `APPROVAL.md` §3; `process` for ADR-0030…0033. |
 | **Entry** | This brief delivered (met 2026-11-12). |
 | **Exit** | See table. |
-| **Evidence** | Incident record rotation log; workflow inspection notes; test-PR run showing no cx43 job; `APPROVAL.md` §3 filled; engagement letter or email to counsel (filed privately, referenced only). |
+| **Evidence** | Incident record rotation log; runner list and host `systemctl list-units 'actions.runner.*'` output showing no `cx43` runner (ADR-0031 F1), or the accepted-risk variant recorded in `APPROVAL.md` with its expiry; `APPROVAL.md` §3 filled; engagement letter or email to counsel (filed privately, referenced only). |
 | **Kill / fallback** | Not droppable. If the GitHub-hosted billing lock (CICD-04) is not resolved, ADR-0031 allows PR workflows to be **disabled** rather than run on cx43 — that is the fallback, and R37 records its cost. |
 
 | # | Exit criterion | Method | Signed |
 |---|---|---|---|
 | P0-1 | Every `.env.prod` value rotated; an old JWT fails to authenticate | [I] rotation log + [CI/O] login attempt with a token minted from the old secret | Owner |
 | P0-2 | DB, Redis and MinIO credentials rotated (not proven by P0-1) | [I] ADR-0031 F7 rotation log | Owner |
-| P0-3 | No PR job runs on `muhabbet-cx43` | [I] workflow inspection + a test PR (ADR-0031 F1) | Owner |
+| P0-3 | No PR- or branch-supplied code can run on `muhabbet-cx43` | [I] ADR-0031 F1: runner list shows no `cx43` runner and no `actions.runner.*` unit is active on the host (or, only under the accepted-risk variant, F1 (i)–(iii)). A test PR that merely omits the `if:` guard is not evidence | Owner |
 | P0-4 | `muhabbet-mordecai` identified or deregistered | [I] runner list (F2) | Owner |
 | P0-5 | Every ADR 0010–0033 has a disposition | [I] `APPROVAL.md` §3 | Owner |
-| P0-6 | Then, and only then, ADR-0030/0031/0032 GitHub restructuring applied | [I] ADR-0030 V1–V4, ADR-0032 A1–A3 | Owner |
+| P0-6 | Then, and only then, ADR-0030/0031/0032 GitHub restructuring applied | [I] ADR-0030 V1–V8 (V5–V7 deploy by artefact: every 0.4 [O] demonstration against production depends on it, CICD-08), ADR-0031 F1–F8, ADR-0032 A3 (A1/A2 are lagging metrics, re-checked at 0.4 exit) | Owner |
+| P0-7 | Protected `release` and `production` environments with a required reviewer | [I] ADR-0031 F3 (CICD-02) | Owner |
+| P0-8 | Every third-party action SHA-pinned; no `@master` (incl. `trivy-action`) | [I] ADR-0031 F4 (CICD-05) | Owner |
+| P0-9 | Secret scanning and push protection on | [I] ADR-0031 F6 (brief §14 item 1) | Owner |
+| P0-10 | Deploy trigger guarded | [I] ADR-0031 F8 (MISS-01 CI/CD) | Owner |
+| P0-11 | SECURITY.md phone-hash claim corrected on `main` and `dev` | [I] (GOV-08, T-DIR-03) | Owner |
+| P0-12 | Counsel engagement recorded (reference only, filed privately) | [I] | Owner |
+| P0-13 | Every RQ listed for Phase 0 in [`vv-plan.md`](vv-plan.md) §7 passes; V&V summary (vv-plan §18) posted | RQ-76 (F1–F8), RQ-74 after ADR-0030 | Owner |
+
+Rotation evidence for P0-1/P0-2 lives in the
+[incident record §6](../../process/security-incident-2026-11-env-prod.md).
 
 **Issues (after approval).** One epic "Phase 0 — emergencies and approval" with sub-issues:
 
 | Kind | Item | Findings |
 |---|---|---|
 | New | Rotate all `.env.prod` values; commit-scoped gitleaks allowlist; secret scanning + push protection | CICD-06 |
-| New | Remove PR jobs from cx43 (or disable) | CICD-01, MISS-01 (CI/CD) deploy-trigger guard |
+| New | Stop and deregister the `cx43` runner (ADR-0031 D2), or record the accepted-risk variant | CICD-01, MISS-01 (CI/CD) deploy-trigger guard |
 | New | Identify/deregister `muhabbet-mordecai` | CICD-03 |
 | New | `release` and `production` environments with reviewer | CICD-02, MISS-02 (CI/CD) |
 | New | Correct SECURITY.md on `main` and `dev` | GOV-08, MISS-03 (governance), MISS-03 (product) |
@@ -221,11 +242,11 @@ or the external reviewer) can sign it.
 | Field | Content |
 |---|---|
 | **Question** | ROADMAP: can a person use the app without being lied to by it? Multi-transport: does the one existing path stop losing, duplicating and mis-reporting messages, and is the seq foundation laid without rewriting what 0.5 replaces? |
-| **Scope — backend** | BE-03 per-device ack authorisation · BE-02 scheduled-message visibility and one transaction per release (BEV-M1) · BE-07 replayed `ServerAck` · BE-12 sessions close on expiry, logout, revoke, delete, and JWT out of the query string (BE-16) · BE-13 refresh-reuse detection · atomic prekey claim and fetch rate limit (BE-14 part 1, C10, M1) · contact-lookup daily cap and block filter (C8, M3) · **age gate** V30 behind `AgeAssurancePort` (ADR-0029) · **early engine:** V28/V29 additive seq and device-scoped idempotency · BE-08 ArchUnit boundary rules for messaging. |
+| **Scope — backend** | BE-03 per-device ack authorisation · BE-02 scheduled-message visibility (BEV-M1 per-message release transaction is `fixed-on-dev`: re-verify only) · BE-07 replayed `ServerAck` · BE-12 sessions close on expiry, logout, revoke, delete, and JWT out of the query string (part of the BE-12 recommendation; BE-16, concurrent session writes, is `fixed-on-dev`: re-verify only) · BE-13 refresh-reuse detection · atomic prekey claim and fetch rate limit (BE-14 part 1, C10, M1) · contact-lookup daily cap and block filter, V31 (C8, M3) · **age gate** V30 behind `AgeAssurancePort` (ADR-0029) · **early engine:** V28/V29 additive seq and device-scoped idempotency · BE-08 ArchUnit boundary rules for messaging. |
 | **Scope — mobile** | MOB-01 `SessionTeardown` (tables, queues, WorkManager; MISS-02 mobile) · MOB-03 persist incoming `message.new` before DELIVERED and remove the duplicate ack in `ConversationListScreen` · MOB-05 edit dedup key includes `editedAt` · MOB-04 stopgap **limited to** "delete `PendingMessage` only on `ServerAck(requestId)`" · group receipt aggregation (MISS-01 mobile) · **early engine:** version catalog, one convention plugin (KMP-05), SQLDelight `.sqm` migrations + `verifyMigrations`, `:shared:jvmTest` in CI (KMP-03). |
 | **Also retained** | ROADMAP's four existing 0.4 conditions: search actually searches; the notification and the tick tell the truth; a community has somewhere to talk; nothing looks like it works and does not (RN-R1). |
 | **APPROVAL scope / ADRs** | `0.4`; ADR-0013, 0014, 0018 (parts 1–3), 0020 (teardown), 0022 (plane A auth only), 0028 (prerequisites), 0029 accepted. |
-| **Entry** | Phase 0 exit. |
+| **Entry** | Phase 0 exit (brief §13). See RN-R11: this makes every 0.4 item, including the age gate (R38), wait on all ADR dispositions and the GitHub restructuring. |
 | **Evidence** | Backend JUnit XML with Docker running, on base commit and on branch (CLAUDE.md rule); `verifyMigrations` and `:shared:jvmTest` reports; owner emulator notes per [O] row; logcat `FATAL` grep of the release APK. |
 | **Kill / fallback** | Not droppable. Fallback for schedule pressure: the trimmed list is already the minimum (judge disagreement "size of 0.4"); anything else moves to 0.5 visibly. |
 
@@ -240,13 +261,23 @@ or the external reviewer) can sign it.
 | 04-7 | Concurrent prekey claims never return the same key; fetch limits enforced | RQ-11, RQ-45 | [CI] Testcontainers | CI |
 | 04-8 | Acks from non-members or for non-existent ids rejected and not broadcast; duplicate submit replays original seq | RQ-31, RQ-02 | [CI] integration | CI |
 | 04-9 | Unreleased scheduled message never readable by recipients | RQ-32 | [CI] integration | CI |
-| 04-10 | Enumeration cap enforced | RQ-12 (cap part) | [CI] integration | CI |
+| 04-10 | Enumeration cap and block filter enforced (V31) | RQ-12 (cap part), RQ-82 | [CI] integration | CI |
 | 04-11 | `verifyMigrations` and `:shared:jvmTest` run in CI; catalog in use | RQ-27, RQ-30, RQ-71 | [CI] + [I] | CI |
 | 04-12 | Backend suite measured with Docker running, base vs branch, no new failures | — | [CI] | CI |
 | 04-13 | ROADMAP's four 0.4 conditions each seen working | — | [O] | Owner |
 | 04-14 | Release APK installed and launched on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 04-15 | DT-4 DPIA (contact-lookup cap, block filter) signed before release; age-gate DPIA per `dpia-screening.md` §8 note (recommended) | RQ-40 | [I] | Owner |
+| 04-16 | Reuse of a revoked refresh token revokes that device's sessions (T-SRV-03) | RQ-83 | [CI] integration | CI |
+| 04-17 | An edit after the first is applied; dedup keyed on `editedAt` (MOB-05) | RQ-84 | [CI] | CI |
+| 04-18 | Group READ status aggregates per member, not per message (MISS-01 mobile) | RQ-85 | [CI] | CI |
+| 04-19 | ArchUnit boundary rules fail on a seeded violation (BE-08) | RQ-88 | [CI] | CI |
+| 04-20 | WS handshake rejects a JWT in the query string; auth by header or first frame (BE-12) | RQ-09 | [CI] integration | CI |
+| 04-21 | Every RQ listed for 0.4 in [`vv-plan.md`](vv-plan.md) §7 passes (incl. RQ-75, RQ-80 N-1 schema job, #295); V&V summary (vv-plan §18) posted; ADR-0032 A1/A2 re-checked | per vv-plan §7 | [CI]/[I] | Owner |
 
 **Owner-observed items:** 04-1, 04-2, 04-3, 04-4, 04-5, 04-13, 04-14.
+
+Scope items without an exit row (hygiene): `.sqm` migrations are covered by 04-11; MOB-04 stopgap by 04-1;
+#342 `WsClient` tests are a precondition of R3, not an exit.
 
 **Issues (after approval).** Epic "0.4 — truth: delivery correctness and compliance" with sub-issues:
 
@@ -262,12 +293,12 @@ or the external reviewer) can sign it.
 | Existing (candidate) | #342 `WsClient` loop untested (keep its tests through the 0.5 strangling, R3) | MOB-12 |
 | Existing (related, owner to place) | #725 rate-limited send gets no ack (tick honesty) · #352 typing indicator accepted for any conversation id | MOB-04 class, BE-03 class |
 | Stays open, outside design | #327 erasure leaves media | MISS-02 (governance) |
-| New | Scheduled-message visibility + per-message release transaction | BE-02, BEV-M1 |
+| New | Scheduled-message visibility (new); per-message release transaction: re-verify, fixed on `dev` | BE-02, BEV-M1 |
 | New | Replay original `ServerAck` on duplicate submit | BE-07 |
-| New | Session close on exp/logout/revoke/delete; first-frame or header auth | BE-12, BE-16 |
+| New | Session close on exp/logout/revoke/delete; first-frame or header auth (BE-16 is fixed on `dev`: re-verify) | BE-12, BE-16 |
 | New | Refresh reuse detection | BE-13 |
 | New | Atomic prekey claim + per-requester/per-pair rate limit | BE-14, C10, M1 |
-| New | Contact-lookup daily cap + block filter | C8, M3 |
+| New | Contact-lookup daily cap + block filter (V31) + DT-4 DPIA | C8, M3 |
 | New | Age gate (V30, `AgeAssurancePort`, no compliance claim) | LEG-02, MISS-04 (legal) |
 | New | V28/V29 seq and device-scoped idempotency (additive) | BE-06, C13, BE-07 |
 | New | `SessionTeardown` | MOB-01, MISS-02 (mobile) |
@@ -282,17 +313,17 @@ or the external reviewer) can sign it.
 | Field | Content |
 |---|---|
 | **Question** | ROADMAP: does every control the app shows either work or not get shown? Multi-transport: does every message go through one durable, idempotent engine into one encrypted local SSOT, with content-free push? |
-| **Scope** | `:mobile:crypto` (type gate; no `SealedFrame` producer), `:mobile:messaging`, `:mobile:crypto-testkit` · `WsClient` strangled into `WsServerLink`/`WsInboundSource` · `RestChangeFeedSource`, `FcmHintSource`, `SyncCoordinator` · UI observes DB flows; `verifyUi` ratchet for `WsMessage`/`wsClient` in `ui/` to 0 (from 17 sites) · SQLCipher via fresh DB + resync (ADR-0020) · backend `/changes`, seq/changeSeq on frames, `hello`/version and `Unknown` (KMP-11), KMP-07 DTO de-duplication, `MessageService` split (BE-11), wake-only FCM with OEM fallback (ADR-0019, BE-15) · MOB-07, MOB-10, MOB-11 · plaintext fallback code deleted (C9). |
-| **Rollout** | `engine.enabled` remote flag: 0.5.0 ships both paths, engine on for internal testers; 0.5.1 flips the default after emulator parity; legacy path deleted in 0.5.2 or later. |
+| **Scope** | `:mobile:crypto` (type gate; no `SealedFrame` producer), `:mobile:messaging`, `:mobile:crypto-testkit` · `WsClient` strangled into `WsServerLink`/`WsInboundSource` · `RestChangeFeedSource`, `FcmHintSource`, `SyncCoordinator` · UI observes DB flows; `verifyUi` ratchet for `WsMessage`/`wsClient` in `ui/` to 0 (from 17 sites) · SQLCipher via fresh DB + resync (ADR-0020) · backend `/changes`, seq/changeSeq on frames, `hello`/version and `Unknown` (KMP-11), KMP-07 DTO de-duplication, `MessageService` split (BE-11), wake-only FCM with OEM fallback (ADR-0019, BE-15) and the aydınlatma metni updated for it · MOB-07 (re-verify client side; backend fixed on `dev`, V25), MOB-10, MOB-11 · plaintext fallback code deleted (C9). |
+| **Rollout** | `engine.enabled` remote flag: 0.5.0 ships both paths, engine on for internal testers; 0.5.1 flips the default after emulator parity; legacy path deleted in 0.5.2 or later (brief §13). This conflicts with ROADMAP's "patch releases fix defects only" — see RN-R9. |
 | **APPROVAL scope / ADRs** | `0.5`; ADR-0011, 0012, 0013, 0014, 0016, 0019, 0020, 0022, 0028 Accepted. |
-| **Entry** | 0.4 shipped. ADRs above Accepted. Docker available for Spring-config changes (#598 class). |
+| **Entry** | 0.4 shipped. ADRs above Accepted. Docker available for Spring-config changes (#598 class). The owner records the p90 wake-to-notification bound (and the device) as an APPROVAL `0.5` condition before anything is measured (vv-plan §4 rule A, R11). |
 | **Evidence** | `:mobile:messaging:jvmTest` property-suite report (10 000 seeds, seed list attached); build-dependency check output; FCM payload capture; forensic file pull after logout; owner emulator notes. |
 | **Kill / fallback** | Not droppable. **Rollback criterion (R3):** any loss or duplicate in the property suite or in the owner's emulator script keeps (or returns) `engine.enabled` default to off; the legacy path is not deleted until parity is shown twice (0.5.1 flip, then 0.5.2 deletion). |
 
 | # | Exit criterion | RQ | Method | Signed |
 |---|---|---|---|---|
-| 05-1 | 10 000 seeded runs (loss, duplication, reorder, partition, process death, 24 h offline, token expiry): each message exactly once in sender and receiver stores, in seq order, with `TestClock` | RQ-01, RQ-02, RQ-05 | [CI] property suite | CI |
-| 05-2 | `:mobile:messaging` has no Compose, Koin-annotation or `WsMessage` dependency; `ui/` count = 0 | RQ-24, RQ-25 | [CI] build-enforced + `verifyUi` | CI |
+| 05-1 | 10 000 seeded runs (loss, duplication, reorder, partition, process death, 24 h offline, token expiry): each message exactly once in sender and receiver stores, in seq order, with `TestClock` | RQ-01, RQ-02, RQ-05 | [CI] property suite, or E-LOCAL per vv-plan S-3 until CI is off cx43 | Owner |
+| 05-2 | `:mobile:messaging` has no Compose, Koin-annotation or `WsMessage` dependency; `ui/` count = 0 (brief/ADR-0011 — but see RN-R10: the engine spec schedules the `ui/call/` sites for 0.7) | RQ-24, RQ-25 | [CI] build-enforced + `verifyUi` | CI |
 | 05-3 | Only `:mobile:crypto` constructs `SealedFrame`; no testkit on a release classpath; fallback deleted | RQ-06, RQ-39 | [CI] + [I] | CI |
 | 05-4 | Captured FCM payload has no content | RQ-07 | [CI] adapter test + [O/I] capture | Owner |
 | 05-5 | Forensic check after logout: no readable DB, no `-wal`/`-shm` remnant | RQ-08, RQ-52 | [O] | Owner |
@@ -303,10 +334,13 @@ or the external reviewer) can sign it.
 | 05-10 | Every controller response decodes with the shared DTO | RQ-56 | [CI] contract test | CI |
 | 05-11 | No head-of-line blocking across lanes, links or conversations | RQ-28 | [CI] | CI |
 | 05-12 | Golden vectors (plane A) and fuzz targets for every parser exist and pass | RQ-48, RQ-58 | [CI] | CI |
-| 05-13 | ROADMAP 0.5.0 exit criteria (controls work or are not shown) | — | [O] | Owner (RN-R2) |
+| 05-13 | ROADMAP 0.5.0 exit criteria: FT-01/FT-02/FT-03 controls work or are hidden (R31) | — | [O] | Owner (RN-R2) |
 | 05-14 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 05-15 | `MessageService` split; no service implements more than three use-case interfaces (CLAUDE.md SRP rule, BE-11) | RQ-89 | [I] | Owner |
+| 05-16 | Aydınlatma metni updated for wake-only push (ADR-0019 consequence; `dpia-screening.md` §3.1) | RQ-90 | [I] | Owner |
+| 05-17 | Every RQ listed for 0.5.0 in [`vv-plan.md`](vv-plan.md) §7 passes (incl. RQ-21, RQ-33, RQ-34, RQ-43, RQ-50, RQ-70, RQ-72, RQ-73); V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
 
-**Owner-observed items:** 05-4 (capture), 05-5, 05-6, 05-7, 05-8 (emulator script), 05-13, 05-14, and the 0.5.1 parity sign-off before the default flip.
+**Owner-observed items:** 05-4 (capture), 05-5, 05-6, 05-7, 05-8 (emulator script), 05-13, 05-14, and the 0.5.1 parity sign-off before the default flip. 05-1 is owner-signed while it runs on E-LOCAL (vv-plan S-3).
 
 **Issues (after approval).** Epic "0.5.0 — one engine, one store" with sub-issues:
 
@@ -334,7 +368,7 @@ or the external reviewer) can sign it.
 | Field | Content |
 |---|---|
 | **Question** | ROADMAP: can an existing user bring a new one in, and can a new user find someone to talk to? Multi-transport: is the per-device delivery and key model in place, and is iOS in or out? |
-| **Scope** | Invite flow (existing ROADMAP scope) · contact discovery with a "discoverable by phone" setting **and a server-side reader** (§8.6, C8, M3) · background sync on seq · per-device delivery rows V32 (BE-18) · per-device key schema V33 and `IdentityKeyChanged` (BE-14 part 2, M2) · **iOS decision as a blocking gate** (KMP-01): either entry point, Xcode project, DI and iOS CI build exist, or an ADR scopes iOS out of 1.0. |
+| **Scope** | Invite flow (existing ROADMAP scope) · contact discovery with a "discoverable by phone" setting **and a server-side reader** (§8.6, C8, M3) · background sync on seq · discoverability column on V31 · per-device delivery rows V32 (BE-18) · per-device key schema V33 and `IdentityKeyChanged` (BE-14 part 2, M2) · **iOS decision as a blocking gate** (KMP-01): either entry point, Xcode project, DI and iOS CI build exist, or an ADR scopes iOS out of 1.0. |
 | **APPROVAL scope / ADRs** | `0.6`; ADR-0018 (per-device directory), ADR-0028 (iOS gate); owner question Q-O2. |
 | **Entry** | 0.5 exit. |
 | **Evidence** | Integration-test reports; iOS simulator launch note or accepted scoping ADR; owner emulator note. |
@@ -349,10 +383,11 @@ or the external reviewer) can sign it.
 | 06-5 | Relationship check on bundle fetch; last-resort Kyber fallback | RQ-45 | [CI] | CI |
 | 06-6 | Per-device delivery rows drive aggregate status | RQ-31 | [CI] | CI |
 | 06-7 | ROADMAP 0.6.0 exit criteria (invite, find someone) | — | [O] | Owner |
-| 06-9 | DPIA for the contact-discovery change signed before release (ADR-0029 §6) | RQ-40 | [I] | Owner |
-| 06-8 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 06-8 | DT-4 DPIA revision for the discoverability change signed before release (ADR-0029 §6; `dpia-screening.md` §3.1); APNs DPIA if iOS ships in this release (G-iOS) | RQ-40 | [I] | Owner |
+| 06-9 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 06-10 | Every RQ listed for 0.6.0 in [`vv-plan.md`](vv-plan.md) §7 passes; V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
 
-**Owner-observed items:** 06-1, 06-3 (simulator launch, if iOS is kept), 06-7, 06-8.
+**Owner-observed items:** 06-1, 06-3 (simulator launch, if iOS is kept), 06-7, 06-9.
 
 **Issues (after approval).** Epic "0.6.0 — reachable, per-device":
 
@@ -362,7 +397,7 @@ or the external reviewer) can sign it.
 | Existing (candidate) | #334 no consent at signup; address book uploads on permission grant (discovery change, DPIA) | C8, LEG-04 |
 | Existing (candidate) | #79 verify iOS compiles · #729 iOS test target does not compile · #735 iOS tests never execute · #74 APNs · #75 iOS phone auth | KMP-01, KMP-02, KMP-14 |
 | Existing (candidate) | #83 multi-device remainder (per-device schema prerequisite) | M2, ADR 0007 |
-| New | Discoverability setting with reader; enumeration test | C8, M3 |
+| New | Discoverability setting (V31) with reader; enumeration test; DT-4 DPIA revision | C8, M3 |
 | New | V32 per-device delivery | BE-18 |
 | New | V33 per-device keys; `IdentityKeyChanged` | BE-14, M2 |
 | New | iOS decision: fix KMP-01 or scoping ADR | KMP-01, FT-04, MOB-14 |
@@ -377,7 +412,7 @@ or the external reviewer) can sign it.
 | Field | Content |
 |---|---|
 | **Question** | ROADMAP: does a call connect, carry audio both ways, and appear in history? Multi-transport: does the DIRECT live-session path work over SFU/TURN without exposing IPs to non-contacts? |
-| **Scope** | ADR 0009 resolved: LiveKit on a **separate host**, embedded TURN/TLS on 443, `LIVEKIT_*` in `.env.prod` (MISS-1 networking) · client sends `call.initiate` and publishes the mic track (#367–#373) · `LiveSessionPort`/`LiveKitSession`; signalling as CONTROL frames through the engine · relay-only ICE for non-contacts, "always relay" setting, SFU media-access disclosure · ICE telemetry without IPs (NAT-3). |
+| **Scope** | ADR 0009 resolved: LiveKit on a **separate host**, embedded TURN/TLS on 443, `LIVEKIT_*` in `.env.prod` (MISS-1 networking) · client sends `call.initiate` and publishes the mic track (#367–#373) · `LiveSessionPort`/`LiveKitSession`; signalling as CONTROL frames through the engine · relay-only ICE for non-contacts, "always relay" setting, SFU media-access disclosure · ICE telemetry without IPs (NAT-3) · call sites #14–#16 (`ui/call/ActiveCallScreen.kt:272`, `IncomingCallScreen.kt:129/162`) and the `ActiveCallScreen.kt:118` collector migrated to `LiveSessionCoordinator` (delivery-engine-spec §16.2/§16.3; RN-R10). |
 | **APPROVAL scope / ADRs** | `0.7`; ADR 0009, ADR-0023 (0.7 part); owner question Q-O8 (host, budget, TURN egress). |
 | **Entry** | ADR 0009 accepted; host provisioned; 0.6 exit. |
 | **Evidence** | ICE stats captures; a week of telemetry (relayed share, egress); owner call log on two operators. |
@@ -391,7 +426,9 @@ or the external reviewer) can sign it.
 | 07-4 | Stored ICE telemetry rows contain no IP | RQ-60 | [CI] + [I] | CI |
 | 07-5 | One week of relayed share and TURN egress measured | RQ-61 | [A] | Owner |
 | 07-6 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
-| 07-7 | DPIA for TURN/ICE logging and the new host signed before release (ADR-0029 §6) | RQ-40 | [I] | Owner |
+| 07-7 | DPIA for TURN/ICE logging and the new host signed before release (ADR-0029 §6; `dpia-screening.md` §3 places DT-3 at 0.7 exit) | RQ-40 | [I] | Owner |
+| 07-8 | Call sites #14–#16 and the `ActiveCallScreen` collector use `LiveSessionCoordinator`; `verifyUi` count of `WsMessage`/`wsClient` in `ui/` = 0 (only if RN-R10 option (a) is chosen) | RQ-24 | [CI] | CI |
+| 07-9 | Every RQ listed for 0.7.0 in [`vv-plan.md`](vv-plan.md) §7 passes; V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
 
 **Owner-observed items:** 07-1, 07-2 (ICE stats capture), 07-6.
 
@@ -410,9 +447,9 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | Field | Content |
 |---|---|
 | **Question** | ROADMAP: are all of the app's privacy claims true? Multi-transport: is E2E real and fail-closed by type, so non-server paths become possible at all? |
-| **Scope** | ADR-0017 preconditions (licence approved and executed for `mobile/`, contributor audit, counsel opinion on Play and App Store) · iOS bridge spike (Android-only 1.0 by decision if not ready) · libsignal adapters behind `SessionCryptoPort`, PQXDH + Kyber, per-device fan-out, sender-key groups, media E2E · safety-number QR, `IdentityKeyChanged` UX · `message_envelopes` mailbox V34, protocol v2, on-device FTS, sender-side link previews · ADR 0007 `DeviceLinkCrypto` real · ADR-0021 plaintext-history cutover (Q-O4) · external crypto review · LOCAL_ONLY only if Q-O3 is decided. |
+| **Scope** | ADR-0017 preconditions (licence approved and executed for `mobile/`, contributor audit, counsel opinion on Play and App Store) · iOS bridge spike (Android-only 1.0 by decision if not ready) · libsignal adapters behind `SessionCryptoPort`, PQXDH + Kyber, per-device fan-out, sender-key groups, media E2E · safety-number QR, `IdentityKeyChanged` UX · `message_envelopes` mailbox V34, protocol v2, on-device FTS, sender-side link previews · ADR 0007 `DeviceLinkCrypto` real · ADR-0021 plaintext-history cutover (Q-O4) · external crypto review · DPIA revision for the server store after cutover (`dpia-screening.md` §3.1) · LOCAL_ONLY only if Q-O3 is decided **and** its own DPIA is signed before it is offered. |
 | **APPROVAL scope / ADRs** | `1.0`; ADR-0016, 0017, 0018, 0019, 0021, 0022; owner questions Q-O1…Q-O4; ADR-003 closed as superseded at exit. |
-| **Entry** | 0.7 shipped or explicitly deferred · crypto reviewer engaged · two-device Android round trip on real builds · G-LICENCE · G-iOS honoured. |
+| **Entry** | 0.7 shipped or explicitly deferred · crypto reviewer engaged · two-device Android round trip on real builds (produced by the §16 spike; never distributed) · G-LICENCE · G-iOS honoured. |
 | **Evidence** | Claims register (RQ-20) with a test or device observation per claim; SQL assertion report; contract-suite report per adapter; external review report and closure notes; owner device notes. |
 | **Kill / fallback** | Not droppable (1.0 *is* "E2E on", ROADMAP versioning rule). Fallbacks: **Android-only 1.0** if the iOS bridge or KMP-01 is not ready (iOS E2E follows as 1.0.x); **vodozemac (Apache-2.0) core** if counsel's AGPL opinion is negative — needs its own ADR and loses PQXDH. |
 
@@ -430,6 +467,8 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | 10-10 | No conversation labelled E2E while a readable server copy exists | RQ-20 | [CI] + [I] | Owner |
 | 10-11 | Crypto confined; AGPL distribution obligations met | RQ-43, RQ-44 | [CI] + [I] | Owner |
 | 10-12 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 10-13 | DPIA revision for the server store signed; LOCAL_ONLY absent unless its DPIA is signed | RQ-40, RQ-54 | [I] | Owner |
+| 10-14 | Every RQ listed for 1.0.0 in [`vv-plan.md`](vv-plan.md) §7 passes (incl. RQ-40, RQ-42, RQ-48 (B), RQ-52 (FTS), RQ-54); V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
 
 **Owner-observed items:** 10-5 (forensic part), 10-7, 10-12, plus sign-off of 10-1, 10-2 and 10-10.
 
@@ -459,8 +498,8 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | **Question** | Do P2P 1:1 calls buy end-to-end media and better latency than the SFU, at an acceptable TURN cost and without IP exposure? |
 | **Scope** | `WebRtcP2PSession` for 1:1 calls (DTLS-SRTP end to end) · ICE over our own TURN, relay-only for non-contacts · TURN capacity sized from 0.7 data · an RFC 5780 probe per ASN **only if** the data shows a need (NAT-2, NAT-3). No messaging over data channels (ADR-0023). |
 | **APPROVAL scope / ADRs** | `1.1`; ADR-0023 (1.1 part). |
-| **Entry** | 1.0 exit · 0.7 telemetry shows benefit (latency or SFU egress) · TURN egress budgeted (Q-O8) · iOS WebRTC bridge spiked if iOS is in scope · counsel opinion relevant to 1.1 (ADR-0029: the counsel checklist blocks 1.1). |
-| **Exit** | Per-ASN setup success and latency A/B vs SFU [A] (RQ-61) · no IP exposure to non-contacts, by candidate inspection [I] (RQ-15) · two-operator physical-device P2P call [O] (RQ-14) · release launch [O]. |
+| **Entry** | 1.0 exit · 0.7 telemetry shows benefit (latency or SFU egress) · TURN egress budgeted (Q-O8) · iOS WebRTC bridge spiked if iOS is in scope · written counsel opinions **Q-L6** (basis for transfers abroad, if the TURN host is abroad) and **Q-L8** (ICE telemetry as personal data), per ADR-0029 consequences (the counsel checklist blocks 1.1) · DT-3 DPIA revision signed (`dpia-screening.md` §3.1). APPROVAL.md's `1.1` *Gate artefacts* line does not list the counsel opinions yet; the owner should add them there (owner edit). |
+| **Exit** | Per-ASN setup success and latency A/B vs SFU [A] (RQ-61) · no IP exposure to non-contacts, by candidate inspection [I] (RQ-15) · two-operator physical-device P2P call [O] (RQ-14) · release launch [O] · every RQ listed for 1.1 in vv-plan §7 passes and the V&V summary is posted [CI]/[I]. |
 | **Evidence** | A/B analysis note; candidate captures; owner call log. |
 | **Owner-observed items** | Two-operator P2P call; candidate capture. |
 | **Kill criterion** | If the SFU satisfies the need and the "E2E 1:1 calls" claim is not wanted, drop 1.1 (brief). Numeric threshold: Q-O5. |
@@ -492,6 +531,7 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | 12-9 | Signing key absent from every PR-job host | RQ-47 | [I] | Owner |
 | 12-10 | UI claims nothing beyond the published matrix | RQ-20, RQ-63 | [I] | Owner |
 | 12-11 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 12-12 | Every RQ listed for 1.2 in [`vv-plan.md`](vv-plan.md) §7 passes (incl. RQ-23, RQ-38, RQ-72); V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
 
 **Owner-observed items:** 12-1, 12-2 (devices), 12-3 (capture), 12-4 (device half), 12-6 (device half), 12-11, and the spike matrix itself.
 
@@ -525,6 +565,7 @@ for the 1.3 gate. Findings: PROX-01…11, LAN-1, C7, C11, MISS-01 (proximity con
 | 13-6 | An uplinked and a later direct copy produce one row | RQ-02 | [CI] | CI |
 | 13-7 | Uplink key absent from every PR-job host | RQ-47 | [I] | Owner |
 | 13-8 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
+| 13-9 | Every RQ listed for 1.3 in [`vv-plan.md`](vv-plan.md) §7 passes (incl. RQ-52 custody); V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
 
 **Owner-observed items:** 13-1, 13-2 (device half), 13-8.
 
@@ -542,8 +583,8 @@ LEG-04, PROX-03.
 | **Question** | Can certified Meshtastic nodes carry Muhabbet text and receipts lawfully and within duty cycle? |
 | **Scope** | `:mobile:transport-meshtastic` `MeshtasticLink`, `AirtimeLedger` (sliding hour per sub-band), constrained policy, certified hardware list. Text and receipts only, ≤ ~200 B, contacts only. Excluded from TR release flavours **by Gradle** until counsel signs off. |
 | **APPROVAL scope / ADRs** | `1.4`; ADR-0026; owner question Q-O5 (and the flavour-distribution question in ADR-0026's reviewer note). |
-| **Entry** | Written opinion on Law 5809 Art. 39/63(6), the 2010 coded/encrypted communications regulation and KET conformity · G-PROXIMITY in place. **No line of the adapter is written before the opinion exists** (ADR-0026). |
-| **Exit** | Ledger tests (time-on-air golden vectors) [CI] (RQ-19) · one-hour field log within the duty cycle [O] (RQ-19) · text and receipts delivered between two certified nodes [O] (RQ-69) · module absent from every TR release classpath; `RegulatoryRule` denies `EXTERNAL_RF` in TR [CI] (RQ-37) · TR flavour includes the module only after counsel signs off [I]. |
+| **Entry** | Written opinion on Law 5809 Art. 39/63(6), the 2010 coded/encrypted communications regulation and KET conformity · G-PROXIMITY in place · DT-1 (radio emission) DPIA signed with the Q-L2 opinion (`dpia-screening.md` §3.1). **No line of the adapter is written before the opinion exists** (ADR-0026). |
+| **Exit** | Ledger tests (time-on-air golden vectors) [CI] (RQ-19) · one-hour field log within the duty cycle [O] (RQ-19) · text and receipts delivered between two certified nodes [O] (RQ-69) · module absent from every TR release classpath; `RegulatoryRule` denies `EXTERNAL_RF` in TR [CI] (RQ-37) · TR flavour includes the module only after counsel signs off [I] · every RQ listed for 1.4 in vv-plan §7 passes and the V&V summary is posted [CI]/[I]. |
 | **Evidence** | Ledger test report; field log; Gradle classpath check output; opinion reference. |
 | **Owner-observed items** | Field log; two-node delivery. |
 | **Kill criterion** | Negative opinion. This may never ship in TR (brief). |
@@ -573,6 +614,7 @@ deleted or archived after the report. Each needs an explicit approval condition 
 | Spike | Gate it feeds | Output | Proposed approval vehicle |
 |---|---|---|---|
 | iOS libsignal bridge (`@objc` wrapper + cinterop, golden-vector round trip) | 0.6 G-iOS / 1.0 entry | Pass/fail note + vectors | `1.0` condition "spike harness only" (or `0.6`) |
+| Android libsignal two-device round trip | 1.0 entry | Owner-observed note + golden vectors | `1.0` condition "harness only, never distributed (no Play or GitHub release)" |
 | FTS5 `contentless_delete` under the chosen SQLCipher build | 1.0 on-device FTS | Version check + fallback decision | `1.0` condition |
 | iOS WebRTC bridge | 1.1 entry (if iOS in scope) | Pass/fail note | `1.1` condition |
 | Device matrix (2 weeks) | 1.2 G-PROXIMITY | Published pass/fail/prompt matrix (capability matrix §13) | `1.2` condition "harness code only, outside product modules" |
@@ -608,15 +650,15 @@ this file becomes the **rationale and gate record**. To avoid three sources of t
 
 | Step | Change to ROADMAP.md | Applied with scope |
 |---|---|---|
-| M1 | "Milestones are versions" table: add rows `1.1 — Direct`, `1.2 — Nearby`, `1.3 — Relay`, `1.4 — Off-grid hardware` with the questions in §2, marked *gated* and (1.1/1.3/1.4) *droppable* | the first of `1.1`…`1.4` approved |
-| M2 | Add a short "Admission gates" paragraph: gated milestones start only when their gate artefacts are filed; link to this file §4 | `0.4` |
-| M3 | Restate the 0.5.0 question to include the engine (or record the scope split decided in RN-R2) | `0.5` |
-| M4 | Definition of done: add "device criteria record observed by / where; only the owner ticks them" (ADR-0032) and "every privacy claim maps to a test or observation" (RQ-20) | `process`, `1.0` |
-| M5 | Release process: build once, launch the exact signed artefact on `emulator-5554`, promote the same bytes; deploy by artefact (ADR-0030); replace the "manual until #419" note | `process` |
-| M6 | Versioning: note that 1.0.0 may be Android-only by recorded decision (ADR-0017), and that the CHANGELOG must say so | `1.0` |
-| M7 | "Where the keys live": add device-CA intermediate and uplink key placement once Q-O7 is answered | `1.2` / `1.3` |
-| M8 | Update "Last revised"; add a link to this package's README | each merge |
-| M9 | This file gets a banner: "Schedule lives in GitHub milestones; this file records rationale and gates" | after M1 |
+| RM-1 | "Milestones are versions" table: add rows `1.1 — Direct`, `1.2 — Nearby`, `1.3 — Relay`, `1.4 — Off-grid hardware` with the questions in §2, marked *gated* and (1.1/1.3/1.4) *droppable* | the first of `1.1`…`1.4` approved |
+| RM-2 | Add a short "Admission gates" paragraph: gated milestones start only when their gate artefacts are filed; link to this file §4 | `0.4` |
+| RM-3 | Restate the 0.5.0 question to include the engine (or record the scope split decided in RN-R2) | `0.5` |
+| RM-4 | Definition of done: add "device criteria record observed by / where; only the owner ticks them" (ADR-0032) and "every privacy claim maps to a test or observation" (RQ-20) | `process`, `1.0` |
+| RM-5 | Release process: build once, launch the exact signed artefact on `emulator-5554`, promote the same bytes; deploy by artefact (ADR-0030); replace the "manual until #419" note | `process` |
+| RM-6 | Versioning: note that 1.0.0 may be Android-only by recorded decision (ADR-0017), and that the CHANGELOG must say so | `1.0` |
+| RM-7 | "Where the keys live": add device-CA intermediate and uplink key placement once Q-O7 is answered | `1.2` / `1.3` |
+| RM-8 | Update "Last revised"; add a link to this package's README | each merge |
+| RM-9 | This file gets a banner: "Schedule lives in GitHub milestones; this file records rationale and gates" | after RM-1 |
 
 The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 
@@ -649,6 +691,9 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 |---|---|
 | Every milestone of brief §13 appears with scope, entry, exit, owner-observed items and kill/fallback | Inspection against brief §13 |
 | Every exit criterion of brief §13 maps to an RQ in `vv-plan.md` or a gate in §4 | Inspection (vv-plan §7 table) |
+| Every scope item maps to an exit row, or is marked "no exit (hygiene)" | Inspection, scope row by scope row |
+| Per milestone, the roadmap exit RQ set equals the vv-plan §7 RQ set (the final "every RQ in vv-plan §7" row makes this hold by reference; enumerated RQs must not contradict it) | Inspection |
+| Every DPIA timing matches `dpia-screening.md` §3/§3.1 | Inspection against G-DPIA |
 | Every [O] item is device-dependent and every device-dependent item is [O] | Inspection against P13 |
 | No milestone or issue was created in GitHub before approval | `gh api` milestone list unchanged; inspection |
 | Mermaid graph renders and matches §3 edge table | Render check |
@@ -663,11 +708,13 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 > them as exit criteria (04-13). The owner should confirm.
 
 > **Reviewer note (open) RN-R2 — 0.5.0 has two scopes.** ROADMAP's 0.5.0 "Honest" question is "does
-> every control the app shows either work or not get shown?" (App Lock #378, wallpaper #380, server-only
-> features FT-02, sticker picker FT-03). The brief re-uses the name for the delivery engine, wake-only
-> push and SQLCipher, and does not mention the existing question. Both are kept here (05-13), which
-> enlarges 0.5.0 for a solo engineer (R4). The owner should decide whether the "controls" work stays
-> in 0.5.0, moves to 0.5.x patch releases, or moves to 0.6.0.
+> every control the app shows either work or not get shown?" (calls FT-01 / #367–#373, server-only
+> features FT-02, GIF/sticker picker FT-03 / #732; App Lock #378 and wallpaper #380 are already fixed
+> on `dev`, CHANGELOG.md:240 and :189-201, and only need device re-verification per GOV-03). The brief
+> re-uses the name for the delivery engine, wake-only push and SQLCipher, and does not mention the
+> existing question. Both are kept here (05-13), which enlarges 0.5.0 for a solo engineer (R4). The
+> owner should decide whether the "controls" work stays in 0.5.0 or moves to 0.6.0 (a move to 0.5.x
+> patch releases is possible only if RN-R9 amends ROADMAP's versioning rule).
 
 > **Reviewer note (open) RN-R3 — Phase 0 rotation check proves only the JWT.** Brief §13 verifies
 > "every `.env.prod` value is rotated" by "login with the old JWT failing". That proves only
@@ -679,6 +726,9 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 > owner decision 4 forbids code before approval. `APPROVAL.md` has no spike scope (also raised as SP-1
 > in the capability matrix). Proposed: each spike is approved as a `Conditions:` line ("harness code
 > only, outside product modules, deleted after the report") in the scope it feeds (§16).
+> Spike builds that link libsignal are never distributed, so they do not trigger the ADR-0017 licence
+> step (AGPL obligations attach to distribution). Product modules restore libsignal only after
+> G-LICENCE.
 
 > **Reviewer note (open) RN-R5 — deferring 0.7 also blocks 1.1.** The brief lets 1.0 start with 0.7
 > "explicitly deferred", but 1.1's entry needs 0.7 telemetry. A deferral of 0.7 therefore defers 1.1
@@ -697,3 +747,35 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 > **Reviewer note (open) RN-R8 — milestone naming.** The brief keeps ROADMAP's names ("0.4", "0.5.0
 > — Honest"); GOV-05 recommends titles equal to the SemVer tag ("v0.5.0 — Honest"). This roadmap does
 > not decide; the milestone policy belongs to the `process` scope.
+
+> **Reviewer note (open) RN-R9 — staged rollout vs ROADMAP versioning.** Brief §13 flips
+> `engine.enabled` in 0.5.1 and deletes the legacy path in 0.5.2. ROADMAP.md "How we version" says
+> "Patch releases fix defects only." The owner should either amend ROADMAP's rule for flag flips and
+> dead-code removal behind an already-shipped flag, or move the flip and the deletion to 0.6.0. This
+> roadmap keeps the brief's numbering (§7) until the owner decides.
+
+> **Reviewer note (open) RN-R10 — `ui/` count 0 at 0.5 vs call sites scheduled for 0.7.** Brief §13
+> and ADR-0011 verification require the `ui/` count of `WsMessage`/`wsClient` to be 0 at 0.5 exit
+> (05-2). `delivery-engine-spec.md` §16.2/§16.3 schedule call sites #14–#16
+> (`ui/call/ActiveCallScreen.kt:272`, `IncomingCallScreen.kt:129/162`) and the
+> `ActiveCallScreen.kt:118` collector for **0.7**, through `LiveSessionCoordinator`. The owner picks:
+> (a) 05-2 reads "`ui/` count = 0 outside `ui/call/` (3 send sites + 1 collector, frozen in the
+> `verifyUi` baseline until 0.7)" and 07-8 (RQ-24) closes it at 0.7; or (b) the call screens move to
+> the engine in 0.5, and 07-8 is dropped. This roadmap lists both (05-2 per the brief, 07-8 conditional).
+
+> **Reviewer note (open) RN-R11 — 0.4 waits on all of Phase 0.** 0.4 entry is the full Phase 0 exit
+> (brief §13): all 24 ADR dispositions, including the gated 1.1–1.4 ADRs (P0-5), and the GitHub
+> restructuring, including the ≥ 100-commit dev→main merge that R28 calls a big-bang risk (P0-6).
+> The 0.4 age gate (V30) is the item R38 rates L=H/I=H as possibly already legally required. Every
+> 0.4 fix therefore waits on dispositioning 1.4 Meshtastic and on the trunk merge. Proposed for the
+> owner: either (a) 0.4 entry requires only P0-1…P0-4 plus dispositions of the ADRs 0.4 cites (0013,
+> 0014, 0018, 0020, 0022, 0028, 0029), with P0-5/P0-6 running in parallel; or (b) the age-gate item is
+> authorised under scope `phase-0` like the security emergencies.
+
+> **Reviewer note (open) RN-R12 — DPIA timing is exit, not entry, for 0.x.** `dpia-screening.md` §3
+> places DT-3 (0.7) and DT-4 (0.4, 0.6) **before the change ships**, i.e. at milestone exit, and
+> records that only 1.2 and 1.3 have DPIAs as brief entry criteria. This roadmap follows that (04-15,
+> 06-8, 07-7 are exit rows). It adds 1.1 (DT-3 revision) and 1.4 (DT-1) DPIAs as **entry** items
+> because those milestones are gated and the counsel checklist blocks them (ADR-0029); the screening
+> lists them without a gate column. If the owner wants 0.x DPIAs as entry gates, that is an ADR-0029
+> amendment.

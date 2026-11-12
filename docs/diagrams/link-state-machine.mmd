@@ -46,7 +46,9 @@ stateDiagram-v2
         S_AuthExp --> S_Conn : refresh OK
         S_AuthExp --> S_Disc : refresh rejected, SessionTeardown(REFRESH_REJECTED)
         S_Back --> S_Conn : timer, network callback or foreground
-        S_Ready --> S_Disc : stop() or SessionRevoked close, SessionTeardown
+        S_Ready --> S_Disc : stop() (no teardown) / SessionRevoked close, then SessionTeardown(REVOKED)
+        S_Back --> S_Disc : stop() / SessionRevoked
+        S_Conn --> S_Disc : stop() / SessionRevoked
     }
 
     state "SealedLink - per peer (1.2+, gated; 1:1, verified, E2E only)" as SealedLinkSM {
@@ -80,7 +82,26 @@ stateDiagram-v2
         L_Discov --> L_Blocked : admission fails
         L_Consent --> L_Unav : granted
         L_Blocked --> L_Unav : condition cleared
+        L_Up --> L_Blocked : CRL delta or cert expiry (revoked peer)
+        L_Deg --> L_Blocked : CRL delta or cert expiry (revoked peer)
+        L_Up --> L_Consent : permission revoked
+        L_Deg --> L_Dis : Nearby mode off, auto-off, teardown
     }
+
+    note right of ServerLinkSM
+        S16 / S17: stop() and SessionRevoked apply from ANY
+        server-link state (edges drawn from Ready, Backoff and
+        Connecting for readability). stop() alone does not run
+        SessionTeardown; SessionRevoked does (REVOKED).
+    end note
+
+    note left of SealedLinkSM
+        L13 / L14 / L15 apply from ANY active sealed-link state:
+        teardown or Nearby mode off -> DISABLED,
+        permission missing / revoked -> CONSENT_REQUIRED,
+        admission fails, CRL delta or cert expiry -> BLOCKED_BY_POLICY
+        (ADR-0018 / ADR-0029, RQ-18). Only representative edges drawn.
+    end note
 
     note right of SealedLinkSM
         MeshtasticLink (1.4, TR-excluded): DISCOVERING is

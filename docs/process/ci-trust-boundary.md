@@ -31,7 +31,7 @@
 
 | Runner | Today (2026-11-12) | Target | Interim (billing lock not cleared, no second box) |
 |---|---|---|---|
-| `muhabbet-cx43` (production host, user `deploy` in `docker` group) | Runs every job of every workflow, PRs included | **Deregistered** | Keeps only `push` to `main`, tag and `workflow_dispatch` jobs, after PR jobs are removed; fresh `GRADLE_USER_HOME` per run |
+| `muhabbet-cx43` (production host, user `deploy` in `docker` group) | Runs every job of every workflow, PRs included | **Deregistered** | **Runner service stopped and deregistered (P0)**; no CI until hosted runners or a separate box. Accepted-risk variant only (owner decision, ADR-0031 D2): kept for `main`/tag jobs with the mitigations of §6 I2 |
 | `muhabbet-mordecai` (unknown machine) | Takes jobs since ≤ 2026-10-26 | Identified and documented, or deregistered | Label changed to one nothing targets (**P0**) |
 | GitHub-hosted | Refused: account billing lock (CICD-04) | All PR/push/schedule CI, release build | — |
 | Non-prod self-hosted (optional, e.g. device lab, netem) | — | Dedicated VM, `--ephemeral` JIT registration, unique custom label, `push: main`/tag workflows only, no release secrets (CICD-17) | — |
@@ -43,26 +43,27 @@ organisation). The repository is public, so hosted runners are free (CICD-04).
 
 | Workflow (file on `dev`) | Triggers today | Jobs | Today | Interim | Target |
 |---|---|---|---|---|---|
-| Backend CI (`backend-ci.yml`) | `workflow_dispatch`, `push` `[main, develop]`, `pull_request` `[main, dev, develop]` | `build-and-test` ("Build & Test"), `docker` | cx43/mordecai | PR: disabled (job `if: github.event_name != 'pull_request'`); push `main`: cx43 | hosted |
+| Backend CI (`backend-ci.yml`) | `workflow_dispatch`, `push` `[main, develop]`, `pull_request` `[main, dev, develop]` | `build-and-test` ("Build & Test"), `docker` | cx43/mordecai | none (no runner on cx43); owner runs gates locally | hosted |
 | Mobile CI (`mobile-ci.yml`) | same pattern; `ios-framework` on `macos-latest` only if `vars.ENABLE_MACOS_CI` | `android-build` ("Android Build"), `ios-framework` | cx43/mordecai | as Backend CI | hosted (+ macOS) |
-| Security & Quality (`security.yml`) | `push`/`pull_request` `[main, develop]` with paths; weekly cron | `dependency-check`, `docker-scan`, `secrets-scan` ("Secret Detection"), `codeql` | cx43/mordecai (only on `main` in practice) | push `main` + schedule on cx43 | hosted; PRs to `main`, no trigger paths filter |
-| Mobile Release (`mobile-release.yml`) | tag `v*`; `workflow_dispatch` (tag, play_track) | `release` | cx43 (signing key decoded on the production host) | cx43 only after PR jobs are gone; fresh Gradle home | hosted, environment `release`; split build/promote (ADR-0030) |
-| Deploy to Hetzner VPS (`deploy-hetzner.yml`) | `workflow_run` of Backend CI on `main`; `workflow_dispatch` | `deploy` (`environment: production`) | cx43/mordecai | cx43, guard added (§5) | hosted job + forced-command key, or host pull |
+| Security & Quality (`security.yml`) | `push`/`pull_request` `[main, develop]` with paths; weekly cron | `dependency-check`, `docker-scan`, `secrets-scan` ("Secret Detection"), `codeql` | cx43/mordecai (only on `main` in practice) | none (no runner on cx43) | hosted; PRs to `main`, no trigger paths filter |
+| Mobile Release (`mobile-release.yml`) | tag `v*`; `workflow_dispatch` (tag, play_track) | `release` | cx43 (signing key decoded on the production host) | none; release builds wait for hosted runners or the accepted-risk variant | hosted, environment `release`; split build/promote (ADR-0030) |
+| Deploy to Hetzner VPS (`deploy-hetzner.yml`) | `workflow_run` of Backend CI on `main`; `workflow_dispatch` | `deploy` (`environment: production`) | cx43/mordecai | disabled (ADR-0030 P-5); owner deploys by hand per CLAUDE.md | hosted job + forced-command key, or host pull |
 | Dependabot auto-merge (`dependabot-auto-merge.yml`) | `pull_request` | `auto-merge` | cx43/mordecai | **disabled** | hosted, only after required checks exist |
-| Close linked issues (`close-linked-issues.yml`) | `pull_request` closed into `dev` | `close` | cx43/mordecai | unchanged until trunk | **deleted** (native closing on `main`, ADR-0030) |
+| Close linked issues (`close-linked-issues.yml`) | `pull_request` closed into `dev` | `close` | cx43/mordecai | no runner (jobs queue) until trunk | **deleted** (native closing on `main`, ADR-0030) |
 | Stale branch cleanup (`stale-branches.yml`) | cron (inert: default-branch only), `workflow_dispatch` | `cleanup` | cx43 when dispatched | disabled until reviewed | hosted |
 
 ## 3. Environments
 
 | Environment | Secrets (moved from repository level, then repository copies deleted) | Deployment policy | Reviewers | Used by |
 |---|---|---|---|---|
-| `release` | `MUHABBET_KEYSTORE_BASE64`, `MUHABBET_KEYSTORE_PASSWORD`, `MUHABBET_KEY_ALIAS`, `MUHABBET_KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON` | Selected tags: `v*` | Owner (self-review allowed) | Mobile Release build and promote jobs |
+| `release` | `MUHABBET_KEYSTORE_BASE64`, `MUHABBET_KEYSTORE_PASSWORD`, `MUHABBET_KEY_ALIAS`, `MUHABBET_KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON` | Selected tags: `v*` | Owner (self-review allowed) | Mobile Release build job (tag push) and promote job — the latter dispatched on the tag ref, `gh workflow run "Mobile Release" --ref vX.Y.Z -f track=<track>`; a dispatch on `main` is rejected by this policy (branching-and-release §7.1 R8) |
 | `production` | `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | Selected branches: `main` | Owner | Deploy |
 | (none) | `GOOGLE_SERVICES_JSON`, `DEBUG_KEYSTORE` | — | — | Mobile CI; never exposed to fork PRs; written to `$RUNNER_TEMP`, deleted in `if: always()` (CICD MISS-03) |
 
 "Restricted to tags on `main`" (brief) is implemented as: the `v*` tag ruleset (ADR-0030) limits who
-creates release tags, and the build job's first step fails unless
-`git merge-base --is-ancestor "$TAG" origin/main` (ADR-0031 reviewer note).
+creates release tags, and the build job (checkout `fetch-depth: 0`) fails closed unless
+`origin/main` resolves and `git merge-base --is-ancestor "$TAG" origin/main` exits 0 (ADR-0031
+reviewer note). There are no `release/*` branches (ADR-0030 D5).
 
 `production` already exists on the deploy job; whether its secrets are environment-scoped and
 whether it has reviewers/branch policy is **unknown** (CICD MISS-02). Verify with
@@ -104,13 +105,13 @@ grants per job, `persist-credentials: false` on every checkout, secrets only thr
 | # | Control | How | Verify |
 |---|---|---|---|
 | I1 (**P0**) | Fork PR approval | Settings → Actions → General → "Require approval for all external contributors" | Setting screenshot |
-| I2 (**P0**) | No PR job on cx43 | Every self-hosted job: `if: github.event_name != 'pull_request'` (or remove `pull_request` triggers). Fork guard `github.event.pull_request.head.repo.full_name == github.repository` is **not** sufficient — same-repo branches are in scope. | Test PR from a branch: no job scheduled on any self-hosted runner |
+| I2 (**P0**) | No PR- or branch-supplied code on cx43 | **Stop and deregister the runner service on `cx43`** (`./svc.sh stop && ./svc.sh uninstall`, then `./config.sh remove --token <removal token>` on the host). No workflow-level guard suffices: workflow files come from the PR/branch being run, so `if: github.event_name != 'pull_request'` or removing `pull_request` triggers stops only well-behaved PRs — a same-repo PR deletes the `if:`, a PR adds a new `on: pull_request` workflow targeting `[self-hosted, linux, x64]`, or any write-access identity pushes a branch with an unfiltered `on: push` workflow. Workflow-restricted runner groups exist only for organisations/enterprises, not a user-owned repository. The fork guard `head.repo.full_name == github.repository` is likewise insufficient. **Accepted-risk variant** (owner decision with expiry in `APPROVAL.md`): keep `cx43` for `main`/tag jobs only with all of — no write-access identity but the owner; agent GitHub App without `workflows` permission (ADR-0032 D1); I1; the `if:` guard as hygiene; I5 | Settings → Actions → Runners lists no runner on `cx43`; `systemctl list-units 'actions.runner.*'` on the host is empty. Variant: collaborators = owner only; App has no `workflows` permission; a throwaway branch pushed by the agent identity adding an `on: push` workflow on the self-hosted labels is refused and no job appears on `cx43` |
 | I3 (**P0**) | `mordecai` | Change its labels to one nothing targets, or remove it, until identified | Runners page |
 | I4 (**P0**) | Disable `dependabot-auto-merge.yml` | `gh workflow disable "Dependabot auto-merge"` | `gh workflow list --all` |
-| I5 | Fresh Gradle home on remaining cx43 jobs | `GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home` per job (CICD-02 path 2: init-script planting) | Job log |
-| I6 | Release builds only after I2 | Signing on cx43 is acceptable only once no untrusted code shares the host | — |
+| I5 | Fresh Gradle home on any remaining self-hosted job (accepted-risk variant only) | `GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home` per job (CICD-02 path 2: init-script planting) | Job log |
+| I6 | Release builds only after I2 | Signing on cx43 only under the accepted-risk variant, never as a boundary; no long-lived key of ADR-0031 D10 is ever created on cx43 | — |
 
-Consequence: PRs carry no CI during the interim. The owner runs the gates locally and records counts
+Consequence: there is no CI during the interim (accepted-risk variant: `main`/tag only). The owner runs the gates locally and records counts
 in the PR (ADR-0030 reviewer note on required checks).
 
 ## 7. Definition of "in force"

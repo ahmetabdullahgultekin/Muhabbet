@@ -68,18 +68,18 @@ Ordered by priority. The quality tree and measurable scenarios are in §10.
 
 ### 1.3 Stakeholders
 
-| Stakeholder | Role / interest | Expectation of the architecture |
-|---|---|---|
-| Owner | Solo engineer, architect, sole approver of ADRs and device criteria | Small enough to build alone; every gate explicit; nothing marked done that was not observed (P13) |
-| End users (Turkey) | Send and receive messages, calls; privacy | Messages are not lost; ticks are honest; content not readable by the server from 1.0 |
-| Contacts acting as custodians (1.3) | Hold opaque ciphertext for someone else | Bounded storage and battery; nothing readable; no legal exposure (Q-L5) |
-| Implementing AI agents | Write code against approved scopes | Unambiguous ports, state tables and acceptance criteria; a mechanical gate (ADR-0033) |
-| Turkish telecom/KVKK counsel | Opinions Q-L1…Q-L9 (brief §17) | Clear statement of what is transmitted, stored and by whom, per path |
-| External crypto reviewer | Review of libsignal integration, link handshake, uplink sealing | No hand-written primitives (P12); test vectors; a defined TCB |
-| Regulators: BTK, Siber Güvenlik Başkanlığı, KVKK Kurumu | Laws 5809, 5651/7590/7578, 6698 | A reachable controller for takedown and the under-15 ban; data-transfer basis |
-| App stores (Google Play, Apple App Store) | Distribution | Licence compatibility (ADR-0017 precondition c), permission disclosures |
-| Processors: Google (FCM, Nearby/Play services), Apple (APNs), Twilio (Verify), Hetzner (hosting) | Process data on Muhabbet's behalf | Minimal data: content-free push from 0.5 (ADR-0019) |
-| Signal (libsignal licensor, AGPL-3.0) | Licence terms | `mobile/` relicensed to AGPL-3.0-or-later; `shared/` and `backend/` stay MIT (ADR-0017) |
+| Stakeholder | Role / interest | Expectation of the architecture | Concern → addressed in |
+|---|---|---|---|
+| Owner | Solo engineer, architect, sole approver of ADRs and device criteria | Small enough to build alone; every gate explicit; nothing marked done that was not observed (P13) | §4, §9, §11, [APPROVAL.md](APPROVAL.md) |
+| End users (Turkey) | Send and receive messages, calls; privacy | Messages are not lost; ticks are honest; content not readable by the server from 1.0 | §6.1–6.4, §8.6, §10 |
+| Contacts acting as custodians (1.3) | Hold opaque ciphertext for someone else | Bounded storage and battery; nothing readable; no legal exposure (Q-L5) | §6.5, §8.5, §2.3 |
+| Implementing AI agents | Write code against approved scopes | Unambiguous ports, state tables and acceptance criteria; a mechanical gate (ADR-0033) | §5, §6, §8.7 |
+| Turkish telecom/KVKK counsel | Opinions Q-L1…Q-L9 (brief §17) | Clear statement of what is transmitted, stored and by whom, per path | §2.3, §7.2, §8.5 |
+| External crypto reviewer | Review of libsignal integration, link handshake, uplink sealing | No hand-written primitives (P12); test vectors; a defined TCB | §8.1–8.2 |
+| Regulators: BTK, Siber Güvenlik Başkanlığı, KVKK Kurumu | Laws 5809, 5651/7590/7578, 6698 | A reachable controller for takedown and the under-15 ban; data-transfer basis | §2.3, §8.8 |
+| App stores (Google Play, Apple App Store) | Distribution | Licence compatibility (ADR-0017 precondition c), permission disclosures | §2.3, §9 (ADR-0017) |
+| Processors: Google (FCM, Nearby/Play services), Apple (APNs), Twilio (Verify), Hetzner (hosting) | Process data on Muhabbet's behalf | Minimal data: content-free push from 0.5 (ADR-0019) | §6.3, §7.1 |
+| Signal (libsignal licensor, AGPL-3.0) | Licence terms | `mobile/` relicensed to AGPL-3.0-or-later; `shared/` and `backend/` stay MIT (ADR-0017) | §9 (ADR-0017) |
 
 ---
 
@@ -128,16 +128,16 @@ cited in the fact-check digests: Law 5651 —
 | LC-1 | Law 5809 Art. 3(ççç), 9(14) — OTT provider may be treated as *işletmeci* | Retention, interception cooperation, local entity | Server stays authoritative and reachable (ADR-0010); metadata kept server-side (ADR-0019) | LEG-01, MISS-01 (legal), R5, Q-L1 |
 | LC-2 | Law 5809 Art. 39 / 63(6); 2010 coded/encrypted communications regulation | Encrypted communication over *telsiz* (radio) | Meshtastic compiled out of TR builds (ADR-0026); counsel request names BLE and Wi-Fi too (ADR-0029 §7) | LEG-03, RF-07, R6, Q-L2 |
 | LC-3 | Law 5651 as amended by Law 7590 (authority now the Siber Güvenlik Başkanlığı) | Takedown, social-network-provider duties | Channels, communities and large groups are server-only (ADR-0029 §2); reports are durable outbox commands | LEG-02, MISS-02 (legal), Q-L4 |
-| LC-4 | Law 5651 Ek Md. 4(7) as amended by Law 7578 — no service to under-15s; *yaş doğrulama* | Registration and every off-server path | Age gate at registration in 0.4 behind `AgeAssurancePort`; valid attestation is a precondition for a device certificate from 1.2; no compliance claim until counsel confirms | LEG-02, MISS-04 (legal), R7, Q-L3 |
+| LC-4 | Law 5651 Ek Md. 4(7) as amended by Law 7578 — no service to under-15s; *yaş doğrulama* | Registration and every off-server path | Age gate at registration in 0.4 behind `AgeAssurancePort`; valid attestation is a precondition for a device certificate from 1.2; no compliance claim until counsel confirms (effective date per brief, unverified, see reviewer note below; Q-L3) | LEG-02, MISS-04 (legal), R7, Q-L3 |
 | LC-5 | KVKK Art. 7, 12 (erasure, security), Art. 9 (transfer abroad) | Device erasure, processors abroad, DPIA triggers | `SessionTeardown` crypto-erase (ADR-0020); wake-only push (ADR-0019); DPIA triggers (ADR-0029 §6); consent not the systematic Art. 9 basis | LEG-04, MOB-01, BE-15, Q-L5, Q-L6 |
 | LC-6 | Licence-exempt RF rules (KET; EU868 duty cycle per sub-band) | LoRa airtime | `AirtimeLedger` sliding hour per sub-band (ADR-0026) | RF-07, RF-09 |
 | LC-7 | AGPL-3.0 (libsignal) distributed through Google Play and the App Store | Relicensing `mobile/` | ADR-0017 preconditions (a)–(c); vodozemac fallback | KMP-13, R8, Q-L7 |
 
 > **Reviewer note (open):** ADR-0029 §1 states the under-15 rule is "in force 2026-11-01". The
 > verified evidence (fact-check digest, LEG-02) records the amendment as `Değişik: 22/4/2026-7578/22`
-> but does not record an entry-into-force date. The date is kept as written in the brief; it should
-> be confirmed against the consolidated text or by counsel (Q-L3) before it is quoted in user-facing
-> or transparency text.
+> and the consolidated text's *yürürlük* table gives 1/11/2026 (counsel-questions S-14; read, not
+> separately verified). Confirm with counsel (Q-L3) before quoting it in user-facing or transparency
+> text.
 
 ---
 
@@ -200,7 +200,7 @@ UDP-only — <https://www.rfc-editor.org/rfc/rfc9000.html>; NAT behaviour termin
 | Q2 security (peers) | Per-device identity, separate link key, short-lived server-attested device certificates under an offline root, signed CRL deltas | ADR-0018 |
 | Privacy (Q4) | Wake-only push; random outer ids; rotating pairwise tags; padding; relay-only ICE for non-contacts; no server plaintext for E2E conversations from 1.0 | ADR-0019, ADR-0022, ADR-0023 |
 | Data at rest | SQLCipher from 0.5 via fresh DB + resync; `SessionTeardown` is crypto-erase | ADR-0020 |
-| Path choice | Classify by **scope**, not medium; rule chain (Admission → CloudPersistence → Preference), no fitness score; racing only at link establishment | ADR-0015 |
+| Path choice | Classify by **scope**, not medium; rule chain (Admission → CloudPersistence → Preference), no fitness score; racing only at link establishment; see [`path-scopes.mmd`](../../diagrams/path-scopes.mmd) | ADR-0015 |
 | Buy, don't build (P12) | libsignal, Nearby Connections, LiveKit/WebRTC ICE, Meshtastic firmware; build only `LanLink` and the engine | ADR-0017, ADR-0023, ADR-0024, ADR-0026 |
 | Compliance survives offline (P11) | Age gate → device certificate; block lists on every inbound path; ≤ 7-day revocation window; server-only for broadcast surfaces | ADR-0029 |
 | Delivery risk for a solo engineer (R3, R4) | Ship reliability first (0.4/0.5) on the existing path; every post-1.0 path is gated by a written admission gate and droppable with kill criteria | brief §13, P8 |
@@ -256,7 +256,7 @@ bounded context (brief §4.2). "New" contexts are packages inside the monolith, 
 | shared/websocket | `WsGateway`, `WsSessionRegistry` | `hello`/version, first-frame auth, `ConcurrentWebSocketSessionDecorator`, dispatch to in-ports only; registry bound to `(deviceId, jti, exp)` | — | 0.4 / 0.5 | BE-12, BE-16, KMP-11 |
 | notification | `WakePushService` | Data-only pushes with collapse keys | `WakePushPort` | 0.5 | BE-15 |
 | calls/session | `CallSignalingService`, `TurnCredentialService` | Signalling; ≤ 10-min credentials; relay-only policy | `TurnCredentialPort` | 0.7 | FT-01 |
-| moderation → compliance | Reports, takedown → revocation, legal-request log, transparency counters | `AccountBanned` → revoke devices, close sessions | `SessionRevocationPort` | 0.4+ | LEG-02 |
+| moderation → compliance | Report, takedown and legal-request handling | Reports; takedown → revocation; legal-request log; transparency counters; `AccountBanned` → revoke devices and close sessions | — / `SessionRevocationPort` | 0.4+ | LEG-02 |
 | contacts | `ContactLookupService` | Rate-limited, block-filtered, discoverability enforced with a reader | `ContactLookupUseCase` | 0.4 (cap) / 0.6 | C8, M3, GOV-08 |
 | cross-cutting | ArchUnit/Konsist boundary rules; `AbuseRateLimiter` (Redis token buckets) | Enforce module boundaries before new ports | — | 0.4 | BE-08, BE-09 |
 
@@ -377,7 +377,8 @@ detects every stale conversation.
 
 ### 6.3 R3 — Wake-only push (from 0.5)
 
-No dedicated sequence diagram is planned; this step table is normative for the SAD.
+Sequence: [`seq-wake-push-sync.mmd`](../../diagrams/seq-wake-push-sync.mmd). This step table and the
+diagram must agree; the brief (ADR-0019, §9) is authoritative.
 
 | # | Actor | Step | Data |
 |---|---|---|---|
@@ -405,7 +406,8 @@ Sequence: [`seq-nearby-reconcile.mmd`](../../diagrams/seq-nearby-reconcile.mmd).
 | 5 | `PathPolicy` | Admission chain: AssuranceRule, RelationshipRule (verified safety number), CertificateRule, ConversationModeRule, ScopeRule (1:1 only), ConsentRule, RegulatoryRule, QuotaRule, SizeRule, ConstrainedRule; then CloudPersistence, Preference | Any Deny removes the candidate; content is never downgraded |
 | 6 | Sender Outbox | `SealedLink.send(route, SealedFrame)` inside a `TransportFrame` (random 16-byte id, AEAD header, padded) | Type gate (RQ-06) |
 | 7 | Recipient Inbox | Dedup on `(src_device, frame_or_message_id)`; commit with **no seq**; sealed DELIVERED receipt back over the link | P4 |
-| 8 | Sender | HopAcked → `HOP_ACKED(serverOwed = mode ≠ LOCAL_ONLY)`; UI shows **two ticks + "not yet synced"** | No "relayed" tick |
+| 8a | Sender | Receives `HopAck{frameId}` (L1) → CAS `IN_FLIGHT → HOP_ACKED(serverOwed = mode ≠ LOCAL_ONLY)`; UI still shows the **clock** | A hop ack is not delivery; no "relayed" tick |
+| 8b | Sender | Receives the sealed L2 DELIVERED receipt from step 7 → receipt row written; UI shows **two ticks + "not yet synced"** until a seq exists | Brief ADR-0013 ticks; brief §6.4: "L2 … Off-server it is a sealed receipt frame, also uploaded to the server when the server is reachable" |
 | 9 | Either side, when internet returns | `serverOwed` entries re-QUEUED to the server only; server dedups by `(sender_device_id, client_message_id)` and assigns `seq` | Server is the only sequencer |
 | 10 | Both devices and companions | Pull by seq; provisional row receives its seq; stable re-sort once; "not yet synced" cleared | Each message once, in seq order (1.2 exit) |
 
@@ -443,6 +445,9 @@ crypto-review opinion.
 ## 7. Deployment view
 
 ### 7.1 Infrastructure (target, by milestone)
+
+Deployment diagram: the node placement is shown in [`c4-container.mmd`](../../diagrams/c4-container.mmd);
+a dedicated deployment diagram is deferred until Q-O7/Q-O8 fix the LiveKit and signer hosts.
 
 | Node | Hosts | Notes | Milestone |
 |---|---|---|---|
@@ -508,7 +513,7 @@ ratchet internals. No self-certifying identifiers. Key transparency is research 
 
 ```kotlin
 // :mobile:crypto
-class SealedFrame internal constructor(val protocol: String, val bytes: Ciphertext)
+class SealedFrame internal constructor(val protocol: ProtocolTag, val bytes: Bytes)
 sealed interface SealResult {
     data class Sealed(val frames: List<SealedFrame>) : SealResult
     data object NoSession : SealResult
@@ -516,7 +521,7 @@ sealed interface SealResult {
     data class Failed(val code: String) : SealResult
 }
 ```
-(`Ciphertext` is a value class with content equality, per GEM-16.)
+(`Bytes` is a value class with content equality, GEM-16; `ProtocolTag` per ADR-0016/0022.)
 
 ### 8.3 Persistence and single source of truth
 
@@ -608,35 +613,35 @@ erasure in MinIO stays open as #327 and is outside this design. No long-term sig
 
 ## 9. Architecture decisions
 
-All new ADRs are *Proposed*; 1.1+ product ADRs (0024, 0025, 0026, and 0023's 1.1 part) are
-*Proposed (gated)* (P14). Owner disposition is recorded in [`APPROVAL.md`](APPROVAL.md).
+All new ADRs are *Proposed*; 1.1+ product ADRs are *Proposed (gated)* (P14): 0024, 0025, 0026,
+0015, the 1.1 part of 0023, items (4)–(5) of 0018, and plane C of 0022. Owner disposition is recorded in [`APPROVAL.md`](APPROVAL.md).
 
 | ADR | Title | Kind | Milestone(s) | Status | Affects existing |
 |---|---|---|---|---|---|
-| [0010](../../adr/0010-hybrid-server-backbone.md) | Hybrid backbone: server is the authority; other paths are additional pipes | Product | all | Proposed | ARCHITECTURE.md §8 seams |
-| [0011](../../adr/0011-local-db-ssot-no-viewmodels.md) | Mobile local DB is the SSOT; no ViewModel layer | Product | 0.5 | Proposed | Supersedes ARCHITECTURE.md §4 "cache, not SSOT"; rewrites §5 |
-| [0012](../../adr/0012-delivery-engine-and-link-ports.md) | Transport-agnostic engine in `:mobile:messaging`; ISP-split link ports | Product | 0.5 | Proposed | ARCHITECTURE.md §8 |
-| [0013](../../adr/0013-delivery-semantics-and-ticks.md) | Durable outbox, persist-then-ack, idempotency, honest ticks | Product | 0.4 / 0.5 | Proposed | — |
-| [0014](../../adr/0014-ordering-seq-change-feed.md) | Per-conversation seq + change feed; causal header; no HLC, no DAG | Product | 0.4 / 0.5 | Proposed | — |
-| [0015](../../adr/0015-path-scopes-and-policy.md) | Path scopes and rule-based path policy | Product | 1.2 | Proposed | — |
-| [0016](../../adr/0016-e2e-fail-closed-type-gate.md) | E2E fail-closed gate by type | Product | 0.5 / 1.0 | Proposed | Supersedes ADR-003 |
-| [0017](../../adr/0017-e2e-library-and-licence.md) | libsignal at the edge; `mobile/` AGPL-3.0-or-later; `shared/`, `backend/` MIT | Product | 1.0 | Proposed | Realises ADR 0007 crypto (with 0018) |
-| [0018](../../adr/0018-identity-keys-device-certificates.md) | Per-device keys, prekey directory, link keys, device certificates | Product | 0.4 / 0.6 / 1.2 | Proposed | ADR 0007 |
-| [0019](../../adr/0019-wake-only-push-and-server-plaintext.md) | Wake-only push from 0.5; no server plaintext for E2E at 1.0 | Product | 0.5 / 1.0 | Proposed | #377 enforcement kept |
-| [0020](../../adr/0020-data-at-rest-and-erasure.md) | SQLCipher from 0.5; `SessionTeardown` crypto-erase | Product | 0.4 / 0.5 | Proposed | — |
-| [0021](../../adr/0021-adr0008-amendment-storage-modes-e2e.md) | Storage modes in an E2E world; one cursor model; mailbox | Product | 1.0 | Proposed | Amends ADR 0008 |
-| [0022](../../adr/0022-wire-protocol-envelope.md) | Versioned envelope, authenticated outer header, protobuf, WS hello | Product | 0.5 / 1.0 / 1.2 | Proposed | — |
-| [0023](../../adr/0023-internet-direct-ice-turn.md) | Internet-direct = WebRTC ICE + own TURN, live sessions only | Product | 0.7 / 1.1 (gated) | Proposed | Builds on ADR 0009 |
-| [0024](../../adr/0024-proximity-lan-and-nearby.md) | Proximity: build LAN, buy Nearby; foreground; verified 1:1 | Product | 1.2 | Proposed (gated) | — |
-| [0025](../../adr/0025-store-and-forward-custody.md) | Custody hierarchy; single-hop sealed uplink; mules research | Product | 1.0 / 1.3 | Proposed (gated) | ADR 0008 relation |
-| [0026](../../adr/0026-meshtastic-legal-gate.md) | Meshtastic adapter, legally gated, compiled out of TR | Product | 1.4 | Proposed (gated) | — |
-| [0027](../../adr/0027-rejected-transports.md) | Rejected-transports record and watch-list | Product | — | Proposed | — |
-| [0028](../../adr/0028-kmp-module-structure.md) | KMP module structure and build prerequisites | Product | 0.4 / 0.5 / 1.2 | Proposed | — |
-| [0029](../../adr/0029-compliance-boundary.md) | Compliance boundary across all paths | Product | 0.4 → 1.4 | Proposed | — |
-| [0030](../../adr/0030-trunk-and-release-flow.md) | Trunk-based `main`, build-once release | Process | Phase 0 | Proposed | — |
+| [0010](../../adr/0010-hybrid-server-backbone.md) | Hybrid backbone | Product | all | Proposed | ARCHITECTURE.md §8 seams |
+| [0011](../../adr/0011-local-db-ssot-no-viewmodels.md) | Local DB is the SSOT | Product | 0.5 | Proposed | Supersedes ARCHITECTURE.md §4 "cache, not SSOT"; rewrites §5 |
+| [0012](../../adr/0012-delivery-engine-and-link-ports.md) | Delivery engine and link ports | Product | 0.5 | Proposed | ARCHITECTURE.md §8 |
+| [0013](../../adr/0013-delivery-semantics-and-ticks.md) | Delivery semantics and ticks | Product | 0.4 / 0.5 | Proposed | — |
+| [0014](../../adr/0014-ordering-seq-change-feed.md) | Ordering | Product | 0.4 / 0.5 | Proposed | — |
+| [0015](../../adr/0015-path-scopes-and-policy.md) | Path scopes and policy | Product | 1.2 | Proposed (gated: `PathPolicy` built at 1.2) | — |
+| [0016](../../adr/0016-e2e-fail-closed-type-gate.md) | E2E fail-closed type gate | Product | 0.5 / 1.0 | Proposed | Supersedes ADR-003 |
+| [0017](../../adr/0017-e2e-library-and-licence.md) | E2E library and licence | Product | 1.0 | Proposed | Realises ADR 0007 crypto (with 0018) |
+| [0018](../../adr/0018-identity-keys-device-certificates.md) | Identity, keys, certificates | Product | 0.4 / 0.6 / 1.2 | Proposed (items 4–5 gated, 1.2) | ADR 0007 |
+| [0019](../../adr/0019-wake-only-push-and-server-plaintext.md) | Wake-only push | Product | 0.5 / 1.0 | Proposed | #377 enforcement kept |
+| [0020](../../adr/0020-data-at-rest-and-erasure.md) | Data at rest and erasure | Product | 0.4 / 0.5 | Proposed | — |
+| [0021](../../adr/0021-adr0008-amendment-storage-modes-e2e.md) | Amendment to ADR 0008 | Product | 1.0 | Proposed | Amends ADR 0008 |
+| [0022](../../adr/0022-wire-protocol-envelope.md) | Wire protocol | Product | 0.4 / 0.5 / 1.0 / 1.2 | Proposed (plane C + UplinkBundle gated, 1.2/1.3) | — |
+| [0023](../../adr/0023-internet-direct-ice-turn.md) | Internet-direct | Product | 0.7 / 1.1 (gated) | Proposed | Builds on ADR 0009 |
+| [0024](../../adr/0024-proximity-lan-and-nearby.md) | Proximity | Product | 1.2 | Proposed (gated) | — |
+| [0025](../../adr/0025-store-and-forward-custody.md) | Store-and-forward | Product | 1.0 / 1.3 | Proposed (gated) | ADR 0008 relation |
+| [0026](../../adr/0026-meshtastic-legal-gate.md) | Meshtastic | Product | 1.4 | Proposed (gated) | — |
+| [0027](../../adr/0027-rejected-transports.md) | Rejected transports | Product | — | Proposed | — |
+| [0028](../../adr/0028-kmp-module-structure.md) | KMP module structure | Product | 0.4 / 0.5 / 1.2 | Proposed | — |
+| [0029](../../adr/0029-compliance-boundary.md) | Compliance boundary | Product | 0.4 → 1.4 | Proposed | — |
+| [0030](../../adr/0030-trunk-and-release-flow.md) | Trunk and release flow | Process | Phase 0 | Proposed | — |
 | [0031](../../adr/0031-ci-trust-boundary.md) | CI trust boundary | Process | Phase 0 | Proposed | — |
 | [0032](../../adr/0032-agent-identity-verification-gate.md) | Agent identity and verification gate | Process | Phase 0 | Proposed | — |
-| [0033](../../adr/0033-claude-code-hooks.md) | Claude Code hooks: design gate and reproducible cloud environment | Process | Phase 0 | Proposed | Reads `APPROVAL.md` |
+| [0033](../../adr/0033-claude-code-hooks.md) | Claude Code hooks | Process | Phase 0 | Proposed | Reads `APPROVAL.md` |
 
 Existing ADRs in force or affected:
 
@@ -644,17 +649,15 @@ Existing ADRs in force or affected:
 |---|---|---|
 | [001](../../adr/001-modular-monolith.md) Modular monolith | Accepted | Unchanged; new backend contexts are packages |
 | [002](../../adr/002-kotlin-everywhere.md) Kotlin everywhere | Accepted | Unchanged |
-| [003](../../adr/003-defer-e2e-encryption.md) Defer E2E | Accepted | Superseded by ADR-0016/0017; closed at 1.0 |
+| [003](../../adr/003-defer-e2e-encryption.md) Defer E2E | Accepted | Superseded by ADR-0016 (ADR-0017 related); closed at 1.0 |
 | [0007](../../adr/0007-companion-device-trust.md) Companion-device trust | Accepted (non-crypto slice) | Crypto realised by ADR-0018 at 1.0 (`DeviceLinkCrypto`) |
 | [0008](../../adr/0008-per-conversation-storage-mode.md) Per-conversation storage mode | Proposed | Amended by ADR-0021 |
 | [0009](../../adr/0009-call-media-infrastructure.md) Call media infrastructure | Proposed | Unchanged; ADR-0023 builds on it; host placement Q-O8 |
 
-> **Reviewer note (open):** the ADR file names above follow the documentation plan used by the
-> authoring workflow; the brief itself names ADRs only by number and title. The brief also refers
-> twice to a "§17 doc plan" (ADR-0015 consequences; §4.1 diagram list), but brief §17 is "Open
-> questions" and contains no document plan. The authoritative file list is the package index
-> ([README.md](README.md)); the ADR-0033 file name in particular is not fixed by any source and must
-> match whatever its author wrote.
+> **Reviewer note (open):** the brief refers twice to a '§17 doc plan' (ADR-0015 consequences; §4.1),
+> but §17 is 'Open questions'. File names follow the authoring workflow's plan, and every link was
+> verified to resolve on 2026-11-12. The brief should replace '§17 doc plan' with 'README.md package
+> index'.
 
 ---
 
