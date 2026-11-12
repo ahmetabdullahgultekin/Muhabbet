@@ -106,7 +106,12 @@ class TwoStepPinGateIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        VerifyOtpRequest(phone, code, "Test Device", "android", twoStepPin = pin)
+                        // The birth date lets the first sign-in create the account (#751); it is
+                        // ignored on every later one, where the account already exists.
+                        VerifyOtpRequest(
+                            phone, code, "Test Device", "android",
+                            twoStepPin = pin, birthDate = "1990-05-01"
+                        )
                     )
                 )
         )

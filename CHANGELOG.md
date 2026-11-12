@@ -8,6 +8,19 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Added — New accounts are asked for a date of birth, and under-15s are refused
+
+- **Signing up now asks for a date of birth, and an account is not created for anyone under 15**
+  (#751, ADR 0029 rule 1). Both sign-in paths (backend OTP and Firebase) refuse a new number
+  without a date (`AUTH_AGE_REQUIRED`, the code is not spent) or with one under 15
+  (`AUTH_AGE_BELOW_MINIMUM`, nothing is created). Accounts from before this change are **not**
+  locked out: their next sign-in reports `ageVerificationRequired` and the app asks for the date
+  once, through `PATCH /api/v1/users/me/birth-date`, which cannot be changed afterwards. V30 adds
+  `users.birth_date`, `age_assurance_level` and `age_assured_at`; the date is in the KVKK data
+  export. Age is self-declared behind an `AgeAssurancePort`, and nothing claims that this meets the
+  statutory age-verification duty — that is counsel question Q-L3. **Needs a backend deploy before
+  the app that sends the date; an older app cannot create new accounts once the backend is live.**
+
 ### Added — Enter sends, and you can say whether it does
 
 - **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired

@@ -63,7 +63,10 @@ data class ExportedProfile(
     val avatarUrl: String?,
     val about: String?,
     val joinedAt: Instant,
-    val twoStepVerificationEnabled: Boolean
+    val twoStepVerificationEnabled: Boolean,
+    /** The declared date of birth (#751) — personal data the user gave us, so it is theirs to see. */
+    val birthDate: java.time.LocalDate? = null,
+    val ageAssuranceLevel: String? = null
 )
 
 data class ExportedPrivacySettings(

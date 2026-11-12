@@ -102,6 +102,12 @@ class LastSeenTransactionBoundaryTest {
         override fun findAllByIds(ids: List<UUID>): List<User> = emptyList()
         override fun save(user: User): User = user
         override fun existsByPhoneNumber(phoneNumber: String): Boolean = false
+        override fun recordBirthDate(
+            userId: UUID,
+            birthDate: java.time.LocalDate,
+            level: com.muhabbet.auth.domain.model.AgeAssuranceLevel?,
+            assuredAt: Instant?
+        ): Boolean = false
     }
 
     /**

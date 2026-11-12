@@ -11,6 +11,7 @@ import com.arkivanov.decompose.router.stack.push
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.value.Value
+import com.muhabbet.app.ui.auth.DeclareBirthDateScreen
 import com.muhabbet.app.ui.auth.OtpVerifyScreen
 import com.muhabbet.app.ui.auth.PhoneInputScreen
 import com.muhabbet.app.ui.auth.ProfileSetupScreen
@@ -40,13 +41,26 @@ class AuthComponent(
         navigation.push(Config.OtpVerify(phoneNumber, mockCode, firebaseVerificationId))
     }
 
+    /**
+     * @param ageVerificationRequired the account predates the age gate (#751) and has no assured
+     *   age. It is signed in, not locked out, and is asked for a date of birth before going on.
+     */
     @OptIn(DelicateDecomposeApi::class)
-    fun onOtpVerified(isNewUser: Boolean) {
-        if (isNewUser) {
-            navigation.push(Config.ProfileSetup)
-        } else {
-            onAuthComplete()
+    fun onOtpVerified(isNewUser: Boolean, ageVerificationRequired: Boolean) {
+        when {
+            isNewUser -> navigation.push(Config.ProfileSetup)
+            // Replaces the stack: back from here must not return to a code that has been spent.
+            ageVerificationRequired -> navigation.replaceAll(Config.DeclareBirthDate)
+            else -> onAuthComplete()
         }
+    }
+
+    fun onBirthDateDeclared() {
+        onAuthComplete()
+    }
+
+    fun onSignedOut() {
+        navigation.replaceAll(Config.PhoneInput)
     }
 
     fun onProfileSetupComplete() {
@@ -74,6 +88,7 @@ class AuthComponent(
             val firebaseVerificationId: String? = null
         ) : Config
         @Serializable data object ProfileSetup : Config
+        @Serializable data object DeclareBirthDate : Config
     }
 }
 
@@ -88,7 +103,7 @@ fun AuthContent(component: AuthComponent) {
                 onPhoneSubmitted = { phone, mockCode, firebaseVerificationId ->
                     component.onPhoneSubmitted(phone, mockCode, firebaseVerificationId)
                 },
-                onFirebaseAutoVerified = { isNewUser -> component.onOtpVerified(isNewUser) }
+                onFirebaseAutoVerified = component::onOtpVerified
             )
             is AuthComponent.Config.OtpVerify -> OtpVerifyScreen(
                 phoneNumber = config.phoneNumber,
@@ -99,6 +114,10 @@ fun AuthContent(component: AuthComponent) {
             )
             is AuthComponent.Config.ProfileSetup -> ProfileSetupScreen(
                 onComplete = component::onProfileSetupComplete
+            )
+            is AuthComponent.Config.DeclareBirthDate -> DeclareBirthDateScreen(
+                onDeclared = component::onBirthDateDeclared,
+                onSignedOut = component::onSignedOut
             )
         }
     }

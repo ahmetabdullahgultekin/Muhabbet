@@ -70,7 +70,9 @@ open class UserDataService(
                 avatarUrl = user.avatarUrl,
                 about = user.about,
                 joinedAt = user.createdAt,
-                twoStepVerificationEnabled = user.twoStepPinHash != null
+                twoStepVerificationEnabled = user.twoStepPinHash != null,
+                birthDate = user.birthDate,
+                ageAssuranceLevel = user.ageAssuranceLevel?.name
             ),
             privacySettings = ExportedPrivacySettings(
                 readReceiptsEnabled = user.readReceiptsEnabled,

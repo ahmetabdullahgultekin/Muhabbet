@@ -1,5 +1,6 @@
 package com.muhabbet.shared.config
 
+import com.muhabbet.auth.domain.port.out.AgeAssurancePort
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
@@ -13,6 +14,7 @@ import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.auth.domain.service.AgeAssuranceService
 import com.muhabbet.auth.domain.service.AuthService
 import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
@@ -109,7 +111,8 @@ class AppConfig {
         otpQuotaPort: OtpQuotaPort,
         firebaseTokenVerifier: FirebaseTokenVerifier,
         twoStepAttemptRepository: TwoStepAttemptRepository,
-        twoStepProperties: TwoStepProperties
+        twoStepProperties: TwoStepProperties,
+        ageAssurancePort: AgeAssurancePort
     ): AuthService = AuthService(
         userRepository = userRepository,
         otpRepository = otpRepository,
@@ -130,8 +133,19 @@ class AppConfig {
         otpQuotaPort = otpQuotaPort,
         firebaseTokenVerifier = firebaseTokenVerifier,
         twoStepAttemptRepository = twoStepAttemptRepository,
+        ageAssurancePort = ageAssurancePort,
         twoStepMaxAttempts = twoStepProperties.maxAttempts,
         twoStepLockSeconds = twoStepProperties.lockSeconds
+    )
+
+    /** The age gate for accounts that predate it (#751); new accounts pass through [authService]. */
+    @Bean
+    fun ageAssuranceService(
+        userRepository: UserRepository,
+        ageAssurancePort: AgeAssurancePort
+    ): AgeAssuranceService = AgeAssuranceService(
+        userRepository = userRepository,
+        ageAssurancePort = ageAssurancePort
     )
 
     /**

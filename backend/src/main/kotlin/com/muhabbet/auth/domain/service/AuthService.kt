@@ -1,5 +1,8 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.auth.domain.model.AgeEvidence
+import com.muhabbet.auth.domain.model.AgeVerdict
+import com.muhabbet.auth.domain.model.AssuredAge
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.normalizeDeviceLocale
 import com.muhabbet.auth.domain.model.OtpRequest
@@ -14,6 +17,7 @@ import com.muhabbet.auth.domain.port.`in`.RegisterPushTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
 import com.muhabbet.auth.domain.port.`in`.TokenResult
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
+import com.muhabbet.auth.domain.port.out.AgeAssurancePort
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
 import com.muhabbet.auth.domain.port.out.OtpQuotaPort
@@ -36,6 +40,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 open class AuthService(
@@ -82,6 +87,11 @@ open class AuthService(
      * whole point of the gate is that guessing it must be expensive.
      */
     private val twoStepAttemptRepository: TwoStepAttemptRepository,
+    /**
+     * Decides whether a new account is old enough to exist (#751). Required, not defaulted: a
+     * permissive default would quietly remove the gate from any wiring that forgot it.
+     */
+    private val ageAssurancePort: AgeAssurancePort,
     private val twoStepMaxAttempts: Int = 5,
     private val twoStepLockSeconds: Long = 900
 ) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
@@ -195,7 +205,8 @@ open class AuthService(
         otp: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String?
+        twoStepPin: String?,
+        birthDate: LocalDate?
     ): AuthResult {
         val activeOtp = otpRepository.findActiveByPhoneNumber(phoneNumber)
             ?: throw BusinessException(ErrorCode.AUTH_OTP_EXPIRED)
@@ -231,9 +242,19 @@ open class AuthService(
             requireTwoStepPin(existing, twoStepPin)
         }
 
+        // A number with no account is about to become one, and it may only if it is old enough
+        // (#751). A missing date is a question the client did not know to answer, like a missing
+        // PIN: hand the attempt back so the same code can be sent again with the date.
+        val assuredAge = if (existing == null) {
+            if (birthDate == null) otpRepository.refundAttempt(activeOtp)
+            assureNewAccountAge(birthDate)
+        } else {
+            null
+        }
+
         otpRepository.markVerified(activeOtp)
 
-        return authenticatePhone(phoneNumber, deviceName, platform, "OTP verified", existing)
+        return authenticatePhone(phoneNumber, deviceName, platform, "OTP verified", existing, assuredAge)
     }
 
     @Transactional
@@ -241,7 +262,8 @@ open class AuthService(
         idToken: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String?
+        twoStepPin: String?,
+        birthDate: LocalDate?
     ): AuthResult {
         val phoneNumber = try {
             firebaseTokenVerifier.phoneNumberOf(idToken)
@@ -262,7 +284,29 @@ open class AuthService(
             requireTwoStepPin(existing, twoStepPin)
         }
 
-        return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified", existing)
+        // The same age gate as the OTP path (#751); the app's default sign-in is this one.
+        val assuredAge = if (existing == null) assureNewAccountAge(birthDate) else null
+
+        return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified", existing, assuredAge)
+    }
+
+    /**
+     * The age gate for a number that has no account yet (#751, ADR 0029 rule 1). Returns the columns
+     * to write, or refuses — and a refusal happens before anything is created, so an under-age
+     * attempt leaves no user, device, phone hash or token behind.
+     */
+    private fun assureNewAccountAge(birthDate: LocalDate?): AssuredAge {
+        val declared = birthDate ?: throw BusinessException(ErrorCode.AUTH_AGE_REQUIRED)
+        val refusal = when (val verdict = ageAssurancePort.assess(AgeEvidence.SelfDeclaredBirthDate(declared))) {
+            is AgeVerdict.Assured -> return AssuredAge(declared, verdict.level, Instant.now())
+            AgeVerdict.BelowMinimum -> ErrorCode.AUTH_AGE_BELOW_MINIMUM
+            AgeVerdict.Implausible -> ErrorCode.AUTH_BIRTH_DATE_INVALID
+            // Self-declaration never answers this; a stronger adapter might, and until the client can
+            // present stronger evidence the honest answer is that the account cannot be created yet.
+            is AgeVerdict.NeedsStrongerEvidence -> ErrorCode.AUTH_AGE_REQUIRED
+        }
+        log.info("Registration refused by the age gate: {}", refusal)
+        throw BusinessException(refusal)
     }
 
     /** Two-step is on only when both halves are present; either alone is a half-written row. */
@@ -323,14 +367,18 @@ open class AuthService(
         deviceName: String,
         platform: String,
         logPrefix: String,
-        existingUser: User?
+        existingUser: User?,
+        assuredAge: AssuredAge?
     ): AuthResult {
         val isNewUser = existingUser == null
         val user = existingUser ?: userRepository.save(
             User(
                 id = UUID.randomUUID(),
                 phoneNumber = phoneNumber,
-                status = UserStatus.ACTIVE
+                status = UserStatus.ACTIVE,
+                birthDate = assuredAge?.birthDate,
+                ageAssuranceLevel = assuredAge?.level,
+                ageAssuredAt = assuredAge?.assuredAt
             )
         )
 
@@ -384,7 +432,9 @@ open class AuthService(
             expiresIn = jwtProvider.accessTokenExpirySeconds,
             userId = user.id.toString(),
             deviceId = device.id.toString(),
-            isNewUser = isNewUser
+            isNewUser = isNewUser,
+            // An account from before the gate is not locked out; it is asked, once, for a date.
+            ageVerificationRequired = user.ageVerificationRequired
         )
     }
 

@@ -2,9 +2,12 @@ package com.muhabbet.auth.adapter.out.persistence
 
 import com.muhabbet.auth.adapter.out.persistence.entity.UserJpaEntity
 import com.muhabbet.auth.adapter.out.persistence.repository.SpringDataUserRepository
+import com.muhabbet.auth.domain.model.AgeAssuranceLevel
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.UserRepository
 import org.springframework.stereotype.Component
+import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 @Component
@@ -41,4 +44,12 @@ class UserPersistenceAdapter(
     override fun updateLastSeenAt(userId: java.util.UUID, lastSeenAt: java.time.Instant) {
         springDataUserRepository.updateLastSeenAt(userId, lastSeenAt)
     }
+
+    /** Joins the caller's transaction, like [updateLastSeenAt]; `AgeAssuranceService` owns it. */
+    override fun recordBirthDate(
+        userId: UUID,
+        birthDate: LocalDate,
+        level: AgeAssuranceLevel?,
+        assuredAt: Instant?
+    ): Boolean = springDataUserRepository.recordBirthDate(userId, birthDate, level, assuredAt) == 1
 }
