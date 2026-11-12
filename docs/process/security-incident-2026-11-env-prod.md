@@ -114,10 +114,11 @@ backend log, CLAUDE.md).
 
 | Secret name | Rotated on | By | Verification performed | Evidence location |
 |---|---|---|---|---|
-| `JWT_SECRET` | | | | |
-| `POSTGRES_PASSWORD` | | | | |
-| `REDIS_PASSWORD` | | | | |
-| `MINIO_ROOT_PASSWORD` | | | | |
+| `JWT_SECRET` | before 2026-11-12 (live value differs from the leaked one) | owner | `check-env-prod-exposure.sh` on the host, 2026-11-12: `DIFFERENT` | this table |
+| `POSTGRES_PASSWORD` | before 2026-11-12 | owner | same run: `DIFFERENT` | this table |
+| `REDIS_PASSWORD` | before 2026-11-12 | owner | same run: `DIFFERENT` | this table |
+| `MINIO_ROOT_PASSWORD` | **NOT ROTATED — still the leaked value (2026-11-12)** | | same run: `SAME`. The backend authenticates to `shared-minio` with it (`MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}`, access key defaulting to `minioadmin`), and the public media route reaches `shared-minio:9000`. Treat every bucket of every project on that instance as exposed until rotated (A7). | |
+| `NETGSM_*`, `SENTRY_DSN` | n/a | | same run: `MISSING` (no longer in the live file; revoke at the provider if the accounts still exist) | |
 | A8 decision | | | | |
 
 ## 7. Closure criteria
