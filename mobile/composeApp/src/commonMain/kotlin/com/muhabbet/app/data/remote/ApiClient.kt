@@ -72,6 +72,14 @@ class ApiClient(
             "/api/v1/auth/firebase-verify",
             "/api/v1/auth/token/refresh",
         )
+
+        /**
+         * The WebSocket endpoint. Its upgrade request carries the bearer token that [WsClient] reads
+         * from storage at connect time (#747), so the `Auth` plugin is kept off it: the plugin
+         * *replaces* any `Authorization` header with the token it cached at its own last load or
+         * refresh, which need not be the one storage holds now.
+         */
+        internal const val WS_PATH = "/ws"
     }
 
     val json = Json {
@@ -150,7 +158,11 @@ class ApiClient(
                 // whose requests went out anonymously (#544). `/api/v1/auth/**` is `permitAll` on
                 // the server, so nothing stopped them at the filter chain either: they reached the
                 // controller with an empty SecurityContext and came back 401 AUTH_UNAUTHORIZED.
-                sendWithoutRequest { request -> request.url.build().encodedPath !in PRE_LOGIN_PATHS }
+                // Not the WebSocket upgrade either: WsClient sets that header itself (WS_PATH).
+                sendWithoutRequest { request ->
+                    val path = request.url.build().encodedPath
+                    path !in PRE_LOGIN_PATHS && path != WS_PATH
+                }
             }
 
             // A 401 from a pre-login endpoint is the server rejecting a **code**, not challenging

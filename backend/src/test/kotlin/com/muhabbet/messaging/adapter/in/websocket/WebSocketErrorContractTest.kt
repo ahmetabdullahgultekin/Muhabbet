@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.port.`in`.CheckSessionValidityUseCase
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
@@ -60,7 +61,10 @@ class WebSocketErrorContractTest {
         presenceVisibility = PresenceVisibility(
             mockk<BlockPolicyPort>(relaxed = true),
             mockk<ConversationRepository>(relaxed = true)
-        )
+        ),
+        checkSessionValidityUseCase = mockk<CheckSessionValidityUseCase>().also {
+            every { it.isSessionValid(any(), any(), any()) } returns true
+        }
     )
 
     @BeforeEach

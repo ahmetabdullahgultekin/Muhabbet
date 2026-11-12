@@ -34,6 +34,33 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   metadata column changes, not on every send. A unique violation on a seq index is reported as the
   server error it is, not as `MSG_DUPLICATE`.
 
+### Security — signing out, removing a device or deleting the account now ends the live connection
+
+- **A WebSocket no longer outlives its token, a logout, a device removal or an account
+  deletion** (#747, BE-12). The socket authenticated once, at connect, and was then trusted for as
+  long as it stayed open. Now the server closes it at the token's `exp` (close code 4401, so the
+  client refreshes and reconnects) and, through a new auth out-port `SessionRevocationPort`, closes
+  it after the commit of a logout, a companion-device revoke or an account erasure (4403). The REST
+  filter and the WebSocket handshake both refuse a validly signed token whose device is revoked or
+  whose account is erased (one indexed query per request, deliberately uncached). The app sends the
+  token in the upgrade request's `Authorization: Bearer` header instead of the URL, where proxies
+  and access logs recorded it; the server still accepts `?token=` for one release and logs a
+  deprecation warning that never contains the token. Needs a backend deploy.
+- **A logout now also kills the access token the device is holding**, not only its refresh tokens
+  (#747). Closing the socket alone ended the connection for about a second: the client reconnected
+  with the same still-valid access token. The logout instant is recorded on the device (`V32`,
+  `devices.logged_out_at`) and the REST filter and the WebSocket handshake refuse any token whose
+  `iat` is at or before it; a later sign-in on the same device is unaffected. The handshake also
+  re-checks validity after registering the socket, so a revocation that commits mid-handshake
+  cannot leave a socket open until token expiry. The status query now fails closed on an
+  unexpected result type, and cancelled token-expiry timers are removed from the scheduler queue
+  instead of accumulating with every reconnect.
+- **Known limit: the revocation close is per-instance.** It closes the sockets held by the instance
+  that ran the logout, device removal or deletion. Prod runs one instance, so that is all of them;
+  with several, a socket on another instance stays open until its token expires (it cannot
+  reconnect — the handshake check reads the database). It moves to the `ws:broadcast` Redis channel
+  together with `activeConversation` and the WebSocket rate limiter when scale-out is real.
+
 ### Added — Enter sends, and you can say whether it does
 
 - **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired

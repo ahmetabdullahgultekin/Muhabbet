@@ -1,6 +1,7 @@
 package com.muhabbet.shared.config
 
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
+import com.muhabbet.auth.domain.port.out.DeviceLogoutPort
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
@@ -11,6 +12,8 @@ import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
+import com.muhabbet.auth.domain.port.out.SessionRevocationPort
+import com.muhabbet.auth.domain.port.out.SessionStatusPort
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.auth.domain.service.AuthService
@@ -18,6 +21,8 @@ import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
 import com.muhabbet.auth.domain.service.LastSeenService
 import com.muhabbet.auth.domain.service.LoginApprovalService
+import com.muhabbet.auth.domain.service.LogoutService
+import com.muhabbet.auth.domain.service.SessionValidityService
 import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
 import com.muhabbet.media.domain.port.out.MediaFileRepository
@@ -136,6 +141,27 @@ class AppConfig {
     )
 
     /**
+     * Logout, split out of [AuthService] (#747) when it gained a second collaborator — the
+     * WebSocket close — rather than give a 21-parameter constructor a 22nd. The direction BE-11
+     * already names: token lifecycle is not OTP sign-in.
+     */
+    @Bean
+    fun logoutService(
+        refreshTokenRepository: RefreshTokenRepository,
+        deviceLogoutPort: DeviceLogoutPort,
+        sessionRevocationPort: SessionRevocationPort
+    ): LogoutService = LogoutService(
+        refreshTokenRepository = refreshTokenRepository,
+        deviceLogoutPort = deviceLogoutPort,
+        sessionRevocationPort = sessionRevocationPort
+    )
+
+    /** The per-request "is this token's device/account still allowed" check (#747). */
+    @Bean
+    fun sessionValidityService(sessionStatusPort: SessionStatusPort): SessionValidityService =
+        SessionValidityService(sessionStatusPort = sessionStatusPort)
+
+    /**
      * The transaction boundary for `last_seen_at` (#402). Declared as a bean like every other
      * domain service so Spring proxies it — that proxy is the entire fix, because the WebSocket
      * adapter that calls it has no transaction of its own and the write is a `@Modifying` query.
@@ -156,6 +182,10 @@ class AppConfig {
         userRepository = userRepository
     )
 
+    // One over detekt's function threshold of 8, and only because a bean method has to list what
+    // the constructor takes: UserDataService itself is within the constructor threshold (12). The
+    // eighth is the session close account erasure needs (#747).
+    @Suppress("LongParameterList")
     @Bean
     fun userDataService(
         userRepository: UserRepository,
@@ -164,7 +194,8 @@ class AppConfig {
         deviceRepository: DeviceRepository,
         loginApprovalRepository: LoginApprovalRepository,
         deviceLinkSessionRepository: DeviceLinkSessionRepository,
-        phoneHashRepository: PhoneHashRepository
+        phoneHashRepository: PhoneHashRepository,
+        sessionRevocationPort: SessionRevocationPort
     ): UserDataService = UserDataService(
         userRepository = userRepository,
         refreshTokenRepository = refreshTokenRepository,
@@ -172,7 +203,8 @@ class AppConfig {
         deviceRepository = deviceRepository,
         loginApprovalRepository = loginApprovalRepository,
         deviceLinkSessionRepository = deviceLinkSessionRepository,
-        phoneHashRepository = phoneHashRepository
+        phoneHashRepository = phoneHashRepository,
+        sessionRevocationPort = sessionRevocationPort
     )
 
     @Bean
@@ -432,10 +464,12 @@ class AppConfig {
     @Bean
     fun deviceLinkingService(
         deviceLinkSessionRepository: DeviceLinkSessionRepository,
-        deviceRepository: DeviceRepository
+        deviceRepository: DeviceRepository,
+        sessionRevocationPort: SessionRevocationPort
     ): DeviceLinkingService = DeviceLinkingService(
         deviceLinkSessionRepository = deviceLinkSessionRepository,
-        deviceRepository = deviceRepository
+        deviceRepository = deviceRepository,
+        sessionRevocationPort = sessionRevocationPort
     )
 
     @Bean

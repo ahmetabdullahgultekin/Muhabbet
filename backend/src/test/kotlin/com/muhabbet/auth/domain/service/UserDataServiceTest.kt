@@ -21,6 +21,8 @@ import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRecord
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
+import com.muhabbet.auth.domain.port.out.SessionRevocationPort
+import com.muhabbet.auth.domain.model.SessionRevocationReason
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.TestData
@@ -50,6 +52,7 @@ class UserDataServiceTest {
     private lateinit var deviceLinkSessionRepository: DeviceLinkSessionRepository
     private lateinit var phoneHashRepository: PhoneHashRepository
     private lateinit var service: UserDataService
+    private lateinit var sessionRevocationPort: SessionRevocationPort
 
     private val userId = TestData.USER_ID_1
 
@@ -62,6 +65,7 @@ class UserDataServiceTest {
         loginApprovalRepository = mockk()
         deviceLinkSessionRepository = mockk()
         phoneHashRepository = mockk()
+        sessionRevocationPort = mockk(relaxed = true)
         service = UserDataService(
             userRepository = userRepository,
             refreshTokenRepository = refreshTokenRepository,
@@ -69,7 +73,8 @@ class UserDataServiceTest {
             deviceRepository = deviceRepository,
             loginApprovalRepository = loginApprovalRepository,
             deviceLinkSessionRepository = deviceLinkSessionRepository,
-            phoneHashRepository = phoneHashRepository
+            phoneHashRepository = phoneHashRepository,
+            sessionRevocationPort = sessionRevocationPort
         )
     }
 
@@ -341,6 +346,21 @@ class UserDataServiceTest {
                 userRepository.save(match {
                     it.phoneNumber != TestData.PHONE_1 && it.status == com.muhabbet.auth.domain.model.UserStatus.DELETED
                 })
+            }
+        }
+
+        @Test
+        fun `should close every live session of the account when it is erased`() {
+            every { userRepository.findById(userId) } returns TestData.user(id = userId)
+            every { refreshTokenRepository.revokeAllForUser(userId) } returns Unit
+            every { userDataQueryPort.removeUserFromAllConversations(userId) } returns Unit
+            every { userDataQueryPort.erasePersonalData(userId) } returns Unit
+            every { userRepository.save(any()) } answers { firstArg() }
+
+            service.requestAccountDeletion(userId)
+
+            verify(exactly = 1) {
+                sessionRevocationPort.revokeUserSessions(userId, SessionRevocationReason.ACCOUNT_DELETED)
             }
         }
     }

@@ -1,5 +1,10 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import com.muhabbet.auth.domain.port.`in`.CheckSessionValidityUseCase
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
@@ -27,10 +32,13 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.serialization.encodeToString
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpHeaders
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.PongMessage
 import org.springframework.web.socket.TextMessage
@@ -52,6 +60,7 @@ class ChatWebSocketHandlerTest {
     private lateinit var webSocketRateLimiter: WebSocketRateLimiter
     private lateinit var blockPolicy: com.muhabbet.messaging.domain.port.out.BlockPolicyPort
     private lateinit var handler: ChatWebSocketHandler
+    private lateinit var sessionValidity: CheckSessionValidityUseCase
 
     private val userId = UUID.randomUUID()
     private val deviceId = UUID.randomUUID()
@@ -75,6 +84,8 @@ class ChatWebSocketHandlerTest {
         callFrameHandler = mockk(relaxed = true)
         webSocketRateLimiter = mockk(relaxed = true)
         blockPolicy = mockk(relaxed = true)
+        sessionValidity = mockk()
+        every { sessionValidity.isSessionValid(any(), any(), any()) } returns true
 
         // Rate limiter always allows in tests
         every { webSocketRateLimiter.allowMessage(any()) } returns true
@@ -94,11 +105,16 @@ class ChatWebSocketHandlerTest {
             // The real collaborator over its mocked ports, not a mock of it: these tests are about
             // which frames reach whom, and a stubbed filter would assert only that the handler
             // called something.
-            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository)
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository),
+            checkSessionValidityUseCase = sessionValidity
         )
     }
 
-    private fun createSession(token: String? = null): WebSocketSession {
+    /**
+     * @param token sent the legacy way, as `?token=` on the URL.
+     * @param bearer sent the 0.4 way, as `Authorization: Bearer` on the upgrade request.
+     */
+    private fun createSession(token: String? = null, bearer: String? = null): WebSocketSession {
         val session = mockk<WebSocketSession>(relaxed = true)
         val uri = if (token != null) {
             URI("wss://localhost/ws?token=$token")
@@ -106,6 +122,9 @@ class ChatWebSocketHandlerTest {
             URI("wss://localhost/ws")
         }
         every { session.uri } returns uri
+        every { session.handshakeHeaders } returns HttpHeaders().apply {
+            if (bearer != null) set(HttpHeaders.AUTHORIZATION, "Bearer $bearer")
+        }
         every { session.id } returns UUID.randomUUID().toString()
         every { session.isOpen } returns true
         every { session.attributes } returns mutableMapOf<String, Any>()
@@ -128,7 +147,7 @@ class ChatWebSocketHandlerTest {
 
             handler.afterConnectionEstablished(session)
 
-            verify { sessionManager.register(userId, session) }
+            verify { sessionManager.register(userId, session, deviceId, any()) }
             verify { presencePort.setOnline(userId) }
         }
 
@@ -152,7 +171,7 @@ class ChatWebSocketHandlerTest {
             handler.afterConnectionEstablished(session)
 
             verify { session.close(CloseStatus.POLICY_VIOLATION) }
-            verify(exactly = 0) { sessionManager.register(any(), any()) }
+            verify(exactly = 0) { sessionManager.register(any(), any(), any(), any()) }
         }
 
         @Test
@@ -162,7 +181,7 @@ class ChatWebSocketHandlerTest {
             handler.afterConnectionEstablished(session)
 
             verify { session.close(CloseStatus.POLICY_VIOLATION) }
-            verify(exactly = 0) { sessionManager.register(any(), any()) }
+            verify(exactly = 0) { sessionManager.register(any(), any(), any(), any()) }
         }
 
         @Test
@@ -185,7 +204,7 @@ class ChatWebSocketHandlerTest {
             handler.afterConnectionEstablished(session)
 
             verify { session.close(CloseStatus.POLICY_VIOLATION) }
-            verify(exactly = 0) { sessionManager.register(any(), any()) }
+            verify(exactly = 0) { sessionManager.register(any(), any(), any(), any()) }
         }
 
         @Test
@@ -198,6 +217,126 @@ class ChatWebSocketHandlerTest {
 
             val sentJson = messageSlot.captured
             assertTrue(sentJson.contains("AUTH_TOKEN_INVALID"))
+        }
+
+        @Test
+        fun `should register session when the token comes in the Authorization header`() {
+            val session = createSession(bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify { sessionManager.register(userId, session, deviceId, any()) }
+            verify(exactly = 0) { session.close(any()) }
+        }
+
+        @Test
+        fun `should register the session with its device and token expiry when token is valid`() {
+            val session = createSession(bearer = generateValidToken())
+            val expiry = slot<Instant>()
+            every { sessionManager.register(userId, session, deviceId, capture(expiry)) } just Runs
+
+            handler.afterConnectionEstablished(session)
+
+            val secondsLeft = expiry.captured.epochSecond - Instant.now().epochSecond
+            assertTrue(secondsLeft in 890..900, "expiry is the token's exp (900 s), was $secondsLeft s away")
+        }
+
+        @Test
+        fun `should prefer the header when both the header and the query parameter are present`() {
+            val session = createSession(token = "garbage", bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify { sessionManager.register(userId, session, deviceId, any()) }
+        }
+
+        @Test
+        fun `should still accept the query parameter and log a deprecation warning without the token`() {
+            val token = generateValidToken()
+            val session = createSession(token = token)
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            val logger = LoggerFactory.getLogger(ChatWebSocketHandler::class.java) as Logger
+            logger.addAppender(appender)
+            try {
+                handler.afterConnectionEstablished(session)
+            } finally {
+                logger.detachAppender(appender)
+            }
+
+            verify { sessionManager.register(userId, session, deviceId, any()) }
+            val warnings = appender.list.filter { it.level == Level.WARN }
+            assertEquals(1, warnings.size, "exactly one deprecation warning")
+            val line = warnings.single().formattedMessage
+            assertTrue(line.contains("deprecated"), line)
+            assertFalse(line.contains(token), "the warning must never contain the token")
+        }
+
+        @Test
+        fun `should not log a deprecation warning when the token comes in the header`() {
+            val session = createSession(bearer = generateValidToken())
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            val logger = LoggerFactory.getLogger(ChatWebSocketHandler::class.java) as Logger
+            logger.addAppender(appender)
+            try {
+                handler.afterConnectionEstablished(session)
+            } finally {
+                logger.detachAppender(appender)
+            }
+
+            assertTrue(appender.list.none { it.level == Level.WARN })
+        }
+
+        @Test
+        fun `should refuse the connection with 4403 when the token's device is revoked`() {
+            every { sessionValidity.isSessionValid(userId, deviceId, any()) } returns false
+            val session = createSession(bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify { session.close(match { it.code == WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED }) }
+            verify(exactly = 0) { sessionManager.register(any(), any(), any(), any()) }
+            verify(exactly = 0) { presencePort.setOnline(any()) }
+        }
+
+        @Test
+        fun `should close the just-registered session with 4403 when revocation commits during the handshake`() {
+            // First check passes (the revoking transaction has not committed yet); by the time the
+            // session is registered it has, and its after-commit close found nothing to close.
+            every { sessionValidity.isSessionValid(userId, deviceId, any()) } returnsMany listOf(true, false)
+            val session = createSession(bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify(ordering = io.mockk.Ordering.ORDERED) {
+                sessionManager.register(userId, session, deviceId, any())
+                sessionManager.closeForDevice(
+                    deviceId,
+                    match { it.code == WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED }
+                )
+            }
+            verify(exactly = 0) { presencePort.setOnline(any()) }
+        }
+
+        @Test
+        fun `should pass the token's issue time to the validity check when connecting`() {
+            val session = createSession(bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify(atLeast = 1) { sessionValidity.isSessionValid(userId, deviceId, match { it != null }) }
+        }
+
+        @Test
+        fun `should close session with error when the Authorization header is not a bearer token`() {
+            val session = createSession()
+            every { session.handshakeHeaders } returns HttpHeaders().apply {
+                set(HttpHeaders.AUTHORIZATION, "Basic dXNlcjpwYXNz")
+            }
+
+            handler.afterConnectionEstablished(session)
+
+            verify { session.close(CloseStatus.POLICY_VIOLATION) }
+            verify(exactly = 0) { sessionManager.register(any(), any(), any(), any()) }
         }
     }
 

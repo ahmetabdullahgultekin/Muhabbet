@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.auth.domain.port.`in`.CheckSessionValidityUseCase
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
@@ -18,6 +19,7 @@ import com.muhabbet.shared.security.JwtProvider
 import com.muhabbet.shared.security.WebSocketRateLimiter
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.PongMessage
@@ -39,15 +41,18 @@ class ChatWebSocketHandler(
     private val recordLastSeenUseCase: RecordLastSeenUseCase,
     private val callFrameHandler: CallFrameHandler,
     private val webSocketRateLimiter: WebSocketRateLimiter,
-    private val presenceVisibility: PresenceVisibility
+    private val presenceVisibility: PresenceVisibility,
+    private val checkSessionValidityUseCase: CheckSessionValidityUseCase
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /** Where the handshake found its token. Only the legacy source is logged, and never the token. */
+    private enum class TokenSource { AUTHORIZATION_HEADER, LEGACY_QUERY_PARAMETER }
+
     override fun afterConnectionEstablished(session: WebSocketSession) {
-        val token = extractToken(session)
-        if (token == null) {
-            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Missing token query parameter")
+        val (token, source) = extractToken(session) ?: run {
+            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Missing bearer token")
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
@@ -59,9 +64,39 @@ class ChatWebSocketHandler(
             return
         }
 
+        // The signature says who the token was issued to; it cannot say the device was not revoked
+        // or the account erased since. Without this a revoked companion would be closed by
+        // SessionRevocationPort and then reconnect with the same token a second later (#747).
+        if (!checkSessionValidityUseCase.isSessionValid(claims.userId, claims.deviceId, claims.issuedAt)) {
+            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Session revoked")
+            session.close(SESSION_REVOKED)
+            return
+        }
+
+        if (source == TokenSource.LEGACY_QUERY_PARAMETER) {
+            // Deprecated for one release (ICD §3.1): a URL is what proxies and access logs record,
+            // so a token in it is a token in someone's log. Logged without the token, by design.
+            log.warn(
+                "WebSocket authenticated via the deprecated ?token= query parameter; " +
+                    "client should send Authorization: Bearer. userId={}, deviceId={}",
+                claims.userId, claims.deviceId
+            )
+        }
+
         session.attributes["userId"] = claims.userId
         session.attributes["deviceId"] = claims.deviceId
-        sessionManager.register(claims.userId, session)
+        sessionManager.register(claims.userId, session, claims.deviceId, claims.expiresAt)
+
+        // Asked again now that the session is findable. The first check can pass while a revoking
+        // transaction is still uncommitted; if that transaction's after-commit close then runs
+        // before register() above, it finds nothing to close and this socket would live until its
+        // token expires. Any commit that the first check missed is visible here, and any commit
+        // after this point finds the session registered — so one of the two always closes it.
+        if (!checkSessionValidityUseCase.isSessionValid(claims.userId, claims.deviceId, claims.issuedAt)) {
+            log.info("Session revoked during handshake: userId={}, deviceId={}", claims.userId, claims.deviceId)
+            sessionManager.closeForDevice(claims.deviceId, SESSION_REVOKED)
+            return
+        }
 
         // Set online in Redis and broadcast presence
         presencePort.setOnline(claims.userId)
@@ -365,9 +400,24 @@ class ChatWebSocketHandler(
         }
     }
 
-    private fun extractToken(session: WebSocketSession): String? {
+    /**
+     * The `Authorization: Bearer` header on the upgrade request wins (#747); `?token=` is still
+     * accepted, for one release, so clients ≤ 0.3.x keep connecting. `Sec-WebSocket-Protocol` is
+     * neither required nor read.
+     */
+    private fun extractToken(session: WebSocketSession): Pair<String, TokenSource>? {
+        val header = session.handshakeHeaders.getFirst(HttpHeaders.AUTHORIZATION)
+        if (header != null && header.startsWith(BEARER_PREFIX, ignoreCase = true)) {
+            val token = header.substring(BEARER_PREFIX.length).trim()
+            if (token.isNotEmpty()) return token to TokenSource.AUTHORIZATION_HEADER
+        }
         val uri = session.uri ?: return null
-        val params = UriComponentsBuilder.fromUri(uri).build().queryParams
-        return params.getFirst("token")
+        val queryToken = UriComponentsBuilder.fromUri(uri).build().queryParams.getFirst("token")
+        return queryToken?.takeIf { it.isNotEmpty() }?.let { it to TokenSource.LEGACY_QUERY_PARAMETER }
+    }
+
+    private companion object {
+        const val BEARER_PREFIX = "Bearer "
+        val SESSION_REVOKED = CloseStatus(WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED, "SESSION_REVOKED")
     }
 }

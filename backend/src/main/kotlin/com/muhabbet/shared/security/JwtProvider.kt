@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
 import java.security.SecureRandom
+import java.time.Instant
 import java.util.Base64
 import java.util.Date
 import java.util.UUID
@@ -15,7 +16,22 @@ import javax.crypto.SecretKey
 data class JwtClaims(
     val userId: UUID,
     val deviceId: UUID,
-    val isAdmin: Boolean = false
+    val isAdmin: Boolean = false,
+    /**
+     * The token's `exp`, so a long-lived consumer — a WebSocket session — can stop trusting the
+     * token at the moment the token stops being valid rather than at the moment it was presented
+     * (#747). [JwtProvider.validateToken] always sets it; it is nullable only so that claims built
+     * by hand for a controller test need not invent one, and a null is read as "no scheduled close",
+     * never as "valid forever" anywhere a real token is involved.
+     */
+    val expiresAt: Instant? = null,
+    /**
+     * The token's `iat` (whole seconds, as JWT carries it). A logout refuses every token for that
+     * device issued at or before the logout, which is the only way to make an access token that is
+     * still inside its lifetime unusable without a deny-list of token ids. Nullable for the same
+     * reason as [expiresAt]; a null is treated as older than any logout, never as newer.
+     */
+    val issuedAt: Instant? = null
 )
 
 @Component
@@ -114,7 +130,9 @@ class JwtProvider(
             JwtClaims(
                 userId = UUID.fromString(claims.subject),
                 deviceId = UUID.fromString(claims["deviceId"] as String),
-                isAdmin = claims["admin"] as? Boolean ?: false
+                isAdmin = claims["admin"] as? Boolean ?: false,
+                expiresAt = claims.expiration?.toInstant(),
+                issuedAt = claims.issuedAt?.toInstant()
             )
         } catch (ex: Exception) {
             log.debug("JWT validation failed: {}", ex.message)

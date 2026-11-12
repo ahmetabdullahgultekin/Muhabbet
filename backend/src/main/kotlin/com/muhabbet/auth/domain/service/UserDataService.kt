@@ -6,6 +6,7 @@ import com.muhabbet.auth.domain.model.ExportedLoginApproval
 import com.muhabbet.auth.domain.model.ExportedPage
 import com.muhabbet.auth.domain.model.ExportedPrivacySettings
 import com.muhabbet.auth.domain.model.ExportedProfile
+import com.muhabbet.auth.domain.model.SessionRevocationReason
 import com.muhabbet.auth.domain.model.ExportedSession
 import com.muhabbet.auth.domain.model.UserDataExport
 import com.muhabbet.auth.domain.model.UserStatus
@@ -15,6 +16,7 @@ import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
+import com.muhabbet.auth.domain.port.out.SessionRevocationPort
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
@@ -37,7 +39,9 @@ open class UserDataService(
     private val deviceRepository: DeviceRepository,
     private val loginApprovalRepository: LoginApprovalRepository,
     private val deviceLinkSessionRepository: DeviceLinkSessionRepository,
-    private val phoneHashRepository: PhoneHashRepository
+    private val phoneHashRepository: PhoneHashRepository,
+    /** Closes every socket the erased account still has open (#747). */
+    private val sessionRevocationPort: SessionRevocationPort
 ) : ManageUserDataUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -171,6 +175,7 @@ open class UserDataService(
             )
         )
 
+        sessionRevocationPort.revokeUserSessions(userId, SessionRevocationReason.ACCOUNT_DELETED)
         log.info("Account erased: userId={}", userId)
     }
 

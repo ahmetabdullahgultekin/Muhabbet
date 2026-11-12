@@ -9,9 +9,11 @@ import org.springframework.web.socket.PingMessage
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -53,6 +55,18 @@ class WebSocketSessionManager {
          * not slow, it is gone, and holding more of its backlog only costs this instance memory.
          */
         private const val SEND_BUFFER_LIMIT_BYTES = 8 * 64 * 1024
+
+        /** Close code for "your token is no longer valid; refresh and reconnect" (ICD §3.1). */
+        const val CLOSE_CODE_TOKEN_EXPIRED = 4401
+
+        /**
+         * Close code for "this session was revoked" — logout, device removal, account deletion
+         * (ICD §3.1). Distinct from [CLOSE_CODE_TOKEN_EXPIRED] because the right client reaction is
+         * different: a refresh fixes an expiry and cannot fix a revocation.
+         */
+        const val CLOSE_CODE_SESSION_REVOKED = 4403
+
+        val TOKEN_EXPIRED: CloseStatus = CloseStatus(CLOSE_CODE_TOKEN_EXPIRED, "TOKEN_EXPIRED")
     }
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -93,10 +107,34 @@ class WebSocketSessionManager {
     // OFF, so a second concurrent device for one user is not a case this needs to get right yet.
     private val activeConversation = ConcurrentHashMap<UUID, UUID>()
 
+    // sessionId -> the device the session's token was issued to, and the reverse index, so that
+    // revoking one device closes that device's sockets and nobody else's (#747). A session
+    // registered without a device (none today, but the parameter is optional) is simply absent.
+    private val sessionToDevice = ConcurrentHashMap<String, UUID>()
+    private val deviceSessions = ConcurrentHashMap<UUID, MutableSet<String>>()
+
+    // sessionId -> epoch millis at which the token that opened it expires, and the one-shot task
+    // that will close it then. The token is checked once, at the handshake; without this a socket
+    // opened with a fifteen-minute token stayed authenticated for as long as it stayed open (#747).
+    private val sessionExpiresAt = ConcurrentHashMap<String, Long>()
+    private val expiryTasks = ConcurrentHashMap<String, ScheduledFuture<*>>()
+
     // Periodic reaping of sessions that are closed, silent, or unwritable
-    private val cleanupExecutor = Executors.newSingleThreadScheduledExecutor { r ->
-        Thread(r, "ws-session-cleanup").apply { isDaemon = true }
-    }
+    private val cleanupExecutor = daemonScheduler("ws-session-cleanup")
+
+    // The one-shot token-expiry closes, on a thread of their own so that a close blocked on a slow
+    // peer's send limit delays neither the reaper nor — beyond that one close — the other expiries.
+    // removeOnCancelPolicy matters here, not in the reaper: every session that disconnects before its
+    // token expires cancels its task, and without the policy a cancelled task sits in the queue until
+    // its original delay (up to the token lifetime) elapses, so the queue grew with connection churn.
+    private val expiryExecutor = daemonScheduler("ws-token-expiry")
+
+    private fun daemonScheduler(name: String): ScheduledThreadPoolExecutor =
+        ScheduledThreadPoolExecutor(1) { r -> Thread(r, name).apply { isDaemon = true } }
+            .apply { removeOnCancelPolicy = true }
+
+    /** Tasks waiting on the token-expiry scheduler; exposed so a test can show cancellation frees them. */
+    internal fun pendingExpiryTaskCount(): Int = expiryExecutor.queue.size
 
     @PostConstruct
     fun startCleanup() {
@@ -112,15 +150,70 @@ class WebSocketSessionManager {
     @PreDestroy
     fun stopCleanup() {
         cleanupExecutor.shutdownNow()
+        expiryExecutor.shutdownNow()
     }
 
-    fun register(userId: UUID, session: WebSocketSession) {
+    /**
+     * @param deviceId the token's device, indexed so [closeForDevice] can find this session.
+     * @param expiresAt the token's `exp`. The session is closed with [TOKEN_EXPIRED] at that instant
+     *   by a one-shot task, and the periodic sweep closes it too should that task ever be missed.
+     */
+    fun register(userId: UUID, session: WebSocketSession, deviceId: UUID? = null, expiresAt: Instant? = null) {
         val tracked = ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, SEND_BUFFER_LIMIT_BYTES)
         sessions.computeIfAbsent(userId) { ConcurrentHashMap.newKeySet() }.add(tracked)
         byId[session.id] = tracked
         sessionToUser[session.id] = userId
         lastSeenAt[session.id] = System.currentTimeMillis()
+        if (deviceId != null) {
+            sessionToDevice[session.id] = deviceId
+            deviceSessions.computeIfAbsent(deviceId) { ConcurrentHashMap.newKeySet() }.add(session.id)
+        }
+        if (expiresAt != null) scheduleExpiry(session.id, expiresAt.toEpochMilli())
         log.info("WebSocket registered: userId={}, sessionId={}, total={}", userId, session.id, sessions.size)
+    }
+
+    /**
+     * Closes every open session of [userId] with [status] and forgets them. Used when the account
+     * itself stops being allowed to hold one (#747).
+     *
+     * @return how many sessions were closed.
+     */
+    fun closeForUser(userId: UUID, status: CloseStatus): Int {
+        val open = sessions[userId]?.toList().orEmpty()
+        open.forEach { closeAndForget(userId, it, status) }
+        if (open.isNotEmpty()) log.info("Closed {} WebSocket session(s) for user {}: {}", open.size, userId, status)
+        return open.size
+    }
+
+    /**
+     * Closes every open session authenticated as [deviceId] with [status] and forgets them. The
+     * user's other devices keep their sockets.
+     *
+     * @return how many sessions were closed.
+     */
+    fun closeForDevice(deviceId: UUID, status: CloseStatus): Int {
+        val ids = deviceSessions[deviceId]?.toList().orEmpty()
+        var closed = 0
+        ids.forEach { id ->
+            val userId = sessionToUser[id] ?: return@forEach
+            val tracked = byId[id] ?: return@forEach
+            closeAndForget(userId, tracked, status)
+            closed++
+        }
+        if (closed > 0) log.info("Closed {} WebSocket session(s) for device {}: {}", closed, deviceId, status)
+        return closed
+    }
+
+    /**
+     * Closes every session whose token has expired by [now]. The precise close is the one-shot task
+     * [register] schedules; this is the sweep's backstop for one that was lost.
+     *
+     * @param now injectable so a test can expire tokens without sleeping.
+     * @return how many sessions were closed.
+     */
+    fun closeExpiredSessions(now: Long = System.currentTimeMillis()): Int {
+        val expired = sessionExpiresAt.filterValues { it <= now }.keys
+        return expired.count { expire(it) }
     }
 
     fun unregister(session: WebSocketSession) {
@@ -218,6 +311,7 @@ class WebSocketSessionManager {
      * @param now injectable so a test can age sessions without sleeping.
      */
     fun reapStaleSessions(now: Long = System.currentTimeMillis()) {
+        closeExpiredSessions(now)
         var reaped = 0
         // ConcurrentHashMap iteration is weakly consistent and holds no locks, so removing entries
         // (here, via forget) from inside the traversal is safe — including the re-entrant unregister
@@ -248,7 +342,7 @@ class WebSocketSessionManager {
         if (reaped > 0) log.info("Reaped {} dead WebSocket sessions", reaped)
     }
 
-    /** Removes a session from all three maps. Idempotent. */
+    /** Removes a session from every map and cancels its expiry task. Idempotent. */
     private fun forget(userId: UUID, session: WebSocketSession) {
         // Resolved through byId because callers reach here with either instance: the reaper walks
         // the set and so holds the decorator, while unregister() is handed the raw session by the
@@ -256,6 +350,14 @@ class WebSocketSessionManager {
         val tracked = byId.remove(session.id) ?: session
         sessionToUser.remove(session.id)
         lastSeenAt.remove(session.id)
+        sessionExpiresAt.remove(session.id)
+        expiryTasks.remove(session.id)?.cancel(false)
+        sessionToDevice.remove(session.id)?.let { deviceId ->
+            deviceSessions.computeIfPresent(deviceId) { _, ids ->
+                ids.remove(session.id)
+                if (ids.isEmpty()) null else ids
+            }
+        }
         // computeIfPresent keeps "remove the session" and "drop the now-empty user entry" atomic
         // against a concurrent register() for the same user, which a check-then-remove would lose.
         sessions.computeIfPresent(userId) { _, set ->
@@ -266,6 +368,38 @@ class WebSocketSessionManager {
         // something. Not "the socket that just closed happened to be the one that last reported
         // focus," because with one entry per user there is no way to tell whose report it was.
         if (!isOnline(userId)) activeConversation.remove(userId)
+    }
+
+    private fun scheduleExpiry(sessionId: String, expiresAtMs: Long) {
+        sessionExpiresAt[sessionId] = expiresAtMs
+        val delayMs = (expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
+        expiryTasks[sessionId] = expiryExecutor.schedule({
+            try {
+                expire(sessionId)
+            } catch (e: Exception) {
+                log.warn("WS token-expiry close failed for session {}: {}", sessionId, e.message)
+            }
+        }, delayMs, TimeUnit.MILLISECONDS)
+    }
+
+    /** Closes one session because its token expired. @return false if it was already gone. */
+    private fun expire(sessionId: String): Boolean {
+        val userId = sessionToUser[sessionId] ?: return false
+        val tracked = byId[sessionId] ?: return false
+        log.info("Closing WebSocket session at token expiry: userId={}, sessionId={}", userId, sessionId)
+        closeAndForget(userId, tracked, TOKEN_EXPIRED)
+        return true
+    }
+
+    private fun closeAndForget(userId: UUID, session: WebSocketSession, status: CloseStatus) {
+        // Close first so the handler's afterConnectionClosed runs the presence cleanup, exactly as
+        // the reaper does; forget() afterwards in case that callback never arrives.
+        try {
+            if (session.isOpen) session.close(status)
+        } catch (e: Exception) {
+            log.debug("Failed to close session {} ({}): {}", session.id, status, e.message)
+        }
+        forget(userId, session)
     }
 
     /** @return false if the ping could not be written, which means the session is dead. */

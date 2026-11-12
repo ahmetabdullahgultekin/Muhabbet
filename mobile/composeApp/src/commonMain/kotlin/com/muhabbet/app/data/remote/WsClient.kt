@@ -6,7 +6,8 @@ import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.get
-import io.ktor.client.request.parameter
+import io.ktor.client.request.header
+import io.ktor.http.HttpHeaders
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
@@ -194,8 +195,12 @@ class WsClient(
                 _connectionState.value = ConnectionState.CONNECTING
                 Log.d(TAG, "Connecting...")
                 val ws = openSession?.invoke(token)
-                    ?: apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
-                        parameter("token", token)
+                    ?: apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}${ApiClient.WS_PATH}") {
+                        // In the upgrade request's header, not the URL (#747): a query string is
+                        // what proxies and access logs record, so a token there is a token in
+                        // someone's log. The server still accepts ?token= for one release, for
+                        // builds that predate this.
+                        header(HttpHeaders.Authorization, "Bearer $token")
                     }
                 mySession = ws
                 session = ws
