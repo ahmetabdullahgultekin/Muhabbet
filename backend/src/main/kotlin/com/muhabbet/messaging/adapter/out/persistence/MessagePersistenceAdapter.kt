@@ -81,19 +81,28 @@ class MessagePersistenceAdapter(
         try {
             entityManager.flush()
         } catch (e: PersistenceException) {
-            if (e.isUniqueViolation()) throw BusinessException(ErrorCode.MSG_DUPLICATE)
+            if (e.isRetriedSend()) throw BusinessException(ErrorCode.MSG_DUPLICATE)
             throw e
         }
         return entity.toDomain()
     }
 
-    /** SQLSTATE 23505 only: a foreign-key or check violation is a different fault, not a retry. */
-    private fun Throwable.isUniqueViolation(): Boolean =
+    /**
+     * A unique violation on one of the two keys that identify a send — the primary key or the
+     * device-scoped idempotency key — is a retried (or squatted) message id, which the service
+     * answers by replay or MSG_DUPLICATE. A violation of `ux_messages_conv_seq` or
+     * `ux_messages_conv_change_seq` is a double allocation: a sequencing bug, not a retry. Mapping it
+     * to MSG_DUPLICATE would tell the client "already processed" about a message that was never
+     * stored, so it is rethrown and surfaces as INTERNAL_ERROR with a stack trace.
+     */
+    private fun Throwable.isRetriedSend(): Boolean =
         generateSequence(this) { it.cause }
-            .any { it is ConstraintViolationException && it.sqlState == UNIQUE_VIOLATION }
+            .filterIsInstance<ConstraintViolationException>()
+            .any { it.sqlState == UNIQUE_VIOLATION && it.constraintName?.lowercase() in SEND_IDENTITY_CONSTRAINTS }
 
     private companion object {
         const val UNIQUE_VIOLATION = "23505"
+        val SEND_IDENTITY_CONSTRAINTS = setOf("messages_pkey", "ux_messages_sender_device_client_id")
     }
 
     override fun findById(id: UUID): Message? =
@@ -180,6 +189,12 @@ class MessagePersistenceAdapter(
     override fun updateContent(messageId: UUID, newContent: String, editedAt: Instant, changeSeq: Long) {
         messageRepo.updateContent(messageId, newContent, editedAt, changeSeq)
     }
+
+    override fun updateScheduledContent(messageId: UUID, newContent: String, editedAt: Instant): Boolean =
+        messageRepo.updateScheduledContent(messageId, newContent, editedAt) > 0
+
+    override fun softDeleteScheduled(messageId: UUID): Boolean =
+        messageRepo.softDeleteScheduled(messageId) > 0
 
     override fun countMediaInConversation(conversationId: UUID, viewerId: UUID): Int =
         messageRepo.countMediaInConversation(conversationId, viewerId)

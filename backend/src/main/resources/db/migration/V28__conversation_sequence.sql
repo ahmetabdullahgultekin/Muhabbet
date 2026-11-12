@@ -21,6 +21,19 @@ ALTER TABLE conversations ADD COLUMN last_seq BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE messages ADD COLUMN seq BIGINT;
 ALTER TABLE messages ADD COLUMN change_seq BIGINT;
 
+-- Every allocation is an UPDATE of the conversation row. The V1 trigger fired on any UPDATE, so
+-- `updated_at` would have moved on every send, edit and delete and stopped meaning "the
+-- conversation's metadata changed" (data-model.md §3.1, decided before V28 ships). It now fires
+-- only when a metadata column is in the SET list; `last_seq` is deliberately absent. Redefined
+-- before the backfill below so that the backfill does not touch `updated_at` either.
+DROP TRIGGER update_conversations_updated_at ON conversations;
+CREATE TRIGGER update_conversations_updated_at
+    BEFORE UPDATE OF type, name, avatar_url, description, created_by,
+                     disappear_after_seconds, announcement_only, max_members
+    ON conversations
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- Backfill existing history, ordered by (server_timestamp, id) so rows that share an instant get a
 -- deterministic order instead of an arbitrary one. Unreleased scheduled rows are skipped: they are
 -- numbered when they are released. The production table is small (single-digit users), so this
@@ -48,7 +61,13 @@ FROM (
 ) s
 WHERE c.id = s.conversation_id;
 
--- A double allocation is a constraint violation, not silent corruption. A plain unique index
--- already admits any number of NULLs, so unreleased scheduled rows need no partial predicate.
-CREATE UNIQUE INDEX ux_messages_conv_seq ON messages (conversation_id, seq);
-CREATE UNIQUE INDEX ux_messages_conv_change_seq ON messages (conversation_id, change_seq);
+-- The two unique indexes are V28.1 (CREATE INDEX CONCURRENTLY, which cannot run in this
+-- transaction), so the build takes no SHARE lock on `messages` (data-model.md §3.1, rule 6).
+--
+-- Known deviations from data-model.md §3.1, acceptable only at the current row counts
+-- (single-digit users):
+--   * the backfill above runs inside this migration instead of in the resumable `SeqSweeper`;
+--   * there is no `conversations.seq_ready`. Without the sweeper there is no window in which a new
+--     send could be numbered ahead of un-numbered history, which is what the flag guards against.
+-- Both must be revisited before the table is large enough for this statement to hold a lock for
+-- noticeable time.

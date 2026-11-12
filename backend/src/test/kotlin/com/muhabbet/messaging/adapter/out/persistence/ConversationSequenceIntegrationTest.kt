@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.adapter.out.persistence
 
 import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.Conversation
@@ -63,6 +64,7 @@ class ConversationSequenceIntegrationTest {
     @Autowired private lateinit var conversationRepository: ConversationRepository
     @Autowired private lateinit var userRepository: UserRepository
     @Autowired private lateinit var transactions: TransactionRunner
+    @Autowired private lateinit var userDataQuery: UserDataQueryPort
     @Autowired private lateinit var jdbc: JdbcTemplate
 
     private lateinit var alice: UUID
@@ -216,7 +218,80 @@ class ConversationSequenceIntegrationTest {
         assertEquals(3L, lastSeq())
     }
 
+    @Test
+    fun `should leave the conversation's updated_at alone when a message takes a seq`() {
+        jdbc.update("UPDATE conversations SET updated_at = '2020-01-01T00:00:00Z' WHERE id = ?", conversationId)
+        // That UPDATE named updated_at only, so the trigger did not overwrite it either.
+        val before = updatedAt()
+
+        val sent = send().message
+        manageMessageUseCase.editMessage(sent.id, alice, "düzeltildi")
+
+        assertEquals(2L, lastSeq())
+        assertEquals(before, updatedAt(), "seq allocation is not a metadata change")
+
+        jdbc.update("UPDATE conversations SET name = 'Yeni ad' WHERE id = ?", conversationId)
+        assertTrue(updatedAt().isAfter(before), "a metadata change still moves updated_at")
+    }
+
+    private fun updatedAt(): Instant =
+        jdbc.queryForObject("SELECT updated_at FROM conversations WHERE id = ?", java.sql.Timestamp::class.java, conversationId)
+            ?.toInstant() ?: Instant.EPOCH
+
+    @Test
+    fun `should answer MSG_DUPLICATE when an insert collides on the message id`() {
+        val sent = send().message
+        val error = assertThrows(BusinessException::class.java) {
+            transactions.inTransaction { messageRepository.save(sent.copy(seq = 99L, changeSeq = 99L)) }
+        }
+        assertEquals(ErrorCode.MSG_DUPLICATE, error.errorCode)
+    }
+
+    @Test
+    fun `should fail loudly instead of answering MSG_DUPLICATE when two rows are given the same seq`() {
+        val sent = send().message
+        val clash = sent.copy(id = UUID.randomUUID(), changeSeq = 99L)
+
+        val error = assertThrows(Exception::class.java) {
+            transactions.inTransaction { messageRepository.save(clash) }
+        }
+        assertFalse(error is BusinessException, "a double allocation is a bug, not a retried send: $error")
+        assertNull(messageRepository.findById(clash.id))
+    }
+
     // ─── #746: scheduled messages ────────────────────────
+
+    @Test
+    fun `should leave a scheduled message out of another member's data export until it is released`() {
+        val visible = send(content = "şimdi").message
+        val scheduled = send(content = "sonra gizli", scheduledAt = Instant.now().plusSeconds(3600)).message
+        val since = Instant.EPOCH
+
+        assertEquals(listOf(visible.id), userDataQuery.findMessagesPage(bob, since, 50).map { it.id })
+        assertEquals(1L, userDataQuery.countMessagesByUserId(bob))
+        assertEquals(
+            setOf(visible.id, scheduled.id),
+            userDataQuery.findMessagesPage(alice, since, 50).map { it.id }.toSet()
+        )
+        assertEquals(2L, userDataQuery.countMessagesByUserId(alice))
+    }
+
+    @Test
+    fun `should edit and delete a scheduled message without spending a seq when it is not yet due`() {
+        send(content = "önce")
+        val scheduled = send(content = "sonra", scheduledAt = Instant.now().plusSeconds(3600)).message
+
+        manageMessageUseCase.editMessage(scheduled.id, alice, "sonra, düzeltildi")
+        val edited = requireNotNull(messageRepository.findById(scheduled.id))
+        assertEquals("sonra, düzeltildi", edited.content)
+        assertNull(edited.changeSeq)
+
+        manageMessageUseCase.deleteMessage(scheduled.id, alice)
+        val deleted = requireNotNull(messageRepository.findById(scheduled.id))
+        assertTrue(deleted.isDeleted)
+        assertNull(deleted.changeSeq)
+        assertEquals(1L, lastSeq(), "only the immediate send took a number")
+    }
 
     @Test
     fun `should hide a scheduled message from the recipient and show it to the sender until it is released`() {

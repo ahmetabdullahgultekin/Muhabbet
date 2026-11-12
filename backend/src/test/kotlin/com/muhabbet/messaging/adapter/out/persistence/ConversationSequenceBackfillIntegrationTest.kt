@@ -37,6 +37,8 @@ class ConversationSequenceBackfillIntegrationTest {
     private fun flyway(target: String?): Flyway = Flyway.configure()
         .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
         .locations("classpath:db/migration")
+        // Same as application.yml: the transactional lock deadlocks against CREATE INDEX CONCURRENTLY.
+        .configuration(mapOf("flyway.postgresql.transactional.lock" to "false"))
         .apply { if (target != null) target(target) }
         .load()
 
@@ -124,5 +126,27 @@ class ConversationSequenceBackfillIntegrationTest {
         assertEquals(1L, seqs[otherChat], "numbering is per conversation")
         assertEquals(5L, lastSeq[chatA])
         assertEquals(1L, lastSeq[chatB])
+        assertIdentityRuleAndIndexes()
+    }
+
+    private fun scalar(sql: String): Int = connection { c ->
+        c.createStatement().use { st -> st.executeQuery(sql).use { rs -> rs.next(); rs.getInt(1) } }
+    }
+
+    private fun assertIdentityRuleAndIndexes() {
+        assertEquals(
+            0,
+            scalar("SELECT COUNT(*) FROM messages WHERE client_message_id IS DISTINCT FROM id"),
+            "V29 backfills the identity rule client_message_id = id onto legacy rows"
+        )
+        assertEquals(
+            2,
+            scalar(
+                "SELECT COUNT(*) FROM pg_index i JOIN pg_class x ON x.oid = i.indexrelid " +
+                    "WHERE x.relname IN ('ux_messages_conv_seq', 'ux_messages_conv_change_seq') " +
+                    "AND i.indisunique AND i.indisvalid"
+            ),
+            "V28.1 builds both unique indexes concurrently and leaves them valid"
+        )
     }
 }

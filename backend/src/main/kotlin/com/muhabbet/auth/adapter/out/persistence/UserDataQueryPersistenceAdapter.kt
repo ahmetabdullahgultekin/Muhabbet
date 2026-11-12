@@ -31,12 +31,15 @@ class UserDataQueryPersistenceAdapter(
     private val entityManager: EntityManager
 ) : UserDataQueryPort {
 
+    // Both message reads carry the scheduled-row predicate (#746): another member's scheduled
+    // message is not released to anyone but its sender until it is due, and a KVKK export is a read.
     override fun countMessagesByUserId(userId: UUID): Long =
         entityManager.createNativeQuery(
             """
             SELECT COUNT(*) FROM messages
             WHERE (sender_id = :userId
                    OR conversation_id IN (SELECT conversation_id FROM conversation_members WHERE user_id = :userId))
+              AND (is_scheduled = false OR sender_id = :userId)
             """
         )
             .setParameter("userId", userId)
@@ -71,6 +74,7 @@ class UserDataQueryPersistenceAdapter(
             JOIN users su ON su.id = m.sender_id
             WHERE (m.sender_id = :userId
                    OR m.conversation_id IN (SELECT conversation_id FROM conversation_members WHERE user_id = :userId))
+              AND (m.is_scheduled = false OR m.sender_id = :userId)
               AND m.server_timestamp > :since
             ORDER BY m.server_timestamp ASC
             LIMIT :limitPlusOne

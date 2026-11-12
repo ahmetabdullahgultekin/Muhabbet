@@ -37,6 +37,21 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun updateContent(messageId: UUID, newContent: String, editedAt: java.time.Instant, changeSeq: Long)
 
+    /** Conditional on the row still being scheduled, so a concurrent release wins (#746). */
+    @Modifying
+    @Query(
+        "UPDATE MessageJpaEntity m SET m.content = :newContent, m.editedAt = :editedAt " +
+            "WHERE m.id = :messageId AND m.isScheduled = true"
+    )
+    fun updateScheduledContent(messageId: UUID, newContent: String, editedAt: java.time.Instant): Int
+
+    @Modifying
+    @Query(
+        "UPDATE MessageJpaEntity m SET m.isDeleted = true, m.deletedAt = CURRENT_TIMESTAMP " +
+            "WHERE m.id = :messageId AND m.isScheduled = true"
+    )
+    fun softDeleteScheduled(messageId: UUID): Int
+
     @Query(
         """
         SELECT m FROM MessageJpaEntity m

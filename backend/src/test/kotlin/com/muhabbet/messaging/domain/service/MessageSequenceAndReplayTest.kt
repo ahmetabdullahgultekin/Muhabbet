@@ -176,6 +176,57 @@ class MessageSequenceAndReplayTest {
         verify { messageRepository.softDelete(messageId, 3L) }
     }
 
+    @Test
+    fun `should tell only the sender and spend no seq when an unreleased scheduled message is edited`() {
+        val messageId = UUID.randomUUID()
+        every { messageRepository.findById(messageId) } returns committed(messageId).copy(
+            seq = null, changeSeq = null, isScheduled = true, serverTimestamp = Instant.now(),
+            scheduledAt = Instant.now().plusSeconds(3600)
+        )
+        every { messageRepository.updateScheduledContent(messageId, "gizli metin", any()) } returns true
+        val recipients = slot<List<UUID>>()
+        every { messageBroadcaster.broadcastToUsers(capture(recipients), any()) } returns Unit
+
+        service.editMessage(messageId, sender, "gizli metin")
+
+        assertEquals(listOf(sender), recipients.captured, "the edited text must not reach a recipient early")
+        assertEquals(0L, sequence.lastFor(conversationId), "an unreleased scheduled row has no place to stamp")
+        verify(exactly = 0) { messageRepository.updateContent(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `should tell only the sender and spend no seq when an unreleased scheduled message is deleted`() {
+        val messageId = UUID.randomUUID()
+        every { messageRepository.findById(messageId) } returns committed(messageId).copy(
+            seq = null, changeSeq = null, isScheduled = true, scheduledAt = Instant.now().plusSeconds(3600)
+        )
+        every { messageRepository.softDeleteScheduled(messageId) } returns true
+        val recipients = slot<List<UUID>>()
+        every { messageBroadcaster.broadcastToUsers(capture(recipients), any()) } returns Unit
+
+        service.deleteMessage(messageId, sender)
+
+        assertEquals(listOf(sender), recipients.captured)
+        assertEquals(0L, sequence.lastFor(conversationId))
+        verify(exactly = 0) { messageRepository.softDelete(any(), any()) }
+    }
+
+    @Test
+    fun `should treat the delete as live when the scheduler released the message first`() {
+        val messageId = UUID.randomUUID()
+        every { messageRepository.findById(messageId) } returns committed(messageId).copy(
+            seq = null, changeSeq = null, isScheduled = true
+        )
+        every { messageRepository.softDeleteScheduled(messageId) } returns false
+        val recipients = slot<List<UUID>>()
+        every { messageBroadcaster.broadcastToUsers(capture(recipients), any()) } returns Unit
+
+        service.deleteMessage(messageId, sender)
+
+        assertEquals(setOf(sender, recipient), recipients.captured.toSet())
+        verify { messageRepository.softDelete(messageId, 1L) }
+    }
+
     // ─── Replay ──────────────────────────────────────────
 
     @Test

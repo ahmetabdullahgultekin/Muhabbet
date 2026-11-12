@@ -62,6 +62,15 @@ interface MessageRepository {
     fun softDelete(messageId: UUID, changeSeq: Long?)
     fun updateContent(messageId: UUID, newContent: String, editedAt: Instant, changeSeq: Long)
 
+    /**
+     * Edits / soft-deletes a message only while it is still an unreleased scheduled row, and
+     * reports whether it was. Such a row has no place in the conversation's order yet, so no
+     * change_seq is stamped — it gets `change_seq = seq` when it is released. False means the
+     * scheduler released it first; the caller then treats it as a live message.
+     */
+    fun updateScheduledContent(messageId: UUID, newContent: String, editedAt: Instant): Boolean
+    fun softDeleteScheduled(messageId: UUID): Boolean
+
     // Media count
     fun countMediaInConversation(conversationId: UUID, viewerId: UUID): Int
 

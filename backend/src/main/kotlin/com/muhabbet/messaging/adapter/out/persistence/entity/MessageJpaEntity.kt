@@ -92,8 +92,8 @@ class MessageJpaEntity(
     @Column(name = "sender_device_id")
     var senderDeviceId: UUID? = null
 
-    // The client's id is the row id; recorded separately only where a device is known, which is
-    // what the partial unique index (sender_device_id, client_message_id) keys on.
+    // The client's id is the row id, for every row (data-model.md §3.2 identity rule). The partial
+    // unique index (sender_device_id, client_message_id) keys on it only where a device is known.
     @Column(name = "client_message_id")
     var clientMessageId: UUID? = null
 
@@ -123,7 +123,7 @@ class MessageJpaEntity(
             seq = m.seq
             changeSeq = m.changeSeq
             senderDeviceId = m.senderDeviceId
-            clientMessageId = m.senderDeviceId?.let { m.id }
+            clientMessageId = m.id
         }
     }
 }

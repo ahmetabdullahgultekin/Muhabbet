@@ -654,6 +654,13 @@ open class MessageService(
     private fun persistDelete(messageId: UUID, requesterId: UUID): DeleteOutcome {
         val message = requireOwnLiveMessage(messageId, requesterId)
 
+        // An unreleased scheduled message exists for its sender alone (#746): telling the other
+        // members it was deleted would announce a message they were never shown, and it has no
+        // place in the order to stamp. Only the sender's own devices hear about it.
+        if (message.isScheduled && messageRepository.softDeleteScheduled(messageId)) {
+            return DeleteOutcome(message.conversationId, listOf(requesterId))
+        }
+
         // A delete is an event in the conversation's order, so it takes a change_seq (#750).
         messageRepository.softDelete(messageId, sequence.next(message.conversationId))
 
@@ -717,6 +724,14 @@ open class MessageService(
         requireValidContent(newContent)
 
         val editedAt = Instant.now()
+        val edited = message.copy(content = newContent, editedAt = editedAt)
+
+        // An unreleased scheduled message exists for its sender alone (#746): a MessageEdited to the
+        // other members would push its text to them before it is due. No change_seq either — it is
+        // numbered when released. Only the sender's own devices hear about the edit.
+        if (message.isScheduled && messageRepository.updateScheduledContent(messageId, newContent, editedAt)) {
+            return EditOutcome(edited, editedAt, listOf(requesterId))
+        }
 
         // `updateContent` is the *second* way message content reaches a recipient, and guarding only
         // `sendMessage` left it open: for the edit window after their last pre-block message, a
@@ -725,7 +740,6 @@ open class MessageService(
         // the caller is told it worked, nothing is written and nothing is broadcast.
         val conversation = conversationRepository.findById(message.conversationId)
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
-        val edited = message.copy(content = newContent, editedAt = editedAt)
 
         if (isBlockedDirectSend(conversation, members, requesterId)) {
             log.info("Message edit dropped, recipient has blocked the sender: id={}", messageId)
