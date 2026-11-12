@@ -31,6 +31,9 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   cache matches what CI actually runs again.
 - **Credential values quoted in an old planning document were removed** and recorded in the
   incident record for rotation.
+- **The secret scanner's exceptions for test fixtures and documentation prose match only those
+  exact values**, so a real credential that merely starts with, or sits on the same line as, an
+  allowed value is still reported.
 
 ### Fixed — ticks, scheduled messages and retries tell the truth
 

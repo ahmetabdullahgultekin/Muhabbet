@@ -54,12 +54,16 @@ title = "Muhabbet Gitleaks Config"
     '''bmV3IHJlZnJlc2g\.\.\.''',
     # RFC 6455 WebSocket example key
     '''dGhlIHNhbXBsZSBub25jZQ==''',
-    # Test fixtures: the JWT signing secret the test suite configures, and a fixed invite token.
-    '''test-secret-''',
+    # Test fixtures: the two JWT signing secrets the test suite configures, each as the whole value
+    # (start of match or a delimiter before it, optional closing quote, then end of match), and a fixed
+    # invite token. A bare `test-secret-` prefix would suppress any real value that starts with it.
+    '''(?:^|[\s"'=:])test-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256["']?$''',
+    '''(?:^|[\s"'=:])test-secret-that-is-long-enough-for-hs256-signing-1234567890["']?$''',
     '''7wDcQmVUmvvcJmBLtSPu3xX2Bd0Cq1Yb1kQ9dfNfR8k''',
     '''GK0123456789abcdef01234567''',
     # The README's curl example with the literal placeholder (the match is the whole command).
     '''Bearer ACCESS_TOKEN"''',
-    # Prose in the multi-transport design, matched by the generic key rule.
-    '''relay/custody''',
+    # Prose in the multi-transport design (sad.md erasure table), matched by the generic key rule.
+    # Anchored to the exact match text so a real value on the same line is still reported.
+    '''^keys, relay/custody $''',
   ]
