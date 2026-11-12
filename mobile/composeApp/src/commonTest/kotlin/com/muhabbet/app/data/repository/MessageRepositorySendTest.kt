@@ -65,6 +65,7 @@ class MessageRepositorySendTest {
         val repository = MessageRepository(
             apiClient = ApiClient(FakeTokenStorage(), engine),
             localCache = cache,
+            gate = com.muhabbet.app.data.local.SessionDataGate(),
         )
     }
 

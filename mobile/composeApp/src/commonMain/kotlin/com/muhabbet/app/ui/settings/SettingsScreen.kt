@@ -46,6 +46,7 @@ import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
 import com.muhabbet.app.platform.rememberImagePickerLauncher
 import com.muhabbet.app.platform.rememberRestartApp
+import com.muhabbet.app.session.SessionLogout
 import com.muhabbet.app.ui.chat.MediaViewer
 import com.muhabbet.app.ui.notice.TestBuildNoticeCard
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
@@ -86,6 +87,7 @@ fun SettingsScreen(
     onStorage: () -> Unit = {},
     onAbout: () -> Unit = {},
     authRepository: AuthRepository = koinInject(),
+    sessionLogout: SessionLogout = koinInject(),
     mediaRepository: MediaRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
     tokenStorage: TokenStorage = koinInject()
@@ -209,7 +211,11 @@ fun SettingsScreen(
             confirmLabel = stringResource(Res.string.logout_confirm_yes),
             onConfirm = {
                 showLogoutDialog = false
-                onLogout()
+                // Revoke the session on the server first (#752) — it needs the tokens that
+                // onLogout() clears. Best-effort and time-bounded inside logout(), so the user is
+                // never kept signed in by a bad network. In the app's scope, not this screen's:
+                // leaving Settings while the server is slow must not cancel the logout.
+                sessionLogout.logout(onLoggedOut = onLogout)
             },
             onDismiss = { showLogoutDialog = false },
             isDestructive = true,

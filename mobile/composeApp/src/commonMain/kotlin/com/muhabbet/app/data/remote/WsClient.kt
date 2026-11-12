@@ -493,6 +493,22 @@ class WsClient(
         }
     }
 
+    /**
+     * Forgets everything this client holds in memory on behalf of the user who just left (#752,
+     * ADR 0020 step 5): the delivery receipts waiting for a reconnect and the focused conversation.
+     *
+     * Without it, a receipt queued while one account was offline was replayed on the next
+     * connect — which, after a logout and a login as someone else, is the *other* account's socket.
+     * The focus would likewise be re-asserted for a conversation the new user is not a member of.
+     *
+     * The socket itself is not touched: `SessionLifecycle` already disconnects when the session
+     * ends, and this runs after that.
+     */
+    suspend fun clearSessionState() {
+        pendingAcks.takeAll()
+        focusedConversationId = null
+    }
+
     // --- Offline Queue ---
 
     /**
@@ -605,8 +621,15 @@ class WsClient(
             is WsMessage.NewMessage -> message.messageId
             is WsMessage.ServerAck -> message.requestId
             is WsMessage.StatusUpdate -> "${message.messageId}_${message.status}"
-            is WsMessage.MessageDeleted -> message.messageId
-            is WsMessage.MessageEdited -> "${message.messageId}_edited"
+            // Suffixed: this set is shared across frame types, and a bare messageId is the key the
+            // `NewMessage` that delivered the same message already claimed — so a deletion arriving
+            // on the same socket was dropped as its duplicate and the bubble never became a
+            // tombstone (noted in 9e26356, fixed here).
+            is WsMessage.MessageDeleted -> "${message.messageId}_deleted"
+            // Keyed on editedAt as well (MOB-05): every edit of a message is a new fact, and on the
+            // message id alone the second edit was dropped as a duplicate of the first, leaving the
+            // first text on screen. A replay of the *same* edit still carries the same editedAt.
+            is WsMessage.MessageEdited -> "${message.messageId}_edited_${message.editedAt}"
             // Suffixed like `_edited` above, and for the reason `MessageDeleted` should have been:
             // this set is shared across frame types, so a bare messageId here would collide with
             // the `NewMessage` that delivered the same message and the expiry would be discarded as

@@ -1,6 +1,7 @@
 package com.muhabbet.app.session
 
 import com.muhabbet.app.data.local.FakeTokenStorage
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -43,11 +44,19 @@ class SessionWiringTest {
         }
     }
 
+    private class RecordingWipe : LocalDataWipe {
+        var wipes = 0
+            private set
+
+        override suspend fun wipe() { wipes++ }
+    }
+
     private class Device {
         val storage = FakeTokenStorage()
         val sync = RecordingSync()
         val identity = RecordingIdentity()
-        val wiring = SessionWiring(storage, sync, identity)
+        val dataWipe = RecordingWipe()
+        val wiring = SessionWiring(storage, sync, identity, dataWipe)
 
         fun signIn(userId: String) = storage.saveTokens("access", "refresh", userId, "device-1")
         fun signOut() = storage.clear()
@@ -56,7 +65,7 @@ class SessionWiringTest {
     // ─── The session starting ───
 
     @Test
-    fun `should attach the user who signed in during this session, not the snapshot taken before login`() {
+    fun `should attach the user who signed in during this session, not the snapshot taken before login`() = runTest {
         // The shape of #349: on a fresh install the first composition happens on the LOGIN screen,
         // where getUserId() is null. Reading it there and never again is exactly what left a whole
         // session's crash reports unattributed.
@@ -83,7 +92,7 @@ class SessionWiringTest {
     // ─── The session ending — the half nothing did ───
 
     @Test
-    fun `should cancel background sync when the session ends`() {
+    fun `should cancel background sync when the session ends`() = runTest {
         // enqueueUniquePeriodicWork writes into WorkManager's own database, so the job survives the
         // composition, the Activity, process death and a reboot. With no cancel, a device that had
         // logged in once kept waking every 15 minutes for as long as the app stayed installed.
@@ -97,7 +106,7 @@ class SessionWiringTest {
     }
 
     @Test
-    fun `should detach the crash identity when the session ends`() {
+    fun `should detach the crash identity when the session ends`() = runTest {
         // Sentry's user is global mutable state in the SDK, and on iOS it is a value in
         // NSUserDefaults that outlives the process. Left attached, every crash report after logout
         // still names the account that logged out — in a privacy-first messenger.
@@ -111,7 +120,7 @@ class SessionWiringTest {
     }
 
     @Test
-    fun `should clear what a previous install left behind on a logged-out cold start`() {
+    fun `should clear what a previous install left behind on a logged-out cold start`() = runTest {
         // The migration path. Every build before this one could leave an enqueued job and an
         // attached user on a device that logged out; this is the only moment the app gets to undo
         // that, and it must not require the user to log in again first.
@@ -121,12 +130,13 @@ class SessionWiringTest {
 
         assertEquals(1, device.sync.cancelled)
         assertEquals(1, device.identity.detachCount)
+        assertEquals(1, device.dataWipe.wipes, "and the message database an earlier logout never erased")
     }
 
     // ─── Sequences a real device actually performs ───
 
     @Test
-    fun `should hand the second user a session of their own after the first logs out`() {
+    fun `should hand the second user a session of their own after the first logs out`() = runTest {
         val device = Device()
 
         device.signIn("user-1")
@@ -155,10 +165,51 @@ class SessionWiringTest {
         assertEquals("user-42", device.identity.attached)
     }
 
+    // ─── The data a session leaves on disk (#752) ───
+
+    @Test
+    fun `should wipe the local message data when the session ends`() = runTest {
+        // Logout used to clear the tokens and nothing else: every conversation, message and unsent
+        // outbox row stayed in SQLite, and the next account to sign in on the phone could see them.
+        val device = Device().apply { signIn("user-42") }
+        device.wiring.onSessionActive()
+
+        device.signOut()
+        device.wiring.onSessionEnded()
+
+        assertEquals(1, device.dataWipe.wipes)
+    }
+
+    @Test
+    fun `should not wipe anything when a session becomes active`() {
+        // An Activity recreation re-runs the effect with loggedIn still true; wiping there would
+        // throw away the cache of the user who is still signed in.
+        val device = Device().apply { signIn("user-42") }
+
+        device.wiring.onSessionActive()
+        device.wiring.onSessionActive()
+
+        assertEquals(0, device.dataWipe.wipes)
+    }
+
+    @Test
+    fun `should still cancel sync and detach the identity when the wipe fails`() = runTest {
+        val storage = FakeTokenStorage().apply { saveTokens("a", "r", "user-42", "d") }
+        val sync = RecordingSync()
+        val identity = RecordingIdentity()
+        val wiring = SessionWiring(storage, sync, identity) { throw IllegalStateException("database locked") }
+        wiring.onSessionActive()
+
+        wiring.onSessionEnded()
+
+        assertEquals(1, sync.cancelled)
+        assertNull(identity.attached)
+    }
+
     // ─── Neither call site can show anyone an error ───
 
     @Test
-    fun `should not throw when the platform refuses`() {
+    fun `should not throw when the platform refuses`() = runTest {
         // WorkManager.getInstance throws if the library was never initialised. This runs inside a
         // LaunchedEffect, where an escaping exception takes the app down — at login, of all moments.
         val throwingSync = object : BackgroundSync {
@@ -167,7 +218,7 @@ class SessionWiringTest {
         }
         val identity = RecordingIdentity()
         val storage = FakeTokenStorage().apply { saveTokens("a", "r", "user-42", "d") }
-        val wiring = SessionWiring(storage, throwingSync, identity)
+        val wiring = SessionWiring(storage, throwingSync, identity) { throw IllegalStateException("database locked") }
 
         wiring.onSessionActive()
         wiring.onSessionEnded()

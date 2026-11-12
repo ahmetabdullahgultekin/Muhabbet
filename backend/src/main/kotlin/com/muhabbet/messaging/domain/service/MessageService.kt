@@ -397,6 +397,11 @@ open class MessageService(
     override fun updateStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
         val outcome = transactions.inTransaction { persistStatus(messageId, userId, status) }
 
+        // Nothing stored, nothing to announce. The case that matters is a DELIVERED that arrives
+        // after READ — the client now acks DELIVERED only once the message is on disk, so an open
+        // chat's READ routinely overtakes it. The row keeps READ; publishing the late DELIVERED
+        // anyway would pull the sender's tick back from blue to grey.
+        if (!outcome.applied) return
         val message = outcome.message ?: return
         messageBroadcaster.broadcastStatusUpdate(
             messageId,
@@ -421,7 +426,7 @@ open class MessageService(
      * expressed as a value because [TransactionRunner.inTransaction] binds its result to a
      * non-null type.
      */
-    private data class StatusOutcome(val message: Message?, val published: DeliveryStatus)
+    private data class StatusOutcome(val message: Message?, val published: DeliveryStatus, val applied: Boolean)
 
     /**
      * Only a member of the message's conversation may ack it, and only an ack that actually moved
@@ -444,7 +449,7 @@ open class MessageService(
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
         if (!messageRepository.updateDeliveryStatus(messageId, userId, status)) {
-            return StatusOutcome(null, status)
+            return StatusOutcome(null, status, applied = false)
         }
 
         // A reader who has turned read receipts off still gets their own row stored as READ — that
@@ -457,7 +462,7 @@ open class MessageService(
         } else {
             status
         }
-        return StatusOutcome(message, published)
+        return StatusOutcome(message, published, applied = true)
     }
 
     /**

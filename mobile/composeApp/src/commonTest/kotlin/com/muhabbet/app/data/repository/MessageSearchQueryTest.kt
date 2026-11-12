@@ -45,7 +45,7 @@ class MessageSearchQueryTest {
         }
         val tokenStorage = FakeTokenStorage()
         tokenStorage.saveTokens("access", "refresh", "user1", "device1")
-        return MessageRepository(ApiClient(tokenStorage, engine), FakeMessageCache())
+        return MessageRepository(ApiClient(tokenStorage, engine), FakeMessageCache(), com.muhabbet.app.data.local.SessionDataGate())
     }
 
     /** `q` as the server would parse it, after undoing whatever encoding the client chose. */

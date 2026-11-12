@@ -46,6 +46,16 @@ import kotlinx.serialization.serializer
 class ApiClient(
     private val tokenStorage: TokenStorage,
     engine: HttpClientEngine? = null,
+    /**
+     * Called when the server has refused the refresh token and the stored tokens have been cleared.
+     *
+     * Clearing tokens alone ended nothing a user could see (#752): the navigation stayed on the
+     * signed-in screens, so the session teardown that runs when the app returns to the login screen
+     * never ran, and the previous account's messages stayed on disk behind a session that no longer
+     * existed. Production wires this to `SessionRevocation.signal`, which sends the app back to the
+     * login screen through the same path a logout takes.
+     */
+    private val onRefreshRejected: () -> Unit = {},
 ) {
 
     companion object {
@@ -121,6 +131,7 @@ class ApiClient(
                         if (response.status.value in listOf(401, 403)) {
                             Log.w(TAG, "Refresh token rejected (${response.status})")
                             tokenStorage.clear()
+                            onRefreshRejected()
                             return@refreshTokens null
                         }
                         if (!response.status.isSuccess()) {
@@ -134,6 +145,7 @@ class ApiClient(
                         )
                         val data = body.data ?: run {
                             tokenStorage.clear()
+                            onRefreshRejected()
                             return@refreshTokens null
                         }
                         val newAccess = data["accessToken"] ?: return@refreshTokens null

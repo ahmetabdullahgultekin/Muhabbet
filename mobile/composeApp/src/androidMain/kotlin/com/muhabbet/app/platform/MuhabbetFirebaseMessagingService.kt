@@ -72,16 +72,17 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
             ?: System.currentTimeMillis()
         val messageId = message.data[MuhabbetNotifications.EXTRA_MESSAGE_ID]
 
-        // #596: this is the one case where delivery is certain — the notification is about to be
-        // posted below — and, before this, the one case that never told the sender so. No socket to
-        // reach for here (that is why FCM was involved), so this is the REST ack #596 added
-        // (`POST /messages/{id}/delivered`), same shape as onNewToken's bootstrapOrReuseKoin below:
-        // this callback can run before MainActivity ever has in this process.
-        if (messageId != null) {
+        // #596 added this REST ack (`POST /messages/{id}/delivered`) because no socket is open here
+        // — that is why FCM was involved. #753 put it in the right order: the message is fetched
+        // and written to the local cache first, and acked only once it is there. A notification is
+        // not the message; acking on the strength of one claimed "delivered" for something the
+        // phone did not hold. Same shape as onNewToken's bootstrapOrReuseKoin below: this callback
+        // can run before MainActivity ever has in this process.
+        if (messageId != null && !conversationId.isNullOrBlank()) {
             serviceScope.launch {
                 bootstrapOrReuseKoin(androidPlatformModule(applicationContext))
                     .get<MessageRepository>()
-                    .markDelivered(messageId)
+                    .storeThenMarkDelivered(messageId, conversationId)
             }
         }
 

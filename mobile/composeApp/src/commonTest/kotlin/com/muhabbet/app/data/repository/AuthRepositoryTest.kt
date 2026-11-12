@@ -10,7 +10,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,15 +60,70 @@ class AuthRepositoryTest {
     }
 
     @Test
-    fun should_clear_tokens_on_logout() {
-        val tokenStorage = FakeTokenStorage()
+    fun should_revoke_the_session_on_the_server_before_clearing_tokens_when_logging_out() = runTest {
+        // #752: the app never called /auth/logout, so the refresh token on a logged-out phone stayed
+        // valid on the server for its whole lifetime. The call needs the token, so it must go first.
+        val logoutCalls = mutableListOf<String?>()
+        val (apiClient, tokenStorage) = createApiClientWithMock { request ->
+            if (request.url.encodedPath == "/api/v1/auth/logout") {
+                logoutCalls += request.headers[HttpHeaders.Authorization]
+                respond("", HttpStatusCode.NoContent)
+            } else {
+                respond("Not found", HttpStatusCode.NotFound)
+            }
+        }
         tokenStorage.saveTokens("access", "refresh", "user1", "device1")
-        val apiClient = ApiClient(tokenStorage)
         val repo = AuthRepository(apiClient, tokenStorage)
 
-        assertTrue(repo.isLoggedIn())
-        repo.logout()
+        // On a real dispatcher: logout() bounds the call with withTimeoutOrNull, and on runTest's
+        // virtual clock that timeout fires the instant the scheduler goes idle waiting for the
+        // mock engine, which runs on its own threads.
+        withContext(Dispatchers.Default) { repo.logout() }
+
+        assertEquals(listOf<String?>("Bearer access"), logoutCalls)
         assertFalse(repo.isLoggedIn())
+    }
+
+    @Test
+    fun should_still_clear_tokens_when_the_server_logout_fails() = runTest {
+        // Best-effort: a user who taps "log out" offline is logged out locally regardless.
+        val (apiClient, tokenStorage) = createApiClientWithMock {
+            respond("", HttpStatusCode.InternalServerError)
+        }
+        tokenStorage.saveTokens("access", "refresh", "user1", "device1")
+        val repo = AuthRepository(apiClient, tokenStorage)
+
+        // On a real dispatcher: logout() bounds the call with withTimeoutOrNull, and on runTest's
+        // virtual clock that timeout fires the instant the scheduler goes idle waiting for the
+        // mock engine, which runs on its own threads.
+        withContext(Dispatchers.Default) { repo.logout() }
+
+        assertFalse(repo.isLoggedIn())
+    }
+
+    @Test
+    fun should_clear_tokens_when_the_caller_is_cancelled_during_the_server_logout() = runTest {
+        // The user taps "log out", nothing visibly happens on a slow network, and they leave
+        // Settings — cancelling the screen's scope mid-call. They must still end up logged out.
+        val requestStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val (apiClient, tokenStorage) = createApiClientWithMock {
+            requestStarted.complete(Unit)
+            release.await()
+            respond("", HttpStatusCode.NoContent)
+        }
+        tokenStorage.saveTokens("access", "refresh", "user1", "device1")
+        val repo = AuthRepository(apiClient, tokenStorage)
+
+        withContext(Dispatchers.Default) {
+            val screen = launch { repo.logout() }
+            requestStarted.await()
+            screen.cancel()
+            release.complete(Unit)
+            screen.join()
+        }
+
+        assertFalse(repo.isLoggedIn(), "leaving the screen kept the user signed in")
     }
 
     @Test

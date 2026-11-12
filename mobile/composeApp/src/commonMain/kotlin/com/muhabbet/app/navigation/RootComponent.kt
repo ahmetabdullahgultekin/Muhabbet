@@ -96,6 +96,14 @@ class RootComponent(
         navigation.replaceAll(Config.Auth)
     }
 
+    /**
+     * The server ended the session (a refused refresh token) — leave exactly the way a logout does.
+     *
+     * Returning to [Config.Auth] is what flips `isSessionActive` and runs the session teardown in
+     * `App.kt`, so this path erases the same data a logout does rather than having its own (#752).
+     */
+    fun onSessionRevoked() = onLogout()
+
     @Serializable
     sealed interface Config {
         @Serializable data object Auth : Config

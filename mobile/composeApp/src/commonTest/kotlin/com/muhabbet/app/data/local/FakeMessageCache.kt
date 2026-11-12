@@ -6,7 +6,10 @@ import com.muhabbet.shared.model.Message
  * In-memory stand-in for the SQLDelight message cache, so repository tests can run without a
  * device. Mirrors [FakeConversationCache]: real behaviour, no platform driver.
  */
-class FakeMessageCache : MessageCache {
+class FakeMessageCache(
+    /** Stages a write that does not land — a full disk, a locked database. */
+    private val failOnUpsert: Boolean = false
+) : MessageCache {
 
     val stored = mutableListOf<Message>()
 
@@ -14,6 +17,7 @@ class FakeMessageCache : MessageCache {
         stored.filter { it.conversationId == conversationId }.take(limit)
 
     override fun upsertMessages(messages: List<Message>) {
+        if (failOnUpsert) throw IllegalStateException("disk full")
         messages.forEach { message ->
             stored.removeAll { it.id == message.id }
             stored += message
