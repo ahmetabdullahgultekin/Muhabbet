@@ -1,0 +1,93 @@
+%% Path-scope model and rule-based path policy (replaces Gemini's link "levels 0-6" and fitness score).
+%% ADRs: ADR-0015 (path scopes, PathPolicy rule chain), ADR-0012 (ServerLink / SealedLink ISP split, no LinkSelector
+%%       before a second outbound link), ADR-0016 (SealedFrame type gate), ADR-0023 (IP_RELAYED / IP_DIRECT for calls only),
+%%       ADR-0024 (LAN, PROXIMITY), ADR-0025 (UPLINK_RELAY via CustodyPolicy), ADR-0026 (EXTERNAL_RF, TR-excluded),
+%%       ADR-0027 (rejected transports), ADR-0029 (compliance admission).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%%   Scopes and rules for 1.1+ are Proposed (gated). PathPolicy itself is not built before 1.2: until then the Outbox
+%%   submits to ServerLink when Ready and otherwise keeps the entry QUEUED.
+%% Source of truth: decision brief ADR-0015, section 7 (plan() pseudocode), 6.5 (QoS classes), 12 (dispositions).
+%% Evidence: GEM-01, GEM-02, GEM-05, MISS-01 (fitness score, global mutex), NAT-1, P2P-1, P2P-2, QUIC-1, PROX-02,
+%%   PROX-04, PROX-05, PROX-06, PROX-07, PROX-09, RF-02, RF-03, RF-06, RF-07, RF-08, RF-09.
+%% Rules:
+%%   1. Scope is never a physical medium. Ethernet, Wi-Fi, 4G/5G and Starlink are IP interfaces chosen by the OS and ICE.
+%%   2. Any Deny removes the candidate; content is never downgraded to fit a path.
+%%   3. Racing (Happy-Eyeballs) happens at link establishment, never per message; no hedged duplicates off-server.
+%%   4. For a durable CLOUD / BYO message the server is the strongest path whenever it is reachable.
+flowchart LR
+    classDef iface fill:#eeeeee,stroke:#888888,color:#000000
+    classDef server fill:#438dd5,stroke:#2e6295,color:#ffffff
+    classDef live fill:#85bbf0,stroke:#5d82a8,color:#000000
+    classDef sealed fill:#d4edda,stroke:#3c763d,color:#000000
+    classDef gated fill:#f5f5f5,stroke:#999999,color:#333333,stroke-dasharray:5 5
+    classDef rule fill:#fff3cd,stroke:#b8860b,color:#000000
+    classDef reject fill:#f8d7da,stroke:#a94442,color:#000000
+    classDef outcome fill:#ffffff,stroke:#333333,color:#000000
+
+    subgraph IF["IP interfaces - chosen by OS (NetworkRequest / NWParameters) and ICE, NOT scopes"]
+        eth["Ethernet / USB-C LAN"]:::iface
+        wifi["Wi-Fi"]:::iface
+        cell["4G / 5G"]:::iface
+        sat["Starlink / LEO / satellite D2C<br/>= constrained flag on SERVER_RELAY"]:::iface
+    end
+
+    subgraph SP["ServerLink port - accepts ServerFrame"]
+        SR["<b>SERVER_RELAY</b><br/>WS + REST over any IP interface<br/>pre-1.0 TLS-only for encryptionState NONE<br/>[existing / 0.5 engine]"]:::server
+    end
+
+    subgraph LP["LiveSessionPort - live calls only, no messaging over data channels"]
+        IR["<b>IP_RELAYED</b><br/>TURN / SFU on our infrastructure<br/>relay-only for non-contacts [0.7]"]:::live
+        ID["<b>IP_DIRECT</b><br/>ICE host / srflx, DTLS-SRTP E2E<br/>1:1 calls [1.1, gated]"]:::gated
+    end
+
+    subgraph SL["SealedLink port - accepts only SealedFrame (constructor internal to :mobile:crypto)"]
+        LAN["<b>LAN</b><br/>mDNS + TCP + authenticated link<br/>LanLink, built [1.2, gated]"]:::gated
+        PROX["<b>PROXIMITY</b><br/>Nearby Connections, BLE discovery to Wi-Fi<br/>NearbyLink, bought [1.2, gated]"]:::gated
+        UP["<b>UPLINK_RELAY</b><br/>single-hop sealed uplink via verified contact<br/>[1.3, gated, droppable]"]:::gated
+        RF["<b>EXTERNAL_RF</b><br/>Meshtastic node, about 200 B frames<br/>[1.4, compiled out of TR builds]"]:::gated
+    end
+
+    eth --> SR
+    wifi --> SR
+    cell --> SR
+    sat --> SR
+    wifi --> IR
+    cell --> IR
+    wifi --> ID
+    cell --> ID
+    wifi --> LAN
+    eth --> LAN
+
+    subgraph REJ["Rejected (ADR-0027) - reopened only by a new ADR"]
+        rj1["Ultrasonic / animated QR, 5G sidelink,<br/>5G Broadcast / DVB / RTL-SDR"]:::reject
+        rj2["libp2p / DHT / supernodes, birthday punching,<br/>QUIC migration BLE to Wi-Fi, WebRTC data channels for chat"]:::reject
+        rj3["Custom BLE mesh / GATT / L2CAP, custom Wi-Fi Direct,<br/>amateur VHF/UHF, PMR446 data"]:::reject
+    end
+
+    subgraph POL["PathPolicy.plan(entry, links, ctx) - Strategy over a Chain of Responsibility [1.2]"]
+        direction TB
+        cand["Candidates: links UP / Ready<br/>(or CONNECTING, if class is not CONTROL)"]:::outcome
+        adm["<b>1. Admission</b> - every rule must Allow<br/>AssuranceRule: offServer requires SealedFrame (type fact)<br/>RelationshipRule: mutual contact, existing conversation, verified safety number<br/>CertificateRule: valid cert + CRL at both ends<br/>ConversationModeRule: ADR 0008 / ADR-0021 mode<br/>ScopeRule: 1:1 only off-server, channels / communities / large groups server-only<br/>ConsentRule: Nearby mode open, OS permissions<br/>RegulatoryRule: RF excluded in TR<br/>QuotaRule: custodian / mule budgets<br/>SizeRule: bytes within maxFrameBytes or supportsBulk<br/>ConstrainedRule: constrained server link carries CONTROL + INTERACTIVE, defers BULK"]:::rule
+        none{"Any candidate left?"}:::outcome
+        cp["<b>2. CloudPersistence</b><br/>serverOwed = mode in CLOUD, BYO"]:::rule
+        pref["<b>3. Preference</b> (data table, class x mode)<br/>CLOUD/BYO, INTERACTIVE or CONTROL: SERVER_RELAY, LAN, PROXIMITY, EXTERNAL_RF<br/>CLOUD/BYO, BULK: SERVER_RELAY, LAN, PROXIMITY - server first unless it is<br/>constrained or down and a LAN / PROXIMITY link to the peer is already UP<br/>LOCAL_ONLY, any: LAN, PROXIMITY, SERVER_RELAY (mailbox, delete on delivery)<br/>tie-break: rank, rttMs, goodput (acked app bytes/s), costClass"]:::rule
+        send["Send(best, serverOwed and best is not SERVER_RELAY)"]:::outcome
+        stay["Stay QUEUED<br/>1.3: CustodyPolicy offers mailbox, own device, contact uplink"]:::outcome
+        cand --> adm --> none
+        none -- "no" --> stay
+        none -- "yes" --> cp --> pref --> send
+    end
+
+    SR --> cand
+    LAN -.-> cand
+    PROX -.-> cand
+    RF -.-> cand
+    stay -.-> UP
+
+    subgraph QOS["QoS classes (section 6.5)"]
+        q1["CONTROL: receipts, call signalling, key change, CRL delta - queued, short TTL"]:::outcome
+        q2["INTERACTIVE: text, edits, deletes, reactions, location, polls - queued"]:::outcome
+        q3["BULK: media - resumable, out-of-band on server"]:::outcome
+        q4["EPHEMERAL: typing, presence - never queued, dropped without a live link"]:::outcome
+    end
+    QOS -.-> pref

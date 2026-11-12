@@ -1,0 +1,82 @@
+%% Sequence R4: Nearby / LAN delivery between verified contacts and reconciliation with the server (1.2 Nearby).
+%% ADRs: ADR-0024 (LanLink built, NearbyLink bought, foreground Nearby mode, 1:1 verified only),
+%%       ADR-0018 (device certificate, CRL, link key, vetted handshake), ADR-0015 (PathPolicy rule chain),
+%%       ADR-0016 (SealedFrame type gate), ADR-0022 (TransportFrame), ADR-0013 (HOP_ACKED, serverOwed, ticks),
+%%       ADR-0014 (server is the only sequencer; provisional order), ADR-0029 (age attestation precondition).
+%% Status: Proposed (gated) - pending owner approval in docs/architecture/multi-transport/APPROVAL.md.
+%%   No code before approval. Entry gate G-PROXIMITY: 1.0 exit, 0.6 iOS decision honoured, 2-week device-matrix spike,
+%%   handshake library chosen by spike, proximity DPIA signed, counsel opinion on E2E over BLE / Wi-Fi (Q-L2),
+%%   ADR-0031 in force, HMS share measured.
+%% Source of truth: decision brief sections 6.3, 6.8, 7, 8.2, 8.5, 10, 13 (1.2); SAD section 6.4 (R4) step table.
+%% Evidence: PROX-01, PROX-02, PROX-03, PROX-04, PROX-05, PROX-06, C7, GEM-08, LEG-03.
+%% Shown for CLOUD / BYO mode (serverOwed = true). LOCAL_ONLY differs: serverOwed = false and the entry is purged
+%%   on the sealed E2E DELIVERED receipt; LOCAL_ONLY has causal order only.
+%% No step below is device-verified; exit criteria are signed off only by owner observation (P13, ADR-0032).
+sequenceDiagram
+    autonumber
+    actor A as Alice
+    participant AE as Alice engine<br/>Outbox + PathPolicy + DB
+    participant AX as Alice LanLink / NearbyLink<br/>+ LinkAuthenticator
+    participant BX as Bob LanLink / NearbyLink<br/>+ LinkAuthenticator
+    participant BE as Bob engine<br/>Inbox + DB
+    actor B as Bob
+    participant S as Backend<br/>(SendMessageService, /changes)
+
+    Note over A,B: Both opted in, verified safety number, valid 7-day device certificates, server unreachable
+    A->>AE: open Nearby mode (Android connectedDevice FGS, auto-off 15 min, iOS foreground only)
+    B->>BE: open Nearby mode
+    par advertise and scan
+        AX-)BX: advertise rotating tag HMAC-SHA256(pairKey, "mbt-prox-v1" + epoch15m) first 8 bytes<br/>random mDNS instance / Nearby endpoint name per session
+    and
+        BX-)AX: advertise own rotating tag
+    end
+    AX->>AX: match tag against own contacts only
+
+    A->>AE: send text in 1:1 E2E chat
+    AE->>AE: one tx - row + outbox_entry, sealed by libsignal (SealResult.Sealed), QUEUED
+    Note over AE,AX: Demand for peer - Happy-Eyeballs at link establishment, never per message
+    AE->>AX: open LanLink (same network)
+    AE->>AX: open NearbyLink after ATTEMPT_DELAY_MS = 250 ms
+    AX->>BX: transport connected (first to reach UP wins, losers cancelled)
+    AX->>BX: vetted handshake bound to certified link key (Noise or TLS 1.3 pinned key, per spike)
+    BX-->>AX: peer certificate + handshake proof
+    AX->>AX: verify certificate at now, CRL, link key matches certificate
+    BX->>BX: same checks on Alice
+    alt any check fails
+        AX->>AX: BACKOFF + security event, never an unauthenticated session
+    else all pass
+        AX-->>AE: link UP, EligibleLinkUp
+    end
+
+    AE->>AE: PathPolicy admission chain - Assurance, Relationship (verified), Certificate,<br/>ConversationMode, Scope (1:1), Consent, Regulatory, Quota, Size, Constrained
+    AE->>AE: CloudPersistence - serverOwed = true (CLOUD/BYO), Preference ranks LAN before PROXIMITY
+    AE->>AE: CAS QUEUED to IN_FLIGHT(LAN or PROXIMITY)
+    AE->>AX: SealedLink.send(route, SealedFrame)
+    AX->>BX: TransportFrame {v, DATA, frameId random 16 B, ttlSec, routingTag, linkSeq, padded body}<br/>fields 1-6 are AEAD associated data
+    BX->>BE: InboundEvent from SealedLink
+    BE->>BE: block list check, dedup on (src_device, frame_or_message_id)<br/>open envelope, one tx - insert row with seq NULL, synced = false
+    BE->>BE: provisional order (lastKnownSeq, local receive order, deviceCounter),<br/>sender time clamped to [receivedAt - 5 min, receivedAt], display only
+    BE-->>B: message shown
+    BX-->>AX: HopAck{frameId}
+    BE->>BX: sealed DELIVERED receipt (only after commit, P4)
+    BX->>AX: TransportFrame DATA (sealed receipt)
+    AX-->>AE: SubmitResult.HopAcked(peer) + receipt
+    AE->>AE: CAS IN_FLIGHT to HOP_ACKED(peer, serverOwed = true)
+    AE-->>A: two ticks + "not yet synced" (never a relayed tick)
+
+    Note over A,S: Later - internet returns on either side
+    AE->>AE: ServerLinkUp - HOP_ACKED(serverOwed) to QUEUED (server-only)
+    AE->>S: message.send {clientMessageId, conversationId, envelopes} (same clientMessageId)
+    S->>S: idempotent on (sender_device_id, client_message_id), assign seq
+    S-->>AE: ack {clientMessageId, seq, serverTs, replay}
+    AE->>AE: SERVER_ACCEPTED(seq) - row gets seq, "not yet synced" cleared, stable re-sort once
+    S-)BE: message.new / sync.hint (conversationId, seq)
+    BE->>S: GET /changes?afterSeq = watermark
+    S-->>BE: items incl. same clientMessageId with seq
+    BE->>BE: merge with provisional row (no duplicate), set seq, synced = true, re-sort once
+    BE->>S: message.ack {conversationId, uptoSeq, DELIVERED}
+    Note over BE,S: Linked companions of both users receive the message by the normal pull,<br/>each message appears once, in seq order, on every device (1.2 exit criterion)
+
+    opt Nearby mode auto-off or idle
+        AX->>BX: close costlier link after IDLE_CLOSE_MS = 30 s without demand (up at least 10 s)
+    end

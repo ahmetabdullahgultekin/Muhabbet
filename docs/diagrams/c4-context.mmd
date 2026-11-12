@@ -1,0 +1,47 @@
+%% C4 Level 1 - System context. Muhabbet multi-transport delivery.
+%% ADRs: ADR-0010 (hybrid backbone), ADR-0019 (wake-only push), ADR-0023 (ICE/TURN), ADR-0024 (proximity),
+%%       ADR-0025 (custody), ADR-0026 (Meshtastic, TR-excluded), ADR-0029 (compliance boundary).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: docs/architecture/multi-transport/decision-brief-2026-11-12.md section 1, 4.1; SAD section 3.
+%% Evidence: BE-15 (content in push), PROX-02/06, LEG-03/04, RF-07, NAT-1, C2, C3.
+%% Notation: C4 drawn as flowchart (C4 Mermaid syntax not used for reliability).
+%%   solid arrow  = exists today or scheduled 0.4-1.0
+%%   dashed arrow = gated post-1.0 path (1.1 Direct, 1.2 Nearby, 1.3 Relay, 1.4 Off-grid); droppable
+%%   Every non-server arrow between people/devices carries only E2E ciphertext (SealedFrame, ADR-0016).
+flowchart TB
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
+    classDef gated fill:#f5f5f5,stroke:#999999,color:#333333,stroke-dasharray:5 5
+
+    user["<b>User</b><br/>[Person]<br/>Sends and receives messages,<br/>media, receipts, calls"]:::person
+    companion["<b>User's linked devices</b><br/>[Person's devices, ADR 0007]<br/>Primary + up to 4 companions.<br/>Per-device E2E fan-out (1.0);<br/>own-device custody (1.3)"]:::person
+    nearbyContact["<b>Nearby verified contact</b><br/>[Person]<br/>Verified safety number,<br/>Nearby mode open (1.2, gated)"]:::gated
+    mule["<b>Verified contact's online phone</b><br/>[Person - uplink mule]<br/>Carries opaque padded UplinkBundle<br/>to server (1.3, gated, droppable)"]:::gated
+
+    subgraph boundary["Muhabbet system boundary"]
+        muhabbet["<b>Muhabbet</b><br/>[Software system]<br/>Mobile app (CMP, Android; iOS gated at 0.6)<br/>+ backend modular monolith (authority)<br/>+ LiveKit/TURN host (0.7)<br/>+ device-CA / uplink signer (1.2 / 1.3)"]:::system
+    end
+
+    otp["<b>Phone-OTP provider</b><br/>[External - Twilio Verify in prod]<br/>E.164 OTP verification"]:::external
+    push["<b>FCM / APNs</b><br/>[External processors]<br/>Content-free wake hints only (0.5)"]:::external
+    stores["<b>Google Play / App Store</b><br/>[External]<br/>Distribution of signed artefacts"]:::external
+    nearbySvc["<b>Google Play services<br/>Nearby Connections</b><br/>[External library]<br/>BLE discovery to Wi-Fi upgrade (1.2)"]:::gated
+    meshNode["<b>Meshtastic node</b><br/>[External hardware, KET-conformant]<br/>LoRa EU868 carrier<br/>(1.4, compiled out of TR builds)"]:::gated
+    authority["<b>Regulators and authorities</b><br/>[External - BTK, Siber Guvenlik Baskanligi, KVKK]<br/>Takedown, legal requests,<br/>age-gate and erasure duties"]:::external
+
+    user -- "Uses app: send, read, call, report<br/>[UI]" --> muhabbet
+    companion -- "Same account, per-device sessions<br/>[WSS / HTTPS]" --> muhabbet
+    muhabbet -- "OTP start / check<br/>[HTTPS]" --> otp
+    muhabbet -- "Wake hint {type: wake, conversationId, seq}<br/>[FCM data msg, no content]" --> push
+    push -- "Wake (best effort)" --> companion
+    push -- "Wake (best effort)" --> user
+    stores -- "Signed APK/AAB<br/>(build once, promote same artefact)" --> user
+    muhabbet -- "Takedown, legal-request log,<br/>transparency counters" --> authority
+
+    user -. "SealedFrame over LAN / Nearby<br/>[TransportFrame, rotating tags]<br/>1.2, 1:1, verified, E2E" .-> nearbyContact
+    user -. "Sealed UplinkBundle over LAN / Nearby<br/>[HPKE to server]<br/>1.3" .-> mule
+    mule -. "POST /api/v1/uplink under mule's own auth<br/>[HTTPS, quota-bounded]" .-> muhabbet
+    user -. "Own-device custody bundles<br/>[SealedLink] 1.3" .-> companion
+    muhabbet -. "Uses for proximity (Android; iOS only if spike passes)" .-> nearbySvc
+    user -. "Text + receipts, single frame of about 200 B or less<br/>[BLE / serial, Meshtastic protobuf]<br/>1.4, legally gated" .-> meshNode

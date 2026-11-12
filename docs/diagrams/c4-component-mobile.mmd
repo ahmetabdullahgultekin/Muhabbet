@@ -1,0 +1,139 @@
+%% C4 Level 3 - Mobile components and Gradle module boundaries.
+%% ADRs: ADR-0011 (local DB SSOT, no ViewModels), ADR-0012 (engine, ISP-split link ports),
+%%       ADR-0015 (PathPolicy, 1.2), ADR-0016 (SealedFrame type gate), ADR-0017 (libsignal edge),
+%%       ADR-0018 (certs, link keys), ADR-0020 (SQLCipher, SessionTeardown), ADR-0024 (LAN + Nearby),
+%%       ADR-0025 (custody), ADR-0026 (Meshtastic, TR-excluded), ADR-0028 (KMP module structure).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: decision brief section 4.3 (components), 5 (ports catalogue), ADR-0028 module list.
+%% Evidence: MOB-01, MOB-03, MOB-04, MOB-06, MOB-08, MOB-10, MOB-11, C9, KMP-01, KMP-03, KMP-05, KMP-13, GEM-01/02.
+%% Build-enforced rules (ADR-0012/0016/0028):
+%%   1. :mobile:messaging has no Compose, no Koin annotations, no WsMessage imports.
+%%   2. Only :mobile:crypto can construct SealedFrame (internal constructor). SealedLink accepts only SealedFrame.
+%%   3. :mobile:crypto-testkit is test-only; build fails if it is on any release runtime classpath.
+%%   4. ui/ never imports WsMessage or wsClient (verifyUi ratchet to 0 from 17 sites).
+%%   5. :mobile:transport-meshtastic is excluded from TR release flavours by Gradle, not by a flag.
+%% Legend: [m] = milestone; dashed = gated post-1.0; arrows = "depends on / calls".
+flowchart TB
+    classDef module fill:#ffffff,stroke:#2e6295,color:#000000
+    classDef comp fill:#438dd5,stroke:#2e6295,color:#ffffff
+    classDef port fill:#c9e3ff,stroke:#5d82a8,color:#000000
+    classDef adapter fill:#dddddd,stroke:#888888,color:#000000
+    classDef infra fill:#999999,stroke:#6b6b6b,color:#ffffff
+    classDef gated fill:#f5f5f5,stroke:#999999,color:#333333,stroke-dasharray:5 5
+    classDef forbidden fill:#f8d7da,stroke:#a94442,color:#000000
+
+    subgraph composeApp[":mobile:composeApp (existing) - UI + server and store adapters"]
+        ui["<b>Screens (Compose)</b><br/>observe SQLDelight Flow projections only;<br/>commands via MessagingEngine<br/>[0.5]"]:::comp
+        nearbyUi["<b>Nearby-mode screen</b><br/>consent matrix, auto-off 15 min,<br/>measured peers only [1.2]"]:::gated
+        wsLink["<b>WsServerLink</b><br/>strangled WsClient connect/backoff loop<br/>implements ServerLink"]:::adapter
+        wsIn["<b>WsInboundSource</b><br/>message.new / sync.hint / status"]:::adapter
+        restFeed["<b>RestChangeFeedSource</b><br/>GET /changes?afterSeq<br/>implements ChangeFeedPort + InboundSource"]:::adapter
+        fcmHint["<b>FcmHintSource</b><br/>wake to Hint(conv, seq) [0.5]"]:::adapter
+        sqlStore["<b>SqlDelightMessageStore /<br/>SqlDelightOutboxStore</b><br/>SQLCipher driver [0.5]"]:::adapter
+        keyStore["<b>SecureKeyStore</b><br/>Android Keystore (StrongBox) /<br/>iOS Keychain AfterFirstUnlockThisDeviceOnly"]:::adapter
+        bgSync["<b>BackgroundSyncManager</b><br/>WorkManager / BGTask, seq-driven [0.5, MOB-10]"]:::adapter
+        koin["<b>Koin modules</b><br/>bind ports to adapters per platform"]:::adapter
+    end
+
+    subgraph messagingMod[":mobile:messaging (0.5) - commonMain + jvmTest, transport-agnostic"]
+        engine["<b>MessagingEngine</b><br/>Facade, Koin single;<br/>SendMessage, MarkRead, RetryDelivery,<br/>ObserveConversation, SessionTeardown"]:::comp
+        outbox["<b>Outbox</b><br/>State machine, CAS transitions,<br/>per-link lanes, biased select<br/>(CONTROL, INTERACTIVE, BULK)"]:::comp
+        inbox["<b>Inbox</b><br/>Observer over all InboundSources;<br/>upsert + watermark in one tx,<br/>then enqueue DELIVERED (persist before ack)"]:::comp
+        sync["<b>SyncCoordinator</b><br/>seq-gap pulls on reconnect, wake,<br/>foreground, WorkManager"]:::comp
+        receipts["<b>ReceiptService</b><br/>L2 DELIVERED / L3 READ, uptoSeq"]:::comp
+        teardown["<b>SessionTeardown</b><br/>revoke, cancel jobs, close links,<br/>destroy key, delete stores, verify"]:::comp
+        codec["<b>ProtocolCodec</b><br/>OutgoingEnvelope to ServerFrame (Adapter)"]:::comp
+        live["<b>LiveSessionCoordinator</b><br/>call signalling as CONTROL [0.7]"]:::comp
+        policy["<b>PathPolicy + PathRules</b><br/>Admission, CloudPersistence, Preference;<br/>Happy-Eyeballs at link establishment [1.2]"]:::gated
+        custody["<b>CustodyPolicy</b><br/>mailbox, own device, contact uplink [1.3]"]:::gated
+        pServer["ServerLink<br/>submit(ServerFrame)"]:::port
+        pSealed["SealedLink<br/>send(PeerRoute, SealedFrame)"]:::port
+        pIn["InboundSource<br/>events: Flow of InboundEvent"]:::port
+        pStore["MessageStore / OutboxStore"]:::port
+        pFeed["ChangeFeedPort"]:::port
+        pCustody["CustodyTarget [1.3]"]:::port
+        pLive["LiveSessionPort [0.7]"]:::port
+        pClock["Clock / IdGenerator (injected)"]:::port
+        simLink["<b>SimulatedLink /<br/>SimulatedSealedLink</b><br/>testFixtures, seeded RNG"]:::adapter
+    end
+
+    subgraph cryptoMod[":mobile:crypto (0.5 type gate; producers at 1.0)"]
+        sealed["<b>SealedFrame</b><br/>internal constructor"]:::comp
+        sealer["EnvelopeSealer<br/>SealResult: Sealed, NoSession,<br/>UntrustedIdentity, Failed"]:::port
+        sessCrypto["SessionCryptoPort<br/>(expect/actual edge)"]:::port
+        libsig["<b>LibsignalAndroidSealer /<br/>LibsignalIosSealer</b><br/>PQXDH, Double Ratchet, sender keys [1.0]"]:::adapter
+        certVer["<b>DeviceCertificateVerifier</b><br/>+ CRL store [1.2]"]:::gated
+        linkAuth["<b>LinkAuthenticator</b><br/>vetted Noise or TLS 1.3 pinned key<br/>(chosen by spike) [1.2]"]:::gated
+    end
+
+    testkit[":mobile:crypto-testkit<br/>FakeSealer, golden vectors, contract suite<br/>TEST CONFIGURATIONS ONLY"]:::forbidden
+
+    subgraph transports["Transport modules (1.2+, gated)"]
+        lan["<b>:mobile:transport-lan</b><br/>LanLink: NsdManager / Bonjour,<br/>length-prefixed TCP, records at most 64 KiB"]:::gated
+        nearby["<b>:mobile:transport-nearby</b><br/>NearbyLink: Nearby Connections,<br/>rotating-tag advertiser / scanner"]:::gated
+        mesh["<b>:mobile:transport-meshtastic</b><br/>MeshtasticLink + AirtimeLedger<br/>[1.4, excluded from TR flavours]"]:::gated
+    end
+
+    shared[":shared (MIT)<br/>DTOs, WsMessage, protocol/ envelope types,<br/>golden vectors"]:::module
+    designsystem[":mobile:designsystem (existing)"]:::module
+    db[("SQLCipher DB<br/>local SSOT")]:::infra
+    backend(["Backend"]):::infra
+
+    ui --> engine
+    ui --> designsystem
+    ui -- "observe Flow" --> pStore
+    nearbyUi -.-> engine
+    engine --> outbox
+    engine --> inbox
+    engine --> teardown
+    engine --> receipts
+    outbox --> pStore
+    outbox --> codec
+    codec --> pServer
+    outbox -. "1.2: via PathPolicy" .-> policy
+    policy -.-> pSealed
+    policy -.-> pServer
+    outbox -. "1.3" .-> custody
+    custody -.-> pCustody
+    outbox -- "E2E conversations (1.0)" --> sealer
+    sealer --> sealed
+    pSealed -- "accepts only" --> sealed
+    inbox --> pIn
+    inbox --> pStore
+    inbox --> receipts
+    receipts --> outbox
+    sync --> pFeed
+    sync --> inbox
+    live --> pLive
+    outbox --> pClock
+    teardown --> pStore
+
+    wsLink -. "implements" .-> pServer
+    simLink -. "implements" .-> pServer
+    simLink -. "implements" .-> pSealed
+    wsIn -. "implements" .-> pIn
+    restFeed -. "implements" .-> pIn
+    restFeed -. "implements" .-> pFeed
+    fcmHint -. "implements" .-> pIn
+    sqlStore -. "implements" .-> pStore
+    lan -. "implements" .-> pSealed
+    nearby -. "implements" .-> pSealed
+    mesh -. "implements" .-> pSealed
+    libsig -. "implements" .-> sealer
+    libsig -. "implements" .-> sessCrypto
+    lan -.-> linkAuth
+    nearby -.-> linkAuth
+    linkAuth -.-> certVer
+    bgSync --> sync
+    fcmHint --> sync
+    sqlStore --> db
+    sqlStore --> keyStore
+    wsLink --> backend
+    restFeed --> backend
+    koin --> wsLink
+    koin --> sqlStore
+
+    messagingMod --> shared
+    messagingMod --> cryptoMod
+    composeApp --> messagingMod
+    testkit -. "testImplementation only" .-> cryptoMod

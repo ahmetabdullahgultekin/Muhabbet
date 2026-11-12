@@ -1,0 +1,68 @@
+%% Bundle custody state machines for INDIRECT delivery (1.3 Relay, gated and droppable).
+%% ADRs: ADR-0025 (custody hierarchy, single-hop sealed uplink), ADR-0021 (server mailbox = custodian 1),
+%%       ADR-0013 (HOP_ACKED / serverOwed, ticks), ADR-0020 (custody.db is a separate encrypted store),
+%%       ADR-0029 (scope: groups above the cap, channels, communities only ever use custodian 1).
+%% Status: Proposed (gated) - pending owner approval in docs/architecture/multi-transport/APPROVAL.md.
+%%   No code before approval. 1.3 entry gate: 1.2 shipped, telemetry over owner threshold (Q-O5), external crypto
+%%   review of uplink sealing, written KVKK opinion (Q-L5), DPIA. Kill criteria in ADR-0025.
+%% Source of truth: decision brief sections 6.2, 9; rows C01-C05 and K01-K06 in
+%%   docs/architecture/multi-transport/delivery-engine-spec.md section 9.
+%% Evidence: LEG-04 (stranger custody fails KVKK), PROX-03, C6 (PoW rejected), C7 (no clear recipient hash), GEM-08.
+%% BPv7 concepts borrowed (not the codec): lifetime, status reports RECEIVED / CUSTODY_ACCEPTED / DELIVERED / DELETED_EXPIRED.
+%% Rules:
+%%   1. Custodians are offered strictly in order: (1) server mailbox, (2) own linked devices, (3) verified contact
+%%      uplink mule. Multi-hop contact mules are research (R-DTN), strangers never.
+%%   2. The custodian commits the bundle BEFORE replying Accepted (persist before ack, P4).
+%%   3. Custody is released only on an authenticated DELIVERED (sealed to the sender) or on expiry.
+%%   4. LOCAL_ONLY may use custodians 2-3 only once Q-O3 (receipt retention) is decided.
+stateDiagram-v2
+    direction LR
+
+    state "Offer side - CustodyPolicy on the sender device" as OfferSM {
+        state "CREATED<br/>outbox entry has no eligible direct path" as C_Created
+        state "OFFERED(custodian)<br/>next in hierarchy order" as C_Offered
+        state "DECLINED(reason)<br/>quota, policy or link lost" as C_Declined
+        state "IN_CUSTODY(custodian, expiresAt)<br/>outbox HOP_ACKED(serverOwed)<br/>UI: clock + handed to (device or contact)" as C_InCustody
+        state "DELIVERED_RECEIPT<br/>authenticated DELIVERED or SeqObserved" as C_Delivered
+        state "RELEASED" as C_Released
+        state "EXPIRED" as C_Expired
+
+        [*] --> C_Created
+        C_Created --> C_Offered : custodian available (1 mailbox, 2 own device, 3 contact uplink)
+        C_Offered --> C_InCustody : CustodyResult.Accepted(expiresAt)
+        C_Offered --> C_Declined : CustodyResult.Declined(reason)
+        C_Declined --> C_Created : try next custodian
+        C_InCustody --> C_Delivered : sealed DELIVERED to sender, or server seq observed
+        C_Delivered --> C_Released
+        C_Released --> [*]
+        C_InCustody --> C_Expired : now after expiresAt
+        C_Expired --> C_Created : outbox lifetime remains
+        C_Expired --> [*] : outbox lifetime exceeded (entry EXPIRED)
+    }
+
+    state "Custodian side - custody.db (separate SQLCipher store)" as HoldSM {
+        state "Quota check<br/>mule: at most 50 bundles / 10 MB, 24 h<br/>per-mule daily quota enforced by mule and server" as K_Quota
+        state "HELD(expiresAt)<br/>opaque, bucket-padded blob only<br/>committed before Accepted" as K_Held
+        state "RELEASED (deleted)" as K_Released
+        state "EXPIRED (deleted)" as K_Expired
+        state "DECLINED" as K_Declined
+
+        [*] --> K_Quota : offer received over authenticated SealedLink
+        K_Quota --> K_Held : quota available, commit, then reply Accepted
+        K_Quota --> K_Declined : quota exhausted (FIFO-by-expiry evicts only expired bundles)
+        K_Declined --> [*]
+        K_Held --> K_Released : own device - handed to recipient device, authenticated DELIVERED
+        K_Held --> K_Released : online - POST /api/v1/uplink 2xx (mule) or server accepted (own device)
+        K_Held --> K_Expired : now after expiresAt (mule - 24 h)
+        K_Held --> [*] : leave relay mode or SessionTeardown wipes store
+        K_Released --> [*]
+        K_Expired --> [*]
+    }
+
+    note right of HoldSM
+        The mule never learns the recipient: UplinkBundle =
+        HPKE-Seal(serverUplinkPk, info mbt-uplink-v1, aad bucketSize,
+        senderDeviceSignature + routing + DeviceEnvelopes).
+        The server unseals, verifies the sender-device signature
+        (5651 attribution) and ingests via SendMessageUseCase (idempotent).
+    end note

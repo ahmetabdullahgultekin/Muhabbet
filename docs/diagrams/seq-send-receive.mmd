@@ -1,0 +1,95 @@
+%% Sequence R1 + R2: send and receive over the server (0.5 delivery engine), with gap pull and receipts.
+%% ADRs: ADR-0013 (durable outbox, persist-then-ack, idempotency, ticks), ADR-0014 (seq + change feed),
+%%       ADR-0011 (local DB SSOT), ADR-0012 (ServerLink / InboundSource), ADR-0019 (read-receipt downgrade stays
+%%       server-side, issue 377), ADR-0021 / ADR-0022 (1.0 differences: per-device envelopes, protocol v2).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: decision brief sections 6.1, 6.4, 10; SAD section 6.1 (R1) and 6.2 (R2) step tables.
+%% Evidence: MOB-03 (DELIVERED acked from RAM), MOB-04 (lossy outbox), BE-03 (ack for any id), BE-06 (timestamp order),
+%%   BE-07 (MSG_DUPLICATE instead of replay), BE-18 (per-device delivery), MOB-06, MOB-08.
+%% Invariants shown: P3 at-least-once + idempotent receivers, P4 persist before acknowledge, P5 UI reads DB only,
+%%   P6 pull is truth / push is a hint.
+sequenceDiagram
+    autonumber
+    actor A as Sender (user)
+    participant AUI as Sender UI<br/>(observes DB flows)
+    participant AE as Sender MessagingEngine<br/>Outbox + SQLCipher DB
+    participant AL as Sender WsServerLink<br/>+ WsInboundSource
+    participant WS as Backend WsGateway
+    participant SM as SendMessageService<br/>+ ConversationSequencer
+    participant PG as PostgreSQL
+    participant HP as DeliveryHintPublisher
+    participant ACK as DeliveryAckPolicy
+    participant BL as Recipient WsServerLink + WsInboundSource<br/>+ RestChangeFeedSource
+    participant BE as Recipient Inbox + SyncCoordinator<br/>+ ReceiptService + DB
+    participant BUI as Recipient UI
+
+    A->>AUI: tap send
+    AUI->>AE: MessagingEngine.send(conversationId, content)
+    AE->>AE: one tx - optimistic message row + outbox_entry QUEUED<br/>(clientMessageId UUIDv7, expires_at = now + 30 d)
+    AE-->>AUI: DB flow emits row (clock)
+    Note over AE: 1.0 E2E conversation - entry starts PENDING_SEAL, seal per recipient device,<br/>never a plaintext fallback (ADR-0016)
+
+    AE->>AE: CAS QUEUED to IN_FLIGHT(server, attempt, deadline)<br/>when link Ready and INTERACTIVE lane has capacity
+    AE->>AL: submit(ServerFrame)
+    AL->>WS: message.send {clientMessageId, conversationId, encryption, content or envelopes, clientTs}
+    WS->>SM: SendMessageUseCase.send(cmd)
+    SM->>PG: BEGIN - lookup UNIQUE(sender_device_id, client_message_id)
+
+    alt first submission
+        SM->>PG: UPDATE conversations SET last_seq = last_seq + 1 RETURNING last_seq
+        SM->>PG: INSERT message (seq, change_seq), COMMIT
+        SM-->>WS: Accepted(id, seq, serverTs, replay=false)
+    else duplicate (retry after lost ack)
+        SM->>PG: read original row, ROLLBACK
+        SM-->>WS: Accepted(id, seq, serverTs, replay=true)
+    end
+    WS-->>AL: ack {clientMessageId, seq, serverTs, replay}
+    AL-->>AE: SubmitResult.ServerAccepted(seq, ts, replay)
+    AE->>AE: CAS IN_FLIGHT to SERVER_ACCEPTED(seq), message.seq set, synced
+    AE-->>AUI: one tick (server custody)
+
+    SM-)HP: MessageAccepted event (after commit)
+    par live socket
+        HP-)BL: message.new {messageId, seq, changeSeq, content or envelope} (hint)
+    and no live socket
+        HP-)BL: FCM data-only wake {conversationId, seq} (see seq-wake-push-sync)
+    end
+
+    BL->>BE: InboundEvent.Message or Hint(conv, seq)
+    alt seq == watermark + 1 and payload present
+        BE->>BE: one tx - upsert row (insert, or update iff change_seq newer)<br/>+ advance watermark
+    else gap (seq > watermark + 1) or hint only
+        BE->>BL: ChangeFeedPort.changes(conv, afterSeq = watermark, limit)
+        BL->>WS: GET /api/v1/conversations/{id}/changes?afterSeq&limit
+        WS-->>BL: {items, lastSeq, hasMore}
+        BL-->>BE: page
+        BE->>BE: one tx per page - upsert items + advance watermark, repeat while hasMore
+    end
+    BE-->>BUI: DB flow emits row, ordered by seq
+    BE->>BL: enqueue CONTROL - message.ack {conversationId, uptoSeq, DELIVERED}<br/>only AFTER commit (P4)
+    BL->>WS: message.ack {conversationId, uptoSeq, DELIVERED}
+    WS->>ACK: AcknowledgeDeliveryUseCase.ack(device, conv, uptoSeq, DELIVERED)
+    ACK->>PG: accept only from a non-sender member's device, only existing seqs<br/>upsert message_device_delivery (V32)
+    Note over ACK,PG: 1.0 - also MailboxPort.deleteUpTo(device, conv, uptoSeq)
+    ACK-)WS: publish status (aggregate from per-device rows, server-side only)
+    WS-)AL: message.status to sender devices
+    AL-->>AE: InboundEvent.Receipt
+    AE->>AE: receipt rows - two ticks once every recipient user has at least one committed device
+    AE-->>AUI: two ticks
+
+    BUI->>BE: chat visible
+    BE->>BL: message.ack {conversationId, uptoSeq, READ}
+    BL->>WS: message.ack READ
+    WS->>ACK: ack(device, conv, uptoSeq, READ)
+    ACK->>ACK: ReadReceiptPolicyPort - readReceiptsEnabled off downgrades the published READ to DELIVERED<br/>(stored row stays READ, issue 377)
+    ACK-)WS: publish READ (or DELIVERED if downgraded)
+    WS-)AL: message.status
+    AL-->>AE: InboundEvent.Receipt
+    AE-->>AUI: read ticks
+
+    opt failure branches (sender)
+        AL-->>AE: Timeout / LinkLost / Retry(after)
+        AE->>AE: IN_FLIGHT to RETRY_WAIT, full jitter 1 s to 30 s, injected Clock
+        AL-->>AE: Rejected(code) permanent
+        AE->>AE: IN_FLIGHT to FAILED_PERMANENT, UI tap to retry
+    end

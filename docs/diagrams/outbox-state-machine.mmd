@@ -1,0 +1,84 @@
+%% OutboxEntry state machine (sender device, :mobile:messaging Outbox; State pattern, CAS transitions).
+%% ADRs: ADR-0013 (delivery semantics, ticks), ADR-0016 (fail-closed, no plaintext fallback),
+%%       ADR-0012 (engine), ADR-0015 (PathPolicy at 1.2), ADR-0025 (HOP_ACKED / serverOwed custody).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: decision brief section 6.1 (transition table). Detailed rows T01-T32:
+%%   docs/architecture/multi-transport/delivery-engine-spec.md section 4.3 (rows marked "spec" extend the brief).
+%% Evidence: MOB-04 (lossy at-most-once outbox), MOB-03, BE-07 (replayed ServerAck), C9 (plaintext fallback), GEM-01/02.
+%% Rules:
+%%   1. Every transition is a compare-and-set on outbox_entry.state; side effects commit in the same SQLDelight tx.
+%%   2. DELIVERED and READ are NOT outbox states; ticks are derived from receipt rows (brief section 6.4).
+%%   3. No attempt cap: only lifetime (default 30 d; CONTROL and call signalling 60 s) ends retries.
+%%   4. Backoff: full jitter 1 s to 30 s on the injected Clock; reset to now on an eligible LinkUp.
+%%   5. Late results from a superseded attempt fail the CAS and are ignored.
+stateDiagram-v2
+    direction TB
+
+    state "PREPARING<br/>media compress + resumable upload (1 MiB ranges)<br/>outside conversation FIFO" as PREPARING
+    state "PENDING_SEAL(reason)<br/>E2E, no session / untrusted identity<br/>UI: waiting for secure session" as PENDING_SEAL
+    state "QUEUED<br/>UI: clock" as QUEUED
+    state "IN_FLIGHT(link, attempt, deadline)<br/>lease_until = deadline" as IN_FLIGHT
+    state "RETRY_WAIT(nextAttemptAt)" as RETRY_WAIT
+    state "HOP_ACKED(custodian, serverOwed)<br/>peer, own device or mule acked<br/>serverOwed = mode != LOCAL_ONLY" as HOP_ACKED
+    state "SERVER_ACCEPTED(seq)<br/>UI: one tick; row gets seq" as SERVER_ACCEPTED
+    state "FAILED_PERMANENT(code)<br/>UI: tap to retry" as FAILED_PERMANENT
+    state "EXPIRED<br/>UI: not sent" as EXPIRED
+    state "CANCELLED<br/>row and entry deleted" as CANCELLED
+
+    [*] --> QUEUED : Send (text), optimistic row + entry in one tx
+    [*] --> PENDING_SEAL : Send in E2E conversation (1.0+)
+    [*] --> PREPARING : Send (media)
+
+    PREPARING --> PREPARING : UploadFailed(retryable), backoff
+    PREPARING --> QUEUED : UploadDone(blobRef), not E2E
+    PREPARING --> PENDING_SEAL : UploadDone(blobRef), E2E
+    PREPARING --> FAILED_PERMANENT : UploadFailed(non-retryable) [spec]
+
+    PENDING_SEAL --> PENDING_SEAL : SealFailed(NoSession), trigger prekey fetch, NEVER plaintext
+    PENDING_SEAL --> QUEUED : SessionReady or IdentityApproved, then SealOk (sealed once)
+    PENDING_SEAL --> FAILED_PERMANENT : SealFailed(non-retryable) [spec]
+    QUEUED --> PENDING_SEAL : SealFailed(NoSession) on re-seal
+
+    QUEUED --> IN_FLIGHT : Dispatch(link), due + link Ready/UP + lane capacity
+    RETRY_WAIT --> IN_FLIGHT : Dispatch(link), now >= nextAttemptAt
+    RETRY_WAIT --> RETRY_WAIT : EligibleLinkUp, backoff reset to now
+
+    IN_FLIGHT --> SERVER_ACCEPTED : ServerAccepted(seq, ts, replay), replay is not an error
+    IN_FLIGHT --> HOP_ACKED : HopAcked(peer / own device / mule)
+    IN_FLIGHT --> RETRY_WAIT : Timeout, LinkLost, Retry(after), Backpressure(after)
+    IN_FLIGHT --> FAILED_PERMANENT : Rejected(code), permanent code
+    IN_FLIGHT --> QUEUED : Recover at process start (server is idempotent)
+
+    HOP_ACKED --> QUEUED : ServerLinkUp and serverOwed, server-only upload, recipient dedups
+    HOP_ACKED --> SERVER_ACCEPTED : SeqObserved(seq), a custodian already uploaded [spec]
+    HOP_ACKED --> [*] : E2EDelivered and not serverOwed (LOCAL_ONLY), purge
+
+    SERVER_ACCEPTED --> [*] : ReceiptsSettled, purge entry (row and receipts stay)
+
+    FAILED_PERMANENT --> QUEUED : RetryDelivery (user)
+    EXPIRED --> QUEUED : RetryDelivery (user) [spec T26]
+
+    QUEUED --> CANCELLED : user deletes
+    RETRY_WAIT --> CANCELLED : user deletes
+    PENDING_SEAL --> CANCELLED : user deletes
+    CANCELLED --> [*]
+
+    PREPARING --> EXPIRED : lifetime exceeded
+    PENDING_SEAL --> EXPIRED : lifetime exceeded
+    QUEUED --> EXPIRED : lifetime exceeded
+    RETRY_WAIT --> EXPIRED : lifetime exceeded
+    IN_FLIGHT --> EXPIRED : lifetime exceeded
+    HOP_ACKED --> EXPIRED : lifetime exceeded
+
+    note right of HOP_ACKED
+        Ticks (ADR-0013), one meaning on every path:
+        direct to recipient device = two ticks + "not yet synced"
+        own device or mule = clock + "handed to (device or contact)"
+        There is never a "relayed to mesh" tick.
+    end note
+
+    note left of PENDING_SEAL
+        ADR-0016 fail-closed: the plaintext fallback (C9)
+        is deleted, not flag-gated. A seal failure parks
+        the entry; it never downgrades content.
+    end note

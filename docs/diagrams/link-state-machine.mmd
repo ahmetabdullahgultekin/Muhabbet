@@ -1,0 +1,89 @@
+%% Link and session state machines: server link (WsServerLink, 0.5) and sealed peer links (LanLink, NearbyLink,
+%% UplinkHandover, MeshtasticLink; 1.2+, gated).
+%% ADRs: ADR-0012 (ServerLink / SealedLink ports), ADR-0018 (device certificate, CRL, link key),
+%%       ADR-0022 (hello / welcome, PROTOCOL_TOO_OLD), ADR-0024 (Nearby mode, consent, auto-off), ADR-0026 (RF gate).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: decision brief section 6.3; transition rows S01-S17 and L01-L16 in
+%%   docs/architecture/multi-transport/delivery-engine-spec.md sections 7 and 8 ([spec] = extends the brief).
+%% Evidence: BE-12, BE-16 (JWT out of query string, session close at expiry), KMP-11 (hello/version),
+%%   MOB-11 (REST probe in reconnect loop removed), PROX-02 (foreground only), C9.
+%% Rules:
+%%   1. Observers (Outbox, PathPolicy) react to state changes; entering Ready / UP raises EligibleLinkUp,
+%%      which resets retry backoff for eligible outbox entries.
+%%   2. Leaving Ready / UP while an entry is IN_FLIGHT raises LinkLost for that entry (outbox to RETRY_WAIT).
+%%   3. AUTHENTICATING never falls back to an unauthenticated session (fail-closed).
+%%   4. CONSENT_REQUIRED and BLOCKED_BY_POLICY are overlays reachable from any sealed-link state.
+stateDiagram-v2
+    direction LR
+
+    state "ServerLink - WsServerLink (0.5; strangled WsClient)" as ServerLinkSM {
+        state "Disconnected" as S_Disc
+        state "Connecting<br/>TLS + WSS, no JWT in URL" as S_Conn
+        state "Hello<br/>hello(protocolVersions, minSupported,<br/>capabilities, deviceId) + first-frame auth" as S_Hello
+        state "Authenticated<br/>welcome(protocolVersion, serverTime,<br/>certRenewal?, crlDelta?)" as S_Auth
+        state "Syncing(heads)<br/>one heads() request, drain receipts" as S_Sync
+        state "Ready" as S_Ready
+        state "Degraded<br/>RTT or missed pongs over threshold" as S_Deg
+        state "Backoff(until)<br/>capped exponential + jitter" as S_Back
+        state "AuthExpired<br/>server closed at JWT exp" as S_AuthExp
+        state "UpgradeRequired [spec]<br/>error PROTOCOL_TOO_OLD" as S_Upg
+
+        [*] --> S_Disc
+        S_Disc --> S_Conn : start(), session active
+        S_Conn --> S_Hello : socket open
+        S_Conn --> S_Back : I/O error or timeout
+        S_Hello --> S_Auth : welcome
+        S_Hello --> S_Upg : error PROTOCOL_TOO_OLD, entries stay QUEUED
+        S_Hello --> S_AuthExp : auth token expired
+        S_Auth --> S_Sync
+        S_Sync --> S_Ready : heads applied, raise ServerLinkUp
+        S_Ready --> S_Deg : metrics over threshold
+        S_Deg --> S_Ready : recovered
+        S_Ready --> S_Back : socket closed or heartbeat dead
+        S_Deg --> S_Back : socket closed or heartbeat dead
+        S_Ready --> S_AuthExp : close at JWT expiry (BE-12)
+        S_Deg --> S_AuthExp : close at JWT expiry (BE-12)
+        S_AuthExp --> S_Conn : refresh OK
+        S_AuthExp --> S_Disc : refresh rejected, SessionTeardown(REFRESH_REJECTED)
+        S_Back --> S_Conn : timer, network callback or foreground
+        S_Ready --> S_Disc : stop() or SessionRevoked close, SessionTeardown
+    }
+
+    state "SealedLink - per peer (1.2+, gated; 1:1, verified, E2E only)" as SealedLinkSM {
+        state "DISABLED<br/>Nearby mode off" as L_Dis
+        state "UNAVAILABLE<br/>FGS started, auto-off timer armed (15 min)" as L_Unav
+        state "DISCOVERING<br/>rotating pairwise tags, random names" as L_Discov
+        state "CONNECTING<br/>Happy-Eyeballs: LAN first, Nearby +250 ms" as L_Conn
+        state "AUTHENTICATING<br/>vetted handshake on certified link key,<br/>certificate valid at now, not in CRL" as L_AuthN
+        state "UP" as L_Up
+        state "DEGRADED<br/>goodput below class threshold or loss over bound" as L_Deg
+        state "BACKOFF(until)<br/>per-peer, full jitter" as L_Back
+        state "CONSENT_REQUIRED (overlay)<br/>OS permission missing or revoked" as L_Consent
+        state "BLOCKED_BY_POLICY (overlay)<br/>cert expired after 7 d offline, RF in TR, rules" as L_Blocked
+
+        [*] --> L_Dis
+        L_Dis --> L_Unav : user opens Nearby mode, policy allows
+        L_Unav --> L_Discov : radio / same-network precondition met
+        L_Discov --> L_Conn : demand for a matched verified peer
+        L_Conn --> L_AuthN : transport connected
+        L_Conn --> L_Back : failure
+        L_AuthN --> L_Up : all checks pass, raise EligibleLinkUp
+        L_AuthN --> L_Back : any check fails, security event, never unauthenticated
+        L_Up --> L_Deg : below threshold for window
+        L_Deg --> L_Up : recovered
+        L_Up --> L_Discov : disconnect, or idle 30 s and up at least 10 s (de-escalate)
+        L_Deg --> L_Discov : disconnect
+        L_Back --> L_Discov : timer
+        L_Up --> L_Dis : Nearby mode off, auto-off, iOS background, teardown
+        L_Discov --> L_Dis : Nearby mode off, auto-off, teardown
+        L_Discov --> L_Consent : permission missing
+        L_Discov --> L_Blocked : admission fails
+        L_Consent --> L_Unav : granted
+        L_Blocked --> L_Unav : condition cleared
+    }
+
+    note right of SealedLinkSM
+        MeshtasticLink (1.4, TR-excluded): DISCOVERING is
+        "node paired over BLE or serial", no BULK, and every
+        send also needs AirtimeLedger.tryReserve (EU868 duty cycle).
+    end note

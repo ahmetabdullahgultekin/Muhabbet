@@ -1,0 +1,67 @@
+%% C4 Level 2 - Containers. Muhabbet multi-transport delivery.
+%% ADRs: ADR-0010 (hybrid backbone), ADR-0012 (engine + link ports), ADR-0018 (device CA),
+%%       ADR-0019 (wake-only push), ADR-0020 (SQLCipher), ADR-0021 (mailbox), ADR-0023 (LiveKit/TURN),
+%%       ADR-0024 (LAN + Nearby), ADR-0025 (uplink), ADR-0026 (Meshtastic), ADR-0031 (CI trust boundary).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: decision brief section 4.1 (containers), 8.2 (per-path trust), 9 (stores).
+%% Evidence: BE-12/BE-16 (JWT out of query string), BE-15, MOB-01, CICD-01/02/06, R14, R19.
+%% Legend: solid = existing or 0.4-1.0; dashed = gated post-1.0 (droppable); [milestone] in each box.
+flowchart LR
+    classDef container fill:#438dd5,stroke:#2e6295,color:#ffffff
+    classDef db fill:#438dd5,stroke:#2e6295,color:#ffffff
+    classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
+    classDef gated fill:#f5f5f5,stroke:#999999,color:#333333,stroke-dasharray:5 5
+    classDef secret fill:#fff3cd,stroke:#b8860b,color:#333333
+
+    user(["User"])
+
+    subgraph phone["User's phone"]
+        app["<b>Mobile app</b><br/>[CMP, Koin, Decompose, Ktor]<br/>UI, delivery engine (:mobile:messaging, 0.5),<br/>crypto edge (:mobile:crypto), transports"]:::container
+        localdb[("<b>Local SSOT DB</b><br/>[SQLDelight + SQLCipher, 0.5]<br/>conversation, message, outbox_entry,<br/>inbound_dedup, receipt, FTS (1.0)")]:::db
+        custodydb[("<b>custody.db</b><br/>[separate SQLCipher store, 1.3]<br/>own-device / mule bundles, quota")]:::gated
+        keystore[("<b>Keystore / Keychain</b><br/>[OS]<br/>wrapped DB key, libsignal store")]:::external
+    end
+
+    subgraph prod["Production host cx43 (Traefik)"]
+        backend["<b>Backend modular monolith</b><br/>[Spring Boot 4.1, Kotlin, hexagonal]<br/>identity, age gate, devices, keys, seq,<br/>change feed, mailbox, wake hints,<br/>moderation/compliance, call signalling,<br/>TURN credentials"]:::container
+        pg[("<b>PostgreSQL 16</b><br/>[shared-postgres]<br/>metadata, seq, change_seq,<br/>message_envelopes (1.0), key directory")]:::db
+        redis[("<b>Redis 7</b><br/>[shared-redis]<br/>WS cross-instance fan-out,<br/>rate limits, revocation channel")]:::db
+        minio[("<b>MinIO</b><br/>[shared-minio, S3]<br/>media blobs (ciphertext from 1.0)")]:::db
+    end
+
+    subgraph callhost["Separate call host (ADR 0009, placement open)"]
+        livekit["<b>LiveKit SFU + embedded TURN/TLS 443</b><br/>[0.7]<br/>calls; relay-only for non-contacts"]:::container
+    end
+
+    subgraph signerhost["Signer host - NOT a host running PR jobs (ADR-0031, Q-O7)"]
+        signer["<b>Device-CA intermediate + uplink unseal key</b><br/>[file-mounted signer, 1.2 / 1.3]<br/>7-day device certificates, CRL deltas;<br/>offline root pinned in app"]:::secret
+    end
+
+    fcm["<b>FCM / APNs</b><br/>[external processors]<br/>content-free wake"]:::external
+    otp["<b>Twilio Verify</b><br/>[external]"]:::external
+    peer["<b>Peer device</b><br/>[verified contact or own device]<br/>LanLink / NearbyLink (1.2)"]:::gated
+    mule["<b>Contact's online phone</b><br/>[mule, 1.3]"]:::gated
+    mesh["<b>Meshtastic node</b><br/>[1.4, TR-excluded]"]:::gated
+
+    user --> app
+    app -- "reads/writes in one tx<br/>(screens observe DB flows)" --> localdb
+    app -- "getOrCreateWrappedKey / destroy" --> keystore
+    app -. "1.3 custody" .-> custodydb
+
+    app -- "WSS /ws, JSON WsMessage<br/>hello / welcome, first-frame auth<br/>(no JWT in query string)" --> backend
+    app -- "HTTPS GET /changes?afterSeq<br/>REST /api/v1/**" --> backend
+    app -- "HTTPS presigned, resumable 1 MiB ranges" --> minio
+    app -- "WebRTC DTLS-SRTP, ICE<br/>credentials at most 10 min [0.7 / 1.1 P2P]" --> livekit
+    backend -- "JDBC; seq via UPDATE ... RETURNING" --> pg
+    backend -- "pub/sub ws:broadcast:*,<br/>session revocation" --> redis
+    backend -- "S3 API, presign" --> minio
+    backend -- "mint room / TURN credentials" --> livekit
+    backend -- "OTP" --> otp
+    backend -- "data-only wake {conversationId, seq}<br/>collapse key per conversation" --> fcm
+    fcm -- "wake hint" --> app
+    backend -. "sign(tbs) / unseal (1.2 / 1.3)" .-> signer
+
+    app -. "SealedFrame in TransportFrame<br/>[mDNS + TCP / Nearby Connections]" .-> peer
+    app -. "HPKE UplinkBundle" .-> mule
+    mule -. "POST /api/v1/uplink" .-> backend
+    app -. "single frame, about 200 B or less<br/>[BLE / serial]" .-> mesh

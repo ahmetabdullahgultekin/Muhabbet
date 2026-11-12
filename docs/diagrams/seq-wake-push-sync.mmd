@@ -1,0 +1,65 @@
+%% Sequence R3: wake-only push and seq-driven sync (from 0.5), including the OEM-throttling fallbacks.
+%% ADRs: ADR-0019 (push is wake-only from 0.5), ADR-0014 (pull by seq, change feed), ADR-0013 (persist before ack),
+%%       ADR-0012 (FcmHintSource / RestChangeFeedSource as InboundSources), ADR-0020 (DB key readable after first unlock).
+%% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
+%% Source of truth: decision brief ADR-0019, sections 6.4, 9 (wake-up); SAD section 6.3 (R3) step table.
+%% Evidence: BE-15 (message content in FCM payload = KVKK Art. 9 transfer to a US processor), MOB-10 (background sync
+%%   on device clock), MOB-11, R11 (OEM throttling). Legal basis for wake hints is open: Q-L6.
+%% Rules:
+%%   1. Payload is exactly {type: "wake", conversationId, seq}: no content, no sender name, no preview.
+%%   2. Notification text is composed on the device from the local DB; it never leaves the device.
+%%   3. Any lost wake is repaired by the next pull (P6): foreground, reconnect, WorkManager / BGTask.
+%%   4. Verification: captured FCM payload contains no content (RQ-07, 0.5 exit); owner observes a notification with
+%%      the app killed (0.5 exit) and the message in the DB before the tap (0.6 exit).
+sequenceDiagram
+    autonumber
+    participant SM as SendMessageService
+    participant HP as DeliveryHintPublisher
+    participant WR as WsSessionRegistry
+    participant WP as WakePushService<br/>(WakePushPort, FcmWakePush)
+    participant FCM as FCM (APNs later)<br/>external processor
+    participant FH as FcmHintSource<br/>(recipient app, killed or backgrounded)
+    participant SC as SyncCoordinator
+    participant RF as RestChangeFeedSource
+    participant API as Backend /changes
+    participant IB as Inbox + SQLCipher DB
+    participant RS as ReceiptService
+    participant NT as Local notification
+    participant WM as WorkManager / BGTask
+
+    SM-)HP: MessageAccepted(conversationId, seq) after commit
+    HP->>WR: live socket for recipient device?
+    alt live socket
+        HP-)WR: WS sync.hint / message.new (see seq-send-receive)
+    else no live socket
+        HP->>WP: wake(device, WakeHint(conversationId, seq), collapseKey = conversationId)
+        WP->>FCM: high-priority data-only message {type: "wake", conversationId, seq}
+        FCM-)FH: deliver (best effort, may be delayed or dropped by OEM)
+    end
+
+    FH->>SC: InboundEvent.Hint(conversationId, seq)
+    SC->>IB: watermark(conversationId)
+    alt seq > watermark
+        SC->>RF: changes(conversationId, afterSeq = watermark, limit)
+        RF->>API: GET /api/v1/conversations/{id}/changes?afterSeq&limit over TLS
+        API-->>RF: {items, lastSeq, hasMore}
+        RF-->>IB: page
+        IB->>IB: one tx - upsert items + advance watermark (repeat while hasMore)
+        IB->>RS: committed up to seq
+        RS->>API: message.ack {conversationId, uptoSeq, DELIVERED} (after commit, P4)
+        IB->>NT: compose notification text locally from DB rows
+    else seq at or below watermark (duplicate or stale hint)
+        SC->>SC: no-op
+    end
+
+    opt wake lost or throttled (R11 fallback)
+        Note over FH,WM: Pull is truth - no message depends on the wake arriving
+        WM->>SC: periodic sync, driven by server seq (not the device clock, MOB-10)
+        SC->>RF: heads() - lastSeq per conversation in one request
+        RF->>API: conversation list with lastSeq
+        API-->>RF: heads
+        SC->>RF: changes() for each stale conversation
+        Note over SC: Also on app foreground and on WS reconnect (Syncing(heads)).<br/>Known aggressive OEMs get an in-app battery-optimisation exemption notice.
+    end
+
+    Note over FH,NT: iOS (when the iOS app exists) - Notification Service Extension performs the fetch,<br/>DB key in Keychain with AfterFirstUnlockThisDeviceOnly so background wake can read it
