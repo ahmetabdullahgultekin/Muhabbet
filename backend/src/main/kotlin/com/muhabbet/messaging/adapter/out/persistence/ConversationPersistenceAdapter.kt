@@ -68,6 +68,9 @@ class ConversationPersistenceAdapter(
     override fun findAllContactUserIds(userId: UUID): Set<UUID> =
         memberRepo.findAllContactUserIds(userId)
 
+    override fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean =
+        memberRepo.sharesConversationOfType(userId, otherUserId, RELATIONSHIP_TYPES)
+
     override fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID? =
         directLookupRepo.findByUserIdLowAndUserIdHigh(userIdLow, userIdHigh)?.conversationId
 
@@ -161,5 +164,10 @@ class ConversationPersistenceAdapter(
         member.locked = false
         member.lockedAt = null
         memberRepo.save(member)
+    }
+
+    private companion object {
+        /** Conversation types a user cannot enter on their own; see [ConversationRepository.sharesConversation]. */
+        val RELATIONSHIP_TYPES = listOf(ConversationType.DIRECT, ConversationType.GROUP)
     }
 }

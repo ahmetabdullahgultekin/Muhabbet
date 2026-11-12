@@ -42,6 +42,10 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
 
     // Contacts
     CONTACT_SYNC_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Tek seferde en fazla 1000 kişi senkronize edilebilir"),
+    // The per-account daily budget of distinct numbers looked up (#748). 429, not 400: the request
+    // is well-formed and the same one will succeed tomorrow — CONTACT_SYNC_LIMIT_EXCEEDED above is
+    // about the size of one request and would tell the client the wrong thing to change.
+    CONTACT_SYNC_DAILY_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Bugün için kişi senkronizasyon sınırına ulaşıldı"),
 
     // Group
     GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "Grup bulunamadı"),
@@ -78,6 +82,10 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // Encryption
     ENCRYPTION_KEY_BUNDLE_NOT_FOUND(HttpStatus.NOT_FOUND, "Şifreleme anahtar paketi bulunamadı"),
     ENCRYPTION_INVALID_KEY_DATA(HttpStatus.BAD_REQUEST, "Geçersiz şifreleme anahtar verisi"),
+    // A prekey bundle is served only inside a relationship (#749, ADR 0018 §3 rule 3). One code for
+    // "unrelated" and "blocked" alike, so the answer cannot be used to learn about a block.
+    ENCRYPTION_KEY_BUNDLE_FORBIDDEN(HttpStatus.FORBIDDEN, "Bu kullanıcının şifreleme anahtarlarına erişim yetkiniz yok"),
+    ENCRYPTION_KEY_BUNDLE_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Çok fazla şifreleme anahtarı isteği"),
 
     // Call
     CALL_NOT_FOUND(HttpStatus.NOT_FOUND, "Arama bulunamadı"),

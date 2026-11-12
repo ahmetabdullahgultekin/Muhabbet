@@ -61,6 +61,27 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   reconnect — the handshake check reads the database). It moves to the `ws:broadcast` Redis channel
   together with `activeConversation` and the WebSocket rate limiter when scale-out is real.
 
+### Security — contact sync and the prekey directory can no longer be scripted against
+
+- **Contact sync is no longer a phone-book of Turkey** (#748). Each account may look up at most
+  `muhabbet.contact-sync.max-new-hashes-per-day` (default 2000) *distinct* numbers per UTC day —
+  re-syncing an address book already looked up today is free — and past that the server answers
+  `429 CONTACT_SYNC_DAILY_LIMIT_EXCEEDED` before touching the database. More than 1000 hashes in one
+  request is now `CONTACT_SYNC_LIMIT_EXCEEDED` rather than `VALIDATION_ERROR`. Users on either side
+  of a block, and deleted or suspended accounts, are no longer returned. The budget is counted in
+  Redis over **keyed digests**, not the submitted hashes: each hash is replaced by HMAC-SHA256
+  (key derived from the JWT secret) truncated to 12 bytes, and the set expires at the end of its
+  UTC day plus one hour. The raw hashes are reversible by brute force, so storing them would have
+  been a new copy of every user's address book; this is retention of a non-reversible counter for
+  under 25 hours, and should be recorded as such in the privacy notice.
+- **A one-time prekey is handed out once, and only to someone you talk to** (#749). The claim is a
+  single `UPDATE … FOR UPDATE SKIP LOCKED … RETURNING` (V31 makes `used` NOT NULL); a bundle is
+  served only to a requester who shares a direct chat or group with the target (or is the target) and
+  is not blocked either way, within per-requester hourly and per-pair daily budgets
+  (`PREKEY_FETCH_MAX_PER_HOUR_PER_REQUESTER`, `PREKEY_FETCH_MAX_PER_DAY_PER_PAIR`). Channel
+  co-subscription does not count — anyone can subscribe to any channel. Latent while E2E is off; it
+  is the directory 1.0 will stand on. V31 must deploy after V28–V30 (or be renumbered at merge).
+
 ### Added — Enter sends, and you can say whether it does
 
 - **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired

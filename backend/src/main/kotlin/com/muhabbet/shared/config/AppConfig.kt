@@ -1,5 +1,7 @@
 package com.muhabbet.shared.config
 
+import com.muhabbet.auth.domain.port.out.BlockDirectoryPort
+import com.muhabbet.auth.domain.port.out.ContactSyncQuotaPort
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceLogoutPort
 import com.muhabbet.auth.domain.port.out.DeviceRepository
@@ -38,6 +40,7 @@ import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.ConversationSequencePort
 import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
+import com.muhabbet.messaging.domain.port.out.PreKeyFetchQuotaPort
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
@@ -176,10 +179,14 @@ class AppConfig {
     @Bean
     fun contactSyncService(
         phoneHashRepository: PhoneHashRepository,
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        contactSyncQuotaPort: ContactSyncQuotaPort,
+        blockDirectoryPort: BlockDirectoryPort
     ): ContactSyncService = ContactSyncService(
         phoneHashRepository = phoneHashRepository,
-        userRepository = userRepository
+        userRepository = userRepository,
+        quota = contactSyncQuotaPort,
+        blockDirectory = blockDirectoryPort
     )
 
     // One over detekt's function threshold of 8, and only because a bean method has to list what
@@ -367,9 +374,15 @@ class AppConfig {
 
     @Bean
     fun encryptionService(
-        encryptionKeyRepository: EncryptionKeyRepository
+        encryptionKeyRepository: EncryptionKeyRepository,
+        conversationRepository: ConversationRepository,
+        blockPolicyPort: BlockPolicyPort,
+        preKeyFetchQuotaPort: PreKeyFetchQuotaPort
     ): EncryptionService = EncryptionService(
-        encryptionKeyRepository = encryptionKeyRepository
+        encryptionKeyRepository = encryptionKeyRepository,
+        conversationRepository = conversationRepository,
+        blockPolicy = blockPolicyPort,
+        preKeyFetchQuota = preKeyFetchQuotaPort
     )
 
     @Bean

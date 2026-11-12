@@ -158,6 +158,19 @@ muhabbet:
     max-attempts: 5
     lock-seconds: 900                # 15 minutes, then the window reopens
 
+  # Contact sync enumeration cap (#748). Distinct phone hashes one account may look up per UTC day;
+  # re-syncing hashes already counted today is free. Unsalted hashes of ~10^9 Turkish mobile
+  # numbers protect nothing, so this budget is the control. See RedisContactSyncQuotaAdapter.
+  contact-sync:
+    max-new-hashes-per-day: ${CONTACT_SYNC_MAX_NEW_HASHES_PER_DAY:2000}
+
+  # Prekey bundle fetch budget (#749, ADR 0018 §3 rule 2). Each fetch claims one of the target's
+  # one-time prekeys, so an unbounded fetch is a way to drain them. See RedisPreKeyFetchQuotaAdapter.
+  encryption:
+    prekey-fetch:
+      max-per-hour-per-requester: ${PREKEY_FETCH_MAX_PER_HOUR_PER_REQUESTER:60}
+      max-per-day-per-pair: ${PREKEY_FETCH_MAX_PER_DAY_PER_PAIR:10}
+
   sms:
     provider: ${SMS_PROVIDER:mock}     # mock, twilio, twilio-verify, netgsm
     twilio:

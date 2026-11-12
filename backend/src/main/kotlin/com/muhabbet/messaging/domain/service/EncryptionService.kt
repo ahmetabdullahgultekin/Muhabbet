@@ -4,7 +4,10 @@ import com.muhabbet.messaging.domain.model.EncryptionKeyBundle
 import com.muhabbet.messaging.domain.model.OneTimePreKey
 import com.muhabbet.messaging.domain.port.`in`.ManageEncryptionUseCase
 import com.muhabbet.messaging.domain.port.`in`.PreKeyBundle
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
+import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
+import com.muhabbet.messaging.domain.port.out.PreKeyFetchQuotaPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
@@ -15,6 +18,9 @@ import java.util.UUID
 
 open class EncryptionService(
     private val encryptionKeyRepository: EncryptionKeyRepository,
+    private val conversationRepository: ConversationRepository,
+    private val blockPolicy: BlockPolicyPort,
+    private val preKeyFetchQuota: PreKeyFetchQuotaPort,
     private val eventPublisher: ApplicationEventPublisher? = null
 ) : ManageEncryptionUseCase {
 
@@ -56,8 +62,22 @@ open class EncryptionService(
         log.info("Uploaded {} one-time pre-keys for user={}", keys.size, userId)
     }
 
+    /**
+     * The budget is spent first, so probing who one is related to costs the same as a real fetch.
+     * The relationship and block checks share one error code, so a refusal does not reveal which
+     * of the two it was. Only then is the target's bundle looked up — a refused caller learns
+     * nothing about whether the target has published one.
+     */
     @Transactional
-    override fun fetchPreKeyBundle(targetUserId: UUID): PreKeyBundle? {
+    override fun fetchPreKeyBundle(requesterId: UUID, targetUserId: UUID): PreKeyBundle? {
+        if (!preKeyFetchQuota.tryConsume(requesterId, targetUserId)) {
+            throw BusinessException(ErrorCode.ENCRYPTION_KEY_BUNDLE_RATE_LIMITED)
+        }
+        if (requesterId != targetUserId && !mayFetch(requesterId, targetUserId)) {
+            log.warn("Prekey bundle refused: requester={} has no relationship with target={}", requesterId, targetUserId)
+            throw BusinessException(ErrorCode.ENCRYPTION_KEY_BUNDLE_FORBIDDEN)
+        }
+
         val keyBundle = encryptionKeyRepository.getKeyBundle(targetUserId) ?: return null
 
         val oneTimePreKey = encryptionKeyRepository.consumeOneTimePreKey(targetUserId)
@@ -75,4 +95,9 @@ open class EncryptionService(
             oneTimePreKeyId = oneTimePreKey?.keyId
         )
     }
+
+    private fun mayFetch(requesterId: UUID, targetUserId: UUID): Boolean =
+        conversationRepository.sharesConversation(requesterId, targetUserId) &&
+            !blockPolicy.hasBlocked(targetUserId, requesterId) &&
+            !blockPolicy.hasBlocked(requesterId, targetUserId)
 }
