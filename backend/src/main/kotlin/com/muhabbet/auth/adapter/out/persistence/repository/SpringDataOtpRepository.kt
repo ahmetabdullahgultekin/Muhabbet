@@ -70,4 +70,23 @@ interface SpringDataOtpRepository : JpaRepository<OtpRequestJpaEntity, UUID> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OtpRequestJpaEntity o SET o.verified = true WHERE o.id = :id")
     fun markVerified(@Param("id") id: UUID): Int
+
+    /**
+     * Swaps the external-verifier sentinel for a hash of the approved code. Conditional on the
+     * sentinel so a locally generated code's hash can never be replaced.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        UPDATE OtpRequestJpaEntity o
+           SET o.otpHash = :codeHash
+         WHERE o.id = :id
+           AND o.otpHash = :sentinel
+        """
+    )
+    fun recordExternalApproval(
+        @Param("id") id: UUID,
+        @Param("codeHash") codeHash: String,
+        @Param("sentinel") sentinel: String
+    ): Int
 }

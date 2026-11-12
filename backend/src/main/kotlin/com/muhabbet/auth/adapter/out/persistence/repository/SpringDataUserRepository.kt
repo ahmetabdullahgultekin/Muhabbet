@@ -17,7 +17,9 @@ interface SpringDataUserRepository : JpaRepository<UserJpaEntity, UUID> {
     @Query("UPDATE UserJpaEntity u SET u.lastSeenAt = :lastSeenAt WHERE u.id = :userId")
     fun updateLastSeenAt(userId: UUID, lastSeenAt: Instant)
 
-    @Modifying
+    // Cleared afterwards so a re-read after a lost race sees the winner's row, not the stale copy
+    // the caller loaded before the UPDATE.
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
         "UPDATE UserJpaEntity u SET u.birthDate = :birthDate, u.ageAssuranceLevel = :level, " +
             "u.ageAssuredAt = :assuredAt WHERE u.id = :userId AND u.birthDate IS NULL"

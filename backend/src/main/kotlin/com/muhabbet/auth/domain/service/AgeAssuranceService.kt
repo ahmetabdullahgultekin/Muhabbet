@@ -57,9 +57,20 @@ open class AgeAssuranceService(
             level = assured?.level,
             assuredAt = assured?.assuredAt
         )
-        if (!recorded) throw BusinessException(ErrorCode.AUTH_BIRTH_DATE_ALREADY_SET)
+        if (!recorded) return lostRace(userId)
 
         log.info("Birth date declared: userId={}, assured={}", userId, assured != null)
         return result
+    }
+
+    /**
+     * A concurrent declaration got there first, and it is the one that stands. Answer with *its*
+     * outcome: reporting `ALREADY_SET` after an under-age winner would read to the client as
+     * "already assured" and let the device past the gate.
+     */
+    private fun lostRace(userId: UUID): BirthDateDeclaration {
+        val winner = userRepository.findById(userId)
+        if (winner == null || winner.ageVerificationRequired) return BirthDateDeclaration.BelowMinimum
+        throw BusinessException(ErrorCode.AUTH_BIRTH_DATE_ALREADY_SET)
     }
 }

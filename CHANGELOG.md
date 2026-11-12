@@ -14,12 +14,20 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   (#751, ADR 0029 rule 1). Both sign-in paths (backend OTP and Firebase) refuse a new number
   without a date (`AUTH_AGE_REQUIRED`, the code is not spent) or with one under 15
   (`AUTH_AGE_BELOW_MINIMUM`, nothing is created). Accounts from before this change are **not**
-  locked out: their next sign-in reports `ageVerificationRequired` and the app asks for the date
-  once, through `PATCH /api/v1/users/me/birth-date`, which cannot be changed afterwards. V30 adds
+  locked out: `GET /users/me` reports `ageVerificationRequired`, and the app asks for the date on
+  every start until it is answered — including for accounts already signed in when this ships —
+  through `PATCH /api/v1/users/me/birth-date`, which cannot be changed afterwards. V30 adds
   `users.birth_date`, `age_assurance_level` and `age_assured_at`; the date is in the KVKK data
   export. Age is self-declared behind an `AgeAssurancePort`, and nothing claims that this meets the
-  statutory age-verification duty — that is counsel question Q-L3. **Needs a backend deploy before
-  the app that sends the date; an older app cannot create new accounts once the backend is live.**
+  statutory age-verification duty — that is counsel question Q-L3. With Twilio Verify, a code the
+  provider approved is recorded on the OTP row, so resending it with the date (or a two-step PIN)
+  is not refused as `AUTH_OTP_INVALID` after Twilio has consumed the verification.
+- **Rollout order: the mobile release goes to Play first, the backend deploys after it.** The new
+  app only sends a date when the server asks, and an older backend never asks, so app-first is
+  safe; backend-first would leave every copy of the current app unable to create a new account
+  until users update. **V30 must be applied after V28 and V29** (Flyway runs with
+  `outOfOrder=false`): merge and deploy those first, or renumber this migration to the next free
+  version on the integration branch at merge time.
 
 ### Added — Enter sends, and you can say whether it does
 

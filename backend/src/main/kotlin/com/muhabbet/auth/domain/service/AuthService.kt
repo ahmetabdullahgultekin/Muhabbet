@@ -217,15 +217,7 @@ open class AuthService(
             throw BusinessException(ErrorCode.AUTH_OTP_MAX_ATTEMPTS)
         }
 
-        // Must mirror requestOtp's branch exactly. Asking the verifier about a test number would
-        // always fail — it was never told to start one — and comparing a hash for a normal number
-        // would always fail too, since the stored value is the EXTERNALLY_VERIFIED sentinel.
-        val accepted = if (otpVerifier != null && !isTestNumber(phoneNumber)) {
-            otpVerifier.check(phoneNumber, otp)
-        } else {
-            passwordEncoder.matches(otp, activeOtp.otpHash)
-        }
-        if (!accepted) {
+        if (!codeAccepted(activeOtp, otp)) {
             throw BusinessException(ErrorCode.AUTH_OTP_INVALID)
         }
 
@@ -288,6 +280,29 @@ open class AuthService(
         val assuredAge = if (existing == null) assureNewAccountAge(birthDate) else null
 
         return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified", existing, assuredAge)
+    }
+
+    /**
+     * Whether [otp] is the code for [activeOtp].
+     *
+     * The verifier is asked only while the row still holds the [EXTERNALLY_VERIFIED] sentinel. A
+     * test number's row holds a real hash (requestOtp took the local path for it), and so does a
+     * row whose code the verifier has already approved: the approval is recorded as a hash of the
+     * code, because the verifier consumes a verification when it approves it and would answer "no"
+     * to the same code again. That second question is exactly what a client asks after
+     * `AUTH_AGE_REQUIRED` or `AUTH_2FA_PIN_REQUIRED` — it resends the same code with the missing
+     * answer — so without the record every new account on the Twilio path would be refused at its
+     * second step (#751).
+     */
+    private fun codeAccepted(activeOtp: OtpRequest, otp: String): Boolean {
+        if (activeOtp.otpHash != EXTERNALLY_VERIFIED || otpVerifier == null) {
+            return passwordEncoder.matches(otp, activeOtp.otpHash)
+        }
+        val approved = otpVerifier.check(activeOtp.phoneNumber, otp)
+        if (approved) {
+            passwordEncoder.encode(otp)?.let { otpRepository.recordExternalApproval(activeOtp, it) }
+        }
+        return approved
     }
 
     /**

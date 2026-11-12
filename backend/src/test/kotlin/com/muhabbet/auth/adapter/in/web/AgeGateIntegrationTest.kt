@@ -208,4 +208,22 @@ class AgeGateIntegrationTest {
         assertEquals(LocalDate.parse(underFifteen), user.birthDate)
         assertNull(user.ageAssuranceLevel)
     }
+
+    @Test
+    fun `should keep a declared birth date when a stale profile copy is saved after it`() {
+        val phone = "+905000000206"
+        legacyAccount(phone)
+        val token = accessTokenOf(verify(phone, requestCode(phone), null).andExpect(status().isOk))
+        // Read before the declaration commits, as a concurrent profile or privacy write would.
+        val stale = requireNotNull(userRepository.findByPhoneNumber(phone))
+
+        declare(token, ADULT).andExpect(status().isOk)
+        userRepository.save(stale.copy(displayName = "Stale Write"))
+
+        val user = requireNotNull(userRepository.findByPhoneNumber(phone))
+        assertEquals("Stale Write", user.displayName)
+        assertEquals(LocalDate.parse(ADULT), user.birthDate)
+        assertEquals(AgeAssuranceLevel.SELF_DECLARED, user.ageAssuranceLevel)
+        assertNotNull(user.ageAssuredAt)
+    }
 }

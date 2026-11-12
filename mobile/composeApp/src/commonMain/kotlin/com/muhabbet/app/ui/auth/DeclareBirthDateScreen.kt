@@ -22,7 +22,7 @@ import org.koin.compose.koinInject
 /**
  * Asks an account from before the age gate for its date of birth, once (#751).
  *
- * Shown after sign-in when the server reports `ageVerificationRequired`. The account is already
+ * Shown by [AgeVerificationGate] when the server reports `ageVerificationRequired`. The account is already
  * signed in; this declares the date through `PATCH /users/me/birth-date`. A date under the minimum
  * is still sent, so the server records it and a later attempt with another year is refused as well.
  */
@@ -54,7 +54,8 @@ fun DeclareBirthDateScreen(
                 } catch (e: Exception) {
                     Log.w(TAG, "Birth date declaration rejected: $e")
                     if (isAlreadyDeclared(e)) {
-                        // Another device got there first; the account is already assured.
+                        // Another device got there first with an assured date. The server answers
+                        // an under-age winner with BelowMinimum instead, so this cannot open the gate.
                         onDeclared()
                     } else {
                         error = birthDateErrorFor(e, invalidMsg, belowMinimumMsg) ?: genericMsg

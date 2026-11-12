@@ -8,6 +8,7 @@ import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
 import com.muhabbet.auth.domain.port.out.OtpQuotaPort
 import com.muhabbet.auth.domain.port.out.OtpRepository
+import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
@@ -264,5 +265,113 @@ class AgeGateRegistrationTest {
         val result = authService.verifyOtp(phone, code, "Pixel", "android")
 
         assertFalse(result.ageVerificationRequired)
+    }
+
+    // ─── an external verifier is asked once per code ─
+
+    /**
+     * Twilio Verify consumes a verification when it approves it, so the same code checked twice is
+     * "approved" then "not found". The register-then-retry flow sends the same code twice — once
+     * without a date, once with — so the second send must not reach the verifier at all.
+     */
+    @Test
+    fun `should create the account when the retry carrying a birth date follows an external approval`() {
+        givenNoAccount()
+        val rows = InMemoryOtpRepository()
+        val verifier = SingleUseVerifier(code)
+        val service = externalVerifierService(rows, verifier)
+        service.requestOtp(phone)
+
+        val first = assertThrows(BusinessException::class.java) {
+            service.verifyOtp(phone, code, "Pixel", "android")
+        }
+        val result = service.verifyOtp(phone, code, "Pixel", "android", birthDate = LocalDate.of(1990, 5, 1))
+
+        assertEquals(ErrorCode.AUTH_AGE_REQUIRED, first.errorCode)
+        assertTrue(result.isNewUser)
+        assertEquals(1, verifier.checks)
+        // One code entered, one attempt spent: the refused round trip was handed back.
+        assertEquals(1, rows.only().attempts)
+        assertTrue(rows.only().verified)
+    }
+
+    @Test
+    fun `should refuse a different code on the retry when an external approval is on record`() {
+        givenNoAccount()
+        val rows = InMemoryOtpRepository()
+        val verifier = SingleUseVerifier(code)
+        val service = externalVerifierService(rows, verifier)
+        service.requestOtp(phone)
+        assertThrows(BusinessException::class.java) { service.verifyOtp(phone, code, "Pixel", "android") }
+
+        val thrown = assertThrows(BusinessException::class.java) {
+            service.verifyOtp(phone, "999999", "Pixel", "android", birthDate = LocalDate.of(1990, 5, 1))
+        }
+
+        assertEquals(ErrorCode.AUTH_OTP_INVALID, thrown.errorCode)
+        assertEquals(1, verifier.checks)
+    }
+
+    private fun externalVerifierService(rows: OtpRepository, verifier: OtpVerifier) = AuthService(
+        userRepository = userRepository,
+        otpRepository = rows,
+        deviceRepository = deviceRepository,
+        refreshTokenRepository = refreshTokenRepository,
+        phoneHashRepository = phoneHashRepository,
+        otpSender = null,
+        otpVerifier = verifier,
+        jwtProvider = JwtProvider(
+            JwtProperties(
+                secret = "test-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256",
+                accessTokenExpiry = 900,
+                refreshTokenExpiry = 2592000,
+                issuer = "muhabbet-test"
+            ),
+            MockEnvironment()
+        ),
+        passwordEncoder = encoder,
+        otpQuotaPort = mockk<OtpQuotaPort>().also { every { it.tryConsume(any()) } returns true },
+        firebaseTokenVerifier = firebaseVerifier,
+        twoStepAttemptRepository = InMemoryTwoStepAttemptRepository(),
+        ageAssurancePort = SelfDeclarationAssurance(clock)
+    )
+
+    /** Approves [code] once, as Twilio Verify does, and answers "no" to everything after. */
+    private class SingleUseVerifier(private val code: String) : OtpVerifier {
+        var checks = 0
+        private var consumed = false
+        override fun start(phoneNumber: String) = Unit
+        override fun check(phoneNumber: String, code: String): Boolean {
+            checks++
+            if (consumed || code != this.code) return false
+            consumed = true
+            return true
+        }
+    }
+
+    /** Holds the one row a single sign-in touches, with the adapter's conditional semantics. */
+    private class InMemoryOtpRepository : OtpRepository {
+        private var row: OtpRequest? = null
+        fun only(): OtpRequest = checkNotNull(row)
+        override fun save(otpRequest: OtpRequest): OtpRequest = otpRequest.also { row = it }
+        override fun findActiveByPhoneNumber(phoneNumber: String): OtpRequest? =
+            row?.takeIf { it.phoneNumber == phoneNumber && !it.verified }
+        override fun claimAttempt(otpRequest: OtpRequest, maxAttempts: Int): Boolean {
+            val current = only()
+            if (current.attempts >= maxAttempts) return false
+            row = current.copy(attempts = current.attempts + 1)
+            return true
+        }
+        override fun refundAttempt(otpRequest: OtpRequest) {
+            val current = only()
+            if (current.attempts > 0) row = current.copy(attempts = current.attempts - 1)
+        }
+        override fun recordExternalApproval(otpRequest: OtpRequest, codeHash: String) {
+            val current = only()
+            if (current.otpHash == AuthService.EXTERNALLY_VERIFIED) row = current.copy(otpHash = codeHash)
+        }
+        override fun markVerified(otpRequest: OtpRequest) {
+            row = only().copy(verified = true)
+        }
     }
 }

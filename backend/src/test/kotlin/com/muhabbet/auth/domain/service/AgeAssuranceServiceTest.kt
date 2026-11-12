@@ -90,8 +90,15 @@ class AgeAssuranceServiceTest {
     }
 
     @Test
-    fun `should refuse with already set when a concurrent declaration wins the conditional write`() {
-        every { userRepository.findById(userId) } returns undeclared
+    fun `should refuse with already set when a concurrent assured declaration wins the conditional write`() {
+        every { userRepository.findById(userId) } returnsMany listOf(
+            undeclared,
+            undeclared.copy(
+                birthDate = adult,
+                ageAssuranceLevel = AgeAssuranceLevel.SELF_DECLARED,
+                ageAssuredAt = Instant.now()
+            )
+        )
         every { userRepository.recordBirthDate(any(), any(), any(), any()) } returns false
 
         val thrown = assertThrows(BusinessException::class.java) {
@@ -99,6 +106,18 @@ class AgeAssuranceServiceTest {
         }
 
         assertEquals(ErrorCode.AUTH_BIRTH_DATE_ALREADY_SET, thrown.errorCode)
+    }
+
+    @Test
+    fun `should answer below minimum when a concurrent under-age declaration wins the conditional write`() {
+        // The loser declared an adult date, but the winner's under-age row is the one that stands.
+        // ALREADY_SET here would read to the client as "already assured" and open the gate.
+        every { userRepository.findById(userId) } returnsMany listOf(undeclared, undeclared.copy(birthDate = child))
+        every { userRepository.recordBirthDate(any(), any(), any(), any()) } returns false
+
+        val result = service.declareBirthDate(userId, adult)
+
+        assertEquals(BirthDateDeclaration.BelowMinimum, result)
     }
 
     @Test

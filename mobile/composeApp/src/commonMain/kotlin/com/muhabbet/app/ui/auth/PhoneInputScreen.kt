@@ -47,7 +47,7 @@ import org.koin.compose.koinInject
 @Composable
 fun PhoneInputScreen(
     onPhoneSubmitted: (phoneNumber: String, mockCode: String?, firebaseVerificationId: String?) -> Unit,
-    onFirebaseAutoVerified: (isNewUser: Boolean, ageVerificationRequired: Boolean) -> Unit = { _, _ -> },
+    onFirebaseAutoVerified: (isNewUser: Boolean) -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
     // Digits only. The country code is a prefix on the field, not part of the value — seeding the
@@ -89,7 +89,7 @@ fun PhoneInputScreen(
                             platform = getPlatformName(),
                             birthDate = date
                         )
-                        onFirebaseAutoVerified(authResult.isNewUser, authResult.ageVerificationRequired)
+                        onFirebaseAutoVerified(authResult.isNewUser)
                     } catch (e: Exception) {
                         error = birthDateErrorFor(e, birthDateInvalidMsg, belowMinimumMsg) ?: authFailedMsg
                     } finally {
@@ -187,7 +187,7 @@ fun PhoneInputScreen(
                                             deviceName = getDeviceModel(),
                                             platform = getPlatformName()
                                         )
-                                        onFirebaseAutoVerified(authResult.isNewUser, authResult.ageVerificationRequired)
+                                        onFirebaseAutoVerified(authResult.isNewUser)
                                     } catch (e: ApiException) {
                                         // A new number: ask for the date of birth, then resend.
                                         if (!requiresBirthDate(e)) throw e

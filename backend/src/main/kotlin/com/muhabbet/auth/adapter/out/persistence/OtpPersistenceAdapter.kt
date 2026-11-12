@@ -4,6 +4,7 @@ import com.muhabbet.auth.adapter.out.persistence.entity.OtpRequestJpaEntity
 import com.muhabbet.auth.adapter.out.persistence.repository.SpringDataOtpRepository
 import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.port.out.OtpRepository
+import com.muhabbet.auth.domain.service.AuthService
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -45,6 +46,12 @@ class OtpPersistenceAdapter(
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     override fun refundAttempt(otpRequest: OtpRequest) {
         springDataOtpRepository.refundAttempt(otpRequest.id)
+    }
+
+    /** REQUIRES_NEW for the same reason as [refundAttempt]: the caller throws right after. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    override fun recordExternalApproval(otpRequest: OtpRequest, codeHash: String) {
+        springDataOtpRepository.recordExternalApproval(otpRequest.id, codeHash, AuthService.EXTERNALLY_VERIFIED)
     }
 
     override fun markVerified(otpRequest: OtpRequest) {

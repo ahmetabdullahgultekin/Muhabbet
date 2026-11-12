@@ -119,7 +119,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // 401 (#400), and a refusal about age is not a token problem.
     /** A new account was requested without a date of birth. The code is not spent; resend with one. */
     AUTH_AGE_REQUIRED(HttpStatus.BAD_REQUEST, "Doğum tarihi gerekli"),
-    AUTH_AGE_BELOW_MINIMUM(HttpStatus.FORBIDDEN, "Bu hizmet 15 yaşından küçükler için kullanılamaz"),
+    AUTH_AGE_BELOW_MINIMUM(HttpStatus.FORBIDDEN, "Yaş sınırının altında"),
     AUTH_BIRTH_DATE_INVALID(HttpStatus.BAD_REQUEST, "Geçersiz doğum tarihi"),
     /** A date of birth is declared once; it cannot be replaced through the API. */
     AUTH_BIRTH_DATE_ALREADY_SET(HttpStatus.CONFLICT, "Doğum tarihi zaten kayıtlı"),

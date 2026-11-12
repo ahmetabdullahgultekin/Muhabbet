@@ -18,6 +18,7 @@ import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.ui.auth.AgeVerificationGate
 import com.muhabbet.app.ui.notice.shouldShowTestBuildNotice
 import com.muhabbet.app.ui.onboarding.FirstRunSurfaces
 import com.muhabbet.app.ui.settings.AppLockGate
@@ -89,7 +90,8 @@ class RootComponent(
         navigation.replaceAll(Config.Main)
     }
 
-    private fun onLogout() {
+    /** Public for the surfaces drawn over the signed-in app that offer a way out (#751). */
+    fun onLogout() {
         tokenStorage.clear()
         navigation.replaceAll(Config.Auth)
     }
@@ -154,6 +156,14 @@ fun RootContent(root: RootComponent) {
         // as on a relaunch that was already authenticated. FirstRunSurfaces owns the order.
         if (isMain) {
             FirstRunSurfaces(noticePending = root.testBuildNoticePending)
+        }
+
+        // The age question for an account from before the gate (#751). Here rather than in the
+        // auth flow so that it is asked on every session start until answered — a kill between
+        // sign-in and answer, or an account already signed in when the gate shipped, would
+        // otherwise never see it. Over the first-run surfaces, under the lock.
+        if (isMain) {
+            AgeVerificationGate(onSignedOut = root::onLogout)
         }
 
         // Gated on the Main child, same as the surfaces above: there is nothing to protect on the

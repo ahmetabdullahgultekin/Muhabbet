@@ -72,16 +72,19 @@ class UserJpaEntity(
     @Column(name = "is_admin", nullable = false)
     var isAdmin: Boolean = false,
 
-    // Age gate (#751, V30). Round-tripped for the same reason as isAdmin: a profile write that
-    // dropped them would erase a declaration the user can never make again.
-    @Column(name = "birth_date")
+    // Age gate (#751, V30). Insertable but never updatable through the entity: every profile and
+    // privacy write is a merge of a User read earlier, and a copy read before a concurrent
+    // PATCH /birth-date committed would otherwise write these back to NULL — letting the user
+    // declare again, including a different year after an under-age refusal. The only writer after
+    // the INSERT is SpringDataUserRepository.recordBirthDate, a JPQL UPDATE, which ignores this.
+    @Column(name = "birth_date", updatable = false)
     var birthDate: LocalDate? = null,
 
-    @Column(name = "age_assurance_level", length = 32)
+    @Column(name = "age_assurance_level", length = 32, updatable = false)
     @Enumerated(EnumType.STRING)
     var ageAssuranceLevel: AgeAssuranceLevel? = null,
 
-    @Column(name = "age_assured_at")
+    @Column(name = "age_assured_at", updatable = false)
     var ageAssuredAt: Instant? = null
 ) {
     fun toDomain(): User = User(

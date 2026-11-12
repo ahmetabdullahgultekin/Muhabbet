@@ -56,7 +56,7 @@ fun OtpVerifyScreen(
     phoneNumber: String,
     mockCode: String? = null,
     firebaseVerificationId: String? = null,
-    onOtpVerified: (isNewUser: Boolean, ageVerificationRequired: Boolean) -> Unit,
+    onOtpVerified: (isNewUser: Boolean) -> Unit,
     onBack: () -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
@@ -142,7 +142,7 @@ fun OtpVerifyScreen(
                         twoStepPin = pin,
                         birthDate = birthDate
                     )
-                    onOtpVerified(result.isNewUser, result.ageVerificationRequired)
+                    onOtpVerified(result.isNewUser)
                 } else {
                     // Mock/backend OTP: verify directly with backend
                     val result = authRepository.verifyOtp(
@@ -153,7 +153,7 @@ fun OtpVerifyScreen(
                         twoStepPin = pin,
                         birthDate = birthDate
                     )
-                    onOtpVerified(result.isNewUser, result.ageVerificationRequired)
+                    onOtpVerified(result.isNewUser)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "OTP verification rejected: $e")
