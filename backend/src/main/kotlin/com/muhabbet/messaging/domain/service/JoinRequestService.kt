@@ -29,15 +29,7 @@ open class JoinRequestService(
         // A request is the approval half of an invite link, so it needs a live link of this
         // conversation that asks for approval. The link recorded is the one looked up here, never
         // an id taken on trust, because approving a request spends a use of that link.
-        val link = linkId?.let { inviteLinkRepository.findById(it) }
-            ?.takeIf { isApprovalLinkOf(it, conversationId) }
-            ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
-        if (link.expiresAt != null && link.expiresAt.isBefore(Instant.now())) {
-            throw BusinessException(ErrorCode.INVITE_LINK_EXPIRED)
-        }
-        if (link.maxUses != null && link.useCount >= link.maxUses) {
-            throw BusinessException(ErrorCode.INVITE_LINK_MAX_USES)
-        }
+        val link = requireUsableApprovalLink(linkId, conversationId)
 
         // Check not already a member
         val existing = conversationRepository.findMember(conversationId, userId)
@@ -68,6 +60,10 @@ open class JoinRequestService(
         val request = findPendingRequest(conversationId, requestId)
 
         requireAdminOrOwner(request.conversationId, adminId)
+        // The link is checked again here: it may have been revoked, expired or used up since the
+        // request was filed, and approving spends one of its uses. Requests filed before links
+        // were recorded carry none and are left to the admin's judgement.
+        request.inviteLinkId?.let { requireUsableApprovalLink(it, conversationId) }
 
         val updated = request.copy(
             status = JoinRequestStatus.APPROVED,
@@ -112,6 +108,19 @@ open class JoinRequestService(
     override fun getPendingRequests(conversationId: UUID, userId: UUID): List<GroupJoinRequest> {
         requireAdminOrOwner(conversationId, userId)
         return joinRequestRepository.findPendingByConversationId(conversationId)
+    }
+
+    private fun requireUsableApprovalLink(linkId: UUID?, conversationId: UUID): GroupInviteLink {
+        val link = linkId?.let { inviteLinkRepository.findById(it) }
+            ?.takeIf { isApprovalLinkOf(it, conversationId) }
+            ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
+        val refusal = when {
+            link.expiresAt != null && link.expiresAt.isBefore(Instant.now()) -> ErrorCode.INVITE_LINK_EXPIRED
+            link.maxUses != null && link.useCount >= link.maxUses -> ErrorCode.INVITE_LINK_MAX_USES
+            else -> null
+        }
+        if (refusal != null) throw BusinessException(refusal)
+        return link
     }
 
     private fun isApprovalLinkOf(link: GroupInviteLink, conversationId: UUID): Boolean =

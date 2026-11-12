@@ -79,6 +79,35 @@ class GroupControllerTest {
         }
 
         @Test
+        fun `should report an added member offline when they show their online status only to contacts`() {
+            every { manageGroupUseCase.addMembers(groupId, userId, listOf(TestData.USER_ID_2)) } returns
+                listOf(TestData.member(conversationId = groupId, userId = TestData.USER_ID_2))
+            every { presencePort.getOnlineUserIds(any()) } returns setOf(TestData.USER_ID_2)
+            every { userRepository.findById(TestData.USER_ID_2) } returns
+                TestData.user(id = TestData.USER_ID_2).copy(onlineStatusVisibility = "contacts")
+
+            val response = controller.addMembers(
+                groupId, com.muhabbet.shared.dto.AddMembersRequest(listOf(TestData.USER_ID_2.toString()))
+            )
+
+            assert(response.body?.data?.single()?.isOnline == false)
+        }
+
+        @Test
+        fun `should report an added member online when they show their online status to everyone`() {
+            every { manageGroupUseCase.addMembers(groupId, userId, listOf(TestData.USER_ID_2)) } returns
+                listOf(TestData.member(conversationId = groupId, userId = TestData.USER_ID_2))
+            every { presencePort.getOnlineUserIds(any()) } returns setOf(TestData.USER_ID_2)
+            every { userRepository.findById(TestData.USER_ID_2) } returns TestData.user(id = TestData.USER_ID_2)
+
+            val response = controller.addMembers(
+                groupId, com.muhabbet.shared.dto.AddMembersRequest(listOf(TestData.USER_ID_2.toString()))
+            )
+
+            assert(response.body?.data?.single()?.isOnline == true)
+        }
+
+        @Test
         fun `should throw GROUP_PERMISSION_DENIED for non-admin`() {
             every {
                 manageGroupUseCase.addMembers(groupId, userId, any())

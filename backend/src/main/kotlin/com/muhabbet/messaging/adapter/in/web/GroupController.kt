@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.auth.domain.model.PrivacyVisibility
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
@@ -48,6 +49,10 @@ class GroupController(
         val onlineIds = presencePort.getOnlineUserIds(addedMembers.map { it.userId })
         val participants = addedMembers.map { m ->
             val user = userRepository.findById(m.userId)
+            // Adding someone does not make the adder one of their contacts, so only a member who
+            // shows their online status to everyone is reported online here. The chat list applies
+            // the full rule when it next loads.
+            val presenceShown = user?.onlineStatusVisibility?.lowercase() == PrivacyVisibility.EVERYONE
             ParticipantResponse(
                 userId = m.userId.toString(),
                 displayName = user?.displayName,
@@ -56,7 +61,7 @@ class GroupController(
                 phoneNumber = null,
                 avatarUrl = user?.avatarUrl,
                 role = SharedMemberRole.valueOf(m.role.name),
-                isOnline = m.userId in onlineIds
+                isOnline = presenceShown && m.userId in onlineIds
             )
         }
 

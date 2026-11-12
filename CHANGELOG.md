@@ -17,6 +17,10 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   people who run it. New and existing channels are owned by their creator and announcement-only.
 - "Contacts only" privacy settings, stories and presence now count someone as a contact only once
   they have taken part in a shared chat or group, so being put in one is not enough.
+- The online indicator in the chat list, in a new chat and after adding group members follows the
+  person's own last-seen setting, as their profile already did; "nobody" also stops their online
+  and offline updates reaching anyone. Note that joining a group someone created makes the joiner
+  one of that person's contacts for these settings, as it does for phone numbers.
 - A group can no longer be created with someone who has blocked its creator, and a channel can no
   longer be created with other people already in it.
 - Only members can change a chat's disappearing-message timer — only admins in groups and
@@ -24,12 +28,15 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 - Starred messages can only be starred, and are only listed, while the user can still read them.
 - Group events and their replies are visible to group members only.
 - Join requests can only be filed through a live approval link of that group, and only the group's
-  admins can see and decide them.
-- Typing indicators are relayed only for members of the conversation.
+  admins can see and decide them. A request is approved only while its link is still active,
+  unexpired and has uses left.
+- Typing indicators are relayed only for members of the conversation, and not at all from
+  subscribers of a channel or plain members of an admins-only group.
 - Chat wallpapers can only be removed by their owner; channel statistics are visible to channel
   admins, and only subscribers' views are counted.
 - Calls respect blocks, a call can only be answered by the person being called and ended by the
-  people in it, and an unanswered call no longer leaves the callee unreachable.
+  people in it, and an unanswered call no longer leaves the callee unreachable. Two calls can no
+  longer claim the same call at once.
 - Bot API tokens are stored hashed and shown only once, when issued; a bot's details are visible to
   its owner only.
 - Profile and group pictures must be hosted on Muhabbet's own media server.

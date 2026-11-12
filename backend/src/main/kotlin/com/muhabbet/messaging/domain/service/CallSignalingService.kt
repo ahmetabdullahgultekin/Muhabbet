@@ -74,7 +74,7 @@ open class CallSignalingService(
             startedAt = clock.instant()
         )
 
-        activeCalls[callId] = session
+        claimCallId(session)
         userActiveCalls[callerId] = callId
         userActiveCalls[calleeId] = callId
 
@@ -134,6 +134,16 @@ open class CallSignalingService(
         }
     }
 
+    /**
+     * Stores [session] under its id only if no call holds that id yet. Two initiations with the
+     * same id can both pass [requireCallable]; this is the atomic step that lets only one own it.
+     */
+    private fun claimCallId(session: CallSession) {
+        if (activeCalls.putIfAbsent(session.callId, session) != null) {
+            throw BusinessException(ErrorCode.CALL_INVALID_TARGET)
+        }
+    }
+
     private fun requireCallable(callId: String, callerId: UUID, calleeId: UUID) {
         val refused = callerId == calleeId ||
             activeCalls.containsKey(callId) ||
@@ -181,7 +191,7 @@ open class CallSignalingService(
             participantIds = participantIds
         )
 
-        activeCalls[callId] = session
+        claimCallId(session)
         userActiveCalls[callerId] = callId
 
         log.info("Group call initiated: callId={}, caller={}, conv={}, participants={}", callId, callerId, conversationId, participantIds.size)

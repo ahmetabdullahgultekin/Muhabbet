@@ -90,6 +90,27 @@ class CallSignalingAuthorizationTest {
     }
 
     @Test
+    fun `should keep the first call when a second call with the same id passes its checks at the same moment`() {
+        val carol = UUID.randomUUID()
+        val dave = UUID.randomUUID()
+        var interleaved = false
+        // While the first call is being checked, a second one with the same id completes. Both
+        // passed the "id not in use" check, so only the store itself can refuse the second.
+        every { userDirectory.findDisplayInfo(listOf(bob)) } answers {
+            if (!interleaved) {
+                interleaved = true
+                service.initiateCall("c1", carol, dave, CallType.VOICE)
+            }
+            mapOf(bob to UserDisplayInfo(bob, null, null))
+        }
+
+        assertThrows<BusinessException> { service.initiateCall("c1", alice, bob, CallType.VOICE) }
+        assertEquals(carol, service.getCall("c1")?.callerId)
+        assertNull(service.getActiveCallForUser(alice))
+        assertNull(service.getActiveCallForUser(bob))
+    }
+
+    @Test
     fun `should report only the two parties as participants`() {
         service.initiateCall("c1", alice, bob, CallType.VOICE)
 

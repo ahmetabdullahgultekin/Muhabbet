@@ -59,6 +59,7 @@ class ChatWebSocketHandlerTest {
     private lateinit var callFrameHandler: CallFrameHandler
     private lateinit var webSocketRateLimiter: WebSocketRateLimiter
     private lateinit var blockPolicy: com.muhabbet.messaging.domain.port.out.BlockPolicyPort
+    private lateinit var presencePrivacy: com.muhabbet.messaging.domain.port.out.PresencePrivacyPort
     private lateinit var handler: ChatWebSocketHandler
     private lateinit var sessionValidity: CheckSessionValidityUseCase
 
@@ -84,6 +85,8 @@ class ChatWebSocketHandlerTest {
         callFrameHandler = mockk(relaxed = true)
         webSocketRateLimiter = mockk(relaxed = true)
         blockPolicy = mockk(relaxed = true)
+        presencePrivacy = mockk()
+        every { presencePrivacy.hidesPresenceFromEveryone(any()) } returns false
         sessionValidity = mockk()
         every { sessionValidity.isSessionValid(any(), any(), any()) } returns true
 
@@ -105,7 +108,7 @@ class ChatWebSocketHandlerTest {
             // The real collaborator over its mocked ports, not a mock of it: these tests are about
             // which frames reach whom, and a stubbed filter would assert only that the handler
             // called something.
-            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository),
+            presenceVisibility = PresenceVisibility(blockPolicy, conversationRepository, presencePrivacy),
             checkSessionValidityUseCase = sessionValidity
         )
     }
@@ -586,6 +589,57 @@ class ChatWebSocketHandlerTest {
             verify(exactly = 0) { sessionManager.sendToUser(eq(userId), any()) }
         }
 
+        private fun typingFromPlainMemberIn(conversation: Conversation, memberA: UUID, memberB: UUID) {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+            every { conversationRepository.findMembersByConversationId(conversation.id) } returns listOf(
+                ConversationMember(
+                    conversationId = conversation.id,
+                    userId = UUID.randomUUID(),
+                    role = com.muhabbet.messaging.domain.model.MemberRole.OWNER
+                ),
+                ConversationMember(conversationId = conversation.id, userId = userId),
+                ConversationMember(conversationId = conversation.id, userId = memberA),
+                ConversationMember(conversationId = conversation.id, userId = memberB)
+            )
+            every { conversationRepository.findById(conversation.id) } returns conversation
+            every { sessionManager.isOnline(any()) } returns true
+
+            val typing = WsMessage.TypingIndicator(conversationId = conversation.id.toString(), isTyping = true)
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(typing)))
+        }
+
+        @Test
+        fun `should not relay typing from a subscriber when the conversation is a channel`() {
+            val a = UUID.randomUUID()
+            val b = UUID.randomUUID()
+
+            typingFromPlainMemberIn(Conversation(type = ConversationType.CHANNEL), a, b)
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `should not relay typing from a plain member when only admins may post`() {
+            val a = UUID.randomUUID()
+            val b = UUID.randomUUID()
+
+            typingFromPlainMemberIn(Conversation(type = ConversationType.GROUP, announcementOnly = true), a, b)
+
+            verify(exactly = 0) { sessionManager.sendToUser(any(), any()) }
+        }
+
+        @Test
+        fun `should still relay typing from a plain member when the group is open to everyone`() {
+            val a = UUID.randomUUID()
+            val b = UUID.randomUUID()
+
+            typingFromPlainMemberIn(Conversation(type = ConversationType.GROUP), a, b)
+
+            verify(exactly = 1) { sessionManager.sendToUser(a, any()) }
+            verify(exactly = 1) { sessionManager.sendToUser(b, any()) }
+        }
+
         @Test
         fun `should not relay typing when the sender is not a member of the conversation`() {
             val session = createSession()
@@ -862,6 +916,28 @@ class ChatWebSocketHandlerTest {
 
             verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
             verify(exactly = 1) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should tell no contact that this user came online when their last seen setting is nobody`() {
+            every { presencePrivacy.hidesPresenceFromEveryone(userId) } returns true
+
+            handler.afterConnectionEstablished(createSession(generateValidToken()))
+
+            verify(exactly = 0) { sessionManager.sendToUser(blockerId, any()) }
+            verify(exactly = 0) { sessionManager.sendToUser(friendId, any()) }
+        }
+
+        @Test
+        fun `should send no last seen stamp to any contact when their last seen setting is nobody`() {
+            every { presencePrivacy.hidesPresenceFromEveryone(userId) } returns true
+            val session = createSession()
+            every { sessionManager.getUserId(session) } returns userId
+            every { sessionManager.isOnline(userId) } returns false
+
+            handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+
+            verify(exactly = 0) { sessionManager.sendToUser(friendId, any()) }
         }
 
         @Test

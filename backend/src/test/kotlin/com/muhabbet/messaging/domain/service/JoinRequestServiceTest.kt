@@ -40,14 +40,18 @@ class JoinRequestServiceTest {
         conversationId: UUID = groupId,
         requiresApproval: Boolean = true,
         isActive: Boolean = true,
-        expiresAt: Instant? = null
+        expiresAt: Instant? = null,
+        maxUses: Int? = null,
+        useCount: Int = 0
     ) = GroupInviteLink(
         conversationId = conversationId,
         inviteToken = "t",
         createdBy = owner,
         requiresApproval = requiresApproval,
         isActive = isActive,
-        expiresAt = expiresAt
+        expiresAt = expiresAt,
+        maxUses = maxUses,
+        useCount = useCount
     )
 
     @BeforeEach
@@ -163,5 +167,58 @@ class JoinRequestServiceTest {
         service.approveJoin(groupId, pending.id, owner)
 
         verify { conversations.saveMember(match { it.userId == stranger && it.role == MemberRole.MEMBER }) }
+    }
+
+    @Test
+    fun `should refuse to approve when the request's link has been revoked since it was filed`() {
+        val revoked = link(isActive = false)
+        val pending = GroupJoinRequest(conversationId = groupId, userId = stranger, inviteLinkId = revoked.id)
+        every { requests.findById(pending.id) } returns pending
+        every { links.findById(revoked.id) } returns revoked
+
+        val ex = assertThrows<BusinessException> { service.approveJoin(groupId, pending.id, owner) }
+
+        assertEquals(ErrorCode.INVITE_LINK_NOT_FOUND, ex.errorCode)
+        verify(exactly = 0) { conversations.saveMember(any()) }
+        verify(exactly = 0) { links.incrementUseCount(any()) }
+    }
+
+    @Test
+    fun `should refuse to approve when the request's link has expired since it was filed`() {
+        val expired = link(expiresAt = Instant.now().minusSeconds(60))
+        val pending = GroupJoinRequest(conversationId = groupId, userId = stranger, inviteLinkId = expired.id)
+        every { requests.findById(pending.id) } returns pending
+        every { links.findById(expired.id) } returns expired
+
+        val ex = assertThrows<BusinessException> { service.approveJoin(groupId, pending.id, owner) }
+
+        assertEquals(ErrorCode.INVITE_LINK_EXPIRED, ex.errorCode)
+        verify(exactly = 0) { conversations.saveMember(any()) }
+    }
+
+    @Test
+    fun `should refuse to approve when the request's link has no uses left`() {
+        val spent = link(maxUses = 2, useCount = 2)
+        val pending = GroupJoinRequest(conversationId = groupId, userId = stranger, inviteLinkId = spent.id)
+        every { requests.findById(pending.id) } returns pending
+        every { links.findById(spent.id) } returns spent
+
+        val ex = assertThrows<BusinessException> { service.approveJoin(groupId, pending.id, owner) }
+
+        assertEquals(ErrorCode.INVITE_LINK_MAX_USES, ex.errorCode)
+        verify(exactly = 0) { conversations.saveMember(any()) }
+    }
+
+    @Test
+    fun `should approve and spend a use when the request's link is still live`() {
+        val live = link(maxUses = 2, useCount = 1)
+        val pending = GroupJoinRequest(conversationId = groupId, userId = stranger, inviteLinkId = live.id)
+        every { requests.findById(pending.id) } returns pending
+        every { links.findById(live.id) } returns live
+
+        service.approveJoin(groupId, pending.id, owner)
+
+        verify { conversations.saveMember(match { it.userId == stranger }) }
+        verify(exactly = 1) { links.incrementUseCount(live.id) }
     }
 }

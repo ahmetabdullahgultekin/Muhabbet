@@ -1,8 +1,11 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
+import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.PresencePrivacyPort
 import org.springframework.stereotype.Component
 import java.util.UUID
 
@@ -19,7 +22,8 @@ import java.util.UUID
 @Component
 class PresenceVisibility(
     private val blockPolicy: BlockPolicyPort,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val presencePrivacy: PresencePrivacyPort
 ) {
 
     /**
@@ -36,6 +40,30 @@ class PresenceVisibility(
      */
     fun hiddenFromPresenceOf(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> =
         blockPolicy.findBlockedBy(userId, candidateIds) + blockPolicy.findBlockedAmong(userId, candidateIds)
+
+    /**
+     * Which of [contactIds] may be told that [userId] came online or went offline: none at all when
+     * [userId] shows their presence to nobody, otherwise everyone not separated from them by a block.
+     * [contactIds] are already the people [userId] reached out to, which is exactly the audience a
+     * "contacts" setting allows.
+     */
+    fun presenceAudience(userId: UUID, contactIds: Set<UUID>): List<UUID> {
+        if (contactIds.isEmpty() || presencePrivacy.hidesPresenceFromEveryone(userId)) return emptyList()
+        val hidden = hiddenFromPresenceOf(userId, contactIds)
+        return contactIds.filterNot { it in hidden }
+    }
+
+    /**
+     * True when [sender] is a plain member of a channel, or of a group where only admins may post.
+     * Such a member cannot write there, and relaying their typing would show every other
+     * subscriber who else is reading. A one-to-one chat ([memberCount] of two or fewer) never
+     * qualifies, so the ordinary case costs no extra lookup.
+     */
+    fun isSilentReader(sender: ConversationMember, memberCount: Int): Boolean {
+        if (sender.role != MemberRole.MEMBER || memberCount <= DIRECT_CHAT_SIZE) return false
+        val conversation = conversationRepository.findById(sender.conversationId) ?: return true
+        return conversation.type == ConversationType.CHANNEL || conversation.announcementOnly
+    }
 
     /**
      * Which of [recipientIds] must not be told that [userId] is typing in [conversationId].
@@ -64,5 +92,9 @@ class PresenceVisibility(
 
         val isDirect = conversationRepository.findById(conversationId)?.type == ConversationType.DIRECT
         return if (isDirect) setOf(other) else emptySet()
+    }
+
+    private companion object {
+        const val DIRECT_CHAT_SIZE = 2
     }
 }
