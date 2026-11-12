@@ -6,9 +6,15 @@ title = "Muhabbet Gitleaks Config"
 [allowlist]
   description = "Global allowlist"
 
-  # Historical .env.prod — removed from tracking in commit 3925f70
-  paths = [
-    '''\.env\.prod''',
+  # Historical .env.prod (CICD-06). It was committed in 29874bcb (2026-03-16) and untracked in
+  # 3925f708 (2026-03-28) while the repository is PUBLIC, so every value in it is treated as burned.
+  # This allowlist is scoped to the one commit that added it, NOT to the path: a path allowlist would
+  # also silence any future .env.prod commit, which is exactly the leak gitleaks exists to catch.
+  # Rotation status lives in docs/process/security-incident-2026-11-env-prod.md — keep this comment
+  # in step with it ("rotation: PENDING" until the owner records otherwise).
+  # rotation: PENDING (owner action, see incident record)
+  commits = [
+    "29874bcb427090177c9bf738fe1dc2ec9eca3d2e",
   ]
 
   # Allowlist specific commits/fingerprints for false positives
@@ -16,8 +22,9 @@ title = "Muhabbet Gitleaks Config"
   regexes = [
     # GIPHY public beta key — well-known, non-secret
     '''dc6zaTOxFJmzC''',
-    # Placeholder ACCESS_TOKEN in docs
-    '''ACCESS_TOKEN''',
+    # Placeholder ACCESS_TOKEN in docs — anchored so it no longer suppresses any finding that merely
+    # contains the substring (the unanchored form silenced real tokens too).
+    '''^ACCESS_TOKEN$''',
     # Example JWT fragment in API contract docs
     '''bmV3IHJlZnJlc2g\.\.\.''',
     # RFC 6455 WebSocket example key

@@ -45,6 +45,10 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: [self-hosted, linux, x64]
+    # Backstop for CICD-01, not the fix: a fork PR runs workflow files from its own head and can delete
+    # this line. The fix is the repo setting 'Require approval for all outside collaborators' and, structurally,
+    # no PR job on a persistent runner (ADR 0031). See docs/process/security-incident-2026-11-env-prod.md.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     # No `services:` block on purpose.
     #

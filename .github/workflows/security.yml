@@ -44,6 +44,10 @@ jobs:
   dependency-check:
     name: Dependency Scan
     runs-on: [self-hosted, linux, x64]
+    # Backstop for CICD-01, not the fix: a fork PR runs workflow files from its own head and can delete
+    # this line. The fix is the repo setting 'Require approval for all outside collaborators' and, structurally,
+    # no PR job on a persistent runner (ADR 0031). See docs/process/security-incident-2026-11-env-prod.md.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - uses: actions/checkout@v4
@@ -79,7 +83,7 @@ jobs:
           retention-days: 1
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 — pinned after the March 2026 Trivy supply-chain compromise (CICD-05)
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -97,7 +101,10 @@ jobs:
   docker-scan:
     name: Docker Image Scan
     runs-on: [self-hosted, linux, x64]
-    if: github.event_name != 'schedule'
+    # Backstop for CICD-01, not the fix: a fork PR runs workflow files from its own head and can delete
+    # this line. The fix is the repo setting 'Require approval for all outside collaborators' and, structurally,
+    # no PR job on a persistent runner (ADR 0031). See docs/process/security-incident-2026-11-env-prod.md.
+    if: (github.event_name != 'schedule') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
 
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +123,7 @@ jobs:
           cache-from: type=gha
 
       - name: Run Trivy on Docker image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 — pinned after the March 2026 Trivy supply-chain compromise (CICD-05)
         with:
           image-ref: 'muhabbet-backend:scan'
           format: 'sarif'
@@ -133,6 +140,10 @@ jobs:
   secrets-scan:
     name: Secret Detection
     runs-on: [self-hosted, linux, x64]
+    # Backstop for CICD-01, not the fix: a fork PR runs workflow files from its own head and can delete
+    # this line. The fix is the repo setting 'Require approval for all outside collaborators' and, structurally,
+    # no PR job on a persistent runner (ADR 0031). See docs/process/security-incident-2026-11-env-prod.md.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - uses: actions/checkout@v4
@@ -156,7 +167,10 @@ jobs:
   codeql:
     name: CodeQL Analysis
     runs-on: [self-hosted, linux, x64]
-    if: github.event_name != 'schedule'
+    # Backstop for CICD-01, not the fix: a fork PR runs workflow files from its own head and can delete
+    # this line. The fix is the repo setting 'Require approval for all outside collaborators' and, structurally,
+    # no PR job on a persistent runner (ADR 0031). See docs/process/security-incident-2026-11-env-prod.md.
+    if: (github.event_name != 'schedule') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
 
     steps:
       - uses: actions/checkout@v4
