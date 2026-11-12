@@ -1,65 +1,93 @@
 name: Deploy to Hetzner VPS
 
-# Deploy is GATED on a successful "Backend CI" run for the same commit on main.
-# Using workflow_run (instead of a bare push trigger) is the cross-workflow equivalent of
-# `needs: [build-and-test]`: a failing test suite produces a non-"success" conclusion and the
-# deploy job is skipped, so broken code can no longer reach production (P0-18).
+# MANUAL ONLY (F15). Production no longer runs on the Hetzner host this workflow was written for, and
+# the VPS_* secrets were never updated for the move. Until a deploy path for the current production
+# host exists and has been tried by hand, nothing may start this workflow automatically.
+#
+# It used to be triggered by `workflow_run` of "Backend CI" on `main`. Two things were wrong with that:
+#   1. Every green Backend CI on `main` would SSH to the old host and rebuild there, against a stale
+#      .env.prod, while the public health URL (which now resolves to the new host) answered 200 — so
+#      the run reported "deployed successfully" and production was unchanged.
+#   2. The `branches: [main]` filter matches the HEAD branch name of the upstream run, and the job only
+#      checked `conclusion == 'success'`. A pull request from a fork whose branch is called `main`
+#      could therefore start a run holding the deploy secrets (F33/F57).
+# Removing the trigger removes both. If `workflow_run` is ever reintroduced, the job MUST also check
+# `github.event.workflow_run.event == 'push'` and
+# `github.event.workflow_run.head_repository.full_name == github.repository`.
+#
+# The person dispatching it states which machine they mean (`expected_hostname`), and the script
+# refuses to touch anything unless the SSH target reports exactly that hostname and already runs the
+# Muhabbet stack. Health is judged on that machine, from the container itself — never through public
+# DNS, which can point at a different machine than the one just deployed to.
 on:
-  workflow_run:
-    workflows: ["Backend CI"]
-    types:
-      - completed
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      expected_hostname:
+        description: 'Hostname (output of `hostname`) of the machine VPS_HOST must reach. The deploy refuses to run anywhere else.'
+        required: true
+        type: string
 
-# Queue, never cancel. `cancel-in-progress: true` cost a whole release on 2026-08-17 and left no
-# failure behind to notice:
-#
-#   14:19  workflow_dispatch  starts deploying 0.3.6
-#   14:20  Backend CI on main finishes (it had failed, on #563's 429) and fires `workflow_run`
-#          -> that run enters this group and CANCELS the deploy that is halfway through
-#   14:20  the new run's `if:` sees conclusion != 'success' -> SKIPPED
-#
-# Net: nothing deployed, and neither run reported a failure — one "cancelled", one "skipped".
-# Production sat on the previous build while `/actuator/health` answered 200, which is exactly the
-# trap CLAUDE.md warns about: a healthy container is not evidence that your code is on it.
-#
-# GitHub evaluates concurrency BEFORE the job-level `if:`, so a run that is about to be skipped can
-# still cancel a running one. That makes `cancel-in-progress` unusable here regardless of the gate.
-# Queuing is also simply the right behaviour for a deploy: killing one mid-flight can leave a
-# half-built image or a stopped container, which cancelling a test run never does.
+# Queue, never cancel. Killing a deploy mid-flight can leave a half-built image or a stopped container.
 concurrency:
   group: deploy-muhabbet
   cancel-in-progress: false
+
+# Nothing here uses the GITHUB_TOKEN: the job checks nothing out and calls no API.
+permissions: {}
 
 jobs:
   deploy:
     name: Deploy Muhabbet
     runs-on: [self-hosted, linux, x64]
     environment: production
-    # Only deploy when the upstream CI run succeeded (or on a manual dispatch).
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+    # Only from main. A dispatch on any other ref is skipped.
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 20
     steps:
+      - name: Validate the requested host name
+        env:
+          EXPECTED_HOSTNAME: ${{ inputs.expected_hostname }}
+        run: |
+          if ! printf '%s' "$EXPECTED_HOSTNAME" | grep -qE '^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$'; then
+            echo "::error::expected_hostname must be a plain host name."
+            exit 1
+          fi
+
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        # The health window below can now take 240s on its own, on top of a Gradle build. The old
-        # 8m/6m pair left no room for it: the ssh action would be killed mid-loop and the run would
-        # fail with "Run Command Timeout" rather than a health verdict.
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        # The health window below can take 240s on its own, on top of a Gradle build.
         timeout-minutes: 15
+        env:
+          EXPECTED_HOSTNAME: ${{ inputs.expected_hostname }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: EXPECTED_HOSTNAME
           command_timeout: 12m
           script: |
-            set -e
+            set -eu
+
+            # ── Is this the machine we were asked to deploy to? ─────────────────────────────────
+            ACTUAL_HOSTNAME="$(hostname)"
+            if [ "$ACTUAL_HOSTNAME" != "$EXPECTED_HOSTNAME" ]; then
+              echo "REFUSING: the SSH target is '$ACTUAL_HOSTNAME', not '$EXPECTED_HOSTNAME'. VPS_HOST points at the wrong machine. Nothing was changed."
+              exit 1
+            fi
+            if [ ! -f /opt/projects/Muhabbet/docker-compose.prod.yml ] || [ ! -x /opt/projects/infra/deploy.sh ]; then
+              echo "REFUSING: $ACTUAL_HOSTNAME has no /opt/projects/Muhabbet/docker-compose.prod.yml or /opt/projects/infra/deploy.sh. Nothing was changed."
+              exit 1
+            fi
+            if ! docker inspect muhabbet-backend >/dev/null 2>&1; then
+              echo "REFUSING: no muhabbet-backend container on $ACTUAL_HOSTNAME, so it is not running production. Nothing was changed."
+              exit 1
+            fi
+
             cd /opt/projects/Muhabbet
             git pull origin main
 
-            # Capture the currently-running backend image's immutable ID + the compose repo:tag it
-            # is referenced by, so we can roll back even after `build` reassigns :latest.
+            # Capture the running image's immutable ID and the repo:tag it is referenced by, so we can
+            # roll back even after `build` reassigns :latest. IDs and image names only — no config.
             PREV_IMAGE_ID="$(docker inspect --format '{{.Image}}' muhabbet-backend 2>/dev/null || true)"
             PREV_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' muhabbet-backend 2>/dev/null || true)"
             echo "Previous backend image: ref=${PREV_IMAGE_REF:-<none>} id=${PREV_IMAGE_ID:-<none>}"
@@ -68,66 +96,59 @@ jobs:
             ./infra/deploy.sh build muhabbet
             ./infra/deploy.sh restart muhabbet
 
-            # Health check with retries. The old window was 5 x 15s = 75s, and every deploy failed
-            # it while the service came up healthy moments later — so the pipeline reported failure
-            # on success and triggered the rollback below on a good deployment. 75s does not cover
-            # a Spring Boot 4 boot plus Flyway plus Traefik noticing the new container.
-            #
-            # The container's own health state is checked first because it is local and immediate;
-            # the public URL additionally depends on Traefik picking up the route, so a pass there
-            # is the stronger signal but a slower one.
+            # ── Health, judged on this machine ──────────────────────────────────────────────────
+            # Two conditions, both required:
+            #   - the container that is running uses the image that was just built (a healthy OLD
+            #     container is not a successful deploy), and
+            #   - Docker reports that container healthy (compose healthcheck: /actuator/health inside
+            #     the container).
+            # The public URL is deliberately not consulted: it is served by whichever machine DNS
+            # points at, which is exactly how this workflow once reported success for a deploy that
+            # never reached production. Anything that cannot be determined counts as unhealthy.
+            NEW_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' muhabbet-backend 2>/dev/null || true)"
+            EXPECTED_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "${NEW_IMAGE_REF:-none}" 2>/dev/null || true)"
             HEALTHY=0
             for i in $(seq 1 24); do
               sleep 10
-              if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
-                echo "API healthy after ${i}0s"
+              RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' muhabbet-backend 2>/dev/null || echo none)"
+              STATE="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' muhabbet-backend 2>/dev/null || echo unknown)"
+              if [ -n "$EXPECTED_IMAGE_ID" ] && [ "$RUNNING_IMAGE_ID" = "$EXPECTED_IMAGE_ID" ] && [ "$STATE" = "healthy" ]; then
+                echo "muhabbet-backend healthy on $ACTUAL_HOSTNAME after ${i}0s, running the new image."
                 HEALTHY=1
                 break
               fi
-              STATE="$(docker inspect --format '{{.State.Health.Status}}' muhabbet-backend 2>/dev/null || echo unknown)"
-              echo "Attempt $i: API not ready yet (container health: $STATE)"
+              echo "Attempt $i: container health=$STATE, running the new image: $([ "$RUNNING_IMAGE_ID" = "$EXPECTED_IMAGE_ID" ] && echo yes || echo no)"
             done
 
             if [ "$HEALTHY" != "1" ]; then
-              echo "Health check FAILED after 240s. Container state and last 50 log lines:"
+              # Container status only. The container log is NOT printed: this repository's Actions
+              # logs are public, and the backend log can hold one-time codes and request details.
+              # Read it on the host with `docker logs --tail 50 muhabbet-backend`.
+              echo "Health check FAILED after 240s on $ACTUAL_HOSTNAME."
               docker ps --filter name=muhabbet-backend --format '{{.Names}} {{.Status}}' || true
-              docker logs --tail 50 muhabbet-backend 2>&1 || true
 
               echo "Attempting rollback to previous backend image."
               if [ -n "$PREV_IMAGE_ID" ] && [ -n "$PREV_IMAGE_REF" ]; then
-                # Re-point the compose repo:tag at the known-good image ID, then restart without rebuilding.
-                #
-                # This used to run against /opt/projects/Muhabbet/infra, which is the LEGACY nginx
-                # stack: a different compose file with its own postgres/redis/minio, no Traefik
-                # labels, no .env.prod and no service called "backend". It could not have worked,
-                # and its failing is the only reason a healthy deployment survived the bad health
-                # check above. The stack that actually runs is the repo-root compose file, with
-                # .env.prod alongside it and the service named muhabbet-backend.
-                # `|| true` on the tag as well as the restart. `set -e` is active, so a failing
-                # `docker tag` — a pruned image ID, a digest-pinned ref — would abort the script
-                # here, before the "Deploy failed health check" line and before the loop below
-                # says whether production came back. The run would still be red, but it would be
-                # red with no statement of whether the rollback worked, which is the one thing
-                # the operator needs at 3am.
+                # The stack that runs is the repo-root compose file, with .env.prod alongside it and
+                # the service named muhabbet-backend. `|| true` so a failing step still reaches the
+                # verdict below rather than aborting under `set -e` with no statement either way.
                 docker tag "$PREV_IMAGE_ID" "$PREV_IMAGE_REF" || true
                 cd /opt/projects/Muhabbet
                 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-build muhabbet-backend || true
                 ROLLED_BACK=0
                 for i in 1 2 3 4 5 6; do
                   sleep 10
-                  if curl -sf https://muhabbet-api.rollingcatsoftware.com/actuator/health > /dev/null 2>&1; then
+                  RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' muhabbet-backend 2>/dev/null || echo none)"
+                  STATE="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' muhabbet-backend 2>/dev/null || echo unknown)"
+                  if [ "$RUNNING_IMAGE_ID" = "$PREV_IMAGE_ID" ] && [ "$STATE" = "healthy" ]; then
                     echo "Rollback to previous image is healthy. Production is on the PREVIOUS build."
                     ROLLED_BACK=1
                     break
                   fi
                 done
-                # The old loop simply ended when it ran out of attempts, so a rollback that never
-                # recovered read exactly like one that did: no line either way. A silent safety net
-                # is the same failure mode as the wrong-stack rollback this issue is about.
                 if [ "$ROLLED_BACK" != "1" ]; then
                   echo "ROLLBACK ALSO FAILED after 60s — production is DOWN. Manual intervention required now."
                   docker ps --filter name=muhabbet-backend --format '{{.Names}} {{.Status}}' || true
-                  docker logs --tail 50 muhabbet-backend 2>&1 || true
                 fi
               else
                 echo "No previous image captured — cannot auto-roll back. Manual intervention required."
@@ -136,4 +157,4 @@ jobs:
               exit 1
             fi
 
-            echo "Muhabbet deployed successfully"
+            echo "Muhabbet deployed successfully to $ACTUAL_HOSTNAME"

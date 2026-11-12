@@ -3,6 +3,31 @@
 
 title = "Muhabbet Gitleaks Config"
 
+# Keep gitleaks' built-in rules. A config file that defines no rules and does not extend the defaults
+# REPLACES them with nothing: until this block was added, gitleaks loaded this file, ran zero rules and
+# reported "no leaks found" on every scan. Verified with gitleaks 8.24.3 against a synthetic
+# provider-format key: no finding with the old file, a finding without it.
+[extend]
+  useDefault = true
+
+# Generic credentials. Provider-pattern scanning (GitHub's and gitleaks' defaults) looks for
+# recognisable token formats. A database or object-store password is just a random string, so neither
+# notices one committed as `SOMETHING_PASSWORD=...`. This rule flags a *_PASSWORD or *_SECRET name
+# assigned a literal, high-entropy value in ANY file, documentation included. A reference such as
+# ${DB_PASSWORD} or ${{ secrets.X }} is not a literal and does not match.
+[[rules]]
+  id = "muhabbet-generic-password-assignment"
+  description = "A *_PASSWORD or *_SECRET name assigned a literal value"
+  # Upper-case names only: the environment-variable and compose style in which these leaks have
+  # actually been committed. Matching case-insensitively flags every `passwordEncoder = ...` in Kotlin.
+  regex = '''\b[A-Z0-9_]*(?:PASSWORD|SECRET)[A-Z0-9_]*["']?[ \t]*[=:][ \t]*["']?([^\s"'$<>{}]{12,})'''
+  secretGroup = 1
+  entropy = 3.5
+  keywords = ["password", "secret"]
+  [rules.allowlist]
+    # Obvious placeholders in examples and dev defaults.
+    stopwords = ["change", "example", "placeholder", "your", "dummy", "minioadmin"]
+
 [allowlist]
   description = "Global allowlist"
 
@@ -29,4 +54,12 @@ title = "Muhabbet Gitleaks Config"
     '''bmV3IHJlZnJlc2g\.\.\.''',
     # RFC 6455 WebSocket example key
     '''dGhlIHNhbXBsZSBub25jZQ==''',
+    # Test fixtures: the JWT signing secret the test suite configures, and a fixed invite token.
+    '''test-secret-''',
+    '''7wDcQmVUmvvcJmBLtSPu3xX2Bd0Cq1Yb1kQ9dfNfR8k''',
+    '''GK0123456789abcdef01234567''',
+    # The README's curl example with the literal placeholder (the match is the whole command).
+    '''Bearer ACCESS_TOKEN"''',
+    # Prose in the multi-transport design, matched by the generic key rule.
+    '''relay/custody''',
   ]

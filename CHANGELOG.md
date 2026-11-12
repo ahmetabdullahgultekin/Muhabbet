@@ -8,6 +8,22 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — the build pipeline runs only code it has been told to run
+
+- **Every GitHub Action is pinned to a full commit SHA**, with its version in a comment, so a moved
+  tag or branch upstream can no longer change what runs in CI (F14, F35).
+- **The deploy workflow no longer starts on its own.** It is manual-only, refuses to run unless the
+  target machine reports the host name given at dispatch, and judges health from the container on
+  that machine instead of a public URL that could be served by a different one (F15, F33, F57).
+- **Dependency updates are no longer merged automatically**; a person merges every one (F16, F24).
+- **The secret scanner actually scans, and scans everywhere.** Its configuration had replaced
+  gitleaks' built-in rules with none, so it reported nothing; it now keeps the defaults, adds a rule
+  for literal `*_PASSWORD`/`*_SECRET` assignments, and runs on every branch, every pull request and,
+  weekly, the full history (F25, F49).
+- **Least-privilege `permissions:` on every workflow**, secrets passed only through `env:`, the
+  debug keystore kept in the job's temporary directory, and no step that lists files from outside
+  the workspace in the public log (F17, F18).
+
 ### Fixed — ticks, scheduled messages and retries tell the truth
 
 - **Read receipts can no longer be forged, and ticks no longer go backwards** (#299). A delivery
