@@ -1,6 +1,6 @@
 # ADR 0027 — Rejected-transports record
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). This ADR authorises no code; on acceptance it forbids the items below until a new ADR reopens them · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0027; §1.2; §12 (feature disposition table)](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on the verified fact-checks in the [findings register](../reviews/2026-11-12-findings-register.md). Referenced by ADR-0015, ADR-0023, ADR-0024, ADR-0025, ADR-0026.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. This ADR authorises no code; on acceptance it forbids the items below until a new ADR reopens them · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0027; §1.2; §12 (feature disposition table)](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on the verified fact-checks in the [findings register](../reviews/2026-11-12-findings-register.md). Referenced by ADR-0015, ADR-0023, ADR-0024, ADR-0025, ADR-0026.
 
 ## Context
 

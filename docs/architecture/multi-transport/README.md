@@ -1,15 +1,18 @@
 # Multi-transport delivery — design package
 
-> **Status: Proposed — pending owner approval.** Nothing in this package is accepted until the owner
-> records it in [`APPROVAL.md`](APPROVAL.md). No code may be written, and no GitHub restructuring or
-> hooks applied, for any scope until approval for that scope is recorded there (owner decisions 3
-> and 4).
+> **Status: Approved by delegated owner review (2026-11-12), with amendments.** The owner delegated
+> the review and approval ("Kendin hepsini bağımsız review et ve onayla ve devam") and took decisions
+> D1–D6; the review, verdicts and scope outcomes are recorded in
+> [`docs/reviews/2026-11-12-design-approval-review.md`](../../reviews/2026-11-12-design-approval-review.md).
+> The binding per-scope gate is still [`APPROVAL.md`](APPROVAL.md), which only the owner edits (G3,
+> accepted under D6): no code may be written, and no GitHub restructuring or hooks applied, for a
+> scope until its block there reads `Status: Approved` (owner decisions 3 and 4).
 
 | | |
 |---|---|
 | **Date** | 2026-11-12 |
 | **Base** | `dev` @ 2434324, branch `claude/muhabbet-p2p-architecture-wdan5r` |
-| **Single source of truth** | [`decision-brief-2026-11-12.md`](decision-brief-2026-11-12.md). Every document here must agree with it; a disagreement is a defect in the derived document, recorded as a `> **Reviewer note (open):**` callout until the owner resolves it. |
+| **Single source of truth** | [`decision-brief-2026-11-12.md`](decision-brief-2026-11-12.md). Every document here must agree with it; a disagreement is a defect in the derived document, recorded as a reviewer-note callout until resolved; resolved notes become plain notes citing the decision (D1–D6 or the 2026-11-12 errata, brief §18), and unresolved ones become open items in [`open-items.md`](open-items.md). |
 | **Evidence** | [`docs/reviews/2026-11-12-findings-register.md`](../../reviews/2026-11-12-findings-register.md) — 211 verified findings (IDs such as `BE-06`, `MOB-03`, `CICD-01`, `PROX-02`) |
 
 ## What this package decides, in one paragraph
@@ -39,7 +42,7 @@ is not re-litigated (ADR-0027).
 | 8 | [`data-model.md`](data-model.md) | Flyway V28–V36 and the mobile SQLDelight SSOT schema | Implementers |
 | 9 | [`transport-capability-matrix.md`](transport-capability-matrix.md) | Every path scope and adapter; the data source for `PathPolicy` rules | Owner, implementers |
 | 10 | [`roadmap.md`](roadmap.md) | Phase 0 → 1.4 with entry/exit criteria and kill criteria | Owner |
-| 11 | [`vv-plan.md`](vv-plan.md) | Requirement traceability (RQ-01…RQ-20 from brief §16.1 plus derived RQ-21…RQ-90), simulated-transport harness, owner-only verification | Owner, implementers |
+| 11 | [`vv-plan.md`](vv-plan.md) | Requirement traceability (RQ-01…RQ-20 from brief §16.1 plus derived RQ-21…RQ-94), simulated-transport harness, owner-only verification | Owner, implementers |
 | 12 | [`risk-register.md`](risk-register.md) | R1–R22 from brief §15 plus R23–R43, living | Owner |
 | 13 | [`APPROVAL.md`](APPROVAL.md) | Where the owner approves each scope; read by the design-gate hook (ADR-0033) | Owner, agents, hook |
 
@@ -64,26 +67,31 @@ Existing documents this package amends **after** approval (not before): `docs/AR
 
 ## Status of each document
 
-All documents are **Proposed** and carry the pending-approval status line. "Gated" means the
-document may be approved as a design, but its milestone cannot start until its admission gate
-(brief §13) is met.
+Status as set by the delegated review of 2026-11-12 ([record](../../reviews/2026-11-12-design-approval-review.md)).
+"Gated" means the document is approved as a design, or kept Proposed, but its milestone cannot start
+until its admission gate (brief §13) is met. "Accepted (delegated)" never opens code by itself: code
+needs the scope's `Status: Approved` line in `APPROVAL.md`.
 
 | Document | Status | Gate |
 |---|---|---|
-| Decision brief | Proposed | Phase 0 owner review |
-| `sad.md` | Proposed | — |
-| ADR-0010 … ADR-0014, ADR-0016, ADR-0017, ADR-0019 … ADR-0021, ADR-0027 … ADR-0029 | Proposed | — |
-| ADR-0015 | Proposed (gated: `PathPolicy` built at 1.2) | G-PROXIMITY (1.2) |
-| ADR-0018 | Proposed (items 4–5 gated, 1.2) | G-PROXIMITY (1.2) |
-| ADR-0022 | Proposed (plane C + UplinkBundle gated, 1.2/1.3) | G-PROXIMITY (1.2); 1.3 entry |
-| ADR-0023 | Proposed (1.1 part gated) | 0.7 telemetry |
-| ADR-0024, ADR-0025, ADR-0026 | Proposed (gated) | G-PROXIMITY (1.2); 1.3 entry; 1.4 counsel opinion |
-| ADR-0030 … ADR-0033 | Proposed (process) | Applied only after approval (owner decision 3) |
-| `threat-model.md`, `dpia-screening.md` | Proposed | Gating deliverables for 0.5 wire changes, 1.0, 1.2, 1.3 |
-| `icd-wire-protocol.md`, `delivery-engine-spec.md`, `data-model.md` | Proposed | Per milestone |
-| `transport-capability-matrix.md` | Proposed | Device-dependent rows remain "unmeasured" until the owner observes them (P13) |
-| `roadmap.md`, `vv-plan.md`, `risk-register.md` | Proposed | Living after approval |
-| `APPROVAL.md` | Template; every scope **Pending** | Owner edits only |
+| Decision brief | Approved (delegated, 2026-11-12) with D1–D6 and errata §18 | — |
+| `sad.md` | Approved (delegated, 2026-11-12) | — |
+| ADR-0010 … ADR-0014, ADR-0016, ADR-0019 … ADR-0021, ADR-0027 … ADR-0029 | Accepted (2026-11-12, delegated); 0021 amended by D3, 0028 amended | Code per scope in `APPROVAL.md` |
+| ADR-0017 | Accepted with D1 (licence step deferred to 1.0 entry, after counsel Q-L7) | 1.0 entry |
+| ADR-0015 | Accepted (delegated); `PathPolicy` built only at 1.2 | G-PROXIMITY (1.2) |
+| ADR-0018 | Accepted (delegated); items 4–5 gated, 1.2 | G-PROXIMITY (1.2) |
+| ADR-0022 | Accepted (delegated); plane C + UplinkBundle gated, 1.2/1.3 | G-PROXIMITY (1.2); 1.3 entry |
+| ADR-0023 | Accepted (delegated) for 0.7 except the ADR 0009 hosting/budget choice (owner, Q-O8); 1.1 part gated | Q-O8; 0.7 telemetry |
+| ADR-0024, ADR-0025, ADR-0026 | Proposed (gated) — confirmed by the delegated review, not accepted | G-PROXIMITY (1.2); 1.3 entry; 1.4 counsel opinion |
+| ADR-0030 … ADR-0033 | Accepted (delegated; process, amended) | Applied only after scope `process` reads Approved in `APPROVAL.md` (owner decision 3) |
+| `threat-model.md`, `dpia-screening.md` | Approved (delegated) | Gating deliverables for 0.4 age gate (DT-7), 0.5 wire changes, 1.0, 1.2, 1.3 |
+| `icd-wire-protocol.md`, `delivery-engine-spec.md`, `data-model.md` | Approved (delegated) | Per milestone |
+| `transport-capability-matrix.md` | Approved (delegated) | Device-dependent rows remain "unmeasured" until the owner observes them (P13) |
+| `roadmap.md`, `vv-plan.md`, `risk-register.md` | Approved (delegated); living | — |
+| ADR-003 | Superseded by ADR-0016 (ADR-0017 related) | — |
+| ADR 0008 | Amended by ADR-0021 | — |
+| `APPROVAL.md` | Template; still reads **Pending** until the owner transcribes the 2026-11-12 delegated approval (phase-0, `process`, 0.4 Approved; 0.5–0.7 and 1.0 Deferred with a pre-approval condition; 1.1–1.4 Pending). Paste-ready text: [`open-items.md` §2](open-items.md#2-paste-ready-text-for-approvalmd-oi-46) | Owner edits only (G3) |
+| [`open-items.md`](open-items.md) | Living | The single source of truth for every item the delegated review left open (owner, counsel, milestone) |
 
 ## ADR index
 
@@ -98,11 +106,11 @@ Product ADRs (P14: 1.1+ product ADRs remain *Proposed (gated)* until their spike
 | [0014](../../adr/0014-ordering-seq-change-feed.md) | Ordering | Per-conversation `seq` + `change_seq` and a pull-by-seq change feed; client `CausalHeader` inside E2E; no HLC authority, no Merkle-DAG. | 0.4 / 0.5 |
 | [0015](../../adr/0015-path-scopes-and-policy.md) | Path scopes and policy | Paths classified by scope, not medium; rule chain (Admission, CloudPersistence, Preference) instead of a fitness score. *Proposed (gated: `PathPolicy` built at 1.2)*. | 1.2 |
 | [0016](../../adr/0016-e2e-fail-closed-type-gate.md) | E2E fail-closed type gate | Non-server ports accept only `SealedFrame` (internal constructor); plaintext fallback deleted; test fakes kept off release classpaths; supersedes ADR-003. | 0.5 / 1.0 |
-| [0017](../../adr/0017-e2e-library-and-licence.md) | E2E library and licence | libsignal at the platform edge; `mobile/` relicensed AGPL-3.0-or-later, `shared/` and `backend/` stay MIT; blocked on owner approval, contributor audit and counsel; Android-only 1.0 if the iOS bridge is not ready. | 1.0 |
+| [0017](../../adr/0017-e2e-library-and-licence.md) | E2E library and licence | libsignal at the platform edge; licence decided after counsel Q-L7 — `mobile/` stays MIT until 1.0 entry (D1), `shared/` and `backend/` stay MIT; Android-only 1.0 if KMP-01 is not fixed at the 0.6 gate (D2). | 1.0 |
 | [0018](../../adr/0018-identity-keys-device-certificates.md) | Identity, keys, certificates | Per-device keys with atomic prekey claim and no silent replacement; separate signed link key; 7-day device certificates under an offline root, built with their first consumer at 1.2. *Proposed (items 4–5 gated, 1.2)*. | 0.4 / 0.6 / 1.2 |
 | [0019](../../adr/0019-wake-only-push-and-server-plaintext.md) | Wake-only push | Data-only push from 0.5; no server plaintext, search, previews or media reads for E2E conversations at 1.0; receipts stay server-visible so #377 holds. | 0.5 / 1.0 |
 | [0020](../../adr/0020-data-at-rest-and-erasure.md) | Data at rest and erasure | SQLCipher from 0.5 via a fresh DB and resync from the server; `SessionTeardown` is ordered crypto-erase. | 0.4 / 0.5 |
-| [0021](../../adr/0021-adr0008-amendment-storage-modes-e2e.md) | Amendment to ADR 0008 | One cursor model in every era; mailbox as a projection; CLOUD/BYO/LOCAL_ONLY redefined for E2E; plaintext-history cutover is the owner's call (Q-O4). | 1.0 |
+| [0021](../../adr/0021-adr0008-amendment-storage-modes-e2e.md) | Amendment to ADR 0008 | One cursor model in every era; mailbox as a projection; CLOUD/BYO/LOCAL_ONLY redefined for E2E; plaintext-history cutover per D3 (download → notified 30-day grace → server deletion of content, media and backups; opt-in user-keyed backup). | 1.0 |
 | [0022](../../adr/0022-wire-protocol-envelope.md) | Wire protocol | JSON control plane with `hello`/`welcome` and `Unknown`; protobuf inner `Content`; AEAD-authenticated outer `TransportFrame` with random ids and padding. *Proposed (plane C + UplinkBundle gated, 1.2/1.3)*. | 0.4 / 0.5 / 1.0 / 1.2 |
 | [0023](../../adr/0023-internet-direct-ice-turn.md) | Internet-direct | WebRTC ICE plus our own TURN for live sessions only (LiveKit at 0.7, P2P 1:1 at 1.1); relay-only for non-contacts; no messaging over data channels. | 0.7 / 1.1 |
 | [0024](../../adr/0024-proximity-lan-and-nearby.md) | Proximity | Build `LanLink`, buy Nearby Connections; foreground Nearby mode; verified 1:1 E2E only; rotating tags. *Proposed (gated)*. | 1.2 |
@@ -116,7 +124,7 @@ Process ADRs (kept separate from product, P14):
 
 | ADR | Title | One-line summary |
 |---|---|---|
-| [0030](../../adr/0030-trunk-and-release-flow.md) | Trunk and release flow | Merge `dev` into `main` once and delete `dev`; squash-only; ruleset with required checks; build once, launch on `emulator-5554`, promote the same artefact; deploy by artefact. |
+| [0030](../../adr/0030-trunk-and-release-flow.md) | Trunk and release flow | Merge `dev` into `main` once and delete `dev`; squash-only; two rulesets (`main-checks` with no bypass, `main-review`), required checks added once PR CI runs off cx43; build once, launch on `emulator-5554`, promote the same artefact; deploy by artefact. |
 | [0031](../../adr/0031-ci-trust-boundary.md) | CI trust boundary | No PR job on the production host; `muhabbet-mordecai` resolved; signing in a protected `release` environment; SHA-pinned actions; rotate every `.env.prod` value; no long-lived key before this is in force. |
 | [0032](../../adr/0032-agent-identity-verification-gate.md) | Agent identity and verification gate | Agents act under their own GitHub identity; the owner approves agent PRs; device criteria record "observed by / where" and only the owner ticks them. |
 | [0033](../../adr/0033-claude-code-hooks.md) | Claude Code hooks | A `PreToolUse` design gate that blocks agent edits outside docs/governance paths until `APPROVAL.md` approves the scope, plus a cloud-only `SessionStart` environment bootstrap. |
@@ -126,30 +134,36 @@ Existing ADRs affected: [003](../../adr/003-defer-e2e-encryption.md) superseded 
 [0008](../../adr/0008-per-conversation-storage-mode.md) amended by 0021;
 [0009](../../adr/0009-call-media-infrastructure.md) unchanged, 0023 builds on it.
 
-> **Reviewer note (open):** the brief refers twice to a '§17 doc plan' (ADR-0015 consequences; §4.1),
-> but §17 is 'Open questions'. File names follow the authoring workflow's plan, and every link was
-> verified to resolve on 2026-11-12. The brief should replace '§17 doc plan' with 'README.md package
-> index'.
+> **Resolved (2026-11-12):** brief erratum E-06 replaces "§17 doc plan" with "README.md package index"
+> (ADR-0015 Consequences and §4.1).
 
 ## How approval works
 
 1. **The owner reads** the brief, then this package, and answers the open owner questions Q-O1…Q-O11
    (brief §17) that the scope being approved depends on.
 2. **ADR disposition.** For each ADR the owner records *Accepted*, *Amended* (with the amendment) or
-   *Rejected* in the ADR disposition table of [`APPROVAL.md`](APPROVAL.md). ADR files are then
-   updated to match; their status line changes only after the disposition is recorded.
+   *Rejected* in the ADR disposition table of [`APPROVAL.md`](APPROVAL.md). On 2026-11-12 the
+   delegated review recorded the dispositions in
+   [its record](../../reviews/2026-11-12-design-approval-review.md) and the ADR status lines were set
+   to match ("Accepted (2026-11-12, delegated)"); the owner transcribes them into `APPROVAL.md` §3.
+   If the owner does not ratify a disposition, the ADR's status line reverts.
 3. **Scope approval.** Approval is per scope, not for the whole package: `phase-0`, `0.4`, `0.5`,
    `0.6`, `0.7`, `1.0`, `1.1`, `1.2`, `1.3`, `1.4`, `process` (exactly as the `APPROVAL.md` headings). The owner sets `Status: Approved` in
    that scope's block of `APPROVAL.md`, with name, date and any binding conditions. Approving `0.5`
    does not approve `1.2`; each later milestone re-arms the gate.
+   At most one milestone scope reads `Status: Approved` at a time (ADR-0033 D1a); milestones
+   approved in advance are recorded as `Deferred` with a pre-approval condition. On 2026-11-12 the owner
+   delegated the review and approval of this package and took decisions D1–D6 (brief header); the
+   owner transcribes that outcome into `APPROVAL.md` ([OI-46](open-items.md#oi-46)).
 4. **Gates still apply.** Approval of a scope authorises work on it; it does not waive that
    milestone's entry criteria (brief §13). Gated scopes (1.1–1.4) additionally need their spikes,
    opinions and DPIAs as signed artefacts, listed in the scope's conditions.
 5. **Mechanism.** Until ADR-0033 is approved and its hook is installed, the rule "no code before
    approval" holds by convention. Once installed, the `PreToolUse` design-gate hook reads
    `APPROVAL.md` and refuses agent edits outside `docs/**`, `.github/ISSUE_TEMPLATE/**`,
-   `.github/pull_request_template.md`, `CODEOWNERS` and `.claude/**` unless the relevant scope is
-   approved. The scope an edit belongs to is the one named in `.claude/active-scope` (ADR-0033 G5;
+   `.github/pull_request_template.md`, `CODEOWNERS` and the governance files `.claude/settings.json`,
+   `.claude/hooks/**`, `.claude/active-scope` unless the relevant scope is approved (paths inside
+   `.claude/worktrees/<wt>/` are evaluated against that worktree). The scope an edit belongs to is the one named in `.claude/active-scope` (ADR-0033 G5;
    missing ⇒ denied). `APPROVAL.md` itself is never agent-editable (G3), although it lies under
    `docs/**`. The hook is a guard for agents, not a security boundary.
 6. **Security emergencies are separate.** Brief §14 items 1–6 (secret rotation, PR jobs off the

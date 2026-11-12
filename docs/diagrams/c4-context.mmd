@@ -33,7 +33,7 @@ flowchart TB
     user -- "Uses app: send, read, call, report<br/>[UI]" --> muhabbet
     companion -- "Same account, per-device sessions<br/>[WSS / HTTPS]" --> muhabbet
     muhabbet -- "OTP start / check<br/>[HTTPS]" --> otp
-    muhabbet -- "Wake hint {type: wake, conversationId, seq}<br/>[FCM data msg, no content]" --> push
+    muhabbet -- "Wake hint {t: wake, v: 1}, no conversation id or seq<br/>[FCM data msg, no content]" --> push
     push -- "Wake (best effort)" --> companion
     push -- "Wake (best effort)" --> user
     stores -- "Signed APK/AAB<br/>(build once, promote same artefact)" --> user

@@ -1,6 +1,6 @@
 # ADR 0025 — Store-and-forward and indirect mode: custody hierarchy, contacts-first bundles, single-hop sealed uplink; multi-hop mules are research
 
-**Status:** Proposed (gated) — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). Custodian 1 is delivered by ADR-0014/0021; custodians 2–3 start only when the 1.3 entry gate (brief §13) is met, and custodian 3 is droppable · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0025; §6.1, §6.2, §8.2, §9, §10 (UplinkBundle), §11.1 (V36), §13 (1.3)](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Milestones:** 0.5/1.0 (custodian 1), 1.3 "Relay" (custodians 2–3), research R-DTN (custodian 4) · Depends on ADR-0010, ADR-0013, ADR-0014, ADR-0016, ADR-0018, ADR-0021, ADR-0022, ADR-0024, ADR-0029, ADR-0031. Relates to [ADR 0008](0008-per-conversation-storage-mode.md) (as amended by ADR-0021).
+**Status:** Proposed (gated) — confirmed as Proposed (gated) by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); not accepted, and no code may be written against this ADR until its scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. Custodian 1 is delivered by ADR-0014/0021; custodians 2–3 start only when the 1.3 entry gate (brief §13) is met, and custodian 3 is droppable · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0025; §6.1, §6.2, §8.2, §9, §10 (UplinkBundle), §11.1 (V36), §13 (1.3)](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Milestones:** 0.5/1.0 (custodian 1), 1.3 "Relay" (custodians 2–3), research R-DTN (custodian 4) · Depends on ADR-0010, ADR-0013, ADR-0014, ADR-0016, ADR-0018, ADR-0021, ADR-0022, ADR-0024, ADR-0029, ADR-0031. Relates to [ADR 0008](0008-per-conversation-storage-mode.md) (as amended by ADR-0021).
 
 ## Context
 
@@ -39,10 +39,9 @@ message plus a lifetime.
 
 No BPv7 CBOR codec and no BPSec are adopted (ADR-0022).
 
-> **Reviewer note (open):** brief §6.2 says custody is released "only on authenticated DELIVERED or
-> expiry", which is narrower than its own uplink rule (the mule deletes on the server's 2xx) and the
-> custodian-2 release on `ServerAccepted`. This ADR states the release rule that matches both; brief
-> §6.2 should be amended to name handover to a higher-ranked custodian.
+> **Resolved (2026-11-12):** brief erratum E-10 (§6.2): custody is released only on (a) authenticated
+> DELIVERED, (b) handover acknowledged by a higher-ranked custodian (server 2xx / `ServerAccepted`), or
+> (c) expiry.
 
 ### 2. Custodian hierarchy (offered strictly in this order)
 
@@ -61,7 +60,7 @@ custodians 2–4 (ADR-0029 rule 2).
 ```kotlin
 // :mobile:messaging (ADR-0012); second real implementation arrives at 1.3 (P7)
 interface CustodyTarget {
-    val kind: CustodianKind                         // SERVER_MAILBOX | OWN_DEVICE | CONTACT_UPLINK
+    val kind: CustodianKind                         // the kinds a CustodyTarget may have: SERVER_MAILBOX | OWN_DEVICE | CONTACT_UPLINK
     suspend fun offer(b: Bundle): CustodyResult     // Accepted(custodian, expiresAt) | Declined(reason) | Retry(after)
 }
 ```
@@ -85,6 +84,7 @@ interface CustodyTarget {
 | CREATED | `offer` to next custodian | OFFERED(custodian) |
 | OFFERED | `Accepted(expiresAt)` | IN_CUSTODY(custodian, expiresAt) |
 | OFFERED | `Declined` | CREATED (next custodian in order) |
+| OFFERED | `Retry(after)` | CREATED, re-offered to the same custodian after `after` |
 | IN_CUSTODY | authenticated `DELIVERED` | DELIVERED_RECEIPT |
 | IN_CUSTODY | `CUSTODY_ACCEPTED` by custodian 1 (server 2xx over TLS) | RELEASED |
 | DELIVERED_RECEIPT | custodian deletes | RELEASED |
@@ -95,6 +95,8 @@ the bubble keeps the **clock** with the secondary label "handed to ‹device/con
 a "relayed" tick.
 
 ### 5. Custodian 2: own linked devices (1.3)
+
+> **Open item [OI-34](../architecture/multi-transport/open-items.md#oi-34):** item 1 below describes an inbound role (the holder keeps bundles for the user's other devices, as in the brief's 1.3 exit test) while item 4 describes only an outbound role; how the holder obtains another device's per-device envelope and how the server authorises that must be specified before 1.3 entry, or the inbound case is dropped.
 
 1. Holds bundles addressed to that user's **other** devices, received over `LanLink`/`NearbyLink`
    (ADR-0024).
@@ -108,11 +110,9 @@ a "relayed" tick.
    sender belong to the same user, then ingests idempotently (§6 step 5). There is no second
    on-behalf submit path.
 
-> **Reviewer note (open):** the brief leaves open how the server authorises and attributes a
-> submission by device B for an envelope set produced by device A (`SendMessageUseCase` takes the
-> authenticated device as sender; the idempotency key is `(sender_device_id, client_message_id)`).
-> Rule 4 closes it by reusing the uplink ingress; it shares the signature-key question raised below
-> for custodian 3.
+> **Note:** rule 4 (reuse the uplink ingress) is the design answer. It depends on the
+> uplink-signature key decision below, which the 1.3 crypto review settles.
+> **Open item [OI-03](../architecture/multi-transport/open-items.md#oi-03):** uplink signing key and scheme (1.3 crypto review; ADR-0018 amendment).
 
 ### 6. Custodian 3: single-hop sealed uplink (1.3, gated, droppable)
 
@@ -218,20 +218,11 @@ counsel opinion (Q-L5) and an external crypto review:
 | — | Quota abuse stays bounded (mule and server sides) | Test | CI | 1.3 exit |
 | RQ-02 | Uplinked and later directly uploaded copies of one message produce one row | Idempotency test (`replay = true`) | CI | 1.3 |
 
-> **Reviewer note (open):** the uplink step "the server verifies the sender-device signature" does
-> not say **which key** signs or over **what bytes**. The brief elsewhere forbids long-term
-> signatures on messages for deniability (§8.3) and reserves the link key for link-layer
-> authentication only (ADR-0018 §4). A signature by the device identity key over the routing plus
-> ciphertext envelopes is server-visible only and does not sign plaintext, so it is compatible in
-> spirit, but it is a new use of a long-term key. Recommend: a domain-separated signature
-> (`"mbt-uplink-sig-v1"` prefix, length-prefixed encoding, GEM-13) whose key and scope are fixed by an
-> ADR-0018 amendment and approved by the 1.3 crypto review.
+> **Open item [OI-03](../architecture/multi-transport/open-items.md#oi-03):** three candidates go to the 1.3 crypto review: a domain-separated signature (`mbt-uplink-sig-v1`, length-prefixed) by a dedicated uplink key, not persisted; the device identity key under that label; or a deniable device–server MAC. The choice is recorded as an ADR-0018 amendment.
 
-> **Reviewer note (open):** the brief names HPKE for the uplink seal but no implementation. P12
-> forbids hand-written crypto primitives, so the HPKE library (and its availability on Android, iOS
-> and the backend JVM) is a 1.3 selection item for the crypto review, not an implementation detail.
+> **Open item [OI-04](../architecture/multi-transport/open-items.md#oi-04):** "HPKE (RFC 9180) library available on Android, iOS and the backend JVM" is a 1.3 entry crypto-review selection item (P12: no hand-written primitives).
 
-> **Reviewer note (open):** the mule receives the blob over an authenticated proximity link from a
-> verified contact, so it learns the sender's identity and device and that this contact sent
-> something at time T (§2 row 3). Brief §8.2 understates this. `threat-model.md` (LINDDUN) should
-> record it as a residual linkability/identifiability risk of custodian 3.
+> **Resolved (2026-11-12):** `threat-model.md` records the LINDDUN residual: custodian 3 (mule)
+> learns the sender's identity and device and that this sender submitted something at time T. It is
+> inherent to an authenticated link from a verified contact and is disclosed in the 1.3 DPIA and
+> notice (brief erratum E-11).

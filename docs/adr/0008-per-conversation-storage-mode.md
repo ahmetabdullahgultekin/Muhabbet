@@ -1,8 +1,8 @@
 # ADR 0008 — Storage location is a per-conversation choice, and the stricter side wins
 
-**Status:** Proposed · **Date:** 2026-08-12 · Supersedes nothing.
+**Status:** Proposed (2026-08-12) · **Amended by ADR 0021** (2026-11-12, delegated) · **Date:** 2026-08-12 · Supersedes nothing.
 
-> **Proposed amendment (pending owner approval):** [ADR 0021 — Amendment to ADR 0008](0021-adr0008-amendment-storage-modes-e2e.md) redefines the modes for an E2E world. The strictest-wins rule is unchanged. Nothing below changes until approval is recorded in [APPROVAL.md](../architecture/multi-transport/APPROVAL.md).
+> **Amended (2026-11-12, delegated owner review — [record](../reviews/2026-11-12-design-approval-review.md)):** [ADR 0021 — Amendment to ADR 0008](0021-adr0008-amendment-storage-modes-e2e.md) redefines the modes for an E2E world and sets the 1.0 plaintext-history cutover (owner decision D3). The strictest-wins rule below is unchanged; where a mode definition below disagrees with ADR 0021, ADR 0021 wins.
 
 ## Context
 

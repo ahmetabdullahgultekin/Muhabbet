@@ -6,7 +6,7 @@
 > source of truth), in particular ADR-0015 (path scopes), ADR-0023 (internet-direct), ADR-0024
 > (proximity), ADR-0025 (custody), ADR-0026 (Meshtastic), ADR-0027 (rejected transports), §12 and the
 > 1.2 entry gate in §13. Where this matrix and the brief disagree, the brief wins; known gaps are
-> recorded as `> **Reviewer note (open):**` callouts.
+> recorded as reviewer-note callouts.
 
 | | |
 |---|---|
@@ -44,8 +44,9 @@ Every cell carries exactly one mark, under these three conventions:
 **Global rule for iOS cells.** The iOS app cannot launch today (KMP-01: no entry point, no Xcode
 project, iOS DI never wired). Every `i↔i` and `A↔i` *Muhabbet* capability is therefore
 **BLOCKED (KMP-01, 0.6 gate)** in addition to whatever the platform documentation says. Platform facts
-in those columns describe the OS, not the app. If the 0.6 gate scopes iOS out of 1.0 (ADR-0028,
-Q-O2), the iOS columns stay blocked until a later ADR re-opens them.
+in those columns describe the OS, not the app. If KMP-01 is not fixed at the 0.6 gate, 1.0 ships
+Android-only (owner decision D2, 2026-11-12). The i↔i and A↔i columns then stay BLOCKED (D2), the UI
+and store text say Android-only, and only a later ADR can re-open them.
 
 ---
 
@@ -159,7 +160,7 @@ CONTROL + INTERACTIVE and defers BULK (brief §7 `ConstrainedRule`). Detection s
 | BLE-only throughput reference (not Muhabbet's) | — | measured 1 MB iPhone↔iPhone transfers ≈ 36–138 kbit/s; Apple best case ≈ 197–394 kbit/s with tuning | planning assumption 50–150 kbit/s (PROX-01 recommendation) — UNMEASURED | PROX-01 — VERIFIED-DOC (https://developer.apple.com/forums/thread/89644) |
 | Wi-Fi P2P throughput / range | unsourced; Gemini's 50–250 Mbps / 50–200 m are PHY ceilings, not goodput — **UNVERIFIED** | same | same | PROX-08 |
 | Live | N/A | N/A | N/A | §2.3 |
-| HMS (no Play services) | **expected unavailable** (library depends on Play services); the register's verifier notes this was asserted without evidence — UNVERIFIED; HMS share in TR to be measured (G-PROXIMITY) | — | — | PROX-06 verifier note, brief §13 1.2 |
+| HMS (no Play services) | **expected unavailable — inferred, not measured** (library depends on Play services); the register's verifier notes this was asserted without evidence — UNVERIFIED until the spike's HMS device observes it (P13); HMS share in TR to be measured (G-PROXIMITY) | — | — | PROX-06 verifier note, brief §13 1.2 |
 | Prompts / permissions | Android runtime permissions for Bluetooth scan/advertise/connect and nearby Wi-Fi devices, location on older API levels, `connectedDevice` FGS — exact set **required by the library per API level: UNMEASURED** (spike enumerates) | Bluetooth, Local Network (VERIFIED-DOC), Location for hotspot (VERIFIED-DOC), hotspot-join confirmation (UNVERIFIED) | union of both | PROX-02 sources (https://developer.android.com/develop/connectivity/bluetooth/bt-permissions, https://developer.android.com/develop/connectivity/wifi/wifi-permissions), PROX MISS-01 |
 | Min OS | gate API 29: DECIDED (ADR-0024) / library minimum: UNVERIFIED | Swift package minimum iOS — **UNVERIFIED** | — | ADR-0024 |
 | Legal gate | Q-L2 (E2E over BLE and Wi-Fi Direct via Nearby); proximity DPIA; certificate + verified safety number + both opted in; G-PROXIMITY | same | same | DECIDED (ADR-0024, ADR-0029); R6 |
@@ -231,9 +232,9 @@ One row per prompt the user can see in Nearby mode. "Seen?" is filled by the spi
 |---|---|---|---|---|
 | Nearby devices / Bluetooth | Bluetooth scan/advertise/connect runtime permissions; nearby-Wi-Fi-devices permission on newer API levels | Bluetooth usage prompt | `NearbyLink` | UNMEASURED |
 | Local network | reported for newer Android (UNVERIFIED) | Local Network prompt (VERIFIED-DOC) | `LanLink`, `NearbyLink` (LAN medium) | UNMEASURED |
-| Location | only where the library requires it at that API level (UNVERIFIED) | required for the Nearby hotspot join (VERIFIED-DOC) | `NearbyLink` bulk on iOS | UNMEASURED |
+| Location | API 29–31: BLE scanning and Nearby Connections need `ACCESS_FINE_LOCATION`, i.e. a location prompt on every proximity-capable Android 10–12 device (DPIA-relevant, DT-1); API 31+: `BLUETOOTH_SCAN`/`ADVERTISE`/`CONNECT`; API 33+: `NEARBY_WIFI_DEVICES` (platform documentation; prompts UNMEASURED) | required for the Nearby hotspot join (VERIFIED-DOC) | `NearbyLink`; `NearbyLink` bulk on iOS | UNMEASURED |
 | Hotspot join | — | system confirmation (UNVERIFIED) | `NearbyLink` A↔i bulk | UNMEASURED |
-| Foreground-service notification | `connectedDevice` FGS while Nearby mode is on | n/a | Nearby mode | UNMEASURED |
+| Foreground-service notification | `connectedDevice` FGS while Nearby mode is on. On Android 14+ this FGS type requires a declared prerequisite permission **and** a Play Console foreground-service declaration (with a video): a 1.2 release-checklist item and a Play policy risk | n/a | Nearby mode | UNMEASURED |
 | Notifications | existing | not built | `SERVER_RELAY` wake | VERIFIED-REPO (Android) |
 | Microphone / camera | calls | calls | `IP_RELAYED`, `IP_DIRECT` | UNMEASURED |
 
@@ -276,7 +277,8 @@ the `LinkAuthenticator` library. Outputs, all signed by the owner (P13):
 | # | Precondition | Source |
 |---|---|---|
 | SP-P1 | 1.0 exit (real E2E, fail-closed) — needed for the 1.2 **milestone**, not for the spike's throwaway harness | brief §13 |
-| SP-P2 | Spike code explicitly authorised in `APPROVAL.md` (reviewer note SP-1) | owner decision 4 |
+| SP-P2 | Spike code explicitly authorised by the **owner** as a `Conditions:` line under scope 1.2 (1.2 stays Proposed (gated); under ADR-0033 G3 only the owner writes `APPROVAL.md`, and under G5 every non-docs path needs an open scope): "harness code only, in a harness location outside product modules (e.g. a separate `spikes/` tree excluded from release builds), never distributed through Play, deleted after the report" ([OI-18](open-items.md#oi-18)) | owner decision 4, D6 |
+| SP-P6 | Before the spike transmits UKEY2- and Noise/TLS-encrypted frames over BLE and Wi-Fi in Turkey: either Q-L2 (a)(1)–(3) is answered, or counsel confirms in writing that test-only encrypted traffic between owner-held devices is acceptable ([OI-18](open-items.md#oi-18)) | G-PROXIMITY, Q-L2 |
 | SP-P3 | Harness apps are throwaway, outside the product modules, never shipped, carrying no user data | this protocol |
 | SP-P4 | Device list available (§13.3); Play services version recorded on every Android device | brief |
 | SP-P5 | Pass thresholds set by the owner before the first run (§13.5) | this protocol |
@@ -290,7 +292,8 @@ the `LinkAuthenticator` library. Outputs, all signed by the owner (P13):
 | Xiaomi | Android | aggressive-OEM behaviour |
 | iPhone 12 | iOS | oldest Wi-Fi-Aware-capable iPhone |
 | iPhone 15 or later | iOS | current |
-| *(recommended)* Huawei / HMS device | Android without Play services | verifies the `LanLink`-on-HMS claim (reviewer note SP-2) |
+| **Huawei / HMS device (required)** | Android without Play services | verifies the `LanLink`-on-HMS claim and that Nearby is unavailable without Play services (SP-2); ADR-0024's `LanLink` justification depends on it (P13) |
+| *(optional)* second iPhone pair for Wi-Fi Aware | iOS 26+, iPhone 12+ | optional cell: iOS↔iOS Wi-Fi Aware with prior DeviceDiscoveryUI pairing, background behaviour ([OI-24](open-items.md#oi-24)) |
 
 Pairs: every A↔A combination of the three Android devices — Pixel–Samsung, Pixel–Xiaomi, Samsung–Xiaomi (3 pairs) — the
 iPhone pair (i↔i), and Pixel↔iPhone 12, Samsung↔iPhone 15+, Xiaomi↔iPhone 15+ (A↔i). HMS device: LAN
@@ -302,7 +305,8 @@ scenarios only.
 |---|---|---|---|
 | X1 | Foreground discovery, both apps open in Nearby mode | Nearby, LAN | Wi-Fi on, same non-isolating AP, **no internet** (WAN unplugged) |
 | X2 | Foreground discovery | Nearby | Wi-Fi **off**, airplane mode with Bluetooth on |
-| X3 | Foreground discovery | LAN | client-isolating / guest AP — **expected failure**, recorded |
+| X3 | Foreground discovery | LAN | client-isolated AP — **expected FAIL**, recorded; the UI must not imply LAN works |
+| X3b | Foreground discovery and text | LAN | Wi-Fi without internet **while cellular is up** (Android default-network binding) |
 | X4 | Peer backgrounded (home button) for 60 s, then foregrounded | Nearby, LAN | as X1/X2 |
 | X5 | Text: 100 sealed-size messages (bucket-padded) | the winning link | as X1/X2 |
 | X6 | Bulk: 5 MB file | the winning link; record whether the Wi-Fi upgrade happened | as X1/X2 |
@@ -397,24 +401,14 @@ LEG-02, LEG-03, LEG-04; KMP-01, KMP-M3; MOB-03, MOB-04, MOB-10; BE-15.
 
 ## 17. Reviewer notes
 
-> **Reviewer note (open) SP-1:** the brief makes the two-week device-matrix spike an **entry**
-> criterion of 1.2, and owner decision 4 forbids code before approval. A spike needs throwaway
-> harness code for Android and iOS, before the 1.2 scope can sensibly be approved. `APPROVAL.md` has
-> no "spike" scope. The owner should approve the spike explicitly (for example under `1.2` with the
-> condition "harness code only, outside product modules"), or add a scope for it.
+> **Open item [OI-18](open-items.md#oi-18):** **SP-1:** the owner approves the spike as a Conditions line under scope 1.2 ("harness code only, outside product modules, never distributed, deleted after the report"), or adds a spike scope; 1.2 itself stays Proposed (gated). See §13.2 SP-P6.
 
-> **Reviewer note (open) SP-2:** the brief's device list (Pixel, Samsung A, Xiaomi, iPhone 12,
-> iPhone 15+) contains no HMS device, yet ADR-0024 justifies `LanLink` partly by HMS support and the
-> brief claims "HMS devices get LAN only". Under P13 that claim needs an observation; adding one
-> Huawei device for the LAN scenarios is recommended. The register's verifier also notes that the
-> HMS exclusion from Nearby was asserted without evidence (PROX-06).
+> **Resolved (2026-11-12):** **SP-2:** one Huawei HMS device is added to the spike device list (§13.3)
+> for the LAN scenarios and to confirm that Nearby is unavailable without Play services. Until it is
+> observed (P13), the matrix marks "HMS gets LAN only" as **inferred**, not measured.
 
-> **Reviewer note (open) SP-3:** the spike cannot exercise the real app on iOS while KMP-01 stands
-> (iOS cannot launch until the 0.6 gate). This protocol therefore assumes throwaway native harness
-> apps per platform, which measure the library and the OS, not Muhabbet. The brief's 1.2 gate lists
-> "1.0 exit" and "0.6 iOS decision honoured"; if the owner wants the spike run on the product app,
-> it moves after 0.6 and the timeline shifts.
+> **Resolved (2026-11-12):** **SP-3 (D2):** the spike uses native harness apps per platform. If KMP-01
+> is fixed at the 0.6 gate, the iOS cells may also be repeated on the product app. If not, 1.0 is
+> Android-only (D2) and the iOS cells measure library/OS behaviour only.
 
-> **Reviewer note (open) SP-4:** the pass thresholds in §13.5 are proposals; the brief requires a
-> "published pass/fail/prompt matrix" but sets no thresholds. They must be fixed before the first run,
-> otherwise pass/fail is decided after seeing the data.
+> **Open item [OI-23](open-items.md#oi-23):** **SP-4:** the §13.5 thresholds are frozen, dated and recorded together with the spike approval, before the first measurement; any later change needs a dated amendment written before data is seen.

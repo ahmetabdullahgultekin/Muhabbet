@@ -5,7 +5,7 @@
 > [`APPROVAL.md`](APPROVAL.md). This ICD is derived from, and must agree with, the
 > [decision brief](decision-brief-2026-11-12.md) (the single source of truth) and
 > [ADR-0022](../../adr/0022-wire-protocol-envelope.md). Where they disagree, the brief wins and the
-> disagreement is a defect here, recorded as a `> **Reviewer note (open):**` callout.
+> disagreement is a defect here, recorded as a reviewer-note callout.
 
 | | |
 |---|---|
@@ -87,7 +87,7 @@ Protocol versions change **only by ADR** (ADR-0022 rule 6).
 |---|---|---|
 | `seq` | Understands `seq`/`changeSeq`, `sync.hint`, cumulative `message.ack`, extended `message.status`, `replay` | Sends `sync.hint` instead of the legacy `message.edited` / `message.deleted` / `message.reaction` / `message.expired` frames (§3.10); expects cumulative acks |
 | `wake` | Handles data-only wake pushes by fetching and composing locally | Informational only: from 0.5 every push is wake-only for every device (§5.4) |
-| `sealed` | Can produce and open E2E envelopes (a `SessionCryptoPort` adapter is present) | Required to send or receive in an E2E conversation. A v2 client **without** `sealed` (e.g. a platform with no libsignal bridge, Q-O2) is refused E2E sends with `MSG_ENCRYPTION_UNSUPPORTED` and receives `envelopeState = NOT_ADDRESSED` items |
+| `sealed` | Can produce and open E2E envelopes (a `SessionCryptoPort` adapter is present) | Required to send or receive in an E2E conversation. A v2 client **without** `sealed` (e.g. a platform with no libsignal bridge; D2) is refused E2E sends with `MSG_ENCRYPTION_UNSUPPORTED` and receives `envelopeState = NOT_ADDRESSED` items |
 
 **Rule C-1.** The server MUST NOT send a frame type that depends on a capability the session did not
 advertise. **Rule C-2.** Unknown capability tokens are ignored by the server (forward compatibility).
@@ -228,17 +228,9 @@ not change. "Ext" = extended with optional fields (compatible because `ignoreUnk
 `protocol` values (closed set, extended only by ADR): `signal-prekey/1`, `signal-message/1`,
 `sender-key/1`, `sender-key-distribution/1`.
 
-> **Reviewer note (open):** the brief's feature table does not say what happens to scheduled send in
-> E2E conversations, and `Content` has no scheduling field. Two options for the owner: **(a)** keep
-> `scheduledAt` as outer routing metadata for `"e2e/v1"`; the server holds the envelopes until release
-> (`message_envelopes.seq` nullable until the release transaction stamps it, data-model §3.9), and a
-> device that becomes a recipient between send and release is `NOT_ADDRESSED` for that message —
-> which needs the release to compare the envelope set with the active-device set and record the
-> difference; **(b)** record "scheduled send unavailable in E2E conversations" in the brief §12
-> feature table (the UI hides the option there). This ICD is written for **(b)** because it needs no
-> new server state; option (a) changes §3.5, §4.1 and data-model §3.9. Separately, for every E2E row
-> `messages.expires_at` (disappearing messages) is computed **server-side** from the conversation's
-> timer at insert, never from `Content.expires_at_ms` (sender clock, advisory display only, §6.2).
+> **Resolved (2026-11-12):** for every E2E row, `messages.expires_at` is computed server-side from the
+> conversation timer at insert; `Content.expires_at_ms` is advisory display only (§6.2).
+> **Open item [OI-12](open-items.md#oi-12):** owner decision before 1.0 entry (ICD freeze) on scheduled send in E2E conversations: (a) server-held envelopes released at `scheduledAt`; (b) unavailable in E2E (this ICD's default); (c) client-side scheduling, sent only if the device is online. Under D3 every conversation eventually becomes E2E, so (b) removes scheduled send from the whole product.
 
 Server validation order (each failure is an `ack{status: ERROR, errorCode}`; nothing is persisted):
 
@@ -317,19 +309,7 @@ Example, v2, E2E 1:1 conversation (recipient has two devices, sender has one oth
   echoed; it receives its `seq` at release (ADR-0014) and the sender learns it through the change
   feed like everyone else. The outbox treats this ack as `SERVER_ACCEPTED` with a pending seq.
 
-> **Reviewer note (open) — deviation from brief §11.1 V29.** The brief says
-> `UNIQUE(sender_device_id, client_message_id)` "replaces the global client-id PK check". This ICD and
-> data-model V29 keep `messages.id = client_message_id` (globally unique PK, so `Edit`/`Delete`/
-> `Reaction`/`reply_to` can reference a message offline by one id, §6.3 rule 1) and add the
-> device-scoped key **beside** it. A-2b closes the upgrade-retry case. The residual cost is a 1.2
-> griefing path: a verified contact who received a message off-server can submit their own message
-> under its id first, and A-2 can only report the squat (`MSG_ID_SQUATTED`; the sender re-mints and
-> resubmits, the recipient's provisional row stays "not yet synced" under the old id, and the squat is
-> an abuse signal against the squatter's account). The alternative that follows the brief literally:
-> `messages.id` server-minted, and every in-`Content` reference carried as the pair
-> `(sender_device_id, client_message_id)` — `sender_device_id` added to `Edit`, `Delete`, `Reaction`
-> and `Text.reply_to` in §6.2 and to the mobile `message` key. That removes the squat path
-> structurally. Owner / 1.2 design review to choose before 1.0 freezes §6.2.
+> **Open item [OI-10](open-items.md#oi-10):** decide before §6.2 freezes (1.0 entry) between the kept identity rule (`messages.id = client_message_id`, A-2/A-2b) and the brief-literal pair reference with a server-minted id, which removes the `MSG_ID_SQUATTED` path. V29 at 0.4 forecloses neither.
 
 ```json
 {"type":"ack","clientMessageId":"0193a3f1-0a0b-7c0d-8e0f-101112131415",
@@ -409,8 +389,10 @@ message with `seq ≤ lastSeq` has been stored in some version (a later edit onl
 acks are bounded by `C` as well.
 
 **Authorisation (all three shapes, 0.4, BE-03, BE-18).** Accepted only if (a) the session's device
-belongs to a current member of the conversation, (b) the member is not the sender of the acked
-messages for tick-affecting kinds, (c) the referenced `seq`/`messageId` exists in that conversation,
+belongs to a current member of the conversation, (b) for **tick-affecting** DELIVERED/READ, the
+member is not the sender of the acked messages (watermark/custody acks are accepted from any
+registered, non-revoked device of any member, the sender's own included, drive mailbox deletion from
+1.0 and are excluded from tick aggregation — ADR-0013 §4), (c) the referenced `seq`/`messageId` exists in that conversation,
 and (d) the change is monotonic (`rank(status) < rank(new)`, one conditional UPDATE). A rejected ack
 is answered `error{MSG_ACK_INVALID}` and **never broadcast**; an accepted ack that changes nothing is
 not broadcast either.
@@ -423,12 +405,8 @@ stored (their own unread state clears) but published to others as DELIVERED, in 
 {"type":"message.ack","conversationId":"0192ffee-aaaa-7bbb-8ccc-dddddddddddd","uptoSeq":4813,"kind":"DELIVERED"}
 ```
 
-> **Reviewer note (open):** carried from ADR-0013. Its §4 accepts acks "only from a device of a
-> member who is not the sender", yet from 1.0 the sender's own other devices receive the message
-> (fan-out, brief §8.3) and the mailbox deletes a device's envelope rows on that device's
-> `ack uptoSeq` (ADR-0021). This ICD therefore treats **sender-own-device** acks as
-> *watermark/custody* acks: accepted, used for mailbox deletion, and excluded from tick
-> aggregation. Owner to confirm with ADR-0013.
+> **Note:** resolved with the ADR-0013 split (Decision §4): sender-own-device acks are
+> watermark/custody acks, used for mailbox deletion and excluded from ticks.
 
 ### 3.9 `message.status` (S→C, receipts to the sender)
 
@@ -486,11 +464,9 @@ may cause one unnecessary pull) and never skips a change.
 | `security.key_changed` | existing `userId`, `conversationId`, `timestamp`; **new** `deviceId: String? = null` (defaulted so older decoders and older encoders interoperate); `conversationId` retyped `String? = null` (§3.15) | 0.6 | Emitted on `IdentityKeyChanged` (a new device with a new identity key; replacement for an existing device is rejected, ADR-0018). Client: safety-number-changed system row; blocking interstitial for verified contacts |
 | `crl.delta` | `deltaB64` (protobuf `SignedCrlDelta`, §7.6) | 1.2 (gated) | Applied through `DeviceCertificateVerifier.applyCrl`; also fetched on connect via `welcome.crlDelta` |
 
-> **Reviewer note (open):** the brief (§10) and ADR-0022 list `security.key_changed` as **new**, but
-> the frame already exists in `WsMessage.kt` with `userId`, `conversationId` and `timestamp`. This
-> ICD extends it with `deviceId` instead of creating a second type. ADR-0022's frame table **and the
-> brief §10 wording** (`security.key_changed{userId, deviceId}`) should both say "extended"; the
-> brief's field list also omits the existing `conversationId` and `timestamp`.
+> **Resolved (2026-11-12):** verified (`WsMessage.kt:351`: `userId`, `conversationId`, `timestamp`).
+> Brief §10 and the ADR-0022 frame table read "`security.key_changed` (existing) extended with
+> `deviceId`: `{userId, deviceId, conversationId?, timestamp}`" (brief erratum E-25).
 
 ### 3.12 `error` frame and error-code registry
 
@@ -589,7 +565,8 @@ Response `data`:
 |---|---|---|
 | `items` | `List<MessageChange>` | Ordered by `changeSeq` ascending; `afterSeq < changeSeq ≤ lastSeq` |
 | `lastSeq` | Long | The conversation head read **before** the items (§4.5) |
-| `hasMore` | Boolean | More items exist in `(last item.changeSeq, lastSeq]` |
+| `nextAfterSeq` | Long | The cursor for the next page: the highest `change_seq` **scanned** by this page, visible to the requester or not, `≤ lastSeq`; equals `lastSeq` when `hasMore = false`. The client sets `w := nextAfterSeq` (ADR-0014 §2; brief erratum E-04) |
+| `hasMore` | Boolean | More **visible** items exist in `(nextAfterSeq, lastSeq]` |
 
 `MessageChange`:
 
@@ -622,7 +599,7 @@ Example (pre-1.0, plaintext):
     "conversationId":"0192ffee-aaaa-7bbb-8ccc-dddddddddddd","seq":4790,"changeSeq":4817,
     "senderId":"0190cccc-0000-7000-8000-00000000000c","senderDeviceId":null,
     "serverTs":1762950000000,"deleted":true,"reactions":{}}],
-  "lastSeq":4817,"hasMore":false},
+  "lastSeq":4817,"nextAfterSeq":4817,"hasMore":false},
  "timestamp":"2026-11-12T14:00:05.120Z"}
 ```
 
@@ -653,11 +630,9 @@ User-level watermarks (max over the user's devices, sender's own devices exclude
 downgrade. For conversations above `RECEIPTS_MEMBER_CAP` *(config)* and for channels the endpoint
 returns `members: []` (no per-member receipts, as today for channels).
 
-> **Reviewer note (open):** the brief defines no pull path for receipts, yet P6 requires every lost
-> WS frame to be repairable by a pull, and `message.status` is not covered by the seq feed (receipts
-> do not bump `change_seq`, which would turn every read into a hot-row write on
-> `conversations.last_seq`). `heads` (§4.3) and `receipts` (§4.4) are additions made here to satisfy
-> P6 and the brief's own `ChangeFeedPort.heads()` signature. Owner to confirm.
+> **Resolved (2026-11-12):** `heads` (§4.3) and `receipts` (§4.4) are accepted; both are required by
+> P6, and `heads` also serves the opaque wake payload (ADR-0019). Brief §10 lists both REST endpoints
+> at 0.5 (erratum E-26).
 
 ### 4.5 Consistency contract (server)
 
@@ -670,7 +645,10 @@ returns `members: []` (no per-member receipts, as today for channels).
    and a send whose INSERT conflicts rolls its allocation back with the transaction (§3.6 A-1). A
    hole left by any other cause (a superseded value, a hard-deleted row) is harmless, because the
    client never infers a gap from a hole (§3.10 H-2).
-3. `hasMore = false` therefore entitles the client to set `w = lastSeq`.
+3. The visibility predicate (unreleased scheduled rows, rows hidden from this requester) is applied
+   **inside the SQL query, before `LIMIT`**, and `hasMore` is computed over visible rows. A page that
+   scans only hidden changes still returns `nextAfterSeq` past them, so the client always advances.
+   `hasMore = false` returns `nextAfterSeq = lastSeq`, which entitles the client to set `w = lastSeq`.
 4. Edits, deletes, reactions, expiry and scheduled release each allocate one new value and stamp
    `change_seq` (bulk expiry allocates a contiguous range, data-model V28).
 
@@ -683,7 +661,7 @@ pull(conv):
     page = changeFeed.changes(conv, afterSeq = w, limit)
     store.tx {                                   // one transaction per page
       for item in page.items: inbox.upsert(item) // newer change_seq wins
-      w = if (page.hasMore) page.items.last().changeSeq else page.lastSeq
+      w = page.nextAfterSeq                     // = lastSeq when !hasMore; never max(item.changeSeq)
       store.setWatermark(conv, w)
       if (!page.hasMore) store.setCompleteThrough(conv, page.lastSeq)   // C, rule R-ACK
     }
@@ -716,7 +694,7 @@ extended.
 {"message":{
   "token":"<fcm-registration-token>",
   "android":{"priority":"HIGH","collapse_key":"mbt-wake","ttl":"<WAKE_TTL>s"},
-  "data":{"type":"wake","v":"1","conversationId":"0192ffee-aaaa-7bbb-8ccc-dddddddddddd","seq":"4817"}}}
+  "data":{"t":"wake","v":"1"}}}
 ```
 
 ### 5.2 Rules
@@ -724,9 +702,9 @@ extended.
 | # | Rule | Finding / ADR |
 |---|---|---|
 | W-1 | **Data-only.** No `notification` block, no `android.notification`, no sender name, body, group name, avatar, message id or timestamp. FCM data values are strings | BE-15, ADR-0019 |
-| W-2 | `data` keys are exactly `type`, `v`, `conversationId`, `seq`. `v` is an **ICD extension** of the brief / ADR-0019 key set `{type, conversationId, seq}` (payload-format version, so a later key change is detectable; §14 item 10). Adding a key requires an ICD change and a DPIA screening note (ADR-0029 rule 6) | ADR-0029 |
+| W-2 | `data` keys are exactly `t` and `v`, optionally plus `h`, a random per-device hint token mapped server-side (ADR-0019 as amended 2026-11-12, brief erratum E-46). **No `conversationId` and no `seq`**: they would let the push provider link co-members of a conversation and count messages. `v` is the payload-format version, so a later key change is detectable. Adding a key requires an ICD change and a DPIA screening note (ADR-0029 rule 6) | ADR-0019, ADR-0029 |
 | W-3 | High priority; one **constant** collapse key `mbt-wake` per app. FCM limits how many distinct collapse keys it keeps per device, and the client pulls **all** heads on wake, so per-conversation keys buy nothing | P6 |
-| W-4 | `conversationId`/`seq` are a scheduling hint only. On wake the client runs `heads()` and pulls every conversation with `lastSeq > w`, then composes notifications **locally** from the committed DB rows | P6, ADR-0019 |
+| W-4 | The wake names nothing. On wake the client runs `heads()` (§4.3) and pulls every conversation with `lastSeq > w`, then composes notifications **locally** from the committed DB rows | P6, ADR-0019 |
 | W-5 | Sent after commit, never inside the send transaction, to recipient devices — the sender's own other devices included, **the sending device excluded** — and **not** to any user whose focused conversation (`WsMessage.ConversationFocus`, held by `WebSocketSessionManager`, #618) is `conversationId`. The existing #618 suppression in `OfflinePushSender` is preserved, not deferred; broader presence-aware suppression for devices with a live WS session is the later refinement (brief §4.2) | BE-04, #618 |
 | W-6 | `WAKE_TTL` *(config)*; a dropped or expired wake is repaired by foreground pull and WorkManager | R11 |
 
@@ -752,8 +730,8 @@ only when it next opens a WS session and receives the frame there.
 ### 5.5 iOS (when the iOS app exists)
 
 APNs with a Notification Service Extension: the visible alert is a localised placeholder
-(`loc-key`), `mutable-content: 1`, and a payload carrying only `conversationId` and `seq`; the
-extension fetches over TLS and replaces the text. Specified when KMP-01 is resolved (0.6 gate).
+(`loc-key`), `mutable-content: 1`, and a payload carrying only `{t: wake, v}` (no `conversationId`, no `seq`, as on
+Android); the extension calls `heads()`, fetches over TLS and replaces the text. Specified when KMP-01 is resolved (0.6 gate).
 
 ---
 
@@ -1028,13 +1006,10 @@ with a **new `link_seq`** (step 7 then re-ACKs without re-delivery). Because a r
 `frame_id` per hop, `frame_id` dedup is per hop only; **end-to-end** dedup keys on
 `(sender_device_id, client_message_id)` from `SealedFrame.Routing` via `inbound_dedup`.
 
-> **Reviewer note (open):** "fields 1–6 are AEAD associated data" presumes a channel whose AEAD
-> accepts associated data per message, which a Noise transport `CipherState` does. If the 1.2 spike
-> selects **TLS 1.3 with a pinned raw public key** (ADR-0018 option), the application has no
-> per-record AD input. In that case the whole `TransportFrame` (header included) travels inside the
-> TLS record protection, which authenticates and also hides fields 1–6; the AD rule is then met by
-> construction and `link_seq` replay checks are redundant with TLS. ADR-0022 should name both
-> bindings explicitly.
+> **Resolved (2026-11-12):** ADR-0022 plane C names both bindings: Noise — fields 1–6 are the AEAD AD
+> of each frame; TLS 1.3 with a pinned RPK — the whole `TransportFrame` travels inside record
+> protection, so the AD requirement is met by construction. The `link_seq` replay check is kept in
+> both bindings because it covers reconnects. The spike choice itself stays at 1.2.
 
 ### 7.6 Certificate and CRL encodings (carried in `welcome`, `crl.delta`, link handshakes)
 
@@ -1124,11 +1099,7 @@ Mule: deletes the blob on any 2xx or on 400/413/422; keeps and retries with back
 after 24 h regardless (ADR-0025). The mule cannot read, route or tell bundles apart beyond size bucket
 and time.
 
-> **Reviewer note (open):** carried from ADR-0022/ADR-0025 — the key that produces
-> `SenderProof.signature` is not fixed by the brief. This ICD reserves the field and the domain
-> label `mbt-uplink-sig-v1`; the key choice (device identity key under a dedicated label vs. a
-> separate uplink-signing key in the device certificate) belongs to an ADR-0018 amendment approved
-> by the 1.3 crypto review.
+> **Open item [OI-03](open-items.md#oi-03):** field and label `mbt-uplink-sig-v1` reserved; key and scheme (signature vs. a deniable MAC) are chosen by the 1.3 crypto review as an ADR-0018 amendment.
 
 ---
 
@@ -1241,18 +1212,18 @@ and time.
 
 | # | Item | Where | Status |
 |---|---|---|---|
-| 1 | Sender-own-device acks: custody/watermark, not ticks | §3.8 (from ADR-0013) | Reviewer note (open) |
-| 2 | `security.key_changed` already exists; extend, not add | §3.11 | Reviewer note (open) |
-| 3 | `heads` and `receipts` REST endpoints added to satisfy P6 | §4.4 | Reviewer note (open) |
-| 4 | AD binding if the 1.2 spike chooses TLS 1.3 | §7.5 | Reviewer note (open) |
-| 5 | Uplink signing key | §8.4 (from ADR-0022/0025) | Reviewer note (open) |
+| 1 | Sender-own-device acks: custody/watermark, not ticks | §3.8 (from ADR-0013) | Resolved 2026-11-12 (ADR-0013 split) |
+| 2 | `security.key_changed` already exists; extend, not add | §3.11 | Resolved: extended (brief erratum E-25) |
+| 3 | `heads` and `receipts` REST endpoints added to satisfy P6 | §4.4 | Resolved: adopted (brief erratum E-26) |
+| 4 | AD binding if the 1.2 spike chooses TLS 1.3 | §7.5 | Resolved: both bindings named in ADR-0022 |
+| 5 | Uplink signing key | §8.4 (from ADR-0022/0025) | Deferred to 1.3 crypto review ([OI-03](open-items.md#oi-03)) |
 | 6 | Uplink AAD extended with `v` and `key_id` | §8.1 | Strict extension of the brief; crypto review to confirm |
 | 7 | Padding parameters (`INNER_MIN_BYTES`, `LINK_MIN_BYTES`, `UPLINK_BUCKETS`) | §6.4, §7.4 | Set by crypto review; pinned by vectors |
 | 8 | `@ProtoOneOf` availability on all targets | §6.3 rule 4 | Verify before 1.0 |
 | 9 | Exact cut-over release for legacy (no-`hello`, query-token) clients | §2.1, §3.1 | Chosen when 0.4 is planned (ADR-0022) |
 | 10 | Wake `data` key `v` added beyond the brief / ADR-0019 key set | §5.2 W-2 | ICD extension; owner to confirm |
-| 11 | `messages.id = client_message_id` kept beside the brief's device-scoped key (deviation from brief §11.1 V29); squat path from 1.2 | §3.6 | Reviewer note (open) |
-| 12 | Scheduled send in E2E conversations (server-held envelopes vs. unavailable) | §3.5 | Reviewer note (open); this ICD assumes "unavailable" |
+| 11 | `messages.id = client_message_id` kept beside the brief's device-scoped key (deviation from brief §11.1 V29); squat path from 1.2 | §3.6 | Deferred to 1.0 entry ([OI-10](open-items.md#oi-10)) |
+| 12 | Scheduled send in E2E conversations (server-held envelopes vs. unavailable) | §3.5 | Owner decision before 1.0 entry ([OI-12](open-items.md#oi-12)); ICD assumes (b) |
 | 13 | ADR-0021 `envelopeExpired` ↔ ICD `PURGED` naming | §4.1 | Align ADR-0021 |
 
 ## 15. Rollout, rollback and risks

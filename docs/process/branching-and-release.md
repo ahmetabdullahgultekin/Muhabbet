@@ -36,7 +36,7 @@ All must hold; record each with evidence in the merge PR body.
 | P-3 | SECURITY.md false phone-hash claim fixed **on `dev`** | The `dev` rewrite kept it; the merge would re-publish it (GOV MISS-03, GOV-08) | `grep -n "SHA-256 hashes" SECURITY.md` on `dev` returns nothing |
 | P-4 | `main` has no commits that `dev` lacks | Otherwise the merge is not a pure promotion | `git rev-list --count origin/dev..origin/main` = 0 (it was 0 on 2026-11-12 in this checkout, 120 the other way — re-measure) |
 | P-5 | Deploy, stale-branch and Dependabot auto-merge workflows disabled, or (stale-branch only) without a `schedule:` trigger | Merging into `main` runs Backend CI on `main` → `deploy-hetzner.yml` (`workflow_run`, branch `main`) deploys **12 weeks of unreleased code**; `stale-branches.yml`'s cron (Mondays 04:00 UTC) and `dependabot-auto-merge.yml` go live from the default branch. `stale-branches.yml` exists only on `dev`, so `gh workflow disable` by name can fail before the merge (its own header: "not found on the default branch") | `gh workflow list --all` shows Deploy and Dependabot auto-merge as `disabled_manually`; `git show origin/dev:.github/workflows/stale-branches.yml` has no `schedule:` (or, if step 7a was used, it is `disabled_manually` immediately after step 7) |
-| P-6 | Backend gate measured with Docker running on `dev` HEAD | `dev` carries Spring-config and migration changes since August; only the ten Testcontainers classes catch that class of failure (CLAUDE.md, #598) | `./gradlew :backend:test` with Docker; counts from `backend/build/test-results/test/*.xml` |
+| P-6 | Backend gate measured with Docker running on `dev` HEAD | `dev` carries Spring-config and migration changes since August; only the `@Testcontainers` classes (count them in the run; the number grows) catch that class of failure (CLAUDE.md, #598) | `./gradlew :backend:test` with Docker; counts from `backend/build/test-results/test/*.xml` |
 | P-7 | Open PRs into `dev` listed | Retarget list | `gh pr list --base dev --state open --json number,title,headRefName` (at review time: #690, #718, #736, #738 — re-list) |
 
 ## 3. One-time `dev` → `main` merge
@@ -95,7 +95,7 @@ Do not delete the `pre-trunk/*` tags for at least one release cycle.
 | `close-linked-issues.yml` | Delete; native closing keywords work on the default branch | GOV-02 |
 | `.github/dependabot.yml` | `target-branch: "main"` (or remove the key); add `github-actions` and `docker` ecosystems | CICD-13 |
 | `deploy-hetzner.yml` | Guard and artefact changes from [`ci-trust-boundary.md` §5](ci-trust-boundary.md#5-per-workflow-least-privilege-on-dev) | CICD-07, CICD MISS-01 |
-| `stale-branches.yml` | Review defaults before re-enabling (it deletes branches by age on a schedule) | GOV-01 |
+| `stale-branches.yml` | Before re-enabling: set `BASE=dev` → `main`; exempt `claude/muhabbet-p2p-architecture-wdan5r` (or rename it under a `keep/` prefix) and any `pre-trunk` work; require one manual dry run on `main` before the schedule is re-added, because a scheduled run sets `DRY_RUN=false` and would delete ~200 absorbed branches. After `dev` is deleted the unchanged job fails at `git fetch origin dev`, which is a safe failure | GOV-01 |
 | `mobile-release.yml` | Split into build-on-tag and promote-on-dispatch (§6) | CICD-10 |
 
 ### 4.3 Rulesets
@@ -140,11 +140,10 @@ where the account supports it.
 | Migrations | Reserve the Flyway `V` number in the PR title; expand/contract — a destructive change ships one release after the code stops using the column (CICD-09) |
 | Size | One concern per PR; a PR that needs a heading per subsystem is two PRs |
 
-> **Reviewer note (open):** Claude Code cloud sessions create branches named `claude/<slug>` (this
-> design package was authored on `claude/muhabbet-p2p-architecture-wdan5r`), which does not match
-> `<type>/<issue#>-<slug>`. The brief does not address harness-assigned names. Options: (a) accept
-> `claude/<issue#>-<slug>` as a sanctioned agent form, or (b) agents rename the branch before opening
-> the PR. Do not enforce branch names with a ruleset until this is decided, or harness pushes fail.
+> **Resolved (2026-11-12):** under the process approval, `claude/<slug>` is an accepted agent branch
+> name. Issue linkage comes from the PR body (`Closes #N`), not the branch name. Any branch-name
+> ruleset excludes `claude/**`. Agents do not rename branches, because a harness may only be able to
+> push to its assigned branch.
 
 ## 6. Versioning (from ROADMAP.md, unchanged)
 
@@ -181,7 +180,7 @@ its note (CLAUDE.md).
 
 | Situation | Action |
 |---|---|
-| R6 fails | Do not publish. Delete the draft release and the tag; fix on `main`; new patch number. Never reuse a version number. |
+| R6 fails | Do not publish. Delete the draft release (assets only; the **tag stays**, because `release-tags-immutable` forbids deletion with an empty bypass list, §4.3). Record the version as **burned** in CHANGELOG and the release issue. Fix on `main`, bump `versionName`/`versionCode`, and tag the next patch. Never reuse a version number. |
 | Problem after R8 on a staged rollout | Halt the rollout in Play Console (or the halt dispatch); ship a patch release through R1–R8 |
 | Problem after 100% | Patch release; Play cannot roll back to a lower `versionCode` |
 

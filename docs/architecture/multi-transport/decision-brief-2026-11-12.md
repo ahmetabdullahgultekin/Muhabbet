@@ -1,6 +1,6 @@
 # Muhabbet multi-transport delivery: decision brief
 
-**Date:** 2026-11-12 · **Base branch:** `dev` @ 2434324 · **Status:** Approved by delegated owner review (2026-11-12) with the amendments below: owner decisions D1–D6 and the errata in §18. The binding per-scope record is [`APPROVAL.md`](APPROVAL.md); no code is written for a scope until its block there reads `Status: Approved` (owner decision 4), and no GitHub restructuring or hooks are applied before the `process` scope is approved (owner decision 3). Open items are tracked in [`open-items.md`](open-items.md).
+**Date:** 2026-11-12 · **Base branch:** `dev` @ 2434324 · **Status:** Approved by delegated owner review (2026-11-12) with the amendments below: owner decisions D1–D6 and the errata in §18. Review record: [`docs/reviews/2026-11-12-design-approval-review.md`](../../reviews/2026-11-12-design-approval-review.md). The binding per-scope record is [`APPROVAL.md`](APPROVAL.md); no code is written for a scope until its block there reads `Status: Approved` (owner decision 4), and no GitHub restructuring or hooks are applied before the `process` scope is approved (owner decision 3). Open items are tracked in [`open-items.md`](open-items.md).
 **Audience:** the owner, plus the documentation authors who will turn this brief into the SAD, ADRs, threat model, ICD, capability matrix, roadmap, V&V plan and governance docs.
 **Inputs:** the three proposals (evolutionary, target-state, risk-first), the three judges (security-legal, feasibility, architecture-quality), the adversarially verified fact-checks and the register on `dev`.
 **How it was built:** the evolutionary proposal is the base, because it won two of three judges. It is grafted with risk-first's type-level fail-closed gate, wake-only push, compliance boundary and CI-trust prerequisites, and with target-state's path scopes, link keys, LAN adapter, tick semantics and own-device custody. Every must-fix from every judge is addressed. The cross-reference is in §3 ("Judge must-fix closure").
@@ -321,7 +321,7 @@ Product ADRs are 0010–0029. Process ADRs are 0030–0033. Existing documents a
 
 ### ADR-0019: Push is wake-only from 0.5; the server stops being plaintext-dependent for E2E conversations at 1.0
 - **Decision.**
-  - **From 0.5,** FCM (and APNs once iOS exists) payloads are data-only: `{type: "wake", conversationId, seq}`, a high-priority data message with a collapse key. The client fetches over TLS and composes the notification text locally.
+  - **From 0.5,** FCM (and APNs once iOS exists) payloads are data-only: `{t: "wake", v: 1}` (no conversation id, no seq; brief erratum E-46), a high-priority data message with a per-device collapse key. The client fetches over TLS and composes the notification text locally.
   - **OEM-throttling fallback:** pull on foreground, WorkManager periodic sync driven by seq, and an in-app notice of battery-optimisation exemption on known aggressive OEMs. iOS needs a Notification Service Extension when the iOS app exists.
   - **At 1.0, for E2E conversations:**
     - no server-stored plaintext content
@@ -1010,7 +1010,7 @@ The atomic claim and rate limit ship in 0.4. The per-device schema ships in 0.6.
   1. **Sender outbox:** durable, leased, expiring after 30 days by default. It has custody until server acceptance, or until peer E2E delivery for LOCAL_ONLY.
   2. **Server mailbox:** messages plus `/changes` before 1.0. From 1.0, the `message_envelopes` projection, deleted on device ack or TTL.
   3. **(1.3)** Own-device custody store and mule uplink cache: separate SQLCipher store, quotas (uplink: ≤ 50 bundles / 10 MB per mule, 24 h, configurable), FIFO-by-expiry eviction.
-- **Wake-up:** data-only FCM `{conversationId, seq}` → `SyncCoordinator` pull. WorkManager (and BGAppRefresh on iOS) as backstop, driven by seq.
+- **Wake-up:** data-only FCM `{t: "wake", v: 1}` → `SyncCoordinator` `heads()` then pull. WorkManager (and BGAppRefresh on iOS) as backstop, driven by seq.
 - **Privacy controls:**
   - opaque padded blobs; mules are verified contacts only
   - HPKE to the server, so the mule cannot route or read
@@ -1084,7 +1084,7 @@ AEAD: link channel encrypts body; fields 1–6 are associated data. No sync word
 |---|---|---|
 | V28 | `conversations.last_seq BIGINT NOT NULL DEFAULT 0`; `messages.seq BIGINT`, `messages.change_seq BIGINT`; backfill by `(server_timestamp, id)`; `UNIQUE(conversation_id, seq)`; seq-based indexes | 0.4 (early, additive) |
 | V29 | `messages.sender_device_id`; `UNIQUE(sender_device_id, client_message_id)` (replaces the global client-id PK check); scheduled messages `seq NULL` until release | 0.4/0.5 |
-| V30 | `users.birth_date`, `age_assurance_level`, `age_assured_at` (age gate) | 0.4 |
+| V30 | `user_age_assurance(user_id, birth_date, level, assured_at)` (age gate; erratum E-18) | 0.4 |
 | V31 | `contact_lookup_quota` / discoverability column with reader | 0.4 (cap) / 0.6 |
 | V32 | Per-device delivery: `message_device_delivery(message_id, device_id, status, updated_at, PK(message_id, device_id))` (BE-18) | 0.6 |
 | V33 | Device-scoped key tables: `identity_keys(user_id, device_id, …)`, `signed_prekeys`, `one_time_prekeys`, `kyber_prekeys(+last_resort)` with `device_id`; atomic-claim indexes | 0.6 (atomic claim and rate limit on the existing tables in 0.4) |
@@ -1236,7 +1236,7 @@ All new milestones are created in GitHub only after approval (owner decision 3).
     - MOB-04 stopgap limited to "delete `PendingMessage` only on `ServerAck(requestId)`".
     - Group receipt aggregation.
     - **EARLY ENGINE:** version catalog, one convention plugin, SQLDelight `.sqm` migrations and `verifyMigrations`, `:shared:jvmTest` in CI.
-- **Entry (amended 2026-11-12).** Implementation may start on branches now: P0-5 (ADR dispositions) is met by the delegated approval. Nothing is merged to `main`, deployed or released until P0-1…P0-4 are met (rotation evidenced, runner off cx43, `muhabbet-mordecai` resolved, protected environments). P0-6 (dev→main merge, rulesets) runs in parallel and must be complete before the 0.4 release tag, because release tags exist on `main` only (ADR-0030).
+- **Entry (amended 2026-11-12).** Implementation may start on branches now (P0-5 met by the delegated dispositions). Nothing is merged to `main`, deployed or released until P0-1…P0-4, P0-7 (protected `release`/`production` environments) and P0-8 (SHA-pinned actions) are met. P0-6 (dev→main merge, rulesets) must be complete before the 0.4 release tag. Release tags exist on `main` only (ADR-0030).
 - **Exit conditions carried from ROADMAP.** ROADMAP's four existing 0.4 conditions remain, as **exit** conditions (erratum E-29).
 - **Exit.**
   - Emulator, two test numbers:

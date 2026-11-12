@@ -1,6 +1,6 @@
 # ADR 0015 — Path-scope model and rule-based path policy (replaces Gemini's link "levels")
 
-**Status:** Proposed (gated) — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The scope vocabulary binds from acceptance and is first used in code at 1.2 (`SealedLink.scope`/`caps`, ADR-0012); `PathPolicy` is built only at 1.2 behind gate G-PROXIMITY · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0015; §7](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010, ADR-0012, ADR-0016, ADR-0029. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. The scope vocabulary binds from acceptance and is first used in code at 1.2 (`SealedLink.scope`/`caps`, ADR-0012); `PathPolicy` is built only at 1.2 behind gate G-PROXIMITY · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0015; §7](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010, ADR-0012, ADR-0016, ADR-0029. Supersedes nothing.
 
 ## Context
 
@@ -53,9 +53,9 @@ enum class BatteryClass { LOW, HIGH }
   **server** path. It is not a satellite transport (ADR-0027). "Constrained" is represented only by
   this Boolean, not also as a `CostClass` value.
 
-> **Reviewer note (open):** brief §7 carries "constrained" twice (as a `CostClass` value and as a
-> Boolean), so the two could disagree. This ADR keeps the Boolean only and adds `batteryClass` per
-> brief §7, because §4 ranks on battery. The brief should drop `CONSTRAINED` from `CostClass`.
+> **Resolved (2026-11-12):** brief erratum E-05: `LinkMetrics(rttMs, lossPpm, goodputBps,
+> costClass: FREE|METERED, batteryClass: LOW|HIGH, constrained: Boolean)`; `CONSTRAINED` is not a
+> `CostClass` value.
 
 ### 3. Selection: Strategy over a Chain of Responsibility
 
@@ -120,8 +120,8 @@ reimplemented.
 - Nothing here is built before 1.2; accepting this ADR binds only the vocabulary used by ADR-0012
   (from 1.2), the capability matrix and the threat model.
 
-> **Reviewer note (open):** brief ADR-0015 cites a §17 doc plan that does not exist; §17 is open
-> questions.
+> **Resolved (2026-11-12):** brief erratum E-06 replaces "§17 doc plan" with "README.md package
+> index (transport-capability-matrix.md)".
 
 ## Alternatives considered
 

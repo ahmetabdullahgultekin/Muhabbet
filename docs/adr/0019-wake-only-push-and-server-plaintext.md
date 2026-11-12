@@ -1,6 +1,6 @@
 # ADR 0019 — Push is wake-only from 0.5; the server stops being plaintext-dependent for E2E conversations at 1.0
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0019; ADR-0013 consequences; §9; §13 (0.5.0, 1.0.0); §17 Q-L6](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0011, ADR-0013, ADR-0014, ADR-0016, ADR-0021. Supersedes nothing. Keeps the #377 privacy enforcement server-side.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0019; ADR-0013 consequences; §9; §13 (0.5.0, 1.0.0); §17 Q-L6](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0011, ADR-0013, ADR-0014, ADR-0016, ADR-0021. Supersedes nothing. Keeps the #377 privacy enforcement server-side.
 
 ## Context
 
@@ -30,9 +30,9 @@ client-side and silently weaken that guarantee (target-state proposal; security 
 
 | Item | Rule |
 |---|---|
-| Payload | **Data-only** message: `{ "type": "wake", "conversationId": "<uuid>", "seq": <long> }`. No `notification` block, no title, no body, no sender name |
-| Priority | High priority only for wakes that will produce a user-visible notification (new message from another user). Normal priority for receipt, edit, delete and sync hints. Collapse key per conversation |
-| Client | `FcmHintSource` (an `InboundSource`, ADR-0012) emits `Hint(conv, seq)` → `SyncCoordinator` pulls `/changes?afterSeq=` over TLS → commits to the DB (ADR-0013 P4) → **composes the notification text locally** from the DB |
+| Payload | **Data-only** message: `{ "t": "wake", "v": 1 }`, optionally with a random per-device hint token mapped server-side (amended 2026-11-12). No `notification` block, no title, no body, no sender name, **no `conversationId` and no `seq`**: those would let the push provider link co-members of a conversation and count messages (LINDDUN linking), and pull-by-seq makes them unnecessary for correctness |
+| Priority | High priority only for wakes that will produce a user-visible notification (new message from another user). Normal priority for receipt, edit, delete and sync hints. Collapse key per device |
+| Client | `FcmHintSource` (an `InboundSource`, ADR-0012) emits a wake → `SyncCoordinator` calls `GET heads` (ICD §4.3), then pulls `/changes?afterSeq=` over TLS for each advanced conversation → commits to the DB (ADR-0013 P4) → **composes the notification text locally** from the DB |
 | Server port | `WakePushPort.wake(device, hint, collapseKey): PushResult`, implemented by `FcmWakePush` (later `ApnsWakePush`). `PushNotificationComposer`'s body composition is deleted, not flag-gated |
 | Pull is truth | A lost or throttled wake is repaired by the next pull (P6); push never carries anything the client cannot fetch |
 
@@ -63,7 +63,7 @@ cap separately limits which paths groups may use.
 
 | Metadata | Why it is retained | Who enforces against it |
 |---|---|---|
-| Sender device, recipient devices | Routing, fan-out, block enforcement, 5651 attribution | Server |
+| Sender device, recipient devices | Routing, fan-out, block enforcement, exactly-once delivery; a possible 5651 attribution duty is pending Q-L4/Q-L9 and not asserted | Server |
 | `seq`, `change_seq`, server timestamps | Ordering authority (ADR-0014) | Server |
 | Ciphertext sizes | Storage, quotas | Server |
 | Delivery and read acks per device | Mailbox deletion on `ack uptoSeq` (ADR-0021) and tick aggregation (ADR-0013) | Server |
@@ -127,19 +127,17 @@ Consequences for #377 settings:
 
 | Req | Check | Method | When |
 |---|---|---|---|
-| RQ-07 | Captured FCM payload contains no content, title, body or sender name | Test (adapter unit test on the built message) + Inspection (on-device payload capture) | 0.5 exit |
+| RQ-07 | Captured FCM payload contains no content, title, body, sender name, conversation id or seq | Test (adapter unit test on the built message) + Inspection (on-device payload capture) | 0.5 exit |
 | RQ-05 | Dropping 100% of wake hints still converges via foreground/WorkManager pull | `SimulatedLink` test | 0.5 exit |
 | — | Notification arrives with the app killed, text composed from the local DB | Demonstration on emulator-5554, owner (P13) | 0.5 exit |
 | — | p90 notification latency on an aggressive-OEM device within the agreed bound | Demonstration, owner | 0.5 exit (R11) |
 | RQ-13 | No plaintext content for E2E conversations in `messages`, search indexes or preview caches | SQL assertion + DB dump inspection | 1.0 exit |
 | — | READ is still downgraded to DELIVERED for a reader with `readReceiptsEnabled = false`, over WS and REST, for an E2E conversation | Integration test | 1.0 |
 
-> **Reviewer note (open):** the wake payload carries `conversationId` in clear to Google (and later
-> Apple). That is not content, but it is a stable pseudonymous identifier: the push provider can see
-> that two devices receive wakes for the same conversation at the same moments, i.e. who talks to
-> whom and when. A per-device opaque hint (e.g. only `{type:"wake"}`, or a random per-device token
-> mapped server-side) would remove that link at the cost of per-conversation collapse keys and a
-> slightly larger pull. The clear `seq` also exposes per-conversation message counts to the push
-> provider; both fields fall under the same decision. The brief's payload is kept; the owner and
-> counsel (Q-L6) should decide whether `conversationId` and `seq` are acceptable or should be
-> replaced before 0.5 ships.
+> **Resolved (2026-11-12):** the privacy-preserving payload is adopted inside the approved
+> 0.5 scope (Decision above): the FCM/APNs data payload is `{t:"wake", v:1}`, optionally with a random
+> per-device hint token mapped server-side; no `conversationId` or `seq` goes to the push provider. On
+> wake the client calls `GET heads` (ICD §4.3), then `/changes` per advanced conversation.
+> Notifications are built locally after the pull, so grouping is unaffected. The 0.5 exit check is
+> "captured FCM payload contains no content, conversation id or seq" (brief erratum E-46).
+> **Open item [OI-42](../architecture/multi-transport/open-items.md#oi-42):** counsel Q-L6(b) still covers the residual (device token plus wake timing visible to the push provider).

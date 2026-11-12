@@ -1,7 +1,11 @@
 # Muhabbet multi-transport roadmap
 
-> **Status: Proposed — pending owner approval.** Nothing in this roadmap is accepted until the owner
-> records it in [`APPROVAL.md`](APPROVAL.md). No code may be written, no GitHub milestone or issue
+> **Status: Approved by delegated owner review (2026-11-12), per scope:** Phase 0, `process`, 0.4,
+> 0.5, 0.6 approved; 0.7 approved except the ADR 0009 hosting/budget choice (Q-O8, owner); 1.0 approved
+> in principle, gated on counsel, the external crypto review and the licence step (D1); 1.1–1.4 remain
+> Proposed (gated). Only one milestone scope reads `Approved` in [`APPROVAL.md`](APPROVAL.md) at a time
+> (D1a); the owner transcribes the outcome there ([OI-46](open-items.md#oi-46)). Open items:
+> [`open-items.md`](open-items.md). The text below applies decisions D1–D6 (brief header). No code may be written, no GitHub milestone or issue
 > created, and no GitHub restructuring or hook applied for any scope until approval for that scope is
 > recorded there (owner decisions 3 and 4). Product milestones 1.1–1.4 are **Proposed (gated)**: even
 > once approved, each starts only when its admission gate is met.
@@ -10,9 +14,9 @@
 |---|---|
 | **Date** | 2026-11-12 |
 | **Base** | `dev` @ 2434324, branch `claude/muhabbet-p2p-architecture-wdan5r` |
-| **Source of truth** | [decision brief](decision-brief-2026-11-12.md) §13 (phased roadmap), §14 (prerequisite fixes), §15 (risks), §16 (V&V), §17 (open questions). Where this document and the brief disagree, the brief wins; the disagreement is recorded as a `> **Reviewer note (open):**` callout (§13). |
+| **Source of truth** | [decision brief](decision-brief-2026-11-12.md) §13 (phased roadmap), §14 (prerequisite fixes), §15 (risks), §16 (V&V), §17 (open questions). Where this document and the brief disagree, the brief wins; the disagreement is recorded as a reviewer-note callout (§22); unresolved items live in [open-items.md](open-items.md). |
 | **Evidence** | [findings register](../../reviews/2026-11-12-findings-register.md) (IDs such as `BE-06`, `MOB-03`, `CICD-01`); open-issue snapshot from the governance review digest (issue numbers below are **candidates** to re-verify at filing time, GOV-03) |
-| **Companions** | [`vv-plan.md`](vv-plan.md) (requirements RQ-01…RQ-90, harness, environments), [`risk-register.md`](risk-register.md) (R1…R43), [`transport-capability-matrix.md`](transport-capability-matrix.md) §13 (1.2 spike protocol), [`dpia-screening.md`](dpia-screening.md) |
+| **Companions** | [`vv-plan.md`](vv-plan.md) (requirements RQ-01…RQ-94, harness, environments), [`risk-register.md`](risk-register.md) (R1…R44), [`transport-capability-matrix.md`](transport-capability-matrix.md) §13 (1.2 spike protocol), [`dpia-screening.md`](dpia-screening.md) |
 | **Replaces nothing yet** | [`ROADMAP.md`](../../../ROADMAP.md) stays canonical for the method and the 0.x milestone questions. §11 says how this file merges into it after approval. |
 
 ---
@@ -52,7 +56,7 @@
 | 0.5.0 Honest | Does every control the app shows either work or not get shown? | Does every message go through one durable engine into one local SSOT, with content-free push and an encrypted DB? | `0.5` | no | ADRs 0011/12/13/14/16/19/20/22/28 Accepted |
 | 0.6.0 Reachable | Can an existing user bring a new one in, and can a new user find someone to talk to? | Is the per-device key/delivery model in place, and is iOS in or out? | `0.6` | no | none at entry; the iOS decision is a **blocking exit item** (G-iOS) |
 | 0.7.0 Live | Does a call connect, carry audio both ways, and appear in history? | Does the DIRECT live-session path work over SFU/TURN, privately? | `0.7` | deferrable (1.0 may proceed with 0.7 "explicitly deferred") | ADR 0009 accepted; separate host |
-| 1.0.0 Encrypted | Are all of the app's privacy claims true? | Is E2E real and fail-closed, so non-server paths become *possible*? | `1.0` | no (Android-only fallback) | Licence (a)–(c), crypto reviewer, iOS spike or Android-only |
+| 1.0.0 Encrypted | Are all of the app's privacy claims true? | Is E2E real and fail-closed, so non-server paths become *possible*? | `1.0` | no (Android-only per D2) | Licence step per D1, counsel Q-L1/Q-L4/Q-L7/Q-L9, crypto reviewer, iOS spike or Android-only (D2) |
 | 1.1 Direct | — (new) | Do P2P 1:1 calls buy E2E media and latency worth their cost? | `1.1` | **yes** | 0.7 telemetry; TURN budget |
 | 1.2 Nearby | — (new) | Can verified contacts exchange E2E messages with no internet, honestly? | `1.2` | partially (iOS cell) | **G-PROXIMITY** |
 | 1.3 Relay | — (new) | Is INDIRECT delivery beyond the mailbox (own devices, one contact hop) used and safe? | `1.3` | **yes** | telemetry threshold, crypto review, KVKK opinion, DPIA |
@@ -177,12 +181,12 @@ or the external reviewer) can sign it.
 | G-SECRETS | Rotation log for all four `.env.prod` values ([incident record §6](../../process/security-incident-2026-11-env-prod.md)) with verification evidence | Phase 0 exit | Owner | CICD-06, ADR-0031 F7 |
 | G-CI | ADR-0031 checks F1–F8 all green | 1.2 entry, 1.3 entry; before any long-lived signing, device-CA, uplink or crypto key is created | Owner | ADR-0031 |
 | G-ADR | ADR disposition row filled in `APPROVAL.md` §3 | entry of every milestone that cites the ADR | Owner | brief §13 |
-| G-iOS | KMP-01 fixed (entry point, Xcode project, DI, iOS CI build) **or** an accepted ADR scoping iOS out of 1.0; when iOS ships, an APNs DPIA (DT-5) signed before that release (`dpia-screening.md` §3.1) | 0.6 exit; 1.0 and 1.2 entry | Owner | ADR-0028, Q-O2 |
-| G-LICENCE | (a) owner approval Q-O1, (b) contributor audit, (c) written counsel opinion on AGPL via Play and App Store | 1.0 entry (before libsignal is restored) | Owner, counsel | ADR-0017, Q-L7 |
+| G-iOS | KMP-01 fixed (entry point, Xcode project, DI, iOS CI build), **otherwise Android-only per D2**, recorded in a scoping ADR, with the UI and store-listing text saying so; when iOS ships, an APNs DPIA (DT-5) signed before that release (`dpia-screening.md` §3.1) | 0.6 exit; 1.0 and 1.2 entry | Owner | ADR-0028, Q-O2 |
+| G-LICENCE | (a) the owner chooses at 1.0 entry, after the written Q-L7 opinion, between relicensing `mobile/` and conveying the combined app under AGPL (D1); (b) a contributor audit, required only if relicensing is chosen; (c) the counsel opinion on Play and the App Store | 1.0 entry (before libsignal is restored) | Owner, counsel | ADR-0017, Q-L7 |
 | G-XREVIEW | External crypto review engaged (1.0); findings closed (1.0 exit); uplink sealing reviewed (1.3 entry) | 1.0, 1.3 | Reviewer | ADR-0017, ADR-0025 |
 | G-PROXIMITY | All eight items of brief §13 1.2 entry | 1.2 entry; 1.4 entry | Owner, counsel | brief §13, ADR-0024 |
 | G-DPIA-*n* | Signed DPIA per ADR-0029 §6 trigger (proximity scanning, uplink relay, TURN/ICE logging, contact-discovery change, new processor or foreign host) | Timing per [`dpia-screening.md`](dpia-screening.md) §3 and §3.1: **0.4 exit** (DT-4 contact-lookup cap and block filter, V31; age-gate DPIA *recommended*, screening §8 note); **0.6 exit** (DT-4 revision for discoverability; APNs DT-5 when iOS ships, under G-iOS); **0.7 exit** (DT-3 TURN/ICE, DT-5 new host); **1.0 exit** (DPIA revision for the server store after cutover; LOCAL_ONLY only with its own DPIA signed before it is offered); **1.1 entry** (DT-3 revision); **1.2 entry** (DT-1, DT-6; G-PROXIMITY); **1.3 entry** (DT-2); **1.4 entry** (DT-1 radio, with the Q-L2 opinion) | Owner (counsel advises) | ADR-0029, `dpia-screening.md` |
-| G-LEGAL-*n* | Written counsel opinions Q-L1…Q-L9 relevant to the milestone | 1.0 licence step (Q-L7); **1.1: Q-L6 (basis for transfers abroad, if the TURN host is abroad) and Q-L8 (ICE telemetry as personal data)**; 1.2 (Q-L2); 1.3 (Q-L5); 1.4 (Art. 39/63(6) opinion). Not 0.x (ADR-0029 consequences) | Counsel | brief §17 |
+| G-LEGAL-*n* | Written counsel opinions Q-L1…Q-L9 relevant to the milestone | **1.0 entry: written opinions Q-L1 (*işletmeci* duties vs E2E, R5), Q-L4 (moderation under E2E, R18), Q-L7 (licence) and Q-L9 (retention; also gates the D3 server-deletion schedule)**; **1.1: Q-L6 (basis for transfers abroad, if the TURN host is abroad) and Q-L8 (ICE telemetry as personal data)**; 1.2 (Q-L2); 1.3 (Q-L5); 1.4 (Art. 39/63(6) opinion). Not 0.x (ADR-0029 consequences) | Counsel | brief §17 |
 | G-RELEASE | Release APK/AAB installed and launched on `emulator-5554`; same artefact promoted (ADR-0030) | every milestone exit | Owner [O] | ROADMAP release step 6, CICD-07/10 |
 
 ---
@@ -246,7 +250,7 @@ Rotation evidence for P0-1/P0-2 lives in the
 | **Scope — mobile** | MOB-01 `SessionTeardown` (tables, queues, WorkManager; MISS-02 mobile) · MOB-03 persist incoming `message.new` before DELIVERED and remove the duplicate ack in `ConversationListScreen` · MOB-05 edit dedup key includes `editedAt` · MOB-04 stopgap **limited to** "delete `PendingMessage` only on `ServerAck(requestId)`" · group receipt aggregation (MISS-01 mobile) · **early engine:** version catalog, one convention plugin (KMP-05), SQLDelight `.sqm` migrations + `verifyMigrations`, `:shared:jvmTest` in CI (KMP-03). |
 | **Also retained** | ROADMAP's four existing 0.4 conditions: search actually searches; the notification and the tick tell the truth; a community has somewhere to talk; nothing looks like it works and does not (RN-R1). |
 | **APPROVAL scope / ADRs** | `0.4`; ADR-0013, 0014, 0018 (parts 1–3), 0020 (teardown), 0022 (plane A auth only), 0028 (prerequisites), 0029 accepted. |
-| **Entry** | Phase 0 exit (brief §13). See RN-R11: this makes every 0.4 item, including the age gate (R38), wait on all ADR dispositions and the GitHub restructuring. |
+| **Entry** | **Amended 2026-11-12 (RN-R11 option (a)):** Implementation may start on branches now (P0-5 met by the delegated dispositions). Nothing is merged to `main`, deployed or released until P0-1…P0-4, P0-7 (protected `release`/`production` environments) and P0-8 (SHA-pinned actions) are met. P0-6 (dev→main merge, rulesets) must be complete before the 0.4 release tag. Release tags exist on `main` only (ADR-0030). The same text is the 0.4 Condition proposed for `APPROVAL.md` ([open-items.md §2](open-items.md#2-paste-ready-text-for-approvalmd-oi-46)). |
 | **Evidence** | Backend JUnit XML with Docker running, on base commit and on branch (CLAUDE.md rule); `verifyMigrations` and `:shared:jvmTest` reports; owner emulator notes per [O] row; logcat `FATAL` grep of the release APK. |
 | **Kill / fallback** | Not droppable. Fallback for schedule pressure: the trimmed list is already the minimum (judge disagreement "size of 0.4"); anything else moves to 0.5 visibly. |
 
@@ -256,7 +260,7 @@ Rotation evidence for P0-1/P0-2 lives in the
 | 04-2 | Double tick only after the recipient DB holds the row | RQ-03 | [CI] crash-point test + [O] emulator | Owner |
 | 04-3 | Logout then login as another number shows no prior data | RQ-08 | [O] emulator | Owner |
 | 04-4 | A revoked device's socket closes within 5 s | RQ-09 | [CI] integration test + [O] | Owner |
-| 04-5 | Under-15 registration refused; nothing persisted | RQ-10 | [CI] + [O] | Owner |
+| 04-5 | Registration below the configured minimum age (`muhabbet.age.minimum-years`, currently 18) refused; nothing persisted | RQ-10 | [CI] + [O] | Owner |
 | 04-6 | 50 concurrent senders → gapless unique seq | RQ-04 | [CI] Testcontainers | CI |
 | 04-7 | Concurrent prekey claims never return the same key; fetch limits enforced | RQ-11, RQ-45 | [CI] Testcontainers | CI |
 | 04-8 | Acks from non-members or for non-existent ids rejected and not broadcast; duplicate submit replays original seq | RQ-31, RQ-02 | [CI] integration | CI |
@@ -266,7 +270,7 @@ Rotation evidence for P0-1/P0-2 lives in the
 | 04-12 | Backend suite measured with Docker running, base vs branch, no new failures | — | [CI] | CI |
 | 04-13 | ROADMAP's four 0.4 conditions each seen working | — | [O] | Owner |
 | 04-14 | Release APK installed and launched on `emulator-5554` | G-RELEASE | [O] | Owner |
-| 04-15 | DT-4 DPIA (contact-lookup cap, block filter) signed before release; age-gate DPIA per `dpia-screening.md` §8 note (recommended) | RQ-40 | [I] | Owner |
+| 04-15 | DT-4 DPIA (contact-lookup cap, block filter) signed before release; age-gate DPIA (trigger DT-7) **required** and signed before release ([OI-36](open-items.md#oi-36)) | RQ-40 | [I] | Owner |
 | 04-16 | Reuse of a revoked refresh token revokes that device's sessions (T-SRV-03) | RQ-83 | [CI] integration | CI |
 | 04-17 | An edit after the first is applied; dedup keyed on `editedAt` (MOB-05) | RQ-84 | [CI] | CI |
 | 04-18 | Group READ status aggregates per member, not per message (MISS-01 mobile) | RQ-85 | [CI] | CI |
@@ -369,7 +373,7 @@ Scope items without an exit row (hygiene): `.sqm` migrations are covered by 04-1
 |---|---|
 | **Question** | ROADMAP: can an existing user bring a new one in, and can a new user find someone to talk to? Multi-transport: is the per-device delivery and key model in place, and is iOS in or out? |
 | **Scope** | Invite flow (existing ROADMAP scope) · contact discovery with a "discoverable by phone" setting **and a server-side reader** (§8.6, C8, M3) · background sync on seq · discoverability column on V31 · per-device delivery rows V32 (BE-18) · per-device key schema V33 and `IdentityKeyChanged` (BE-14 part 2, M2) · **iOS decision as a blocking gate** (KMP-01): either entry point, Xcode project, DI and iOS CI build exist, or an ADR scopes iOS out of 1.0. |
-| **APPROVAL scope / ADRs** | `0.6`; ADR-0018 (per-device directory), ADR-0028 (iOS gate); owner question Q-O2. |
+| **APPROVAL scope / ADRs** | `0.6`; ADR-0018 (per-device directory), ADR-0028 (iOS gate); Q-O2 decided (D2: Android-only 1.0 if KMP-01 is not fixed). |
 | **Entry** | 0.5 exit. |
 | **Evidence** | Integration-test reports; iOS simulator launch note or accepted scoping ADR; owner emulator note. |
 | **Kill / fallback** | Not droppable. **iOS fallback:** the scoping ADR (Android-only 1.0) is a legitimate exit for the gate; it must name the honest-UI consequences (ADR-0017). |
@@ -378,7 +382,7 @@ Scope items without an exit row (hygiene): `.sqm` migrations are covered by 04-1
 |---|---|---|---|---|
 | 06-1 | A message received while the app is killed is in the DB before the notification is tapped | RQ-26 | [O] emulator | Owner |
 | 06-2 | Enumeration throttling integration test | RQ-12 | [CI] | CI |
-| 06-3 | iOS launches on a simulator, or the scoping ADR is accepted | RQ-42 | [O] or [I] | Owner |
+| 06-3 | KMP-01 fixed (iOS launches on a simulator), otherwise Android-only per D2, recorded in a scoping ADR, with the in-app and store-listing text saying so | RQ-42 | [O] or [I] | Owner |
 | 06-4 | Identity replacement for an existing `device_id` returns an error and emits nothing | RQ-11 | [CI] | CI |
 | 06-5 | Relationship check on bundle fetch; last-resort Kyber fallback | RQ-45 | [CI] | CI |
 | 06-6 | Per-device delivery rows drive aggregate status | RQ-31 | [CI] | CI |
@@ -413,7 +417,7 @@ Scope items without an exit row (hygiene): `.sqm` migrations are covered by 04-1
 |---|---|
 | **Question** | ROADMAP: does a call connect, carry audio both ways, and appear in history? Multi-transport: does the DIRECT live-session path work over SFU/TURN without exposing IPs to non-contacts? |
 | **Scope** | ADR 0009 resolved: LiveKit on a **separate host**, embedded TURN/TLS on 443, `LIVEKIT_*` in `.env.prod` (MISS-1 networking) · client sends `call.initiate` and publishes the mic track (#367–#373) · `LiveSessionPort`/`LiveKitSession`; signalling as CONTROL frames through the engine · relay-only ICE for non-contacts, "always relay" setting, SFU media-access disclosure · ICE telemetry without IPs (NAT-3) · call sites #14–#16 (`ui/call/ActiveCallScreen.kt:272`, `IncomingCallScreen.kt:129/162`) and the `ActiveCallScreen.kt:118` collector migrated to `LiveSessionCoordinator` (delivery-engine-spec §16.2/§16.3; RN-R10). |
-| **APPROVAL scope / ADRs** | `0.7`; ADR 0009, ADR-0023 (0.7 part); owner question Q-O8 (host, budget, TURN egress). |
+| **APPROVAL scope / ADRs** | `0.7` (approved except the ADR 0009 hosting/budget choice: Q-O8 stays with the owner, [OI-30](open-items.md#oi-30), so 0.7 entry is blocked on it); ADR 0009, ADR-0023 (0.7 part); owner question Q-O8 (host, budget, TURN egress). |
 | **Entry** | ADR 0009 accepted; host provisioned; 0.6 exit. |
 | **Evidence** | ICE stats captures; a week of telemetry (relayed share, egress); owner call log on two operators. |
 | **Kill / fallback** | Deferrable, not droppable as a goal: brief 1.0 entry allows "0.7 explicitly deferred". If deferred, call entry points stay hidden behind a build flag (FT-01 recommendation) so the app does not show a control that does not work (0.4/0.5 question), and **1.1 is blocked** until 0.7 ships. |
@@ -447,9 +451,9 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | Field | Content |
 |---|---|
 | **Question** | ROADMAP: are all of the app's privacy claims true? Multi-transport: is E2E real and fail-closed by type, so non-server paths become possible at all? |
-| **Scope** | ADR-0017 preconditions (licence approved and executed for `mobile/`, contributor audit, counsel opinion on Play and App Store) · iOS bridge spike (Android-only 1.0 by decision if not ready) · libsignal adapters behind `SessionCryptoPort`, PQXDH + Kyber, per-device fan-out, sender-key groups, media E2E · safety-number QR, `IdentityKeyChanged` UX · `message_envelopes` mailbox V34, protocol v2, on-device FTS, sender-side link previews · ADR 0007 `DeviceLinkCrypto` real · ADR-0021 plaintext-history cutover (Q-O4) · external crypto review · DPIA revision for the server store after cutover (`dpia-screening.md` §3.1) · LOCAL_ONLY only if Q-O3 is decided **and** its own DPIA is signed before it is offered. |
-| **APPROVAL scope / ADRs** | `1.0`; ADR-0016, 0017, 0018, 0019, 0021, 0022; owner questions Q-O1…Q-O4; ADR-003 closed as superseded at exit. |
-| **Entry** | 0.7 shipped or explicitly deferred · crypto reviewer engaged · two-device Android round trip on real builds (produced by the §16 spike; never distributed) · G-LICENCE · G-iOS honoured. |
+| **Scope** | ADR-0017 preconditions (licence step per D1: after counsel Q-L7, relicense `mobile/` or convey the combined app under AGPL; contributor audit only if relicensing; counsel opinion on Play and App Store) · iOS bridge spike (Android-only 1.0 by decision if not ready) · libsignal adapters behind `SessionCryptoPort`, PQXDH + Kyber, per-device fan-out, sender-key groups, media E2E · safety-number QR, `IdentityKeyChanged` UX · `message_envelopes` mailbox V34, protocol v2, on-device FTS, sender-side link previews · ADR 0007 `DeviceLinkCrypto` real · ADR-0021 plaintext-history cutover (D3: download → notified 30-day grace → server deletion; opt-in user-key backup) · external crypto review · DPIA revision for the server store after cutover (`dpia-screening.md` §3.1) · LOCAL_ONLY only if Q-O3 is decided **and** its own DPIA is signed before it is offered. |
+| **APPROVAL scope / ADRs** | `1.0` (approved in principle; recorded `Deferred` until its gates are met); ADR-0016, 0017, 0018, 0019, 0021, 0022; Q-O1 (D1, decided after Q-L7), Q-O2 (D2), Q-O3 (open), Q-O4 (D3); ADR-003 closed as superseded at exit. |
+| **Entry** | 0.7 shipped or explicitly deferred · crypto reviewer engaged · two-device Android round trip on real builds (produced by the §16 spike; never distributed) · G-LICENCE · G-iOS honoured · written counsel opinions Q-L1, Q-L4, Q-L7 and Q-L9 (G-LEGAL) · Gradle dependency verification in place (R24, ADR-0031 D11) · backup-key ADR accepted (ADR-0021). |
 | **Evidence** | Claims register (RQ-20) with a test or device observation per claim; SQL assertion report; contract-suite report per adapter; external review report and closure notes; owner device notes. |
 | **Kill / fallback** | Not droppable (1.0 *is* "E2E on", ROADMAP versioning rule). Fallbacks: **Android-only 1.0** if the iOS bridge or KMP-01 is not ready (iOS E2E follows as 1.0.x); **vodozemac (Apache-2.0) core** if counsel's AGPL opinion is negative — needs its own ADR and loses PQXDH. |
 
@@ -465,7 +469,11 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | 10-8 | `/changes` per-device isolation; ack-delete; TTL purge | RQ-53 | [CI] | CI |
 | 10-9 | #377 read-receipt downgrade still holds for E2E conversations | RQ-50 | [CI] | CI |
 | 10-10 | No conversation labelled E2E while a readable server copy exists | RQ-20 | [CI] + [I] | Owner |
-| 10-11 | Crypto confined; AGPL distribution obligations met | RQ-43, RQ-44 | [CI] + [I] | Owner |
+| 10-11 | Crypto confined; AGPL distribution obligations met (apply under either D1 option once libsignal is linked) | RQ-43, RQ-44 | [CI] + [I] | Owner |
+| 10-15 | Before deletion, every active device of the user holds the conversation up to the server head seq (D3) | RQ-91 | [CI] + [O] | Owner |
+| 10-16 | Notices at the start of the grace period and before deletion; nothing deleted before T+30 d; deletion verified by SQL (D3) | RQ-92 | [CI] + [I] | Owner |
+| 10-17 | Opt-in backup round-trips under a user-held key the server cannot decrypt (D3) | RQ-93 | [CI] + [I] + external review | Owner, reviewer |
+| 10-18 | E2E label appears only after the deletion (incl. media and backup archives) is confirmed for that conversation (D3) | RQ-94 | [CI] + [I] | Owner |
 | 10-12 | Release launch on `emulator-5554` | G-RELEASE | [O] | Owner |
 | 10-13 | DPIA revision for the server store signed; LOCAL_ONLY absent unless its DPIA is signed | RQ-40, RQ-54 | [I] | Owner |
 | 10-14 | Every RQ listed for 1.0.0 in [`vv-plan.md`](vv-plan.md) §7 passes (incl. RQ-40, RQ-42, RQ-48 (B), RQ-52 (FTS), RQ-54); V&V summary (vv-plan §18) posted | per vv-plan §7 | [CI]/[I] | Owner |
@@ -482,7 +490,7 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 | Existing (candidate) | #313 `messages.content` btree key column (content nullable for E2E) | BE-15 |
 | Existing (candidate) | #314 public claims (claims register) · #328 disappearing messages do not disappear (claim) | SSOT-09, MISS-03/04 (product) |
 | Existing (candidate, likely stale) | #67 device-verify honest-E2E UI | GOV-03 |
-| New | Licence (a)–(c) and relicence of `mobile/` | KMP-13 |
+| New | Licence step per D1 (decision after Q-L7; execute the chosen option) | KMP-13 |
 | New | iOS libsignal bridge spike | MISS-3 (networking) analogue, KMP-01 |
 | New | `message_envelopes` + protocol v2 + cutover plan | BE-15, ADR-0021 |
 | New | On-device FTS inside SQLCipher (FTS5 `contentless_delete` spike) | GEM-14 |
@@ -513,7 +521,7 @@ ICE telemetry without IPs; `TurnCredentialService`. Findings: FT-01, LIB-1, ICE-
 |---|---|
 | **Question** | Can two verified contacts exchange E2E text and photos with no internet, and does every claim about it hold on a measured device matrix? |
 | **Scope** | Device certificates and CRL V35 (ADR-0018), signer **not** on a PR-job host · link keys and vetted `LinkAuthenticator` · rotating tags (§8.5) · `LanLink`, `NearbyLink`, `PathPolicy` and rules, Happy-Eyeballs establishment · Nearby-mode screen with consent matrix and 15-min auto-off · 1:1, verified, E2E only · `serverOwed` obligation · telemetry needed by the 1.3 entry gate (RN-R7). |
-| **APPROVAL scope / ADRs** | `1.2`; ADR-0015, 0018 (items 4–5), 0024, 0029; owner questions Q-O6, Q-O7. Spike harness code needs its own approval condition (RN-R4). |
+| **APPROVAL scope / ADRs** | `1.2`; ADR-0015, 0018 (items 4–5), 0024, 0029; Q-O6 decided (D4: ≤ 7-day window accepted and disclosed), owner question Q-O7. Spike harness code needs its own approval condition (RN-R4). |
 | **Entry gate (G-PROXIMITY), all of** | 1.0 exit · 0.6 iOS decision honoured · **2-week device-matrix spike** published (Pixel, Samsung A, Xiaomi, iPhone 12, iPhone 15+; A↔A, i↔i, A↔i; discovery time, backgrounded behaviour, text RTT, 5 MB goodput, prompts; protocol in [`transport-capability-matrix.md`](transport-capability-matrix.md) §13) · handshake library chosen by spike · DPIA for proximity scanning signed · counsel opinion covering E2E over BLE/Wi-Fi (Q-L2) · ADR-0031 in force (G-CI) · HMS share in Turkey measured (RN-R6). |
 | **Evidence** | Spike report + CSV; DPIA; opinion reference; OTA capture files; owner device notes; `SimulatedSealedLink` multi-node report. |
 | **Kill criterion** | If the spike fails on iOS: ship Android plus LAN-only cross-platform and say so (brief). If counsel's BLE/Wi-Fi opinion is negative, 1.2 does not start in TR (R6). |
@@ -655,7 +663,7 @@ this file becomes the **rationale and gate record**. To avoid three sources of t
 | RM-3 | Restate the 0.5.0 question to include the engine (or record the scope split decided in RN-R2) | `0.5` |
 | RM-4 | Definition of done: add "device criteria record observed by / where; only the owner ticks them" (ADR-0032) and "every privacy claim maps to a test or observation" (RQ-20) | `process`, `1.0` |
 | RM-5 | Release process: build once, launch the exact signed artefact on `emulator-5554`, promote the same bytes; deploy by artefact (ADR-0030); replace the "manual until #419" note | `process` |
-| RM-6 | Versioning: note that 1.0.0 may be Android-only by recorded decision (ADR-0017), and that the CHANGELOG must say so | `1.0` |
+| RM-6 | Versioning: 1.0.0 is Android-only if KMP-01 is not fixed at the 0.6 gate (owner decision D2), and the CHANGELOG, in-app text and store listing say so | `1.0` |
 | RM-7 | "Where the keys live": add device-CA intermediate and uplink key placement once Q-O7 is answered | `1.2` / `1.3` |
 | RM-8 | Update "Last revised"; add a link to this package's README | each merge |
 | RM-9 | This file gets a banner: "Schedule lives in GitHub milestones; this file records rationale and gates" | after RM-1 |
@@ -672,6 +680,13 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
   gate is not — it needs an ADR amendment.
 - Kill decisions for 1.1, 1.3, 1.4 are recorded as dated ADR amendments with the measured value
   against the Q-O5 threshold.
+- **Recording the 2026-11-12 delegated approval.** Only `0.4` (plus `phase-0` and `process`) carries
+  `Status: Approved`; 0.5, 0.6, 0.7 and 1.0 are recorded as `Deferred` with the condition "approved in
+  principle by delegated review 2026-11-12; opens when the previous milestone exits" (1.0 also gated).
+  The entry quotes the owner's delegation verbatim with its date and session reference, is made before
+  the G3 hook is armed, and is ratified by the owner (merge under CODEOWNERS, or countersignature at
+  the next owner touchpoint). After that no agent edits `APPROVAL.md` again (ADR-0033 D1a, G3, H11;
+  [OI-46](open-items.md#oi-46)).
 
 ## 20. Evidence
 
@@ -690,6 +705,7 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 | Check | Method |
 |---|---|
 | Every milestone of brief §13 appears with scope, entry, exit, owner-observed items and kill/fallback | Inspection against brief §13 |
+| Every owner decision D1–D6 (brief header) appears consistently in the brief, the roadmap gates (§4), the RQs (vv-plan) and the risk rows (risk register), so later amendments cannot drift as D1 once did | Inspection, at every amendment |
 | Every exit criterion of brief §13 maps to an RQ in `vv-plan.md` or a gate in §4 | Inspection (vv-plan §7 table) |
 | Every scope item maps to an exit row, or is marked "no exit (hygiene)" | Inspection, scope row by scope row |
 | Per milestone, the roadmap exit RQ set equals the vv-plan §7 RQ set (the final "every RQ in vv-plan §7" row makes this hold by reference; enumerated RQs must not contradict it) | Inspection |
@@ -702,80 +718,40 @@ The merge is a docs-only PR, reviewed by the owner (ADR-0032).
 
 ## 22. Reviewer notes
 
-> **Reviewer note (open) RN-R1 — 0.4 conditions placed under "Entry".** Brief §13 lists "ROADMAP's
-> four existing 0.4 conditions remain" under 0.4 **Entry**. In ROADMAP.md they are the milestone's
-> **exit** conditions ("Each closes only after being *seen* working on a device"). This roadmap treats
-> them as exit criteria (04-13). The owner should confirm.
+> **Resolved (2026-11-12):** **RN-R1:** brief erratum E-29 moves "ROADMAP's four existing 0.4
+> conditions remain" from Entry to Exit; this roadmap treats them as exit criteria (04-13).
 
-> **Reviewer note (open) RN-R2 — 0.5.0 has two scopes.** ROADMAP's 0.5.0 "Honest" question is "does
-> every control the app shows either work or not get shown?" (calls FT-01 / #367–#373, server-only
-> features FT-02, GIF/sticker picker FT-03 / #732; App Lock #378 and wallpaper #380 are already fixed
-> on `dev`, CHANGELOG.md:240 and :189-201, and only need device re-verification per GOV-03). The brief
-> re-uses the name for the delivery engine, wake-only push and SQLCipher, and does not mention the
-> existing question. Both are kept here (05-13), which enlarges 0.5.0 for a solo engineer (R4). The
-> owner should decide whether the "controls" work stays in 0.5.0 or moves to 0.6.0 (a move to 0.5.x
-> patch releases is possible only if RN-R9 amends ROADMAP's versioning rule).
+> **Resolved (2026-11-12):** **RN-R2:** both stay in 0.5.0. The controls work is small: FT-03 hide the
+> broken GIF picker; FT-01 already shows "coming soon" on `dev`; FT-02 has no UI entry point; App Lock
+> and wallpaper need only device re-verification. Brief §13 0.5.0 Scope reads "ROADMAP 0.5.0 exit
+> question (every control works or is not shown) remains" (05-13).
 
-> **Reviewer note (open) RN-R3 — Phase 0 rotation check proves only the JWT.** Brief §13 verifies
-> "every `.env.prod` value is rotated" by "login with the old JWT failing". That proves only
-> `JWT_SECRET`; the DB, Redis and MinIO credentials need their own evidence. Exit P0-2 adds ADR-0031
-> F7 (rotation log) for them.
+> **Resolved (2026-11-12):** **RN-R3:** brief erratum E-31: Phase 0 exit reads "Old JWT fails; DB, Redis
+> and MinIO credential rotation evidenced in the rotation log (ADR-0031 F7)" (P0-2).
 
-> **Reviewer note (open) RN-R4 — spikes need code before their scope can be approved.** The 1.2
-> device-matrix and handshake spikes are *entry* artefacts, the iOS bridge spike precedes 1.0, and
-> owner decision 4 forbids code before approval. `APPROVAL.md` has no spike scope (also raised as SP-1
-> in the capability matrix). Proposed: each spike is approved as a `Conditions:` line ("harness code
-> only, outside product modules, deleted after the report") in the scope it feeds (§16).
-> Spike builds that link libsignal are never distributed, so they do not trigger the ADR-0017 licence
-> step (AGPL obligations attach to distribution). Product modules restore libsignal only after
-> G-LICENCE.
+> **Open item [OI-18](open-items.md#oi-18):** **RN-R4:** each spike (1.0 iOS bridge, 1.2 device-matrix/handshake) is approved by the owner as a Conditions line in the scope it feeds: "harness code only, outside product modules, never distributed, deleted after the report". Under G3 only the owner can write these lines. Spike builds that link libsignal are never distributed, so they do not trigger the D1 licence step.
 
-> **Reviewer note (open) RN-R5 — deferring 0.7 also blocks 1.1.** The brief lets 1.0 start with 0.7
-> "explicitly deferred", but 1.1's entry needs 0.7 telemetry. A deferral of 0.7 therefore defers 1.1
-> as well; the graph shows this. Not a contradiction, but the owner should see it before deferring.
+> **Note:** **RN-R5 — 0.7 and 1.1.** 0.7 is approved except the ADR 0009 hosting/budget
+> choice ([OI-30](open-items.md#oi-30), Q-O8). If Q-O8 stays open, 0.7 slips, and 1.1 slips with it,
+> because 1.1's entry needs 0.7 telemetry. The graph shows this.
 
-> **Reviewer note (open) RN-R6 — "HMS share in Turkey measured" has no method.** G-PROXIMITY requires
-> it, but no source or method is named and no finding supplies one. The owner should name the data
-> source before 1.2 entry; the capability matrix (SP-2) also recommends one Huawei device in the
-> spike for the "HMS gets LAN only" claim.
+> **Open item [OI-19](open-items.md#oi-19):** **RN-R6:** the data source and method for the HMS share in Turkey (e.g. Muhabbet's own install base by device vendor plus one public market-share source) are named in the 1.2 entry checklist; one Huawei device is in the spike (capability matrix SP-2).
 
-> **Reviewer note (open) RN-R7 — the 1.3 gate needs telemetry that 1.2 does not schedule.** 1.3 entry
-> needs "Nearby sessions where one side lacked internet" above a threshold, but the brief's 1.2 scope
-> does not list collecting it. That telemetry is a DPIA input (screening S-09) and must be in the 1.2
-> DPIA and scope, otherwise 1.3 can never enter. Added to 1.2 scope here.
+> **Open item [OI-20](open-items.md#oi-20):** **RN-R7:** when 1.2 is approved, its scope and DPIA must include the telemetry "Nearby sessions where one side lacked internet" (screening S-09) that 1.3 entry needs; recorded now as gated content (brief erratum E-43).
 
-> **Reviewer note (open) RN-R8 — milestone naming.** The brief keeps ROADMAP's names ("0.4", "0.5.0
-> — Honest"); GOV-05 recommends titles equal to the SemVer tag ("v0.5.0 — Honest"). This roadmap does
-> not decide; the milestone policy belongs to the `process` scope.
+> **Note:** **RN-R8:** settled by the process approval: milestones keep the existing titles
+> ("0.5.0 — Honest" etc.); GOV-05's SemVer-title rename is not adopted.
 
-> **Reviewer note (open) RN-R9 — staged rollout vs ROADMAP versioning.** Brief §13 flips
-> `engine.enabled` in 0.5.1 and deletes the legacy path in 0.5.2. ROADMAP.md "How we version" says
-> "Patch releases fix defects only." The owner should either amend ROADMAP's rule for flag flips and
-> dead-code removal behind an already-shipped flag, or move the flip and the deletion to 0.6.0. This
-> roadmap keeps the brief's numbering (§7) until the owner decides.
+> **Open item [OI-21](open-items.md#oi-21):** **RN-R9:** owner choice, outside D1–D6: (a) amend ROADMAP's "Patch releases fix defects only" to allow flipping the default of an already-shipped flag and removing dead code behind it; or (b) make the flip 0.6.0 and the deletion 0.6.x. Until then the roadmap keeps 0.5.1/0.5.2. Due as a 0.5 Condition, before 0.5 exit.
 
-> **Reviewer note (open) RN-R10 — `ui/` count 0 at 0.5 vs call sites scheduled for 0.7.** Brief §13
-> and ADR-0011 verification require the `ui/` count of `WsMessage`/`wsClient` to be 0 at 0.5 exit
-> (05-2). `delivery-engine-spec.md` §16.2/§16.3 schedule call sites #14–#16
-> (`ui/call/ActiveCallScreen.kt:272`, `IncomingCallScreen.kt:129/162`) and the
-> `ActiveCallScreen.kt:118` collector for **0.7**, through `LiveSessionCoordinator`. The owner picks:
-> (a) 05-2 reads "`ui/` count = 0 outside `ui/call/` (3 send sites + 1 collector, frozen in the
-> `verifyUi` baseline until 0.7)" and 07-8 (RQ-24) closes it at 0.7; or (b) the call screens move to
-> the engine in 0.5, and 07-8 is dropped. This roadmap lists both (05-2 per the brief, 07-8 conditional).
+> **Resolved (2026-11-12):** **RN-R10:** option (a). 05-2 reads "`ui/` count = 0 outside `ui/call/` (3
+> send sites + 1 collector frozen in the `verifyUi` baseline until 0.7)", and 07-8 (RQ-24) closes it
+> at 0.7 through `LiveSessionCoordinator`. Calls do not work, so moving them in 0.5 is waste (brief
+> erratum E-30).
 
-> **Reviewer note (open) RN-R11 — 0.4 waits on all of Phase 0.** 0.4 entry is the full Phase 0 exit
-> (brief §13): all 24 ADR dispositions, including the gated 1.1–1.4 ADRs (P0-5), and the GitHub
-> restructuring, including the ≥ 100-commit dev→main merge that R28 calls a big-bang risk (P0-6).
-> The 0.4 age gate (V30) is the item R38 rates L=H/I=H as possibly already legally required. Every
-> 0.4 fix therefore waits on dispositioning 1.4 Meshtastic and on the trunk merge. Proposed for the
-> owner: either (a) 0.4 entry requires only P0-1…P0-4 plus dispositions of the ADRs 0.4 cites (0013,
-> 0014, 0018, 0020, 0022, 0028, 0029), with P0-5/P0-6 running in parallel; or (b) the age-gate item is
-> authorised under scope `phase-0` like the security emergencies.
+> **Resolved (2026-11-12):** **RN-R11:** option (a), written into §6 0.4 Entry with the same wording
+> as the 0.4 Condition proposed for `APPROVAL.md`: Implementation may start on branches now (P0-5 met by the delegated dispositions). Nothing is merged to `main`, deployed or released until P0-1…P0-4, P0-7 (protected `release`/`production` environments) and P0-8 (SHA-pinned actions) are met. P0-6 (dev→main merge, rulesets) must be complete before the 0.4 release tag. Release tags exist on `main` only
+> (ADR-0030).
 
-> **Reviewer note (open) RN-R12 — DPIA timing is exit, not entry, for 0.x.** `dpia-screening.md` §3
-> places DT-3 (0.7) and DT-4 (0.4, 0.6) **before the change ships**, i.e. at milestone exit, and
-> records that only 1.2 and 1.3 have DPIAs as brief entry criteria. This roadmap follows that (04-15,
-> 06-8, 07-7 are exit rows). It adds 1.1 (DT-3 revision) and 1.4 (DT-1) DPIAs as **entry** items
-> because those milestones are gated and the counsel checklist blocks them (ADR-0029); the screening
-> lists them without a gate column. If the owner wants 0.x DPIAs as entry gates, that is an ADR-0029
-> amendment.
+> **Note:** **RN-R12:** settled by the scope approvals, which adopt brief §13: 0.x DPIAs
+> are exit items (including the 0.4 age-gate DPIA, DT-7, row 04-15); 1.1–1.4 DPIAs are entry items.

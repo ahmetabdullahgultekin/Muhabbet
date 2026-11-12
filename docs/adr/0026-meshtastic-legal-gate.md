@@ -1,6 +1,6 @@
 # ADR 0026 — Meshtastic adapter: optional, legally gated, compiled out of TR builds
 
-**Status:** Proposed (gated) — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). Even after approval, **no line of the adapter is written** before the written legal opinion in §1 exists · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0026; §6.7, §12 #58–#62, §13 (1.4), §17 Q-L2](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Milestone:** 1.4 "Off-grid hardware" (gated, droppable, TR-excluded until cleared) · Depends on ADR-0012, ADR-0015, ADR-0016, ADR-0018, ADR-0022, ADR-0024 (G-PROXIMITY), ADR-0027, ADR-0028, ADR-0029. Supersedes nothing.
+**Status:** Proposed (gated) — confirmed as Proposed (gated) by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); not accepted, and no code may be written against this ADR until its scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. Even after approval, **no line of the adapter is written** before the written legal opinion in §1 exists · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0026; §6.7, §12 #58–#62, §13 (1.4), §17 Q-L2](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Milestone:** 1.4 "Off-grid hardware" (gated, droppable, TR-excluded until cleared) · Depends on ADR-0012, ADR-0015, ADR-0016, ADR-0018, ADR-0022, ADR-0024 (G-PROXIMITY), ADR-0027, ADR-0028, ADR-0029. Supersedes nothing.
 
 ## Context
 
@@ -45,7 +45,7 @@ decision for the owner, never accepted silently (LEG-03).
 | Hardware | **Certified off-the-shelf Meshtastic nodes** only, from a published hardware list; no raw LoRa PHY, no KISS/TNC, no software modem |
 | Interface | BLE or serial to the node, speaking the **Meshtastic protobuf API**; the node firmware does PHY and MAC |
 | Port | `SealedLink` (ADR-0012), scope `EXTERNAL_RF` (ADR-0015); accepts only `SealedFrame` (ADR-0016) |
-| Payload | Text and receipts only (INTERACTIVE text, CONTROL receipts); **one frame ≈ ≤ 200 B**; no fragmentation; no media, no BULK, no EPHEMERAL |
+| Payload | Text and receipts only (INTERACTIVE text, CONTROL receipts); **one frame ≈ ≤ 200 B** (unproven: a worked byte budget — `TransportFrame` header with 16 B `frameId`, routing tag and `linkSeq`, link AEAD tag, libsignal `SignalMessage` overhead, padding bucket, and Meshtastic's own payload limit — is written before 1.4 entry, [OI-33](../architecture/multi-transport/open-items.md#oi-33)); no fragmentation; no media, no BULK, no EPHEMERAL. Capacity figures assume SF12/125 kHz; Meshtastic's default preset differs, which the per-preset golden vectors cover |
 | Peers | Contacts only, under the same eligibility as ADR-0024 (verified, certificates valid) |
 | Sender | Own sender coroutine; duty-cycle waits suspend only this link (MISS-01, Gemini verifier) |
 | Package | `com.muhabbet.*` (never `tr.gov.*`, GEM-21) |
@@ -75,9 +75,9 @@ data class DutyCycleLimit(val fraction: Double, val window: Duration = 1.hours)
    `Backpressure(after)`, not as `constrained`, which marks a bearer on the **server** path only
    (ADR-0015 §2).
 
-> **Reviewer note (open):** brief §13 (1.4) lists a "constrained policy" in scope. If that is meant to
-> extend the `constrained` flag to off-server RF links, it needs an ADR-0015 amendment; this ADR
-> reads it as the capability- and size-based restriction above.
+> **Resolved (2026-11-12):** brief erratum E-12: the 1.4 scope reads "RF admission policy
+> (capability- and size-based: `SizeRule`, `AirtimeLedger`, established-session-only), not the
+> server-path `constrained` flag".
 5. The ledger is defence in depth; the certified firmware's own regional limits stay on.
 
 ### 4. Compiled out of TR builds
@@ -111,13 +111,10 @@ data class DutyCycleLimit(val fraction: Double, val window: Duration = 1.hours)
 - Exit: ledger tests plus a **one-hour field log within the duty cycle**; text and receipts
   delivered between two certified nodes (owner observation, P13).
 
-> **Reviewer note (open):** not stated in the brief. A PQXDH prekey message carries a Kyber-1024 /
-> ML-KEM-1024 ciphertext (PQXDH spec, https://signal.org/docs/specifications/pqxdh/; the 1568-byte
-> ciphertext size is the standard ML-KEM-1024 parameter, not a figure from the review digests), which
-> cannot fit a ≈ 200 B frame. RF can therefore carry only messages inside an **established** session,
-> and a conversation is eligible only after the recipient has replied in the session (no pending
-> PreKeySignalMessage, since libsignal keeps sending those until the peer replies). ADR-0022 is asked
-> to define an RF-sized padding bucket.
+> **Resolved (2026-11-12):** adopted as a normative rule (an ML-KEM-1024 ciphertext is 1568 B):
+> RF carries only messages in an established session; a conversation becomes RF-eligible only after
+> the recipient has replied (no pending `PreKeySignalMessage`). The RF padding bucket in ADR-0022 is
+> defined at 1.4 entry (brief erratum E-12).
 
 ## Alternatives considered
 
@@ -156,16 +153,8 @@ data class DutyCycleLimit(val fraction: Double, val window: Duration = 1.hours)
 | — | `RegulatoryRule` denies `EXTERNAL_RF` in TR | Unit test | CI | 1.4 |
 | — | Text and receipts delivered between two certified nodes | Demonstration | Owner | 1.4 exit |
 
-> **Reviewer note (open):** the duty-cycle figures (1% / 10%) come from a BTK table explicitly marked
-> *TASLAĞI* (draft) and from Meshtastic's documentation; the in-force KET regulation was not read
-> (RF-07). This ADR therefore makes the limits configuration and asks counsel to confirm them; no
-> document should present them as the in-force Turkish rule until that is done.
+> **Open item [OI-05](../architecture/multi-transport/open-items.md#oi-05):** counsel Q-L2(e) confirms the in-force KET regulation versus the May 2026 *TASLAĞI* table; the limits stay configuration, and no document presents 1%/10% as the in-force Turkish rule until the opinion exists.
 
-> **Reviewer note (open):** the brief says the module is excluded "from TR release flavours" but does
-> not say how a non-TR flavour reaches users (separate `applicationId`, Play country targeting,
-> sideload) or how a Turkish user installing a non-TR build is handled. Product flavours do not
-> exist in the build today. This is an owner decision to record with Q-O5 before 1.4 entry.
+> **Open item [OI-06](../architecture/multi-transport/open-items.md#oi-06):** owner decision before 1.4 entry, recorded with Q-O5: how a non-TR build reaches users (separate `applicationId`, Play country targeting, or no non-TR build) and what happens when a Turkish user installs it (runtime region check disabling RF, or nothing). Product flavours do not exist today.
 
-> **Reviewer note (open):** the counsel question should also cover encryption performed by the
-> Meshtastic node firmware itself on the radio link, not only Muhabbet's E2E payload, since both are
-> "encryption over *telsiz*". The brief's Q-L2 names LoRa but not this layer.
+> **Open item [OI-07](../architecture/multi-transport/open-items.md#oi-07):** counsel Q-L2(a)(4) now explicitly covers the channel encryption (AES) performed by the Meshtastic node firmware itself, independently of Muhabbet's E2E payload.

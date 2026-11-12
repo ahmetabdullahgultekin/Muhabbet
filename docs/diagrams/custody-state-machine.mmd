@@ -13,7 +13,9 @@
 %%   1. Custodians are offered strictly in order: (1) server mailbox, (2) own linked devices, (3) verified contact
 %%      uplink mule. Multi-hop contact mules are research (R-DTN), strangers never.
 %%   2. The custodian commits the bundle BEFORE replying Accepted (persist before ack, P4).
-%%   3. Custody is released only on an authenticated DELIVERED (sealed to the sender) or on expiry.
+%%   3. Custody is released only on (a) an authenticated DELIVERED (sealed to the sender), (b) handover acknowledged by a
+%%      higher-ranked custodian (server 2xx = CUSTODY_ACCEPTED / ServerAccepted), or (c) expiry (ADR-0025 section 1/4;
+%%      brief erratum E-10).
 %%   4. LOCAL_ONLY may use custodians 2-3 only once Q-O3 (receipt retention) is decided.
 stateDiagram-v2
     direction LR
@@ -22,7 +24,7 @@ stateDiagram-v2
         state "CREATED<br/>outbox entry has no eligible direct path" as C_Created
         state "OFFERED(custodian)<br/>next in hierarchy order" as C_Offered
         state "DECLINED(reason)<br/>quota, policy or link lost" as C_Declined
-        state "IN_CUSTODY(custodian, expiresAt)<br/>custodian 1 (mailbox): outbox SERVER_ACCEPTED(seq), one tick<br/>(LOCAL_ONLY mailbox custody: spec T18, Reviewer note R-1)<br/>custodians 2-3: outbox HOP_ACKED(serverOwed),<br/>UI clock + handed to (device or contact)" as C_InCustody
+        state "IN_CUSTODY(custodian, expiresAt)<br/>custodian 1 (mailbox): outbox SERVER_ACCEPTED(seq), one tick<br/>(LOCAL_ONLY mailbox custody: spec T18, open item OI-13)<br/>custodians 2-3: outbox HOP_ACKED(serverOwed),<br/>UI clock + handed to (device or contact)" as C_InCustody
         state "DELIVERED_RECEIPT<br/>authenticated DELIVERED or SeqObserved" as C_Delivered
         state "RELEASED" as C_Released
         state "EXPIRED" as C_Expired
@@ -31,6 +33,8 @@ stateDiagram-v2
         C_Created --> C_Offered : custodian available (1 mailbox, 2 own device, 3 contact uplink)
         C_Offered --> C_InCustody : CustodyResult.Accepted(expiresAt)
         C_Offered --> C_Declined : CustodyResult.Declined(reason)
+        C_Offered --> C_Created : CustodyResult.Retry(after), re-offer after the delay
+        C_InCustody --> C_Released : CUSTODY_ACCEPTED by a higher-ranked custodian (server 2xx)
         C_Declined --> C_Created : try next custodian
         C_InCustody --> C_Delivered : sealed DELIVERED to sender, or server seq observed
         C_Delivered --> C_Released

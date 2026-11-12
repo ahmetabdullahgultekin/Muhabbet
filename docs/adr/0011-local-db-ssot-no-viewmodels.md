@@ -1,6 +1,6 @@
 # ADR 0011 — The mobile local database is the single source of truth; no ViewModel layer
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0011](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Amends (supersedes the statement in)** [ARCHITECTURE.md §4](../ARCHITECTURE.md) "the local database is a cache and an outbox, not a source of truth", and rewrites §5 "How a message actually travels". Keeps the §4 no-ViewModel decision.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0011](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Amends (supersedes the statement in)** [ARCHITECTURE.md §4](../ARCHITECTURE.md) "the local database is a cache and an outbox, not a source of truth", and rewrites §5 "How a message actually travels". Keeps the §4 no-ViewModel decision.
 
 ## Context
 
@@ -17,8 +17,9 @@ The review traced four defects to that shape:
 | MOB-08 | No domain layer: UI consumes DTOs and protocol frames | Same |
 | MOB-11 | `WsClient` fuses transport, outbox, dedup and the E2E hook; nothing for a second transport to sit behind | Same |
 
-`grep -rn 'wsClient.send' mobile/composeApp/src` on `dev` @ 2434324 returns **17** call sites:
-16 under `ui/` (ChatScreen, ChatDialogs, ConversationListScreen, ActiveCallScreen,
+`grep -rn 'wsClient.send' mobile/composeApp/src` on `dev` @ 2434324 returns **17** matching lines, of
+which **16 are executable send sites** (14 `send`, 2 `sendAck`; one match is a comment): the sites are
+under `ui/` (ChatScreen, ChatDialogs, ConversationListScreen, ActiveCallScreen,
 IncomingCallScreen) and one `wsClient.sendAck` in `App.kt`. `WsMessage` is referenced 49 times in 9
 files under `ui/`. These, plus the socket connect/disconnect lifecycle in `App.kt`, not "ten in
 ChatScreen", are the migration inventory.
@@ -77,7 +78,8 @@ are searchable only through on-device FTS inside the encrypted DB (1.0, ADR-0019
 - ARCHITECTURE.md §4 (storage paragraph) and §5 (message flow) are rewritten on approval. A banner
   is added now.
 - The behaviour "a message sent while the socket is up never touches the database" is removed.
-- All 17 `wsClient.send*` sites and the 49 `WsMessage` references in `ui/` are migrated to engine
+- All 16 executable `wsClient.send*` sites (plus the collectors and lifecycle calls listed in
+  delivery-engine-spec §15; re-inventoried at stage S5, [OI-14](../architecture/multi-transport/open-items.md#oi-14)) and the 49 `WsMessage` references in `ui/` are migrated to engine
   use cases and DB flows. The `verifyUi` guardrail gains a rule counting `WsMessage`/`wsClient` in
   its scan roots, ratcheted to 0. `App.kt` is not under the current scan roots
   (`gradle/ui-guardrails.gradle.kts` scans `ui/`, `navigation/` and `designsystem`), so the rule
@@ -85,13 +87,13 @@ are searchable only through on-device FTS inside the encrypted DB (1.0, ADR-0019
 - `CachedConversation`, `CachedMessage` and `PendingMessage` are replaced by the SSOT schema in a
   fresh encrypted DB at 0.5 (ADR-0020) and dropped after the `engine.enabled` overlap release.
 
-> **Reviewer note (open):** inherited from the brief (ADR-0020 + §13). During the 0.5.0
-> `engine.enabled` overlap the legacy `WsClient` path (flag off) still needs `PendingMessage` and
-> `Cached*`, but ADR-0020 copies `PendingMessage` into `outbox_entry` and deletes the plaintext
-> file, so a flag-off user's queued messages would land in a table the legacy path never drains.
-> The 0.5.0 encrypted DB must also carry the legacy tables during the overlap, and the migration
-> must copy pending rows into the store of whichever path `engine.enabled` selects (or the flag is
-> evaluated before migration). The owner of ADR-0020 must confirm.
+> **Resolved (2026-11-12):** during the 0.5.x overlap the encrypted DB also carries the legacy
+> `PendingMessage` and `Cached*` tables. `engine.enabled` is read before the fresh-DB migration runs,
+> and pending rows are copied into the store of the path it selects. Turning the engine on drains any
+> remaining `PendingMessage` rows into `outbox_entry` once (delivery-engine-spec §16.4 K4). Engine →
+> legacy (the K3 kill switch) copies back only entries the legacy schema can express losslessly; the
+> others stay in `outbox_entry`, labelled "waiting", until the engine is re-enabled. The legacy tables are dropped together with the legacy path
+> (0.5.2 or later). The same rule is written into ADR-0020 §2.
 - `ConversationListScreen`'s refetch storm and duplicate DELIVERED ack disappear (MOB-03).
 - `MessagingEngine` becomes the cross-screen state holder for messaging; the §4 rule "a value two
   screens show must come from one singleton" now covers messages.

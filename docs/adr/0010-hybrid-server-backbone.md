@@ -1,6 +1,6 @@
 # ADR 0010 — Hybrid backbone: the server is the authority, every other path is an additional pipe
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0010](../architecture/multi-transport/decision-brief-2026-11-12.md) · Sets the boundary for the [ARCHITECTURE.md §8](../ARCHITECTURE.md) seams added by ADR-0012. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0010](../architecture/multi-transport/decision-brief-2026-11-12.md) · Sets the boundary for the [ARCHITECTURE.md §8](../ARCHITECTURE.md) seams added by ADR-0012. Supersedes nothing.
 
 ## Context
 
@@ -93,19 +93,14 @@ it.
   (≤ 7 days, ADR-0018/0029).
 - ADR-0012 adds the seams in Decision §3 to ARCHITECTURE.md §8 (banner added; text change on approval).
 
-> **Reviewer note (open):** Brief §13 lists the ADRs that must be accepted before 0.5 starts
-> (0011/12/13/14/16/19/20/22/28) but not this one, although all of them presuppose it, and 0.4
-> already ships its first consequences (V28/V29 server seq and device-scoped idempotency). 0.4 also
-> ships artefacts of ADR-0013 (BE-07 replayed ack, MOB-04 stopgap), ADR-0014 (V28/V29), ADR-0028
-> (version catalog, convention plugin, `.sqm` migrations) and ADR-0029 (age gate, V30), yet the 0.4
-> entry requires only "Phase 0 exit", i.e. ADRs dispositioned, possibly Rejected. Suggestion: 0.4
-> entry should require ADR-0010, 0013, 0014, 0028 and 0029 Accepted (or their 0.4 slices explicitly
-> accepted).
+> **Resolved (2026-11-12):** approving scopes 0.4–0.6 by delegated owner review accepts ADR-0010,
+> 0011, 0012, 0013, 0014, 0016, 0018 items (1)–(3) and (6), 0019, 0020, 0022 planes A–B, 0028 and 0029,
+> so the 0.4 slices of 0010/0013/0014/0028/0029 are accepted before 0.4 starts. ADR-0017 is accepted
+> as amended by D1. Brief §13 0.5 Entry now lists ADR-0010 (brief erratum E-02).
 
-> **Reviewer note (open):** the brief is internally inconsistent about who amends ARCHITECTURE.md
-> §8: its §3 intro attributes the update to ADR-0012, while brief ADR-0010's consequences attribute
-> it to ADR-0010. This ADR follows the §3 intro (ADR-0012 amends; ADR-0010 sets the boundary) so
-> that approving one ADR does not leave the amendment ambiguous.
+> **Note:** ADR-0010 sets the boundary; ADR-0012 makes the ARCHITECTURE.md §8 amendment
+> (three seams: `ServerLink`/`SealedLink`, `EnvelopeSealer`, `MailboxPort`). The brief's ADR-0010
+> Consequences were corrected accordingly (brief erratum E-01).
 
 ## Alternatives considered
 

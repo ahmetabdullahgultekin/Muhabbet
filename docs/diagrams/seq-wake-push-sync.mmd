@@ -4,12 +4,13 @@
 %% Status: Proposed - pending owner approval in docs/architecture/multi-transport/APPROVAL.md. No code before approval.
 %% Source of truth: decision brief ADR-0019, sections 6.4, 9 (wake-up); SAD section 6.3 (R3) step table.
 %% Evidence: BE-15 (message content in FCM payload = KVKK Art. 9 transfer to a US processor), MOB-10 (background sync
-%%   on device clock), MOB-11, R11 (OEM throttling). Legal basis for wake hints is open: Q-L6.
+%%   on device clock), MOB-11, R11 (OEM throttling). Residual (token + timing) with counsel: Q-L6(b), open item OI-42.
 %% Rules:
-%%   1. Payload is exactly {type: "wake", conversationId, seq}: no content, no sender name, no preview.
+%%   1. Payload is exactly {t: "wake", v: 1}, optionally a random per-device hint token mapped server-side:
+%%      no content, no sender name, no preview, no conversationId, no seq (ADR-0019, resolved 2026-11-12).
 %%   2. Notification text is composed on the device from the local DB; it never leaves the device.
 %%   3. Any lost wake is repaired by the next pull (P6): foreground, reconnect, WorkManager / BGTask.
-%%   4. Verification: captured FCM payload contains no content (RQ-07, 0.5 exit); owner observes a notification with
+%%   4. Verification: captured FCM payload contains no content, conversation id or seq (RQ-07, 0.5 exit); owner observes a notification with
 %%      the app killed (0.5 exit) and the message in the DB before the tap (0.6 exit).
 sequenceDiagram
     autonumber
@@ -33,25 +34,26 @@ sequenceDiagram
     par WS hint to every live session
         HPort-)WR: sync.hint / message.new (see seq-send-receive)
     and wake to every recipient device, including the sender's own other devices
-        HPort->>WP: wake(device, WakeHint(conversationId, seq), collapseKey = conversationId)
-        WP->>FCM: high-priority data-only message {type: "wake", conversationId, seq}
+        HPort->>WP: wake(device, opaque hint token, collapseKey per device)
+        WP->>FCM: high-priority data-only message {t: "wake", v: 1}
         FCM-)FH: deliver (best effort, may be delayed or dropped by OEM)
     end
     Note over HP,WP: presence-aware suppression for devices with a live WS session is a later refinement (brief section 4.2, ICD W-5)
 
-    FH->>SC: InboundEvent.Hint(conversationId, seq)
-    SC->>IB: watermark(conversationId)
-    alt seq > watermark
-        SC->>RF: changes(conversationId, afterSeq = watermark, limit)
+    FH->>SC: wake (no conversation named)
+    SC->>RF: heads() - lastSeq per conversation in one request (ICD 4.3)
+    SC->>IB: watermark w per conversation
+    alt some head > w
+        SC->>RF: changes(conversationId, afterSeq = w, limit) for each advanced conversation
         RF->>API: GET /api/v1/conversations/{id}/changes?afterSeq&limit over TLS
-        API-->>RF: {items, lastSeq, hasMore}
+        API-->>RF: {items, nextAfterSeq, lastSeq, hasMore}
         RF-->>SC: page
         SC->>IB: apply page
-        IB->>IB: one tx - upsert items + advance watermark (repeat while hasMore)
-        IB->>RS: committed up to seq
-        RS->>RS: enqueue CONTROL message.ack {conversationId, uptoSeq, DELIVERED} in outbox<br/>(after commit, P4), flushed when ServerLink is Ready (see spec R-5)
+        IB->>IB: one tx per page - upsert items + w := nextAfterSeq (repeat while hasMore)<br/>C := lastSeq only when hasMore = false (ICD 3.8 R-ACK)
+        IB->>RS: complete through C
+        RS->>RS: queue CONTROL message.ack {conversationId, uptoSeq = C, DELIVERED} in the CONTROL lane<br/>(not an outbox_entry row; after commit, P4), sent when ServerLink or RestServerLink is Ready (spec 6.6, R-5)
         IB->>NT: compose notification text locally from DB rows
-    else seq at or below watermark (duplicate or stale hint)
+    else no head above w (duplicate or stale wake)
         SC->>SC: no-op
     end
 

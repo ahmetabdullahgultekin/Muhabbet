@@ -8,15 +8,19 @@
 %% Rules:
 %%   1. Every transition is a compare-and-set on outbox_entry.state; side effects commit in the same SQLDelight tx.
 %%   2. DELIVERED and READ are NOT outbox states; ticks are derived from receipt rows (brief section 6.4).
-%%   3. No attempt cap: only lifetime (default 30 d; CONTROL and call signalling 60 s) ends retries.
+%%   3. No attempt cap: only lifetime ends retries. Lifetime is per command (spec section 4.5): SEND, EDIT, DELETE,
+%%      REACT and REPORT 30 d (a REPORT keeps CONTROL priority but lives 30 d, ADR-0029); call signalling and link
+%%      control 60 s. A head with HEAD_TRANSIENT_FAILURE_LIMIT consecutive transient failures goes to FAILED_PERMANENT.
+%%   6. User delete: CANCELLED only for an entry never submitted (attempt = 0, never HOP_ACKED). A submitted entry
+%%      (attempt > 0, incl. IN_FLIGHT) sets cancel_requested and is resolved per spec T32 (withdraw from everyone or CANCELLED).
+%%   7. Seal events arrive only in PENDING_SEAL; a retryable seal failure stays in PENDING_SEAL(SEAL_RETRY), never RETRY_WAIT.
 %%   4. Backoff: full jitter 1 s to 30 s on the injected Clock; reset to now on an eligible LinkUp.
 %%   5. Late results from a superseded attempt fail the CAS and are ignored.
-%% > **Reviewer note (open):** brief section 6.1 permits RetryDelivery only from FAILED_PERMANENT and lists EXPIRED as
-%%   terminal; delivery-engine-spec T26 also allows it from EXPIRED. The EXPIRED --> QUEUED edge is therefore NOT drawn
-%%   and is not normative until the owner / brief confirms it.
-%% > **Reviewer note (open):** brief section 6.1 says "any non-terminal -> EXPIRED on lifetime", which would include
-%%   SERVER_ACCEPTED; spec T27 excludes SERVER_ACCEPTED and T28 purges it on LifetimeExceeded instead (spec reviewer
-%%   note R-2). Drawn per the spec reading below; the brief must state one rule.
+%% > **Note (resolved 2026-11-12):** EXPIRED stays terminal (brief section 6.1; it may reflect a content lifetime
+%%   such as a disappearing timer). Spec T26 allows RetryDelivery from FAILED_PERMANENT only; for EXPIRED the UI offers
+%%   "resend as new" (new clientMessageId). The EXPIRED --> QUEUED edge is deliberately not drawn.
+%% > **Note (resolved 2026-11-12):** brief erratum E-24: any non-terminal state except SERVER_ACCEPTED -> EXPIRED on
+%%   lifetime; SERVER_ACCEPTED is purged at lifetime (spec T27/T28). The diagram as drawn is normative.
 stateDiagram-v2
     direction TB
 
@@ -43,15 +47,19 @@ stateDiagram-v2
     PENDING_SEAL --> PENDING_SEAL : SealFailed(NoSession), trigger prekey fetch, NEVER plaintext
     PENDING_SEAL --> QUEUED : SessionReady, then SealOk (sealed once)
     PENDING_SEAL --> QUEUED : IdentityApproved (UNTRUSTED_IDENTITY), re-seal, SealOk [spec T11]
+    PENDING_SEAL --> PENDING_SEAL : SealFailed(Failed retryable), SEAL_RETRY + backoff [spec T12]
     PENDING_SEAL --> FAILED_PERMANENT : SealFailed(non-retryable) [spec]
-    QUEUED --> PENDING_SEAL : SealFailed(NoSession) on re-seal
 
     QUEUED --> IN_FLIGHT : Dispatch(link), due + link Ready/UP + lane capacity
     RETRY_WAIT --> IN_FLIGHT : Dispatch(link), now >= nextAttemptAt [spec T15]
     RETRY_WAIT --> RETRY_WAIT : EligibleLinkUp, backoff reset to now
 
     IN_FLIGHT --> SERVER_ACCEPTED : ServerAccepted(seq, ts, replay), replay is not an error
-    IN_FLIGHT --> HOP_ACKED : HopAcked(peer / own device / mule)
+    QUEUED --> SERVER_ACCEPTED : ServerAccepted / SeqObserved (lost ack of an earlier attempt) [spec T16/T20]
+    RETRY_WAIT --> SERVER_ACCEPTED : ServerAccepted / SeqObserved [spec T16/T20]
+    IN_FLIGHT --> HOP_ACKED : HopAcked, LOCAL_ONLY or server link not Ready [T17]
+    IN_FLIGHT --> QUEUED : HopAcked and server link Ready, server-only upload owed [spec T17b]
+    IN_FLIGHT --> PENDING_SEAL : Rejected(MSG_DEVICE_SET_STALE), re-seal for new device set [spec T25b]
     IN_FLIGHT --> RETRY_WAIT : Timeout, LinkLost, Retry(after)
     IN_FLIGHT --> RETRY_WAIT : Backpressure(after), attempt not incremented [spec T23]
     IN_FLIGHT --> FAILED_PERMANENT : Rejected(code), permanent code
@@ -64,12 +72,16 @@ stateDiagram-v2
     SERVER_ACCEPTED --> [*] : ReceiptsSettled or LifetimeExceeded [T28], purge entry (row and receipts stay)
 
     FAILED_PERMANENT --> QUEUED : RetryDelivery (user)
+    FAILED_PERMANENT --> SERVER_ACCEPTED : SeqObserved / late ServerAccepted [spec T26b]
+    EXPIRED --> SERVER_ACCEPTED : SeqObserved / late ServerAccepted [spec T26b]
+    SERVER_ACCEPTED --> PENDING_SEAL : DecryptFailedReport from device d, new SEND entry re-sealed for d (1.0) [spec T33]
     FAILED_PERMANENT --> [*] : user deletes, purge
     EXPIRED --> [*] : user deletes, purge
 
-    QUEUED --> CANCELLED : user deletes
-    RETRY_WAIT --> CANCELLED : user deletes
-    PENDING_SEAL --> CANCELLED : user deletes
+    QUEUED --> CANCELLED : user deletes, never submitted (attempt = 0) [T29]
+    PENDING_SEAL --> CANCELLED : user deletes, never submitted [T29]
+    IN_FLIGHT --> CANCELLED : cancel_requested, definitive non-acceptance [spec T32]
+    RETRY_WAIT --> CANCELLED : cancel_requested, definitive non-acceptance [spec T32]
     PREPARING --> CANCELLED : user deletes [spec T29b]
     CANCELLED --> [*]
 

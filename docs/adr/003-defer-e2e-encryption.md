@@ -1,9 +1,9 @@
-> **Proposed supersession (pending owner approval):** superseded by [ADR 0016 — E2E fail-closed type gate](0016-e2e-fail-closed-type-gate.md); related: [ADR 0017 — E2E library and licence](0017-e2e-library-and-licence.md). Nothing below changes until approval is recorded in [APPROVAL.md](../architecture/multi-transport/APPROVAL.md).
+> **Superseded (2026-11-12, delegated owner review — [record](../reviews/2026-11-12-design-approval-review.md)):** superseded by [ADR 0016 — E2E fail-closed type gate](0016-e2e-fail-closed-type-gate.md); related: [ADR 0017 — E2E library and licence](0017-e2e-library-and-licence.md). Kept for history; the text below is no longer the decision.
 
 # ADR-003: Defer E2E Encryption to Phase 2
 
 **Date:** 2026-02-11
-**Status:** Accepted
+**Status:** Superseded by ADR 0016 (ADR 0017 related) — 2026-11-12; originally Accepted 2026-02-11
 
 ## Context
 Signal Protocol (X3DH + Double Ratchet) is the industry standard for E2E messaging encryption.

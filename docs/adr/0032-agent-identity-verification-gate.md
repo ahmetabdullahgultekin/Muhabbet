@@ -1,6 +1,6 @@
 # ADR 0032 — Agent identity and the verification gate
 
-**Status:** Proposed (process) — pending owner approval; no code may be written, and no GitHub setting changed, against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) (scope `process`) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0032; principle P13](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/agent-workflow.md`](../process/agent-workflow.md) · Supersedes nothing; makes ROADMAP.md "Definition of done" item 3 enforceable.
+**Status:** Accepted (2026-11-12, delegated; process, with the amendments listed in the record) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); no GitHub setting is changed, no hook file created and no code written against this ADR until scope `process` reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits (scope `process`) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0032; principle P13](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/agent-workflow.md`](../process/agent-workflow.md) · Supersedes nothing; makes ROADMAP.md "Definition of done" item 3 enforceable.
 
 ## Context
 
@@ -25,6 +25,17 @@ The verification gate is **owner-observed**: criteria about device behaviour are
      default: workflow changes are pushed by the owner (CODEOWNERS on `/.github/` enforces review in
      any case).
    - Commits carry the agent identity as author; the session link stays in the commit trailer.
+   - **Fallback, the default until feasibility is shown (amended 2026-11-12):** until a push by the
+     Claude Code harness under a separate App identity is demonstrated
+     ([OI-32](../architecture/multi-transport/open-items.md#oi-32)), `main-review` requires **0**
+     approvals, plus CODEOWNERS-required owner review on the high-risk paths of Decision 3. GitHub does
+     not let an author approve their own PR, so a 1-approval rule cannot be met for PRs pushed under the
+     owner's account.
+   - **Interim agent conditions** (recorded as a `process` Condition in `APPROVAL.md`): until then,
+     harness agents may act under the owner's credential only if every commit carries the
+     `Claude-Session` trailer; every agent PR or issue is labelled `source:agent`; agents never push
+     changes under `.github/workflows/`; and agents never merge, tag or dispatch. Expiry: the fallback
+     decision is due before the ruleset step (github-governance §12.1 step 4).
 2. **The owner approves agent PRs.** This makes ADR-0030's 1-approval rule satisfiable without
    bypass. The owner's own PRs use the audited bypass of the `main-review` ruleset (owner only,
    pull-request mode), which skips review only: required checks live in the separate `main-checks`
@@ -42,8 +53,13 @@ The verification gate is **owner-observed**: criteria about device behaviour are
 5. **Status axis** (with ADR-0030): *merged (needs verification)* → *released (vX.Y.Z)* → *verified
    (observed by / where)*. Only the owner moves an item with a device criterion to *verified*.
 6. **Claim protocol** (GOV-12): an agent starting on issue #N creates `<type>/<N>-<slug>`, opens a
-   **draft PR** containing `Closes #N` with its first push, and moves the board item to *In progress*.
-   The draft PR is the claim. Work-in-progress limit: 3 items *In progress*.
+   **draft PR** containing `Closes #N` with its first push, and labels the item for *In progress*
+   (the board follows by built-in workflows and owner triage; github-governance R-3 baseline (c)).
+   The draft PR is the claim. Work-in-progress limit: 3 items *In progress*. **Default for device
+   criteria (option (a), 2026-11-12):** the `[O]` owner-observation criterion lives in a parent issue;
+   the agent's draft PR `Closes` an implementation sub-issue; check A6 looks for a linked draft PR on
+   that sub-issue. Agents keep harness-assigned `claude/<slug>` branch names; issue linkage comes
+   from the PR body.
 7. **Agent-filed issues** carry `status:needs-evidence` until the owner or a verifier confirms the
    evidence (GOV-03, GOV-04; ROADMAP "verify, then schedule").
 
@@ -81,11 +97,12 @@ The verification gate is **owner-observed**: criteria about device behaviour are
 GOV-02, GOV-03, GOV-04, GOV-06, GOV-12, GOV-14, CICD-14, R20; CLAUDE.md "This host is TWO machines"
 and #633; ROADMAP.md "Definition of done" — [findings register](../reviews/2026-11-12-findings-register.md).
 
-> **Reviewer note (open):** the brief does not say whether the Claude Code cloud harness can push
-> under a GitHub App identity other than the account that authorised it. If it cannot, Decision 1
-> holds only for agents run outside that harness, and the approval rule stays unmeetable for harness
-> PRs. Feasibility must be checked before this ADR is accepted; the fallback is required reviews = 0
-> plus CODEOWNERS-only review on the high-risk paths in Decision 3.
+> **Resolved (2026-11-12):** the fallback is the default until feasibility is shown (Decision 1 above):
+> until a harness push under a separate App identity is demonstrated, required approvals = 0 on
+> `main-review`, plus CODEOWNERS-required owner review on the high-risk paths of Decision 3. GitHub
+> does not let an author approve their own PR, so an approval rule could not be met for PRs pushed
+> under the owner's account.
+> **Open item [OI-32](../architecture/multi-transport/open-items.md#oi-32):** demonstrate (or rule out) a harness push under a separate GitHub App identity; until then the interim agent conditions in Decision 1 apply. Due before the ruleset step (github-governance §12.1 step 4).
 
 ## Verification
 

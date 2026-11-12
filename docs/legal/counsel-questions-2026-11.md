@@ -52,7 +52,7 @@ architecture described in §2.
 | Kimlik / Identity | Phone number + SMS OTP (Twilio Verify in production); the number is stored in plaintext server-side |
 | Sunucu / Server | One backend (Spring Boot) hosted by Hetzner in **Germany**; the server stays authoritative for identity, devices, keys, ordering, mailbox, push and moderation in every future mode (ADR-0010) |
 | Şifreleme / Encryption | **Today: none end-to-end** — content is protected by TLS only and is readable by the server. Planned at 1.0: end-to-end encryption with libsignal for 1:1 and small groups; channels and communities stay server-readable by design |
-| İşlemciler / Processors | Hetzner (hosting), Google FCM (push), Twilio (OTP), Google Firebase Authentication (client-side phone sign-in, tried before the backend-OTP fallback), Sentry (crash reporting, if configured); later Apple APNs, a LiveKit call server (location open), a certificate-signing host |
+| İşlemciler / Processors | Hetzner (hosting), Google FCM (push), Twilio (OTP), Netgsm (SMS adapter; named as a processor in `02-aydinlatma-metni.md` and `03-acik-riza-metni.md`), Google Firebase Authentication (client-side phone sign-in, tried before the backend-OTP fallback), Sentry (crash reporting, if configured); later Apple APNs, a LiveKit call server (location open), a certificate-signing host |
 | Tüzel kişilik / Entity | Not yet formed (`docs/legal/README.md` uses placeholders) |
 | Ölçek / Scale | MVP, solo developer; far below 1 M daily accesses today |
 | Yaş / Age | No age gate exists yet; Terms say 18+ (or 16+ with parental consent, undecided); a registration age gate is planned for the current milestone (0.4) |
@@ -61,13 +61,13 @@ architecture described in §2.
 
 | Yol / Path | Sürüm / Milestone | Ne iletilir / Transmitted | Kim saklar, ne kadar / Stored by whom, how long | Sunucu içeriği görür mü / Server sees content |
 |---|---|---|---|---|
-| Sunucu üzerinden (WS + REST) / Server relay | today | Message content, metadata | Server: content and metadata (retention not yet defined) | **Yes** (until 1.0) |
-| Sunucu üzerinden, uçtan uca / Server relay, E2E | 1.0 | Ciphertext per recipient device; metadata (sender device, recipient devices, sequence number, sizes, timestamps, delivery/read acknowledgements) | Server: ciphertext until each device acknowledges, max 30 days; metadata (retention per Q-L9) | **No** (metadata yes) |
-| Push bildirimi / Push wake-up | 0.5 | `{type: "wake", conversationId, seq}` — no content, no sender | Google/Apple transiently | n/a |
+| Sunucu üzerinden (WS + REST) / Server relay | today | Message content, metadata | Server: content, media and server-built backup archives, and metadata (content retention not yet defined). **At the 1.0 cutover** the server copy of 1:1 and small-group history (content, media, backups) is deleted after a 30-day notified grace, with an opt-in client-side encrypted backup under a user-held key (owner decision D3) | **Yes** (until 1.0) |
+| Sunucu üzerinden, uçtan uca / Server relay, E2E | 1.0 | Ciphertext per recipient device; metadata (sender device, recipient devices, sequence number, sizes, timestamps, delivery/read acknowledgements) | Server: ciphertext until each device acknowledges, max 30 days; metadata (retention per Q-L9); no readable history after the D3 cutover; an optional opaque backup blob the server cannot decrypt | **No** (metadata yes) |
+| Push bildirimi / Push wake-up | 0.5 | `{t: "wake", v: 1}`, optionally a random per-device token — no content, no sender, no conversation id, no sequence number (ADR-0019) | Google/Apple transiently | n/a |
 | Arama (SFU/TURN) / Calls via relay | 0.7 | Encrypted audio (DTLS-SRTP); IP addresses at the relay | LiveKit host (location open) | The SFU can access media; disclosed in the UI |
 | Doğrudan arama / Direct 1:1 call | 1.1 | Encrypted audio between the two phones | — | No |
 | Yerel ağ / LAN (Wi-Fi without internet) | 1.2 | End-to-end ciphertext between **verified contacts** only, user-started foreground mode | The two phones | No |
-| Yakındaki cihazlar / Nearby (BLE → Wi-Fi, Wi-Fi Direct/hotspot via Google Nearby Connections) | 1.2 | Same; advertisements carry only rotating random tags | The two phones | No |
+| Yakındaki cihazlar / Nearby (BLE → Wi-Fi, Wi-Fi Direct/hotspot via Google Nearby Connections) | 1.2 | Same; advertisements carry rotating random tags plus a **fixed** DNS-SD service type and Nearby service id, which reveal that a Muhabbet user is present (not which one) | The two phones | No |
 | Kendi cihazları / Own linked devices | 1.3 | Ciphertext held by the user's own tablet for the user's other device | The user's own device, in a separate encrypted custody store, until delivered or expired (bundle lifetime bounded by the 30-day outbox lifetime; exact custody TTL not yet set, ADR-0025) | No |
 | Kişi aracılığıyla iletim / Uplink via a contact's phone | 1.3 | An opaque, padded blob sealed to the server's key, containing the end-to-end ciphertext | The contact's phone (≤ 24 h, ≤ 50 items / 10 MB), then the server | No |
 | LoRa (Meshtastic) | 1.4 | ≤ ~200-byte encrypted frames over licence-exempt EU868 radio via certified nodes | Nodes in transit | No — **excluded from Turkish builds until Q-L2 is answered** |
@@ -181,7 +181,7 @@ Turkish builds until a written answer exists (ADR-0026).
 
 | # | Sub-question |
 |---|---|
-| a | For each medium — (1) BLE, (2) Wi-Fi infrastructure LAN without internet, (3) Wi-Fi Direct / hotspot established by Google Nearby Connections, (4) LoRa EU868 via certified Meshtastic nodes — is app-level E2E ciphertext "telsiz üzerinden kriptolu haberleşme"? |
+| a | For each medium — (1) BLE, (2) Wi-Fi infrastructure LAN without internet, (3) Wi-Fi Direct / hotspot established by Google Nearby Connections, (4) LoRa EU868 via certified Meshtastic nodes, including the channel encryption (AES, pre-shared key on the default channel) performed by the node firmware itself, independently of Muhabbet's E2E payload — is app-level E2E ciphertext (and, for (4), the firmware's own link encryption) "telsiz üzerinden kriptolu haberleşme"? |
 | b | Does the same reasoning reach ordinary E2E messaging over Wi-Fi or cellular **internet** access (i.e. today's mainstream messengers)? If not, what distinguishes (a)(1)–(3)? |
 | c | Is the 2010 regulation (S-7) in force unamended? Does it bind software providers or only manufacturers of crypto devices? Does its md. 2(2) exemption cover licence-exempt (KET) devices? Does it impose a code or key deposit duty on Muhabbet? |
 | d | Who bears liability under md. 63(6) — the user who sends, Muhabbet as the party that "yaptıran", or both? |
@@ -267,6 +267,7 @@ reporter supplies (risk R18; message franking is research). Hosting is in German
 | e | Ek md. 4(5): what identifying information must be producible to a prosecutor or court, and does E2E change what is expected? |
 | f | Is Muhabbet also a *yer sağlayıcı* (S-11), with the md. 5 duties including traffic-data retention (see Q-L9)? |
 | g | Ek md. 4(6) hosting in Turkey: when does the duty bite, and does it cover ciphertext and metadata as well as content? |
+| h | The owner has accepted, and will disclose, a revocation window of up to 7 days for offline devices on the 1.2+ off-server paths (a device revoked by the server can still talk to a peer that has not been online since; owner decision D4). Is that window compatible with the under-15 ban (Ek md. 4(7)) and with takedown duties on those paths? |
 
 **Neyin önünü açar / What it unblocks:** 1.0 (E2E for 1:1 and small groups; server-only channels
 and communities confirmed); ADR-0029 rules 2–3; risk R18; the hosting plan; transparency reporting
@@ -323,8 +324,9 @@ kullanılmayacaktır.
 **Question (EN):** KVKK Art. 9 basis for FCM/APNs wake hints (content-free) and for LiveKit/TURN
 hosting. Consent is no longer to be used as the systematic basis.
 
-**Bağlam / Context.** From 0.5 push payloads carry only `{type: "wake", conversationId, seq}` — no
-content, no sender (ADR-0019) — but still reach Google (and later Apple) with a device token and
+**Bağlam / Context.** From 0.5 push payloads carry only `{t: "wake", v: 1}` (optionally a random
+per-device token mapped server-side) — no content, no sender, no conversation id, no sequence number
+(ADR-0019) — but still reach Google (and later Apple) with a device token and
 timing. Hosting is already in Germany (Hetzner). The LiveKit call server's location is undecided
 (Q-O8). The current drafts use explicit consent as a supplementary basis for systematic transfers
 (`docs/legal/03-acik-riza-metni.md:31-36`, `02-aydinlatma-metni.md:64`), which Art. 9(6) allows only
@@ -337,7 +339,7 @@ for incidental transfers (S-16, LEG-04).
 | # | Sub-question |
 |---|---|
 | a | For each recipient — Hetzner (Germany), Google FCM, Apple APNs, Twilio Verify, Firebase Authentication, Sentry, the future LiveKit host — which Art. 9 mechanism applies (adequacy decision, standard contract with five-business-day notification, other safeguard)? |
-| b | Is a content-free wake hint (device token, internal conversation id, sequence number, timing) a transfer of personal data? |
+| b | Is a content-free wake hint (device token, optional random per-device token, timing; no conversation id or sequence number) a transfer of personal data? |
 | c | Does the choice of LiveKit host location (Turkey vs. EU) change the answer materially? |
 | d | What exact changes should be made to `02-aydinlatma-metni.md` and `03-acik-riza-metni.md`? |
 | e | Is there any processing here for which explicit consent remains the right basis? |
@@ -352,17 +354,22 @@ correction "remove consent as the systematic Art. 9 transfer basis" (brief §14 
 
 ### Q-L7 — AGPL dağıtımı / AGPL distribution
 
-**Soru (TR):** libsignal'e bağlanan, tek telif hakkı sahibine ait bir uygulamanın AGPL-3.0 lisansıyla
-Google Play ve Apple App Store üzerinden dağıtılması mümkün müdür ve hangi koşullarla?
+**Soru (TR):** libsignal'e bağlanan bir uygulamanın AGPL-3.0 kapsamında Google Play ve Apple App Store
+üzerinden dağıtılması mümkün müdür ve hangi koşullarla? `mobile/` kodu AGPL'ye mi geçirilmeli, yoksa
+MIT kaynaklar AGPL kapsamında birleşik bir eser olarak mı dağıtılmalı?
 
-**Question (EN):** AGPL-3.0 distribution through Google Play and the Apple App Store for a
-single-copyright-holder app linking libsignal.
+**Question (EN):** AGPL-3.0 distribution through Google Play and the Apple App Store of an app linking
+libsignal, where Muhabbet is a third-party redistributor of Signal's AGPL code; and whether to relicense
+`mobile/` or to convey MIT sources inside an AGPL combined work.
 
-**Bağlam / Context.** libsignal is AGPLv3 (S-21); the repository is MIT (KMP-13). The plan relicenses
-only `mobile/` (the code that links libsignal) to AGPL-3.0-or-later; `shared/` and `backend/` stay
-MIT because the backend links `shared/` and never links libsignal (ADR-0017). Preconditions are
-owner approval, a contributor audit (commits by AI agents under the owner's identity) and this
-opinion. If the opinion is negative, the fallback is an Apache-2.0 library (vodozemac), which needs
+**Bağlam / Context.** libsignal is AGPLv3 (S-21); the repository is MIT (KMP-13). **`mobile/` stays MIT
+(owner decision D1, 2026-11-12).** At 1.0 entry the owner will choose, based on this opinion, between
+(i) relicensing `mobile/` (the code that links libsignal) to AGPL-3.0-or-later, and (ii) keeping the
+`mobile/` sources MIT and conveying the libsignal-linked binary as a combined work under AGPL-3.0 with
+a corresponding-source offer. Relicensing is therefore undecided, not planned. `shared/` and
+`backend/` stay MIT in both cases because the backend links `shared/` and never links libsignal
+(ADR-0017). A contributor audit (commits by AI agents under the owner's identity) is needed only for
+option (i). If the opinion is negative, the fallback is an Apache-2.0 library (vodozemac), which needs
 its own ADR and loses PQXDH.
 
 **Mevzuat / Statute:** S-21 (licence text); no Turkish statute.
@@ -376,7 +383,9 @@ its own ADR and loses PQXDH.
 | c | Does AGPL §13 (network interaction) reach the MIT backend, which talks to the app over the network but does not link libsignal? |
 | d | Is including MIT-licensed `shared/` in the AGPL-licensed app sound? |
 | e | What must the corresponding-source offer contain for store builds (build scripts; not signing keys)? |
-| f | Mechanics of relicensing the existing `mobile/` code. |
+| f | Mechanics of relicensing the existing `mobile/` code (option (i)), and of the NOTICE and source offer for option (ii). |
+| g | Compare options (i) and (ii): obligations, risk and reversibility. Do the AGPL-3.0 §6 "Installation Information" duties apply to Play and App Store conveyance (including an iOS build)? |
+| h | Muhabbet would redistribute libsignal as a third party; its licensor is Signal. Do Apple App Store and Google Play terms impose restrictions incompatible with AGPL-3.0 §10 ("no further restrictions")? Would written permission from Signal be needed or useful? |
 
 **Neyin önünü açar / What it unblocks:** ADR-0017 precondition (c); the 1.0 licence step; risk R8;
 the decision between libsignal and the vodozemac fallback. **Needed by:** before 1.0 entry.
@@ -441,9 +450,10 @@ erasure).
 | c | Can a LOCAL_ONLY conversation delete delivery receipts at delivery? If not, what minimum must remain, and for how long? |
 | d | How is a statutory retention duty reconciled with KVKK storage limitation and the right to erasure for the same data? |
 | e | Do access logs (IP addresses at the reverse proxy and at the TURN/SFU) fall under the same duty? |
+| f | At the 1.0 cutover the server copy of existing 1:1 and small-group message content, media and server-built backups is deleted after a 30-day notified grace (owner decision D3). Does any retention or production duty (5651 md. 5(3) / Ek md. 4(5) information to prosecutors; 5809 md. 9(14) operator duties) prevent deleting existing server-held message content and media at the cutover? Must anything be kept, and for how long? |
 
-**Neyin önünü açar / What it unblocks:** LOCAL_ONLY (ADR-0021, ADR-0025) together with owner question
-Q-O3; retention configuration in `application.yml`; DT-3 DPIA retention fields; T3 storage-mode
+**Neyin önünü açar / What it unblocks:** the D3 deletion schedule at the 1.0 cutover (sub-question f);
+LOCAL_ONLY (ADR-0021, ADR-0025) together with owner question Q-O3; retention configuration in `application.yml`; DT-3 DPIA retention fields; T3 storage-mode
 design. **Needed by:** before LOCAL_ONLY is offered; (e) before 0.7.
 
 ---
@@ -494,28 +504,15 @@ added by the owner.
 
 ## 8. Reviewer notes
 
-> **Reviewer note (open):** brief Q-L4 asks "at what user threshold" as if every 5651 Ek md. 4 duty
-> were threshold-bound. In the consolidated text read, paragraphs (7), (13)–(16), (20) and (21)
-> carry no daily-access threshold; (1), (3), (4) and (6) carry 1 M; (22)–(23) carry 10 M. Paragraph
-> (7) is the under-15 ban with *yaş doğrulama*; paragraph (20) (parental-control tools) bears on the
-> 15–17 cohort and is asked in Q-L3(h). The brief's design (age gate in 0.4 regardless of scale) is already the conservative
-> reading, so no design change follows; Q-L3(a) asks counsel to confirm.
+> **Note:** brief Q-L4 asks "at what user threshold" as if every 5651 Ek md. 4 duty were
+> threshold-bound. In the consolidated text read, paragraphs (7), (13)–(16), (20) and (21) carry no
+> daily-access threshold; (1), (3), (4) and (6) carry 1 M; (22)–(23) carry 10 M. This is already put to
+> counsel in Q-L3(a) and Q-L3(h). The design (age gate at 0.4 regardless of scale) is the conservative
+> reading, so no design change follows.
 
-> **Reviewer note (open):** the SAD (§2, reviewer note at `sad.md:136`) carries an open note that
-> the 1/11/2026 in-force date for the 7578 amendment was not in the verified evidence (ADR-0029 itself
-> states the date without a caveat). The consolidated 5651 text
-> downloaded by the legal fact-check (<https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5651.pdf>) lists
-> "7578 — Ek Madde 4, Ek Madde 5 — 1/11/2026" in its *yürürlük* table. That supports the brief's
-> date; it has not been re-read by an independent verifier and is still put to counsel in Q-L3. The
-> extracted table is column-scrambled; the 7578 → Ek Madde 4/5 → 1/11/2026 reading should be
-> confirmed against the PDF.
+> **Open item [OI-27](../architecture/multi-transport/open-items.md#oi-27):** Q-L3 asks counsel to confirm the 7578 → Ek md. 4/5 → 1/11/2026 entry against the official PDF (<https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5651.pdf>; the extracted *yürürlük* table is column-scrambled). Until then text says "according to the consolidated text; legal confirmation pending".
 
-> **Reviewer note (open):** the Law 5809 copy actually used for the excerpts (alomaliye.com,
-> 25-12-2025) predates Law 7590. The verifier confirmed the cited articles are unchanged in the
-> current mevzuat.gov.tr text, but counsel should quote from the current text only (MISS-02 legal);
-> Q-L1(f) asks which powers moved.
+> **Open item [OI-28](../architecture/multi-transport/open-items.md#oi-28):** instruction to counsel (Q-L1(f)): quote Law 5809 from the current mevzuat.gov.tr text only; the alomaliye.com copy used for the excerpts (25-12-2025) predates Law 7590.
 
-> **Reviewer note (open):** the fact-check's legal checklist also listed KET conformity of
-> recommended LoRa hardware and spectrum-use liability when the app drives user-owned radios. The
-> brief has no separate Q-L for them; they are folded into Q-L2 (e)–(f) rather than numbered
-> separately, to keep the brief's Q-L1…Q-L9 numbering intact.
+> **Note:** KET conformity of recommended LoRa hardware and spectrum-use liability when the
+> app drives user-owned radios are folded into Q-L2 (e)–(f), keeping the Q-L1…Q-L9 numbering intact.

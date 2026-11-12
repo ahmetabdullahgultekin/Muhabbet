@@ -58,7 +58,7 @@ flowchart LR
     backend -- "S3 API, presign" --> minio
     backend -- "mint room / TURN credentials" --> livekit
     backend -- "OTP" --> otp
-    backend -- "data-only wake {conversationId, seq}<br/>collapse key per conversation" --> fcm
+    backend -- "data-only wake {t: wake, v: 1}<br/>collapse key per device" --> fcm
     fcm -- "wake hint" --> app
     backend -. "sign(tbs) / unseal (1.2 / 1.3)" .-> signer
 

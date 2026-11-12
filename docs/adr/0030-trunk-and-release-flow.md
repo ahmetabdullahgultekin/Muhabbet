@@ -1,6 +1,6 @@
 # ADR 0030 — Trunk-based `main` and a build-once release flow
 
-**Status:** Proposed (process) — pending owner approval; no code may be written, and no GitHub setting changed, against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) (scope `process`) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0030](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/branching-and-release.md`](../process/branching-and-release.md) · Supersedes the branch model in `CONTRIBUTING.md` (`main`/`develop`/`feature/*`) and the de-facto `dev` integration flow. Amends ROADMAP.md "The working method" step 4 (branch names) and "Release process" steps 5–9.
+**Status:** Accepted (2026-11-12, delegated; process, with the amendments listed in the record) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits (scope `process`); no GitHub setting is changed and no hook file created before then · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0030](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/branching-and-release.md`](../process/branching-and-release.md) · Supersedes the branch model in `CONTRIBUTING.md` (`main`/`develop`/`feature/*`) and the de-facto `dev` integration flow. Amends ROADMAP.md "The working method" step 4 (branch names) and "Release process" steps 5–9.
 
 ## Context
 
@@ -36,14 +36,21 @@ repository does something else:
    - **`main-review`**: require a PR; 1 approval (satisfiable once agents have their own identity,
      ADR-0032); code-owner review; conversation resolution. Bypass = owner, in pull-request mode.
 
+   **Order (normative):** (a) ADR-0031 runner change; (b) PR CI green on non-production runners;
+   (c) only then are `Build & Test` and `Android Build` added to `main-checks`. Until (c),
+   `main-checks` holds linear history and the force-push/deletion blocks only; `main-review` requires
+   a PR, and the PR template carries locally measured gate evidence. Creating required checks before
+   PR CI runs anywhere would block every merge.
+   `main-review` requires 0 approvals plus CODEOWNERS owner review until a harness push under a
+   separate App identity is demonstrated (ADR-0032 Decision 1).
+
    The owner's bypass therefore skips review only, never the checks. Tags `v*` are protected by two
    further rulesets, for the same reason: **`release-tags-create`** (restrict creations; bypass =
    repository admin role) and **`release-tags-immutable`** (restrict updates and deletions; empty
    bypass list).
 
-   > **Reviewer note (open):** this tag-ruleset split amends the single "third ruleset" of the
-   > first draft (github-governance §9.2, R-8a). One ruleset cannot both let the owner create tags
-   > and forbid everyone, the owner included, from moving them.
+   > **Note:** amendment R-8a (split into `release-tags-create` and `release-tags-immutable`) accepted
+   > 2026-11-12 under the delegated approval of the process ADRs.
 5. **Release = build once, verify, promote the same artefact.** Release tags exist on `main` only;
    there are no `release/*` branches, hotfixes included — a hotfix is a patch tag on `main`, and
    unreleased work already on `main` must be flag-gated (see Why). The build job fails closed unless
@@ -52,7 +59,14 @@ repository does something else:
    installs **those bytes** on `emulator-5554` and launches them (ROADMAP release step 6) → a promote
    job uploads the **same AAB**, located by release-asset ID and checked against `SHA256SUMS`, to the
    chosen Play track. The promote job has no Gradle step and never uses `--clobber`. GitHub releases
-   are published non-draft after the launch check.
+   are published non-draft after the launch check. The owner also installs a universal APK generated
+   with `bundletool` from the promoted AAB. Once CI runs off cx43 on a runner with KVM (availability to
+   verify), an automated emulator smoke (install, `am start`, no `FATAL`, screenshot) additionally
+   gates every release candidate; it does not replace the owner's observation (P13).
+   **If the launch check fails**, the version is burned: the draft release is deleted (assets only —
+   the tag stays, because `release-tags-immutable` forbids deletion), the version is recorded as
+   burned in CHANGELOG and the release issue, and the fix ships as the next patch tag. A version
+   number is never reused.
 6. **Backend deploy by artefact.** CI builds the image once and records its digest; deploy runs that
    digest (or, until a registry exists, that exact SHA), never `git pull` on the host. Success means
    the running build reports the expected commit, not only `/actuator/health` (CICD-07).
@@ -60,7 +74,11 @@ repository does something else:
    **verified (observed by / where)**. An issue with a device-dependent criterion closes only at
    *verified*, and only the owner sets that (ADR-0032, P13) (GOV-02).
 8. **Sequencing.** Applied only after Phase 0 exit and owner approval of scope `process` (owner
-   decision 3). A one-time tracker cleanup (GOV-03) precedes filing any multi-transport epic.
+   decision 3). A one-time tracker cleanup (GOV-03, TC-11) precedes filing any multi-transport epic,
+   **with one exception (amended 2026-11-12, option (b))**: 0.4 implementation issues may be filed
+   before the cleanup if they are labelled `status:needs-evidence`, carry milestone 0.4, and are
+   linked from a single Phase-0/0.4 epic. No other multi-transport epics are filed before TC-11. The
+   choice is recorded as a `process` Condition in `APPROVAL.md`.
 
 ## Why
 
@@ -91,20 +109,14 @@ repository does something else:
 - CONTRIBUTING.md, ROADMAP.md and CLAUDE.md link to the process doc instead of restating it (GOV-11),
   after approval.
 
-> **Reviewer note (open):** the required checks in Decision 4 can only report on PRs if PR CI runs
-> somewhere. ADR-0031 forbids PR jobs on the production host and, until GitHub-hosted runners are
-> unblocked (CICD-04) or a non-production runner exists, disables them. Creating the ruleset with
-> required checks before that point blocks **every** merge. The brief orders ADR-0030/0031 together
-> but does not state this dependency. Proposed order: (a) ADR-0031 runner change → (b) PR CI green on
-> the new runners → (c) ruleset with required checks. Until (c), `main-checks` holds only linear
-> history and the force-push/deletion blocks (empty bypass list); its required checks are added at
-> (c). Meanwhile `main-review` requires PR and approval, and the PR template's "gates that ran" section carries locally measured evidence.
+> **Resolved (2026-11-12):** the order is now normative in Decision 4 above: (a) ADR-0031 runner change;
+> (b) PR CI green on non-production runners; (c) only then add `Build & Test` and `Android Build` to
+> `main-checks`. Until (c), `main-checks` holds linear history and force-push/deletion blocks only;
+> `main-review` requires a PR, and the PR template carries locally measured gate evidence (brief
+> erratum E-50).
 
-> **Reviewer note (open):** the brief says "install that exact signed APK/AAB on emulator-5554". An
-> APK and an AAB are different binaries; Play serves APKs generated from the AAB. Installing the
-> attached APK verifies the APK, not the AAB that is promoted. The process doc therefore requires the
-> owner to also install a universal APK generated with `bundletool` **from the promoted AAB**. This
-> is a refinement, not a deviation; the owner should confirm it.
+> **Note:** accepted under the process approval: the owner also installs a universal APK
+> generated with `bundletool` from the promoted AAB, because Play serves APKs generated from the AAB.
 
 ## Alternatives considered
 

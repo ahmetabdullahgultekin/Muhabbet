@@ -301,7 +301,7 @@ Entry: Phase 0 exit (secrets rotated, no PR job on the production host, ADRs dis
 - [ ] [O] Double tick only after the recipient DB holds the row
 - [ ] [O] Logout, then login as another number: no prior data visible
 - [ ] [O] A revoked device's socket closes within 5 s
-- [ ] [CI] Under-15 registration is refused
+- [ ] [CI] Registration below the configured minimum age (currently 18) is refused
 - [ ] [CI] Testcontainers: 50 concurrent senders get gapless unique seq; concurrent prekey claims never return the same key
 - [ ] [CI] Backend suite measured with Docker running, base vs branch
 - [ ] [O] Release APK installed and launched on emulator-5554
@@ -511,7 +511,7 @@ Refs #
 | Shared | `./gradlew :shared:jvmTest` | | |
 | Mobile compile | `./gradlew :mobile:composeApp:compileCommonMainKotlinMetadata` | | |
 | UI guardrails | `./gradlew verifyUi` | | |
-<!-- Spring config or migration changed? The ten Testcontainers classes must have RUN, not failed on Docker. -->
+<!-- Spring config or migration changed? The @Testcontainers classes (count them in the run) must have RUN, not failed on Docker. -->
 <!-- A red CI check is compared with the same check on main before the branch is blamed. -->
 
 ## Verified where
@@ -780,8 +780,10 @@ criteria; the 5 duplicate pairs are resolved; every `source:agent-review` item i
 or closed. GOV-03 proposes "fewer than 120 open issues" as a target; treat it as an expectation to
 check, not a quota to close towards.
 
-**Order constraint:** no multi-transport Epic or issue is filed until TC-11 is done (ADR-0030
-consequences; roadmap §17 precondition).
+**Order constraint (amended 2026-11-12, ADR-0030 D8 option (b)):** no multi-transport Epic or issue
+is filed until TC-11 is done, **except** 0.4 implementation issues labelled `status:needs-evidence`,
+with milestone 0.4, linked from a single Phase-0/0.4 epic. No other multi-transport epics before
+TC-11 (roadmap §17 precondition). Recorded as a `process` Condition in `APPROVAL.md`.
 
 ---
 
@@ -852,11 +854,9 @@ External references (from the governance digest): GitHub docs on
 
 ## 14. Reviewer notes
 
-> **Reviewer note (open) R-1:** brief §14 item 1 and ADR-0031 say "enable secret scanning and push
-> protection". The repository API reported both as **already enabled** on 2026-11-12 (non-provider
-> patterns and validity checks disabled). The Phase 0 action is therefore "confirm, keep, and add
-> validity checks if offered", not "enable". The brief's point that the committed `.env.prod`
-> values are burned is unaffected: push protection does not act on history.
+> **Resolved (2026-11-12):** **R-1:** brief erratum E-32: "Confirm and keep secret scanning and push
+> protection (already enabled 2026-11-12); enable validity checks if offered. The burned `.env.prod`
+> values in history are unaffected."
 
 > **Reviewer note (resolved) R-2:** native issue types are available. GitHub docs: issue types can be
 > used "across your organization and user-owned repositories", and default types Task, Bug and
@@ -866,52 +866,32 @@ External references (from the governance digest): GitHub docs on
 > is creating a custom `Epic` type in the user profile's issue-type settings; if that fails, epics
 > carry `type:epic` as a label (§4.1, §5.1).
 
-> **Reviewer note (open) R-3:** ADR-0032 has agents act through a GitHub App and move board items
-> to *In progress* (claim protocol). GitHub App permissions for Projects are organisation-scoped; an
-> App may be unable to write a **user-owned** Projects board at all. This is unverified. If it holds,
-> either (a) the agent identity is a machine user added as a project collaborator, (b) the
-> repository and board move to a (free) organisation — which CICD-04 also lists as a way out of the
-> billing lock — or (c) agents write labels only and the board follows by built-in workflows and
-> owner triage. This document chooses (c) as the baseline (principle G8); the draft PR remains the
-> authoritative claim either way.
+> **Note:** **R-3:** settled by the process approval. Baseline (c) is adopted: agents
+> write labels only, the board follows by built-in workflows and owner triage, and the draft PR is the
+> authoritative claim. Moving to an organisation is a later owner option.
 
-> **Reviewer note (open) R-4:** brief ADR-0030 names `Build & Test` and `Android Build` as required
-> checks on `main`, and §14 item 2 stops PR jobs on the production runner. Classic protection
-> **already** requires those two checks on `main` and `dev` (API, 2026-11-12), so executing item 2
-> as written blocks every PR. The brief does not sequence this; §9.2 "Transition" does (remove the
-> checks with the runner change, re-add them in `main-checks` when PR CI is off-host). The brief
-> also says "admin bypass does not skip checks"; with rulesets that requires the two-ruleset split of
-> §9.2, which the brief does not state.
+> **Resolved (2026-11-12):** **R-4:** same sequencing as ADR-0030 Decision 4 (now normative) and brief
+> erratum E-33: remove the two required checks from classic protection together with the runner
+> change; re-add them in `main-checks` once PR CI is off-host. The two-ruleset split is what makes
+> "admin bypass does not skip checks" true.
 
-> **Reviewer note (open) R-5:** the assignment and the brief speak of closing/retiring the
-> `Tier 1/2/3` and `0.4.0 — Installable` milestones. All four are **already closed** (Tier 1–3 are
-> empty). §6.2 therefore deletes the empty Tier milestones and banners `0.4.0` instead.
+> **Note:** **R-5:** the four milestones are already closed (Tier 1–3 empty); §6.2 deletes
+> the empty Tier milestones and banners `0.4.0` instead.
 
-> **Reviewer note (open) R-6:** the `area:` axis keeps `area:mobile` instead of GOV-04's
-> `area:android`, because most mobile code is Compose Multiplatform `commonMain` and splitting would
-> force reclassification of 111 issues with no routing benefit for one engineer. `area:ios` remains
-> for iOS-only work. Owner to confirm.
+> **Note:** **R-6:** settled by the process approval: `area:mobile` plus `area:ios` is
+> accepted (most mobile code is CMP `commonMain`).
 
-> **Reviewer note (open) R-7:** `Refs #N` gives only a timeline cross-reference, not a Development
-> link ([linking a PR to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue));
-> a manual Development link also closes the issue on merge. ADR-0032 decision 6 (claim = draft PR
-> containing `Closes #N`) and check A6 ("every In progress item has a linked draft PR") assume
-> `Closes`. Options: (a) the `[O]` criterion lives in a parent issue and the PR `Closes` an
-> implementation sub-issue; (b) accept `Refs` and change A6 to "draft PR cross-referenced in the
-> timeline". §3 recommends (a) as the default; ADR-0032 should state it.
+> **Resolved (2026-11-12):** **R-7:** ADR-0032 decision 6 states option (a) as the default: the `[O]`
+> owner-observation criterion lives in a parent issue; the agent's draft PR `Closes` an implementation
+> sub-issue; A6 checks for a linked draft PR on that sub-issue.
 
 > **Reviewer note (closed) R-8:** superseded. `branching-and-release.md` §4.3 now carries the same
 > `main-checks` / `main-review` split as §9.2, and its §4.1 private vulnerability reporting row
 > points to §12.1 step 2.
 
-> **Reviewer note (open) R-8a — proposed ADR-0030 amendment (tag rulesets):** ADR-0030 D4 originally
-> described one tag ruleset. A ruleset bypass actor bypasses every rule of that ruleset, so "only the
-> owner creates `v*` tags" (needs an admin bypass on *restrict creations*) and "nobody moves or
-> deletes a published tag" (needs an empty bypass list) cannot live in one ruleset. §9.2 therefore
-> splits it into `release-tags-create` and `release-tags-immutable`; ADR-0030 D4/V3 and
-> branching-and-release §4.3 have been updated to match, pending the owner's approval of the
-> amendment.
+> **Note:** **R-8a:** settled by the process approval: the `release-tags-create` /
+> `release-tags-immutable` split is accepted as part of ADR-0030 D4.
 
-> **Reviewer note (open) R-9:** private vulnerability reporting is not in brief §14 items 1–6 nor in
-> the `phase-0` "Covers" of `APPROVAL.md`, so this document schedules it in §12.1 step 2 (scope
-> `process`). If the owner wants it in Phase 0, name it under the `phase-0` Conditions.
+> **Note:** **R-9:** settled by the process scope approval: private vulnerability
+> reporting stays scheduled under §12.1 step 2 (scope `process`) and can be done as soon as that scope
+> is recorded as approved.

@@ -1,6 +1,6 @@
 # ADR 0013 — Delivery semantics: durable outbox, persist-then-ack inbox, idempotency, honest ticks
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0013; §6.1, §6.4](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0011, ADR-0012, ADR-0014. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0013; §6.1, §6.4](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0011, ADR-0012, ADR-0014. Supersedes nothing.
 
 ## Context
 
@@ -36,9 +36,11 @@ sketch conflated server commit with a peer hop ack (architecture judge).
 | (new) | Send (media) | PREPARING | Separate media worker; does not block the conversation FIFO |
 | PREPARING | UploadDone(blobRef) | QUEUED / PENDING_SEAL | Resumable upload, 1 MiB ranges |
 | PREPARING | UploadFailed(retryable) | PREPARING (backoff) | |
-| PENDING_SEAL / QUEUED | SealFailed(NoSession) | PENDING_SEAL | Never a plaintext fallback (ADR-0016); triggers prekey fetch |
-| PENDING_SEAL / QUEUED | SealFailed(UntrustedIdentity) | PENDING_SEAL(reason = UNTRUSTED_IDENTITY) | Left only by a user decision event (ADR-0016) |
-| PENDING_SEAL / QUEUED | SealFailed(Failed(code)) | RETRY_WAIT or FAILED_PERMANENT(code) | Decided by the code (ADR-0016) |
+| PENDING_SEAL | SealFailed(NoSession) | PENDING_SEAL | Never a plaintext fallback (ADR-0016); triggers prekey fetch |
+| PENDING_SEAL | SealFailed(UntrustedIdentity) | PENDING_SEAL(reason = UNTRUSTED_IDENTITY) | Left only by a user decision event (ADR-0016) |
+| PENDING_SEAL | SealFailed(Failed(code)), retryable | PENDING_SEAL(reason = SEAL_RETRY, backoff) | Never `RETRY_WAIT`: an unsealed E2E entry must not become dispatchable or hold the head (spec T12, I4) |
+| PENDING_SEAL | SealFailed(Failed(code)), permanent | FAILED_PERMANENT(code) | Decided by the code (ADR-0016) |
+| IN_FLIGHT | Rejected(`MSG_DEVICE_SET_STALE`) | PENDING_SEAL | Re-seal for the new device set (spec T25b) |
 | PENDING_SEAL | SessionReady | QUEUED | |
 | QUEUED | Dispatch(link) | IN_FLIGHT(link, attempt, deadline) | Direct call ≤ 1.1, `PathPolicy` ≥ 1.2 |
 | IN_FLIGHT | ServerAccepted(seq) | SERVER_ACCEPTED(seq) | Message row gets its `seq` |
@@ -46,15 +48,19 @@ sketch conflated server commit with a peer hop ack (architecture judge).
 | HOP_ACKED(serverOwed = true) | ServerLinkUp | QUEUED (server only) | Upload obligation; recipient dedups |
 | HOP_ACKED(serverOwed = false) | E2EDelivered | purge | LOCAL_ONLY |
 | IN_FLIGHT | Timeout / LinkLost / Retry | RETRY_WAIT(nextAttemptAt) | 1 s → 30 s, full jitter, injected `Clock`; reset on an eligible LinkUp |
-| IN_FLIGHT | Rejected(code) | FAILED_PERMANENT(code) | Bubble shows "tap to retry"; `RetryDelivery` → QUEUED |
-| any non-terminal | lifetime exceeded | EXPIRED | Default 30 d; call signalling 60 s |
-| QUEUED / RETRY_WAIT / PENDING_SEAL | user deletes | CANCELLED | |
+| IN_FLIGHT | Rejected(code) | FAILED_PERMANENT(code) | Bubble shows "tap to retry"; `RetryDelivery` → QUEUED (only from FAILED_PERMANENT; for EXPIRED the UI offers "resend as new") |
+| EXPIRED / FAILED_PERMANENT | SeqObserved(seq) or late ServerAccepted(seq) | SERVER_ACCEPTED(seq) | A lost ack followed by expiry must not leave a message the server holds labelled "not sent"; same tick rule as spec T16 |
+| any non-terminal except SERVER_ACCEPTED | lifetime exceeded | EXPIRED | Per-command lifetime (spec §4.5): default 30 d, call signalling 60 s; SERVER_ACCEPTED is purged at lifetime instead |
+| QUEUED / PENDING_SEAL, never submitted (`attempt = 0`, not HOP_ACKED) | user deletes | CANCELLED | Row and entry deleted |
+| QUEUED / RETRY_WAIT / IN_FLIGHT, submitted before (`attempt > 0`) | user deletes | same state, `cancel_requested = 1` | Spec T32: resolved by a server probe or the next ServerAccepted/SeqObserved (then a DELETE is enqueued, withdrawing the message from everyone), or by a definitive non-acceptance (then CANCELLED). An earlier submit may have been committed with its ack lost, so deleting the row would leave a message the recipient has and the sender cannot see |
 | IN_FLIGHT at process start | Recover | QUEUED | Safe because the server is idempotent |
 
 DELIVERED and READ are **not** outbox states. They are derived from receipt rows.
 
 **0.4 stopgap** (ships before the engine): `PendingMessage` is deleted only on
-`ServerAck(requestId)`. Nothing else in the old queue is redesigned.
+`ServerAck(requestId)`. The `MAX_RETRY_COUNT = 5` drop at `WsClient.kt:540-542` is removed in the same
+change: an exhausted row is marked FAILED and shown with "tap to retry", never deleted, so 0.4 no
+longer loses a message silently after five retries. Nothing else in the old queue is redesigned.
 
 ### 2. Inbox (receiver)
 
@@ -62,31 +68,48 @@ One transaction per inbound event:
 
 1. Upsert the row: insert, or update only if the incoming `change_seq` is newer than the stored one
    (edits, deletes, reactions are last-writer-wins by `change_seq`, which also fixes MOB-05).
-2. Advance the per-conversation watermark in the same transaction (ADR-0014).
+2. Advance the per-conversation change-feed watermark `w` (ADR-0014) and, where rule R-ACK allows,
+   the **complete-through point** `C = conversation.complete_through_seq` in the same transaction.
+   `C` advances only when a pull ends with `hasMore = false` (`C = lastSeq`) or when a contiguous
+   `message.new` extends `w` from `C` (ICD §3.8 R-ACK).
 3. Commit.
-4. **Only after the commit**, enqueue the DELIVERED receipt (CONTROL class).
+4. **Only after the commit**, enqueue the DELIVERED receipt (CONTROL class) with `uptoSeq = C`.
 
-DELIVERED is not stored separately; it is derived from the committed watermark. On every
-Ready/Authenticated transition the client sends `message.ack{conversationId, uptoSeq = watermark,
-DELIVERED}` for each conversation whose watermark advanced since the last server-confirmed ack. A
-crash between step 3 and step 4 therefore delays the tick but never loses it.
+DELIVERED and READ `uptoSeq` are **always** `C` — never `w`, never `max(seq ≤ w)`, never a pushed or
+mid-pull value. An edited old message has a low `seq` and a high `change_seq` and arrives on a later
+page; an ack bounded by `w` would cover it unstored, and from 1.0 that ack deletes the device's mailbox
+envelope (ADR-0021), a permanent loss. On every Ready/Authenticated transition the client sends
+`message.ack{conversationId, uptoSeq = C, DELIVERED}` for each conversation whose `C` exceeds the
+last reported value (`conversation.delivered_up_to_seq`, data-model §5). A crash between step 3 and
+step 4 therefore delays the tick but never loses it.
 
 Off-server frames (1.2+) without a `seq` are deduplicated by `inbound_dedup(src_device,
 frame_or_message_id, seen_at)` with a TTL at least the maximum message lifetime.
 
 ### 3. Server idempotency
 
-- `UNIQUE (sender_device_id, client_message_id)` (V29), replacing the global client-id check.
-- `INSERT … ON CONFLICT DO NOTHING RETURNING`. A duplicate submit **replays** the original
-  `ServerAck(seq, serverTs, replay = true)`; it is never `MSG_DUPLICATE` and never echoes exception
-  text (BE-07).
+- `UNIQUE (sender_device_id, client_message_id)` (V29) is added **beside** the kept identity rule
+  `messages.id = client_message_id` (global PK); the PK check is not replaced (ICD §3.6 A-2/A-2b;
+  the alternative is [OI-10](../architecture/multi-transport/open-items.md#oi-10)).
+- Order of operations, in one transaction (ICD §3.6 A-1): **select** by
+  `(sender_device_id, client_message_id)` → found: replay; not found: **allocate** the seq, then
+  **insert** with no `ON CONFLICT`; on a unique violation roll the whole transaction back (the
+  allocation with it, so no seq value is spent) and reselect. `INSERT … ON CONFLICT DO NOTHING` is
+  not used, because it spends a seq value on every replay.
+- A duplicate submit **replays** the original `ServerAck(seq, serverTs, replay = true)`; it is never
+  `MSG_DUPLICATE` and never echoes exception text (BE-07).
 
 ### 4. Acks
 
 - Wire: `message.ack{conversationId, uptoSeq, kind}` — cumulative, per device.
-- Accepted only from a registered device of a conversation member who is not the sender, and only
-  for `seq` values that exist (BE-03, BE-18). Monotonicity is enforced in one conditional UPDATE;
-  a status change is broadcast only when a row actually changed.
+- Accepted only for `seq` values that exist (BE-03, BE-18), and split by kind (ICD §3.8(b)):
+  - **tick-affecting** DELIVERED/READ — only from a registered, non-revoked device of a member who is
+    not the sender;
+  - **watermark/custody** acks (`ack uptoSeq`) — from any registered, non-revoked device of any
+    member, the sender's own companion devices included; from 1.0 they drive mailbox deletion
+    (ADR-0021) and they are excluded from tick aggregation.
+- Monotonicity is enforced in one conditional UPDATE; a status change is broadcast only when a row
+  actually changed.
 - Levels:
 
 | Level | Meaning | Source |
@@ -132,13 +155,10 @@ frame_or_message_id, seen_at)` with a TTL at least the maximum message lifetime.
   `message_device_delivery(message_id, device_id, status, updated_at)`.
 - Mobile 0.5 schema: `outbox_entry`, `inbound_dedup`, `receipt` tables (brief §11.2).
 
-> **Reviewer note (open):** Decision §4 accepts acks "only from a device of a member who is not the
-> sender". From 1.0 the sender's own other devices also receive the message (fan-out to own devices,
-> brief §8.3) and the mailbox deletes a device's envelope rows on that device's `ack uptoSeq`
-> (ADR-0021). As written, a sender's companion device could never ack, so its mailbox rows would
-> live until TTL. Suggested split: *tick-affecting* receipts (DELIVERED/READ that change the
-> sender's status) only from non-sender members; *watermark/custody* acks from any registered
-> device of any member, including the sender's own. Owner to confirm before ADR-0021 is accepted.
+> **Resolved (2026-11-12):** the split is adopted in Decision §4 above and matches ICD §3.8:
+> tick-affecting receipts only from non-sender members' devices; watermark/custody acks from any
+> registered, non-revoked device of any member, the sender's own included, excluded from ticks
+> (brief erratum E-39). At 0.4 (one device per user) only the first rule is exercised.
 
 ## Alternatives considered
 

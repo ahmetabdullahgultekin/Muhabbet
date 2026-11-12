@@ -1,6 +1,6 @@
 # ADR 0020 — Data at rest and erasure: SQLCipher from 0.5; `SessionTeardown` is crypto-erase
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0020; §9 (erasure); §11.2; §13 (0.4, 0.5.0, 1.0.0)](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0011 (DB is the SSOT), ADR-0012, ADR-0014 (resync by seq), ADR-0028. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0020; §9 (erasure); §11.2; §13 (0.4, 0.5.0, 1.0.0)](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0011 (DB is the SSOT), ADR-0012, ADR-0014 (resync by seq), ADR-0028. Supersedes nothing.
 
 ## Context
 
@@ -39,10 +39,10 @@
 | Step | Action |
 |---|---|
 | 1 | Create a **fresh** encrypted DB file with the new SSOT schema (ADR-0011, brief §11.2) |
-| 2 | Copy only unsent `PendingMessage` rows into `outbox_entry` (state QUEUED) |
+| 2 | Copy only unsent `PendingMessage` rows into the store of the path `engine.enabled` selects (read **before** this migration runs): into `outbox_entry` (state QUEUED) when the engine is on, otherwise into the new DB's legacy `PendingMessage` table |
 | 3 | Delete the plaintext `muhabbet.db` (and its `-wal`/`-shm` files) |
 | 4 | **Re-sync from the server by `seq`** (`/changes`, ADR-0014) |
-| 5 | Drop `PendingMessage`, `CachedMessage`, `CachedConversation` after the `engine.enabled` overlap release (ADR-0012) |
+| 5 | During the 0.5.x overlap the encrypted DB also carries the legacy `PendingMessage` and `Cached*` tables. Turning the engine on drains remaining `PendingMessage` rows into `outbox_entry` once; engine → legacy (kill switch) copies back only entries the legacy schema can express losslessly (delivery-engine-spec §16.4 K3/K4). Drop `PendingMessage`, `CachedMessage`, `CachedConversation` together with the legacy path (0.5.2 or later, ADR-0012) |
 
 This is safe because the old DB is a cache: everything except unsent outbound rows is recoverable
 from the server. Doing it at 0.5, together with the schema change, avoids a second migration at 1.0.
@@ -57,7 +57,7 @@ each is idempotent, and a failure in one does not stop later ones.
 | 1 | Best-effort server revoke | Queued; never blocks local erasure |
 | 2 | Cancel WorkManager / BGTask jobs and reset the sync watermark | MISS-02 (mobile verifier) |
 | 3 | Close all links (`ServerLink`, sealed links) and stop Nearby mode | No frame leaves after this point |
-| 4 | **Destroy the DB key** (`SecureKeyStorePort.destroy`): close the SQLCipher connection (drops the in-memory key), then delete the Android Keystore wrapping-key entry (`KeyStore.deleteEntry(alias)`; hardware-backed/StrongBox where present) and the wrapped-key blob. On iOS, delete the Keychain item | From here the DB file is unreadable ciphertext. Deleting only the wrapped-key blob is not enough: it is a file on flash and not robust against wear-levelling |
+| 4 | **Destroy the DB key** (`SecureKeyStorePort.destroy`): close the SQLCipher connection (drops the in-memory key), then delete the Android Keystore wrapping-key entry (`KeyStore.deleteEntry(alias)`; hardware-backed/StrongBox where present) and the wrapped-key blob. On iOS, delete the Keychain item | From here the DB file is unreadable to the app and to non-forensic access. Deleting only the wrapped-key blob is not enough. A TEE-backed Keystore key is itself persisted as an encrypted key blob on flash, wrapped by a device-bound hardware key that survives deletion, so `deleteEntry` is also a file deletion: robustness against forensic recovery holds only where the key is **rollback-resistant** (some StrongBox/KeyMint implementations), which the device may or may not provide (threat-model RR-12) |
 | 5 | Delete the DB, media cache, outbox, identity keys / libsignal store, relay/custody store, tokens | Belt and braces after step 4 |
 | 6 | Verify | Assert: DB file absent, Keystore alias absent (`containsAlias == false`) / Keychain item absent, no scheduled jobs, in-memory queues empty |
 
@@ -82,8 +82,11 @@ account deletion, and the refresh-token-rejected path in `ApiClient`.
 ## Why
 
 - MOB-01 is a KVKK erasure failure on the device itself; crypto-erase is the only erasure that is
-  fast, verifiable and robust against flash wear-levelling — provided the key destroyed is the
-  hardware-backed Keystore wrapping key (or iOS Keychain item), not merely the wrapped blob on flash.
+  fast and verifiable. Destroying the Keystore entry (or iOS Keychain item) makes the database
+  unreadable to the app and to non-forensic access; it is robust against forensic recovery only on
+  devices whose key is rollback-resistant (StrongBox/KeyMint). The user-facing erasure claim
+  (RQ-08/RQ-20) is limited to the verified property: "the data can no longer be read by the app or by
+  anyone using the phone normally".
 - File-based encryption/Data Protection protects a powered-off device, not a logged-out user on a
   powered-on one, and not the next user of the same phone.
 - Background delivery (wake-only push, ADR-0019; WorkManager) needs the key without user interaction,
@@ -138,11 +141,4 @@ account deletion, and the refresh-token-rejected path in `ApiClient`.
 | — | DB opens from a killed-app wake with no user interaction | Demonstration, owner | 0.5 exit |
 | RQ-13 | FTS index exists only inside the encrypted DB | Inspection + test | 1.0 |
 
-> **Reviewer note (open):** "contentless FTS5 with delete triggers" needs care. In SQLite, deleting
-> from a plain contentless FTS5 table requires supplying the original column values (the special
-> `'delete'` command), which a trigger can only do if the plaintext is still available at delete
-> time; the `contentless_delete=1` option removes that constraint but needs a recent SQLite
-> (believed to be 3.43 or later — to verify against the SQLite version bundled by the chosen
-> SQLCipher build). The 1.0 spike should confirm the option is available, or fall back to an
-> external-content FTS5 table *inside the same encrypted DB*. The decision (FTS only inside the
-> encrypted DB) is unchanged.
+> **Open item [OI-02](../architecture/multi-transport/open-items.md#oi-02):** the 1.0 entry SQLCipher/FTS spike confirms `contentless_delete=1` (SQLite ≥ 3.43.0) in the SQLite bundled by the chosen SQLCipher build, or falls back to an external-content FTS5 table inside the same encrypted DB. The decision (FTS only inside the encrypted DB) is unchanged.

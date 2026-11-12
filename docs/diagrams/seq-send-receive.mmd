@@ -53,25 +53,25 @@ sequenceDiagram
     par WS hint (live sessions)
         HP-)BL: message.new {messageId, seq, changeSeq, content or envelope} (hint)
     and FCM wake (all recipient devices, suppression later, brief section 4.2)
-        HP-)FH: FCM data-only wake {type: wake, conversationId, seq} (see seq-wake-push-sync)
-        FH->>BE: InboundEvent.Hint(conv, seq)
+        HP-)FH: FCM data-only wake {t: wake, v: 1} - no conversationId, no seq (ADR-0019; see seq-wake-push-sync)
+        FH->>BE: wake - GET heads, then pull each advanced conversation
     end
 
     BL->>BE: InboundEvent.Message or Hint(conv, seq)
-    alt seq == watermark + 1 and payload present
-        BE->>BE: one tx - upsert row (insert, or update iff change_seq newer)<br/>+ advance watermark
-    else gap (seq > watermark + 1) or hint only
+    alt changeSeq == w + 1 and payload present
+        BE->>BE: one tx - upsert row (insert, or update iff change_seq newer)<br/>+ w := changeSeq; C := changeSeq only if w was == C (ICD 3.8 R-ACK)
+    else gap (changeSeq > w + 1) or hint only
         BE->>BL: ChangeFeedPort.changes(conv, afterSeq = watermark, limit)
         BL->>WS: GET /api/v1/conversations/{id}/changes?afterSeq&limit
-        WS-->>BL: {items, lastSeq, hasMore}
+        WS-->>BL: {items, nextAfterSeq, lastSeq, hasMore}
         BL-->>BE: page
-        BE->>BE: one tx per page - upsert items + advance watermark, repeat while hasMore
+        BE->>BE: one tx per page - upsert items + w := nextAfterSeq, repeat while hasMore;<br/>C := lastSeq only on the page with hasMore = false
     end
     BE-->>BUI: DB flow emits row, ordered by seq
-    BE->>BL: enqueue CONTROL - message.ack {conversationId, uptoSeq, DELIVERED}<br/>only AFTER commit (P4)
-    BL->>WS: message.ack {conversationId, uptoSeq, DELIVERED}
+    BE->>BL: enqueue CONTROL - message.ack {conversationId, uptoSeq = C, DELIVERED}<br/>only AFTER commit (P4); C = complete_through_seq, never w or a pushed or mid-pull value
+    BL->>WS: message.ack {conversationId, uptoSeq = C, DELIVERED}
     WS->>ACK: AcknowledgeDeliveryUseCase.ack(device, conv, uptoSeq, DELIVERED)
-    ACK->>PG: accept only from a non-sender member's device, only existing seqs<br/>upsert per-device delivery row (V32 from 0.6, message_delivery_status before)
+    ACK->>PG: only existing seqs; tick-affecting DELIVERED/READ only from a non-sender member's device,<br/>watermark/custody acks from any member's device incl. the sender's own (ICD 3.8)<br/>upsert per-device delivery row (V32 from 0.6, message_delivery_status before)
     Note over ACK,PG: 1.0 - also MailboxPort.deleteUpTo(device, conv, uptoSeq)
     ACK-)WS: publish status (aggregate from per-device rows, server-side only)
     WS-)AL: message.status to sender devices
@@ -80,7 +80,7 @@ sequenceDiagram
     AE-->>AUI: two ticks
 
     BUI->>BE: chat visible
-    BE->>BL: message.ack {conversationId, uptoSeq, READ}
+    BE->>BL: message.ack {conversationId, uptoSeq <= C, READ}
     BL->>WS: message.ack READ
     WS->>ACK: ack(device, conv, uptoSeq, READ)
     ACK->>ACK: ReadReceiptPolicyPort - readReceiptsEnabled off downgrades the published READ to DELIVERED<br/>(stored row stays READ, issue 377)

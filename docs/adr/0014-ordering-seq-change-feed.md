@@ -1,6 +1,6 @@
 # ADR 0014 — Ordering: per-conversation server seq plus change feed; client causal header; no HLC authority, no Merkle-DAG
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0014; §10; §11.1](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010 (single sequencer). Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0014; §10; §11.1](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010 (single sequencer). Supersedes nothing.
 
 ## Context
 
@@ -50,7 +50,9 @@ messages (C5, GEM-13).
   ordered by `change_seq`, membership-checked, hiding unreleased scheduled messages and any other
   per-requester-hidden change.
 - The cursor is **server-driven**. `nextAfterSeq` is the highest `change_seq` the server scanned for
-  this request, visible to the requester or not. `lastSeq` (in `/changes`, the conversation list and
+  this request, visible to the requester or not, `≤ lastSeq`, and equals `lastSeq` when
+  `hasMore = false`. The visibility predicate is applied inside the SQL query before `LIMIT`, and
+  `hasMore` is computed over visible rows (ICD §4.1, §4.5). `lastSeq` (in `/changes`, the conversation list and
   hints) is the conversation's allocation high-water (`conversations.last_seq`).
 - The conversation list returns `lastSeq` per conversation.
 - WS `message.new` and FCM are **hints** carrying `(conversationId, seq)` (`sync.hint` frame,
@@ -71,13 +73,14 @@ messages (C5, GEM-13).
 data class CausalHeader(
     val senderDeviceId: DeviceId,
     val deviceCounter: ULong,       // monotonic per (device, conversation)
-    val clientMessageId: Uuid,      // UUIDv7; never on the outer wire (ADR-0022)
+    val clientMessageId: Uuid,      // UUIDv7; never in a cleartext TransportFrame header or an uplink outer field (ADR-0022)
     val senderTimeMs: Long,         // advisory only
 )
 ```
 
-- `deviceCounter` is assigned at **seal time** (QUEUED → IN_FLIGHT), never at enqueue, so a
-  CANCELLED or EXPIRED outbox entry (ADR-0013) leaves no counter gap.
+- `deviceCounter` is assigned at **seal time** (`PENDING_SEAL → QUEUED`, delivery-engine-spec T07),
+  never at enqueue. A sealed entry that is later CANCELLED or EXPIRED therefore leaves a counter gap;
+  such a gap costs the recipient at most one harmless pull (below).
 - A gap in `deviceCounter` from a sender device triggers **at most one** pull per (sender device,
   gap) and never blocks display. A replayed counter is dropped.
 
@@ -114,13 +117,10 @@ data class CausalHeader(
 - Off-server messages may visibly re-sort once (risk R16).
 - ADR-0021's mailbox is a projection of this cursor, not a second cursor.
 
-> **Reviewer note (open):** The brief speaks of "seq-gap pulls" without defining a gap. Because edits,
-> deletes and reactions consume `last_seq` values and overwrite a row's `change_seq`, the stream a
-> client sees has holes that are not losses. This ADR therefore defines gap detection as
-> *watermark < hinted seq or listed `lastSeq`* (Decision §2), not as contiguity, and makes the
-> cursor server-driven (`nextAfterSeq`), because changes hidden from a requester still advance
-> `last_seq`. Owner/brief to confirm; the ICD must state the same rule, including the
-> `nextAfterSeq` field and "watermark := `nextAfterSeq`".
+> **Resolved (2026-11-12):** accepted. A gap is *watermark < a hinted seq or a listed `lastSeq`*,
+> never non-contiguity. The cursor contract is option (a) of the core-engine review: every `/changes`
+> page returns `nextAfterSeq`, and the client sets `watermark := nextAfterSeq`. ICD §4.1/§4.6 and
+> delivery-engine-spec §6.3 W2 state the same rule (brief erratum E-04).
 
 ## Alternatives considered
 
@@ -146,6 +146,6 @@ data class CausalHeader(
 | RQ-05 | Dropping 100% of hints still converges via pull on reconnect, foreground or WorkManager | `SimulatedLink` test | 0.5 exit |
 | — | An unreleased scheduled message never appears in `/changes` | Integration test | 0.4 |
 | — | An edited unreleased scheduled message does not cause repeated pulls by recipients (`nextAfterSeq` reaches `lastSeq`) | Testcontainers integration test | 0.5 |
-| — | A cancelled outbox entry causes no counter gap and no repeated pulls | `SimulatedLink` test | 0.5 |
+| — | A cancelled outbox entry causes at most one pull per counter gap and never blocks display | `SimulatedLink` test | 0.5 |
 | — | A far-future `senderTimeMs` cannot move a row out of `[receivedAt − 5 min, receivedAt]` | Unit test with `TestClock` | 0.5 (logic) / 1.2 (off-server rows) |
 | — | Watermark never derives from the device clock | Code inspection + unit test | 0.5 |

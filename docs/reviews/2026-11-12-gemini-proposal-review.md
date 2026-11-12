@@ -408,7 +408,7 @@ fail-safe principles (persist, per-link senders, codec-first, `AirtimeLedger`) a
 | Internet P2P | IPv6 → ICE → birthday punching → libp2p relay / supernodes, for everything | WebRTC ICE + own TURN for **calls only**; relay-only for non-contacts; no data channels for chat | NAT-1, P2P-1/2, ICE-1, NAT MISS-2 | ADR-0023 |
 | Proximity | Always-on BLE, custom L2CAP, zero-click Wi-Fi Direct, QUIC migration | Foreground Nearby mode, 15 min auto-off; `LanLink` built + `NearbyLink` bought; 1:1, verified, E2E only | PROX-02/04/06, QUIC-1 | ADR-0024 |
 | Indirect | Epidemic / Spray-and-Wait through strangers, clear target hash, PoW | Mailbox → own devices → HPKE-sealed single-hop uplink via a verified contact; multi-hop research only | C6, C7, LEG-04, PROX-03, GEM-09 | ADR-0025 |
-| Push | Not addressed | Wake-only data push `{conversationId, seq}` from 0.5 | KVKK transfer of content to US processors (BE-15) | [ADR-0019](../adr/0019-wake-only-push-and-server-plaintext.md) |
+| Push | Not addressed | Wake-only data push `{t: "wake", v: 1}` from 0.5 (no conversation id or seq) | KVKK transfer of content to US processors (BE-15) | [ADR-0019](../adr/0019-wake-only-push-and-server-plaintext.md) |
 | Local storage | "SQLCipher" label, plaintext + FTS beside ciphertext | SQLCipher via fresh DB + resync at 0.5; crypto-erase on teardown | GEM-14, MOB-01 | ADR-0020 |
 | RF | LoRa, VHF/UHF AFSK, PMR446, software modem, `delay(200)` | Meshtastic hardware only, ledgered, TR-excluded; everything else rejected | RF-07/08/09, LEG-03, GEM-19/20 | ADR-0026, ADR-0027 |
 | Broadcast / satellite / ultrasonic / sidelink | Levels or transports | Rejected; satellite is a `constrained` IP bearer | RF-02/03/05/06, PROX-07/09 | ADR-0027 |
@@ -475,8 +475,9 @@ INDIRECT mode as custody of bundles, offered in strict order through the `Custod
 | 3 | Single-hop sealed uplink through a **verified contact's** online phone | 1.3, gated and droppable | The mule sees only an HPKE-sealed, padded blob and POSTs it to `/api/v1/uplink`; the server attributes it to the true sender (5651) and ingests it idempotently |
 | 4 | Multi-hop contact mules | Research (R-DTN), unscheduled | Needs anonymous rate tokens, rotating tags, quotas, DPIA, counsel |
 
-> **Reviewer note (open):** brief ADR-0025 item 1 says the mailbox "exists today as `messages` +
-> `/changes`"; `/changes` is not on dev (no endpoint; last migration V27). Suggest a brief erratum.
+> **Resolved (2026-11-12):** verified (highest migration V27; no `/changes` in the backend). Brief
+> erratum E-28: "Server mailbox (`messages` today; `/changes` arrives in 0.5, ADR-0014; ciphertext
+> from 1.0, ADR-0021)."
 
 What does **not** survive from Gemini's version: carriers who are strangers (LEG-04, PROX-03), a
 clear recipient hash (C7), epidemic routing, proof-of-work (C6), and a "relayed to mesh" tick. In the
@@ -593,26 +594,12 @@ digests; truncated digest URLs were omitted rather than reconstructed.
    rows (which add 4 more labels: 3 wrong, 1 partial).
 4. The owner reads §6 against the chat and confirms each of his questions is answered.
 
-> **Reviewer note (open):** (1) **iOS↔iOS Wi-Fi Aware is missing from the 1.2 spike.** PROX MISS-04
-> (verifier) found that Apple's Wi-Fi Aware framework allows background connections to devices
-> already paired through DeviceDiscoveryUI (iPhone 12+, iOS 26), and recommended it as a spike
-> candidate. The brief keeps Wi-Fi Aware on the watch-list (ADR-0027) and its G-PROXIMITY spike
-> covers Nearby and LAN only. Suggest adding "iOS↔iOS Wi-Fi Aware with prior pairing, background
-> behaviour" as one optional cell of the 2-week device-matrix spike, so the watch-list decision rests
-> on a measurement. This review follows the brief as written.
+> **Open item [OI-24](../architecture/multi-transport/open-items.md#oi-24):** (1) add "iOS↔iOS Wi-Fi Aware with prior DeviceDiscoveryUI pairing, background behaviour" as an optional cell of the 1.2 device-matrix spike when the spike is approved, so the ADR-0027 watch-list decision rests on a measurement. The platform claim (iOS 26, iPhone 12+) was not verified here.
 
-> **Reviewer note (open):** (2) **The HMS exclusion is inferred, not measured.** ADR-0024 states that
-> Nearby's media require Play services, so HMS devices get LAN only. The proximity verifier noted that
-> PROX-06 "asserts an HMS exclusion without evidence". G-PROXIMITY requires measuring the HMS *share*
-> in Turkey; suggest it also confirms on one HMS device that Nearby Connections is unavailable, before
-> the capability matrix states it as fact. This review follows the brief as written.
+> **Resolved (2026-11-12):** (2) same as capability-matrix SP-2: one HMS device is added to the spike,
+> and the matrix marks "HMS gets LAN only" as inferred until it is observed.
 
-> **Reviewer note (open):** (3) **The chat transcript is not in the repository.** `G:n` references in this
-> review and in the code-review digest point at the owner-pasted transcript, which exists only in the
-> review workspace. Suggest committing it (e.g. `docs/reviews/2026-11-12-gemini-chat-transcript.md`,
-> as-is (an English condensed rendering with Gemini's code as pasted), plus the owner's original
-> Turkish paste if available, both marked as third-party LLM output that must not be copied) so the line references remain
-> checkable. This is a package-completeness note, not a disagreement with the brief.
+> **Open item [OI-25](../architecture/multi-transport/open-items.md#oi-25):** (3) only the owner holds the pasted Gemini transcript: commit it as `docs/reviews/2026-11-12-gemini-chat-transcript.md` (marked third-party LLM output that must not be copied), or record that the `G:n` references cannot be checked.
 
 ---
 

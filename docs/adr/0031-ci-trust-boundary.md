@@ -1,6 +1,6 @@
 # ADR 0031 — CI trust boundary
 
-**Status:** Proposed (process) — pending owner approval; no code may be written, and no GitHub setting changed, against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) (scope `process`; the security emergencies of brief §14 items 1–5 are scope `phase-0` and the brief recommends authorising them now, independently of design approval) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0031; §14 items 1–5](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/ci-trust-boundary.md`](../process/ci-trust-boundary.md) · **Incident record:** [`docs/process/security-incident-2026-11-env-prod.md`](../process/security-incident-2026-11-env-prod.md) · Supersedes the "deliberate trade" recorded in the header of `.github/workflows/mobile-release.yml` and ROADMAP.md "Where the keys live" (signing on the production runner).
+**Status:** Accepted (2026-11-12, delegated; process, with the amendments listed in the record) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); no GitHub setting is changed, no hook file created and no code written against this ADR until scope `process` reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits (scope `process`; the security emergencies of brief §14 items 1–5 are scope `phase-0` and the brief recommends authorising them now, independently of design approval) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0031; §14 items 1–5](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Operational detail:** [`docs/process/ci-trust-boundary.md`](../process/ci-trust-boundary.md) · **Incident record:** [`docs/process/security-incident-2026-11-env-prod.md`](../process/security-incident-2026-11-env-prod.md) · Supersedes the "deliberate trade" recorded in the header of `.github/workflows/mobile-release.yml` and ROADMAP.md "Where the keys live" (signing on the production runner).
 
 ## Context
 
@@ -43,7 +43,14 @@ this boundary.
    only with all of: no write-access identity other than the owner; the agent GitHub App without the
    `workflows` permission (ADR-0032 D1); "Require approval for all external contributors"; the
    `if:` guard on every self-hosted job (hygiene, not a boundary); a fresh `GRADLE_USER_HOME` per
-   run; and the adversarial test of F1. The residual risk is the owner's own credential and every
+   run; the adversarial test of F1; **no agent session holding an owner credential with the
+   `workflow` scope or contents-write** (while ADR-0032 D1 is unproven for the harness — agent sessions
+   push with the owner's credential today, and commit 235c63dd, made by an agent, changed the
+   backend-ci, mobile-ci and security workflows — the variant is **not available**); and the
+   **`release-tags-create` ruleset created in Phase 0** (restrict creation of `v*`, bypass = admin
+   role), before the variant takes effect, because any contents-write identity could otherwise push a
+   `v*` tag and run `mobile-release.yml` on `cx43` with the signing secrets against whatever Gradle
+   scripts the tagged commit carries. The residual risk is the owner's own credential and every
    workflow the owner merges; no long-lived key of Decision 10 may ever be created or stored on
    `cx43` under this variant.
 3. **Target:** all `pull_request`, `push` and `schedule` CI on GitHub-hosted ephemeral runners once
@@ -71,13 +78,24 @@ this boundary.
    `run:` text; `timeout-minutes` on every job; deploy's `if:` requires
    `workflow_run.event == 'push'` and the head repository to be this repository, and deploys
    `workflow_run.head_sha`.
-8. **Secret hygiene.** GitHub secret scanning and push protection enabled. Gitleaks runs on every PR
+8. **Secret hygiene.** GitHub secret scanning and push protection confirmed and kept (already enabled
+   on 2026-11-12); validity checks enabled if offered. Gitleaks runs on every PR
    and every push to `main`, **without a paths filter**, and is a required check (with ADR-0030).
 9. **CICD-06 response.** Every value ever committed in `.env.prod` (history up to commit
    `3925f708`) is treated as burned and rotated. The `.gitleaks.toml` path allowlist is replaced by a
    commit-scoped allowlist whose comment records the rotation date and the incident record.
 10. **Key-creation gate.** No long-lived signing, device-CA, uplink or crypto key is created until
     this ADR is **in force** (definition below), and none ever lives on a host that runs PR code.
+11. **Dependency integrity (amended 2026-11-12, threat model RN-5, R24).** Before libsignal is
+    restored (1.0 entry): Gradle dependency verification (`verification-metadata.xml` with
+    checksums); `gradle-wrapper` `distributionSha256Sum` plus wrapper validation in CI; JitPack removed
+    from global resolution; `exclusiveContent` for `build-artifacts.signal.org` (the only source for
+    libsignal versions above 0.86.5). Implementation is a later code task.
+12. **Rotation order.** Rotation of `.env.prod` values (Decision 9) follows the runner change
+    (Decision 2), or is repeated after it, because while PR jobs still run on `cx43` a rotated value
+    is again readable by PR code. Rotating `JWT_SECRET` invalidates access tokens only; clients
+    silently refresh (whether to also revoke all refresh tokens is incident action A4,
+    [OI-09](../architecture/multi-transport/open-items.md#oi-09)).
 
 **"In force"** (used by brief §13 G-PROXIMITY and ADR-0018/0025) means all of F1–F8 in
 [Verification](#verification) are recorded as passed in the incident record or the `process` scope
@@ -135,38 +153,27 @@ External: [GitHub security hardening for Actions](https://docs.github.com/en/act
 [oss-sec 2026/q1/371](https://seclists.org/oss-sec/2026/q1/371),
 [trivy-action](https://github.com/aquasecurity/trivy-action).
 
-> **Reviewer note (open):** the brief says the `release` environment is "restricted to tags on
-> `main`". GitHub environment deployment policies can restrict to tag *patterns* (`v*`), not to
-> "tags whose commit is on `main`". The process doc closes the gap with (a) the `v*` tag ruleset of
-> ADR-0030 limiting who can create release tags and (b) a first build step that fails unless
-> `git merge-base --is-ancestor "$TAG" origin/main` (checkout with `fetch-depth: 0`, failing closed
-> if `origin/main` is absent). Release tags exist on `main` only, hotfixes included (ADR-0030 D5).
-> Confirm this is an acceptable reading.
+> **Note:** accepted under the process approval: the `v*` tag ruleset limits who creates
+> release tags, and the build's first step fails unless `git merge-base --is-ancestor "$TAG"
+> origin/main` (checkout with `fetch-depth: 0`, failing closed if `origin/main` is absent).
 
-> **Reviewer note (open):** the brief (ADR-0031 Consequences; §14 item 1) says rotating `JWT_SECRET`
-> forces every user to log in again. The code says otherwise: refresh tokens are 32 random bytes
-> stored as a SHA-256 hash (`JwtProvider.kt:99-103`; `AuthService.kt:367-394`) and do not depend on
-> `JWT_SECRET`. After rotation an old access token gets 401 and the client's Ktor Auth refresh
-> (401 → refresh, CLAUDE.md) silently obtains a new one; nobody is logged out. Forcing re-login is a
-> separate owner decision — revoke all refresh tokens (`refresh_tokens.revoked_at`) — taken in
-> incident action A4. Open question: whether anyone holding forged access tokens could have obtained
-> refresh tokens. The brief's Phase-0 exit test ("old JWT failing") remains valid.
+> **Resolved (2026-11-12):** brief erratum E-32: rotating `JWT_SECRET` invalidates access tokens only
+> (refresh tokens are 32 random bytes independent of it, `JwtProvider.generateRefreshToken`); clients
+> silently refresh.
+> **Open item [OI-09](../architecture/multi-transport/open-items.md#oi-09):** owner decision in incident action A4: keep sessions, or revoke all refresh tokens. Reviewer recommendation: revoke (fail closed; it is unknown whether a forged-access-token holder could have obtained a refresh token; cost is one re-login per user).
 
-> **Reviewer note (open):** the brief's interim wording ("PR jobs off `cx43`") is implemented here as
-> "runner off `cx43`" (Decision 2), because no workflow-level guard can keep PR- or branch-supplied
-> workflow files off a repository-level self-hosted runner. Confirm, or record the accepted-risk
-> variant.
+> **Note:** accepted under the Phase 0 and process approvals: "runner off cx43" is the
+> implementation, because no workflow-level guard keeps PR-supplied workflow files off a
+> repository-level self-hosted runner. The accepted-risk variant is not taken.
 
-> **Reviewer note (open):** rotation order matters and the brief does not state it. While PR jobs
-> still run on `cx43`, any rotated value written to `/opt/projects/Muhabbet/.env.prod` is again
-> readable by PR code (CICD-01). Rotation should therefore follow Decision 2 (runner off `cx43`),
-> or be repeated after it. The incident record orders the actions this way.
+> **Resolved (2026-11-12):** brief erratum E-32 (§14 item 1): rotate after the runner is off cx43
+> (item 2), or repeat the rotation after it. The incident record orders the actions this way.
 
 ## Verification
 
 | # | Check ("in force" item) | Method |
 |---|---|---|
-| F1 | No PR- or branch-supplied code can run on `cx43` | Settings → Actions → Runners lists no runner on `cx43`, and on the host `systemctl list-units 'actions.runner.*'` shows none active. **Accepted-risk variant only** (Decision 2), replacing the runner check: (i) Settings → Collaborators lists no write-access identity but the owner; (ii) the agent App's installation shows no `workflows` permission; (iii) adversarial test — using the agent identity, push a throwaway branch that adds a workflow with `on: push` and `runs-on: [self-hosted, linux, x64]`: the push is refused and no job appears on `cx43`. A test PR that merely omits the `if:` guard is not evidence. |
+| F1 | No PR- or branch-supplied code can run on `cx43` | Settings → Actions → Runners lists no runner on `cx43`, and on the host `systemctl list-units 'actions.runner.*'` shows none active. **Accepted-risk variant only** (Decision 2), replacing the runner check: (i) Settings → Collaborators lists no write-access identity but the owner; (ii) the agent App's installation shows no `workflows` permission; (iii) adversarial test — using the agent identity, push a throwaway branch that adds a workflow with `on: push` and `runs-on: [self-hosted, linux, x64]`: the push is refused and no job appears on `cx43`; and push a `v*` tag from the agent identity: it is refused by `release-tags-create`. (iv) No agent session holds an owner credential with the `workflow` scope or contents-write. A test PR that merely omits the `if:` guard is not evidence. |
 | F2 | `muhabbet-mordecai` resolved | Settings → Actions → Runners lists only documented runners; ownership recorded |
 | F3 | Environments | `gh api repos/{owner}/{repo}/environments/release` and `/production` show deployment policies and reviewer; `gh secret list` (repository level) no longer lists the five release or three VPS secrets |
 | F4 | Pinning | `grep -hoE 'uses: [^ ]+' .github/workflows/*.yml` — every ref matches `@[0-9a-f]{40}`; lint job green |

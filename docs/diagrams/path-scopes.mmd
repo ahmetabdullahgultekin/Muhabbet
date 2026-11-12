@@ -15,9 +15,8 @@
 %%   2. Any Deny removes the candidate; content is never downgraded to fit a path.
 %%   3. Racing (Happy-Eyeballs) happens at link establishment, never per message; no hedged duplicates off-server.
 %%   4. For a durable CLOUD / BYO message the server is the strongest path whenever it is reachable.
-%% > **Reviewer note (open):** brief section 7 BULK footnote ("*unless server constrained/down and LAN/PROX already UP")
-%%   overlaps ConstrainedRule (which already defers BULK on a constrained server link); "down" is redundant because a
-%%   down server link is not a candidate. The brief should state one rule. Quoted verbatim below.
+%% > **Resolved (2026-11-12):** brief erratum E-27: the BULK footnote reads "*unless ConstrainedRule has
+%%   deferred BULK on the server link and LAN/PROXIMITY is already UP" ("down" dropped: a down link is not a candidate).
 flowchart LR
     classDef iface fill:#eeeeee,stroke:#888888,color:#000000
     classDef server fill:#438dd5,stroke:#2e6295,color:#ffffff

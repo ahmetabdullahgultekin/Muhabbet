@@ -1,8 +1,10 @@
 # Muhabbet multi-transport delivery — Software Architecture Document (arc42)
 
-> **Status: Proposed — pending owner approval.** No code may be written for any scope described here
-> until the owner records approval for that scope in
-> [`APPROVAL.md`](APPROVAL.md). This document is derived from, and must agree with, the
+> **Status: Approved by delegated owner review (2026-11-12), per scope:** Phase 0, `process`, 0.4–0.6
+> approved; 0.7 approved except the ADR 0009 hosting/budget choice; 1.0 approved in principle and gated;
+> 1.1–1.4 Proposed (gated). No code may be written for a scope until its block in
+> [`APPROVAL.md`](APPROVAL.md) reads `Status: Approved` (one milestone at a time, D1a). Decisions D1–D6
+> are in the brief header; open items in [`open-items.md`](open-items.md). This document is derived from, and must agree with, the
 > [decision brief](decision-brief-2026-11-12.md) (the single source of truth). Where this SAD and the
 > brief disagree, the brief wins and the disagreement is a defect in this SAD.
 
@@ -79,7 +81,7 @@ Ordered by priority. The quality tree and measurable scenarios are in §10.
 | Regulators: BTK, Siber Güvenlik Başkanlığı, KVKK Kurumu | Laws 5809, 5651/7590/7578, 6698 | A reachable controller for takedown and the under-15 ban; data-transfer basis | §2.3, §8.8 |
 | App stores (Google Play, Apple App Store) | Distribution | Licence compatibility (ADR-0017 precondition c), permission disclosures | §2.3, §9 (ADR-0017) |
 | Processors: Google (FCM, Nearby/Play services), Apple (APNs), Twilio (Verify), Hetzner (hosting) | Process data on Muhabbet's behalf | Minimal data: content-free push from 0.5 (ADR-0019) | §6.3, §7.1 |
-| Signal (libsignal licensor, AGPL-3.0) | Licence terms | `mobile/` relicensed to AGPL-3.0-or-later; `shared/` and `backend/` stay MIT (ADR-0017) | §9 (ADR-0017) |
+| Signal (libsignal licensor, AGPL-3.0) | Licence terms | `mobile/` stays MIT until 1.0 entry; relicence versus conveying the combined app under AGPL is decided after counsel Q-L7 (D1, ADR-0017 as amended); `shared/` and `backend/` stay MIT | §9 (ADR-0017) |
 
 ---
 
@@ -98,7 +100,7 @@ Ordered by priority. The quality tree and measurable scenarios are in §10.
 | TC-7 | Google Nearby Connections requires Play services; its LAN medium is not available to HMS or iPhone↔Android | PROX-06, brief ADR-0024 | `LanLink` is built; `NearbyLink` is bought |
 | TC-8 | iOS forbids cross-OS background BLE discovery (overflow area) | PROX-02 | Proximity is foreground "Nearby mode" only |
 | TC-9 | Postgres 16, Redis 7 and MinIO are *shared* containers (`shared-postgres`, `shared-redis`, `shared-minio`) used by other projects | CLAUDE.md deployment | Additive Flyway migrations only; expand/contract (CICD-09) |
-| TC-10 | Integration tests need Docker (Postgres and Redis); without it ten classes do not run | CLAUDE.md, #598 | Every Spring-config or migration change is verified with Docker running |
+| TC-10 | Integration tests need Docker (Postgres and Redis); without it the `@Testcontainers` classes (count measured per run) do not run | CLAUDE.md, #598 | Every Spring-config or migration change is verified with Docker running |
 | TC-11 | The mobile app has a hard-coded `BASE_URL` and no cleartext | MOB-15, CLAUDE.md | Non-prod verification through the UI requires a temporary build change |
 
 ### 2.2 Organisational constraints
@@ -131,13 +133,9 @@ cited in the fact-check digests: Law 5651 —
 | LC-4 | Law 5651 Ek Md. 4(7) as amended by Law 7578 — no service to under-15s; *yaş doğrulama* | Registration and every off-server path | Age gate at registration in 0.4 behind `AgeAssurancePort`; valid attestation is a precondition for a device certificate from 1.2; no compliance claim until counsel confirms (effective date per brief, unverified, see reviewer note below; Q-L3) | LEG-02, MISS-04 (legal), R7, Q-L3 |
 | LC-5 | KVKK Art. 7, 12 (erasure, security), Art. 9 (transfer abroad) | Device erasure, processors abroad, DPIA triggers | `SessionTeardown` crypto-erase (ADR-0020); wake-only push (ADR-0019); DPIA triggers (ADR-0029 §6); consent not the systematic Art. 9 basis | LEG-04, MOB-01, BE-15, Q-L5, Q-L6 |
 | LC-6 | Licence-exempt RF rules (KET; EU868 duty cycle per sub-band) | LoRa airtime | `AirtimeLedger` sliding hour per sub-band (ADR-0026) | RF-07, RF-09 |
-| LC-7 | AGPL-3.0 (libsignal) distributed through Google Play and the App Store | Relicensing `mobile/` | ADR-0017 preconditions (a)–(c); vodozemac fallback | KMP-13, R8, Q-L7 |
+| LC-7 | AGPL-3.0 (libsignal) distributed through Google Play and the App Store | Distribution terms of the app that links libsignal (D1) | ADR-0017 preconditions (a)–(c); vodozemac fallback | KMP-13, R8, Q-L7 |
 
-> **Reviewer note (open):** ADR-0029 §1 states the under-15 rule is "in force 2026-11-01". The
-> verified evidence (fact-check digest, LEG-02) records the amendment as `Değişik: 22/4/2026-7578/22`
-> and the consolidated text's *yürürlük* table gives 1/11/2026 (counsel-questions S-14; read, not
-> separately verified). Confirm with counsel (Q-L3) before quoting it in user-facing or transparency
-> text.
+> **Open item [OI-27](open-items.md#oi-27):** counsel Q-L3 confirms the 7578 → Ek md. 4/5 → 1/11/2026 entry against the official PDF; until then user-facing and transparency text says "in force from 1/11/2026 according to the consolidated text; legal confirmation pending" (ADR-0029 §1 carries the same caveat).
 
 ---
 
@@ -154,7 +152,7 @@ Diagram: [`docs/diagrams/c4-context.mmd`](../../diagrams/c4-context.mmd) (C4 lev
 | Verified contact's phone (mule) | Opaque, padded `UplinkBundle` carried to the server | → | 1.3 (gated) |
 | Nearby verified contact (Nearby mode) | `SealedFrame`s over LAN or Nearby Connections | ↔ | 1.2 (gated) |
 | Phone-OTP provider (Twilio Verify in prod) | E.164 number, OTP verification | ↔ | existing |
-| Push processors (FCM; APNs once iOS exists) | Content-free wake hint `{type: "wake", conversationId, seq}` | → | 0.5 |
+| Push processors (FCM; APNs once iOS exists) | Content-free wake hint `{t: "wake", v: 1}` (no conversation id, no seq; ADR-0019) | → | 0.5 |
 | Regulators / prosecutors | Takedown, legal requests, transparency counters | ↔ | existing (process) |
 | Counsel, crypto reviewer | Opinions, reviews | ↔ | Phase 0 → 1.4 |
 | App stores | Signed artefacts | → | existing |
@@ -382,7 +380,7 @@ diagram must agree; the brief (ADR-0019, §9) is authoritative.
 
 | # | Actor | Step | Data |
 |---|---|---|---|
-| 1 | Backend `DeliveryHintPublisher` | After commit, for each recipient device without a live socket: `WakePushPort.wake(device, hint, collapseKey)` | `{type: "wake", conversationId, seq}` only; high-priority data message; collapse key per conversation |
+| 1 | Backend `DeliveryHintPublisher` | After commit, for each recipient device without a live socket: `WakePushPort.wake(device, hint, collapseKey)` | `{t: "wake", v: 1}` (no conversation id, no seq; ADR-0019) only; high-priority data message; collapse key per conversation |
 | 2 | FCM | Delivers (best effort; may be throttled on aggressive OEMs) | No content, no sender name |
 | 3 | `FcmHintSource` | Emits `InboundEvent.Hint(conv, seq)` | — |
 | 4 | `SyncCoordinator` | Pull as R2 over TLS | — |
@@ -654,10 +652,7 @@ Existing ADRs in force or affected:
 | [0008](../../adr/0008-per-conversation-storage-mode.md) Per-conversation storage mode | Proposed | Amended by ADR-0021 |
 | [0009](../../adr/0009-call-media-infrastructure.md) Call media infrastructure | Proposed | Unchanged; ADR-0023 builds on it; host placement Q-O8 |
 
-> **Reviewer note (open):** the brief refers twice to a '§17 doc plan' (ADR-0015 consequences; §4.1),
-> but §17 is 'Open questions'. File names follow the authoring workflow's plan, and every link was
-> verified to resolve on 2026-11-12. The brief should replace '§17 doc plan' with 'README.md package
-> index'.
+> **Resolved (2026-11-12):** brief erratum E-06 replaces "§17 doc plan" with "README.md package index".
 
 ---
 
@@ -697,7 +692,7 @@ Quality
 | QS-07 | Correctness | 50 concurrent senders in one conversation | Testcontainers Postgres | Unique, gapless seq | 0 duplicates, 0 gaps | RQ-04 (0.4 exit) |
 | QS-08 | Confidentiality | Seal fails (no session) for an E2E message | 1.0 | Entry stays PENDING_SEAL or FAILED | 0 plaintext frames emitted on any link; UI shows "waiting for secure session" | RQ-06; injected failure test (1.0 exit) |
 | QS-09 | Confidentiality | Developer passes a non-sealed payload to a `SealedLink` | Build time | Compilation fails | 100% (type cannot be constructed outside `:mobile:crypto`); testkit absent from release classpath | RQ-06; CI |
-| QS-10 | Confidentiality | Push payload captured in transit to FCM | 0.5+ | Payload contains only `{type, conversationId, seq}` | 0 content bytes, 0 sender names | RQ-07; capture |
+| QS-10 | Confidentiality | Push payload captured in transit to FCM | 0.5+ | Payload contains only `{t, v}` (optionally a random per-device token) | 0 content bytes, 0 sender names | RQ-07; capture |
 | QS-11 | Authenticity | A revoked or banned device attempts a proximity link | 1.2, peer offline from server | Handshake refused after certificate expiry or CRL delta | Refused within ≤ 7 days (disclosed window) | RQ-18; TestClock + owner |
 | QS-12 | Authenticity | Attacker uploads a different identity key for an existing `device_id` | 0.6+ | Rejected; new key = new device + `IdentityKeyChanged` | 100% rejected; safety-number-changed message shown | RQ-11 |
 | QS-13 | Accountability | Message arrives via a contact's uplink | 1.3 | Server verifies the sender-device signature and attributes it | Attribution to the true sender device in 100% of accepted bundles; mule store holds only opaque blobs | 1.3 exit |
@@ -710,7 +705,7 @@ Quality
 | QS-20 | Usability | A message handed to an own device or a mule | 1.3 | Clock + "handed to <device/contact>"; never a delivered/relayed tick | 0 tick states without a defined ack level | ADR-0013 |
 
 Additional measurable requirements tracked in the V&V plan: session close on revoke ≤ 5 s (RQ-09);
-under-15 registration refused (RQ-10); enumeration throttled (RQ-12); no server plaintext for E2E
+registration below the configured minimum age refused (RQ-10); enumeration throttled (RQ-12); no server plaintext for E2E
 (RQ-13); calls connect with two-way audio on two operators incl. TT Mobil (RQ-14); non-contacts see
 only relay candidates (RQ-15); duty cycle respected (RQ-19); every privacy claim maps to evidence
 (RQ-20).
@@ -719,21 +714,22 @@ only relay candidates (RQ-15); duty cycle respected (RQ-19); every privacy claim
 
 ## 11. Risks and technical debt
 
-The living register is [risk-register.md](risk-register.md) (brief §15, R1–R22). Top ten by
-likelihood × impact:
+The living register is [risk-register.md](risk-register.md) (R1–R44; brief §15 carries R1–R22 plus the
+risks adopted by erratum E-37). Top ten by likelihood × impact (re-ranked 2026-11-12; H/H and
+Critical rows first):
 
 | Rank | ID | Risk | L / I | Primary mitigation | Trigger |
 |---|---|---|---|---|---|
 | 1 | R1 | Leaked prod secrets in public history still live | H / Critical | Rotate every `.env.prod` value; secret scanning; commit-scoped allowlist (ADR-0031) | Now |
 | 2 | R2 | PR code executes on the prod host (docker group = root) | M / Critical | ADR-0031; move CI; no keys on host | Any PR job on cx43 |
 | 3 | R4 | Solo bandwidth vs 0.4–1.0 backlog plus new paths | H / H | Post-1.0 paths gated and droppable | Slip > 1 release |
-| 4 | R3 | Engine refactor regresses the live send path | M / H | `engine.enabled` overlap; SimulatedLink suite; emulator parity before default flip | Any loss/duplicate |
-| 5 | R20 | Agents report device criteria as passed | M / H | P13, ADR-0032 "observed by" | Claim without owner note |
-| 6 | R5 | *İşletmeci* classification conflicts with E2E | M / H | Counsel before 1.0; metadata server-side | Opinion |
-| 7 | R7 | Self-declared age gate judged insufficient | M / H | `AgeAssurancePort`; no compliance claim | Guidance or opinion |
-| 8 | R8 | AGPL on Play / App Store incompatible | M / H | Opinion first; vodozemac fallback | Opinion |
-| 9 | R14 | Device-CA or uplink key compromise | L / Critical | Offline root, short intermediate, off PR hosts, runbook | Host incident |
-| 10 | R9 | iOS still cannot launch | H / M | Blocking 0.6 gate; scoping ADR | 0.6 entry |
+| 4 | R27 | Status drift: "done" claims and stale priorities mislead planning | H / H | Merged ≠ released ≠ verified (ADR-0030/0032); owner-observed device criteria | Any milestone exit on false status |
+| 5 | R38 | Age rule may already apply while the gate is unbuilt | H / H | Age gate built in 0.4 under RN-R11 option (a); minimum age 18 | 0.4 release |
+| 6 | R14 | Device-CA or uplink key compromise | L / Critical | Offline root, short intermediate, off PR hosts, runbook | Host incident |
+| 7 | R3 | Engine refactor regresses the live send path | M / H | `engine.enabled` overlap; SimulatedLink suite; emulator parity before default flip | Any loss/duplicate |
+| 8 | R20 | Agents report device criteria as passed | M / H | P13, ADR-0032 "observed by" | Claim without owner note |
+| 9 | R5 | *İşletmeci* classification conflicts with E2E | M / H | Counsel (Q-L1) before 1.0 entry | Opinion |
+| 10 | R9 | iOS still cannot launch | H / M | Blocking 0.6 gate; Android-only 1.0 per D2, stated in UI and store text | 0.6 entry |
 
 Technical debt this architecture depends on paying (not new debt):
 
@@ -796,5 +792,5 @@ Technical debt this architecture depends on paying (not new debt):
 | **SSOT** | Single source of truth. Mobile: the encrypted SQLDelight DB. Order and metadata: the server. |
 | **TransportFrame** | Outer protobuf frame on sealed off-server hops: version, type, random 16-byte `frameId`, TTL, rotating routing tag, link seq, padded body; header fields are AEAD associated data. |
 | **UplinkBundle** | HPKE-sealed (to the server's published uplink key) per-device envelopes plus routing and a sender-device signature (1.3). |
-| **Wake-only push** | Data-only FCM/APNs message `{type: "wake", conversationId, seq}`; the client fetches over TLS and composes the notification locally. |
+| **Wake-only push** | Data-only FCM/APNs message `{t: "wake", v: 1}` (no conversation id, no seq; ADR-0019); the client fetches over TLS and composes the notification locally. |
 | **Watermark** | Per-(device, conversation) highest contiguous seq committed locally; the `afterSeq` of the next pull. |

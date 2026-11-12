@@ -1,6 +1,6 @@
 # ADR 0012 — Transport-agnostic delivery engine in `:mobile:messaging`, with ISP-split link ports
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0012; §5; §6](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Amends** [ARCHITECTURE.md §8](../ARCHITECTURE.md) (seams list). Depends on ADR-0010, ADR-0011, ADR-0016, ADR-0028.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0012; §5; §6](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Amends** [ARCHITECTURE.md §8](../ARCHITECTURE.md) (seams list). Depends on ADR-0010, ADR-0011, ADR-0016, ADR-0028.
 
 ## Context
 
@@ -130,8 +130,10 @@ deleted in 0.5.2 or later.
 - Per-link senders and per-conversation FIFO fix GEM-01, GEM-02 and the Gemini-verifier MISS-01 by
   construction: a slow link stalls only itself.
 
-> **Reviewer note (open):** brief §3 ADR-0012 rationale names `LanLink` as `ServerLink`'s second
-> implementation; `LanLink` is a `SealedLink` (brief §5). The brief should adopt the §5 wording.
+> **Resolved (2026-11-12):** brief erratum E-03: outbound `ServerLink` has `WsServerLink`,
+> `SimulatedLink` for tests and `RestServerLink` (0.5) for short-lived Android components
+> (delivery-engine-spec R-5); `LanLink` is a `SealedLink` (1.2). The brief §5 `ServerLink` row reads
+> "Later: `RestServerLink` (0.5)".
 
 ## Consequences
 

@@ -1,10 +1,14 @@
-> **Proposed amendments (pending owner approval; nothing below changes until approval is recorded in
-> [`architecture/multi-transport/APPROVAL.md`](architecture/multi-transport/APPROVAL.md)):**
-> - **§4** (and the §5 message flow it describes) — [ADR 0011](adr/0011-local-db-ssot-no-viewmodels.md):
->   the local database becomes the single source of truth; the no-ViewModel decision stays.
-> - **§8** — [ADR 0012](adr/0012-delivery-engine-and-link-ports.md): seams list gains
+> **Amended (2026-11-12, delegated owner review — [record](reviews/2026-11-12-design-approval-review.md)):**
+> - **§4** (and the §5 message flow it describes) is amended by
+>   [ADR 0011](adr/0011-local-db-ssot-no-viewmodels.md): the local database becomes the single source
+>   of truth; the no-ViewModel decision stays.
+> - **§8** is amended by [ADR 0012](adr/0012-delivery-engine-and-link-ports.md): the seams list gains
 >   `ServerLink`/`SealedLink`, `EnvelopeSealer` and `MailboxPort` (boundary set by
 >   [ADR 0010](adr/0010-hybrid-server-backbone.md)).
+>
+> The text below still describes the system as built today. The details are folded into §4, §5 and
+> §8 when 0.5 lands, because that is when the code changes; until then, where this text and those
+> ADRs disagree about the target design, the ADRs win.
 
 # Muhabbet — architecture
 

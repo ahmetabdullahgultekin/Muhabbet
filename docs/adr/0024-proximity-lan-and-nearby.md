@@ -1,6 +1,6 @@
 # ADR 0024 — Proximity: build LAN, buy Google Nearby Connections; foreground "Nearby mode"; verified contacts only; 1:1 only
 
-**Status:** Proposed (gated) — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). Even after approval, work starts only when entry gate **G-PROXIMITY** (brief §13, 1.2) is met · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0024; §6.3, §6.7, §6.8, §7, §8.2, §8.5, §13 (1.2)](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Milestone:** 1.2 "Nearby" · Depends on ADR-0010, ADR-0012, ADR-0013, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0022, ADR-0028, ADR-0029, ADR-0031. Supersedes nothing.
+**Status:** Proposed (gated) — confirmed as Proposed (gated) by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); not accepted, and no code may be written against this ADR until its scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. Even after approval, work starts only when entry gate **G-PROXIMITY** (brief §13, 1.2) is met · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0024; §6.3, §6.7, §6.8, §7, §8.2, §8.5, §13 (1.2)](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Milestone:** 1.2 "Nearby" · Depends on ADR-0010, ADR-0012, ADR-0013, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0022, ADR-0028, ADR-0029, ADR-0031. Supersedes nothing.
 
 ## Context
 
@@ -148,9 +148,9 @@ Constants live in companion objects (CLAUDE.md "no magic numbers").
 |---|---|---|
 | Nearby devices / Bluetooth | `BLUETOOTH_SCAN` / `ADVERTISE` / `CONNECT`, `NEARBY_WIFI_DEVICES` (as required by the library on the device's API level) | Bluetooth usage prompt |
 | Local network | Local-network permission where the OS version requires it | Local Network prompt; `NSLocalNetworkUsageDescription` + declared `NSBonjourServices` |
-| Location | Only if the library requires it on that API level | Required for the Nearby hotspot join; without it the join is silently rejected |
+| Location | Known cost: on API 29–31 BLE scanning and Nearby Connections need `ACCESS_FINE_LOCATION`, i.e. a location prompt on every proximity-capable Android 10–12 device (DPIA-relevant, DT-1); API 31+ uses `BLUETOOTH_*`, API 33+ `NEARBY_WIFI_DEVICES` | Required for the Nearby hotspot join; without it the join is silently rejected |
 | Hotspot join | — | System confirmation prompt (Nearby Wi-Fi upgrade) |
-| Foreground service | `connectedDevice` type, notification | n/a (foreground only) |
+| Foreground service | `connectedDevice` type, notification. On Android 14+ this type needs a declared prerequisite permission **and** a Play Console foreground-service declaration (with a video): a 1.2 release-checklist item and a Play policy risk | n/a (foreground only) |
 | Wi-Fi without internet while cellular is up | `LanLink` binds its sockets to the Wi-Fi `Network` from `ConnectivityManager` (it is usually not the default network); to be verified in the spike | to be measured in the spike |
 
 Every cell is **unmeasured** until the device-matrix spike publishes it in
@@ -234,23 +234,18 @@ published matrix.
 | RQ-06 | `LanLink`/`NearbyLink` accept only `SealedFrame` | Compile + `SealedLink` contract suite | CI | 1.2 |
 | RQ-16 | Two Android phones in airplane mode exchange E2E text and a photo via `LanLink` on shared Wi-Fi, and via `NearbyLink` with Wi-Fi off | Demonstration | **Owner** (P13) | 1.2 exit |
 | RQ-02 / RQ-04 | On reconnect each message appears once, in seq order, on both devices and a linked companion | Demonstration + `SimulatedSealedLink` multi-node test | Owner + CI | 1.2 exit |
-| RQ-17 | No stable identifiers in advertisements or instance names; tags rotate every 15 min | Golden-vector test + over-the-air capture | CI + owner | 1.2 exit |
+| RQ-17 | No stable per-user or per-device identifiers in advertisements or instance names; tags rotate every 15 min; the app-level fingerprint (fixed service type / `serviceId`) is a disclosed residual (threat-model RR-11) | Golden-vector test + over-the-air capture | CI + owner | 1.2 exit |
 | RQ-18 | A revoked device is refused after certificate expiry or a CRL update | TestClock test + demonstration | CI + owner | 1.2 exit |
 | — | Each eligibility rule E1–E7 denies its case | One unit test per `PathRule` | CI | 1.2 |
 | — | Nearby mode turns off after 15 min; no discovery runs outside it | Unit test (TestClock) + owner observation | CI + owner | 1.2 |
 | — | Device matrix (Pixel, Samsung A, Xiaomi, iPhone 12, iPhone 15+; A↔A, i↔i, A↔i: discovery time, backgrounded behaviour, text RTT, 5 MB goodput, prompts) published | Spike report | Owner | G-PROXIMITY |
 
-> **Reviewer note (open):** the exit criterion "over-the-air capture shows no stable identifiers"
-> (brief §13, 1.2) is not fully under our control. Our payload (tags, instance names, endpoint names)
-> can be made non-stable, but the mDNS **service type** must be a static string declared in
-> `NSBonjourServices`, and Nearby's `serviceId` and the library's own BLE advertisement format are
-> fixed per app. Both reveal "a Muhabbet user is here", though not which one. Recommend rewording the
-> criterion to "no stable per-user or per-device identifiers", and listing the app-level fingerprints
-> as a disclosed residual in `threat-model.md`.
+> **Resolved (2026-11-12):** P9, RQ-17 and the 1.2 exit read "no stable per-user or per-device
+> identifiers outside TLS-to-server" (brief erratum E-42). `threat-model.md` records as a disclosed
+> residual that the fixed DNS-SD service type and Nearby `serviceId` reveal that a Muhabbet user is
+> present (not which one); the 1.2 DPIA records the disposition.
 
-> **Reviewer note (open):** many public and guest Wi-Fi access points isolate clients and drop
-> multicast, which defeats both mDNS discovery and peer TCP. The brief's `LanLink` exit ("shared
-> Wi-Fi") should name a non-isolating network, and the device matrix should add an isolated-AP row
-> marked as an expected failure, so the UI does not imply LAN works on every Wi-Fi. It should also add
-> the row "Wi-Fi without internet while cellular is up" (§8): the airplane-mode exit test has no
-> cellular and therefore hides the Android default-network binding case.
+> **Resolved (2026-11-12):** the brief's 1.2 `LanLink` exit reads "shared non-isolating Wi-Fi".
+> The capability-matrix device protocol has two added rows: "client-isolated AP (expected FAIL, UI
+> must not imply LAN works)" and "Wi-Fi without internet while cellular is up (Android
+> default-network binding)". Gated 1.2 content; documentation only.

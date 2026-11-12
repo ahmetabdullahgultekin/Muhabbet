@@ -1,6 +1,6 @@
 # ADR 0033 — Claude Code hooks: design gate and reproducible cloud environment
 
-**Status:** Proposed (process) — pending owner approval; no hook file may be created and no code written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) (scope `process`) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0033 (owner decision 4, "both")](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Specification:** [`docs/process/claude-code-hooks.md`](../process/claude-code-hooks.md) (exact proposed file contents, behaviour, test plan) · Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated; process, with the amendments listed in the record) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); no GitHub setting is changed, no hook file created and no code written against this ADR until scope `process` reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits (scope `process`) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0033 (owner decision 4, "both")](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Specification:** [`docs/process/claude-code-hooks.md`](../process/claude-code-hooks.md) (exact proposed file contents, behaviour, test plan) · Supersedes nothing.
 
 ## Context
 
@@ -30,7 +30,7 @@ Two hooks, registered in `.claude/settings.json`, added only after scope `proces
 | Rule | Behaviour |
 |---|---|
 | G1 | A target path outside the repository is always allowed (scratchpad, `/tmp`, `~/.gradle`). |
-| G2 | Inside the repository, these are always allowed: `docs/**`, `.github/ISSUE_TEMPLATE/**`, `.github/pull_request_template.md`, `CODEOWNERS` (root or `.github/`), `.claude/**`. |
+| G2 | Inside the repository, these are always allowed: `docs/**`, `.github/ISSUE_TEMPLATE/**`, `.github/pull_request_template.md`, `CODEOWNERS` (root or `.github/`), and only the governance files `.claude/settings.json`, `.claude/hooks/**`, `.claude/active-scope` (case-folded on Windows). **Amended 2026-11-12:** a path under `.claude/worktrees/<wt>/` (git worktrees created by Claude Code and workflow harnesses) is **not** allowed blanket; the remainder is evaluated against that worktree's own `APPROVAL.md` and `.claude/active-scope` (G2w), so parallel agents cannot bypass the gate. Tests T42 (code in a worktree, unsigned ⇒ deny) and T43 (docs in a worktree ⇒ allow). |
 | G3 | `docs/architecture/multi-transport/APPROVAL.md` is **never** editable by an agent (owner only). |
 | G4 | Any other repository path is allowed only if the **active scope** is open in `APPROVAL.md`. |
 | G5 | Active scope = the first line of `.claude/active-scope`, one of the `APPROVAL.md` scope ids. Missing or invalid ⇒ denied. The file is **gitignored** and per working tree, so it never reaches `main` and no later session inherits it. |
@@ -41,14 +41,19 @@ Two hooks, registered in `.claude/settings.json`, added only after scope `proces
 
 **D1a — one open scope (owner rule).** At most one milestone scope (`0.4`–`1.4`) is `Approved` at a
 time. At milestone exit the owner sets it to `Deferred` with the condition "milestone exited
-YYYY-MM-DD"; `phase-0` and `process` likewise once their work is done. `.claude/active-scope` is
+YYYY-MM-DD"; `phase-0` and `process` likewise once their work is done. Milestones approved in
+advance (as the 2026-11-12 delegation approved 0.5–0.7 and 1.0 in principle) are recorded as
+`Deferred` with the condition "pre-approved; set to Approved by the owner at exit of the previous
+milestone", never as a second `Approved` block (check H11). `.claude/active-scope` is
 agent-writable (G2), so with one open scope the gate is in effect a global switch ("is any code work
 approved now?"), and attribution of work to a milestone is a review matter. This rule is also to be
 recorded in `APPROVAL.md` §1.
 
 The gate is **a guard for agents, not a security boundary.** Bypasses (interpreters writing files,
-indirection through `bash -c`/variables, unlisted writers, editing the hook itself under `.claude/**`) are out of the threat
-model; the backstop is CODEOWNERS review of `.claude/**` and of the PR diff (ADR-0032).
+indirection through `bash -c`/variables, unlisted writers, editing the hook itself under `.claude/hooks/**`,
+GitHub MCP/API writes to remote branches, switching to a branch whose `APPROVAL.md` reads `Approved`)
+are out of the threat model; the backstop is CODEOWNERS review of `.claude/settings.json`,
+`.claude/hooks/**` and of the PR diff (ADR-0032).
 
 ### 2. Environment bootstrap — `SessionStart`, cloud sessions only
 
@@ -75,7 +80,12 @@ Synchronous, with a 900 s hook timeout (the first run downloads the SDK; later r
 
 - `.claude/settings.json`, `.claude/hooks/design-gate.sh`, `.claude/hooks/design_gate.py`,
   `.claude/hooks/session-start.sh` and `.claude/hooks/design-gate.test.sh` become reviewed files under
-  CODEOWNERS (ADR-0032). `.claude/active-scope` is gitignored.
+  CODEOWNERS (ADR-0032). Because `.gitignore:62` ignores the whole `.claude/` directory today (a child
+  of an excluded directory cannot be re-included), the installation PR replaces that line with
+  `/.claude/*`, `!/.claude/settings.json`, `!/.claude/hooks/`, `/.claude/active-scope`,
+  `/.claude/settings.local.json`, `/.claude/worktrees/` and verifies that `git check-ignore
+  .claude/settings.json` prints nothing and `git ls-files .claude` lists the five files
+  (claude-code-hooks §3.5). `.claude/active-scope` stays gitignored.
 - Starting work on a milestone becomes an explicit act: the owner approves the scope in
   `APPROVAL.md` (closing the previous one, D1a), and the session sets `.claude/active-scope`.
   Because the file is agent-writable, the gate cannot stop an agent from naming the open scope for
@@ -88,7 +98,9 @@ Synchronous, with a 900 s hook timeout (the first run downloads the SDK; later r
 - The hook ships with its test: an attempted edit to `backend/**` is refused while `APPROVAL.md` is
   unsigned (brief consequence), plus the cases in the specification.
 - The bootstrap pins one cmdline-tools archive (`commandlinetools-linux-13114758_latest.zip`, the one
-  used in this session); updating it is a reviewed change.
+  used in this session) **and its SHA-256**, recorded by the owner at the first verified download; a
+  download or checksum failure is logged as a warning and never fails session start. Updating either
+  is a reviewed change.
 
 ## Alternatives considered
 
@@ -100,25 +112,24 @@ Synchronous, with a 900 s hook timeout (the first run downloads the SDK; later r
 | Infer scope from the path or branch name | Paths do not map to milestones (0.4 and 0.5 both touch `backend/**`); branch names `<type>/<issue#>-<slug>` carry no milestone (see reviewer note) |
 | Deny all Bash while the gate is armed | Makes documentation work impossible (git, grep, builds of docs). The chosen heuristic still denies some git hygiene while unsigned (`git pull`/`merge`/`rebase`/`reset`/`checkout <branch>`/`stash` push/pop) because those rewrite arbitrary files; `git fetch`, `git switch`, `git commit`, `git push`, `git mv` within `docs/` remain allowed |
 
-> **Reviewer note (open):** the brief does not define how the hook knows which scope an edit belongs
-> to, and it lists `docs/**` as always-allowed, which would let an agent edit `APPROVAL.md` and open
-> its own gate. This ADR adopts the remedy proposed in `APPROVAL.md`'s own reviewer note: the active
-> scope is declared in `.claude/active-scope` (G5), and `APPROVAL.md` is excluded from the
-> always-allowed set (G3). Both refine the brief and need the owner's explicit acceptance.
+> **Note:** amendments G3 (`APPROVAL.md` never agent-editable) and G5
+> (`.claude/active-scope`) accepted by owner delegation 2026-11-12 (D6; brief erratum E-44).
 
-> **Reviewer note (open):** the brief scopes the Bash rule to "commands that write files". That set
-> is not decidable from a command string; G7 is a heuristic. Accepting the gate means accepting that
-> it catches ordinary agent edits, not determined circumvention. Remaining accepted blind spots
-> (specification §2.2): interpreters and build tools writing files; `bash -c`/`eval`/scripts,
-> variables and command substitution in paths; unlisted writers (`find -exec`, `tar -x`, `curl -o`,
-> editors); `pushd`/`cd` with options; edits to the hook under `.claude/**`. Accepted false
-> positives: worktree-rewriting git subcommands, and any command `shlex` cannot parse, are denied
-> while unsigned. Earlier misses — multi-line commands, `)>`, `find -delete`, `patch`, `git -C`,
-> heredocs containing an apostrophe — are now handled and covered by tests T28–T37.
+> **Note:** **accepted limitations** (process approval): the Bash rule is a heuristic, "a
+> guard, not a boundary". It catches ordinary agent edits, not determined circumvention. Accepted
+> blind spots (specification §2.2): interpreters and build tools writing files; `bash -c`/`eval`/
+> scripts, variables and command substitution in paths; unlisted writers (`find -exec`, `tar -x`,
+> `curl -o`, editors); `pushd`/`cd` with options; GitHub MCP/API writes to remote branches.
+> Accepted false positives: worktree-rewriting git subcommands, and any command `shlex` cannot parse,
+> are denied while unsigned. Multi-line commands, `)>`, `find -delete`, `patch`, `git -C` and heredocs
+> containing an apostrophe are handled and covered by tests T28–T37.
 
-> **Reviewer note (open):** the brief's "later milestones re-arm the gate" holds only under D1a.
-> `.claude/active-scope` is agent-writable, so if two scopes are open at once an agent can name the
-> approved one for unapproved work. D1a is an owner rule, not a mechanism.
+> **Resolved (2026-11-12):** D6 plus the scope approvals, with D1a kept intact: `APPROVAL.md` opens
+> `phase-0`, `process` and `0.4` only (`Status: Approved`). 0.5, 0.6, 0.7 and 1.0 are recorded as
+> `Status: Deferred` with Conditions "design approved 2026-11-12 by owner delegation; opened by the
+> owner when the previous milestone exits; 0.7 excludes ADR 0009 hosting/budget (Q-O8); 1.0 gated on
+> counsel, external crypto review and the licence step (D1)". The owner (G3) writes these lines and
+> the D1a rule into `APPROVAL.md` §1; agents do not.
 
 ## Evidence
 

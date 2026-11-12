@@ -38,7 +38,8 @@ can be evaluated precisely.
 | G9 | No Python ≥ 3.8 found (launcher fallback, bash only) | Fail closed **for G4 targets only**: an `Edit`/`Write`/`NotebookEdit` path that is absolute and outside the repository (G1) or under a G2 prefix is allowed, `APPROVAL.md` denied (G3), anything else denied — including relative paths and paths containing `..`. A `Bash` call is denied, because its targets cannot be extracted and an unknown target counts as the repository root (G7). Denial via exit 2 with the reason on stderr |
 | G1 | Outside the repository (`/tmp`, scratchpad, `~/.gradle`, `/dev/null`) | allow |
 | G3 | `docs/architecture/multi-transport/APPROVAL.md` | **deny** (owner only) — even when a scope is open |
-| G2 | `docs/**`, `.github/ISSUE_TEMPLATE/**`, `.github/pull_request_template.md`, `CODEOWNERS`, `.github/CODEOWNERS`, `.claude/**` | allow |
+| G2w | Under `.claude/worktrees/<wt>/` (git worktrees created by Claude Code and workflow harnesses) | Strip the prefix and evaluate the remainder with G3–G4 **against that worktree's own** `APPROVAL.md` and `.claude/active-scope`. The bare worktree root is denied (amended 2026-11-12: a blanket `.claude/**` allow let every code edit inside a worktree pass with every scope Pending) |
+| G2 | `docs/**`, `.github/ISSUE_TEMPLATE/**`, `.github/pull_request_template.md`, `CODEOWNERS`, `.github/CODEOWNERS`, and only the governance files `.claude/settings.json`, `.claude/hooks/**`, `.claude/active-scope` (compared case-folded on Windows) | allow |
 | G5 | anything else, and `.claude/active-scope` missing or not one of `phase-0 0.4 0.5 0.6 0.7 1.0 1.1 1.2 1.3 1.4 process` | **deny** |
 | G6 | anything else, and the active scope's block lacks a line exactly `Status: Approved` | **deny** |
 | G4 | anything else, and the active scope is open | allow (normal permission flow continues) |
@@ -69,7 +70,9 @@ Known blind spots, accepted (ADR-0033 reviewer note on G7) — the gate does **n
 | Indirection | `bash -c '…'`, `eval`, `sh script.sh`, `xargs` feeding a writer, `$(…)`/backticks building a path, variables (`f=backend/a.kt; echo x > "$f"` — the gate sees the literal word `$f`, not the expanded path) |
 | Writers not listed | `find … -exec …`, `git -c core.worktree=…`, `tar -x`, `unzip`, `curl -o`, `wget -O`, `ed`, `ex`, `vim -c` |
 | `cd` with options or `pushd`/`popd` | `cd -P x && …`, `pushd backend` |
-| Edits to the hook itself | `.claude/**` is G2; caught by CODEOWNERS review (ADR-0032) |
+| Edits to the hook itself | `.claude/settings.json` and `.claude/hooks/**` are G2; caught by CODEOWNERS review (ADR-0032) |
+| Remote writes through GitHub | GitHub MCP write tools (`mcp__github__create_or_update_file`, `push_files`, `delete_file`) and `gh api -X PUT …/contents/…` write code to remote branches without touching the working tree. Not matched by the `PreToolUse` matcher; accepted as a blind spot, and covered by the interim agent conditions (`APPROVAL.md` scope `process`: agents never push workflow changes, never merge, tag or dispatch) and CODEOWNERS review |
+| Branch-switching | The gate reads the **working-tree** `APPROVAL.md`, and `git switch`/`git fetch` are allowed, so switching to a branch whose copy reads `Status: Approved` (e.g. an unmerged branch) opens the gate. Accepted blind spot; a later version may read `git show origin/main:docs/architecture/multi-transport/APPROVAL.md` first and fall back to the working tree |
 
 Accepted false positives — **denied** while no scope is open, although harmless in a docs session:
 
@@ -86,7 +89,7 @@ at the start of a session at the owner's request (`agent-workflow.md` step 2). K
 `main` means no later session inherits an open scope from a merged branch. Absent file ⇒ only
 docs/governance paths are editable.
 
-The file is under `.claude/**` (G2), so any agent can write any value. Setting it grants nothing
+The file is a G2 governance path, so any agent can write any value. Setting it grants nothing
 **unless the named scope is open** in `APPROVAL.md`. The owner rule in ADR-0033 D1a — **at most one
 milestone scope (`0.4`–`1.4`) is `Approved` at a time; at milestone exit the owner sets it back to
 `Deferred`** with a dated condition "milestone exited", and `phase-0`/`process` likewise once their
@@ -94,10 +97,9 @@ work is done — makes the gate equivalent to a global switch: while one scope i
 name it and edit any code path, whichever milestone the work belongs to. Scope attribution is then
 a matter of review (PR milestone, CODEOWNERS), not of the hook.
 
-> **Reviewer note (open):** residual weakness — the gate distinguishes "some scope open" from "no
-> scope open", not 0.4 work from 0.5 work. With two scopes open at once (if the owner does not apply
-> the one-open-scope rule), an agent can name the approved one for unapproved work. The rule must
-> also be added to `APPROVAL.md` §1, which this author group may not edit.
+> **Note:** settled by D6 plus D1a: only one milestone scope is `Status: Approved` at a time;
+> the other approved milestones are `Deferred` with an approval condition. The owner (G3) adds the
+> one-open-scope rule to `APPROVAL.md` §1; agents may not.
 
 ## 3. Proposed file contents
 
@@ -165,7 +167,8 @@ case "$path" in
   *)              deny "$NOPY" ;;                                 # relative: cwd unknown here
 esac
 case "$r" in docs/architecture/multi-transport/APPROVAL.md) deny "APPROVAL.md is edited by the owner only." ;;
-  docs/*|.github/ISSUE_TEMPLATE/*|.github/pull_request_template.md|CODEOWNERS|.github/CODEOWNERS|.claude/*) exit 0 ;;
+  docs/*|.github/ISSUE_TEMPLATE/*|.github/pull_request_template.md|CODEOWNERS|.github/CODEOWNERS|.claude/settings.json|.claude/hooks/*|.claude/active-scope) exit 0 ;;
+  .claude/worktrees/*/docs/*) exit 0 ;;                          # G2w, docs only without Python
 esac
 deny "$NOPY"
 ```
@@ -180,8 +183,15 @@ import json, os, re, shlex, sys
 
 APPROVAL_REL = "docs/architecture/multi-transport/APPROVAL.md"
 SCOPES = re.compile(r"^(phase-0|0\.4|0\.5|0\.6|0\.7|1\.0|1\.1|1\.2|1\.3|1\.4|process)$")
-ALLOW = ("docs/", ".github/ISSUE_TEMPLATE/", ".claude/")
-ALLOW_FILES = (".github/pull_request_template.md", "CODEOWNERS", ".github/CODEOWNERS")
+ALLOW = ("docs/", ".github/ISSUE_TEMPLATE/", ".claude/hooks/")
+ALLOW_FILES = (".github/pull_request_template.md", "CODEOWNERS", ".github/CODEOWNERS",
+               ".claude/settings.json", ".claude/active-scope")
+WORKTREES = ".claude/worktrees/"          # G2w: evaluated against the worktree, never blanket-allowed
+CI = os.name == "nt"                       # norm() lower-cases on Windows; fold the lists to match
+
+
+def fold(s):
+    return s.lower() if CI else s
 
 
 def deny(msg):
@@ -206,9 +216,9 @@ def rel(path, cwd):                       # repository-relative '/'-path, or Non
     return None
 
 
-def scope_open(scope):                    # APPROVAL.md §1.1 parsing rule (G6)
+def scope_open(scope, root):              # APPROVAL.md §1.1 parsing rule (G6)
     try:
-        lines = open(os.path.join(ROOT, APPROVAL_REL), encoding="utf-8").read().split("\n")
+        lines = open(os.path.join(root, APPROVAL_REL), encoding="utf-8").read().split("\n")
     except OSError:
         return False
     inb = False
@@ -226,18 +236,24 @@ def check(path, cwd):
     r = rel(path, cwd)
     if r is None:
         return                                                    # G1
+    root = ROOT
+    if fold(r).startswith(fold(WORKTREES)):                       # G2w
+        parts = r.split("/", 3)
+        if len(parts) < 4 or not parts[3]:
+            deny("'%s' is a worktree root, not a file inside it." % r)
+        root, r = os.path.join(ROOT, *parts[:3]), parts[3]
     if r.lower() == APPROVAL_REL.lower():
         deny(APPROVAL_REL + " is edited by the owner only.")      # G3
-    if r.startswith(ALLOW) or r in ALLOW_FILES:
+    if fold(r).startswith(tuple(fold(a) for a in ALLOW)) or fold(r) in {fold(f) for f in ALLOW_FILES}:
         return                                                    # G2
     try:
-        scope = open(os.path.join(ROOT, ".claude", "active-scope"), encoding="utf-8").readline().strip()
+        scope = open(os.path.join(root, ".claude", "active-scope"), encoding="utf-8").readline().strip()
     except OSError:
         scope = ""
     if not SCOPES.match(scope):                                   # G5
         deny("'%s' is outside docs/governance paths and no valid scope is set in .claude/active-scope. "
              "It must name a scope that reads 'Status: Approved' in %s." % (r, APPROVAL_REL))
-    if not scope_open(scope):                                     # G6
+    if not scope_open(scope, root):                               # G6
         deny("scope '%s' is not approved in %s, so '%s' may not be changed. Approval is recorded by "
              "the owner only." % (scope, APPROVAL_REL, r))
     # G4: open scope, normal permission flow continues
@@ -439,7 +455,9 @@ run deny  "T01 backend edit refused while APPROVAL.md is unsigned"   Write "$(W 
 run allow "T02 docs edit allowed while unsigned"                     Write "$(W "$FIX/docs/process/x.md")"
 run allow "T03 relative docs path allowed"                           Edit  "$(W docs/adr/0099-x.md)"
 run deny  "T04 APPROVAL.md never editable by an agent"               Edit  "$(W "$FIX/docs/architecture/multi-transport/APPROVAL.md")"
-run allow "T05 .claude/** allowed"                                   Write "$(W "$FIX/.claude/active-scope")"
+run allow "T05 .claude/active-scope allowed"                         Write "$(W "$FIX/.claude/active-scope")"
+run deny  "T42 code inside a .claude/worktrees/ worktree refused while unsigned" Write "$(W "$FIX/.claude/worktrees/w/backend/A.kt")"
+run allow "T43 docs inside a .claude/worktrees/ worktree allowed"     Write "$(W "$FIX/.claude/worktrees/w/docs/x.md")"
 run allow "T06 issue templates allowed"                              Write "$(W "$FIX/.github/ISSUE_TEMPLATE/bug.yml")"
 run deny  "T07 workflows not on the allow-list"                      Write "$(W "$FIX/.github/workflows/ci.yml")"
 run allow "T08 path outside the repository allowed"                  Write "$(W /tmp/scratch.txt)"
@@ -511,6 +529,7 @@ cat >/dev/null 2>&1 || true                          # hook input on stdin is no
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 SDK="${ANDROID_HOME:-/opt/android-sdk}"
 CMDLINE_ZIP_URL="https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
+CMDLINE_ZIP_SHA256="<recorded by the owner at the first verified download>"   # pinned; mismatch = no install
 MIRROR="https://maven-central.storage-download.googleapis.com/maven2/"
 PACKAGES=("platforms;android-36" "platforms;android-35" "build-tools;36.0.0")
 log() { printf '[session-start] %s\n' "$*" >&2; }
@@ -519,21 +538,25 @@ tracked_before="$(git -C "$ROOT" status --porcelain --untracked-files=no 2>/dev/
 
 # B1 — Android SDK ----------------------------------------------------------------------------
 SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-if [ ! -x "$SDKMANAGER" ]; then
-  log "installing Android cmdline-tools into $SDK"
-  tmp="$(mktemp -d)"
-  curl -fsSL --retry 3 -o "$tmp/cmdline-tools.zip" "$CMDLINE_ZIP_URL"
-  unzip -q "$tmp/cmdline-tools.zip" -d "$tmp"
+install_cmdline_tools() {                 # B1 failure is a logged warning, never a failed session start
+  local tmp; tmp="$(mktemp -d)"
+  curl -fsSL --retry 3 -o "$tmp/cmdline-tools.zip" "$CMDLINE_ZIP_URL" || { rm -rf "$tmp"; return 1; }
+  echo "$CMDLINE_ZIP_SHA256  $tmp/cmdline-tools.zip" | sha256sum -c --quiet - || { rm -rf "$tmp"; return 1; }
+  unzip -q "$tmp/cmdline-tools.zip" -d "$tmp" || { rm -rf "$tmp"; return 1; }
   mkdir -p "$SDK/cmdline-tools"
   rm -rf "$SDK/cmdline-tools/latest"
   mv "$tmp/cmdline-tools" "$SDK/cmdline-tools/latest"
   rm -rf "$tmp"
+}
+if [ ! -x "$SDKMANAGER" ]; then
+  log "installing Android cmdline-tools into $SDK"
+  install_cmdline_tools || log "WARNING: cmdline-tools download or SHA-256 check failed; Android builds will not work in this session"
 fi
 missing=()
 for p in "${PACKAGES[@]}"; do
   [ -d "$SDK/${p//;//}" ] || missing+=("$p")
 done
-if [ "${#missing[@]}" -gt 0 ]; then
+if [ -x "$SDKMANAGER" ] && [ "${#missing[@]}" -gt 0 ]; then
   log "installing ${missing[*]}"
   yes 2>/dev/null | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null 2>&1 || true
   "$SDKMANAGER" --sdk_root="$SDK" "${missing[@]}" >/dev/null
@@ -592,10 +615,26 @@ fi
 exit 0
 ```
 
-### 3.5 `.claude/active-scope` (gitignored)
+### 3.5 `.claude/active-scope` (gitignored) and the `.gitignore` change
 
-Not created by the approval of `process` itself, and never committed. `.gitignore` gains the line
-`/.claude/active-scope` in the installation PR. Written per working tree when a scope is open, e.g.:
+Not created by the approval of `process` itself, and never committed. **Today `.gitignore:62` is
+`.claude/`, which ignores the whole directory** (`git check-ignore -v .claude/settings.json` →
+`.gitignore:62`), and a child of an excluded directory cannot be re-included. Adding
+`/.claude/active-scope` alone is therefore not enough: `.claude/settings.json` and the hooks could not
+be tracked or placed under CODEOWNERS, and fresh cloud clones would carry no hooks. The installation
+PR replaces the `.claude/` line with:
+
+```gitignore
+/.claude/*
+!/.claude/settings.json
+!/.claude/hooks/
+/.claude/active-scope
+/.claude/settings.local.json
+/.claude/worktrees/
+```
+
+Verification in the same PR: `git check-ignore .claude/settings.json` prints nothing, and
+`git ls-files .claude` lists the five files of §3. Written per working tree when a scope is open, e.g.:
 
 ```text
 0.4
@@ -621,15 +660,14 @@ start-up over that guarantee.
 Two `beforeSettings` mirrors are harmless: a session that already has its own init script (this
 session has `~/.gradle/init.d/central-mirror.gradle`) simply lists the mirror twice.
 
-> **Reviewer note (open):** the cmdline-tools archive is fetched over HTTPS without a pinned SHA-256,
-> because no checksum for it appears in any source used here. Recording the hash at first install and
-> pinning it in the script is a cheap hardening step for the owner to take when the file is created.
+> **Resolved (2026-11-12):** the script pins the SHA-256 recorded at the first verified download and
+> fails on mismatch. The owner records the hash when the file is created.
 
 ## 5. Test plan
 
 | # | What | How | Expected | Status 2026-11-12 |
 |---|---|---|---|---|
-| TP1 | Gate decision table, including multi-line, `)>`, `find -delete`, `patch`, `git -C`, `git stash list`, heredoc-with-apostrophe and the G9 no-Python fallback (T01–T41) | `.claude/hooks/design-gate.test.sh` (fixture repository in `mktemp -d`, CRLF `APPROVAL.md`) | 44 passed, 0 failed | **Run** against the proposed text from a scratch directory (Linux, Python 3): 44/44 |
+| TP1 | Gate decision table, including multi-line, `)>`, `find -delete`, `patch`, `git -C`, `git stash list`, heredoc-with-apostrophe, the G9 no-Python fallback and worktree paths (T01–T43) | `.claude/hooks/design-gate.test.sh` (fixture repository in `mktemp -d`, CRLF `APPROVAL.md`) | 46 passed, 0 failed | 44/44 **run** on the earlier text (T01–T41); T42/T43 and the G2 narrowing added 2026-11-12, **not yet run** — run at installation |
 | TP2 | Gate against the real `APPROVAL.md` (all scopes Pending) | `echo '{"tool_name":"Write","tool_input":{"file_path":"backend/x.kt"},"cwd":"'"$PWD"'"}' \| CLAUDE_PROJECT_DIR=$PWD .claude/hooks/design-gate.sh` | deny JSON naming `APPROVAL.md` | **Run**: deny |
 | TP2a | Gate on the owner's Windows dev machine (Git Bash) | After installing Python (§6): `git status`, an `Edit` of a `docs/` file and an `Edit` of `backend/…` in a local Claude Code session | first two allowed, third denied with the G5/G6 reason; then, with Python removed from `PATH`, the docs `Edit` still allowed and `Bash` denied with the G9 message naming `winget install Python.Python.3.12` | Not run (no Windows host in this session) |
 | TP3 | Gate in a live session | After installing: ask an agent to edit `backend/build.gradle.kts` | Tool call refused with the G5/G6 reason; agent reports it | Not run (files not created) |
@@ -651,8 +689,10 @@ report them, stating exactly what it ran.
    `python -c "import sys; print(sys.version)"` from Git Bash prints 3.12 and not the Microsoft Store
    stub message). Without it the G9 fallback allows `docs/**` edits but denies every `Bash` call.
 3. An agent (or the owner) creates the five tracked files with exactly the content of §3 in one PR
-   and adds `/.claude/active-scope` to `.gitignore` (the only edit outside `.claude/**`; allowed
-   because scope `process` is open — set `.claude/active-scope` to `process` first). The hook paths are under `.claude/**`, so the
+   and replaces the `.claude/` line of `.gitignore` with the six lines of §3.5 (the only edit outside
+   `.claude/`; allowed because scope `process` is open — set `.claude/active-scope` to `process`
+   first). Then `git check-ignore .claude/settings.json` must print nothing and `git ls-files .claude`
+   must list the five files. The hook paths are under `.claude/**`, so the
    gate never blocks its own installation.
 4. `chmod +x .claude/hooks/*.sh` (git records the executable bit).
 5. The PR runs TP1 and TP2 and pastes the output; CODEOWNERS requests the owner's review (ADR-0032).
@@ -663,15 +703,21 @@ report them, stating exactly what it ran.
 
 1. Open the **raw** file `docs/architecture/multi-transport/APPROVAL.md` in an editor (not the
    rendered view; Markdown joins the four lines). CRLF line endings are fine.
-2. In the block for the scope, change exactly one line from `Status: Pending` to `Status: Approved`,
+2. In the block for the scope, change exactly one line from `Status: Pending` (or `Deferred`) to `Status: Approved`,
    with no list marker and no trailing spaces. Fill `Approved-by:`, `Date:` (`YYYY-MM-DD`) and any
    binding `Conditions:`.
 3. Record any ADR dispositions in §3 of the same file and add a change-log row.
 4. Commit under the owner's own identity and merge through a PR (CODEOWNERS makes the owner the
-   reviewer of this file; agents cannot edit it under G3).
+   reviewer of this file; agents cannot edit it under G3). **The 2026-11-12 delegated approval** is
+   transcribed the same way: the paste-ready text is in
+   [`open-items.md` §2](../architecture/multi-transport/open-items.md#2-paste-ready-text-for-approvalmd-oi-46)
+   ([OI-46](../architecture/multi-transport/open-items.md#oi-46)); it opens `phase-0`, `process` and
+   `0.4` only and records 0.5–1.0 as `Deferred` with a pre-approval condition (D1a, H11). An agent
+   never writes `Status: Approved` or an `Approved-by` line on the strength of the delegation.
 5. Check: TP2 with the scope set in `.claude/active-scope` ⇒ allow.
 6. To revoke: set the line back to `Status: Pending` (or `Deferred`) with a dated condition. The gate
    re-arms on the next tool call.
 7. **At milestone exit** (and when `phase-0`/`process` work is complete): set the scope to
-   `Deferred` with the condition "milestone exited YYYY-MM-DD", so at most one milestone scope is
-   open at any time (§2.3, ADR-0033 D1a).
+   `Deferred` with the condition "milestone exited YYYY-MM-DD", and set the next pre-approved milestone
+   from `Deferred` to `Approved`, so at most one milestone scope is open at any time (§2.3, ADR-0033
+   D1a, check H11).

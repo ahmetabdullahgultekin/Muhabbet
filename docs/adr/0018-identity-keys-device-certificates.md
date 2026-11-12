@@ -1,6 +1,6 @@
 # ADR 0018 — Identity, per-device keys, prekey directory, link keys and server-attested device certificates
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). Items (1)–(3) and (6) bind from acceptance; items (4) and (5) are **Proposed (gated)** and are built only at 1.2 behind gate G-PROXIMITY · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0018; §8.1–§8.4; §11.1 V33, V35; §13; §17 Q-O6, Q-O7](../architecture/multi-transport/decision-brief-2026-11-12.md) · Realises the crypto half of [ADR 0007](0007-companion-device-trust.md) · Depends on ADR-0010, ADR-0016, ADR-0017, ADR-0022, ADR-0029, ADR-0031. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. Items (1)–(3) and (6) bind from acceptance; items (4) and (5) are **Proposed (gated)** and are built only at 1.2 behind gate G-PROXIMITY · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0018; §8.1–§8.4; §11.1 V33, V35; §13; §17 Q-O6, Q-O7](../architecture/multi-transport/decision-brief-2026-11-12.md) · Realises the crypto half of [ADR 0007](0007-companion-device-trust.md) · Depends on ADR-0010, ADR-0016, ADR-0017, ADR-0022, ADR-0029, ADR-0031. Supersedes nothing.
 
 ## Context
 
@@ -52,15 +52,25 @@ libsignal ratchet internals, which libsignal does not expose.
 2. **Fetch limits.** Per-requester and per-(requester, target) rate limits, values in
    `application.yml` (no magic numbers). An alert fires when one requester exhausts a target's
    one-time prekeys.
-3. **Relationship check.** A bundle is served only if the requester is an existing contact of the
-   target or shares a conversation with them; own devices are always allowed (sender fan-out).
+3. **Relationship check.** A bundle is served only if **the target has the requester as a contact**, or
+   they share a conversation the target created or joined (not merely received an invite to); own
+   devices are always allowed (sender fan-out). "Requester lists target" is attacker-controlled and
+   is not sufficient. Rule 2 (per-pair limit plus the exhaustion alert, 0.4) is the **primary** M1
+   control; rule 3 ships with 1.0, when prekeys first protect content.
 4. **Low-water signal.** When a device's one-time stock falls below a threshold, the server emits a
    replenish hint; the device uploads a new batch.
+   **Rotation.** The signed prekey and the last-resort Kyber prekey are rotated on a fixed interval
+   (a client constant or `application.yml` value, not a magic number), and the previous key is kept
+   for a grace period so in-flight session setups still complete. Intervals are set in the 1.0 work
+   and are in scope of the 1.0 external crypto review.
 5. **No silent replacement.** Publishing a *different* identity key for an existing `device_id` is
    rejected with an `ErrorCode`. A new identity key means a **new device**, which emits
    `IdentityKeyChanged(userId, deviceId)` → a safety-number-changed system message to every peer.
 6. **Response shape.** A claim returns `List<DevicePreKeyBundle>`, one per active device of the
    target user, so fan-out is per device (brief §8.3).
+7. **Device-set freshness.** At submit, the server rejects an envelope set that does not address
+   every active device of each recipient (`MSG_DEVICE_SET_STALE`, ICD §3.5 step 5). The client
+   refetches the device list and reseals (delivery-engine-spec T25b).
 
 ```kotlin
 // backend, keys bounded context (brief §4.2, §5)
@@ -75,8 +85,8 @@ interface PrekeyDirectoryPort {
 
 Timing: rules 1–2 on the existing tables in **0.4** (cheap, latent while E2E is off); per-device
 schema (V33: `identity_keys`, `signed_prekeys`, `one_time_prekeys`, `kyber_prekeys` with
-`last_resort`, all with `device_id`) plus rules 3–6 and the `keys` bounded context (extracted from
-messaging's `EncryptionService`) in **0.6**. All six are in force before any key is used (1.0).
+`last_resort`, all with `device_id`) plus rules 4–7 and the `keys` bounded context (extracted from
+messaging's `EncryptionService`) in **0.6**. Rule 3 (relationship predicate) ships with 1.0. All seven are in force before any key is used (1.0).
 
 ### (4) Link key (1.2, gated)
 
@@ -109,7 +119,7 @@ data class DeviceCertificate(
 | Signing input | `"mbt-devcert-v1" ‖` canonical length-prefixed encoding of all fields except `signature` |
 | Issuance preconditions | Valid age attestation (ADR-0029 rule 1), no active ban, device not revoked, link key published and signature-valid |
 | Renewal | On every online session (`welcome.certRenewal`, ADR-0022) |
-| Revocation | **Non-renewal** plus a **signed delta CRL** pushed over WS (`crl.delta`) and fetched on connect. CRL deltas carry a monotonic `crlSeq`, are signed by the current intermediate under the label `mbt-crl-v1` (length-prefixed encoding, ADR-0022 rule 2), and a peer rejects a delta whose `crlSeq` is not newer than the last one applied. Offline exposure window ≤ 7 days (Q-O6, disclosed in the transparency text) |
+| Revocation | **Non-renewal** plus a **signed delta CRL** pushed over WS (`crl.delta`) and fetched on connect. CRL deltas carry a monotonic `crlSeq`, are signed by the current intermediate under the label `mbt-crl-v1` (length-prefixed encoding, ADR-0022 rule 2), and a peer rejects a delta whose `crlSeq` is not newer than the last one applied. Offline exposure window ≤ 7 days (accepted and disclosed, owner decision D4; disclosed in the transparency text) |
 | Verification on device | `DeviceCertificateVerifier.verify(cert, now)` checks chain, validity window (with `Clock` injected), CRL, and that `identityKey` equals the libsignal identity of the session peer |
 | Format | Our own small protobuf record. **No X.509/PKIX parsing** |
 | Key custody | Root offline. Intermediate in a file-mounted signer (`CertificateSignerPort` → `FileKeyEd25519Signer`) **never on a host that runs PR jobs**; depends on ADR-0031 being in force (Q-O7) |
@@ -139,8 +149,9 @@ handshake proves possession of the certified link key.
   `suspend fun safetyNumber(peer: DeviceAddress): SafetyNumber` (ADR 0017 §1), not keyed by `UserId`
   as the brief §5 sketch has it.
 - **1.2 proximity and 1.3 uplink eligibility require a verified safety number** (ADR-0024/0025).
-- `IdentityKeyChanged` (a different key for an existing device, i.e. reinstall or replacement — not
-  a newly linked companion) → **blocking interstitial** for verified contacts (verification is reset),
+- `IdentityKeyChanged` (a new device replacing a revoked one — a reinstall or replacement is a new
+  `device_id`, because a new key for an existing `device_id` is rejected by rule 5 and ADR-0020; not a
+  newly linked companion) → **blocking interstitial** for verified contacts (verification is reset),
   visible notice for everyone else (brief §8.4). Outbox entries to that peer park as
   `UntrustedIdentity` (ADR-0016).
 
@@ -208,7 +219,7 @@ handshake proves possession of the certified link key.
 | RQ-11 | Concurrent claims never return the same one-time prekey | Testcontainers concurrency test (Docker running) | 0.4 exit |
 | RQ-11 | Publishing a different identity key for an existing `device_id` returns an error and emits nothing | Integration test | 0.6 exit |
 | — | Per-requester and per-pair fetch limits enforced | Integration test | 0.4 |
-| — | A requester with no relationship to the target is refused (own devices allowed) | Integration test | 0.6 |
+| — | A requester with no relationship to the target (target has not added the requester and shares no conversation the target created or joined) is refused (own devices allowed) | Integration test | 1.0 |
 | — | Exhausted one-time stock falls back to last-resort Kyber, never to a bundle without a PQ key | Integration test | 0.6 |
 | — | Certificate issuance refused without age attestation or with an active ban | Unit + integration test | 1.2 |
 | RQ-18 | A revoked device is refused off-server after CRL delta or at expiry | `TestClock` test + owner demonstration (P13) | 1.2 exit |
@@ -218,13 +229,10 @@ handshake proves possession of the certified link key.
 | — | Signing key absent from every host that runs PR jobs | Inspection (ADR-0031 checklist) | 1.2 entry |
 | — | Signing inputs are length-prefixed and domain-separated | Golden vectors on JVM, backend and iOS | 1.2 |
 
-> **Reviewer note (open):** brief §5 sketches `SessionCryptoPort.safetyNumber(peer: UserId)`. This
-> ADR uses `DeviceAddress` because libsignal's numeric fingerprint covers one identity key per side.
-> If the owner wants one QR per user, note that a multi-key user fingerprint is not a libsignal
-> primitive and must be settled by the 1.0 crypto review, not designed here (P12).
+> **Open item [OI-01](../architecture/multi-transport/open-items.md#oi-01):** brief §5 now reads `safetyNumber(peer: DeviceAddress)` (erratum E-08); whether a single per-user QR over several identity keys is wanted is a question for the 1.0 external crypto review (P12).
 
-> **Reviewer note (open):** M1 recommends the relationship check ship with the 0.4 rate limit. The
-> owner may pull rule 3 into 0.4. Note that "requester has target as contact" is attacker-controlled.
-> Prefer "target has requester as contact, or they share a conversation the target did not merely
-> receive an invite to", and treat the per-pair limit plus the exhaustion alert (rule 2) as the
-> primary M1 control.
+> **Resolved (2026-11-12):** the predicate is fixed now and the schedule kept. Rule 3 reads
+> "claim allowed only if the target has the requester as a contact, or they share a conversation the
+> target created or joined (not merely received an invite to)". Rule 2 (per-pair claim limit plus
+> exhaustion alert, shipping in 0.4 with BE-14 part 1) is the primary M1 control. Rule 3 ships with
+> 1.0, when prekeys first protect content. No 0.4 scope change (brief erratum E-47).

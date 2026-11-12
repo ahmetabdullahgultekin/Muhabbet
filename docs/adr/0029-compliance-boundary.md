@@ -1,6 +1,6 @@
 # ADR 0029 — Compliance boundary across all paths
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). Rule 1 (age gate) is a 0.4 build item once scope `0.4` is approved; the counsel checklist blocks the 1.0 licence step and the 1.1–1.4 gates, not the 0.x milestones · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0029; §1.2; §8.2; §13; §14 items 7–9; §15 R5–R7, R15, R18, R21; §17 Q-L1…Q-L9](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010, ADR-0018, ADR-0019, ADR-0021. Gates ADR-0017 (licence step), ADR-0023 (1.1), ADR-0024, ADR-0025, ADR-0026. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. Rule 1 (age gate) is a 0.4 build item once scope `0.4` is approved; the counsel checklist blocks the 1.0 licence step and the 1.1–1.4 gates, not the 0.x milestones · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0029; §1.2; §8.2; §13; §14 items 7–9; §15 R5–R7, R15, R18, R21; §17 Q-L1…Q-L9](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0010, ADR-0018, ADR-0019, ADR-0021. Gates ADR-0017 (licence step), ADR-0023 (1.1), ADR-0024, ADR-0025, ADR-0026. Supersedes nothing.
 
 > This ADR records engineering controls that keep legal duties performable on every path. It is not
 > legal advice and claims no compliance. Every statement about what a law requires is subject to the
@@ -15,7 +15,7 @@ Verified legal facts (broadcast-RF-legal digest, checked against the current mev
 | Law 5809 Art. 3(ççç), 9(14), 60(16)–(17) | Muhabbet matches the OTT (*şebekeler üstü hizmet*) definition: BTK authorisation through a Turkish company; fines of 1–30 M TL; throttling up to 95% or blocking. Art. 9(14) deems an OTT provider an *işletmeci* (operator) for whatever duties the Authority assigns — retention and interception cooperation may follow. The architecture does not change the classification | LEG-01, MISS-01 (legal) |
 | Law 5809 Art. 39, 63(6); 2010 coded/encrypted communications regulation | Encrypted communication over *telsiz* is reserved; a breach is a crime. Coverage of app-level E2E over licence-exempt radio is unclear | LEG-03 |
 | Law 5651 (consolidated through Law 7590, 24/7/2026) | Authority moved to the **Siber Güvenlik Başkanlığı**. If Muhabbet is a *sosyal ağ sağlayıcı* (channels, stories, communities make it more likely): prosecutor data requests, transparency reports, Turkish hosting above 1 M daily access (Ek Md. 4(6)) | LEG-02, MISS-02 (legal) |
-| Law 7578 → 5651 Ek Md. 4(7), in force 2026-11-01 | If Muhabbet is a *sosyal ağ sağlayıcı* (Q-L4): no service to **under-15s**, with *yaş doğrulama* (age verification). The gate is built regardless, so the obligation can be met if the classification applies (MISS-04 legal) | LEG-02, MISS-04 (legal) |
+| Law 7578 → 5651 Ek Md. 4(7), in force 2026-11-01 according to the consolidated text's *yürürlük* table (read, not independently verified; legal confirmation pending, Q-L3, [OI-27](../architecture/multi-transport/open-items.md#oi-27)) | If Muhabbet is a *sosyal ağ sağlayıcı* (Q-L4): no service to **under-15s**, with *yaş doğrulama* (age verification). The gate is built regardless, so the obligation can be met if the classification applies (MISS-04 legal) | LEG-02, MISS-04 (legal) |
 | KVKK (Law 6698) Art. 3(ı), 9, 12 | On the reviewer's reading (LEG-04, partially confirmed), Muhabbet would be the controller of relaying and relaying users would be neither household-exempt nor contracted processors; Q-L5 asks counsel to confirm. Art. 9 allows consent only for incidental (*arızi*) transfers, not systematic hosting abroad; Art. 12 security duties apply. KVKK has no statutory DPIA article | LEG-04 |
 
 Repo state: no age gate exists ("Kayıt akışında yaş doğrulama kapısı henüz uygulanmamıştır",
@@ -36,11 +36,13 @@ reach every path.
 
 | Element | Decision |
 |---|---|
-| Data | `users.birth_date`, `age_assurance_level`, `age_assured_at` (Flyway V30, brief §11.1); stored server-side only |
+| Data | `user_age_assurance(user_id, birth_date, level, assured_at)`, a separate table mapped only by the age adapter (Flyway V30; brief erratum E-18; the V27 row-rebuild hazard rules out columns on `users`); stored server-side only |
 | Port | `AgeAssurancePort` (backend out-port): `fun assess(user: UserId, e: AgeEvidence): AgeVerdict` |
 | Now | `SelfDeclarationAssurance` (date of birth at registration) |
 | Later | e-Devlet / NFC-ID adapters behind the same port, if counsel requires (Q-L3) |
-| Refusal | Under 15 (statutory floor) → registration refused with an `ErrorCode` (no inline strings); nothing else is created |
+| Minimum age | Configuration, not a magic number: `muhabbet.age.minimum-years`, set to the **stricter** of the statute (15) and the published Terms. The Terms say 18 (`docs/legal/04-kullanim-kosullari.md:34`), so the value is **18** until the owner records the `[AGE-POLICY DECISION]` (18, 16 with parental consent, or 15; [OI-08](../architecture/multi-transport/open-items.md#oi-08)), informed by counsel Q-L3(d)/(f)/(h). It is never set below the published Terms |
+| Refusal | Below the configured minimum → registration refused with an `ErrorCode` (no inline strings); nothing else is created |
+| Existing accounts | Accounts registered before 0.4 have no age-assurance record. They get a one-time attestation prompt at next login/foreground and are not served past a grace period set by counsel (Q-L3(c); default **30 days**, [OI-35](../architecture/multi-transport/open-items.md#oi-35)). Scheduled as a 0.4 item if counsel answers in time, otherwise 0.5 |
 | Claim | **No compliance claim** in any document or UI until counsel confirms whether self-declaration meets *yaş doğrulama* (Q-L3, R7) |
 | From 1.2 | A valid age attestation is a **precondition for a device certificate** (ADR-0018), therefore for every off-server path |
 
@@ -80,11 +82,12 @@ path and in contact lookup (§8.6 of the brief).
 | Device revoke / logout / account deletion | `DeviceRevoked` / `SessionRevoked` | Immediate (socket closes ≤ 5 s, 0.4 exit) | Same as above |
 | Takedown of a channel/community item | Server removal (rule 2 keeps it server-only) | Immediate | n/a (never off-server) |
 
-The ≤ 7-day window is **stated in the transparency text** (Q-O6, R15).
+The ≤ 7-day window is **accepted and disclosed (owner decision D4, 2026-11-12)**: it is stated in the
+transparency text and the Nearby-mode copy (R15, RQ-18).
 
 ### Rule 6 — DPIA triggers
 
-A DPIA (best practice under KVKK Art. 12 security duties; LEG-04) is written and signed **before**
+A DPIA (best practice serving the KVKK Art. 12 security duty, and a self-imposed release gate; LEG-04) is written and signed **before**
 the change ships when any of these is introduced:
 
 | Trigger | First milestone |
@@ -94,12 +97,11 @@ the change ships when any of these is introduced:
 | TURN/ICE logging or telemetry (candidate type, IP family, ASN) | 0.7 |
 | Contact-discovery changes | 0.4 / 0.6 |
 | A new processor, or a new foreign host | any |
-| Telemetry used for kill criteria (e.g. Nearby sessions with one side offline) | 1.2 |
+| DT-6: kill-criterion or other new telemetry about off-server sessions (e.g. Nearby sessions with one side offline) | 1.2 |
+| DT-7: age assurance (date of birth, identity evidence) | **0.4** — the age-gate DPIA is required before 0.4 ships (counsel Q-L3(g); [OI-36](../architecture/multi-transport/open-items.md#oi-36)) |
 
-> **Reviewer note (open):** the last row extends brief rule 6, which lists five triggers. It is
-> added because kill-criterion telemetry about proximity sessions (ADR-0025 Consequences) is new
-> personal-data processing that the "TURN/ICE logging or telemetry" trigger does not cover; the brief
-> should adopt it or fold it under that trigger.
+> **Resolved (2026-11-12):** DT-6 is accepted (brief erratum E-14); DT-7 (age assurance) is added in
+> the row above.
 
 ### Rule 7 — The counsel request names every path
 
@@ -177,7 +179,7 @@ Nearby, and LoRa**, each separately — not LoRa alone (Q-L2, R6).
 
 | Req | Check | Method | Signed off by | When |
 |---|---|---|---|---|
-| RQ-10 | Under-15 registration is refused; nothing is persisted | Backend test + owner emulator check | CI + owner | 0.4 exit |
+| RQ-10 | Registration below the configured `muhabbet.age.minimum-years` (currently 18) is refused and nothing is persisted; the test is parameterised on the configured minimum | Backend test + owner emulator check | CI + owner | 0.4 exit |
 | RQ-10 | Self-declaration accepted as *yaş doğrulama* | Analysis (written opinion, Q-L3) | Counsel | before any compliance claim |
 | RQ-09 | A banned or revoked device's sockets close within 5 s | Test + demonstration | CI + owner | 0.4 exit |
 | RQ-18 | A banned device is refused off-server within ≤ 7 d (no renewal, CRL delta) | TestClock test + demonstration | CI + owner | 1.2 exit |
@@ -187,19 +189,15 @@ Nearby, and LoRa**, each separately — not LoRa alone (Q-L2, R6).
 | — | DPIA signed for each trigger before its milestone ships | Inspection (milestone entry checklist) | Owner | per milestone |
 | RQ-20 | Claims register complete | Inspection | Owner | 1.0 exit |
 
-> **Reviewer note (open):** the brief fixes the gate at "under-15 refused", which is the statutory
-> floor (5651 Ek Md. 4(7)). The published Terms say **18+**, with a 16+/parental-consent alternative
-> pending `[AGE-POLICY DECISION]` (`docs/legal/04-kullanim-kosullari.md:34`). A gate at 15 would admit
-> users the Terms exclude. Recommend: the minimum age is configuration
-> (`muhabbet.age.minimum-years`) set to the **stricter** of statute and the published Terms, and the
-> owner records the age-policy decision before 0.4 ships.
+> **Resolved (2026-11-12):** adopted as the decision in Rule 1 above: the minimum age is configuration
+> (`muhabbet.age.minimum-years`) set to the stricter of the statute and the published Terms, currently
+> **18**, never 15.
+> **Open item [OI-08](../architecture/multi-transport/open-items.md#oi-08):** the owner records the `[AGE-POLICY DECISION]` (18, 16 with parental consent, or 15) before 0.4 ships, informed by counsel Q-L3(d)/(f)/(h); until then the configured value is 18.
 
-> **Reviewer note (open):** the brief writes "DPIA (KVKK Art. 12)". KVKK has no statutory DPIA
-> article (LEG-04 verifier: no *etki değerlendirme* in the text); a DPIA is best practice under the
-> Art. 12 security duty. This ADR words it that way so no document implies a statutory DPIA.
+> **Note:** KVKK has no statutory DPIA article (LEG-04 verifier). Every document words the
+> DPIA as best practice serving the Art. 12 security duty and a self-imposed release gate (brief
+> erratum E-15); Q-L5(f) asks counsel whether one is legally required.
 
-> **Reviewer note (open):** the brief places the age gate "at registration" and makes it a
-> certificate precondition from 1.2, but says nothing about accounts registered **before** 0.4, which
-> have no `birth_date`. If Muhabbet is a *sosyal ağ sağlayıcı* (Q-L4; LEG-02, MISS-04 legal), 5651
-> Ek Md. 4(7) is a duty to not serve under-15s, not only to not register them. Recommend a one-time attestation prompt at next login for accounts without an
-> assurance level, with counsel confirming the grace period (add to Q-L3).
+> **Resolved (2026-11-12):** Rule 1 above now covers accounts registered before 0.4: they get a
+> one-time attestation prompt at next login/foreground and are not served past the grace period.
+> **Open item [OI-35](../architecture/multi-transport/open-items.md#oi-35):** counsel Q-L3(c) sets the grace period for pre-0.4 accounts; the default until then is 30 days.

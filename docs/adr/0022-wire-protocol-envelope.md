@@ -1,6 +1,6 @@
 # ADR 0022 — Wire protocol: versioned envelope, authenticated outer header, protobuf, WS hello
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). Plane A binds from 0.4 for authentication (JWT out of the query string, BE-12) and from 0.5 for the handshake and frame extensions; plane B from 1.0; plane C and `UplinkBundle` are **Proposed (gated)** with 1.2 / 1.3 · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0022; §6.7; §8.5; §10](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0013, ADR-0014, ADR-0016, ADR-0017, ADR-0018, ADR-0028. Amends the WebSocket section of [`docs/api-contract.md`](../api-contract.md) on acceptance. Supersedes nothing.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits. Plane A binds from 0.4 for authentication (JWT out of the query string, BE-12) and from 0.5 for the handshake and frame extensions; plane B from 1.0; plane C and `UplinkBundle` are **Proposed (gated)** with 1.2 / 1.3 · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0022; §6.7; §8.5; §10](../architecture/multi-transport/decision-brief-2026-11-12.md) · Depends on ADR-0013, ADR-0014, ADR-0016, ADR-0017, ADR-0018, ADR-0028. Amends the WebSocket section of [`docs/api-contract.md`](../api-contract.md) on acceptance. Supersedes nothing.
 
 ## Context
 
@@ -66,7 +66,7 @@ revoked per token (today `JwtProvider.kt:89-94` sets only subject, `deviceId`, `
 | `message.new` | S→C | extended | `messageId`, `conversationId`, **`senderDeviceId`**, **`seq`**, **`changeSeq`**, `content?` \| **`envelope`** (the one addressed to this device) |
 | `message.ack` | C→S | changed | **`conversationId`, `uptoSeq`, `kind: DELIVERED \| READ`** (per device, ADR-0013) |
 | `sync.hint` | S→C | new | `conversationId`, `seq` |
-| `security.key_changed` | S→C | new (0.6) | `userId`, `deviceId` (ADR-0018 `IdentityKeyChanged`) |
+| `security.key_changed` | S→C | **existing** frame (`WsMessage.kt:351`), extended at 0.6 | `{userId, deviceId, conversationId?, timestamp}` — `deviceId` added (ADR-0018 `IdentityKeyChanged`; brief erratum E-25) |
 | `crl.delta` | S→C | new (1.2) | signed delta (ADR-0018) |
 | `error` | S→C | extended | `code` incl. **`UNSUPPORTED_FRAME`**, **`PROTOCOL_TOO_OLD`**, **`PROTOCOL_UNSUPPORTED`**, **`HELLO_REQUIRED`**, **`AUTH_DEVICE_MISMATCH`** (new `ErrorCode` values; full list: ICD §3.12) |
 
@@ -136,7 +136,10 @@ TransportFrame { 1 v:uint32 = 1
 `HPKE-Seal(serverUplinkPk, info = "mbt-uplink-v1", aad = bucketSize, pt = senderDeviceSignature ‖ routing ‖ DeviceEnvelopes)`,
 POSTed over HTTPS to `/api/v1/uplink` by the mule. HPKE comes from a vetted library (P12); the
 server unseals, verifies the sender-device signature, and ingests through the normal idempotent send
-path.
+path. The `routing` field **must** carry `senderDeviceId` and `clientMessageId` in the clear to the
+server (inside the HPKE seal), because T-UPL-06 replay protection rests on server idempotency over
+`(sender_device_id, client_message_id)`, values otherwise only inside the E2E `Content`.
+`MediaPointer.sha256` is computed over the **ciphertext** blob.
 
 ### Cross-cutting encoding rules
 
@@ -211,14 +214,9 @@ path.
 | — | `hello.deviceId` not matching the token's `deviceId` claim → `AUTH_DEVICE_MISMATCH` and close; access tokens carry `jti` | Integration test | 0.4 / 0.5 |
 | — | Parsers survive fuzzing without crash or unbounded allocation | Fuzz CI job | 0.5 onward |
 
-> **Reviewer note (open):** the brief's `UplinkBundle` carries a `senderDeviceSignature` but does not
-> say **which key** produces it. The device identity key is the natural candidate (it is what the
-> server already binds to the device), but it must then be used with a dedicated domain label and
-> only over the bundle's *ciphertext* envelopes, so the signature cannot be presented as proof of
-> authorship of any plaintext (brief §8.3: no long-term signatures on messages). The alternative is a
-> dedicated uplink-signing key in the device certificate. ADR-0025 should fix the choice before 1.3;
-> this ADR only reserves the field.
+> **Open item [OI-03](../architecture/multi-transport/open-items.md#oi-03):** this ADR reserves only the field and the domain label `mbt-uplink-sig-v1`; the key and scheme (dedicated uplink key with a non-persisted signature, device identity key under the label, or a deniable device–server MAC) are chosen by the 1.3 crypto review and recorded as an ADR-0018 amendment.
 
-> **Reviewer note (open):** brief §3 lists query-string removal under 0.5, and §13/§14 put it in 0.4
-> with BE-12. This ADR follows §13 (header or first-frame auth at 0.4, `hello` at 0.5). The owner
-> should confirm, because it makes pre-0.4 clients a forced update.
+> **Note:** settled by the scope 0.4 approval, which adopts brief §13 (BE-12 takes the
+> JWT out of the query string at 0.4; `hello` stays at 0.5; brief erratum E-09). Pre-0.4 clients get a
+> forced-update response (a structured error that triggers the update prompt), not a silent socket
+> failure.

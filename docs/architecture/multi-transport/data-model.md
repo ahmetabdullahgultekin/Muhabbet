@@ -4,7 +4,7 @@
 > written for any scope in this document until the owner records approval for that scope in
 > [`APPROVAL.md`](APPROVAL.md). This document is derived from, and must agree with, the
 > [decision brief](decision-brief-2026-11-12.md) §11 (the single source of truth). Where they
-> disagree, the brief wins and the disagreement is recorded as a `> **Reviewer note (open):**`
+> disagree, the brief wins and the disagreement is recorded as a reviewer-note
 > callout.
 
 | | |
@@ -87,11 +87,9 @@
 | **V35** | 1.2 (gated) | Link keys, device certificates, CRL deltas | expand | §11.1 V35 |
 | **V36** | 1.3 (gated) | Uplink keys and quotas | expand | §11.1 V36 |
 
-> **Reviewer note (open):** brief §11.1 assigns V29 to "0.4/0.5" and V31 to "0.4 (cap) / 0.6".
-> Under rule 1 a version cannot straddle two releases. This document resolves V29 to **0.4** (brief
-> §13 lists V28/V29 under the 0.4 "EARLY ENGINE" scope) and splits V31 into V31 (0.4, cap) and
-> V31.2 (0.6, discoverability). The dotted steps V28.1, V29.1, V31.1 and V34.1 are additions required by
-> rule 6 and CICD-09's expand/contract rule; the brief names no contract migrations.
+> **Resolved (2026-11-12):** accepted (brief erratum E-16): V29 = 0.4; V31 = 0.4 (cap); V31.2 = 0.6
+> (discoverability); contract steps V28.1, V29.1, V31.1, V34.1 per expand/contract (CICD-09). Flyway
+> accepts dotted versions. Check the highest version on `dev` (V27 today) before writing each.
 
 ---
 
@@ -151,23 +149,17 @@ partially numbered conversation continues instead of restarting at 1 and collidi
 | What bumps `change_seq` | insert, edit, delete, reaction add/remove (on the target message), **poll vote** add/change (on the poll message, V7 `poll_votes`), expiry soft-delete, scheduled release. **Not** receipts (they would make every read a hot-row write; receipts have their own cursor, V32), **not** pin/unpin (V20 `pinned_messages`, conversation state), **not** membership changes (conversation state; repaired by the conversation list, ICD §3.10 H-1) |
 | Invariants | `UNIQUE (conversation_id, seq)` and `UNIQUE (conversation_id, change_seq)` (a double allocation is a constraint violation, not silent corruption); `change_seq ≥ seq`; `last_seq ≥ max(change_seq)` per conversation |
 | Backfill semantics | Existing edits/deletes get `change_seq = seq`: a client's first pull sees the current row state, which is all a first pull needs |
-| `updated_at` trigger | `update_conversations_updated_at` fires on every allocation. Decide at implementation: accept it as "last activity", or redefine the trigger as `BEFORE UPDATE OF <metadata columns>`. Recommended: restrict it, so `updated_at` keeps meaning "metadata changed" |
+| `updated_at` trigger | **Decided (2026-11-12, before V28 ships):** `update_conversations_updated_at` is redefined in V28 as `BEFORE UPDATE OF <metadata columns>` (title, avatar, settings — not `last_seq`, `seq_ready`), so seq allocation, reactions and expiry sweeps do not fire it and `updated_at` keeps meaning "metadata changed". Conversation-list ordering is unchanged as a side effect |
 | Indexes kept | `idx_messages_conversation_time` / `idx_messages_conversation_latest` stay until `/messages/since` is removed (one release after `/changes`, ADR-0014) |
 | N-1 safety | N-1 code ignores the new columns. Rows it inserts during a rollback window get `seq IS NULL`; edits it makes do not bump `change_seq` |
 | Backfill and repair job (ships with V28's code) | `SeqSweeper`: per conversation, under the conversation row lock, numbers rows with `seq IS NULL AND is_scheduled = false` from `last_seq + 1` in `(server_timestamp, id)` order and sets `seq_ready` (SQL above); after a roll-forward it also numbers rows N-1 inserted during the rollback window (a bounded misorder against rows allocated after roll-forward is accepted) and bumps `change_seq` for rows with `edited_at`/`deleted_at` inside that window. Idempotent; reports a count; never in the request path (rule 7) |
 | Contract | V31.1 (0.5); `seq_ready` dropped in V34.1 |
 | Verification | RQ-04: 50 concurrent senders, including duplicate retries → gapless unique `seq` (Testcontainers); backfill test on a fixture with equal `server_timestamp`s; sweeper re-run on a half-numbered conversation; insert into a not-yet-ready conversation sorts after its history |
 
-> **Reviewer note (open):** this section deviates from brief §11.1 V28 in three ways. (a) The brief
-> puts "backfill by `(server_timestamp, id)`" inside V28; here V28 is columns only and the backfill
-> is a code component, `SeqSweeper`, that the brief does not name. Reason: a single backfill
-> `UPDATE` over all of `messages` would hold row locks for the whole table on the co-tenant
-> `shared-postgres` (rule 6, lock hygiene), and a per-conversation sweep is resumable after a failed
-> deploy. (b) It adds `conversations.seq_ready`, absent from the brief, so that a send into a
-> conversation whose history is not yet numbered cannot be numbered before older rows (dropped in
-> V34.1). (c) It adds a second unique index on `(conversation_id, change_seq)`, so a double
-> allocation of a change sequence is a constraint violation rather than silent corruption. The
-> brief should either adopt these or the owner should reject them before 0.4.
+> **Resolved (2026-11-12):** all three deviations are adopted (brief erratum E-17): V28 adds columns
+> only; `SeqSweeper` backfills per conversation (resumable); `conversations.seq_ready` blocks numbering
+> a new send before older rows; `UNIQUE(conversation_id, change_seq)`; `seq_ready` dropped in V34.1.
+> They are sound on co-tenant `shared-postgres`.
 
 ### 3.2 V29 — sender device and device-scoped idempotency (0.4)
 
@@ -199,17 +191,9 @@ CREATE UNIQUE INDEX CONCURRENTLY ux_messages_sender_device_client_id
 | N-1 safety | N-1 inserts leave both columns NULL; V31.1's checks are written to tolerate pre-cut-over NULLs |
 | Contract | V31.1 |
 
-> **Reviewer note (open) — deviation from brief §11.1 V29.** The brief says
-> `UNIQUE(sender_device_id, client_message_id)` "replaces the global client-id PK check". This
-> document keeps `messages.id = client_message_id` as a globally unique PK (identity rule above,
-> enforced by V31.1's `ck_messages_identity_rule`) and adds the device-scoped key beside it, so the
-> PK check is not replaced. Consequences and mitigations: the upgrade-retry case is a replay by the
-> rule above; from 1.2 an off-server recipient learns `Routing.client_message_id` before the server
-> and can squat it (ICD §3.6 reviewer note; reported as `MSG_ID_SQUATTED`, never
-> `FAILED_PERMANENT`). The brief-literal alternative — server-minted `messages.id`, references inside
-> `Content` by `(sender_device_id, client_message_id)`, mobile `message` keyed by that pair — removes
-> the squat path and drops `ck_messages_identity_rule`. Owner / 1.2 design review to choose before 1.0
-> freezes ICD §6.2.
+> **Note:** V29 at 0.4 is additive (device-scoped unique beside the PK) and forecloses
+> neither option; `messages.id = client_message_id` is kept for 0.4–1.0.
+> **Open item [OI-10](open-items.md#oi-10):** before ICD §6.2 freezes (1.0 entry; 1.2 design-review input), choose between the kept identity rule and the brief-literal pair reference `(sender_device_id, client_message_id)` with a server-minted id. Reviewer leaning: the pair reference, which removes the `MSG_ID_SQUATTED` path structurally.
 
 ### 3.3 V30 — age gate (0.4)
 
@@ -217,30 +201,28 @@ CREATE UNIQUE INDEX CONCURRENTLY ux_messages_sender_device_client_id
 until counsel confirms that self-declaration is *yaş doğrulama* (Q-L3).
 
 ```sql
-ALTER TABLE users ADD COLUMN birth_date          DATE;
-ALTER TABLE users ADD COLUMN age_assurance_level VARCHAR(16)
-  CHECK (age_assurance_level IN ('SELF_DECLARED', 'EDEVLET', 'NFC_ID'));
-ALTER TABLE users ADD COLUMN age_assured_at      TIMESTAMPTZ;
-ALTER TABLE users ADD CONSTRAINT ck_users_age_assurance
-  CHECK ((age_assurance_level IS NULL) = (age_assured_at IS NULL)) NOT VALID;
--- VALIDATE in the same file is safe: every existing row is (NULL, NULL)
-ALTER TABLE users VALIDATE CONSTRAINT ck_users_age_assurance;
+-- Separate table (decided 2026-11-12): UserJpaEntity.fromDomain rebuilds the whole users row on every
+-- save (V27 note), so age columns on users would be reset by an unrelated profile write.
+CREATE TABLE user_age_assurance (
+  user_id      UUID        NOT NULL PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  birth_date   DATE        NOT NULL,
+  level        VARCHAR(16) NOT NULL CHECK (level IN ('SELF_DECLARED', 'EDEVLET', 'NFC_ID')),
+  assured_at   TIMESTAMPTZ NOT NULL
+);
 ```
 
 | Item | Rule |
 |---|---|
-| Registration | Under-15 is refused **before** a `users` row exists (nothing stored for a refused minor) |
-| Existing users | `NULL` → the client asks at next sign-in; `AgeAssurancePort.assess` writes all three columns |
+| Registration | Below `muhabbet.age.minimum-years` (currently 18, ADR-0029 rule 1) is refused **before** a `users` row exists (nothing stored for a refused applicant) |
+| Existing users | No row → one-time attestation prompt at next sign-in/foreground; not served past the counsel-set grace period (default 30 days, ADR-0029 rule 1); `AgeAssurancePort.assess` inserts the row |
+| Mapping | Only the age adapter maps this table; the domain `User` and `UserJpaEntity` do not carry it |
 | Reader | 0.4: registration and sign-in gate. 1.2: certificate issuance precondition (ADR-0018) |
-| Minimisation | `birth_date` is personal data used only for the gate; listed in the KVKK inventory and the data export |
+| Minimisation | `birth_date` is personal data used only for the gate; listed in the KVKK inventory and the data export; the age-gate DPIA (DT-7) is a 0.4 exit item |
 | N-1 safety | Additive; N-1 ignores |
 
-> **Reviewer note (open):** the brief places the age columns on `users`. `V27__two_step_login_gate.sql`
-> records that `UserJpaEntity.fromDomain` rebuilds the whole `users` row on every save, so any column
-> not carried by the domain `User` is silently reset by an unrelated profile write. Either the domain
-> model carries all three fields (rule 2.1-10), or — recommended, following the V27 precedent — the
-> data lives in its own table `user_age_assurance(user_id PK FK users ON DELETE CASCADE, birth_date,
-> level, assured_at)` that only the age adapter maps. Owner to choose before V30 is written.
+> **Resolved (2026-11-12):** the separate table is chosen (V27 precedent; the row-rebuild hazard is real):
+> `user_age_assurance(user_id PK FK users ON DELETE CASCADE, birth_date, level, assured_at)`, mapped
+> only by the age adapter (brief erratum E-18).
 
 ### 3.4 V31 — contact-lookup quota (0.4) and V31.2 — discoverability (0.6)
 
@@ -331,15 +313,8 @@ CREATE TABLE conversation_device_cursor (
 | Dual write | 0.6 writes both `message_delivery_status` (legacy, per user) and the new tables; reads switch to the new tables in the same release behind the existing aggregate port. **0.7 stops the dual write (code only, no DDL)**, so the 0.6 image still runs against the 0.7 schema (rules 3–4). The legacy table is dropped in V34.1 (1.0.0), when N-1 (0.7) no longer touches it |
 | Backfill | None. Messages sent before V32 keep their user-level status from the legacy table until 0.7 stops reading it; after that their ticks show the aggregate as of 0.6 (frozen, historically accurate) |
 
-> **Reviewer note (open):** ADR-0013 makes acks cumulative (`ack{conversationId, uptoSeq, kind}`),
-> so per-device delivery state is two integers per (conversation, device). The brief's V32 stores one
-> row per (message, device), which is O(messages × devices) writes and is fully derivable from the
-> cursor. This document keeps V32 as the brief specifies and **adds** `conversation_device_cursor` as
-> the write target and tick source; the owner may drop `message_device_delivery` entirely if no
-> consumer needs per-message rows (`GET /messages/{id}/info` is the only candidate today). Dropping it
-> does **not** affect ICD §4.1's `envelopeState`: recipient membership is answered by
-> `conversation_device_cursor.addressed_from_seq`, not by per-message `SENT` rows. The same
-> reasoning applies to the mobile `receipt` table (§5.6).
+> **Note:** `conversation_device_cursor` is adopted now as the write target and tick source.
+> **Open item [OI-11](open-items.md#oi-11):** when V32 is written (0.6), decide whether `message_device_delivery` (and the mobile `receipt` table) is dropped. Test: can `GET /messages/{id}/info` (MessageInfoScreen) live with cursor-derived status without per-member timestamps? If yes, drop the per-message rows.
 
 ### 3.7 V33 — device-scoped key directory (0.6.0)
 
@@ -440,7 +415,7 @@ ALTER TABLE conversations ADD COLUMN storage_mode       VARCHAR(12) NOT NULL DEF
   CHECK (storage_mode IN ('CLOUD', 'BYO', 'LOCAL_ONLY'));   -- unconditional: absent in V1–V27; any T3 work
                                                               -- that needs it earlier moves this line, not a copy
 ALTER TABLE conversations ADD COLUMN e2e_since_seq      BIGINT;       -- first seq sent E2E (cutover)
-ALTER TABLE conversations ADD COLUMN plaintext_purge_at TIMESTAMPTZ;  -- end of the notified grace period (Q-O4)
+ALTER TABLE conversations ADD COLUMN plaintext_purge_at TIMESTAMPTZ;  -- end of the notified grace period (D3)
 
 ALTER TABLE messages ADD COLUMN encryption_state  VARCHAR(12) NOT NULL DEFAULT 'NONE'
   CHECK (encryption_state IN ('NONE', 'E2E_V1'));
@@ -589,7 +564,7 @@ user's own data, to the export (`UserDataExport`) in the same PR as its migratio
 | Version | Table / column | Personal data | Action in `erasePersonalData` | In export | Retention |
 |---|---|---|---|---|---|
 | V29 | `messages.sender_device_id` | which device sent | `SET NULL` by device-FK cascade (fires) | no (device ids are internal) | life of the message |
-| V30 | `users.birth_date`, `age_assurance_level`, `age_assured_at` (or `user_age_assurance`, §3.3 note) | date of birth | **explicit** `UPDATE … SET … = NULL` (or `DELETE FROM user_age_assurance`) — user FK inert | yes | until erasure |
+| V30 | `user_age_assurance(user_id, birth_date, level, assured_at)` (§3.3) | date of birth | **explicit** `UPDATE … SET … = NULL` (or `DELETE FROM user_age_assurance`) — user FK inert | yes | until erasure |
 | V31 | `contact_lookup_quota` | daily counter | **explicit** `DELETE … WHERE user_id = ?` | no (operational counter) | `CONTACT_LOOKUP_SEEN_RETENTION` |
 | V31 | `contact_lookup_seen` | the set of phone hashes the user looked up — effectively the address book | **explicit** `DELETE … WHERE user_id = ?` | yes (as hashes) | `CONTACT_LOOKUP_SEEN_RETENTION` *(config)* |
 | V31.2 | `users.discoverable_by_phone` | setting | reset to default with the profile | yes (privacy settings) | until erasure |
@@ -706,16 +681,11 @@ sqldelight {
 | 1 | Generate the schema snapshot `1.db` from the **currently shipped** `.sq` (the plugin's generate-schema task) and commit it |
 | 2 | Every later change is a `<n>.sqm` migration from version *n* to *n+1*; the `.sq` file states the latest schema; CI runs the plugin's verify-migration task beside the compile canary |
 | 3 | MOB-01 `SessionTeardown` (0.4) deletes all rows of the three tables and cancels WorkManager — no schema change |
-| 4 | MOB-04 stopgap (0.4): `pendingMessage` rows are deleted only on `ServerAck(requestId)` — no schema change |
+| 4 | MOB-04 stopgap (0.4): `pendingMessage` rows are deleted only on `ServerAck(requestId)`; an exhausted row is marked failed, never deleted (the `MAX_RETRY_COUNT` drop is removed) — no schema change. Because `pendingMessage` cannot hold `viewOnce`, `thumbnailUrl` or `forwardedFrom`, the engine → legacy rollback (delivery-engine-spec §16.4 K3) copies back **only** entries the legacy schema can express losslessly; any other entry stays in `outbox_entry` with the row labelled "waiting" and resumes when the engine is re-enabled. No 0.4 schema change is therefore needed, and the 0.5 SSOT migration keeps its number |
 
-> **Reviewer note (open):** brief §11.2 says "`1.sqm` represents today's schema … and
-> `deriveSchemaFromMigrations`". With SQLDelight, `1.sqm` is the migration **from** version 1, and
-> installed databases already report version 1 with today's tables created. A `1.sqm` containing
-> today's `CREATE TABLE` statements would re-run on every installed database and fail, unless every
-> statement is `IF NOT EXISTS`. This document therefore keeps the `.sq` file as the schema, snapshots
-> today's schema as `1.db`, and uses `verifyMigrations` without `deriveSchemaFromMigrations`. If the
-> owner prefers migration-derived schemas, `1.sqm` must be written with `IF NOT EXISTS` throughout
-> and the version arithmetic verified against a `1.db` taken from the shipped APK before 0.4 ships.
+> **Resolved (2026-11-12):** `1.sqm` migrates **from** version 1. The `.sq` files stay the schema;
+> today's schema is snapshotted as `1.db` from the shipped APK; `verifyMigrations` runs without
+> `deriveSchemaFromMigrations`; the first migration is `1.sqm` (1→2) (brief erratum E-19).
 
 ### 5.3 0.5 — the encrypted SSOT store
 
@@ -783,6 +753,7 @@ CREATE TABLE conversation (
   last_seq                 INTEGER NOT NULL DEFAULT 0,  -- head last learned (heads, hints, pages)
   watermark_seq            INTEGER NOT NULL DEFAULT 0,  -- applied through, over change_seq (ICD §3.10); moves per page
   complete_through_seq     INTEGER NOT NULL DEFAULT 0,  -- C: every seq ≤ C stored; the only DELIVERED bound (ICD §3.8 R-ACK)
+  delivered_up_to_seq      INTEGER NOT NULL DEFAULT 0,  -- last DELIVERED uptoSeq this device reported (client mirror of the server cursor); regenerate when complete_through_seq > this
   my_read_up_to_seq        INTEGER NOT NULL DEFAULT 0,  -- own read position; unread = derived
   disappear_after_seconds  INTEGER,
   is_pinned                INTEGER NOT NULL DEFAULT 0,
@@ -824,7 +795,7 @@ CREATE TABLE outbox_entry (
   id                TEXT    NOT NULL PRIMARY KEY,
   client_message_id TEXT    NOT NULL,
   conversation_id   TEXT    NOT NULL,
-  command           TEXT    NOT NULL CHECK (command IN ('SEND', 'EDIT', 'DELETE', 'REACT', 'REPORT')),
+  command           TEXT    NOT NULL CHECK (command IN ('SEND', 'EDIT', 'DELETE', 'REACT', 'REPORT')),  -- 0.5 writes SEND only (spec §4.1)
   state             TEXT    NOT NULL CHECK (state IN ('PREPARING', 'PENDING_SEAL', 'QUEUED', 'IN_FLIGHT',
                        'RETRY_WAIT', 'HOP_ACKED', 'SERVER_ACCEPTED', 'FAILED_PERMANENT', 'EXPIRED', 'CANCELLED')),
   class             TEXT    NOT NULL CHECK (class IN ('CONTROL', 'INTERACTIVE', 'BULK')),
@@ -835,9 +806,9 @@ CREATE TABLE outbox_entry (
   lease_until       INTEGER,                               -- one worker at a time (engine vs WorkManager)
   link              TEXT,                                  -- scope of the IN_FLIGHT / HOP_ACKED link
   server_owed       INTEGER NOT NULL DEFAULT 0,
-  seq               INTEGER,                               -- from SERVER_ACCEPTED
-  created_at        INTEGER NOT NULL,
-  expires_at        INTEGER NOT NULL,                      -- default created_at + 30 d; CONTROL 60 s
+  cancel_requested  INTEGER NOT NULL DEFAULT 0,            -- user deleted a submitted entry (attempt > 0); resolved per spec T32
+  created_at        INTEGER NOT NULL,                      -- (no seq column: the seq lives on the message row, spec §4.1)
+  expires_at        INTEGER NOT NULL,                      -- created_at + lifetime(command): 30 d for SEND/EDIT/DELETE/REACT/REPORT; 60 s for call signalling and link control (spec §4.5)
   error_code        TEXT
 );
 CREATE INDEX ix_outbox_due  ON outbox_entry (state, next_attempt_at);
@@ -889,13 +860,9 @@ CREATE TABLE kv_meta (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL);
 | S-9 | Read receipts are **not** persisted (regenerated on chat open); DELIVERED is cumulative, sent only as `upto = complete_through_seq`, and only after a **completed** pull or a contiguous push (S-3); READ is also bounded by `complete_through_seq`. Invariant: every message with `seq ≤ complete_through_seq` has a committed `message` row | ADR-0013, ICD §3.8 R-ACK |
 | S-10 | No wire type (`WsMessage`, DTO) is stored or read by UI code; screens observe flows over these tables | P5, ADR-0011 |
 
-> **Reviewer note (open):** brief §11.2 sketches the message index as
-> `(conversation_id, coalesce(seq, ∞), local_order)`, which always puts seq-less rows last. ADR-0014's
-> display order places a seq-less row after the last seq **its creator knew** (`lastKnownSeq`), which
-> is what keeps an off-server message (1.2) from jumping below later server traffic. This document
-> adds `anchor_seq` and uses `coalesce(seq, anchor_seq)`; before 1.2 the only seq-less rows are the
-> device's own unsent messages, for which the two orders differ only when server messages arrive
-> while one is pending.
+> **Resolved (2026-11-12):** `anchor_seq` is adopted; it implements ADR-0014 display order. Index
+> `(conversation_id, coalesce(seq, anchor_seq), local_order)`; `anchor_seq` = the last seq known to the
+> creator (brief erratum E-20).
 
 ### 5.4 0.5.2 or later — drop the legacy tables (`2.sqm`, version 2 → 3)
 
@@ -968,11 +935,8 @@ CREATE TABLE receipt (                            -- id-based receipts for seq-l
 - `receipt` rows for a message are folded into `receipt_watermark` semantics once the message has a
   `seq`, then deleted.
 
-> **Reviewer note (open):** brief §11.2 lists `receipt(message_id, device_id, kind, at)` in the 0.5
-> schema. At 0.5 every acknowledgement is cumulative over `seq` (ICD §3.8), so the 0.5 producer of
-> per-message receipt rows does not exist; per P7 the table arrives with its first consumer, 1.2
-> off-server receipts for seq-less rows. 0.5 uses `receipt_watermark` instead. Same reasoning as the
-> V32 note in §3.6.
+> **Resolved (2026-11-12):** accepted per P7: 0.5 uses `receipt_watermark`; the per-message `receipt`
+> table arrives at 1.2 with off-server receipts for seq-less rows (brief erratum E-21).
 
 ### 5.7 1.3 — custody store (separate database, gated)
 
@@ -1085,7 +1049,7 @@ erDiagram
 | — | V28 backfill orders equal-timestamp rows by `id`; unreleased scheduled rows keep `seq = NULL` | Migration test on fixture | 0.4 |
 | — | N-1 image runs against the V28–V31 schema; `SeqSweeper` repairs N-1 inserts | N-1-on-N CI job (CICD-09) | 0.4 |
 | RQ-02 | Duplicate send replays the original `seq`; foreign PK collision rejected | Testcontainers | 0.4 |
-| RQ-10 | Under-15 registration creates no `users` row | Integration test | 0.4 |
+| RQ-10 | Registration below the configured minimum age (currently 18) creates no `users` row | Integration test | 0.4 |
 | RQ-12 | Lookup cap enforced in one statement under concurrency | Testcontainers | 0.4 / 0.6 |
 | RQ-11 | Concurrent claims never return the same one-time or Kyber prekey; last-resort fallback; identity replacement rejected | Testcontainers concurrency test | 0.4 (old tables) / 0.6 |
 | RQ-13 | No `content` for `encryption_state = 'E2E_V1'`; after cutover purge and `VACUUM`, no plaintext in a dump for purged conversations | SQL assertion + dump inspection | 1.0 exit, cutover + 30 d |
@@ -1133,19 +1097,19 @@ none changes a decision.
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Migration numbering vs. release order (V29, V31 split, dotted contract steps) | Reviewer note (open), §2.2 |
-| 2 | Age columns on `users` vs. a separate table (V27 precedent) | Reviewer note (open), §3.3 |
-| 3 | Per-message delivery rows vs. cumulative cursors (server V32, mobile `receipt`) | Reviewer notes (open), §3.6, §5.6 |
-| 4 | SQLDelight `1.sqm` / `deriveSchemaFromMigrations` vs. installed version-1 databases | Reviewer note (open), §5.2 |
-| 5 | Mobile display index (`anchor_seq`) vs. brief sketch | Reviewer note (open), §5.3 |
+| 1 | Migration numbering vs. release order (V29, V31 split, dotted contract steps) | Resolved 2026-11-12 (brief erratum E-16), §2.2 |
+| 2 | Age columns on `users` vs. a separate table (V27 precedent) | Resolved: `user_age_assurance` table (E-18), §3.3 |
+| 3 | Per-message delivery rows vs. cumulative cursors (server V32, mobile `receipt`) | Cursor adopted; drop of per-message rows decided at V32 ([OI-11](open-items.md#oi-11)), §3.6, §5.6 |
+| 4 | SQLDelight `1.sqm` / `deriveSchemaFromMigrations` vs. installed version-1 databases | Resolved: `.sq` schema plus `1.db` snapshot (E-19), §5.2 |
+| 5 | Mobile display index (`anchor_seq`) vs. brief sketch | Resolved: `anchor_seq` adopted (E-20), §5.3 |
 | 6 | `discoverable_by_phone` default (`TRUE` today's behaviour vs. privacy-by-default) | Owner choice |
-| 7 | `conversations.updated_at` trigger on seq allocation | Decide at implementation (recommended: restrict trigger) |
+| 7 | `conversations.updated_at` trigger on seq allocation | Resolved: trigger restricted to metadata columns in V28 (§3.1) |
 | 8 | SQLCipher build: FTS5 `contentless_delete` support, exact `SupportOpenHelperFactory` API | Verify at 0.5 / 1.0 |
 | 9 | Retention values for `contact_lookup_seen`, quotas, certificates | *(config)*; DPIA screening |
-| 10 | `messages.id = client_message_id` kept beside the device-scoped key (deviation from brief §11.1 V29) | Reviewer note (open), §3.2 |
-| 11 | Scheduled send in E2E conversations (decides whether `message_envelopes.seq` may be NULL) | Reviewer note (open), ICD §3.5 |
+| 10 | `messages.id = client_message_id` kept beside the device-scoped key (deviation from brief §11.1 V29) | Deferred to 1.0 entry ([OI-10](open-items.md#oi-10)), §3.2 |
+| 11 | Scheduled send in E2E conversations (decides whether `message_envelopes.seq` may be NULL) | Owner decision before 1.0 ([OI-12](open-items.md#oi-12)), ICD §3.5 |
 | 12 | ER diagrams are inline here; house style puts diagrams in `docs/diagrams/*.mmd` (`data-model-backend.mmd`, `data-model-mobile.mmd`). Moving them is outside this document's edit scope | Follow-up for the diagrams owner |
-| 13 | V28 backfill moved to `SeqSweeper`; added `conversations.seq_ready` and `UNIQUE (conversation_id, change_seq)` (deviations from brief §11.1 V28) | Reviewer note (open), §3.1 |
+| 13 | V28 backfill moved to `SeqSweeper`; added `conversations.seq_ready` and `UNIQUE (conversation_id, change_seq)` (deviations from brief §11.1 V28) | Resolved: deviations adopted into brief §11.1 (E-17), §3.1 |
 
 ## 9. Rollout and rollback
 

@@ -67,29 +67,26 @@ Any one of these makes a full DPIA **mandatory** before the change ships.
 | DT-3 | **TURN/ICE logging or telemetry** (candidate type, IP family, ASN) | 0.7 | Before the change ships (0.7 exit) | T-CAL-01/04/05, I-02, DD-05 | Q-L8, Q-L6, Q-L9 | §6.3 |
 | DT-4 | **Contact-discovery changes** | 0.4 (cap) / 0.6 (discoverability) | Before the change ships (0.4 and 0.6 exit) | T-DIR-01/02/03, L-03 | — | §6.4 |
 | DT-5 | **A new processor, or a new foreign host** | any | Before the change ships (exit of the milestone that adds it) | T-PSH-02, RR-3, Nc-01 | Q-L6 | §6.5 |
-| DT-6 | **Telemetry used for kill criteria** (e.g. share of Nearby sessions where one side lacked internet) | 1.2 | G-PROXIMITY (collection starts in 1.2 to decide 1.3) | — | Q-L8 by analogy | §6.6 |
+| DT-6 | **Kill-criterion or other new telemetry about off-server sessions** (e.g. share of Nearby sessions where one side lacked internet) | 1.2 | G-PROXIMITY (collection starts in 1.2 to decide 1.3) | — | Q-L8 by analogy | §6.6 |
+| DT-7 | **Age assurance / processing of children's data** (date of birth, possible e-Devlet/NFC-ID evidence) | 0.4 | **Before 0.4 ships** (0.4 exit; [OI-36](open-items.md#oi-36)) | T-REG (age), S-01, S-07 | Q-L3 (incl. (g)) | §6.0 skeleton |
 
-> **Reviewer note (open):** the brief's ADR-0029 item 6 lists **five** triggers (proximity scanning,
-> uplink relay, TURN/ICE logging, contact-discovery changes, new processor or foreign host). The
-> ADR-0029 file adds a sixth, DT-6 (kill-criteria telemetry). DT-6 is kept here because brief
-> ADR-0025 and §13 (1.3 entry) make that telemetry a gate input, and SAD §8.5 already treats every
-> new telemetry field as a DPIA input. The owner should confirm the sixth trigger when dispositioning
-> ADR-0029.
+> **Resolved (2026-11-12):** DT-6 is confirmed (ADR-0029 rule 6; brief erratum E-14), and DT-7 (age
+> assurance) is added; the brief's ADR-0029 item 6 now lists seven triggers.
 
 ### 3.1 Trigger × roadmap (pre-filled screening)
 
 | Milestone | Change | Trigger / §4 question | Result |
 |---|---|---|---|
 | Phase 0 | Secret rotation, CI trust boundary | none | Screened out (security fix, no new processing) |
-| 0.4 | Age gate: `birth_date`, `age_assurance_level`, `age_assured_at` (V30), possible e-Devlet/NFC-ID later | §4 S-01 (new data category), S-07 (children) | **DPIA recommended** — not on the trigger list; see reviewer note in §8 |
+| 0.4 | Age gate: `user_age_assurance(birth_date, level, assured_at)` (V30), possible e-Devlet/NFC-ID later | DT-7; §4 S-01 (new data category), S-07 (children) | **DPIA required before 0.4 ships** (a 0.4 condition; counsel Q-L3) |
 | 0.4 | Contact-lookup daily cap, block filter (V31) | DT-4 | **DPIA required** (§6.4) |
-| 0.4 | Device-scoped idempotency, `sender_device_id` (V29) | S-04 (new attribution data) | Screening record; screened out pending owner-recorded reason (§4) — candidate reason: attribution data required by 5651, unless counsel links it to Q-L9 |
+| 0.4 | Device-scoped idempotency, `sender_device_id` (V29) | S-04 (new attribution data) | Screening record; screened out pending owner-recorded reason (§4) — candidate reason: needed for routing and exactly-once delivery; a possible 5651 duty is pending Q-L4/Q-L9 and is not asserted |
 | 0.5 | Wake-only push | S-03/S-06 (reduction of what FCM receives; DT-5 does not fire — no new processor or host) | Screening record; screened out pending owner-recorded reason (§4); update the baseline FCM DPIA and the aydınlatma metni (ADR-0019) |
 | 0.5 | SQLCipher, `SessionTeardown` | S-12 (security measure change) | Screening record (risk reduction) |
 | 0.6 | Discoverable-by-phone setting with reader (V31.2); per-device delivery rows (V32); per-device keys (V33) | DT-4; S-04 | **DPIA required** for DT-4 (revision of the 0.4 DPIA) |
 | 0.6 / iOS | APNs | DT-5 | **DPIA required** when iOS ships |
 | 0.7 | LiveKit host (placement open, Q-O8), TURN credentials, ICE telemetry | DT-3, DT-5 (if the host is new or foreign) | **DPIA required** |
-| 1.0 | E2E cutover: server copy deleted after grace or encrypted to user backup (Q-O4); envelopes with TTL; on-device FTS | S-05 (retention), S-10 (rights) | Screening record + DPIA revision for the server store; claims register (RQ-20) |
+| 1.0 | E2E cutover (D3): clients download history into the encrypted local DB; server copy (content, media, server-built backups) deleted after a 30-day notified grace; opt-in client-side encrypted backup under a user-held key; envelopes with TTL; on-device FTS | S-05 (retention), S-10 (rights) | Screening record + DPIA revision for the server store; claims register (RQ-20) |
 | 1.0+ | LOCAL_ONLY | S-05 (retention of receipt metadata, Q-O3/Q-L9) | **DPIA required** before LOCAL_ONLY is offered |
 | 1.1 | P2P 1:1 calls (`IP_DIRECT` between mutual contacts) | DT-3 (revision), S-08 | DPIA revision |
 | 1.2 | LAN + Nearby, device certificates, CRL, kill-criteria telemetry | DT-1, DT-6, S-08 (co-location) | **DPIA required** (G-PROXIMITY) |
@@ -130,7 +127,7 @@ DPIA (§6) unless the owner records why not.
 Screening record — <change title>
 Date: YYYY-MM-DD        Author: <name / agent identity>        Milestone: <0.x / 1.x>
 Linked ADR(s): ADR-00xx        Linked issue/PR: #nnn
-Triggers fired (DT-1..DT-6): <list or "none">
+Triggers fired (DT-1..DT-7): <list or "none">
 Checklist S-01..S-16: <Y/N/U per question, one line each with a reason for every Y or U>
 Result: DPIA REQUIRED | SCREENED OUT
 If screened out, reason: <one paragraph>
@@ -219,9 +216,9 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 
 | Section | Pre-filled content |
 |---|---|
-| Inventory today | Hetzner (hosting, Germany), Google FCM (push), Twilio Verify (OTP in production), Google Firebase Authentication (phone number, verification SMS, device signals; client-side, before the backend-OTP fallback — `FirebasePhoneAuth`), Sentry (crash and error reports from the backend and Android app — `backend/build.gradle.kts:80`, `mobile/composeApp/build.gradle.kts:112`; content depends on scrubbing; active only if `SENTRY_DSN` is set; the owner confirms which), GitHub (CI/CD; build data, not user data); later: Apple APNs (iOS), LiveKit host (0.7), signer host or hardware token (1.2/1.3, Q-O7) |
+| Inventory today | Hetzner (hosting, Germany), Google FCM (push), Twilio Verify (OTP in production), Netgsm (SMS adapter in the code; named as a processor in `02-aydinlatma-metni.md` and `03-acik-riza-metni.md`), Google Firebase Authentication (phone number, verification SMS, device signals; client-side, before the backend-OTP fallback — `FirebasePhoneAuth`), Sentry (crash and error reports from the backend and Android app — `backend/build.gradle.kts:80`, `mobile/composeApp/build.gradle.kts:112`; content depends on scrubbing; active only if `SENTRY_DSN` is set; the owner confirms which), GitHub (CI/CD; build data, not user data); later: Apple APNs (iOS), LiveKit host (0.7), signer host or hardware token (1.2/1.3, Q-O7) |
 | Per recipient | Country; Art. 9 mechanism: adequacy decision (9(1)) or a standard contract (9(4)(c)) **notified within five business days** (9(5)), or another 9(4) safeguard; **not** explicit consent as the systematic basis (LEG-04; `docs/legal/03-acik-riza-metni.md` currently does this) |
-| Data per recipient | FCM: device token, wake hint `{conversationId, seq}`, timing (after 0.5); Twilio: phone number, OTP verification; Firebase Authentication: phone number, verification SMS, device signals; Sentry: crash/error reports (stack traces, device and request context, possibly identifiers unless scrubbed); Hetzner: all server data |
+| Data per recipient | FCM: device token, opaque wake `{t: wake, v: 1}` (optionally a random per-device token), timing (after 0.5; ADR-0019); Netgsm: phone number, OTP SMS (if the adapter is enabled); Twilio: phone number, OTP verification; Firebase Authentication: phone number, verification SMS, device signals; Sentry: crash/error reports (stack traces, device and request context, possibly identifiers unless scrubbed); Hetzner: all server data |
 | Key risks | Content to processor (T-PSH-01, fixed at 0.5), wake metadata (T-PSH-02, RR-3), foreign compulsion (§6.17 of the threat model) |
 | Verification | RQ-07 payload capture; contract and notification records listed in the DPIA |
 | Counsel | Q-L6 |
@@ -244,8 +241,8 @@ Owner decision: <Approved / Rejected>  Name:  Date:
 | DPIA | Version | Owner sign-off (name, date) | Counsel opinion ref. | Listed in `APPROVAL.md` scope |
 |---|---|---|---|---|
 | DT-4 contact discovery | — | — | — | 0.4 / 0.6 |
-| Age gate (recommended, §8) | — | — | Q-L3 | 0.4 |
-| DT-5 FCM / Hetzner / Twilio / Firebase Auth / Sentry (baseline) | — | — | Q-L6 | 0.5 |
+| DT-7 age gate (**required; 0.4 condition**) | — | — | Q-L3 | 0.4 (before release) |
+| DT-5 FCM / Hetzner / Twilio / Netgsm / Firebase Auth / Sentry (baseline) | — | — | Q-L6 | 0.5 |
 | DT-3 TURN/ICE | — | — | Q-L8, Q-L9 | 0.7 |
 | DT-1 proximity, DT-6 telemetry | — | — | Q-L2 | 1.2 |
 | DT-2 relay | — | — | Q-L5 | 1.3 |
@@ -257,26 +254,17 @@ All rows are **Not started** as of 2026-11-12.
 
 ## 8. Reviewer notes
 
-> **Reviewer note (open):** the brief says "a DPIA (KVKK Art. 12)". KVKK has no statutory DPIA
-> article (LEG-04 verifier). This document frames the DPIA as best practice serving the Art. 12
-> security duty and as a self-imposed release gate, matching the wording of ADR-0029. No document
-> should describe it as a statutory requirement.
+> **Note:** the DPIA is best practice serving the KVKK Art. 12 security duty and a
+> self-imposed release gate, not a statutory requirement (brief erratum E-15; Q-L5(f)).
 
-> **Reviewer note (open):** the 0.4 **age gate** collects date of birth for every user
-> (`users.birth_date`, V30) and may later involve e-Devlet or NFC-ID evidence, but it is not on the
-> ADR-0029 trigger list. It screens positive on S-01 and S-07. Recommend adding "age assurance" as a
-> trigger (or simply running the DPIA) before 0.4 ships, together with Q-L3.
+> **Resolved (2026-11-12):** trigger DT-7 "age assurance (date of birth, identity evidence)" is added
+> to ADR-0029 rule 6 and to §3 above. The age-gate DPIA is a **0.4 exit item** (before 0.4 ships),
+> run with counsel Q-L3(g). Date of birth lives in `user_age_assurance.birth_date` (V30), not on
+> `users` (brief erratum E-18).
 
-> **Reviewer note (open):** the brief treats Google Nearby Connections as "buy" (ADR-0024) but no
-> source in the review establishes **what data, if any, Play services sends to Google** during
-> discovery and connection. DT-1 cannot be completed without it; the 1.2 spike should answer it
-> from Google's documentation and a traffic capture, and Google becomes a DT-5 processor for this
-> feature if it does.
+> **Open item [OI-16](open-items.md#oi-16):** G-PROXIMITY spike deliverable: what Play services sends to Google during Nearby discovery and connection (documentation plus traffic capture); if any, Google is a DT-5 processor in the 1.2 DPIA and notice.
 
-> **Reviewer note (open):** ADR-0029 rule 6 requires a DPIA "before the change ships"; brief §13
-> makes one an **entry** criterion only for 1.2 (G-PROXIMITY) and 1.3. DT-3, DT-4 and DT-5 are
-> therefore placed at milestone exit here. If the owner wants DPIAs as 0.x **entry** gates, that is a
-> new decision to record in ADR-0029 and §13, not something this document asserts.
+> **Note:** settled by the scope approvals, which adopt brief §13 as written: 0.x DPIAs are
+> milestone **exit** items (including the 0.4 age-gate DPIA, DT-7); 1.1–1.4 DPIAs are **entry** items.
 
-> **Reviewer note (open):** VERBIS registration (KVKK Art. 16, Veri Sorumluları Sicili) is not
-> covered by any brief artefact; it is put to counsel as Q-L6(f).
+> **Open item [OI-17](open-items.md#oi-17):** VERBIS registration (KVKK Art. 16) is put to counsel as Q-L6(f).

@@ -1,8 +1,9 @@
 # Muhabbet project and application review — 2026-11-12
 
-> **Status: Proposed — pending owner approval.** This review is part of the multi-transport design
-> package. Its recommendations are not accepted until the owner records approval in
-> [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). **No
+> **Status: Approved by delegated owner review (2026-11-12), per scope:** Phase 0, `process`, 0.4–0.6
+> approved; 0.7 approved except the ADR 0009 hosting/budget choice; 1.0 approved in principle and gated;
+> 1.1–1.4 Proposed (gated). This review is part of the multi-transport design package; the binding
+> record is [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). **No
 > code may be written** for any scope until that scope is approved there (owner decisions 3 and 4).
 > The security emergencies in §3 are incident response; the decision brief (§14) recommends the owner
 > authorise them now, independently of design approval.
@@ -12,7 +13,7 @@
 | **Date** | 2026-11-12 |
 | **Subject** | `dev` @ 2434324 (the working branch `claude/muhabbet-p2p-architecture-wdan5r` adds documentation only) |
 | **Audience** | The owner (senior software architect) |
-| **Single source of truth** | [Decision brief](../architecture/multi-transport/decision-brief-2026-11-12.md). This review agrees with it; deviations are marked `Reviewer note (open)`. |
+| **Single source of truth** | [Decision brief](../architecture/multi-transport/decision-brief-2026-11-12.md). This review agrees with it; deviations were marked as reviewer notes; on 2026-11-12 each was resolved (brief §18 errata) or moved to [open-items.md](../architecture/multi-transport/open-items.md). |
 | **Evidence** | [Findings register](2026-11-12-findings-register.md): 211 findings, 0 refuted. Every claim below cites a finding ID. |
 | **Companion documents** | [Multi-transport roadmap](../architecture/multi-transport/roadmap.md) · [ADR index (0010–0033)](../adr/) · [Security incident record](../process/security-incident-2026-11-env-prod.md) · [CI trust boundary](../process/ci-trust-boundary.md) · [GitHub governance](../process/github-governance.md) |
 
@@ -122,7 +123,7 @@ security emergencies, then truth (0.4), then the delivery engine (0.5), and only
 | Mobile architecture | **3** | Good hygiene (zero `!!`, tested reconnect loop), but no source of truth (MOB-03), a lossy outbox (MOB-04), logout leaves plaintext data (MOB-01, critical) and no presentation layer (MOB-02) |
 | KMP/CMP usage | **4** | ~87% commonMain with zero platform leakage and an exemplary designsystem module, but no catalog (KMP-05), AGP 9 opt-outs (KMP-04), no launchable iOS (KMP-01) and an unenforced 26.5k-line monolith (KMP-08) |
 | Security | **2** | Two live criticals (CICD-06 leaked secrets, CICD-01 PR code on the prod host); WS sessions outlive logout (BE-12); non-atomic prekeys and silent identity replacement (BE-14) |
-| Privacy / KVKK | **3** | #377 enforcement is real, but plaintext stays on device after logout (MOB-01), message text goes to FCM (BE-15), erasure leaves media (#327), and there is no under-15 age gate: the Law 7578 under-15 rule has been in force since 2026-11-01, and whether it binds Muhabbet depends on the social-network-provider classification (Q-L4); the brief builds the gate at 0.4 regardless (ADR-0029, LEG MISS-04) |
+| Privacy / KVKK | **3** | #377 enforcement is real, but plaintext stays on device after logout (MOB-01), message text goes to FCM (BE-15), erasure leaves media (#327), and there is no under-15 age gate: the Law 7578 under-15 rule is in force since 2026-11-01 per the consolidated text (to be confirmed by counsel, Q-L3), and whether it binds Muhabbet depends on the social-network-provider classification (Q-L4); the brief builds the gate at 0.4 regardless (ADR-0029, LEG MISS-04) |
 | CI/CD | **2** | Tests, compile, `verifyUi` and (on `dev`) detekt gate; JaCoCo, Trivy and the reporters do not (CICD-11); deploy rebuilds from source (CICD-07), the Play AAB is never the verified artefact (CICD-10) |
 | GitHub governance | **3** | ROADMAP's method is good, but default-branch drift makes the August fixes inert (GOV-01), "closed" means "merged into dev" (GOV-02), and 231 merged PRs had zero reviews (GOV-06) |
 | Documentation | **4** | CHANGELOG and ROADMAP are strong; CLAUDE.md is 100,597 bytes and does four jobs (SSOT-14), its START HERE pointer leads to a document with corrected falsehoods (SSOT-03), and decisions live in two logs (SSOT-08) |
@@ -214,7 +215,7 @@ false: zero `publishEvent` calls (BE-10); auth and messaging import each other's
 | BE-14 | high | still-present | Non-atomic one-time-prekey claim; per-user keys; silent identity replacement | Atomic claim and rate limit (0.4), per-device schema and `IdentityKeyChanged` (0.6) (ADR-0018) | 0.4 / 0.6 |
 | BE-15 | high | still-present | Content stored, searched, link-previewed and pushed to FCM in plaintext | Wake-only push (0.5); no server plaintext for E2E conversations (1.0) (ADR-0019) | 0.5 / 1.0 |
 | BE-08 | high | still-present | ArchUnit rules enforce none of the stated boundaries | Slice rules with `FreezingArchRule` before any new port | 0.4 |
-| BE-11 | medium | changed | `AuthService` 6 use cases / ~21 ctor params; `MessageService` 761 lines on dev; 522-line `AppConfig` | `MessageService` split (`SendMessageService`, `MessageMutationService`, brief §4.2) | 0.5 |
+| BE-11 | medium | changed | `AuthService` 6 use cases / ~21 ctor params; `MessageService` 761 lines on dev; 522-line `AppConfig`¹ | `MessageService` split (`SendMessageService`, `MessageMutationService`, brief §4.2) | 0.5 |
 | BE-18 | medium | still-present | Delivery status per user, not per device | `message_device_delivery` (V32) | 0.6 |
 | BE-05 | medium | still-present | No transactional outbox; post-commit fan-out can be lost | **Not adopted**: pull-by-seq makes lost hints harmless (brief §3, judge disagreement) | — |
 | BE-09 | medium | partially-fixed | Controllers and schedulers inject out-ports and SpringData repos | ¹ArchUnit `adapter.in` rule with BE-08 | 0.4 (proposed) |
@@ -226,9 +227,9 @@ false: zero `publishEvent` calls (BE-10); auth and messaging import each other's
 
 ¹ Register recommendation, not in the brief: the brief does not mention BE-09, BE-10 or BE-17.
 
-> **Reviewer note (open):** The brief assigns no milestone to BE-09 or BE-10. This review proposes
-> folding BE-09 into the BE-08 ArchUnit work at 0.4 and deleting the dead event layer (BE-10) at 0.5,
-> when the engine work touches the same seams. Both need the owner to adopt them into the brief.
+> **Resolved (2026-11-12):** adopted into brief §13 (erratum E-35). 0.4 Backend: "BE-08 ArchUnit
+> boundary rules for messaging, including BE-09". 0.5 Backend: "BE-10 delete the dead event layer
+> (`MessagingEvents.kt`, unused `ApplicationEventPublisher` in `EncryptionService`)".
 
 ### 4.3 Strengths to keep
 
@@ -256,7 +257,7 @@ There is no presentation layer and no domain layer. Decompose is used as a route
 (`childFactory = { config, _ -> config }`); screens pull dependencies with `koinInject()` (167 calls
 in 58 UI files) and hold state in `remember { mutableStateOf }` (295 sites). The UI never observes
 the SQLDelight cache (0 `asFlow`/`mapToList`), incoming WS messages are never persisted, and DELIVERED
-is acked from RAM, twice. `ChatScreen.kt` is 1,188 lines with ten `WsMessage.SendMessage(` sites
+is acked from RAM, twice. `ChatScreen.kt` is 1,188 lines with eight `WsMessage.SendMessage(` call sites (plus one comment mention; `grep -n 'WsMessage.SendMessage(' ChatScreen.kt` on `dev` @ 2434324)
 (MOB-02, MOB-03, MOB-06). Hygiene is good and should not be lost in the rework.
 
 ### 5.2 Findings and fixes
@@ -268,7 +269,7 @@ is acked from RAM, twice. `ChatScreen.kt` is 1,188 lines with ten `WsMessage.Sen
 | MOB-04 | high | still-present | Outbox deletes on socket write, drops `viewOnce`/`thumbnailUrl`/`forwardedFrom`, reorders | Stopgap "delete only on `ServerAck`" (0.4); durable `outbox_entry` state machine (ADR-0013) | 0.4 / 0.5 |
 | MOB-05 | medium | still-present | Edit dedup key ignores `editedAt`; second edit dropped | Key includes `editedAt` | 0.4 |
 | MOB MISS-01 | medium | still-present | Group READ from one member turns all own messages blue; status dedup ignores member | Aggregate from server rows (per-user until V32 at 0.6, then per-device); never promote on one member's `StatusUpdate`; dedup key includes `userId` (brief §6.4) | 0.4 |
-| MOB-06 | high | still-present | `ChatScreen` ~1,060-line composable; 18 UI files over 300 lines | `SendMessage` use case in the engine removes the send sites | 0.5 |
+| MOB-06 | high | still-present | `ChatScreen` ~1,060-line composable; 18 UI files over 300 lines¹ | `SendMessage` use case in the engine removes the send sites | 0.5 |
 | MOB-11 | high | still-present | `WsClient` fuses transport, outbox, dedup and E2E hook; UI speaks wire frames | Strangle into `WsServerLink` + `WsInboundSource`; 17 `wsClient.send` sites as the migration inventory; `verifyUi` ratchet to 0 (ADR-0012) | 0.5 |
 | MOB-08 | medium | still-present | No domain layer | Messaging domain only, in `:mobile:messaging` (ADR-0012); CRUD screens stay on repositories | 0.5 |
 | MOB-10 | medium | still-present | Background sync watermark from the device clock | Server seq watermark | 0.5 |
@@ -278,10 +279,12 @@ is acked from RAM, twice. `ChatScreen.kt` is 1,188 lines with ten `WsMessage.Sen
 | MOB MISS-02 | low | partially-fixed | Background sync not cancelled on logout | Part of `SessionTeardown` | 0.4 |
 | MOB-07 | none | fixed-on-dev | Localised labels sent as message content | Kept fixed; client label cleanup at 0.5 | — |
 
-> **Reviewer note (open):** Brief §6.4 describes group receipt aggregation from per-device rows, but
-> the brief puts the MOB MISS-01 fix at 0.4, and per-device delivery rows arrive only with V32 at 0.6
-> (BE-18). At 0.4 the server holds per-user `message_delivery_status` rows. Recommend that the brief
-> say the 0.4 fix aggregates per-user rows and switches to per-device rows at 0.6.
+¹ Re-measured on `dev` @ 2434324 (AuthService about 21 constructor parameters, `AppConfig` 522 lines,
+`ChatScreen.kt` 1,188 lines); the findings register's figures (16 params, 441-line `AppConfig`, ~985
+lines, 10 composables) reflect `main`.
+
+> **Resolved (2026-11-12):** brief erratum E-36: the 0.4 group receipt aggregation reads per-user
+> `message_delivery_status` rows; it switches to per-device cursors at 0.6 (V32/BE-18).
 
 ### 5.3 Strengths to keep
 
@@ -414,13 +417,9 @@ a healthcheck; `verifyBuildInfoVersion` and `verifyUi`.
 5. Backend: build the image once in CI, deploy by digest, and fail the deploy unless
    `/actuator/info` reports the expected git SHA.
 
-> **Reviewer note (open):** The brief (§16.3) says CI cannot verify app launch because there is no
-> KVM on the Hetzner host. That is true of the Hetzner host, but CICD-16(a) proposes a launch smoke
-> on a GitHub-hosted Linux runner with KVM once the billing lock (CICD-04) is cleared. Such a smoke
-> gate does not replace the owner's sign-off (P13); it would make the #633 failure class impossible to
-> publish even when the manual step is forgotten. Recommend adding it to ADR-0030's release flow as an
-> additional gate after CICD-04 is resolved. Availability of KVM on the chosen runner size is
-> unverified.
+> **Resolved (2026-11-12):** same resolution as vv-plan RN-V1: the KVM launch smoke is added to
+> ADR-0030 as an extra gate once CICD-04 is cleared and KVM is confirmed on the chosen runner (brief
+> erratum E-38). P13 owner sign-off is unchanged.
 
 ---
 
@@ -490,21 +489,14 @@ on `dev`, not merged to `main`, not released, and therefore not in production (S
 | Moderation / report / block | P | Block works; admin role cannot be granted, so reports cannot be actioned (#333) | BTK 5651 claim |
 | Contact sync | P | Android only; uploads without consent (#334); unsalted hashes are not privacy (C8) | — |
 | Account deletion / export (KVKK) | **B** | Account row anonymised, but media blobs remain in MinIO (#327, GOV MISS-02) | SECURITY.md:57, CLAUDE.md:4 "KVKK-compliant" |
-| Age gate (Law 7578, under-15) | **NS** | Law 7578 under-15 rule in force since 2026-11-01; whether it binds Muhabbet depends on the social-network-provider classification (Q-L4); the brief builds the gate at 0.4 regardless (ADR-0029, LEG MISS-04). Not built | — |
+| Age gate (Law 7578, under-15) | **NS** | Law 7578 under-15 rule in force since 2026-11-01 per the consolidated text, to be confirmed by counsel (Q-L3); whether it binds Muhabbet depends on the social-network-provider classification (Q-L4); the brief builds the gate at 0.4 regardless (ADR-0029, LEG MISS-04). Not built | — |
 | iOS app | **NS** | No entry point, no Xcode project, no CI (KMP-01, FT-04) | Phase 5 "implemented" |
 
-> **Reviewer note (open):** The brief's prerequisite list (§14) and 0.4/0.5 scopes do not name two
-> product-honesty items: FT-03 (the GIF/sticker picker shows a banned Giphy key as "no results") and
-> FT-02 (chat folders, pinned-in-chat, backup and bots are server-only, with 0 mobile callers on
-> `dev`, yet listed as built). FT-02 has no UI entry point to hide; it needs a documentation fix (drop
-> the "full verticals with mobile UI" and Phase 4 "DONE" claims) and a decision: wire the features
-> under a milestone or delete the endpoints (YAGNI). FT-01's dishonest UI is already fixed on `dev`
-> (96eb965, f73040f: call entry points show "coming soon") and reaches users with the dev→main merge.
-> Separately, brief §8.6 asks to correct SECURITY.md and "the KVKK texts" but does not name
-> SECURITY.md:57 (SSOT MISS-03), CLAUDE.md:4 (SSOT-09) or CLAUDE.md:188 (SSOT MISS-04, soft delete
-> presented as KVKK erasure), and does not place them in Phase 0. Recommend naming them in §14
-> item 6. ROADMAP's 0.5.0 exit criterion ("every control either works or is not shown") already
-> covers FT-03.
+> **Resolved (2026-11-12):** brief §14 item 6 (Phase 0) now names SECURITY.md:57, CLAUDE.md:4 and
+> CLAUDE.md:188 (soft delete presented as KVKK erasure), and drops the "full verticals with mobile UI"
+> and Phase 4 "DONE" claims for chat folders, pin-in-chat, backup and bots (brief erratum E-34). FT-03
+> is covered by the 0.5.0 exit question.
+> **Open item [OI-26](../architecture/multi-transport/open-items.md#oi-26):** owner decision: wire the FT-02 features (chat folders, pinned-in-chat, backup, bots) under a named milestone, or delete the endpoints (YAGNI).
 
 ---
 
@@ -560,7 +552,7 @@ by the owner only (P13).
 | 4 | Phase 0 | `release` environment for signing and Play secrets; confirm `production` scoping | CICD-02, CICD MISS-02 | ADR-0031 |
 | 5 | Phase 0 | SHA-pin actions, remove `trivy-action@master`, workflow linter | CICD-05 | ADR-0031 |
 | 6 | Phase 0 | Correct SECURITY.md and the other public claims (see reviewer note in §9); remove the "full verticals with mobile UI" and Phase 4 "DONE" claims for server-only features; owner decides: wire them under a milestone or delete the endpoints (YAGNI) | GOV-08, SSOT-09, SSOT MISS-03/04, FT-02 | Brief §14 item 6 |
-| 7 | Phase 0 | Owner reviews brief and ADRs; counsel engaged (Q-L1–Q-L9); threat model and DPIA screening; licence decision opened (Q-O1) | KMP-13, LEG-* | Brief §13 Phase 0 |
+| 7 | Phase 0 | Owner reviews brief and ADRs; counsel engaged (Q-L1–Q-L9); threat model and DPIA screening; licence decision deferred to 1.0 entry (D1); counsel Q-L7 requested | KMP-13, LEG-* | Brief §13 Phase 0 |
 | 8 | Phase 0, after approval | Merge `dev` into `main`; trunk; rulesets; agent identity; tracker cleanup (keep #327 open) | GOV-01/02/03/06, SSOT-01/02, CICD-08 | ADR-0030, ADR-0032 |
 | 9 | **0.4** | Backend: BE-02, BE-03, BE-07, BE-12 (+JWT out of query), BE-13, atomic prekey claim and rate limit, contact-lookup cap, **age gate (V30)**, V28/V29 seq and device-scoped idempotency, BE-08 ArchUnit | BE-02/03/06/07/08/12/13/14, C8, LEG MISS-04 | ADR-0013/0014/0018/0029 |
 | 10 | 0.4 | Mobile: `SessionTeardown`, persist before DELIVERED, edit key, outbox stopgap, group receipt aggregation | MOB-01/03/04/05, MOB MISS-01/02 | ADR-0011/0013/0020 |
@@ -570,7 +562,7 @@ by the owner only (P13).
 | 14 | 0.5.0 | Hide the GIF/sticker picker or proxy Giphy server-side (FT-03); keep the `dev` call "coming soon" state (FT-01, whose UI fix ships with row 8, the dev→main merge) (ROADMAP 0.5 exit criterion) | FT-01, FT-03 | See reviewer note in §9 |
 | 15 | **0.6.0** | Contact discoverability with a reader; per-device delivery (V32) and key schema (V33); `IdentityKeyChanged`; **iOS blocking gate** (launch or scoping ADR) | BE-14, BE-18, KMP-01/02/09, FT-04 | ADR-0018/0028 |
 | 16 | **0.7.0** | ADR 0009 resolved; LiveKit on a separate host; client sends `call.initiate` and publishes the mic; relay-only for non-contacts | FT-01, #367–#373 | ADR-0023 |
-| 17 | **1.0.0** | Licence executed for `mobile/` (AGPL), counsel on Play and App Store, iOS bridge spike or Android-only 1.0; libsignal adapters; mailbox (V34); history cutover (Q-O4); external crypto review; claims register | KMP-13, BE-15, SSOT-09 | ADR-0017/0021 |
+| 17 | **1.0.0** | Licence step per D1: after counsel Q-L7, relicense `mobile/` or convey the combined app under AGPL; counsel on Play and App Store; Android-only 1.0 if KMP-01 is not fixed at 0.6 (D2); iOS bridge spike; libsignal adapters; mailbox (V34); history cutover (D3); external crypto review; claims register | KMP-13, BE-15, SSOT-09 | ADR-0017/0021 |
 | 18 | 1.1–1.4 (gated) | Direct, Nearby, Relay, Off-grid hardware, each only after its admission gate | PROX-*, NAT-*, RF-*, LEG-* | ADR-0023–0027 |
 | 19 | Independent build debt | AGP 9 `:androidApp` split before the next AGP major; remove stale gradle.properties flags; dependency verification; migration N-1 compatibility job | KMP-04, CICD-13, CICD-09 | Not a prerequisite (ADR-0028); schedule explicitly |
 | 20 | Independent docs debt | Slim CLAUDE.md; demote HANDOFF; one ADR log (renumber 001–003, fill 0004–0006) | SSOT-03/08/14 | Governance doc |

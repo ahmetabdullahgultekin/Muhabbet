@@ -5,7 +5,7 @@
 > derived from, and must agree with, the [decision brief](decision-brief-2026-11-12.md) (the single
 > source of truth), in particular §5 (ports), §6 (engine), §7 (path selection), §11.2 (mobile schema)
 > and §16.2 (harness). Where this spec and the brief disagree, the brief wins and the disagreement is
-> a defect here; known gaps are recorded as `> **Reviewer note (open):**` callouts.
+> a defect here; known gaps are recorded as reviewer-note callouts.
 
 | | |
 |---|---|
@@ -48,7 +48,7 @@ content equality (GEM-16, brief §10 rules).
 @JvmInline value class ChangeSeq(val v: Long)
 
 enum class TrafficClass { CONTROL, INTERACTIVE, BULK, EPHEMERAL }          // brief §6.5 (EPHEMERAL never has an entry)
-enum class OutboxCommand { SEND, EDIT, DELETE, REACT, REPORT }             // = data-model outbox_entry.command
+enum class OutboxCommand { SEND, EDIT, DELETE, REACT, REPORT }             // = data-model outbox_entry.command; 0.5 writes SEND only (§4.1)
 enum class StorageMode { CLOUD, BYO, LOCAL_ONLY }                          // ADR 0008 / 0021
 enum class CustodianKind { SERVER_MAILBOX, PEER_DEVICE, OWN_DEVICE, CONTACT_UPLINK } // ADR-0025; PEER_DEVICE = hop custodian for HopAcked only, not a CustodyTarget
 
@@ -59,7 +59,7 @@ sealed interface OutboxState {                                             // br
     data class InFlight(val link: LinkRef, val attempt: Int, val deadline: Instant) : OutboxState
     data class RetryWait(val nextAttemptAt: Instant) : OutboxState
     data class HopAcked(val custodian: CustodianKind, val serverOwed: Boolean) : OutboxState
-    data class ServerAccepted(val seq: Seq) : OutboxState
+    data class ServerAccepted(val seq: Seq?) : OutboxState                // seq null = scheduled send accepted, seq pending release (ICD §3.6 A-4)
     data class FailedPermanent(val code: String) : OutboxState            // terminal (user may retry)
     data object Expired : OutboxState                                      // terminal
     data object Cancelled : OutboxState                                    // terminal
@@ -74,7 +74,7 @@ data class OutboxEntry(
     val createdAt: Instant,                               // FIFO key (data-model ix_outbox_fifo)
     val expiresAt: Instant, val errorCode: String?,
 )
-// Instant / Clock are kotlin.time.Instant / kotlin.time.Clock (kotlinx-datetime 0.8.0 is pinned; see §14.1 reviewer note)
+// Instant / Clock are kotlin.time.Instant / kotlin.time.Clock (kotlinx-datetime 0.8.0 is pinned; brief erratum E-23)
 
 sealed interface InboundEvent {                                            // brief §5 InboundSource
     data class Message(val row: InboundMessage, val source: SourceRef) : InboundEvent
@@ -86,7 +86,7 @@ sealed interface InboundEvent {                                            // br
 }
 
 sealed interface SubmitResult {                                            // brief §5, verbatim shape
-    data class ServerAccepted(val seq: Long, val ts: Instant, val replay: Boolean) : SubmitResult
+    data class ServerAccepted(val seq: Long?, val ts: Instant, val replay: Boolean) : SubmitResult  // seq null only for a scheduled send (ICD §3.6 A-4)
     data class HopAcked(val custodian: Custodian) : SubmitResult
     data class Retry(val after: Duration?) : SubmitResult
     data class Backpressure(val after: Duration) : SubmitResult
@@ -139,7 +139,7 @@ Every invariant has a checker in the harness (§13) that runs after every simula
 | `IN_FLIGHT(link, attempt, deadline)` | `state='IN_FLIGHT'`, `link`, `attempt`, `lease_until=deadline` | no | `lease_until` | clock |
 | `RETRY_WAIT(nextAttemptAt)` | `state='RETRY_WAIT'`, `next_attempt_at` | when `now ≥ next_attempt_at` | — | clock |
 | `HOP_ACKED(custodian, serverOwed)` | `state='HOP_ACKED'`, `link`, `server_owed` | only to the server if `serverOwed` | — | per §5 |
-| `SERVER_ACCEPTED(seq)` | `state='SERVER_ACCEPTED'` (seq lives on the message row) | no | — | one tick, row gets `seq` in the same tx |
+| `SERVER_ACCEPTED(seq?)` | `state='SERVER_ACCEPTED'` (seq lives on the message row only; `outbox_entry` has no seq column) | no | — | one tick, row gets `seq` in the same tx; a scheduled send shows "scheduled" until release, and `ACCEPTED_RETENTION` starts only at release |
 | `FAILED_PERMANENT(code)` | `state='FAILED_PERMANENT'`, `error_code` | no | — | "tap to retry" |
 | `EXPIRED` | `state='EXPIRED'` | no | — | "not sent" |
 | `CANCELLED` | row and entry deleted | — | — | row removed |
@@ -148,9 +148,25 @@ Every invariant has a checker in the harness (§13) that runs after every simula
 (`RetryDelivery`), as the brief's table states.
 
 FIFO key is `outbox_entry.created_at` (data-model `ix_outbox_fifo`), tie-broken by `id`. One SEND
-entry per `clientMessageId` (the T33 per-device resend is the open exception, R-9); EDIT/DELETE/REACT/REPORT entries have their own `id` and reference the
-target message. `cancelRequested` (T32) needs an `outbox_entry.cancel_requested` column that
-data-model.md does not yet list (reviewer note R-8).
+entry per `clientMessageId` (the T33 per-device resend is the open exception, [OI-15](open-items.md#oi-15)).
+`cancelRequested` (T32) is the `outbox_entry.cancel_requested` column (data-model §5.3).
+
+**Commands at 0.5 (decided 2026-11-12, option (b) of the core-engine review).** The 0.5 outbox
+carries **SEND only**. EDIT, DELETE, REACT and REPORT stay on their existing REST paths until the ICD
+defines a C→S frame or REST shape with its own `commandId` (UUIDv7) idempotency key and ack
+correlation; the enum values are reserved for that. Until then the use cases retry those REST calls
+in-process with the §4.5 backoff while the app runs (not durable across process death; a final
+failure is shown to the user), under these idempotency rules the server MUST honour:
+
+| Command | Retry-safety rule |
+|---|---|
+| DELETE | Idempotent: deleting an already-deleted message returns success |
+| REACT | Sets state (add or remove a named emoji), never toggles, so a replay cannot flip it twice |
+| EDIT | Carries the full new text; the UI disables a second edit of a message while one is pending, so a replay can never roll back a newer edit. With a `commandId` (later) the server accepts an edit only if `editVersion` > the current one and replays OK otherwise |
+| REPORT | Server dedups on `(reporter, messageId)` |
+
+T32's withdrawal uses the same REST DELETE. A `ServerAck` is therefore always correlated with the
+SEND entry of its `clientMessageId` (T16), and no other entry can match it.
 
 ### 4.2 Events
 
@@ -212,14 +228,15 @@ side effects are committed in the same SQLDelight transaction as the CAS.
 | T24 | `IN_FLIGHT` | `Rejected(code)` with `code` permanent (§11) | — | `FAILED_PERMANENT(code)` | bubble shows retry | brief |
 | T25 | `IN_FLIGHT` | `Rejected(code)` with `code` transient/link-level (§11) | — | `QUEUED` / `RETRY_WAIT` per §11.3 | — | spec |
 | T25b | `IN_FLIGHT` | `Rejected(MSG_DEVICE_SET_STALE, details{missing, extra})` (ICD §3.5 step 5) | E2E (1.0+) | `PENDING_SEAL(SEAL_RETRY)` → T07 | refresh bundles; seal for `missing` devices, drop envelopes for `extra`; resubmit with the **same** `clientMessageId` | spec (ICD) |
-| T26 | `FAILED_PERMANENT` / `EXPIRED` | `RetryDelivery` | message not deleted | `QUEUED` (or `PENDING_SEAL` if E2E and unsealed) | `attempt = 0`, new `expires_at` | brief (FAILED) / spec (EXPIRED) |
+| T26 | `FAILED_PERMANENT` | `RetryDelivery` | message not deleted | `QUEUED` (or `PENDING_SEAL` if E2E and unsealed) | `attempt = 0`, new `expires_at`. Not offered from `EXPIRED` (terminal; may reflect a content lifetime); there the UI offers "resend as new" with a new `clientMessageId` | brief |
+| T26b | `EXPIRED` / `FAILED_PERMANENT` | `SeqObserved(seq)` or late `ServerAccepted(seq)` | the server holds the entry's `clientMessageId` | `SERVER_ACCEPTED(seq)` | as T16 (same tick rule): a lost ack followed by expiry or failure must not leave a message the server holds labelled "not sent" | spec |
 | T27 | any non-terminal except `SERVER_ACCEPTED` | `LifetimeExceeded` | — | `EXPIRED` | lifetime is per **command**, not per class (§4.5): SEND/EDIT/DELETE/REACT/REPORT 30 d; call signalling and link control 60 s | brief (see R-2) |
 | T28 | `SERVER_ACCEPTED` | `ReceiptsSettled` or `LifetimeExceeded` | — | (purge) | delete entry only; row and receipts stay | brief ("purged after receipts settle") |
-| T29 | `QUEUED` / `RETRY_WAIT` / `PENDING_SEAL` | `UserDelete` | — | `CANCELLED` | delete row + entry | brief |
+| T29 | `QUEUED` / `PENDING_SEAL` | `UserDelete` | never submitted: `attempt = 0` and never `HOP_ACKED` | `CANCELLED` | delete row + entry | brief (guard: spec) |
 | T29b | `PREPARING` | `UserDelete` | — | `CANCELLED` | cancel media job, delete partial blob ref | spec |
 | T30 | any non-terminal at engine start | `Recover` | — | per §4.3a | — | brief (IN_FLIGHT → QUEUED) / spec (rest) |
 | T31 | `RETRY_WAIT` | `EligibleLinkUp` | — | `RETRY_WAIT(now)` | backoff reset to now | brief |
-| T32 | `IN_FLIGHT` | `UserDelete` | — | (no transition) | set `cancel_requested = true`. On `ServerAccepted` → enqueue a `DELETE` command entry (delete-for-everyone). On `FAILED_PERMANENT`/`EXPIRED`/any non-accepting result → `CANCELLED` (row + entry deleted). Spec choice pending owner review (R-8) | spec |
+| T32 | `IN_FLIGHT`, or `QUEUED` / `RETRY_WAIT` with `attempt > 0` (an earlier submit may have been committed with its ack lost) | `UserDelete` | — | (no transition) | set `cancel_requested = 1`; the row is hidden as "withdrawing". Resolution: a server probe (`/changes` or the message by id), or the next `ServerAccepted`/`SeqObserved` → `SERVER_ACCEPTED`, then call the idempotent REST DELETE (delete-for-everyone, §4.1); a definitive non-acceptance (probe shows the server never committed it, or `FAILED_PERMANENT`/`EXPIRED` with no seq after the probe) → `CANCELLED` (row + entry deleted). A cancel-requested entry is not dispatched again before the probe. Accepted 2026-11-12 (R-8) | spec |
 
 Seal events (`SealOk`, `SealFailed`) arrive only in `PENDING_SEAL`, never in `QUEUED`. A recipient
 device-list change re-enters `PENDING_SEAL(SEAL_RETRY)` via T25b (`MSG_DEVICE_SET_STALE`, ICD §3.5
@@ -253,7 +270,7 @@ started before the foreground engine initialised).
 
 | Event in state | Handling |
 |---|---|
-| `ServerAccepted(seq)` / `SeqObserved(seq)` in any not-yet-accepted, non-terminal state | **Never ignored**: T16/T20 (authoritative, attempt-independent). |
+| `ServerAccepted(seq)` / `SeqObserved(seq)` in any not-yet-accepted state, including `EXPIRED` and `FAILED_PERMANENT` | **Never ignored**: T16/T20/T26b (authoritative, attempt-independent). |
 | `HopAcked`, `Retry`, `Timeout`, `Rejected` on a **sealed link** for an entry not `IN_FLIGHT`, or `IN_FLIGHT` on a different `link`/`attempt` (correlated by `frameId`) | **Ignored** (late result from a superseded attempt). CAS fails, logged at debug. |
 | `Retry`, `Timeout`, `Rejected` from the server link for an entry no longer `IN_FLIGHT` | Ignored (CAS fails). |
 | Late `ServerAccepted` for an entry already `SERVER_ACCEPTED` | Same seq: no-op. Different seq: protocol violation → error report, keep the first seq (I9). |
@@ -271,6 +288,7 @@ started before the foreground engine initialised).
 | Lifetime | **per command**, not per class: `SEND`, `EDIT`, `DELETE`, `REACT`, `REPORT` 30 d (a REPORT keeps CONTROL-lane priority but not a 60 s life: ADR-0029 rule 3, 5651 duty); call signalling and link control 60 s | `DEFAULT_LIFETIME = 30.days`, `CALL_SIGNAL_LIFETIME = 60.seconds`, `LINK_CONTROL_LIFETIME = 60.seconds` | brief (per-command attribution: spec) |
 | Accepted retention | 7 d after `SERVER_ACCEPTED` if receipts never settle | `ACCEPTED_RETENTION = 7.days` | spec |
 | Attempt cap | **none**; only lifetime ends retries (I2) | — | ADR-0013 (rejects MOB-04's `MAX_RETRY_COUNT` drop) |
+| Head transient-failure limit | After `HEAD_TRANSIENT_FAILURE_LIMIT` consecutive transient failures (5xx, timeout) of the conversation head, the head goes to `FAILED_PERMANENT("TRANSIENT_LIMIT")` ("tap to retry") and yields the head, so one poisoned message cannot block its conversation for up to 30 d. The entry is kept (I2: it is surfaced, not deleted). Property test: a head in a 5xx loop releases the conversation after the limit | `HEAD_TRANSIENT_FAILURE_LIMIT = 10` | spec (2026-11-12) |
 
 ---
 
@@ -343,11 +361,11 @@ with `change_seq ≤ W` that still exists on the server has been applied.
 | Rule | Trigger | Effect |
 |---|---|---|
 | W1 | push event with `changeSeq == W + 1` | apply, `W := W + 1` (contiguous) |
-| W2 | `/changes?afterSeq=W` page committed | `W := hasMore ? max(change_seq in page) : page.lastSeq` |
+| W2 | `/changes?afterSeq=W` page committed | `W := page.nextAfterSeq` (= `lastSeq` when `hasMore = false`; never `max(change_seq in page)`, ADR-0014 §2, ICD §4.1/§4.6). `C := page.lastSeq` only when `hasMore = false` (ICD §3.8 R-ACK) |
 | W3 | push event with `changeSeq > W + 1`, or `Hint(seq > W)`, or `heads()[conv] > W` | apply (if content) **without** moving W; schedule a pull from W |
 | W4 | any event with `changeSeq ≤ W` | dedup; never moves W backwards (I7) |
 
-This is the gap definition of ADR-0014 (its reviewer note): a gap is *watermark < hinted or listed
+This is the gap definition of ADR-0014 §2: a gap is *watermark < hinted or listed
 seq*, not non-contiguity of message seqs, because edits, deletes and reactions consume `last_seq`
 values and later edits overwrite a row's `change_seq`.
 
@@ -380,13 +398,13 @@ when it is accepted it takes a higher seq and the bubble re-sorts once (document
 
 | Receipt | When | Durability | Coalescing |
 |---|---|---|---|
-| L2 DELIVERED `ack{conv, uptoSeq = U, DELIVERED}` with `U = max(message.seq)` over rows with `seq ≤ W` that are **not own** (never a bare `W`: `W` is a `change_seq` and may name an edit/delete/reaction, which ICD §3.8(c) rejects with `MSG_ACK_INVALID`) | after an Inbox commit that advanced W or inserted a message row; **not sent** if `U ≤` the last reported value | **regenerated**, not persisted: on server `Ready`, send for every conversation whose `U` exceeds the last reported value (R-4) | one pending per conversation (max `uptoSeq`) |
-| L3 READ `ack{conv, uptoSeq, READ}` | chat visible and row on screen (`MarkRead`) | in memory only (brief: client-persisted read receipts rejected); regenerated on chat open | one pending per conversation |
+| L2 DELIVERED `ack{conv, uptoSeq = C, DELIVERED}` with `C = conversation.complete_through_seq`, advanced only when a pull ends with `hasMore = false` (`C = lastSeq`) or a contiguous `message.new` advances `w` from `C` (ICD §3.8 R-ACK). Never `W`, never `max(seq ≤ W)`, never a pushed or mid-pull value | enqueued after the Inbox commit that advanced `C`; **not sent** if `C ≤ conversation.delivered_up_to_seq` | **regenerated**, not persisted: on server `Ready`, send for every conversation whose `C` exceeds `conversation.delivered_up_to_seq` (the last-reported mirror, data-model §5.3) | one pending per conversation (max `uptoSeq`) |
+| L3 READ `ack{conv, uptoSeq ≤ C, READ}` | chat visible and row on screen (`MarkRead`) | in memory only (brief: client-persisted read receipts rejected); regenerated on chat open | one pending per conversation |
 | Sealed L2 to a peer (1.2) | after Inbox commit of an off-server row | regenerated while the link is UP | per peer |
 
 Receipts are CONTROL-class frames in the CONTROL lane; they are **not** `outbox_entry` rows.
-The "last reported value" mirrors the server's `conversation_device_cursor.delivered_up_to_seq` for
-this device (data-model.md); where it is kept on the client is open (reviewer note R-4).
+The "last reported value" is `conversation.delivered_up_to_seq` on the client, the mirror of the
+server's `conversation_device_cursor.delivered_up_to_seq` for this device (data-model §5.3).
 `MSG_ACK_INVALID` on a receipt: drop it, schedule a pull for the conversation, never retry the same
 value (§11.3).
 
@@ -733,11 +751,9 @@ A process death discards every in-memory engine object and rebuilds the engine f
 in-memory stores, then raises `Recover` (T30, §4.3a) for every non-terminal entry; there is one
 CrashPoint test per §4.3a row.
 
-> **Reviewer note (open) R-10:** brief §5 names `kotlinx.datetime.Clock` in the port table. The repo
-> pins kotlinx-datetime 0.8.0 (`shared/build.gradle.kts:48`, `mobile/composeApp/build.gradle.kts:75`),
-> where that type is deprecated in favour of `kotlin.time.Clock`/`kotlin.time.Instant`, already used
-> by app code (`ChatScreen.kt:72`, `DateTimeFormatter.kt:3`). This spec uses `kotlin.time`; the brief
-> should be corrected.
+> **Resolved (2026-11-12):** **R-10:** brief erratum E-23: the §5 Clock/IdGenerator row reads
+> `kotlin.time.Clock` / `kotlin.time.Instant` (`kotlinx.datetime.Clock` is deprecated in the pinned
+> 0.8.0).
 
 ### 14.2 Suites
 
@@ -866,7 +882,7 @@ Other wire touch-points that S5 drives to 0 (the `ui/` ones via the `verifyUi` r
 
 | Slice | Milestone | Content | Done when |
 |---|---|---|---|
-| S0 | 0.4 (legacy code, no engine) | MOB-04 stopgap: delete `pendingMessage` only on `ServerAck(requestId)`; MOB-03: persist `message.new` before DELIVERED, delete call site #1; MOB-05 edit key with `editedAt`; MOB-01 minimal `SessionTeardown`; `.sqm` migrations + `verifyMigrations` | 0.4 exit criteria (brief §13) |
+| S0 | 0.4 (legacy code, no engine) | MOB-04 stopgap: delete `pendingMessage` only on `ServerAck(requestId)`, and remove the `MAX_RETRY_COUNT = 5` drop (`WsClient.kt:540-542`): an exhausted row is marked FAILED with "tap to retry", never deleted; MOB-03: persist `message.new` before DELIVERED, delete call site #1; MOB-05 edit key with `editedAt`; MOB-01 minimal `SessionTeardown`; `.sqm` migrations + `verifyMigrations` | 0.4 exit criteria (brief §13) |
 | S1 | 0.5 | modules, domain, pure `OutboxTransitions`, in-memory stores, harness, property suite green; no app wiring | suite in CI |
 | S2 | 0.5 | `WsServerLink` + `WsInboundSource` extracted (connect loop, heartbeat, disconnect, `WsClientReconnectTest` moved); legacy `WsClient` delegates to them | reconnect tests green on both paths |
 | S3 | 0.5 | encrypted DB (ADR-0020), `SqlDelight*Store`s, Inbox, `SyncCoordinator`, `RestChangeFeedSource`, `FcmHintSource`, `ReceiptService`; call sites #1 and #17 retired | RQ-03, RQ-05 tests |
@@ -884,7 +900,7 @@ modified beyond S0 while both coexist (R3), except for the rollback drain of §1
 |---|---|
 | K1 | `engine.enabled` is read **once per process start** and cached; a remote flip takes effect at the next start, never mid-process. |
 | K2 | The 0.5.0 DB migration (encrypted `muhabbet-store.db`, ADR-0020) runs on every install; the legacy path runs on the **new** DB, which keeps the legacy `pendingMessage` table (data-model.md upgrade step 4). There is no path back to the old file. |
-| K3 | Engine → legacy (flag off, or forced off because `welcome` lacks the 0.5 control plane, §7): at start, before any network I/O, in one store transaction, every non-terminal `outbox_entry` with `command = SEND` in `QUEUED`, `RETRY_WAIT`, `IN_FLIGHT` (lease expired), `PREPARING` (upload finished) or `HOP_ACKED(serverOwed=true)` is copied into `pendingMessage` with the **full** envelope fields (incl. `viewOnce`, `thumbnailUrl`, `forwardedFrom`; this needs `pendingMessage` widened to the full envelope in an S0 `.sqm` migration, or a full-envelope blob column — data-model.md to confirm) and the entry is marked `CANCELLED` without deleting the message row. Entries the legacy path cannot express (`PENDING_SEAL`, non-SEND commands, unfinished `PREPARING`) stay in `outbox_entry` untouched and resume when the engine is re-enabled; the row shows "waiting" rather than vanishing. |
+| K3 | Engine → legacy (flag off, or forced off because `welcome` lacks the 0.5 control plane, §7): at start, before any network I/O, in one store transaction, every non-terminal `outbox_entry` with `command = SEND` in `QUEUED`, `RETRY_WAIT`, `IN_FLIGHT` (lease expired), `PREPARING` (upload finished) or `HOP_ACKED(serverOwed=true)` is copied into `pendingMessage` **only if the legacy schema can express it losslessly** (no `viewOnce`, `thumbnailUrl` or `forwardedFrom` set; `pendingMessage` is not widened, data-model §5.2 step 4), and the entry is marked `CANCELLED` without deleting the message row. Entries the legacy path cannot express (`PENDING_SEAL`, envelopes using those three fields, non-SEND commands, unfinished `PREPARING`) stay in `outbox_entry` untouched and resume when the engine is re-enabled; the row shows "waiting" rather than vanishing. |
 | K4 | Legacy → engine: data-model.md upgrade step 4 (pending rows → `outbox_entry`, `QUEUED`, `command = SEND`). Server idempotency on `clientMessageId` (V29) makes a duplicate submit across the switch harmless. |
 | K5 | Test (§14.2 Rollback, CrashPoint `ENGINE_FLAG_FLIP`): queue entries in every state, flip the flag both ways across restarts, assert every message is accepted exactly once and none disappears from the UI. |
 
@@ -917,54 +933,37 @@ modified beyond S0 while both coexist (R3), except for the rollback drain of §1
 
 ## 19. Reviewer notes
 
-> **Reviewer note (open) R-1:** the brief does not say whether LOCAL_ONLY messages relayed through
-> the server mailbox receive a `seq`. ADR-0014 says LOCAL_ONLY has causal order only, while ADR-0021
-> makes the mailbox a projection of the seq cursor. This spec therefore treats the server's ack for a
-> LOCAL_ONLY message as a custody ack (T18, `HOP_ACKED(SERVER_MAILBOX, serverOwed=false)`) and purges
-> on E2E delivery. Owner/brief to confirm before LOCAL_ONLY ships (it is already gated on Q-O3).
+> **Open item [OI-13](open-items.md#oi-13):** **R-1:** LOCAL_ONLY is gated on Q-O3 (receipt-metadata retention, with counsel Q-L9(c)). This spec's reading is accepted provisionally: the server ack for a LOCAL_ONLY message is a custody ack (T18, `HOP_ACKED(SERVER_MAILBOX, serverOwed=false)`) and the message is purged on E2E delivery; it becomes normative when the owner answers Q-O3.
 
-> **Reviewer note (open) R-2:** brief §6.1 says "any non-terminal → EXPIRED on lifetime". Read
-> literally, that would mark a server-accepted message as expired. This spec excludes
-> `SERVER_ACCEPTED` and purges it instead (T27/T28), because the server already has custody.
+> **Resolved (2026-11-12):** **R-2:** brief erratum E-24: any non-terminal state except
+> `SERVER_ACCEPTED` → `EXPIRED` on lifetime; `SERVER_ACCEPTED` is purged at lifetime (T27/T28). The
+> outbox diagram matches.
 
-> **Reviewer note (open) R-3:** with per-device fan-out (1.0), a recipient may add a device after the
-> sender sealed. The ICD already defines the rejection (`MSG_DEVICE_SET_STALE`, ICD §3.5 step 5) and
-> this spec consumes it (T25b). ADR-0018 should still state the device-set freshness rule it relies on.
+> **Resolved (2026-11-12):** **R-3:** ADR-0018 now states the device-set freshness rule: at submit the
+> server rejects an envelope set that does not address every active device of each recipient
+> (`MSG_DEVICE_SET_STALE`, ICD §3.5 step 5); the client refetches the device list and reseals (T25b).
 
-> **Reviewer note (open) R-4:** DELIVERED regeneration needs the last `uptoSeq` this device reported,
-> i.e. the client's view of the server cursor `conversation_device_cursor.delivered_up_to_seq`
-> (data-model.md). Neither the brief's §11.2 schema nor data-model.md's mobile `conversation` table has
-> a column for it. Either data-model.md adds `conversation.delivered_up_to_seq` (client mirror, same
-> name as the server cursor), or `heads()` returns the device's `delivered_up_to_seq` per conversation.
+> **Resolved (2026-11-12):** **R-4:** data-model.md §5 adds `conversation.delivered_up_to_seq`
+> (client mirror of the server cursor). The regeneration rule compares it with
+> `conversation.complete_through_seq` (C), which is the only value an ack may carry (§6.6; ICD §3.8
+> R-ACK) (brief errata E-22, E-45).
 
-> **Reviewer note (open) R-5:** the brief gives `ServerLink` a single production implementation and
-> says no second server link is planned. Today two paths deliberately avoid the socket because they
-> run in short-lived Android components: the notification inline reply (`NotificationReplyReceiver`
-> → REST `POST …/messages`, #510) and the push-handler DELIVERED ack (#596). With a durable outbox the
-> reply can be enqueued and flushed by an expedited background job, and the ack moves behind the Inbox
-> commit; but if the owner wants to keep a socket-free submit, that is a `RestServerLink`, a second
-> `ServerLink` implementation the brief should name.
+> **Resolved (2026-11-12):** **R-5:** `RestServerLink` is a second `ServerLink` implementation at 0.5.
+> It keeps the socket-free paths (#510 notification reply, #596 push-handler ack) for short-lived
+> Android components, now fed from the durable outbox and behind the Inbox commit (brief erratum E-03).
 
-> **Reviewer note (open) R-6:** ADR-0011 counts "17 `wsClient.send` call sites". The grep that
-> produces 17 includes 2 `sendAck` calls and 1 comment; executable sending sites are 16 (14 `send`, 2
-> `sendAck`), plus 4 `incoming` collectors, 2 `connectionState` collectors, 2 focus calls and the
-> READ path in `ReadReceipts.kt`, `SharedMediaScreen`'s `WsClient` injection and the `App.kt`
-> connect/disconnect lifecycle, all of which S5 must also remove. The inventory above was assembled by
-> grep for `wsClient.` and `WsClient` at `dev` @ 2434324; it is believed complete but should be
-> re-run at S5, and `App.kt` is outside the `verifyUi` scan roots (§15).
+> **Resolved (2026-11-12):** **R-6:** ADR-0011 is corrected to "16 executable send sites (14 `send`, 2
+> `sendAck`) plus the collectors and lifecycle calls listed in §15".
+> **Open item [OI-14](open-items.md#oi-14):** re-run the call-site inventory at stage S5 (0.5), including `App.kt`, which is outside the `verifyUi` roots.
 
-> **Reviewer note (open) R-7:** `CONVERSATION_INFLIGHT_WINDOW = 1` is a spec choice to keep strict
-> per-conversation order under retries. The window must cover `RETRY_WAIT` as well as `IN_FLIGHT`
-> (head rule, I4), otherwise a retrying message is overtaken and takes a higher seq. The brief requires
-> FIFO but does not fix a window or say which states hold the head; the owner may prefer pipelining
-> and accept occasional re-sort.
+> **Resolved (2026-11-12):** **R-7:** window = 1 is accepted for 0.5. The head is held across
+> `IN_FLIGHT` and `RETRY_WAIT` (I4); a head that keeps failing transiently surfaces "tap to retry"
+> after `HEAD_TRANSIENT_FAILURE_LIMIT` attempts (§10.2). Correctness before throughput; pipelining is
+> revisited only on measured latency evidence (brief erratum E-24).
 
-> **Reviewer note (open) R-8:** T32 turns a user delete of an in-flight, unsent message into
-> delete-for-everyone once the server accepts it, and into `CANCELLED` if the attempt fails. That is a
-> product decision the brief does not make. It also needs an `outbox_entry.cancel_requested` column
-> that data-model.md does not list.
+> **Resolved (2026-11-12):** **R-8:** T32 is accepted (it matches the user's intent that the message
+> must not appear), and is extended to every submitted entry (`attempt > 0`, §4.3 T29).
+> `outbox_entry.cancel_requested` is added to data-model.md §5.3 and brief §11.2 (erratum E-22). UI copy
+> says the message is withdrawn from everyone if it was already sent.
 
-> **Reviewer note (open) R-9:** §6.1/T33 need a sealed `Control{decryptFailed(clientMessageId)}` body,
-> a per-device resend semantics (a resend with the same `clientMessageId` is a server replay, so the
-> re-sealed envelope for one device needs its own wire path), and a tick label for "could not be
-> delivered securely". The ICD and ADR-0013 should define all three before 1.0.
+> **Open item [OI-15](open-items.md#oi-15):** **R-9:** before 1.0 entry, ICD §6.2 defines `Control.decryptFailed`, ICD §3 defines a per-device re-seal path distinct from replay, and ADR-0013 defines the tick label "could not be delivered securely" (TR/EN strings).

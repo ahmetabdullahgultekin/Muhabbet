@@ -1,6 +1,6 @@
 # ADR 0016 — E2E is a fail-closed gate for every non-server path, enforced by type
 
-**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md) · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0016; §8.7](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Supersedes** [ADR-003](003-defer-e2e-encryption.md) (brief §3); ADR-0017 (library and licence) is related. Depends on ADR-0012, ADR-0028.
+**Status:** Accepted (2026-11-12, delegated) — by the delegated owner review recorded in [`docs/reviews/2026-11-12-design-approval-review.md`](../reviews/2026-11-12-design-approval-review.md); code against this ADR is written only while the matching scope reads `Status: Approved` in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md), which only the owner edits · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0016; §8.7](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Supersedes** [ADR-003](003-defer-e2e-encryption.md) (brief §3); ADR-0017 (library and licence) is related. Depends on ADR-0012, ADR-0028.
 
 ## Context
 
@@ -64,9 +64,11 @@ sealed interface SealResult {
 | `Sealed` | QUEUED → dispatch | normal |
 | `NoSession` | stays `PENDING_SEAL`; prekey fetch triggered | "waiting for secure session" |
 | `UntrustedIdentity` | `PENDING_SEAL(reason = UNTRUSTED_IDENTITY)`; left only by a user decision event | safety-number interstitial |
-| `Failed(code)` | `RETRY_WAIT` or `FAILED_PERMANENT(code)`, decided by the code | "tap to retry" on `FAILED_PERMANENT` |
+| `Failed(code)`, retryable | stays `PENDING_SEAL(reason = SEAL_RETRY)` with backoff; **never** `RETRY_WAIT`, which is dispatchable and holds the conversation head | "waiting for secure session" |
+| `Failed(code)`, permanent | `FAILED_PERMANENT(code)` | "tap to retry" |
 
-The matching transitions are in ADR-0013 Decision §1.
+Seal events arrive only in `PENDING_SEAL`, never in `QUEUED` (delivery-engine-spec T07–T13). The
+matching transitions are in ADR-0013 Decision §1.
 
 The silent plaintext fallback in `MessageEncryptor`/`MediaEncryptor` (C9) is **deleted, not
 flag-gated**, at 0.5. No E2E conversations exist yet, so nothing regresses.
@@ -83,15 +85,22 @@ flag-gated**, at 0.5. No E2E conversations exist yet, so nothing regresses.
 test configurations. They construct frames only through the `@TestSealingApi` factory (§1). A
 build check fails if any `*-testkit` module appears on a release runtime classpath.
 
-> **Reviewer note (open):** As drafted in the brief (§5, ADR-0016, and the module plan in ADR-0028),
-> the type gate could not be built. Kotlin `internal` is module-scoped, so (a) `FakeSealer` in
-> `:mobile:crypto-testkit` could not construct a `SealedFrame`, and (b) inbound `SealedLink`
-> adapters in `:mobile:transport-*` would need a public bytes → `SealedFrame` decoder to call
-> `open(frame: SealedFrame)`. That decoder would be a second producer able to wrap plaintext, which
-> defeats P2. This ADR fixes both: an outbound-only `SealedFrame`, an inbound `ReceivedCiphertext`,
-> and a `@TestSealingApi` opt-in factory. Brief §5 and ADR-0028 must be corrected to match.
+> **Resolved (2026-11-12):** accepted, with one added control. Brief §5 `EnvelopeSealer` row is
+> "`seal(…): SealResult` (produces `SealedFrame`, outbound only); `open(c: ReceivedCiphertext):
+> OpenResult`"; ADR-0028's module plan has `:mobile:crypto-testkit` construct `SealedFrame` only
+> through the `@TestSealingApi` opt-in factory; and an architecture test fails if
+> `@OptIn(TestSealingApi::class)` appears outside `*-testkit` modules or test source sets (P2 row
+> below). Without that test the opt-in factory would be a second public producer (brief erratum E-07).
 
-### 5. Wording rule
+### 5. Monotonic encryption state on the client (1.0 clarification, threat model RN-6)
+
+A client pins a conversation's encryption state monotonically. Once a conversation is E2E, a
+server-reported `NONE` is refused and surfaced to the user, never acted on by sending plaintext
+(T-E2E-06). This is the control against a server-driven downgrade and is consistent with D3 (a
+conversation becomes E2E once the server holds no readable copy, ADR-0021). It lands in this ADR
+before 1.0 entry and is in scope of the external crypto review.
+
+### 6. Wording rule
 
 "**No plaintext on sealed paths and in E2E conversations.**" Channels and communities remain
 server-plaintext **by design**, and the UI labels them as such. No screen may claim E2E for a
