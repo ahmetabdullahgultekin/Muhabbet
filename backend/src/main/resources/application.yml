@@ -206,9 +206,11 @@ muhabbet:
 
   invite:
     # Base of the shareable group invite URL the server puts in InviteLinkResponse.inviteUrl.
-    # Matches the app link the Android manifest claims (https://muhabbet.app/invite/...), so a
-    # phone with Muhabbet installed opens it in the app. Change this when the real domain lands.
-    base-url: ${INVITE_LINK_BASE_URL:https://muhabbet.app/invite}
+    # Must be a host this project controls: the token is in the path, so whoever serves the host
+    # sees every invite. The default is the project's own site, which answers /invite/<token> with
+    # a page telling the recipient to open the app (docs/site/invite/). Change this when the real
+    # domain lands.
+    base-url: ${INVITE_LINK_BASE_URL:https://muhabbet.rollingcatsoftware.com/invite}
 
   multi-device:
     # Tier-2 linked-device endpoints. DEFAULT false = single-device path unchanged; the QR

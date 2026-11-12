@@ -153,7 +153,7 @@ export const options = {
 
 export default function () {
   const token = getAuthToken();
-  const url = `wss://staging.muhabbet.app/ws?token=${token}`;
+  const url = `wss://staging.example.invalid/ws?token=${token}`;
 
   const res = ws.connect(url, {}, function (socket) {
     socket.on('open', () => {

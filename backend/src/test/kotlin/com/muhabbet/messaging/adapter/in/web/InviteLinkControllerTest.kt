@@ -60,7 +60,7 @@ class InviteLinkControllerTest {
     /** Field-for-field `ApiClient.json`. Decoding under anything laxer would not prove much. */
     private val clientJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; isLenient = true }
 
-    private val properties = InviteLinkProperties(baseUrl = "https://muhabbet.app/invite")
+    private val properties = InviteLinkProperties(baseUrl = "https://muhabbet.rollingcatsoftware.com/invite")
 
     private val userId = TestData.USER_ID_1
     private val conversationId = TestData.CONVERSATION_ID
@@ -100,20 +100,20 @@ class InviteLinkControllerTest {
             // an absent inviteUrl is not a cosmetic gap — it is the whole feature.
             every { manageInviteLinkUseCase.createLink(any(), any(), any(), any(), any()) } returns link()
 
-            assertEquals("https://muhabbet.app/invite/$token", decode(created()).inviteUrl)
+            assertEquals("https://muhabbet.rollingcatsoftware.com/invite/$token", decode(created()).inviteUrl)
         }
 
         @Test
         fun `should not double the separator when the configured base ends in a slash`() {
             val trailing = InviteLinkController(
                 manageInviteLinkUseCase,
-                InviteLinkProperties(baseUrl = "https://muhabbet.app/invite/")
+                InviteLinkProperties(baseUrl = "https://muhabbet.rollingcatsoftware.com/invite/")
             )
             every { manageInviteLinkUseCase.createLink(any(), any(), any(), any(), any()) } returns link()
 
             val body = trailing.createLink(conversationId, CreateInviteLinkRequest()).body?.data
 
-            assertEquals("https://muhabbet.app/invite/$token", decode(body).inviteUrl)
+            assertEquals("https://muhabbet.rollingcatsoftware.com/invite/$token", decode(body).inviteUrl)
         }
 
         @Test
@@ -200,7 +200,7 @@ class InviteLinkControllerTest {
             val decoded = decode(controller.getLinkInfo(token).body?.data)
 
             assertEquals(token, decoded.inviteToken)
-            assertEquals("https://muhabbet.app/invite/$token", decoded.inviteUrl)
+            assertEquals("https://muhabbet.rollingcatsoftware.com/invite/$token", decoded.inviteUrl)
             assertTrue(decoded.isActive)
             assertTrue(decoded.requiresApproval)
             assertEquals(25, decoded.maxUses)
@@ -236,7 +236,7 @@ class InviteLinkControllerTest {
             assertEquals(linkId.toString(), decoded.id)
             assertEquals(conversationId.toString(), decoded.conversationId)
             assertEquals(token, decoded.inviteToken)
-            assertEquals("https://muhabbet.app/invite/$token", decoded.inviteUrl)
+            assertEquals("https://muhabbet.rollingcatsoftware.com/invite/$token", decoded.inviteUrl)
             assertTrue(decoded.isActive)
             assertTrue(decoded.requiresApproval)
             assertEquals(10, decoded.maxUses)

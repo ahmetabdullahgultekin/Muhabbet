@@ -12,6 +12,8 @@
 
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -45,16 +47,19 @@
                 <data android:scheme="muhabbet" />
             </intent-filter>
 
-            <!-- Universal links: https://muhabbet.app/invite/... -->
+            <!--
+                App link: https://muhabbet.rollingcatsoftware.com/chat/{conversationId}.
+                Verified by docs/site/.well-known/assetlinks.json on that host, which the project
+                controls. /invite is deliberately NOT claimed: the app has no invite handler yet,
+                so an invite link opens the site's /invite/ page, which tells the recipient what to
+                do. Claim it here only together with a handler that reads it.
+            -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
-                      android:host="muhabbet.app"
-                      android:pathPrefix="/invite" />
-                <data android:scheme="https"
-                      android:host="muhabbet.app"
+                      android:host="muhabbet.rollingcatsoftware.com"
                       android:pathPrefix="/chat" />
             </intent-filter>
         </activity>

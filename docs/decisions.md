@@ -9,7 +9,7 @@
 |------|----------|
 | **Project Name** | Muhabbet (cultural, warm — "conversation/chat" in Turkish) |
 | **Domain (MVP)** | muhabbet.rollingcatsoftware.com (subdomain) |
-| **Domain (Launch)** | TBD — muhabbet.app / muhabbet.com.tr / other (decide before launch) |
+| **Domain (Launch)** | TBD — muhabbet.com.tr / other (decide before launch). **Not muhabbet.app**: it was registered on 2026-10-28 by someone outside this project and serves an unrelated site, so nothing may point at it |
 
 ---
 

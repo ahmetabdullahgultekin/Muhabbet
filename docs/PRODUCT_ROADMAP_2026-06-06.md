@@ -65,7 +65,7 @@ Backend is live at muhabbet-api.rollingcatsoftware.com but NOT production-ready:
 **Primary domain:** `muhabbet.com.tr`
 
 **Alternates / defensive:**
-- muhabbet.app (modern, app-store-adjacent — redirect to primary)
+- ~~muhabbet.app~~ — no longer available: registered on 2026-10-28 by someone outside this project. Nothing in the app or backend may point at it
 - muhabbet.net (defensive hold)
 - muhabbet.com (registered by a private GoDaddy party until Aug 2027 — broker-outreach only, do not block launch on it)
 
@@ -145,7 +145,7 @@ Backend is live at muhabbet-api.rollingcatsoftware.com but NOT production-ready:
 
 | Item | Tier | Pri | Effort | Inspiration |
 |---|---|---|---|---|
-| Register muhabbet.com.tr (primary) + muhabbet.app (redirect) + muhabbet.net (defensive); broker-outreach muhabbet.com only | free | P0 | S | decisions.md domain TBD; .com.tr signals KVKK domesticity |
+| Register muhabbet.com.tr (primary) (muhabbet.app no longer available) + muhabbet.net (defensive); broker-outreach muhabbet.com only | free | P0 | S | decisions.md domain TBD; .com.tr signals KVKK domesticity |
 | Ship the P0 static site (landing + corrected privacy + ToS + aydinlatma + cookie + indir + guvenlik), Turkish-first, on Hostinger | free | P0 | M | Play Store hard gate; Signal-lean not BiP-heavy |
 | Subdomain + cert + CORS architecture (api/cdn/status/help; reserve app/blog); repoint MINIO_PUBLIC_ENDPOINT to cdn. | free | P0 | M | avoid retrofitting nginx/CORS; narrow Allowed-Origins to *.muhabbet.com.tr |
 | Branded email on the domain: privacy@ / support@ / hello@muhabbet.com.tr (forward to one inbox) | free | P1 | S | parent-brand privacy@rollingcatsoftware.com undermines trust |
@@ -274,7 +274,7 @@ The three projects are one product family and should be built, promoted, and sol
 
 ## 8. Decisions needing the owner
 
-- Primary domain: confirm muhabbet.com.tr (Turkish-market/KVKK credibility, needs a Turkish legal entity for .com.tr registration) vs muhabbet.app (modern, no trademark proof). This gates all subdomain/cert/CORS/MINIO_PUBLIC_ENDPOINT work. Also decide whether to broker-purchase the premium muhabbet.com (private GoDaddy owner, expires Aug 2027) or permanently redirect.
+- Primary domain: confirm muhabbet.com.tr (Turkish-market/KVKK credibility, needs a Turkish legal entity for .com.tr registration) (muhabbet.app is no longer available). This gates all subdomain/cert/CORS/MINIO_PUBLIC_ENDPOINT work. Also decide whether to broker-purchase the premium muhabbet.com (private GoDaddy owner, expires Aug 2027) or permanently redirect.
 - Turkish legal entity: founding an Istanbul/STI is effectively required for .com.tr and unlocks KVKK data-controller registration — is this on the roadmap, and on what timeline (it gates VERBIS, ToS jurisdiction wording, and the BTK OTT-authorization posture)?
 - Pricing in TRY: confirm the Muhabbet Plus anchor (~49 TRY/mo / 399 TRY/yr) and Business (~149 TRY/seat/mo), annual-vs-monthly, and whether to add iyzico for lower-commission web subscriptions alongside the app-store rails.
 - Monetization sequencing: B2B (multi-seat workspaces/admin/bot productization) vs consumer Plus first, given solo-engineer capacity — and confirm that NO premium infra is built before Phase 0 closes.
