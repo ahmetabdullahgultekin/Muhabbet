@@ -34,7 +34,7 @@ class GroupControllerTest {
         manageGroupUseCase = mockk()
         userRepository = mockk()
         presencePort = mockk()
-        controller = GroupController(manageGroupUseCase, userRepository, presencePort)
+        controller = GroupController(manageGroupUseCase, userRepository, presencePort, mockk(relaxed = true))
         setAuthenticatedUser(userId, TestData.DEVICE_ID_1)
     }
 
@@ -62,6 +62,20 @@ class GroupControllerTest {
 
             assert(response.statusCode.value() == 200)
             assert(response.body?.data?.size == 2)
+        }
+
+        @Test
+        fun `should not return the added people's numbers when members are added by user id`() {
+            every { manageGroupUseCase.addMembers(groupId, userId, listOf(TestData.USER_ID_2)) } returns
+                listOf(TestData.member(conversationId = groupId, userId = TestData.USER_ID_2))
+            every { presencePort.getOnlineUserIds(any()) } returns emptySet()
+            every { userRepository.findById(TestData.USER_ID_2) } returns TestData.user(id = TestData.USER_ID_2)
+
+            val response = controller.addMembers(
+                groupId, com.muhabbet.shared.dto.AddMembersRequest(listOf(TestData.USER_ID_2.toString()))
+            )
+
+            assert(response.body?.data?.single()?.phoneNumber == null)
         }
 
         @Test

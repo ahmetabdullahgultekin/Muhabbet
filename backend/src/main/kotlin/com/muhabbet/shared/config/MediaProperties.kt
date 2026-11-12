@@ -11,6 +11,12 @@ data class MediaProperties(
     val thumbnailWidth: Int = 320,
     val thumbnailHeight: Int = 320,
     /**
+     * The most pixels an uploaded image may declare. Decoding allocates by pixel count, so this,
+     * not [maxImageSize], is what bounds the memory an upload costs. 8192 x 8192 by default —
+     * above any phone camera, and about 256 MB decoded at four bytes a pixel.
+     */
+    val maxImagePixels: Long = 67_108_864,
+    /**
      * Origins other than our own MinIO that a message or status may point its media at (#679).
      *
      * A sender may not choose the address a recipient's phone connects to; the send path refuses

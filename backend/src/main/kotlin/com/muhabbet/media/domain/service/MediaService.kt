@@ -11,6 +11,7 @@ import com.muhabbet.media.domain.port.`in`.UploadMediaUseCase
 import com.muhabbet.shared.dto.StorageUsageResponse
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
+import com.muhabbet.media.domain.port.out.ImageTooLargeException
 import com.muhabbet.media.domain.port.out.ThumbnailPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -47,20 +48,21 @@ open class MediaService(
         val thumbnailKey = "thumbnails/${command.uploaderId}/$fileId.jpg"
 
         try {
+            // Thumbnail first: it is also where the image is checked to be decodable at all and
+            // within the pixel limit, so nothing is stored for an image that fails either.
+            val thumbnail = thumbnailPort.generateThumbnail(
+                inputStream = ByteArrayInputStream(imageBytes),
+                contentType = command.contentType,
+                maxWidth = thumbnailWidth,
+                maxHeight = thumbnailHeight
+            )
+
             // Upload original
             mediaStoragePort.putObject(
                 key = fileKey,
                 inputStream = ByteArrayInputStream(imageBytes),
                 contentType = command.contentType,
                 sizeBytes = command.sizeBytes
-            )
-
-            // Generate and upload thumbnail
-            val thumbnail = thumbnailPort.generateThumbnail(
-                inputStream = ByteArrayInputStream(imageBytes),
-                contentType = command.contentType,
-                maxWidth = thumbnailWidth,
-                maxHeight = thumbnailHeight
             )
             mediaStoragePort.putObject(
                 key = thumbnailKey,
@@ -86,6 +88,8 @@ open class MediaService(
             return mediaFile
         } catch (e: BusinessException) {
             throw e
+        } catch (e: ImageTooLargeException) {
+            throw BusinessException(ErrorCode.MEDIA_TOO_LARGE, cause = e)
         } catch (e: Exception) {
             log.error("Image upload failed: {}", e.message, e)
             throw BusinessException(ErrorCode.MEDIA_UPLOAD_FAILED, cause = e)

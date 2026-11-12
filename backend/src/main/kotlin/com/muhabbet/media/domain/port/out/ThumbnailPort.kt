@@ -12,3 +12,10 @@ data class ThumbnailResult(
     val width: Int,
     val height: Int
 )
+
+/**
+ * The image declares more pixels than the server will decode. Raised from the header, before any
+ * pixel data is read, because decoding allocates by pixel count and a tiny file can declare an
+ * enormous canvas.
+ */
+class ImageTooLargeException : RuntimeException("Image dimensions exceed the configured pixel limit")
