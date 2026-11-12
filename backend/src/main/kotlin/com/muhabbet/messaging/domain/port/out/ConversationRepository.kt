@@ -27,6 +27,14 @@ interface ConversationRepository {
      */
     fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int>
     fun findAllContactUserIds(userId: UUID): Set<UUID>
+
+    /**
+     * True when [userId] and [otherUserId] are both members of at least one conversation. The
+     * single-pair form of [findAllContactUserIds]: an existence check, so it costs one indexed
+     * query however many conversations either user is in, rather than materialising a contact set
+     * to test one id against it (#749).
+     */
+    fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?
     fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID)
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: java.time.Instant)

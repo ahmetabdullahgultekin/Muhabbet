@@ -64,7 +64,8 @@ class EncryptionController(
     fun fetchPreKeyBundle(
         @PathVariable userId: UUID
     ): ResponseEntity<ApiResponse<PreKeyBundleResponse>> {
-        val bundle = manageEncryptionUseCase.fetchPreKeyBundle(userId)
+        val requesterId = AuthenticatedUser.currentUserId()
+        val bundle = manageEncryptionUseCase.fetchPreKeyBundle(requesterId, userId)
             ?: throw BusinessException(ErrorCode.ENCRYPTION_KEY_BUNDLE_NOT_FOUND)
 
         val response = PreKeyBundleResponse(

@@ -32,6 +32,15 @@ interface SpringDataConversationMemberRepository : JpaRepository<ConversationMem
     @Query("SELECT DISTINCT m.userId FROM ConversationMemberJpaEntity m WHERE m.conversationId IN (SELECT m2.conversationId FROM ConversationMemberJpaEntity m2 WHERE m2.userId = :userId) AND m.userId != :userId")
     fun findAllContactUserIds(userId: UUID): Set<UUID>
 
+    @Query(
+        """
+        SELECT COUNT(m) > 0 FROM ConversationMemberJpaEntity m
+        WHERE m.userId = :otherUserId
+          AND m.conversationId IN (SELECT m2.conversationId FROM ConversationMemberJpaEntity m2 WHERE m2.userId = :userId)
+        """
+    )
+    fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean
+
     @Modifying
     @Query("UPDATE ConversationMemberJpaEntity m SET m.lastReadAt = :timestamp WHERE m.conversationId = :conversationId AND m.userId = :userId")
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: Instant)

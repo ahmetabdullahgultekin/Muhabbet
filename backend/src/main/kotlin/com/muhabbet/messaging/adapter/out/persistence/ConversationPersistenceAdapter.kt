@@ -68,6 +68,9 @@ class ConversationPersistenceAdapter(
     override fun findAllContactUserIds(userId: UUID): Set<UUID> =
         memberRepo.findAllContactUserIds(userId)
 
+    override fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean =
+        memberRepo.sharesConversation(userId, otherUserId)
+
     override fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID? =
         directLookupRepo.findByUserIdLowAndUserIdHigh(userIdLow, userIdHigh)?.conversationId
 

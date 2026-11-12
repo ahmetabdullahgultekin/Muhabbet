@@ -90,7 +90,7 @@ class EncryptionControllerTest {
                 oneTimePreKeyId = 5
             )
 
-            every { manageEncryptionUseCase.fetchPreKeyBundle(TestData.USER_ID_2) } returns bundle
+            every { manageEncryptionUseCase.fetchPreKeyBundle(userId, TestData.USER_ID_2) } returns bundle
 
             val response = controller.fetchPreKeyBundle(TestData.USER_ID_2)
 
@@ -101,7 +101,7 @@ class EncryptionControllerTest {
 
         @Test
         fun `should throw ENCRYPTION_KEY_BUNDLE_NOT_FOUND when no bundle exists`() {
-            every { manageEncryptionUseCase.fetchPreKeyBundle(TestData.USER_ID_2) } returns null
+            every { manageEncryptionUseCase.fetchPreKeyBundle(userId, TestData.USER_ID_2) } returns null
 
             try {
                 controller.fetchPreKeyBundle(TestData.USER_ID_2)

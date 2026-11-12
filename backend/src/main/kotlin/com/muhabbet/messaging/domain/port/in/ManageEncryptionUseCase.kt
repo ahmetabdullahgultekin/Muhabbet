@@ -8,7 +8,14 @@ interface ManageEncryptionUseCase {
     fun registerKeyBundle(userId: UUID, bundle: EncryptionKeyBundle)
     fun getKeyBundle(userId: UUID): EncryptionKeyBundle?
     fun uploadPreKeys(userId: UUID, keys: List<OneTimePreKey>)
-    fun fetchPreKeyBundle(targetUserId: UUID): PreKeyBundle?
+
+    /**
+     * Serves [targetUserId]'s prekey bundle to [requesterId], claiming one of the target's one-time
+     * prekeys. Refused unless the two share a conversation (or are the same account — sender
+     * fan-out to one's own devices), neither has blocked the other, and the requester is within
+     * its fetch budget (#749, ADR 0018 §3). Null when the target has published no bundle.
+     */
+    fun fetchPreKeyBundle(requesterId: UUID, targetUserId: UUID): PreKeyBundle?
 }
 
 data class PreKeyBundle(

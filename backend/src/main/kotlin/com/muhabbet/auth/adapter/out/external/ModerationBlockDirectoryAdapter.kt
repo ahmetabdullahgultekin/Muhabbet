@@ -17,4 +17,10 @@ class ModerationBlockDirectoryAdapter(
 
     override fun hasBlocked(blockerId: UUID, blockedId: UUID): Boolean =
         blockUserUseCase.isBlocked(blockerId, blockedId)
+
+    override fun findBlockedEitherWay(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
+        if (candidateIds.isEmpty()) return emptySet()
+        return blockUserUseCase.findBlockersAmong(userId, candidateIds) +
+            blockUserUseCase.findBlockedAmong(userId, candidateIds)
+    }
 }

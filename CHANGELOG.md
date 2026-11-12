@@ -8,6 +8,20 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — contact sync and the prekey directory can no longer be scripted against
+
+- **Contact sync is no longer a phone-book of Turkey** (#748). Each account may look up at most
+  `muhabbet.contact-sync.max-new-hashes-per-day` (default 2000) *distinct* numbers per UTC day —
+  re-syncing an address book already looked up today is free — and past that the server answers
+  `429 CONTACT_SYNC_DAILY_LIMIT_EXCEEDED` before touching the database. More than 1000 hashes in one
+  request is now `CONTACT_SYNC_LIMIT_EXCEEDED` rather than `VALIDATION_ERROR`. Users on either side
+  of a block, and deleted or suspended accounts, are no longer returned.
+- **A one-time prekey is handed out once, and only to someone you talk to** (#749). The claim is a
+  single `UPDATE … FOR UPDATE SKIP LOCKED … RETURNING` (V31 makes `used` NOT NULL); a bundle is
+  served only to a requester who shares a conversation with the target (or is the target) and is
+  not blocked either way, within per-requester hourly and per-pair daily budgets. Latent while E2E
+  is off; it is the directory 1.0 will stand on.
+
 ### Added — Enter sends, and you can say whether it does
 
 - **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired
