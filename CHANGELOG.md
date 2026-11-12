@@ -8,6 +8,40 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security
+
+- Phone numbers are shown only to people their owner has reached out to (started or written in a
+  shared chat or group). Creating a chat, adding someone to a group, or subscribing to the same
+  channel no longer reveals a number.
+- Channel subscribers no longer see each other in the chat list; a channel shows the viewer and the
+  people who run it. New and existing channels are owned by their creator and announcement-only.
+- "Contacts only" privacy settings, stories and presence now count someone as a contact only once
+  they have taken part in a shared chat or group, so being put in one is not enough.
+- A group can no longer be created with someone who has blocked its creator, and a channel can no
+  longer be created with other people already in it.
+- Only members can change a chat's disappearing-message timer — only admins in groups and
+  channels — and only to the durations the app offers.
+- Starred messages can only be starred, and are only listed, while the user can still read them.
+- Group events and their replies are visible to group members only.
+- Join requests can only be filed through a live approval link of that group, and only the group's
+  admins can see and decide them.
+- Typing indicators are relayed only for members of the conversation.
+- Chat wallpapers can only be removed by their owner; channel statistics are visible to channel
+  admins, and only subscribers' views are counted.
+- Calls respect blocks, a call can only be answered by the person being called and ended by the
+  people in it, and an unanswered call no longer leaves the callee unreachable.
+- Bot API tokens are stored hashed and shown only once, when issued; a bot's details are visible to
+  its owner only.
+- Profile and group pictures must be hosted on Muhabbet's own media server.
+- Images whose dimensions exceed a configured limit are refused before they are decoded.
+- Link previews refuse more internal and reserved address ranges and non-web ports, and pass on only
+  web image links.
+- Server metrics and every other diagnostic endpoint except health and info require an admin.
+- Sign-in codes for test numbers now count against the same per-number daily limit as any other
+  number.
+- The server refuses to start with the development sign-in code shortcuts switched on outside the
+  development and test profiles.
+
 ### Fixed — ticks, scheduled messages and retries tell the truth
 
 - **Read receipts can no longer be forged, and ticks no longer go backwards** (#299). A delivery
