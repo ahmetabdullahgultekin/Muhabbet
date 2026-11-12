@@ -1,3 +1,5 @@
+> **Proposed amendment (pending owner approval):** ADR 0021.
+
 # ADR 0008 — Storage location is a per-conversation choice, and the stricter side wins
 
 **Status:** Proposed · **Date:** 2026-08-12 · Supersedes nothing.

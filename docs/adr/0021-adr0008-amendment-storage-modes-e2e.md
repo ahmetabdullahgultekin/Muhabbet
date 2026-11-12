@@ -1,0 +1,145 @@
+# ADR 0021 — Amendment to ADR 0008: storage modes in an E2E world; one cursor model; mailbox as a projection
+
+**Status:** Proposed — pending owner approval; no code may be written against this ADR until approval is recorded in [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The mode redefinitions in §3 are a **product change and need an explicit owner decision**; the 1.0 cutover choice is open question Q-O4 and LOCAL_ONLY availability depends on Q-O3 · **Date:** 2026-11-12 · **Source:** [decision brief §3, ADR-0021; §9; §11.1 V34; §13 (1.0.0); §17 Q-O3, Q-O4, Q-L9](../architecture/multi-transport/decision-brief-2026-11-12.md) · **Amends** [ADR 0008](0008-per-conversation-storage-mode.md) (strictest-wins rule kept; mode definitions changed) · Depends on ADR-0010, ADR-0013, ADR-0014, ADR-0016, ADR-0017, ADR-0019, ADR-0020. Related: ADR-0025 (custody hierarchy), [T3 design](../design/T3-conversation-storage-modes.md).
+
+## Context
+
+ADR 0008 (2026-08-12) made storage a per-conversation choice with three modes — CLOUD (our servers,
+searchable), BRING_YOUR_OWN, LOCAL_ONLY — and the rule that the stricter side wins. It already
+stated that LOCAL_ONLY cannot be offered until E2E is genuinely on, and the T3 design recommended
+"encrypted store-and-forward, and say so plainly".
+
+Three things now conflict with ADR 0008 as written:
+
+1. **"CLOUD = server-held, searchable" cannot coexist with E2E.** From 1.0 the server holds no
+   readable content for E2E conversations (ADR-0019), so it cannot search it.
+2. **The judges required one SSOT and one cursor model across eras** (pre-1.0 plaintext, post-1.0
+   ciphertext), not a second per-device mailbox cursor beside the conversation `seq`. The
+   backend/target-state proposals had a separate per-device mailbox or server outbox; the brief
+   rejected that (judge disagreement, "No server outbox table").
+3. **Existing plaintext history** on the server at the 1.0 cutover has no defined fate, and a UI
+   that labels a conversation "E2E" while the server still holds a readable copy of its history
+   would repeat the false-padlock defect ADR 0008 itself cites.
+
+## Decision
+
+### 1. One cursor model in every era
+
+The only client cursor is a **per-(device, conversation) `seq` watermark** over
+`GET /api/v1/conversations/{id}/changes?afterSeq=&limit=` (ADR-0014).
+
+| Era / conversation | `/changes` item carries | Source table(s) |
+|---|---|---|
+| Before 1.0, all conversations | Plaintext content (as today, TLS only, honest "not E2E" UI) | `messages` |
+| From 1.0, E2E conversations | The **envelope addressed to the requesting device** | `messages` (metadata) ⋈ `message_envelopes` |
+| From 1.0, channels and communities | Plaintext content, labelled server-readable by design (ADR-0016) | `messages` |
+
+- **`messages` stays the authoritative metadata row** for every conversation: `id`,
+  `conversation_id`, `seq`, `change_seq`, `sender_device_id`, timestamps, `encryption_state`.
+  `content` is **NULL** for E2E conversations.
+- **The mailbox is a projection, not a second cursor:**
+  `message_envelopes(message_id, recipient_device_id, protocol, ciphertext BYTEA, expires_at, PK(message_id, recipient_device_id))` (V34, 1.0).
+- **Deletion:** a device's `ack{conversationId, uptoSeq, DELIVERED}` (ADR-0013) deletes that
+  device's envelope rows with `seq ≤ uptoSeq`; a scheduled purge job removes rows past `expires_at`.
+  Default TTL **30 days**, configured in `application.yml` (`muhabbet.mailbox.ttl`).
+- A device that pulls after its envelopes expired receives the metadata row with an
+  `envelopeExpired` marker and shows an honest "message expired before this device received it"
+  placeholder; it never sees a silent gap.
+
+```kotlin
+// backend out-port (brief §5)
+interface MailboxPort {
+    fun store(msg: UUID, envs: List<DeviceEnvelope>, exp: Instant)
+    fun deleteUpTo(d: DeviceId, conv: UUID, seq: Long): Int
+    fun purgeExpired(now: Instant): Int
+}
+```
+
+### 2. Strictest-wins is unchanged
+
+Strictness order `LOCAL_ONLY` > `BRING_YOUR_OWN` > `CLOUD`, negotiated at creation and
+re-negotiated with an explicit prompt, with "whose choice it was" shown — exactly as ADR 0008.
+
+### 3. Mode definitions from 1.0 (owner decision required)
+
+| Mode | ADR 0008 (before) | From 1.0 (this amendment) | Server holds | Off-server custodians (ADR-0025) |
+|---|---|---|---|---|
+| **CLOUD** | Server-held, searchable | **E2E relay** plus an **optional encrypted history backup under a user-held key** (T3 step 5). The server is **no longer searchable** | Metadata, envelopes until ack/TTL, optional opaque backup blob | Always ends at custodian 1 (server); `serverOwed` until the server acks |
+| **BYO** | User's own server | The **same backend self-hosted**, or the user's bucket as the backup destination | Same as CLOUD, on the user's server | Same as CLOUD |
+| **LOCAL_ONLY** | Two devices only; gated on E2E | **No backup anywhere.** Envelopes deleted on delivery. Offerable only when E2E is real **and** Q-O3 (receipt-metadata retention) is decided | Metadata + envelopes until delivery or TTL, then nothing but what Q-O3 allows | Custodian 1 with delete-on-delivery; custodians 2–3 only after Q-O3 |
+
+LOCAL_ONLY keeps causal, not total, order (ADR-0014) and is the only mode whose off-server
+deliveries are final without a server `seq` (ADR-0010 rule 5).
+
+### 4. Existing plaintext history at the 1.0 cutover (recommended; final call is Q-O4)
+
+| Step | Action |
+|---|---|
+| 1 | From the cutover release, **new** messages in 1:1 and small-group conversations are E2E (protocol v2, ADR-0022) |
+| 2 | Each client downloads that conversation's existing history into its encrypted local DB (ADR-0020) by `seq` |
+| 3 | Users are notified; after a **30-day grace period** the server copy (`messages.content`, server search index rows, cached previews) is deleted — or, if the user opted in, encrypted to their backup key first |
+| 4 | A conversation is **labelled E2E only once the server holds no readable copy of it** — i.e. after step 3 for that conversation |
+
+Until step 4 completes, the conversation UI says "new messages are end-to-end encrypted; earlier
+history is still on the server until <date>".
+
+## Why
+
+- One cursor (conversation `seq`) and one metadata row means every path — WS hint, FCM wake,
+  REST pull, proximity (`serverOwed` upload) — converges on the same SSOT (ADR-0011) with one
+  gap-detection rule. A second per-device cursor would be a second source of truth for "what has
+  this device seen".
+- The envelope projection is exactly what a per-device mailbox needs (BE-18) without a server
+  outbox table: rows exist only until the device acks or the TTL fires.
+- CLOUD as "server-readable" would put two privacy classes inside one 1:1 product and invite
+  dishonest UI; redefining it as E2E relay + optional user-keyed backup keeps the convenience
+  (survives a lost phone, multi-device via backup) without readable server storage.
+- The labelling rule in §4.4 is ADR 0008's own honesty argument applied to the cutover.
+
+## Consequences
+
+- **Server search for 1:1 and small groups ends at 1.0**, so on-device FTS (ADR-0020) must ship
+  first; the CLOUD mode description in the UI changes accordingly.
+- Multi-device history for E2E conversations comes from device-to-device transfer (post-1.0) or the
+  encrypted backup, never from the server (ADR-0018 consequences).
+- **5651 reporting relies on reporter-supplied content** for E2E conversations. Message franking is a
+  post-1.0 research item that needs legal input (R18, Q-L4).
+- Receipt metadata for LOCAL_ONLY has an open retention question that may also carry a legal
+  retention duty (Q-O3, Q-L9); LOCAL_ONLY does not ship until both are answered.
+- `/messages/since` stays one release as a deprecated shim (ADR-0014); after that `/changes` is the
+  only history read.
+- V34 adds `message_envelopes` and `messages.encryption_state`, and makes `content` nullable;
+  additive first, destructive step (dropping plaintext) one release later (CICD-09).
+- R17 (cutover surprises users) is mitigated by notice, grace period and backup opt-in.
+
+## Alternatives considered
+
+| Alternative | Why rejected |
+|---|---|
+| CLOUD as opt-in server plaintext | Two privacy classes in one 1:1 product; dishonest UI risk |
+| Per-chat opt-in E2E (Telegram secret chats) | Same objection; users cannot tell which chats are protected |
+| Per-device mailbox cursor separate from conversation `seq` | Two SSOTs for "what has this device seen" |
+| Backend transactional outbox table as mailbox | Redundant with pull-by-seq (brief §3 judge disagreement) |
+| Label conversations E2E at cutover while old history stays readable on the server | False claim |
+| Silently delete all server history at cutover | Data loss without notice; R17 |
+
+## Evidence
+
+- Findings: BE-15, BE-18, BE-05 (rejected server outbox alternative), C9, SSOT-09, GOV-08, LEG-02,
+  LEG-04, MISS-01 (legal verifier, Law 5809 Art. 9(14) duties).
+- Documents: [ADR 0008](0008-per-conversation-storage-mode.md),
+  [T3 design](../design/T3-conversation-storage-modes.md) ("Shape of the work" step 5, open
+  questions on receipts and retention).
+- External (from the legal digest): https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5651.pdf,
+  https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6698.pdf.
+
+## Verification
+
+| Req | Check | Method | When |
+|---|---|---|---|
+| RQ-13 | No plaintext `content` for E2E conversations after the grace period | SQL assertion + DB dump inspection | 1.0 exit and cutover + 30 d |
+| — | `/changes` for device A never returns device B's envelope | Integration test (Testcontainers) | 1.0 |
+| — | Device ack `uptoSeq` deletes exactly that device's envelopes `≤ seq`; TTL purge removes expired rows | Integration test with `TestClock` | 1.0 |
+| RQ-05 | Lost hints converge through the same `/changes` cursor before and after 1.0 | `SimulatedLink` test | 0.5 / 1.0 |
+| — | A conversation is never labelled E2E while any readable server copy exists | UI test against fake server state + claims-register inspection | 1.0 exit |
+| — | LOCAL_ONLY is not offered while Q-O3 is undecided | Inspection (feature flag absent from release) | 1.0 |

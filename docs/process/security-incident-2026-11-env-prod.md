@@ -1,0 +1,130 @@
+# Security incident record — production secrets in public history, and PR code on the production host
+
+> **Status: Open — owner action required.**
+> This record is part of the multi-transport design package, which is **Proposed — pending owner
+> approval**; no code may be written until approval is recorded in
+> [`docs/architecture/multi-transport/APPROVAL.md`](../architecture/multi-transport/APPROVAL.md). The
+> response actions below are scope `phase-0`; the decision brief (§14) recommends that the owner
+> authorise them **now, independently of design approval**, because they are incident response, not
+> design.
+
+| | |
+|---|---|
+| **Incident id** | INC-2026-11-ENV-PROD |
+| **Findings** | **CICD-06** (critical) — production secrets committed in `.env.prod`, repository public. **CICD-01** (critical) — `pull_request` workflows run on persistent self-hosted runners, one of which is the production host. Related: CICD-02, CICD-03, CICD-05, CICD MISS-01, CICD MISS-02, CICD MISS-03, GOV MISS-01 |
+| **Risks** | R1 (leaked prod secrets still live, H/Critical), R2 (PR code on the prod host, M/Critical) — brief §15 |
+| **Decision records** | [ADR-0031](../adr/0031-ci-trust-boundary.md); operational detail [`ci-trust-boundary.md`](ci-trust-boundary.md) |
+| **Detected** | 2026-11-12, by the CI/CD supply-chain review and its adversarial verifier |
+| **Severity** | Critical. `JWT_SECRET` alone lets anyone mint an access token for any user of the production API. |
+| **Owner** | Repository owner (sole operator of the production host) |
+| **Handling rule** | **No secret value appears in this file, in an issue, a PR, a commit message, a log or a chat.** Names only. |
+
+## 1. Summary
+
+The production environment file `.env.prod` was committed to the repository and later removed from
+tracking in commit `3925f708` (2026-03-28). Removal does not remove it from history. The commit's
+diff shows four **non-empty** production values; every other line was an empty placeholder. The
+repository is public (GitHub search API: `"visibility": "public"`), so those values are readable by
+anyone from the public commit page. `.gitleaks.toml` allowlists the **path** `.env.prod`, which keeps
+the secret scanner permanently silent about it. No issue, commit or document records a rotation.
+
+Separately, every CI job — including `pull_request` jobs whose workflow definition comes from the PR
+itself — runs on self-hosted runners. One of them is the production host `muhabbet-cx43` (runner user
+`deploy`, member of the `docker` group, which is root-equivalent there). The live `.env.prod`, the
+shared Postgres/Redis/MinIO containers of five projects and the running backend are on that host.
+A second, undocumented runner `muhabbet-mordecai` takes the same jobs.
+
+## 2. Affected secrets (names only)
+
+| Name | Where it was exposed | What it grants if still valid | Reachability for an outsider |
+|---|---|---|---|
+| `JWT_SECRET` | Public history (commit diff of `3925f708`) | Mint a valid HS256 access token (`iss: muhabbet`) for any user id → read/send messages, profile, contacts as that user | Directly, over the public API `muhabbet-api.rollingcatsoftware.com` |
+| `POSTGRES_PASSWORD` | Public history | Database access as that role on `shared-postgres` | Only if the database port is reachable from outside the Docker network, or from code running on the host (CICD-01) |
+| `REDIS_PASSWORD` | Public history | Read/write of `shared-redis` (WS fan-out channels, presence, rate-limit state) | As above |
+| `MINIO_ROOT_PASSWORD` | Public history | Root of `shared-minio`: every media object, all buckets | Through the public media host route to `shared-minio:9000` (S3 API) if root credentials authenticate there; otherwise as above |
+| Every other value in the **current** `/opt/projects/Muhabbet/.env.prod`, and `infra/firebase-adminsdk.json` | Not in history; but readable by any job that ran on `cx43` (CICD-01) | Depends on the value | Only through a PR job or a compromised action on the runner |
+
+The three infrastructure services are **shared** with other projects on the host (CLAUDE.md
+"Containers"); if the leaked passwords are instance-wide credentials rather than Muhabbet-scoped
+roles, the exposure extends to those projects' data.
+
+## 3. Timeline
+
+| Date (UTC) | Event | Source |
+|---|---|---|
+| Before 2026-03-28 (not established) | `.env.prod` with four non-empty production values committed. The adding commit is not in this session's shallow clone. | CICD-06 verifier (commit `3925f708` diff) |
+| 2026-03-19/20 | Trivy supply-chain compromise window; 12 Security runs fell inside it (GitHub-hosted, `contents: read` + `security-events: write`); logs now 410 Gone, so whether compromised code ran cannot be checked. Not known to involve `.env.prod`. | CICD-05 |
+| 2026-03-28 | Commit `3925f708` removes `.env.prod` from tracking. Values remain in history. The `.gitleaks.toml` path allowlist cites this commit ("Historical .env.prod — removed from tracking in commit 3925f70"); the date the allowlist was added is not established. | `.gitleaks.toml`; CICD-06 |
+| Not established | Repository made public (or already public at `3925f708`). | Open question |
+| Not established → 2026-11-12 | `pull_request` jobs execute on `muhabbet-cx43`. At the latest since PR CI on `dev` was enabled (#487). | CICD-01; workflow comments |
+| 2026-09-02 → 2026-10-26 | `muhabbet-mordecai` registered (PR #730 ran on cx43 on 2026-09-02; a job ran on mordecai on 2026-10-26). | CICD-03 |
+| 2026-11-12 | Review confirms: repository public, `forks_count: 0`; the diff of `3925f708` holds four non-empty values; no rotation tracked; PR workflows run on self-hosted runners with no fork guard. | CICD-01, CICD-06 verifiers |
+| 2026-11-12 | This record opened. | — |
+
+`forks_count: 0` does not bound exposure: clones, caches and scrapers of public repositories are not
+counted.
+
+## 4. Impact assessment (to complete)
+
+| Question | How to answer | Answer |
+|---|---|---|
+| Are any of the four leaked values still in use? | Compare **hashes** (never values) of the leaked and live values on the host: `sha256sum` of each, compared by eye in a private terminal | |
+| Were the infrastructure ports ever reachable from the internet? | `docker ps --format '{{.Names}} {{.Ports}}'`, `ss -ltnp`, Hetzner firewall rules | |
+| Is `MINIO_ROOT_PASSWORD` accepted through the public media route? | Owner checks MinIO's admin/auth config; do not test with the leaked value against production from any shared machine | |
+| Any sign of forged tokens? | Backend logs for requests authenticated for users who were not active at that time, unusual `deviceId`s, or bursts from unfamiliar IPs; HS256 tokens are stateless, so absence of evidence is weak | |
+| Any sign of database or object-store misuse? | Postgres connection logs from unexpected addresses; MinIO audit/trace if enabled | |
+| Did any PR job on `cx43`/`mordecai` come from a non-owner? | Actions run history filtered by `pull_request` and actor; fork PRs (`forks_count: 0` suggests none) | |
+| Personal data breach notification duty (KVKK) | Counsel, if impact evidence is found | |
+
+## 5. Required actions
+
+Order matters: rotated values written to `.env.prod` while PR jobs still run on `cx43` are
+immediately re-exposed (ADR-0031 reviewer note). Do A1–A3 first.
+
+| # | Action | Steps | Verification | Status |
+|---|---|---|---|---|
+| A1 | Stop PR code on the production host (CICD-01) | `ci-trust-boundary.md` §6 I1–I4: fork approval for all external contributors; `if: github.event_name != 'pull_request'` on every self-hosted job (or remove PR triggers); disable `Dependabot auto-merge` | Open a test PR from a branch: no job is scheduled on `muhabbet-cx43` or `muhabbet-mordecai` (job → "Runner name") | Open |
+| A2 | Resolve `muhabbet-mordecai` (CICD-03) | Identify owner and machine; otherwise remove it or relabel so nothing targets it | Runners page lists only documented runners | Open |
+| A3 | Protect release and deploy secrets (CICD-02, CICD MISS-02) | Create `release` (tags `v*`, reviewer) and verify `production` (branch `main`, reviewer); move the 5 + 3 secrets; delete repository-level copies | `gh secret list` (repo level) no longer lists them; environment API shows policies | Open |
+| A4 | Rotate `JWT_SECRET` | Generate a new random value of at least the length the backend boot guard requires, on the host; write it to `.env.prod`; redeploy with `--env-file .env.prod` | (a) a token issued before the rotation (e.g. an existing emulator session) gets 401 and the app returns to login; (b) a fresh login works; (c) if refresh tokens are server-stored and not derived from `JWT_SECRET`, a pre-rotation refresh token must also fail — if it succeeds, revoke all refresh tokens server-side and repeat (a). Any test token minted with the **old** value is minted by the owner only, locally, never in CI or by an agent. | Open |
+| A5 | Rotate `POSTGRES_PASSWORD` | Coordinate with the other projects on `shared-postgres` if the role is shared; `ALTER ROLE … PASSWORD …` inside the container; update `.env.prod`; redeploy | `psql` with the old password fails; backend `/actuator/health` UP with the new one | Open |
+| A6 | Rotate `REDIS_PASSWORD` | Same coordination for `shared-redis`; change `requirepass`/ACL user; update `.env.prod`; redeploy | `redis-cli -a <old>` → `WRONGPASS`/`NOAUTH`; WS fan-out works (send a message between the two test numbers) | Open |
+| A7 | Rotate `MINIO_ROOT_PASSWORD` | Same coordination for `shared-minio`; change root credentials; if the backend uses root credentials for the bucket, move it to a scoped access key in the same step; update `.env.prod`; redeploy | Old credentials rejected (`mc alias set` fails); media upload and download through the public media host work | Open |
+| A8 | Review values never committed but on the host (owner decision) | Decide whether values reachable only via CICD-01 (Twilio, FCM/Firebase admin, any API keys) are rotated; record the decision | Decision recorded in §6 | Open |
+| A9 | Replace the gitleaks path allowlist (CICD-06) | Determine the commit(s) that contained `.env.prod` in a full clone: `git log --all --full-history --format=%H -- .env.prod`; replace `paths = ['''\.env\.prod''']` with `commits = [<those SHAs>]` and a comment "rotated <date>, see docs/process/security-incident-2026-11-env-prod.md" | `gitleaks detect` over full history reports nothing for those commits and **does** report a test `.env.prod` added on a scratch branch | Open |
+| A10 | Enable GitHub secret scanning and push protection | Repository → Settings → Code security | A test push of a fake credential pattern on a throwaway branch is blocked | Open |
+| A11 | Run Gitleaks on every PR without a paths filter (GOV MISS-01) | `security.yml` change (ADR-0031 §8) | A PR touching only `mobile/` runs Secret Detection | Open |
+| A12 | SHA-pin actions; remove `trivy-action@master` (CICD-05) | `ci-trust-boundary.md` §4 | 44/44 refs pinned | Open |
+| A13 | Do not rewrite history | Recorded decision: rotation is the remedy; rewriting the public default branch does not un-publish values (ADR-0031) | — | Proposed |
+
+Phase-0 exit (brief §13): every `.env.prod` value rotated, verified by the old JWT failing; no PR job on
+`cx43` (workflow inspection plus a test PR).
+
+User impact of A4: every user is logged out and must sign in again with an OTP. The test numbers
+`+905000000001..5` keep working (their OTP is in the backend log, CLAUDE.md).
+
+## 6. Rotation log (names, dates and evidence only)
+
+| Secret name | Rotated on | By | Verification performed | Evidence location |
+|---|---|---|---|---|
+| `JWT_SECRET` | | | | |
+| `POSTGRES_PASSWORD` | | | | |
+| `REDIS_PASSWORD` | | | | |
+| `MINIO_ROOT_PASSWORD` | | | | |
+| A8 decision | | | | |
+
+## 7. Closure criteria
+
+The incident is closed when: A1–A7 and A9–A11 are done with evidence in §6 or linked; §4 is answered;
+ADR-0031 F1, F2, F3, F6, F7 are recorded as passed; and the owner signs below.
+
+Closed by: · Date:
+
+## 8. Lessons recorded
+
+1. Removing a file from tracking is not remediation; the remedy for a leaked secret is rotation, and
+   the record of rotation belongs next to the allowlist that silences the scanner.
+2. A CI runner on the production host makes every PR author — human, agent or Dependabot-bumped
+   plugin — an operator of production.
+3. A billing problem in one place (CICD-04) silently moved all CI onto production; such trades must
+   be recorded as decisions with an owner and an expiry.

@@ -1,3 +1,5 @@
+> **Proposed supersession (pending owner approval):** ADR 0016 / 0017.
+
 # ADR-003: Defer E2E Encryption to Phase 2
 
 **Date:** 2026-02-11
