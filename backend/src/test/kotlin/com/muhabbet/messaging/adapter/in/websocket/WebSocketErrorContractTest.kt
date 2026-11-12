@@ -63,7 +63,7 @@ class WebSocketErrorContractTest {
             mockk<ConversationRepository>(relaxed = true)
         ),
         checkSessionValidityUseCase = mockk<CheckSessionValidityUseCase>().also {
-            every { it.isSessionValid(any(), any()) } returns true
+            every { it.isSessionValid(any(), any(), any()) } returns true
         }
     )
 

@@ -45,7 +45,7 @@ class JwtAdminClaimTest {
     private val deviceId: UUID = UUID.randomUUID()
 
     /** Every session is still valid here; revocation is JwtAuthFilterSessionValidityTest's subject. */
-    private val allowAll = CheckSessionValidityUseCase { _, _ -> true }
+    private val allowAll = CheckSessionValidityUseCase { _, _, _ -> true }
 
     @AfterEach
     fun clearContext() {

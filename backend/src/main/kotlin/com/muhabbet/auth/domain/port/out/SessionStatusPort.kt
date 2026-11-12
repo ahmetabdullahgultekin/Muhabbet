@@ -1,5 +1,6 @@
 package com.muhabbet.auth.domain.port.out
 
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -12,9 +13,9 @@ fun interface SessionStatusPort {
 
     /**
      * True when there is positive evidence the credential must not be honoured: [userId] is
-     * erased, or [deviceId] has been revoked. A row that is simply absent is **not** evidence —
-     * the signature is still the proof of identity, as it always was; this adds refusals, it does
-     * not add a requirement that every token map to a row.
+     * erased, [deviceId] has been revoked, or [deviceId] logged out at or after [issuedAt]. A row
+     * that is simply absent is **not** evidence — the signature is still the proof of identity, as
+     * it always was; this adds refusals, it does not add a requirement that every token map to a row.
      */
-    fun isRevoked(userId: UUID, deviceId: UUID): Boolean
+    fun isRevoked(userId: UUID, deviceId: UUID, issuedAt: Instant): Boolean
 }

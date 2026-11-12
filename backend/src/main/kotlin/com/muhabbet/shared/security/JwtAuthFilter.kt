@@ -29,7 +29,7 @@ class JwtAuthFilter(
             // unauthenticated, the request falls to the entry point and is answered 401, which is
             // what makes the client refresh — and the refresh is refused too, which is the point.
             val claims = jwtProvider.validateToken(token)
-                ?.takeIf { checkSessionValidityUseCase.isSessionValid(it.userId, it.deviceId) }
+                ?.takeIf { checkSessionValidityUseCase.isSessionValid(it.userId, it.deviceId, it.issuedAt) }
             if (claims != null) {
                 // Grant ROLE_ADMIN to admin tokens so SecurityConfig can gate admin-only endpoints
                 // (e.g. /actuator/metrics, /actuator/prometheus) with hasRole("ADMIN").

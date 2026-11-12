@@ -1,6 +1,7 @@
 package com.muhabbet.shared.config
 
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
+import com.muhabbet.auth.domain.port.out.DeviceLogoutPort
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
@@ -146,9 +147,11 @@ class AppConfig {
     @Bean
     fun logoutService(
         refreshTokenRepository: RefreshTokenRepository,
+        deviceLogoutPort: DeviceLogoutPort,
         sessionRevocationPort: SessionRevocationPort
     ): LogoutService = LogoutService(
         refreshTokenRepository = refreshTokenRepository,
+        deviceLogoutPort = deviceLogoutPort,
         sessionRevocationPort = sessionRevocationPort
     )
 

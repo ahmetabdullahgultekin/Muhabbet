@@ -67,9 +67,9 @@ class ChatWebSocketHandler(
         // The signature says who the token was issued to; it cannot say the device was not revoked
         // or the account erased since. Without this a revoked companion would be closed by
         // SessionRevocationPort and then reconnect with the same token a second later (#747).
-        if (!checkSessionValidityUseCase.isSessionValid(claims.userId, claims.deviceId)) {
+        if (!checkSessionValidityUseCase.isSessionValid(claims.userId, claims.deviceId, claims.issuedAt)) {
             sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Session revoked")
-            session.close(CloseStatus(WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED, "SESSION_REVOKED"))
+            session.close(SESSION_REVOKED)
             return
         }
 
@@ -86,6 +86,17 @@ class ChatWebSocketHandler(
         session.attributes["userId"] = claims.userId
         session.attributes["deviceId"] = claims.deviceId
         sessionManager.register(claims.userId, session, claims.deviceId, claims.expiresAt)
+
+        // Asked again now that the session is findable. The first check can pass while a revoking
+        // transaction is still uncommitted; if that transaction's after-commit close then runs
+        // before register() above, it finds nothing to close and this socket would live until its
+        // token expires. Any commit that the first check missed is visible here, and any commit
+        // after this point finds the session registered — so one of the two always closes it.
+        if (!checkSessionValidityUseCase.isSessionValid(claims.userId, claims.deviceId, claims.issuedAt)) {
+            log.info("Session revoked during handshake: userId={}, deviceId={}", claims.userId, claims.deviceId)
+            sessionManager.closeForDevice(claims.deviceId, SESSION_REVOKED)
+            return
+        }
 
         // Set online in Redis and broadcast presence
         presencePort.setOnline(claims.userId)
@@ -399,5 +410,6 @@ class ChatWebSocketHandler(
 
     private companion object {
         const val BEARER_PREFIX = "Bearer "
+        val SESSION_REVOKED = CloseStatus(WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED, "SESSION_REVOKED")
     }
 }

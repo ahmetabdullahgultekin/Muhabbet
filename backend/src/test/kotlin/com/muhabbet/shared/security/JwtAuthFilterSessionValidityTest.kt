@@ -49,7 +49,7 @@ class JwtAuthFilterSessionValidityTest {
 
     @Test
     fun `should authenticate the request when the session is still valid`() {
-        filterWith { _, _ -> true }
+        filterWith { _, _, _ -> true }
 
         val principal = SecurityContextHolder.getContext().authentication?.principal as? JwtClaims
         assertNotNull(principal)
@@ -58,7 +58,7 @@ class JwtAuthFilterSessionValidityTest {
 
     @Test
     fun `should leave the request unauthenticated when the device was revoked or the user deleted`() {
-        val revokedStatus = SessionStatusPort { _, _ -> true }
+        val revokedStatus = SessionStatusPort { _, _, _ -> true }
 
         filterWith(SessionValidityService(revokedStatus))
 
@@ -69,9 +69,31 @@ class JwtAuthFilterSessionValidityTest {
     fun `should ask about exactly the token's user and device`() {
         var asked: Pair<UUID, UUID>? = null
 
-        filterWith { u, d -> asked = u to d; true }
+        filterWith { u, d, _ -> asked = u to d; true }
 
         assertEquals(userId to deviceId, asked)
+    }
+
+    @Test
+    fun `should pass the token's issue time to the validity check when filtering`() {
+        val before = Instant.now().epochSecond
+        var askedIssuedAt: Instant? = null
+
+        filterWith { _, _, iat -> askedIssuedAt = iat; true }
+
+        val seconds = askedIssuedAt?.epochSecond
+        assertNotNull(seconds)
+        assertTrue((seconds ?: 0) in before..before + 1, "iat should be the issue second, was $seconds")
+    }
+
+    @Test
+    fun `should treat a missing issue time as older than any logout when checking validity`() {
+        var askedIssuedAt: Instant? = null
+        val service = SessionValidityService { _, _, iat -> askedIssuedAt = iat; false }
+
+        service.isSessionValid(userId, deviceId, null)
+
+        assertEquals(Instant.EPOCH, askedIssuedAt)
     }
 
     @Test

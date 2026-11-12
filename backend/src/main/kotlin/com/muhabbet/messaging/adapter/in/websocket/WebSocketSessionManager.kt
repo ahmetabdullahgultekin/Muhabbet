@@ -12,8 +12,8 @@ import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorato
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -120,9 +120,21 @@ class WebSocketSessionManager {
     private val expiryTasks = ConcurrentHashMap<String, ScheduledFuture<*>>()
 
     // Periodic reaping of sessions that are closed, silent, or unwritable
-    private val cleanupExecutor = Executors.newSingleThreadScheduledExecutor { r ->
-        Thread(r, "ws-session-cleanup").apply { isDaemon = true }
-    }
+    private val cleanupExecutor = daemonScheduler("ws-session-cleanup")
+
+    // The one-shot token-expiry closes, on a thread of their own so that a close blocked on a slow
+    // peer's send limit delays neither the reaper nor — beyond that one close — the other expiries.
+    // removeOnCancelPolicy matters here, not in the reaper: every session that disconnects before its
+    // token expires cancels its task, and without the policy a cancelled task sits in the queue until
+    // its original delay (up to the token lifetime) elapses, so the queue grew with connection churn.
+    private val expiryExecutor = daemonScheduler("ws-token-expiry")
+
+    private fun daemonScheduler(name: String): ScheduledThreadPoolExecutor =
+        ScheduledThreadPoolExecutor(1) { r -> Thread(r, name).apply { isDaemon = true } }
+            .apply { removeOnCancelPolicy = true }
+
+    /** Tasks waiting on the token-expiry scheduler; exposed so a test can show cancellation frees them. */
+    internal fun pendingExpiryTaskCount(): Int = expiryExecutor.queue.size
 
     @PostConstruct
     fun startCleanup() {
@@ -138,6 +150,7 @@ class WebSocketSessionManager {
     @PreDestroy
     fun stopCleanup() {
         cleanupExecutor.shutdownNow()
+        expiryExecutor.shutdownNow()
     }
 
     /**
@@ -360,7 +373,7 @@ class WebSocketSessionManager {
     private fun scheduleExpiry(sessionId: String, expiresAtMs: Long) {
         sessionExpiresAt[sessionId] = expiresAtMs
         val delayMs = (expiresAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
-        expiryTasks[sessionId] = cleanupExecutor.schedule({
+        expiryTasks[sessionId] = expiryExecutor.schedule({
             try {
                 expire(sessionId)
             } catch (e: Exception) {

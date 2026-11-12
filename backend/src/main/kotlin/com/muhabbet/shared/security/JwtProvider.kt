@@ -24,7 +24,14 @@ data class JwtClaims(
      * by hand for a controller test need not invent one, and a null is read as "no scheduled close",
      * never as "valid forever" anywhere a real token is involved.
      */
-    val expiresAt: Instant? = null
+    val expiresAt: Instant? = null,
+    /**
+     * The token's `iat` (whole seconds, as JWT carries it). A logout refuses every token for that
+     * device issued at or before the logout, which is the only way to make an access token that is
+     * still inside its lifetime unusable without a deny-list of token ids. Nullable for the same
+     * reason as [expiresAt]; a null is treated as older than any logout, never as newer.
+     */
+    val issuedAt: Instant? = null
 )
 
 @Component
@@ -124,7 +131,8 @@ class JwtProvider(
                 userId = UUID.fromString(claims.subject),
                 deviceId = UUID.fromString(claims["deviceId"] as String),
                 isAdmin = claims["admin"] as? Boolean ?: false,
-                expiresAt = claims.expiration?.toInstant()
+                expiresAt = claims.expiration?.toInstant(),
+                issuedAt = claims.issuedAt?.toInstant()
             )
         } catch (ex: Exception) {
             log.debug("JWT validation failed: {}", ex.message)

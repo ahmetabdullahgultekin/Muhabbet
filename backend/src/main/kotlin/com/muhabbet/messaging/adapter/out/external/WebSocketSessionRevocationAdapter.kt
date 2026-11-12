@@ -21,6 +21,13 @@ import java.util.UUID
  *
  * Closing is in-memory and quick, which is why it is acceptable on the committing thread: no I/O
  * beyond a close frame, bounded by the decorator's send limit.
+ *
+ * **Per-instance.** This closes the sockets held by the instance that ran the transaction and no
+ * other. Prod runs one instance, so that is every socket; with two, a session on the other instance
+ * stays open until its token expires (it cannot reconnect — the handshake check is database-backed
+ * and so is cluster-wide). Same class of latent gap as `activeConversation` and
+ * `WebSocketRateLimiter`, and it moves at the same time they do: publish the revocation on the
+ * existing `ws:broadcast` Redis channel when scale-out is real, not before (YAGNI).
  */
 @Component
 class WebSocketSessionRevocationAdapter(

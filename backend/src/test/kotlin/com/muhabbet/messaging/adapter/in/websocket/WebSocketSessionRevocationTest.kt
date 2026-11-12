@@ -156,6 +156,19 @@ class WebSocketSessionRevocationTest {
         }
 
         @Test
+        fun `should drop the cancelled expiry task from the scheduler queue when the session disconnects first`() {
+            // Without removeOnCancelPolicy a cancelled task stays queued until its original delay —
+            // up to the token lifetime — so the queue grew by one entry per reconnect.
+            val sessions = List(20) { openSession() }
+            sessions.forEach { manager.register(userId, it, phone, farFuture) }
+            assertEquals(20, manager.pendingExpiryTaskCount())
+
+            sessions.forEach { manager.unregister(it) }
+
+            assertEquals(0, manager.pendingExpiryTaskCount())
+        }
+
+        @Test
         fun `should close expired sessions during the periodic sweep as a backstop`() {
             val session = openSession()
             val expiresAt = Instant.now().plusSeconds(600)

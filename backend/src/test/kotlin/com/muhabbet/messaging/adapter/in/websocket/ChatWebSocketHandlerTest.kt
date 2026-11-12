@@ -83,7 +83,7 @@ class ChatWebSocketHandlerTest {
         webSocketRateLimiter = mockk(relaxed = true)
         blockPolicy = mockk(relaxed = true)
         sessionValidity = mockk()
-        every { sessionValidity.isSessionValid(any(), any()) } returns true
+        every { sessionValidity.isSessionValid(any(), any(), any()) } returns true
 
         // Rate limiter always allows in tests
         every { webSocketRateLimiter.allowMessage(any()) } returns true
@@ -286,7 +286,7 @@ class ChatWebSocketHandlerTest {
 
         @Test
         fun `should refuse the connection with 4403 when the token's device is revoked`() {
-            every { sessionValidity.isSessionValid(userId, deviceId) } returns false
+            every { sessionValidity.isSessionValid(userId, deviceId, any()) } returns false
             val session = createSession(bearer = generateValidToken())
 
             handler.afterConnectionEstablished(session)
@@ -294,6 +294,34 @@ class ChatWebSocketHandlerTest {
             verify { session.close(match { it.code == WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED }) }
             verify(exactly = 0) { sessionManager.register(any(), any(), any(), any()) }
             verify(exactly = 0) { presencePort.setOnline(any()) }
+        }
+
+        @Test
+        fun `should close the just-registered session with 4403 when revocation commits during the handshake`() {
+            // First check passes (the revoking transaction has not committed yet); by the time the
+            // session is registered it has, and its after-commit close found nothing to close.
+            every { sessionValidity.isSessionValid(userId, deviceId, any()) } returnsMany listOf(true, false)
+            val session = createSession(bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify(ordering = io.mockk.Ordering.ORDERED) {
+                sessionManager.register(userId, session, deviceId, any())
+                sessionManager.closeForDevice(
+                    deviceId,
+                    match { it.code == WebSocketSessionManager.CLOSE_CODE_SESSION_REVOKED }
+                )
+            }
+            verify(exactly = 0) { presencePort.setOnline(any()) }
+        }
+
+        @Test
+        fun `should pass the token's issue time to the validity check when connecting`() {
+            val session = createSession(bearer = generateValidToken())
+
+            handler.afterConnectionEstablished(session)
+
+            verify(atLeast = 1) { sessionValidity.isSessionValid(userId, deviceId, match { it != null }) }
         }
 
         @Test
