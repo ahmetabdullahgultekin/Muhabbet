@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.session.SessionLogout
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.birth_date_error_below_minimum
@@ -30,7 +31,8 @@ import org.koin.compose.koinInject
 fun DeclareBirthDateScreen(
     onDeclared: () -> Unit,
     onSignedOut: () -> Unit,
-    authRepository: AuthRepository = koinInject()
+    authRepository: AuthRepository = koinInject(),
+    sessionLogout: SessionLogout = koinInject()
 ) {
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -66,10 +68,9 @@ fun DeclareBirthDateScreen(
             }
         },
         secondaryActionLabel = stringResource(Res.string.settings_logout),
-        onSecondaryAction = {
-            authRepository.logout()
-            onSignedOut()
-        }
+        // The same app-scoped path Settings uses (#752): revokes on the server, then clears the
+        // local session, even if this screen is torn down while the request is in flight.
+        onSecondaryAction = { sessionLogout.logout(onLoggedOut = onSignedOut) }
     )
 }
 
