@@ -209,7 +209,13 @@ fun SettingsScreen(
             confirmLabel = stringResource(Res.string.logout_confirm_yes),
             onConfirm = {
                 showLogoutDialog = false
-                onLogout()
+                // Revoke the session on the server first (#752) — it needs the tokens that
+                // onLogout() clears. Best-effort and time-bounded inside logout(), so the user is
+                // never kept signed in by a bad network.
+                scope.launch {
+                    authRepository.logout()
+                    onLogout()
+                }
             },
             onDismiss = { showLogoutDialog = false },
             isDestructive = true,

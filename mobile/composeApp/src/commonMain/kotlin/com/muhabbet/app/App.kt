@@ -11,6 +11,7 @@ import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.Lifecycle
 import com.muhabbet.app.data.local.ThemeController
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.remote.DeliveryReceiptPump
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.crypto.E2EConfig
@@ -21,12 +22,11 @@ import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.navigation.isSessionActive
 import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.CrashReporter
+import com.muhabbet.app.session.SessionRevocation
 import com.muhabbet.app.session.SessionWiring
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.app_language_code
-import com.muhabbet.shared.model.MessageStatus
-import com.muhabbet.shared.protocol.WsMessage
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
@@ -132,31 +132,29 @@ private fun SessionLifecycle(root: RootComponent) {
         onDispose { lifecycle.unsubscribe(callbacks) }
     }
 
-    // Global DELIVERED ack: send DELIVERED for every incoming message regardless of active screen.
-    // Keyed on `loggedIn` for the same reason as the socket above (#349) — on a Unit key this pump
-    // never started for a user who signed in during the session, so their first session delivered
-    // no receipts at all and the sender's ticks never moved.
+    // Global DELIVERED ack, for every incoming message regardless of the active screen — and only
+    // once the message is stored on the device (#753). Keyed on `loggedIn` for the same reason as
+    // the socket above (#349): on a Unit key this pump never started for a user who signed in
+    // during the session, so their first session delivered no receipts at all. The pump is the
+    // ONLY sender of DELIVERED over the socket; see DeliveryReceiptPump.
+    val deliveryReceiptPump: DeliveryReceiptPump = koinInject()
     LaunchedEffect(loggedIn) {
         if (loggedIn) {
             val currentUserId = tokenStorage.getUserId() ?: return@LaunchedEffect
-            wsClient.incoming.collect { message ->
-                if (message is WsMessage.NewMessage && message.senderId != currentUserId) {
-                    // sendAck() never throws for a send failure — it queues the receipt and replays
-                    // it on the next connect — so this collector, the app-wide delivery-ack pump,
-                    // cannot be killed by a dropped socket. Cancellation still propagates, which is
-                    // correct: it means the pump itself is being torn down.
-                    val sentNow = wsClient.sendAck(
-                        WsMessage.AckMessage(
-                            messageId = message.messageId,
-                            conversationId = message.conversationId,
-                            status = MessageStatus.DELIVERED
-                        )
-                    )
-                    if (!sentNow) {
-                        Log.d("App", "DELIVERED receipt for ${message.messageId} queued for the next reconnect")
-                    }
-                }
-            }
+            deliveryReceiptPump.run(currentUserId)
+        }
+    }
+
+    // The server ending the session — a refused refresh token — goes back to the login screen the
+    // way a logout does, which is what flips `loggedIn` and runs the teardown below (#752). The
+    // client used to clear the tokens and stop, leaving the app on signed-in screens with no
+    // session behind them and the previous account's messages on disk.
+    val sessionRevocation: SessionRevocation = koinInject()
+    val revoked by sessionRevocation.revoked.collectAsState()
+    LaunchedEffect(revoked) {
+        if (revoked) {
+            root.onSessionRevoked()
+            sessionRevocation.acknowledge()
         }
     }
 
@@ -208,7 +206,8 @@ private fun SessionLifecycle(root: RootComponent) {
     }
 
     // Everything a session leaves OUTSIDE the composition: the WorkManager sync job, which survives
-    // process death and a reboot, and the crash reporter's user, which is global state in the SDK.
+    // process death and a reboot, the crash reporter's user, which is global state in the SDK, and
+    // the message database and outbox, which are on disk (#752).
     //
     // The only effect here with an `else`, and it needs one. The four above are all switched off by
     // the composition going away — the socket by its own onDispose, the ack pump and the two

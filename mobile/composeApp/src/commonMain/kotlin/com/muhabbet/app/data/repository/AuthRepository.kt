@@ -12,6 +12,9 @@ import com.muhabbet.shared.dto.UpdatePrivacyRequest
 import com.muhabbet.shared.dto.UpdateProfileRequest
 import com.muhabbet.shared.dto.VerifyOtpRequest
 import com.muhabbet.shared.model.UserProfile
+import com.muhabbet.app.util.Log
+import com.muhabbet.app.util.runCatchingCancellable
+import kotlinx.coroutines.withTimeoutOrNull
 
 class AuthRepository(
     private val apiClient: ApiClient,
@@ -128,14 +131,41 @@ class AuthRepository(
         apiClient.get<Unit>("/api/v1/users/data/export")
     }
 
+    /**
+     * No `/auth/logout` here, unlike [logout], on purpose: the server's account deletion already
+     * revokes every refresh token the account holds (`UserDataService.requestAccountDeletion`), and a
+     * logout sent afterwards would only come back 401, ask for a refresh, and be refused. The local
+     * erase happens when the session ends — see `SessionWiring.onSessionEnded`.
+     */
     suspend fun deleteAccount() {
         apiClient.delete<Unit>("/api/v1/users/data/account")
         tokenStorage.clear()
     }
 
-    fun logout() {
+    /**
+     * Ends this device's session on the server, then forgets the tokens here (#752).
+     *
+     * The server call used to be missing entirely, so a logged-out phone left a refresh token that
+     * stayed valid for its whole lifetime — anyone who copied it off the device could go on minting
+     * access tokens. Best-effort and bounded: a user who taps "log out" on a train is logged out
+     * locally whatever the network says, and never waits longer than [LOGOUT_TIMEOUT_MS] for it.
+     * The tokens are cleared after the call, because the call needs them.
+     */
+    suspend fun logout() {
+        val revoked = withTimeoutOrNull(LOGOUT_TIMEOUT_MS) {
+            runCatchingCancellable { apiClient.post<Unit>("/api/v1/auth/logout", Unit) }
+                .onFailure { e -> Log.w(TAG, "Server logout failed; clearing local session anyway: $e") }
+        }
+        if (revoked == null) Log.w(TAG, "Server logout timed out; clearing local session anyway")
         tokenStorage.clear()
     }
 
     fun isLoggedIn(): Boolean = tokenStorage.isLoggedIn()
+
+    private companion object {
+        const val TAG = "AuthRepository"
+
+        /** How long a logout waits for the server before ending the local session regardless. */
+        const val LOGOUT_TIMEOUT_MS = 5_000L
+    }
 }

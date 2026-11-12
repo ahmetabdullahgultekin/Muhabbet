@@ -4,10 +4,11 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.platform.BackgroundSyncManager
 import com.muhabbet.app.platform.CrashReporter
 import com.muhabbet.app.util.Log
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * The two things a signed-in session leaves **outside** the composition, and therefore the two that
- * have to be switched off by hand when it ends.
+ * The things a signed-in session leaves **outside** the composition, and therefore the things that
+ * have to be switched off — or erased — by hand when it ends.
  *
  * `App.kt` wires four other session concerns — the WebSocket, the global DELIVERED ack pump, push
  * token registration and E2E key registration — directly in effects keyed on `loggedIn` (#349,
@@ -37,7 +38,11 @@ import com.muhabbet.app.util.Log
 class SessionWiring(
     private val tokenStorage: TokenStorage,
     private val backgroundSync: BackgroundSync,
-    private val crashIdentity: CrashIdentity
+    private val crashIdentity: CrashIdentity,
+    // The third thing a session leaves outside the composition, and the one that matters most: the
+    // conversations, messages and unsent outbox in SQLite, and the receipts queued in memory. All
+    // of it outlived logout until #752, readable by the next account to sign in on the phone.
+    private val localDataWipe: LocalDataWipe
 ) {
 
     /**
@@ -57,12 +62,17 @@ class SessionWiring(
      * No session — the user logged out, or the app started on the login screen.
      *
      * Also runs on a logged-out cold start, on purpose: that is what finally clears the orphaned
-     * WorkManager job and the stale crash identity left behind by every build before this one, on
-     * devices that logged out while nothing cancelled either.
+     * WorkManager job, the stale crash identity and the message database left behind by every build
+     * before this one, on devices that logged out while nothing cancelled or erased any of them.
      */
-    fun onSessionEnded() {
+    suspend fun onSessionEnded() {
         runGuarded("detach the crash identity") { crashIdentity.detach() }
+        // Before the wipe, so a sync that wakes in between has no schedule to wake on.
         runGuarded("cancel background sync") { backgroundSync.cancel() }
+        // Every way a session ends arrives here — logout, account deletion, and the server
+        // rejecting the refresh token — because each of them swaps the navigation stack to the
+        // login screen, which is what flips `loggedIn`. One teardown, not one per caller (#752).
+        runGuarded("wipe the local message data") { localDataWipe.wipe() }
     }
 
     /**
@@ -74,6 +84,8 @@ class SessionWiring(
     private inline fun runGuarded(what: String, block: () -> Unit) {
         try {
             block()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Session wiring failed to $what: ${e.message}")
         }

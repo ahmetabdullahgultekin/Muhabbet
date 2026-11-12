@@ -5,6 +5,7 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.generateMessageId
+import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.dto.MessageInfoResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.PollResultResponse
@@ -24,6 +25,13 @@ class MessageRepository(
 
     private companion object {
         const val TAG = "MessageRepository"
+
+        /**
+         * How much of a conversation a push fetches to find the message it announced. Small, because
+         * this runs in a push handler with seconds to live; a message that has already scrolled past
+         * this many newer ones goes un-acked rather than mis-acked.
+         */
+        const val PUSH_FETCH_LIMIT = 20
     }
 
     suspend fun getMessages(
@@ -92,6 +100,35 @@ class MessageRepository(
     }
 
     /**
+     * Stores a message announced by a push, then acks it DELIVERED — in that order (#753, ADR 0013
+     * P4).
+     *
+     * The push carries a preview, not the message, so the ack used to be a claim about something
+     * the phone did not hold: the notification could be swiped away and the process killed, and the
+     * sender would still see two ticks. The latest page of the conversation is fetched and written
+     * to the cache first, and the ack goes out only if that page contained the message and the
+     * write landed. Otherwise nothing is acked, which is the honest answer — the message is still
+     * owed to this device, and the next history fetch or socket delivery will bring it.
+     *
+     * @return whether the message was stored and the ack attempted.
+     */
+    suspend fun storeThenMarkDelivered(messageId: String, conversationId: String): Boolean {
+        val stored = runCatchingCancellable {
+            val page = apiClient.get<PaginatedResponse<Message>>(
+                "/api/v1/conversations/$conversationId/messages?limit=$PUSH_FETCH_LIMIT"
+            ).data?.items.orEmpty()
+            if (page.none { it.id == messageId }) throw IllegalStateException("MSG_PUSH_NOT_IN_LATEST_PAGE")
+            localCache.upsertMessages(page)
+        }
+        if (stored.isFailure) {
+            Log.w(TAG, "Message $messageId from push not stored; DELIVERED withheld: ${stored.exceptionOrNull()}")
+            return false
+        }
+        markDelivered(messageId)
+        return true
+    }
+
+    /**
      * Acks that this message reached the device, without a WebSocket (#596).
      *
      * `MuhabbetFirebaseMessagingService.onMessageReceived` runs in a background service with no open
@@ -100,7 +137,7 @@ class MessageRepository(
      * transport that survives that constraint. Never throws: a failed courtesy ack must not crash a
      * push handler that has already done its job by posting the notification.
      */
-    suspend fun markDelivered(messageId: String) {
+    private suspend fun markDelivered(messageId: String) {
         try {
             apiClient.post<Unit>("/api/v1/messages/$messageId/delivered", Unit)
         } catch (e: CancellationException) {

@@ -28,7 +28,12 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 fun appModule(): Module = module {
-    single { ApiClient(tokenStorage = get()) }
+    // The server refusing the refresh token reaches navigation through SessionRevocation (#752).
+    single { com.muhabbet.app.session.SessionRevocation() }
+    single {
+        val revocation = get<com.muhabbet.app.session.SessionRevocation>()
+        ApiClient(tokenStorage = get(), onRefreshRejected = revocation::signal)
+    }
     // E2E encrypt-on-send / decrypt-on-receive. Gated by E2EConfig.ENABLED (default OFF).
     // Resolves the 1:1 peer from the local conversation cache and ensures a Signal session
     // before encrypting; group / unresolved / non-text bodies fall back to plaintext.
@@ -74,6 +79,16 @@ fun appModule(): Module = module {
             tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() },
             localCache = get<com.muhabbet.app.data.local.LocalCache>(),
             messageEncryptor = get()
+        )
+    }
+    // The only sender of DELIVERED over the socket, and only once the message is stored (#753).
+    // localCache resolved as LocalCache explicitly — the parameter is the narrower MessageCache.
+    single {
+        val wsClient = get<WsClient>()
+        com.muhabbet.app.data.remote.DeliveryReceiptPump(
+            incoming = wsClient.incoming,
+            messageCache = get<com.muhabbet.app.data.local.LocalCache>(),
+            sendAck = wsClient::sendAck
         )
     }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
@@ -174,7 +189,13 @@ fun appModule(): Module = module {
         com.muhabbet.app.session.SessionWiring(
             tokenStorage = get(),
             backgroundSync = com.muhabbet.app.session.PlatformBackgroundSync(get()),
-            crashIdentity = com.muhabbet.app.session.PlatformCrashIdentity
+            crashIdentity = com.muhabbet.app.session.PlatformCrashIdentity,
+            // localCache as LocalCache explicitly, for the same Koin-by-parameter-type reason as
+            // the definitions above (#633).
+            localDataWipe = com.muhabbet.app.session.DeviceLocalDataWipe(
+                cache = get<com.muhabbet.app.data.local.LocalCache>(),
+                clearTransportState = get<WsClient>()::clearSessionState
+            )
         )
     }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.

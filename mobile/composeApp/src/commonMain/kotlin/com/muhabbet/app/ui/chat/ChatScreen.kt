@@ -40,6 +40,7 @@ import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.remote.MessageQueuedException
 import com.muhabbet.app.data.remote.ViewOnceNotQueueableException
 import com.muhabbet.app.data.remote.WsClient
+import com.muhabbet.app.data.remote.toMessage
 import com.muhabbet.app.ui.connection.ConnectionStrip
 import com.muhabbet.app.ui.conversations.ChatTarget
 import com.muhabbet.app.data.repository.ConversationRepository
@@ -535,19 +536,10 @@ fun ChatScreen(
                 is WsMessage.NewMessage -> {
                     if (ws.conversationId == conversationId) {
                         if (messages.none { it.id == ws.messageId }) {
-                            messages = messages + Message(id = ws.messageId, conversationId = ws.conversationId, senderId = ws.senderId,
-                                contentType = ws.contentType, content = ws.content, replyToId = ws.replyToId, mediaUrl = ws.mediaUrl,
-                                thumbnailUrl = ws.thumbnailUrl, serverTimestamp = Instant.fromEpochMilliseconds(ws.serverTimestamp),
-                                clientTimestamp = Clock.System.now(), forwardedFrom = ws.forwardedFrom,
-                                // Without this the live path could not seal anything: the recipient
-                                // builds their bubble from this frame, so a photo that arrives while
-                                // the chat is open rendered in full no matter what the sender chose.
-                                // The reload path was equally blind — see MessageMapper (#515).
-                                viewOnce = ws.viewOnce,
-                                // Same shape of omission one field over: without the deadline on
-                                // the frame, a disappearing message that arrives while the chat is
-                                // open could never be removed on time (#513).
-                                expiresAt = ws.expiresAt?.let { Instant.fromEpochMilliseconds(it) })
+                            // One mapper shared with the delivery pump's cache write, so the
+                            // bubble and the stored row cannot disagree about viewOnce (#515) or
+                            // expiresAt (#513) — each was once missing from exactly one copy.
+                            messages = messages + ws.toMessage(receivedAt = Clock.System.now())
                         }
                         // Deliberately OUTSIDE the "not already rendered" guard above (#478). That
                         // guard exists to stop a bubble being drawn twice — it was also deciding

@@ -11,7 +11,8 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * A socket that records what the client writes to it and never delivers anything back.
+ * A socket that records what the client writes to it, and delivers back only what a test hands it
+ * through [deliver].
  *
  * Ktor's `MockEngine` does not implement the WebSocket capability, so there has never been a way to
  * observe the frames [WsClient] puts on the wire when a session comes up — the two queue drains, and
@@ -50,6 +51,14 @@ internal class FakeWebSocketSession : WebSocketSession {
      */
     fun dropConnection() {
         received.close()
+    }
+
+    /**
+     * Hands the client a frame as if the server had sent it. The connect loop reads it on its next
+     * turn, so a test has to let the scheduler run before asserting on what came out.
+     */
+    fun deliver(text: String) {
+        received.trySend(Frame.Text(text))
     }
 
     /** Everything written so far, as text, drained from the channel. */

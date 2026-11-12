@@ -14,7 +14,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class LocalCache(driverFactory: DatabaseDriverFactory) :
-    ConversationCache, MessageCache, PendingMessageCache {
+    ConversationCache, MessageCache, PendingMessageCache, SessionDataCache {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
@@ -72,6 +72,19 @@ class LocalCache(driverFactory: DatabaseDriverFactory) :
 
     fun clearConversations() {
         queries.clearConversations()
+    }
+
+    /**
+     * One transaction, so an interrupted wipe never leaves the outbox of the account that left
+     * beside an emptied message table: all of it goes, or none of it does and the next session end
+     * tries again.
+     */
+    override fun clearSessionData() {
+        database.transaction {
+            queries.clearPendingMessages()
+            queries.clearMessages()
+            queries.clearConversations()
+        }
     }
 
     // --- Messages ---

@@ -35,7 +35,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.ConversationResponse
-import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.app.ui.contacts.rememberContactNames
@@ -181,18 +180,11 @@ fun ConversationListScreen(
     LaunchedEffect(Unit) {
         wsClient.incoming.collect { wsMessage ->
             when (wsMessage) {
-                is WsMessage.NewMessage -> {
-                    if (wsMessage.senderId != currentUserId) {
-                        // sendAck() cannot kill this collector — a dropped socket queues the receipt
-                        // for the next connect instead of throwing (#478), and this collector also
-                        // drives the list auto-refresh, so killing it would freeze the whole list.
-                        // Cancellation still propagates, so a collector being torn down does not log
-                        // a phantom failure.
-                        val sentNow = wsClient.sendAck(WsMessage.AckMessage(messageId = wsMessage.messageId, conversationId = wsMessage.conversationId, status = MessageStatus.DELIVERED))
-                        if (!sentNow) Log.d(TAG, "DELIVERED receipt for ${wsMessage.messageId} queued for the next reconnect")
-                    }
-                    loadConversations()
-                }
+                // No DELIVERED receipt here. This collector used to send one for every message,
+                // on top of the app-wide one, so each message was acked twice (#346).
+                // DeliveryReceiptPump is the only sender now, and it acks only after the message
+                // is stored (#753) — a second ack from a screen would undo that guarantee.
+                is WsMessage.NewMessage -> loadConversations()
                 is WsMessage.StatusUpdate -> {
                     loadConversations()
                 }
