@@ -1,11 +1,17 @@
 package com.muhabbet.app.util
 
+import com.muhabbet.app.BuildInfo
+
 /**
  * Simple KMP-compatible logger. Wraps println with tag prefix.
- * In release builds, R8 can strip calls via ProGuard rules if needed.
+ *
+ * Off in release builds. On Android `println` goes to logcat, which is readable over `adb` and,
+ * on older devices, by other apps, so a release build writes nothing through here. Calls that go
+ * straight to `android.util.Log` are handled separately: `proguard-rules.pro` strips their
+ * debug/verbose/info levels from minified builds.
  */
 object Log {
-    var enabled = true
+    var enabled: Boolean = BuildInfo.DEBUG
 
     fun d(tag: String, message: String) {
         if (enabled) println("$tag: $message")

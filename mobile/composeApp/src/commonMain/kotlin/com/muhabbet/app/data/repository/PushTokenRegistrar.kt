@@ -47,7 +47,7 @@ class PushTokenRegistrar(
             val language = languageTag?.takeIf { it.isNotBlank() }
                 ?: tokenStorage.getLanguage()?.takeIf { it.isNotBlank() }
             authRepository.registerPushToken(token, language)
-            Log.d(TAG, "Push token registered: ${token.take(10)}..., language=$language")
+            Log.d(TAG, "Push token registered, language=$language")
         } catch (e: Exception) {
             Log.e(TAG, "Push token registration failed: ${e.message}")
         }

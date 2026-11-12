@@ -46,3 +46,13 @@
 -keep class com.muhabbet.shared.dto.** { *; }
 -keep class com.muhabbet.shared.model.** { *; }
 -keep class com.muhabbet.shared.protocol.** { *; }
+
+# Release builds write nothing below warning level to logcat. Calls made straight
+# to android.util.Log at debug/verbose/info are removed by R8; the common Log wrapper is already
+# off when BuildInfo.DEBUG is false. Warnings and errors stay, and must not carry message
+# content, phone numbers or tokens.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
