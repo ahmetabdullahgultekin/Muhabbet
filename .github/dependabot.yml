@@ -69,16 +69,14 @@ updates:
   # Every `uses:` is pinned to a full commit SHA with a `# vX.Y.Z` comment (F35). Dependabot updates
   # both the SHA and the comment, which is what keeps the pins from going stale.
   #
-  # Actions are pinned twice over here: once by the SHA in the workflow, and again by
-  # infra/scripts/seed-runner-action-cache.sh, which pre-extracts each action into the self-hosted
-  # runner's cache so jobs stop downloading from codeload (#563). The second pin is the reason this
-  # ecosystem is worth watching: a seeded action is never re-downloaded, so if `v4` moves — for a
-  # security fix, say — this host keeps running the old copy and nothing says so. Dependabot is the
-  # only thing that will.
+  # infra/scripts/seed-runner-action-cache.sh pre-extracts each action into the self-hosted runner's
+  # cache so jobs stop downloading from codeload (#563). It reads the SHAs from the workflows, so a
+  # bump merged here names a new SHA the cache does not have yet; the runner downloads it on first
+  # use, or the script seeds it on its next run.
   #
-  # Monthly, not weekly: actions move slowly and each bump has a manual tail. AFTER MERGING AN ACTION
-  # BUMP, re-run the seed script on the runner with --force, or the cache still holds the old ref.
-  # These are never auto-merged, for the same reason.
+  # Monthly, not weekly: actions move slowly and each bump is read by a person before it merges.
+  # After merging an action bump, re-run the seed script on the runner so the new SHA is cached
+  # before a 429 day needs it. These are never auto-merged.
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "dev"

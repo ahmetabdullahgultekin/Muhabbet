@@ -45,11 +45,17 @@ A second, undocumented runner `muhabbet-mordecai` takes the same jobs.
 | `POSTGRES_PASSWORD` | Public history | Database access as that role on `shared-postgres` | Only if the database port is reachable from outside the Docker network, or from code running on the host (CICD-01) |
 | `REDIS_PASSWORD` | Public history | Read/write of `shared-redis` (WS fan-out channels, presence, rate-limit state) | As above |
 | `MINIO_ROOT_PASSWORD` | Public history | Root of `shared-minio`: every media object, all buckets | Through the public media host route to `shared-minio:9000` (S3 API) if root credentials authenticate there; otherwise as above |
+| `JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` — a **second, different set** | The tracked tree and public history: `docs/PROD_READINESS_AND_PLAN_2026-06-06.md` (P0-12 evidence line), added in commit `794418b4` (2026-06-06), redacted 2026-11-12. These do **not** match the values in `29874bcb`, contrary to that line's own claim, and appear in no other commit — most likely copied from the live `.env.prod` read on 2026-06-06 | Same as the rows above, if any of the three is still the live value | Same as the rows above |
 | Every other value in the **current** `/opt/projects/Muhabbet/.env.prod`, and `infra/firebase-adminsdk.json` | Not in history; but readable by any job that ran on `cx43` (CICD-01) | Depends on the value | Only through a PR job or a compromised action on the runner |
 
 The three infrastructure services are **shared** with other projects on the host (CLAUDE.md
 "Containers"); if the leaked passwords are instance-wide credentials rather than Muhabbet-scoped
 roles, the exposure extends to those projects' data.
+
+**Second exposure source.** Rotation must cover both sets: compare all three values from
+`794418b4` with the live `.env.prod` the same way as the `29874bcb` values (hashes, never values),
+and rotate any that match. The weekly full-history secret scan flags `794418b4` and stays red until,
+after rotation, that commit is added to the commit allowlist in `.gitleaks.toml` next to `29874bcb`.
 
 ## 3. Timeline
 
@@ -62,6 +68,8 @@ roles, the exposure extends to those projects' data.
 | Not established → 2026-11-12 | `pull_request` jobs execute on `muhabbet-cx43`. At the latest since PR CI on `dev` was enabled (#487). | CICD-01; workflow comments |
 | 2026-09-02 → 2026-10-26 | `muhabbet-mordecai` registered (PR #730 ran on cx43 on 2026-09-02; a job ran on mordecai on 2026-10-26). | CICD-03 |
 | 2026-11-12 | Review confirms: repository public, `forks_count: 0`; the diff of `3925f708` holds four non-empty values; no rotation tracked; PR workflows run on self-hosted runners with no fork guard. | CICD-01, CICD-06 verifiers |
+| 2026-06-06 | Commit `794418b4` adds `docs/PROD_READINESS_AND_PLAN_2026-06-06.md`, whose P0-12 evidence line quotes three literal values (`POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`) that differ from those in `29874bcb`. | Review of the secret-scanner change, 2026-11-12 (values compared, not printed) |
+| 2026-11-12 | The three values in that document are replaced with `<redacted>`. They remain in history at `794418b4`. | This change |
 | 2026-11-12 | This record opened. | — |
 
 `forks_count: 0` does not bound exposure: clones, caches and scrapers of public repositories are not

@@ -23,6 +23,14 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 - **Least-privilege `permissions:` on every workflow**, secrets passed only through `env:`, the
   debug keystore kept in the job's temporary directory, and no step that lists files from outside
   the workspace in the public log (F17, F18).
+- **The push-time secret scan can no longer be skipped by pushing twice in quick succession**; a
+  newer push now waits for the earlier scan instead of cancelling it.
+- **CI checkouts no longer leave the job's GitHub token in the working copy**, so build code that
+  runs after checkout cannot read it from `.git/config`.
+- **The runner's action cache is seeded by the pinned commit SHAs**, read from the workflows, so the
+  cache matches what CI actually runs again.
+- **Credential values quoted in an old planning document were removed** and recorded in the
+  incident record for rotation.
 
 ### Fixed — ticks, scheduled messages and retries tell the truth
 

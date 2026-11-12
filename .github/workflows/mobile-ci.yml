@@ -67,6 +67,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # The `paths:` filter that used to sit on the trigger lives here now, with the same list of
       # paths. Every step below that costs more than a few seconds is gated on this output, so the
@@ -332,6 +334,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
