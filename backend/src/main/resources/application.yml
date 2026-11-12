@@ -42,6 +42,11 @@ spring:
     # It is relaxed only in application-dev.yml (local iteration) and application-test.yml
     # (each test class builds Postgres fresh from these files via Testcontainers, so there is
     # nothing to diverge, but the override keeps local dev/test behavior consistent).
+    # Session-level, not transactional, advisory lock. Flyway's default holds a transaction open
+    # on a second connection for the whole run, and CREATE INDEX CONCURRENTLY (V28.1, V29.1) waits
+    # for every open transaction to finish — including that one — so the migration never completes.
+    postgresql:
+      transactional-lock: false
 
   # Redis
   data:

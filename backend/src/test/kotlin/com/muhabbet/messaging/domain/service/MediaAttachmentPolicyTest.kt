@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.ResolvedAttachment
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
 import com.muhabbet.shared.exception.BusinessException
@@ -87,7 +88,8 @@ class MediaAttachmentPolicyTest {
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
             mediaAttachmentPolicy = policy,
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            sequence = InMemoryConversationSequence()
         )
     }
 

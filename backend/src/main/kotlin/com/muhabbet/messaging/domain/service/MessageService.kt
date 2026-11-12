@@ -14,9 +14,11 @@ import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.SendResult
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.ConversationSequencePort
 import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -40,7 +42,8 @@ open class MessageService(
     private val readReceiptPolicy: ReadReceiptPolicyPort,
     private val blockPolicy: BlockPolicyPort,
     private val mediaAttachmentPolicy: MediaAttachmentPolicyPort,
-    private val transactions: TransactionRunner
+    private val transactions: TransactionRunner,
+    private val sequence: ConversationSequencePort
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -75,13 +78,23 @@ open class MessageService(
      * accident of where the check sits: the alternative — an error the client can see — turns a
      * block into a probe, telling a harasser exactly who has blocked them and when they unblock.
      */
-    override fun sendMessage(command: SendMessageCommand): Message {
+    override fun sendMessage(command: SendMessageCommand): SendResult {
         // Before the transaction, because resolving a media id reads the media table and asks
         // object storage to sign a URL, and #491's rule is that nothing which talks to something
         // outside this database holds a Hikari connection while it does. A text message — every
         // message with no media reference at all — never reaches the port and pays nothing.
         val vetted = vetMediaAttachment(command)
-        val outcome = transactions.inTransaction { persistSend(vetted) }
+        val outcome = try {
+            transactions.inTransaction { persistSend(vetted) }
+        } catch (e: BusinessException) {
+            // Two copies of the same send raced: both looked, neither found the other, and the
+            // second insert hit the primary key. Its transaction — and with it the sequence number
+            // it had allocated — is rolled back, so no seq is spent. Look again on a fresh read,
+            // where the winner is now visible, and answer exactly as the winner was answered
+            // (ICD §3.6 A-1 step 3). Anything that is not that race is rethrown unchanged.
+            if (e.errorCode != ErrorCode.MSG_DUPLICATE) throw e
+            transactions.inTransaction { replayOf(vetted) ?: throw e }
+        }
 
         // Outside the transaction, and that is the entire point of #491.
         //
@@ -102,15 +115,42 @@ open class MessageService(
         // which for a chat application is a worse bug than the one being fixed.
         outcome.recipients?.let { messageBroadcaster.broadcastMessage(outcome.message, it) }
 
-        return outcome.message
+        return SendResult(outcome.message, outcome.replay)
     }
 
     /**
      * What the transaction produced. A null [recipients] means there is nothing to fan out — the
-     * message was dropped for a block, or it is scheduled for later — as distinct from an empty
-     * list, which would mean a conversation the sender is alone in.
+     * message was dropped for a block, it is scheduled for later, or it is a [replay] of a send
+     * that already went out — as distinct from an empty list, which would mean a conversation the
+     * sender is alone in.
      */
-    private data class SendOutcome(val message: Message, val recipients: List<ConversationMember>?)
+    private data class SendOutcome(
+        val message: Message,
+        val recipients: List<ConversationMember>?,
+        val replay: Boolean = false
+    )
+
+    /**
+     * The committed row this send is a retry of, as a replay — or null when there is none (#750).
+     *
+     * The same send means the same sender, the same conversation and the same device; a legacy row
+     * with no device recorded (written before V29) matches on sender alone. An id that already
+     * belongs to anything else is refused with MSG_DUPLICATE and never answered with someone
+     * else's ack: before off-server delivery nobody can learn a client message id before the server
+     * commits it, so a collision is a client bug, not a retry.
+     */
+    private fun replayOf(command: SendMessageCommand): SendOutcome? {
+        // `existsById` first: it is the one query every ordinary send pays, an index-only probe that
+        // answers "no" — only an actual retry goes on to load the row.
+        if (!messageRepository.existsById(command.messageId)) return null
+        val existing = messageRepository.findById(command.messageId) ?: return null
+        val sameSend = existing.senderId == command.senderId &&
+            existing.conversationId == command.conversationId &&
+            (existing.senderDeviceId == null || existing.senderDeviceId == command.senderDeviceId)
+        if (!sameSend) throw BusinessException(ErrorCode.MSG_DUPLICATE)
+        log.info("Send replayed: id={}, conv={}, seq={}", existing.id, existing.conversationId, existing.seq)
+        return SendOutcome(existing, recipients = null, replay = true)
+    }
 
     /**
      * Settles what this message's media URLs will be before anything is written (#679).
@@ -182,17 +222,13 @@ open class MessageService(
             throw BusinessException(ErrorCode.MSG_ANNOUNCEMENT_ONLY)
         }
 
-        // Idempotency check. Kept, against #492's suggestion to drop it and let the primary key
-        // catch a duplicate: now that the insert is a real `persist` rather than a `merge`, a
-        // duplicate id surfaces as a constraint violation at flush — after the delivery rows have
-        // been written and as something far less legible than MSG_DUPLICATE. A client resending the
-        // same messageId after a reconnect is an ordinary, expected event on this path, and one
-        // SELECT to answer it cleanly is worth keeping. It is not a race-proof guard and never was;
-        // two concurrent sends of the same id still both pass it and the second fails at commit,
-        // which is the correct outcome.
-        if (messageRepository.existsById(command.messageId)) {
-            throw BusinessException(ErrorCode.MSG_DUPLICATE)
-        }
+        // Idempotency (#750, ADR 0013 §3). A client resending the same messageId after a
+        // reconnect is an ordinary, expected event, and it used to be answered MSG_DUPLICATE — so a
+        // client that had lost its ack could never learn whether the message went through. It is
+        // now answered with the original ack, before anything is allocated or written. The lookup
+        // is not race-proof on its own: two concurrent copies both pass it, the second insert hits
+        // the primary key, and [sendMessage] turns that into the same replay.
+        replayOf(command)?.let { return it }
 
         // Calculate expiresAt for disappearing messages
         val now = Instant.now()
@@ -223,7 +259,8 @@ open class MessageService(
             forwardedFrom = command.forwardedFrom,
             viewOnce = command.viewOnce,
             scheduledAt = command.scheduledAt,
-            isScheduled = isScheduled
+            isScheduled = isScheduled,
+            senderDeviceId = command.senderDeviceId
         )
 
         // Loaded once and reused for both the block test and the delivery rows below — resolving it
@@ -243,7 +280,7 @@ open class MessageService(
             return SendOutcome(draft, recipients = null)
         }
 
-        val message = messageRepository.save(draft)
+        val message = messageRepository.save(numbered(draft))
 
         // Scheduled messages are not delivered immediately
         if (isScheduled) {
@@ -271,6 +308,25 @@ open class MessageService(
         // offline push from whoever muted this conversation (#571) without a second query per
         // recipient. The fan-out itself happens in sendMessage, after this transaction commits.
         return SendOutcome(message, recipients)
+    }
+
+    /**
+     * [draft] with its place in the conversation (#750, ADR 0014), allocated as the last step
+     * before the insert because the allocation holds the conversation's row lock until commit, and
+     * every statement before it would otherwise queue other senders behind it.
+     *
+     * The server timestamp is re-read *after* the allocation, so within a conversation timestamp
+     * order and seq order agree: a send that waited on the lock cannot commit with a timestamp older
+     * than the one that held it. Before this, `now` was taken at the top of the transaction and a
+     * slow send could commit behind a faster one that a client had already synced past.
+     *
+     * A scheduled message is not numbered here. It takes its seq when it is released, so its
+     * position is the moment the recipients first see it rather than the moment it was written.
+     */
+    private fun numbered(draft: Message): Message {
+        if (draft.isScheduled) return draft
+        val seq = sequence.next(draft.conversationId)
+        return draft.copy(seq = seq, changeSeq = seq, serverTimestamp = Instant.now())
     }
 
     /**
@@ -317,7 +373,7 @@ open class MessageService(
         }
 
         val effectiveLimit = limit.coerceIn(1, 100)
-        val messages = messageRepository.findByConversationId(conversationId, before, effectiveLimit + 1)
+        val messages = messageRepository.findByConversationId(conversationId, userId, before, effectiveLimit + 1)
 
         val hasMore = messages.size > effectiveLimit
         val page = if (hasMore) messages.take(effectiveLimit) else messages
@@ -367,10 +423,30 @@ open class MessageService(
      */
     private data class StatusOutcome(val message: Message?, val published: DeliveryStatus)
 
+    /**
+     * Only a member of the message's conversation may ack it, and only an ack that actually moved
+     * a row is published (#299).
+     *
+     * Both halves were missing. Any authenticated socket could name any message id and the real
+     * sender was sent a `message.status` for it — a forged read receipt from someone who never saw
+     * the message. And because the broadcast ignored whether anything had changed, a late
+     * DELIVERED arriving after READ was still announced, dragging the sender's ticks backwards on
+     * screen even though the stored row was protected.
+     *
+     * An unknown id gets the same MSG_NOT_MEMBER a foreign one does, so the answer cannot be used
+     * to learn whether an id exists. A member acking a message they have no row for — their own,
+     * or one dropped for a block — changes nothing and is told nothing.
+     */
     private fun persistStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): StatusOutcome {
-        messageRepository.updateDeliveryStatus(messageId, userId, status)
+        val message = messageRepository.findById(messageId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        conversationRepository.findMember(message.conversationId, userId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
 
-        val message = messageRepository.findById(messageId) ?: return StatusOutcome(null, status)
+        if (!messageRepository.updateDeliveryStatus(messageId, userId, status)) {
+            return StatusOutcome(null, status)
+        }
+
         // A reader who has turned read receipts off still gets their own row stored as READ — that
         // row is what clears their unread badge — but the sender must not be told. We downgrade what
         // is *published*, never what is stored, because one column serves both concerns.
@@ -397,6 +473,10 @@ open class MessageService(
 
     @Transactional
     override fun markConversationRead(conversationId: UUID, userId: UUID) {
+        // The same guard every other method here has had (#299). Without it any socket could write
+        // READ rows and a `last_read_at` into a conversation it is not part of.
+        conversationRepository.findMember(conversationId, userId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
         messageRepository.markConversationRead(conversationId, userId)
         conversationRepository.updateLastReadAt(conversationId, userId, Instant.now())
         log.debug("Conversation marked as read: conv={}, user={}", conversationId, userId)
@@ -439,7 +519,12 @@ open class MessageService(
     override fun getMediaMessages(conversationId: UUID, userId: UUID, limit: Int, offset: Int): List<Message> {
         conversationRepository.findMember(conversationId, userId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
-        return messageRepository.findMediaByConversationId(conversationId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
+        return messageRepository.findMediaByConversationId(
+            conversationId,
+            userId,
+            limit.coerceIn(1, 100),
+            offset.coerceAtLeast(0)
+        )
     }
 
     @Transactional(readOnly = true)
@@ -456,6 +541,11 @@ open class MessageService(
         // (content, senderId, recipient list). Closes the getMessageInfo IDOR.
         conversationRepository.findMember(message.conversationId, requesterId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+
+        // An unreleased scheduled message does not exist yet for anyone but its sender (#746).
+        if (message.isScheduled && message.senderId != requesterId) {
+            throw BusinessException(ErrorCode.MSG_NOT_FOUND)
+        }
 
         // The sender is not a recipient of their own message.
         val statuses = messageRepository.getDeliveryStatuses(listOf(messageId))
@@ -564,7 +654,15 @@ open class MessageService(
     private fun persistDelete(messageId: UUID, requesterId: UUID): DeleteOutcome {
         val message = requireOwnLiveMessage(messageId, requesterId)
 
-        messageRepository.softDelete(messageId)
+        // An unreleased scheduled message exists for its sender alone (#746): telling the other
+        // members it was deleted would announce a message they were never shown, and it has no
+        // place in the order to stamp. Only the sender's own devices hear about it.
+        if (message.isScheduled && messageRepository.softDeleteScheduled(messageId)) {
+            return DeleteOutcome(message.conversationId, listOf(requesterId))
+        }
+
+        // A delete is an event in the conversation's order, so it takes a change_seq (#750).
+        messageRepository.softDelete(messageId, sequence.next(message.conversationId))
 
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
         return DeleteOutcome(message.conversationId, members.map { it.userId })
@@ -626,6 +724,14 @@ open class MessageService(
         requireValidContent(newContent)
 
         val editedAt = Instant.now()
+        val edited = message.copy(content = newContent, editedAt = editedAt)
+
+        // An unreleased scheduled message exists for its sender alone (#746): a MessageEdited to the
+        // other members would push its text to them before it is due. No change_seq either — it is
+        // numbered when released. Only the sender's own devices hear about the edit.
+        if (message.isScheduled && messageRepository.updateScheduledContent(messageId, newContent, editedAt)) {
+            return EditOutcome(edited, editedAt, listOf(requesterId))
+        }
 
         // `updateContent` is the *second* way message content reaches a recipient, and guarding only
         // `sendMessage` left it open: for the edit window after their last pre-block message, a
@@ -634,16 +740,17 @@ open class MessageService(
         // the caller is told it worked, nothing is written and nothing is broadcast.
         val conversation = conversationRepository.findById(message.conversationId)
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
-        val edited = message.copy(content = newContent, editedAt = editedAt)
 
         if (isBlockedDirectSend(conversation, members, requesterId)) {
             log.info("Message edit dropped, recipient has blocked the sender: id={}", messageId)
             return EditOutcome(edited, editedAt, recipients = null)
         }
 
-        messageRepository.updateContent(messageId, newContent, editedAt)
+        // An edit is an event in the conversation's order, so it takes a change_seq (#750).
+        val changeSeq = sequence.next(message.conversationId)
+        messageRepository.updateContent(messageId, newContent, editedAt, changeSeq)
 
-        return EditOutcome(edited, editedAt, members.map { it.userId })
+        return EditOutcome(edited.copy(changeSeq = changeSeq), editedAt, members.map { it.userId })
     }
 
     // ─── Scheduled Messages ──────────────────────────────────
@@ -689,10 +796,12 @@ open class MessageService(
                 // blocking WebSocket writes and a push, and holding a pool connection across them
                 // is what capped the instance at twenty concurrent sends.
                 if (outcome.recipients != null) {
-                    messageBroadcaster.broadcastMessage(message, outcome.recipients)
+                    messageBroadcaster.broadcastMessage(outcome.released, outcome.recipients)
                     delivered++
                     log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
                 }
+            } catch (ignored: AlreadyReleasedException) {
+                log.debug("Scheduled message already released by another run: id={}", message.id)
             } catch (e: Exception) {
                 // Named, unlike before. The old handler was in the job and logged the run, not the
                 // message, so a poison message produced an identical line every minute with nothing
@@ -718,31 +827,43 @@ open class MessageService(
      * result to a non-null type: Spring's template signals "no result" with null, so a block that
      * may legitimately return null would be indistinguishable from one that failed to run.
      */
-    private data class ScheduledOutcome(val recipients: List<ConversationMember>?)
+    private data class ScheduledOutcome(val recipients: List<ConversationMember>?, val released: Message)
+
+    /** A due message some other run got to first. Thrown only to roll its transaction back. */
+    private class AlreadyReleasedException : RuntimeException()
 
     /**
      * The persistence half of delivering one scheduled message, to be run in its own transaction.
      */
     private fun deliverOneScheduled(message: Message): ScheduledOutcome {
-        messageRepository.markAsDelivered(message.id)
-
         val conversation = conversationRepository.findById(message.conversationId)
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
 
         // A message can be scheduled before a block and come due after it. Withholding the
-        // delivery rows and the fan-out is not enough on its own: the row was written at
-        // schedule time and history filters on `isDeleted`, not on `isScheduled`, so it would
-        // simply appear in the recipient's chat. Soft-deleting restores the invariant the
-        // immediate path gets for free — no readable row, for either party.
+        // delivery rows and the fan-out is not enough on its own: the sender can still read the
+        // row they scheduled, so it would sit in their chat looking sent. Soft-deleting restores
+        // the invariant the immediate path gets for free — no readable row, for either party. It
+        // is never released, so it never takes a seq: it has no place in the conversation.
         if (isBlockedDirectSend(conversation, members, message.senderId)) {
-            messageRepository.softDelete(message.id)
+            messageRepository.softDelete(message.id, null)
             log.info(
                 "Scheduled message dropped, recipient has blocked the sender: id={}, conv={}",
                 message.id,
                 message.conversationId
             )
-            return ScheduledOutcome(recipients = null)
+            return ScheduledOutcome(recipients = null, released = message)
         }
+
+        // Released now, so numbered now (ADR 0014): its position is where the recipients first see
+        // it, and its timestamp moves with it — see `markAsDelivered`.
+        val seq = sequence.next(message.conversationId)
+        val releasedAt = Instant.now()
+        if (!messageRepository.markAsDelivered(message.id, seq, releasedAt)) {
+            // Another run released it while this one waited for the conversation lock. Throwing
+            // rolls back the allocation above, so the race costs no seq and sends nothing twice.
+            throw AlreadyReleasedException()
+        }
+        val released = message.copy(isScheduled = false, seq = seq, changeSeq = seq, serverTimestamp = releasedAt)
 
         val recipients = members.filter { it.userId != message.senderId }
 
@@ -756,6 +877,6 @@ open class MessageService(
             }
         )
 
-        return ScheduledOutcome(recipients)
+        return ScheduledOutcome(recipients, released)
     }
 }

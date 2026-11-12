@@ -116,7 +116,7 @@ open class ConversationService(
         val conversationIds = conversations.map { it.id }
 
         // Batch queries: 3 queries instead of 3*N (critical N+1 fix)
-        val lastMessageMap = messageRepository.getLastMessages(conversationIds)
+        val lastMessageMap = messageRepository.getLastMessages(conversationIds, userId)
         val unreadCountMap = messageRepository.getUnreadCounts(conversationIds, userId)
         val membersMap = conversationRepository.findMembersByConversationIds(conversationIds)
 

@@ -1,25 +1,25 @@
 package com.muhabbet.messaging.adapter.out.persistence
 
-import com.muhabbet.messaging.adapter.out.persistence.entity.MessageDeliveryStatusJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageDeliveryStatusRepository
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageRepository
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import io.mockk.every
-import jakarta.persistence.EntityManager
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
-import org.junit.jupiter.api.Assertions.assertEquals
+import jakarta.persistence.EntityManager
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
 /**
  * #596 added a second writer for a delivery row — a REST ack a background FCM service can send with
- * no socket open — alongside the WebSocket ack `ChatWebSocketHandler` already sent. The two can now
+ * no socket open — alongside the WebSocket ack `ChatWebSocketHandler` already sent. The two can
  * race: a `DELIVERED` REST call queued behind the push, and a `READ` WebSocket ack from the chat the
- * recipient opened in the meantime. Whichever lands second must not undo the other when it is the
- * REST call that is late — READ is what actually happened, and the sender must not see the tick
- * fall backwards.
+ * recipient opened in the meantime. Whichever lands second must not undo the other.
+ *
+ * Since #299 the guard is one conditional UPDATE that only moves a row forward, and its count is
+ * the answer to "did anything change" — which decides whether the sender is told at all.
  */
 class MessagePersistenceAdapterDeliveryStatusTest {
 
@@ -31,56 +31,49 @@ class MessagePersistenceAdapterDeliveryStatusTest {
     private val messageId = UUID.randomUUID()
     private val userId = UUID.randomUUID()
 
-    private fun existingRow(status: DeliveryStatus) = MessageDeliveryStatusJpaEntity(
-        messageId = messageId,
-        userId = userId,
-        status = status
-    )
-
     @Test
-    fun `should not downgrade an already-READ row to DELIVERED`() {
-        every { deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) } returns existingRow(DeliveryStatus.READ)
+    fun `should only advance a row from statuses below DELIVERED when DELIVERED is acked`() {
+        every { deliveryStatusRepo.advanceStatus(messageId, userId, DeliveryStatus.DELIVERED, any(), any()) } returns 1
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
+        assertTrue(adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED))
 
-        verify(exactly = 0) { deliveryStatusRepo.save(any()) }
+        // READ is not in the list, so a READ row can never be dragged back to DELIVERED.
+        verify {
+            deliveryStatusRepo.advanceStatus(messageId, userId, DeliveryStatus.DELIVERED, listOf(DeliveryStatus.SENT), any())
+        }
     }
 
     @Test
-    fun `should still allow a READ row to be written as READ again`() {
-        // Idempotency, not just monotonicity: the guard must not turn a harmless re-send into a
-        // silent no-op that looks identical to the downgrade it exists to block.
-        val entity = existingRow(DeliveryStatus.READ)
-        every { deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) } returns entity
-        val saved = slot<MessageDeliveryStatusJpaEntity>()
-        every { deliveryStatusRepo.save(capture(saved)) } returns entity
+    fun `should advance from SENT or DELIVERED when READ is acked`() {
+        every { deliveryStatusRepo.advanceStatus(messageId, userId, DeliveryStatus.READ, any(), any()) } returns 1
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.READ)
+        assertTrue(adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.READ))
 
-        assertEquals(DeliveryStatus.READ, saved.captured.status)
+        verify {
+            deliveryStatusRepo.advanceStatus(
+                messageId,
+                userId,
+                DeliveryStatus.READ,
+                listOf(DeliveryStatus.SENT, DeliveryStatus.DELIVERED),
+                any()
+            )
+        }
     }
 
     @Test
-    fun `should apply DELIVERED over SENT as before`() {
-        val entity = existingRow(DeliveryStatus.SENT)
-        every { deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) } returns entity
-        val saved = slot<MessageDeliveryStatusJpaEntity>()
-        every { deliveryStatusRepo.save(capture(saved)) } returns entity
+    fun `should report no change when the row is already at or past the acked status`() {
+        // An already-READ row acked DELIVERED, a repeated READ, or no row at all (a non-recipient,
+        // a message dropped for a block): zero rows updated, and the caller broadcasts nothing.
+        every { deliveryStatusRepo.advanceStatus(any(), any(), any(), any(), any()) } returns 0
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
-
-        assertEquals(DeliveryStatus.DELIVERED, saved.captured.status)
+        assertFalse(adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED))
     }
 
     @Test
-    fun `should do nothing for a recipient with no delivery row`() {
-        // A non-recipient, or a message dropped for a block, never had a row created — same no-op
-        // shape the WebSocket ack handler already relies on, so this cannot be used to probe whether
-        // an arbitrary message id exists.
-        every { deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) } returns null
+    fun `should not touch the database when SENT is acked`() {
+        // Nothing ranks below SENT, so there is no row it could move.
+        assertFalse(adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.SENT))
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
-
-        verify(exactly = 0) { deliveryStatusRepo.save(any()) }
+        verify(exactly = 0) { deliveryStatusRepo.advanceStatus(any(), any(), any(), any(), any()) }
     }
 }

@@ -19,6 +19,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.TestMediaAttachmentPolicy
@@ -58,6 +59,8 @@ class MessagingServiceTest {
     fun setUp() {
         conversationRepository = mockk(relaxed = true)
         messageRepository = mockk(relaxed = true)
+        // A due message is released unless a test says another run got there first.
+        every { messageRepository.markAsDelivered(any(), any(), any()) } returns true
         userRepository = mockk()
         messageBroadcaster = mockk(relaxed = true)
         userDirectory = mockk(relaxed = true)
@@ -81,7 +84,8 @@ class MessagingServiceTest {
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
             mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            sequence = InMemoryConversationSequence()
         )
     }
 
@@ -241,8 +245,8 @@ class MessagingServiceTest {
             )
         )
 
-        assertEquals(messageId, result.id)
-        assertEquals("Hello!", result.content)
+        assertEquals(messageId, result.message.id)
+        assertEquals("Hello!", result.message.content)
         verify { messageRepository.save(any()) }
         verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
     }
@@ -315,7 +319,7 @@ class MessagingServiceTest {
             )
         )
 
-        assertEquals(messageId, result.id)
+        assertEquals(messageId, result.message.id)
         verify { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
     }
 
@@ -348,7 +352,7 @@ class MessagingServiceTest {
             )
         )
 
-        assertEquals(messageId, result.id)
+        assertEquals(messageId, result.message.id)
     }
 
     @Test
@@ -550,9 +554,9 @@ class MessagingServiceTest {
             )
         )
 
-        assertEquals(messageId, result.id)
-        assertEquals("let me back in", result.content)
-        assertNotNull(result.serverTimestamp)
+        assertEquals(messageId, result.message.id)
+        assertEquals("let me back in", result.message.content)
+        assertNotNull(result.message.serverTimestamp)
     }
 
     @Test
@@ -635,7 +639,7 @@ class MessagingServiceTest {
 
         val delivered = messageService.deliverScheduledMessages()
 
-        verify { messageRepository.softDelete(scheduled.id) }
+        verify { messageRepository.softDelete(scheduled.id, null) }
         verify(exactly = 0) { messageRepository.saveDeliveryStatuses(any()) }
         verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
         // Not counted. The run had work and delivered none of it, which must not read as a quiet run.
@@ -704,7 +708,7 @@ class MessagingServiceTest {
 
         // Silence, same as the send path — the caller is told it worked.
         assertEquals("something else entirely", result.content)
-        verify(exactly = 0) { messageRepository.updateContent(any(), any(), any()) }
+        verify(exactly = 0) { messageRepository.updateContent(any(), any(), any(), any()) }
         verify(exactly = 0) { messageBroadcaster.broadcastToUsers(any(), any()) }
     }
 
@@ -716,7 +720,7 @@ class MessagingServiceTest {
 
         messageService.editMessage(messageId, userA, "fixed a typo")
 
-        verify { messageRepository.updateContent(messageId, "fixed a typo", any()) }
+        verify { messageRepository.updateContent(messageId, "fixed a typo", any(), 1L) }
         verify { messageBroadcaster.broadcastToUsers(any(), any()) }
     }
 
@@ -734,7 +738,7 @@ class MessagingServiceTest {
         )
 
         every { conversationRepository.findMember(convId, userA) } returns member
-        every { messageRepository.findByConversationId(convId, null, 51) } returns messages
+        every { messageRepository.findByConversationId(convId, userA, null, 51) } returns messages
 
         val page = messageService.getMessages(convId, userA, null, 50, "before")
 
@@ -768,7 +772,7 @@ class MessagingServiceTest {
         }
 
         every { conversationRepository.findMember(convId, userA) } returns member
-        every { messageRepository.findByConversationId(convId, null, 3) } returns messages
+        every { messageRepository.findByConversationId(convId, userA, null, 3) } returns messages
 
         val page = messageService.getMessages(convId, userA, null, 2, "before")
 
@@ -789,6 +793,9 @@ class MessagingServiceTest {
         )
 
         every { messageRepository.findById(messageId) } returns message
+        every { conversationRepository.findMember(convId, userB) } returns
+            ConversationMember(conversationId = convId, userId = userB)
+        every { messageRepository.updateDeliveryStatus(messageId, userB, DeliveryStatus.DELIVERED) } returns true
 
         messageService.updateStatus(messageId, userB, DeliveryStatus.DELIVERED)
 
@@ -813,7 +820,7 @@ class MessagingServiceTest {
         )
 
         every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-        every { messageRepository.getLastMessages(any()) } returns mapOf(convId to lastMsg)
+        every { messageRepository.getLastMessages(any(), any()) } returns mapOf(convId to lastMsg)
         every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 3)
         every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
             convId to listOf(

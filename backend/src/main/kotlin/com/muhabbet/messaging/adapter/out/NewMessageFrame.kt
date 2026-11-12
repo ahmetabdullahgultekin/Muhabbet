@@ -39,5 +39,8 @@ internal fun Message.toNewMessageFrame(senderName: String?): WsMessage.NewMessag
     viewOnce = viewOnce,
     // The deadline travels with the message so the recipient can remove it on time instead of
     // waiting for the sweep's broadcast, a reload, or the user navigating away (#513).
-    expiresAt = expiresAt?.toEpochMilli()
+    expiresAt = expiresAt?.toEpochMilli(),
+    // Its place in the conversation (#750). Clients that predate it ignore the field.
+    seq = seq,
+    changeSeq = changeSeq
 )

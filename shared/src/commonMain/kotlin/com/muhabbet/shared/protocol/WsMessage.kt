@@ -187,7 +187,14 @@ sealed class WsMessage {
          * half is [MessageExpired], for the messages whose deadline passes while nothing is
          * listening.
          */
-        val expiresAt: Long? = null
+        val expiresAt: Long? = null,
+        /**
+         * The message's position in its conversation (#750, ADR 0014). Additive: null from a server
+         * that does not number messages, and ignored by a client that does not read it.
+         */
+        val seq: Long? = null,
+        /** The last change to the row, from the same per-conversation counter as [seq]. */
+        val changeSeq: Long? = null
     ) : WsMessage()
 
     /**
@@ -235,7 +242,17 @@ sealed class WsMessage {
         val status: AckStatus,
         val serverTimestamp: Long? = null,
         val errorCode: String? = null,
-        val errorMessage: String? = null
+        val errorMessage: String? = null,
+        /**
+         * The message's position in its conversation (#750). Absent on an error, and on a scheduled
+         * send, which is numbered only when it is released.
+         */
+        val seq: Long? = null,
+        /**
+         * True when this ack replays an earlier commit of the same send: the client retried a
+         * message the server already had, and this is the original answer, not a new message.
+         */
+        val replay: Boolean = false
     ) : WsMessage()
 
     /** Server notifies about presence changes */

@@ -46,7 +46,20 @@ data class Message(
     val viewedBy: UUID? = null,
     // Message Scheduling
     val scheduledAt: Instant? = null,
-    val isScheduled: Boolean = false
+    val isScheduled: Boolean = false,
+    /**
+     * Position in the conversation (#750, ADR 0014), allocated from `conversations.last_seq` inside
+     * the send transaction. Null for a scheduled message until it is released, and for rows written
+     * before V28 that were never numbered.
+     */
+    val seq: Long? = null,
+    /** The last change to this row — the insert, an edit or a delete — from the same counter. */
+    val changeSeq: Long? = null,
+    /**
+     * The device that sent it (V29). Together with [id] — the client's own message id — it is the
+     * idempotency key a retried send is matched on. Null for legacy rows.
+     */
+    val senderDeviceId: UUID? = null
 )
 
 data class MessageDeliveryStatus(

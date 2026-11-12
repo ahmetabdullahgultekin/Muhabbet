@@ -174,4 +174,35 @@ class MessageIdorIntegrationTest {
         val msg = messageRepository.findById(messageId)
         assert(msg != null && msg.viewedAt == null) { "view-once was burned by a non-member" }
     }
+
+    /**
+     * #299: the REST delivered ack is the same use case as the WebSocket ack, and it used to accept
+     * any message id from any user — the real sender was then pushed a receipt from a stranger.
+     */
+    @Test
+    fun `non-member cannot ack a message as delivered and an unknown id gets the same answer`() {
+        val userA = seedUser()
+        val userB = seedUser()
+        val conversationId = seedConversationOwnedBy(userA)
+        val messageId = seedMessage(conversationId, userA)
+
+        mockMvc.perform(
+            post("/api/v1/messages/$messageId/delivered").header("Authorization", bearer(userB))
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error.code").value("MSG_NOT_MEMBER"))
+
+        // Indistinguishable from a foreign id, so the endpoint cannot be used to probe which exist.
+        mockMvc.perform(
+            post("/api/v1/messages/${UUID.randomUUID()}/delivered").header("Authorization", bearer(userB))
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error.code").value("MSG_NOT_MEMBER"))
+
+        // A member acking their own message has nothing to advance — accepted, and a no-op.
+        mockMvc.perform(
+            post("/api/v1/messages/$messageId/delivered").header("Authorization", bearer(userA))
+        )
+            .andExpect(status().isOk)
+    }
 }

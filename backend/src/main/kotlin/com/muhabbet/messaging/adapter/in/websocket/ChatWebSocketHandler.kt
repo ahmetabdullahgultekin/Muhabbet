@@ -196,7 +196,7 @@ class ChatWebSocketHandler(
                 ContentType.TEXT
             }
 
-            val message = sendMessageUseCase.sendMessage(
+            val result = sendMessageUseCase.sendMessage(
                 SendMessageCommand(
                     messageId = parseId(msg.messageId, "messageId"),
                     conversationId = parseId(msg.conversationId, "conversationId"),
@@ -215,16 +215,22 @@ class ChatWebSocketHandler(
                     clientTimestamp = Instant.now(),
                     forwardedFrom = msg.forwardedFrom?.let { try { UUID.fromString(it) } catch (_: Exception) { null } },
                     viewOnce = msg.viewOnce,
-                    scheduledAt = msg.scheduledAt?.let { Instant.ofEpochMilli(it) }
+                    scheduledAt = msg.scheduledAt?.let { Instant.ofEpochMilli(it) },
+                    // From the token, never the frame: the device is half of the idempotency key,
+                    // and a client must not be able to replay another device's send (V29).
+                    senderDeviceId = session.attributes["deviceId"] as? UUID
                 )
             )
 
-            // Send ACK to sender
+            // Send ACK to sender. A replay carries the original seq and timestamp, so a client that
+            // lost the first ack and retried ends up holding exactly what it would have (#750).
             val ack = WsMessage.ServerAck(
                 requestId = msg.requestId,
                 messageId = msg.messageId,
                 status = AckStatus.OK,
-                serverTimestamp = message.serverTimestamp.toEpochMilli()
+                serverTimestamp = result.message.serverTimestamp.toEpochMilli(),
+                seq = result.message.seq,
+                replay = result.replay
             )
             sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
 
@@ -255,14 +261,16 @@ class ChatWebSocketHandler(
             com.muhabbet.shared.model.MessageStatus.READ -> DeliveryStatus.READ
             else -> return
         }
+        // The named message first. Since #299 a status is published only when the row actually
+        // moved, so if the bulk read below ran first it would already have set this row to READ and
+        // the sender would never be told.
+        updateDeliveryStatusUseCase.updateStatus(parseId(msg.messageId, "messageId"), userId, status)
         if (status == DeliveryStatus.READ) {
             // Bulk-update ALL messages in the conversation as read in DB
             updateDeliveryStatusUseCase.markConversationRead(
                 parseId(msg.conversationId, "conversationId"), userId
             )
         }
-        // Always broadcast StatusUpdate for the specific message to the sender
-        updateDeliveryStatusUseCase.updateStatus(parseId(msg.messageId, "messageId"), userId, status)
     }
 
     /**
