@@ -39,7 +39,11 @@ import java.util.concurrent.TimeUnit
  * claims never hand out the same key, an unrelated or blocked requester is refused, and a single
  * pair is rate-limited. Real Postgres for the `FOR UPDATE SKIP LOCKED` claim, real Redis for the
  * budget, real security chain for the requester identity. The per-pair budget is lowered to
- * [PAIR_BUDGET] so the test can spend it.
+ * [PAIR_BUDGET] and the per-requester hourly budget to [REQUESTER_BUDGET] so the tests can spend them.
+ *
+ * The concurrency case calls [EncryptionKeyRepository.consumeOneTimePreKey] directly rather than the
+ * HTTP endpoint: what it pins is the `SKIP LOCKED` claim in Postgres, and going through HTTP would
+ * have the quota refuse most of the thirty claimers before they reached the database.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -67,6 +71,7 @@ class PreKeyDirectoryIntegrationTest {
 
     companion object {
         private const val PAIR_BUDGET = 3
+        private const val REQUESTER_BUDGET = 5
         private const val PREKEYS = 20
         private const val CLAIMERS = 30
 
@@ -92,6 +97,7 @@ class PreKeyDirectoryIntegrationTest {
             registry.add("spring.data.redis.host") { redis.redisHost }
             registry.add("spring.data.redis.port") { redis.redisPort }
             registry.add("muhabbet.encryption.prekey-fetch.max-per-day-per-pair") { PAIR_BUDGET.toString() }
+            registry.add("muhabbet.encryption.prekey-fetch.max-per-hour-per-requester") { REQUESTER_BUDGET.toString() }
         }
     }
 
@@ -121,11 +127,15 @@ class PreKeyDirectoryIntegrationTest {
         )
     }
 
-    private fun seedDirectConversation(a: UUID, b: UUID) {
+    private fun seedDirectConversation(a: UUID, b: UUID) = seedConversation(ConversationType.DIRECT, a, listOf(b))
+
+    private fun seedConversation(type: ConversationType, owner: UUID, members: List<UUID>) {
         val conversationId = UUID.randomUUID()
-        conversationRepository.save(Conversation(id = conversationId, type = ConversationType.DIRECT, createdBy = a))
-        conversationRepository.saveMember(ConversationMember(conversationId = conversationId, userId = a, role = MemberRole.OWNER))
-        conversationRepository.saveMember(ConversationMember(conversationId = conversationId, userId = b, role = MemberRole.MEMBER))
+        conversationRepository.save(Conversation(id = conversationId, type = type, createdBy = owner))
+        conversationRepository.saveMember(ConversationMember(conversationId = conversationId, userId = owner, role = MemberRole.OWNER))
+        members.forEach {
+            conversationRepository.saveMember(ConversationMember(conversationId = conversationId, userId = it, role = MemberRole.MEMBER))
+        }
     }
 
     private fun fetchBundle(requester: UUID, target: UUID): ResultActions =
@@ -201,5 +211,40 @@ class PreKeyDirectoryIntegrationTest {
             .andExpect(status().isTooManyRequests)
             .andExpect(jsonPath("$.error.code").value("ENCRYPTION_KEY_BUNDLE_RATE_LIMITED"))
         assertEquals(5, encryptionKeyRepository.countUnusedPreKeys(target))
+    }
+
+    @Test
+    fun `should refuse a requester whose only shared conversation is a channel anyone can subscribe to`() {
+        val owner = seedUser()
+        val subscriber = seedUser()
+        val stranger = seedUser()
+        seedKeys(owner, 2)
+        seedKeys(subscriber, 2)
+        seedConversation(ConversationType.CHANNEL, owner, listOf(subscriber, stranger))
+
+        fetchBundle(stranger, owner)
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error.code").value("ENCRYPTION_KEY_BUNDLE_FORBIDDEN"))
+        fetchBundle(stranger, subscriber)
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error.code").value("ENCRYPTION_KEY_BUNDLE_FORBIDDEN"))
+
+        assertEquals(2, encryptionKeyRepository.countUnusedPreKeys(owner))
+        assertEquals(2, encryptionKeyRepository.countUnusedPreKeys(subscriber))
+    }
+
+    @Test
+    fun `should rate-limit one requester fanning out across many related targets within the hour`() {
+        val requester = seedUser()
+        val targets = (1..REQUESTER_BUDGET + 1).map { seedUser().also { target -> seedKeys(target, 2) } }
+        seedConversation(ConversationType.GROUP, requester, targets)
+
+        targets.take(REQUESTER_BUDGET).forEach { fetchBundle(requester, it).andExpect(status().isOk) }
+
+        val last = targets.last()
+        fetchBundle(requester, last)
+            .andExpect(status().isTooManyRequests)
+            .andExpect(jsonPath("$.error.code").value("ENCRYPTION_KEY_BUNDLE_RATE_LIMITED"))
+        assertEquals(2, encryptionKeyRepository.countUnusedPreKeys(last))
     }
 }

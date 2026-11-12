@@ -29,10 +29,15 @@ interface ConversationRepository {
     fun findAllContactUserIds(userId: UUID): Set<UUID>
 
     /**
-     * True when [userId] and [otherUserId] are both members of at least one conversation. The
-     * single-pair form of [findAllContactUserIds]: an existence check, so it costs one indexed
-     * query however many conversations either user is in, rather than materialising a contact set
-     * to test one id against it (#749).
+     * True when [userId] and [otherUserId] are both members of at least one DIRECT or GROUP
+     * conversation — a relationship, for the prekey gate (#749, ADR 0018 §3 rule 3). An existence
+     * check, so it costs one indexed query however many conversations either user is in.
+     *
+     * CHANNEL membership deliberately does not count: anyone can subscribe to any channel with no
+     * invite or approval, so co-subscription would let a stranger "share a conversation" with the
+     * owner and every subscriber at will. Groups do count, including ones joined via an invite
+     * link — that link is issued by a group admin, who can require approval, so entry is granted
+     * rather than self-served.
      */
     fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?

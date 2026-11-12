@@ -163,8 +163,8 @@ muhabbet:
   # one-time prekeys, so an unbounded fetch is a way to drain them. See RedisPreKeyFetchQuotaAdapter.
   encryption:
     prekey-fetch:
-      max-per-hour-per-requester: 60
-      max-per-day-per-pair: 10
+      max-per-hour-per-requester: ${PREKEY_FETCH_MAX_PER_HOUR_PER_REQUESTER:60}
+      max-per-day-per-pair: ${PREKEY_FETCH_MAX_PER_DAY_PER_PAIR:10}
 
   sms:
     provider: ${SMS_PROVIDER:mock}     # mock, twilio, twilio-verify, netgsm

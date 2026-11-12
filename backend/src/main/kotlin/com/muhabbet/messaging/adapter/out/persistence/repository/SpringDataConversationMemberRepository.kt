@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.out.persistence.repository
 
 import com.muhabbet.messaging.adapter.out.persistence.entity.ConversationMemberId
 import com.muhabbet.messaging.adapter.out.persistence.entity.ConversationMemberJpaEntity
+import com.muhabbet.messaging.domain.model.ConversationType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
@@ -32,14 +33,25 @@ interface SpringDataConversationMemberRepository : JpaRepository<ConversationMem
     @Query("SELECT DISTINCT m.userId FROM ConversationMemberJpaEntity m WHERE m.conversationId IN (SELECT m2.conversationId FROM ConversationMemberJpaEntity m2 WHERE m2.userId = :userId) AND m.userId != :userId")
     fun findAllContactUserIds(userId: UUID): Set<UUID>
 
+    /**
+     * Whether the two users are both members of a conversation whose type is in [types]. The
+     * types are a parameter rather than literals in the query because fully-qualified enum
+     * literals in JPQL `IN` clauses are unreliable under Hibernate 6.
+     */
     @Query(
         """
-        SELECT COUNT(m) > 0 FROM ConversationMemberJpaEntity m
-        WHERE m.userId = :otherUserId
+        SELECT COUNT(m) > 0 FROM ConversationMemberJpaEntity m, ConversationJpaEntity c
+        WHERE c.id = m.conversationId
+          AND c.type IN :types
+          AND m.userId = :otherUserId
           AND m.conversationId IN (SELECT m2.conversationId FROM ConversationMemberJpaEntity m2 WHERE m2.userId = :userId)
         """
     )
-    fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean
+    fun sharesConversationOfType(
+        userId: UUID,
+        otherUserId: UUID,
+        types: List<ConversationType>,
+    ): Boolean
 
     @Modifying
     @Query("UPDATE ConversationMemberJpaEntity m SET m.lastReadAt = :timestamp WHERE m.conversationId = :conversationId AND m.userId = :userId")

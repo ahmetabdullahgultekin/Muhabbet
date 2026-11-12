@@ -6,9 +6,13 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.moderation.domain.port.`in`.BlockUserUseCase
 import com.muhabbet.shared.security.JwtProvider
 import com.redis.testcontainers.RedisContainer
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
@@ -49,6 +53,9 @@ class ContactSyncEnumerationIntegrationTest {
 
     @Autowired
     private lateinit var blockUserUseCase: BlockUserUseCase
+
+    @Autowired
+    private lateinit var redisTemplate: StringRedisTemplate
 
     companion object {
         private const val DAILY_BUDGET = 10
@@ -128,4 +135,23 @@ class ContactSyncEnumerationIntegrationTest {
             .andExpect(jsonPath("$.data.matchedContacts.length()").value(1))
             .andExpect(jsonPath("$.data.matchedContacts[0].userId").value(friend.toString()))
     }
+
+    @Test
+    fun `should keep only keyed digests in Redis and let them expire with the day when contacts are synced`() {
+        val requester = seedUser()
+        val hashes = (1..3).map { "addressbook-$requester-$it" }
+
+        sync(requester, hashes).andExpect(status().isOk)
+
+        val key = redisTemplate.keys("contacts:quota:$requester:*").single()
+        val stored = redisTemplate.opsForSet().members(key).orEmpty()
+        assertEquals(hashes.size, stored.size)
+        hashes.forEach { assertFalse(it in stored, "raw phone hash $it was retained in Redis") }
+        stored.forEach { assertEquals(DIGEST_HEX_LENGTH, it.length, "digest $it is not truncated to 12 bytes") }
+        val ttl = redisTemplate.getExpire(key)
+        assertTrue(ttl in 1..MAX_TTL_SECONDS, "TTL $ttl outlives the UTC day plus margin")
+    }
 }
+
+private const val DIGEST_HEX_LENGTH = 24
+private const val MAX_TTL_SECONDS = 25L * 3600
