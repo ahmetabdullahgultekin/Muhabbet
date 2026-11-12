@@ -43,6 +43,19 @@ the notification and the tick tell the truth; a community has somewhere to talk;
 like it works and does not. Each closes only after being *seen* working on a device — the rule 0.3.7
 broke by shipping a launch crash behind a green build.
 
+**After 1.0 (added 2026-11-12; design in `docs/architecture/multi-transport/`):**
+
+| Milestone | The question it answers | Entry gate |
+|---|---|---|
+| **1.1 — Direct** | Can a 1:1 call go peer-to-peer, end-to-end encrypted, without exposing IPs to non-contacts? | 0.7 telemetry + TURN budget (epic #754) |
+| **1.2 — Nearby** | Can two verified contacts message with no internet, over LAN or Nearby Connections? | device-matrix spike, DPIA, counsel on E2E over BLE/Wi-Fi (epic #755) |
+| **1.3 — Relay** | Can a message reach the server through the user's own device or one verified contact's phone? | telemetry threshold, crypto review, KVKK opinion (epic #756) |
+| **1.4 — Off-grid hardware** | Can text travel over certified LoRa hardware within the duty cycle? | written telecom-law opinion; excluded from TR builds until then (epic #757) |
+
+They are **gated and droppable**, each with kill criteria in `docs/architecture/multi-transport/roadmap.md`.
+Nothing off-server ships before 1.0, and that is enforced by type (ADR 0016). The GitHub milestones
+for them are created by the owner.
+
 Two older groupings are still visible in GitHub and are **retired** — do not file against them:
 
 - **`0.4.0 — Installable`** was the earlier framing of the same release. Most of its list is closed

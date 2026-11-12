@@ -317,7 +317,14 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 
 ## Current Phase
 
-> ## 📄 START HERE: `docs/HANDOFF_2026-08-16.md`
+> ## 📄 START HERE: `docs/HANDOFF_2026-11-12.md`, then `docs/HANDOFF_2026-08-16.md`
+>
+> **2026-11-12:** full review (211 verified findings), the multi-transport design package
+> (`docs/architecture/multi-transport/README.md`, ADR 0010–0033) and its **delegated approval**
+> (`docs/architecture/multi-transport/APPROVAL.md` — the owner's file; agents never edit it). Code
+> outside `docs/` is allowed only for a scope that reads `Status: Approved` there. Open security
+> incident **#745** (secrets in public history; PR jobs on the production runner) needs owner action.
+> 0.4 batch: epic **#744**.
 >
 > If you are picking this project up — on another machine, in a new session, or as an agent — read
 > that file first. It carries the context that would otherwise live only in a chat window: what the
@@ -524,9 +531,12 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   environment" rather than running — they are **not** skipped, so those integration tests are
   silently unexecuted, and the number of them grows as integration tests are added (it was ten on
   2026-08-17 and thirteen on 2026-09-02). Count them in your own run.
-  Start Docker before trusting a result that touches anything they cover; with Docker, expect one
-  pre-existing failure, `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when
-  target visibility is nobody` (#269).
+  Start Docker before trusting a result that touches anything they cover. With Docker on
+  2026-11-12 the whole suite passed with **zero** failures — including
+  `UserProfilePrivacyIntegrationTest > GET users by id hides lastSeen when target visibility is
+  nobody` (#269), which earlier notes listed as the one expected failure. Re-measure; do not assume.
+  **In a Claude cloud container Docker can run:** start it with `dockerd &` (root, broad caps), and the
+  Testcontainers suites then execute locally.
   **Take the count from Gradle's own `N tests completed, M failed` line, not from the report
   directory.** On 2026-09-02 a *failing* run left `backend/build/test-results/test/` **empty** and
   the HTML report in `backend/build/reports/tests/test/` still showing the previous run's totals, so
@@ -537,6 +547,18 @@ The non-crypto half of companion-device linking is wired behind `muhabbet.multi-
   Three separate agents rediscovered the staleness of the old figure independently on one day, and
   three more did the same the next. If you are about to write a test count into this file, write the
   instruction to measure instead.
+- **Cloud-container build setup** (2026-11-12; to be automated by the ADR-0033 SessionStart hook):
+  Maven Central returns `429` through the session proxy under Gradle's parallel fetches — route it
+  through Google's mirror with a user-level init script (`~/.gradle/init.d/`, `beforeSettings`
+  adding `https://maven-central.storage-download.googleapis.com/maven2/` to plugin and dependency
+  repositories). The Android SDK is not preinstalled: install cmdline-tools plus
+  `platforms;android-36`, `platforms;android-35`, `build-tools;36.0.0` under `/opt/android-sdk`, and
+  copy the CI dummy `google-services.json` (heredoc in `mobile-ci.yml`, gitignored) before
+  `assembleDebug`.
+- **Verify every push with `git ls-remote origin refs/heads/<branch>`** (2026-11-12). A read-only
+  agent ran `git checkout origin/dev` in the main checkout; five later commits landed on a detached
+  HEAD and `git push origin <branch>` silently pushed nothing while reporting no error. Agents must
+  read other refs with `git show`/`git diff`, never by checking them out in the main working tree.
 - **"N failures, all Testcontainers" is not a green light — it is N tests that did not run.** On
   2026-08-17 that habit shipped a regression to production (#598). A `@Bean` added to
   `WebSocketConfig` for #493 threw in every `@SpringBootTest`, because `webEnvironment = MOCK` has no
