@@ -138,7 +138,7 @@ class GroupEventControllerTest {
         fun `should return each event with its going count`() {
             val first = event()
             val second = event()
-            every { manageGroupEventUseCase.getEvents(groupId) } returns listOf(
+            every { manageGroupEventUseCase.getEvents(groupId, any()) } returns listOf(
                 GroupEventSummary(first, goingCount = 3),
                 GroupEventSummary(second, goingCount = 0)
             )
@@ -154,7 +154,7 @@ class GroupEventControllerTest {
 
         @Test
         fun `should publish event times as epoch millis`() {
-            every { manageGroupEventUseCase.getEvents(groupId) } returns listOf(
+            every { manageGroupEventUseCase.getEvents(groupId, any()) } returns listOf(
                 GroupEventSummary(event(), goingCount = 1)
             )
 

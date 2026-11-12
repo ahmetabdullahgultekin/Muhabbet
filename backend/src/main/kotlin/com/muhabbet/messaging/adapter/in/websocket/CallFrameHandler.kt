@@ -101,6 +101,8 @@ class CallFrameHandler(
             return
         }
 
+        // Only the person being rung can answer; the caller cannot "accept" their own call.
+        if (userId != callSession.calleeId) return
         val otherParty = callSignalingService.getOtherParty(msg.callId, userId) ?: return
 
         if (msg.accepted) {
@@ -159,7 +161,9 @@ class CallFrameHandler(
     }
 
     fun handleEnd(userId: UUID, msg: WsMessage.CallEnd) {
-        val callSession = callSignalingService.getCall(msg.callId) ?: return
+        callSignalingService.getCall(msg.callId) ?: return
+        // A call id is not a capability: only someone in the call may end it.
+        if (!callSignalingService.isParticipant(msg.callId, userId)) return
         val otherParty = callSignalingService.getOtherParty(msg.callId, userId)
 
         // Map shared CallEndReason to domain CallStatus

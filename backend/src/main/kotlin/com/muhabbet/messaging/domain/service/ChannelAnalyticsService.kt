@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ChannelAnalyticsData
 import com.muhabbet.messaging.domain.port.`in`.ChannelAnalyticsSummary
 import com.muhabbet.messaging.domain.port.`in`.ManageChannelAnalyticsUseCase
@@ -23,9 +24,12 @@ open class ChannelAnalyticsService(
     override fun getAnalytics(
         channelId: UUID, userId: UUID, startDate: LocalDate, endDate: LocalDate
     ): ChannelAnalyticsSummary {
-        // Verify user is channel owner/admin
+        // A channel's numbers are for whoever runs it, not for every subscriber.
         val member = conversationRepository.findMember(channelId, userId)
             ?: throw BusinessException(ErrorCode.CHANNEL_NOT_FOUND)
+        if (member.role == MemberRole.MEMBER) {
+            throw BusinessException(ErrorCode.GROUP_PERMISSION_DENIED)
+        }
 
         val stats = analyticsRepository.findByChannelIdAndDateRange(channelId, startDate, endDate)
         val totalSubscribers = analyticsRepository.getSubscriberCount(channelId)
@@ -49,6 +53,9 @@ open class ChannelAnalyticsService(
 
     @Transactional
     override fun recordView(channelId: UUID, userId: UUID) {
+        // Only a subscriber's view is a view of the channel.
+        conversationRepository.findMember(channelId, userId)
+            ?: throw BusinessException(ErrorCode.CHANNEL_NOT_FOUND)
         val today = LocalDate.now()
         analyticsRepository.incrementViewCount(channelId, today)
     }

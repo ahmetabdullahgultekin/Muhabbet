@@ -2,7 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
-import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
+import com.muhabbet.messaging.domain.port.`in`.ManageStarredMessagesUseCase
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
@@ -17,7 +17,7 @@ import java.util.UUID
 
 class StarredMessageControllerTest {
 
-    private lateinit var starredMessageRepository: StarredMessageRepository
+    private lateinit var starredMessageRepository: ManageStarredMessagesUseCase
     private lateinit var getMessageHistoryUseCase: GetMessageHistoryUseCase
     private lateinit var controller: StarredMessageController
 

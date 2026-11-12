@@ -79,6 +79,21 @@ class ActuatorLockdownIntegrationTest {
     }
 
     @Test
+    fun `should refuse a metric sub-path when the caller is not an admin`() {
+        mockMvc.perform(get("/actuator/metrics/jvm.memory.used")).andExpect(status().isUnauthorized)
+        mockMvc.perform(get("/actuator/metrics/jvm.memory.used").header("Authorization", nonAdminBearer()))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `should refuse an unlisted actuator path when the caller is not an admin`() {
+        mockMvc.perform(get("/actuator/env").header("Authorization", nonAdminBearer()))
+            .andExpect(status().isForbidden)
+        mockMvc.perform(get("/actuator/health/liveness").header("Authorization", nonAdminBearer()))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `health stays public`() {
         mockMvc.perform(get("/actuator/health")).andExpect(status().isOk)
     }

@@ -48,7 +48,8 @@ open class GroupEventService(
     }
 
     @Transactional(readOnly = true)
-    override fun getEvents(conversationId: UUID): List<GroupEventSummary> {
+    override fun getEvents(conversationId: UUID, userId: UUID): List<GroupEventSummary> {
+        requireMember(conversationId, userId)
         val events = groupEventRepository.findByConversationId(conversationId)
         val goingCounts = groupEventRepository.countGoingRsvps(events.map { it.id })
         return events.map { GroupEventSummary(it, goingCounts[it.id] ?: 0) }
@@ -84,8 +85,14 @@ open class GroupEventService(
     }
 
     @Transactional(readOnly = true)
-    override fun getRsvps(eventId: UUID): List<GroupEventRsvp> =
-        groupEventRepository.findRsvpsByEventId(eventId)
+    override fun getRsvps(conversationId: UUID, eventId: UUID, userId: UUID): List<GroupEventRsvp> {
+        val event = groupEventRepository.findById(eventId)
+        if (event == null || event.conversationId != conversationId) {
+            throw BusinessException(ErrorCode.EVENT_NOT_FOUND)
+        }
+        requireMember(conversationId, userId)
+        return groupEventRepository.findRsvpsByEventId(eventId)
+    }
 
     private fun requireMember(conversationId: UUID, userId: UUID) {
         conversationRepository.findMember(conversationId, userId)

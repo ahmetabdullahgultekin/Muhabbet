@@ -5,7 +5,7 @@ import java.util.UUID
 
 interface ManageJoinRequestUseCase {
     fun requestJoin(conversationId: UUID, userId: UUID, linkId: UUID?): GroupJoinRequest
-    fun approveJoin(requestId: UUID, adminId: UUID)
-    fun rejectJoin(requestId: UUID, adminId: UUID)
-    fun getPendingRequests(conversationId: UUID): List<GroupJoinRequest>
+    fun approveJoin(conversationId: UUID, requestId: UUID, adminId: UUID)
+    fun rejectJoin(conversationId: UUID, requestId: UUID, adminId: UUID)
+    fun getPendingRequests(conversationId: UUID, userId: UUID): List<GroupJoinRequest>
 }

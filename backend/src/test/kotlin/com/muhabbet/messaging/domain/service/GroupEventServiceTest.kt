@@ -80,6 +80,12 @@ class GroupEventServiceTest {
     @Nested
     inner class GetEvents {
 
+        @BeforeEach
+        fun member() {
+            every { conversationRepository.findMember(groupId, userId) } returns
+                    TestData.member(conversationId = groupId, userId = userId)
+        }
+
         @Test
         fun `should attach the going count to each event`() {
             val busy = event()
@@ -88,7 +94,7 @@ class GroupEventServiceTest {
             every { groupEventRepository.countGoingRsvps(listOf(busy.id, quiet.id)) } returns
                     mapOf(busy.id to 4)
 
-            val result = groupEventService.getEvents(groupId)
+            val result = groupEventService.getEvents(groupId, userId)
 
             assertEquals(4, result.first { it.event.id == busy.id }.goingCount)
             // Absent from the count map means nobody answered GOING, not "unknown".
@@ -104,7 +110,7 @@ class GroupEventServiceTest {
                     listOf(first, second, third)
             every { groupEventRepository.countGoingRsvps(any()) } returns emptyMap()
 
-            groupEventService.getEvents(groupId)
+            groupEventService.getEvents(groupId, userId)
 
             verify(exactly = 1) { groupEventRepository.countGoingRsvps(any()) }
             verify(exactly = 0) { groupEventRepository.findRsvpsByEventId(any()) }
@@ -115,7 +121,7 @@ class GroupEventServiceTest {
             every { groupEventRepository.findByConversationId(groupId) } returns emptyList()
             every { groupEventRepository.countGoingRsvps(emptyList()) } returns emptyMap()
 
-            assertTrue(groupEventService.getEvents(groupId).isEmpty())
+            assertTrue(groupEventService.getEvents(groupId, userId).isEmpty())
         }
     }
 }

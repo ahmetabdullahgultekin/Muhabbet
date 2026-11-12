@@ -46,7 +46,8 @@ class JoinRequestController(
     fun getPendingRequests(
         @PathVariable conversationId: UUID
     ): ResponseEntity<ApiResponse<List<JoinRequestResponse>>> {
-        val requests = manageJoinRequestUseCase.getPendingRequests(conversationId)
+        val userId = AuthenticatedUser.currentUserId()
+        val requests = manageJoinRequestUseCase.getPendingRequests(conversationId, userId)
         return ApiResponseBuilder.ok(requests.map { it.toResponse() })
     }
 
@@ -56,7 +57,7 @@ class JoinRequestController(
         @PathVariable requestId: UUID
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageJoinRequestUseCase.approveJoin(requestId, userId)
+        manageJoinRequestUseCase.approveJoin(conversationId, requestId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 
@@ -66,7 +67,7 @@ class JoinRequestController(
         @PathVariable requestId: UUID
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageJoinRequestUseCase.rejectJoin(requestId, userId)
+        manageJoinRequestUseCase.rejectJoin(conversationId, requestId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 }

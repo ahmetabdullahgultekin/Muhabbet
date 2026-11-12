@@ -61,6 +61,7 @@ import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.messaging.domain.service.ViewOnceService
+import com.muhabbet.messaging.domain.service.StarredMessageService
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
@@ -374,6 +375,17 @@ class AppConfig {
     )
 
     @Bean
+    fun starredMessageService(
+        starredMessageRepository: com.muhabbet.messaging.domain.port.out.StarredMessageRepository,
+        messageRepository: MessageRepository,
+        conversationRepository: ConversationRepository
+    ): StarredMessageService = StarredMessageService(
+        starredMessageRepository = starredMessageRepository,
+        messageRepository = messageRepository,
+        conversationRepository = conversationRepository
+    )
+
+    @Bean
     fun disappearingMessageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
@@ -401,9 +413,14 @@ class AppConfig {
 
     @Bean
     fun callSignalingService(
-        callHistoryRepository: CallHistoryRepository
+        callHistoryRepository: CallHistoryRepository,
+        blockPolicy: BlockPolicyPort,
+        userDirectory: UserDirectoryPort
     ): CallSignalingService = CallSignalingService(
-        callHistoryRepository = callHistoryRepository
+        callHistoryRepository = callHistoryRepository,
+        blockPolicy = blockPolicy,
+        userDirectory = userDirectory,
+        clock = java.time.Clock.systemUTC()
     )
 
     @Bean

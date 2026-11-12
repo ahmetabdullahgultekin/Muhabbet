@@ -56,6 +56,10 @@ open class ChatWallpaperService(
 
     @Transactional
     override fun removeWallpaper(wallpaperId: UUID, userId: UUID) {
+        // A user holds a handful of wallpapers at most, so their own list is the ownership check.
+        if (chatWallpaperRepository.findAllByUserId(userId).none { it.id == wallpaperId }) {
+            throw BusinessException(ErrorCode.WALLPAPER_NOT_FOUND)
+        }
         chatWallpaperRepository.delete(wallpaperId)
         log.info("Wallpaper removed: id={}, user={}", wallpaperId, userId)
     }

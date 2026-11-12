@@ -52,7 +52,11 @@ class SecurityConfig(
                     .requestMatchers("/actuator/info").permitAll()
                     // metrics + prometheus expose JVM/DB/Redis internals — admin only (P0-6).
                     // The nginx/Traefik admin-IP gate is an additional operator layer (see runbook).
-                    .requestMatchers("/actuator/metrics", "/actuator/prometheus").hasRole("ADMIN")
+                    // `/**` because the exact path does not cover `/actuator/metrics/{name}`, which
+                    // carries the same internals one metric at a time. Every other actuator path —
+                    // health groups, env, anything a later `exposure.include` adds — is admin-only
+                    // too, so exposing an endpoint never makes it readable by every signed-in user.
+                    .requestMatchers("/actuator/**").hasRole("ADMIN")
                     .anyRequest().authenticated()
             }
             .exceptionHandling { exceptions ->

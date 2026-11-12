@@ -328,6 +328,9 @@ class ChatWebSocketHandler(
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
         val conversationId = parseId(msg.conversationId, "conversationId")
         val members = conversationRepository.findMembersByConversationId(conversationId)
+        // Only a member can be typing in a conversation. The list is already loaded, so this costs
+        // nothing; a frame for someone else's conversation is dropped silently, like a stale one.
+        if (members.none { it.userId == userId }) return
         val recipientIds = members.map { it.userId }.filter { it != userId }
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE

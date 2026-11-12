@@ -52,7 +52,8 @@ class GroupEventController(
 
     @GetMapping
     fun getEvents(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<List<GroupEventResponse>>> {
-        val events = manageGroupEventUseCase.getEvents(conversationId)
+        val userId = AuthenticatedUser.currentUserId()
+        val events = manageGroupEventUseCase.getEvents(conversationId, userId)
         return ApiResponseBuilder.ok(events.map { it.toResponse() })
     }
 
@@ -90,7 +91,8 @@ class GroupEventController(
         @PathVariable conversationId: UUID,
         @PathVariable eventId: UUID
     ): ResponseEntity<ApiResponse<List<RsvpResponse>>> {
-        val rsvps = manageGroupEventUseCase.getRsvps(eventId)
+        val userId = AuthenticatedUser.currentUserId()
+        val rsvps = manageGroupEventUseCase.getRsvps(conversationId, eventId, userId)
         return ApiResponseBuilder.ok(rsvps.map {
             RsvpResponse(
                 eventId = it.eventId.toString(),

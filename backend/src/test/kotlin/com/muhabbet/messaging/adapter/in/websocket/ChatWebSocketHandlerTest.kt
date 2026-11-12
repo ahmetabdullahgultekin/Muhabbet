@@ -587,6 +587,24 @@ class ChatWebSocketHandlerTest {
         }
 
         @Test
+        fun `should not relay typing when the sender is not a member of the conversation`() {
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId)
+
+            val convId = UUID.randomUUID()
+            val memberId = UUID.randomUUID()
+            every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+                ConversationMember(conversationId = convId, userId = memberId)
+            )
+            every { sessionManager.isOnline(memberId) } returns true
+
+            val typing = WsMessage.TypingIndicator(conversationId = convId.toString(), isTyping = true)
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(typing)))
+
+            verify(exactly = 0) { sessionManager.sendToUser(memberId, any()) }
+        }
+
+        @Test
         fun `should not send typing indicator to offline users`() {
             val session = createSession()
             val attrs = mutableMapOf<String, Any>("userId" to userId)

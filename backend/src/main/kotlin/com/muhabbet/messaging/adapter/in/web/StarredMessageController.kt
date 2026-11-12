@@ -1,7 +1,7 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
-import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
+import com.muhabbet.messaging.domain.port.`in`.ManageStarredMessagesUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.model.Message as SharedMessage
@@ -20,21 +20,21 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/starred")
 class StarredMessageController(
-    private val starredMessageRepository: StarredMessageRepository,
+    private val starredMessages: ManageStarredMessagesUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase
 ) {
 
     @PostMapping("/{messageId}")
     fun starMessage(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        starredMessageRepository.star(userId, messageId)
+        starredMessages.star(userId, messageId)
         return ApiResponseBuilder.ok(Unit)
     }
 
     @DeleteMapping("/{messageId}")
     fun unstarMessage(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        starredMessageRepository.unstar(userId, messageId)
+        starredMessages.unstar(userId, messageId)
         return ApiResponseBuilder.ok(Unit)
     }
 
@@ -44,7 +44,7 @@ class StarredMessageController(
         @RequestParam(defaultValue = "0") offset: Int
     ): ResponseEntity<ApiResponse<PaginatedResponse<SharedMessage>>> {
         val userId = AuthenticatedUser.currentUserId()
-        val messages = starredMessageRepository.getStarredMessages(userId, limit, offset)
+        val messages = starredMessages.getStarredMessages(userId, limit, offset)
 
         val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
         val items = messages.map { msg ->
