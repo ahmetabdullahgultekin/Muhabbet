@@ -41,6 +41,7 @@ class AuthServiceTestNumberTest {
         testNumbers: Set<String>,
         otpRepository: OtpRepository = mockk(relaxed = true),
         otpVerifier: OtpVerifier = mockk(relaxed = true),
+        quotaAvailable: Boolean = true,
     ) = AuthService(
         userRepository = mockk<UserRepository>(relaxed = true),
         otpRepository = otpRepository,
@@ -59,7 +60,7 @@ class AuthServiceTestNumberTest {
             // Relaxed mocks answer false for Boolean, which would make every test here
             // fail on the quota rather than on what it is testing. The quota itself is
             // covered by RedisOtpQuotaAdapterTest against a real Redis.
-            io.mockk.every { it.tryConsume(any()) } returns true
+            io.mockk.every { it.tryConsume(any()) } returns quotaAvailable
         },
             firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
             twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository(),
@@ -80,6 +81,21 @@ class AuthServiceTestNumberTest {
         // A real hash, not the sentinel — the code exists on this side and can be checked here.
         assertNotEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
         assertTrue(saved.captured.otpHash.startsWith("\$2"), "expected a bcrypt hash")
+    }
+
+    @Test
+    fun `should refuse a test-number code when that number's quota is spent`() {
+        // The codes are public knowledge in shape (+90500…) and six digits long, so the same daily
+        // per-number budget that bounds a real number bounds how many guesses a test number gets.
+        val otpRepository = mockk<OtpRepository>(relaxed = true)
+        every { otpRepository.findActiveByPhoneNumber(testPhone) } returns null
+
+        val error = assertThrows<com.muhabbet.shared.exception.BusinessException> {
+            buildService(setOf(testPhone), otpRepository, quotaAvailable = false).requestOtp(testPhone)
+        }
+
+        assertEquals(com.muhabbet.shared.exception.ErrorCode.AUTH_OTP_RATE_LIMIT, error.errorCode)
+        verify(exactly = 0) { otpRepository.save(any()) }
     }
 
     @Test

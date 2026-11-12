@@ -12,6 +12,8 @@ class MockOtpSender : OtpSender {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun send(phoneNumber: String, otp: String) {
-        log.info("OTP for {}: {}", phoneNumber, otp)
+        // Dev and test only — OtpModeGuard refuses to boot with this provider anywhere else. The
+        // number is masked all the same: a log is not the place for a full phone number.
+        log.info("OTP for ...{}: {}", phoneNumber.takeLast(4), otp)
     }
 }

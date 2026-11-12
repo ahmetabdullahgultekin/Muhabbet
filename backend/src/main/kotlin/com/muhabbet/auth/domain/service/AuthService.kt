@@ -158,9 +158,10 @@ open class AuthService(
 
         // Checked after the cooldown so a client hammering one number spends its own cooldown
         // rather than the deployment's hourly budget, and before anything is generated or stored so
-        // a refusal costs nothing. Test numbers are exempt: they never reach the provider, so they
-        // cost nothing and must not be able to exhaust the budget real users share.
-        if (!isTestNumber(phoneNumber) && !otpQuotaPort.tryConsume(phoneNumber)) {
+        // a refusal costs nothing. Test numbers are not exempt: their range is public, so the
+        // per-number daily budget is what bounds how many codes, and so how many guesses, anyone
+        // can get at one. They are a handful of numbers, so they cannot drain the global budget.
+        if (!otpQuotaPort.tryConsume(phoneNumber)) {
             throw BusinessException(ErrorCode.AUTH_OTP_RATE_LIMIT)
         }
 
