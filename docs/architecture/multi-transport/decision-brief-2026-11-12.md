@@ -1,9 +1,36 @@
 # Muhabbet multi-transport delivery: decision brief
 
-**Date:** 2026-11-12 · **Base branch:** `dev` @ 2434324 · **Status:** Proposed. Nothing in this brief is accepted until the owner approves it (owner decision 4). No code is written before that approval, and no GitHub restructuring or hooks are applied before it (owner decision 3).
+**Date:** 2026-11-12 · **Base branch:** `dev` @ 2434324 · **Status:** Approved by delegated owner review (2026-11-12) with the amendments below: owner decisions D1–D6 and the errata in §18. The binding per-scope record is [`APPROVAL.md`](APPROVAL.md); no code is written for a scope until its block there reads `Status: Approved` (owner decision 4), and no GitHub restructuring or hooks are applied before the `process` scope is approved (owner decision 3). Open items are tracked in [`open-items.md`](open-items.md).
 **Audience:** the owner, plus the documentation authors who will turn this brief into the SAD, ADRs, threat model, ICD, capability matrix, roadmap, V&V plan and governance docs.
 **Inputs:** the three proposals (evolutionary, target-state, risk-first), the three judges (security-legal, feasibility, architecture-quality), the adversarially verified fact-checks and the register on `dev`.
 **How it was built:** the evolutionary proposal is the base, because it won two of three judges. It is grafted with risk-first's type-level fail-closed gate, wake-only push, compliance boundary and CI-trust prerequisites, and with target-state's path scopes, link keys, LAN adapter, tick semantics and own-device custody. Every must-fix from every judge is addressed. The cross-reference is in §3 ("Judge must-fix closure").
+
+> **Owner decisions 2026-11-12 (delegated review).** The owner delegated the review and approval of
+> this package ("Kendin hepsini bağımsız review et ve onayla ve devam" — review everything
+> independently yourself, approve and continue) and took six decisions. They are binding and
+> override any body text of this brief that says otherwise.
+>
+> - **D1 Licence (ADR-0017, amended).** No relicensing now. `mobile/` stays MIT until 1.0 entry.
+>   Whether to relicense `mobile/` to AGPL-3.0-or-later or to keep MIT sources and convey the
+>   libsignal-linked binary as a combined work under AGPL-3.0 is decided at 1.0 entry, after counsel
+>   answers Q-L7. Not blocking 0.4–0.7.
+> - **D2 iOS.** If KMP-01 (iOS cannot launch) is not fixed at the 0.6 gate, 1.0 ships Android-only and
+>   the UI and store-listing text say so. Bringing iOS back afterwards needs a new ADR.
+> - **D3 Plaintext history at 1.0 (ADR-0021, amended).** Clients download history into the encrypted
+>   local DB; the server copy (content, media, server-built backups) is deleted after a notified
+>   30-day grace; an encrypted backup under a user-held key is opt-in; a conversation is labelled E2E
+>   only once the server holds no readable copy.
+> - **D4.** The ≤ 7-day offline revocation window is accepted and disclosed.
+> - **D5.** No off-server path before 1.0, enforced by the `SealedFrame` type gate.
+> - **D6.** ADR-0033 amendments G3 (`APPROVAL.md` never agent-editable) and G5 (`.claude/active-scope`)
+>   are accepted.
+>
+> **Scope outcomes:** Phase 0, `process` (ADRs 0030–0033), 0.4, 0.5 and 0.6 approved; 0.7 approved
+> except the ADR 0009 hosting/budget choice (Q-O8, owner); 1.0 approved in principle, gated on the
+> written counsel opinions, the external crypto review and the licence step (D1); 1.1–1.4 remain
+> Proposed (gated) behind their own entry gates. Only one milestone scope reads `Status: Approved` in
+> `APPROVAL.md` at a time (ADR-0033 D1a); the later approved milestones are recorded as `Deferred`
+> with a pre-approval condition and opened by the owner when the previous milestone exits.
 
 > **Naming note.** ROADMAP.md names the live milestone **"0.4 — the app tells the truth"**. "0.4.0 — Installable" is a *retired* framing (ROADMAP §"Milestones are versions"). This brief uses the ROADMAP names: 0.4 truth · 0.5.0 Honest · 0.6.0 Reachable · 0.7.0 Live · 1.0.0 Encrypted. New post-1.0 milestones: 1.1 Direct · 1.2 Nearby · 1.3 Relay · 1.4 Off-grid hardware.
 
@@ -149,7 +176,7 @@ Product ADRs are 0010–0029. Process ADRs are 0030–0033. Existing documents a
   - **Outbox.** `outbox_entry` holds the full versioned `OutgoingEnvelope`. It is written in the same transaction as the optimistic message row. It moves through the state machine in §6.1, and transitions are compare-and-set. A row is removed only at a terminal state.
   - **Inbox.** Each inbound event is upserted in one transaction: insert, or update only if the incoming `change_seq` is newer. The seq watermark advances in the same transaction. Only after the commit is the DELIVERED receipt enqueued.
   - **Server idempotency.** `UNIQUE (sender_device_id, client_message_id)`. A duplicate submit *replays* the original `ServerAck(seq, serverTs, replay=true)` instead of `MSG_DUPLICATE` (BE-07).
-  - **Acks.** Acks are per device: `ack{conversationId, uptoSeq, kind}`. They are accepted only from a device of a member who is not the sender, and only for seqs that exist (BE-03, BE-18).
+  - **Acks.** Acks are per device: `ack{conversationId, uptoSeq, kind}`, only for seqs that exist (BE-03, BE-18). `uptoSeq` is the conversation's `complete_through_seq` (advanced only when a pull ends with `hasMore=false` or a contiguous `message.new` extends it), never the change-feed watermark or a pushed value (erratum E-45). Tick-affecting DELIVERED/READ are accepted only from devices of members who are not the sender; watermark/custody acks are accepted from any registered device of any member, the sender's own included, and are excluded from ticks (erratum E-39).
   - **Ack levels.**
     - **L1 hop ack:** `ServerAck(seq)` from the server, or `HopAck` from a peer device or custodian.
     - **L2 E2E DELIVERED:** the recipient device has committed.
@@ -233,28 +260,28 @@ Product ADRs are 0010–0029. Process ADRs are 0030–0033. Existing documents a
   - Relying on BLE pairing or Nearby UKEY2. These authenticate the radio peer, not the recipient.
 - **Consequences.** No non-server transport can carry content before 1.0, by construction. ADR-003 is marked *Superseded by ADR-0016* (ADR-0017 related).
 
-### ADR-0017: E2E library and licence. libsignal at the platform edge; `mobile/` relicensed to AGPL-3.0-or-later; `shared/` and `backend/` stay MIT
+### ADR-0017: E2E library and licence. libsignal at the platform edge; licence of `mobile/` decided at 1.0 entry after counsel Q-L7 (D1); `shared/` and `backend/` stay MIT
 - **Decision.**
   - **Library.** libsignal (PQXDH with Kyber prekeys, Double Ratchet, sender keys, sealed sender; SPQR when the bindings expose it, still to be verified).
     - Android: `org.signal:libsignal-android` from Signal's Maven repo (versions above 0.86.5 are only there).
     - iOS: `LibSignalClient` (Swift) through an `@objc` wrapper consumed by Kotlin/Native cinterop.
     - commonMain sees only `EnvelopeSealer` and `SessionCryptoPort`.
-  - **Licence.** Only the code that links libsignal (`mobile/`) is relicensed to AGPL-3.0-or-later. `shared/` stays MIT, because the backend links it and it never links libsignal. MIT code is compatible with inclusion in an AGPL work. `backend/` stays MIT.
-  - **Preconditions:**
-    - (a) owner approval of the public licence change
-    - (b) contributor audit (`git shortlog`, agent commits under the owner's identity)
+  - **Licence (amended by D1, 2026-11-12).** `mobile/` stays MIT until 1.0 entry. At 1.0 entry, after counsel answers Q-L7, the owner chooses (i) relicensing `mobile/` to AGPL-3.0-or-later, or (ii) keeping the `mobile/` sources MIT and conveying the libsignal-linked binary as a combined work under AGPL-3.0 with a corresponding-source offer. Under both options every libsignal-linked artefact carries an AGPL source offer and a resolvable source tag. `shared/` stays MIT, because the backend links it and it never links libsignal. MIT code is compatible with inclusion in an AGPL work. `backend/` stays MIT.
+  - **Preconditions (1.0 entry):**
+    - (a) the owner's choice of (i) or (ii), recorded after the written Q-L7 opinion
+    - (b) contributor audit (`git shortlog`, agent commits under the owner's identity), required only for option (i)
     - (c) a written counsel opinion on AGPL distribution through Google Play **and** the App Store
   - **Fallback if (c) is negative:** an Apache-2.0 core (vodozemac Olm/Megolm via UniFFI). It loses PQXDH and needs its own ADR.
   - **Pre-1.0 feasibility spike:** a two-device Android round trip, plus the iOS bridge compiles and round-trips a golden vector. If the iOS bridge or KMP-01 is not ready, **1.0 ships Android-only**, with the honest-UI consequences written down. iOS E2E then follows as 1.0.x.
 - **Rationale.** KMP-13: libsignal is AGPL and the repo is MIT. The disabled Signal code does not compile, and libsignal is not even a dependency now (KMP-M3). Hand-rolled crypto is forbidden (CLAUDE.md, ADR 0007). Risk-first's draft relicensed `shared/` too, which is inconsistent with the MIT backend linking it, so that part is fixed here.
 - **Rejected alternatives.**
   - Hand-written PQXDH or ratchet in Kotlin.
-  - Shipping libsignal under MIT.
+  - Conveying the libsignal-linked binary under MIT terms (not permitted).
   - Deferring E2E past 1.0.
   - OpenMLS for 1:1.
   - A commercial libsignal licence (not offered).
 - **Consequences.**
-  - 1.0 entry is blocked until (a)–(c) are done.
+  - 1.0 entry is blocked until (a)–(c) are done. 0.4–0.7 are not blocked (D1).
   - A commonTest contract suite runs against the Android adapter, the iOS adapter and the fake.
   - The envelope is protocol-tagged, so a library change does not ripple into wire, storage or UI.
 
@@ -817,7 +844,7 @@ DELIVERED and READ are not outbox states. They are *derived* from receipt rows (
 
 `CREATED → OFFERED(custodian) → IN_CUSTODY(custodian, expiresAt) → DELIVERED_RECEIPT → RELEASED`, with branches `OFFERED → DECLINED → CREATED (next custodian)` and `IN_CUSTODY → EXPIRED`.
 
-Custodians are offered strictly in hierarchy order. A custodian deletes on an authenticated `DELIVERED` (sealed to the sender) or on expiry. On the mule side, the store is quota-bounded with FIFO-by-expiry eviction.
+Custodians are offered strictly in hierarchy order. A custodian releases custody only on (a) an authenticated `DELIVERED` (sealed to the sender), (b) handover acknowledged by a higher-ranked custodian (server 2xx / `ServerAccepted`), or (c) expiry (erratum E-10). On the mule side, the store is quota-bounded with FIFO-by-expiry eviction.
 
 ### 6.3 Link and session state machine
 
@@ -830,7 +857,7 @@ Custodians are offered strictly in hierarchy order. A custodian deletes on an au
 ### 6.4 Ack model
 
 - **L1 hop ack.** `ServerAck{seq, serverTs, replay}` or `HopAck{frameId}` from a peer link.
-- **L2 E2E delivered.** `ack{conversationId, uptoSeq, DELIVERED}` per device, sent only after the inbox commit. Off-server it is a sealed receipt frame, also uploaded to the server when the server is reachable.
+- **L2 E2E delivered.** `ack{conversationId, uptoSeq = complete_through_seq, DELIVERED}` per device, sent only after the inbox commit (ICD §3.8 R-ACK). Off-server it is a sealed receipt frame, also uploaded to the server when the server is reachable.
 - **L3 read.** `ack{…, READ}` when the chat is visible. The server applies the `readReceiptsEnabled` downgrade when publishing.
 - **Aggregation.** The sender's status is computed from the server's per-device rows. The client never promotes to READ because of one member's status update (group fix).
 
@@ -1012,7 +1039,7 @@ The atomic claim and rate limit ship in 0.4. The per-device schema ships in 0.6.
 - `hello{protocolVersions:[1,2], minSupported, capabilities:["seq","wake","sealed"], deviceId}` → `welcome{protocolVersion, serverTime, certRenewal?, crlDelta?}`. Auth is in the first frame or a header, never the query string.
 - `message.send{clientMessageId, conversationId, encryption: "none" | "e2e/v1", content? | envelopes:[{recipientDeviceId, protocol, ciphertextB64}], clientTs}` → `ack{clientMessageId, seq, serverTs, replay}`.
 - `message.new{messageId, conversationId, senderDeviceId, seq, changeSeq, content? | envelope}`.
-- `message.ack{conversationId, uptoSeq, kind}`. `sync.hint{conversationId, seq}`. `security.key_changed{userId, deviceId}`. `crl.delta{…}`. `error{code}`, including `UNSUPPORTED_FRAME` and `PROTOCOL_TOO_OLD`.
+- `message.ack{conversationId, uptoSeq, kind}`. `sync.hint{conversationId, seq}`. `security.key_changed` (existing frame) extended with `deviceId`: `{userId, deviceId, conversationId?, timestamp}` (erratum E-25). `crl.delta{…}`. `error{code}`, including `UNSUPPORTED_FRAME` and `PROTOCOL_TOO_OLD`.
 - REST `GET /api/v1/conversations/{id}/changes?afterSeq&limit` → `{items:[MessageChange], lastSeq, hasMore}`.
 
 **Inner `Content`** (inside libsignal ciphertext):
@@ -1181,10 +1208,10 @@ All new milestones are created in GitHub only after approval (owner decision 3).
   - The owner reviews this brief and the ADRs.
   - Counsel engaged with the question list (§17).
   - Threat model (STRIDE + LINDDUN) and DPIA screening written.
-  - The licence decision is opened.
+  - The licence decision is deferred to 1.0 entry and counsel Q-L7 is requested (D1).
 - **Entry.** This brief is delivered.
 - **Exit.**
-  - Every `.env.prod` value is rotated (verified by login with the old JWT failing).
+  - Every `.env.prod` value is rotated: the old JWT fails, and DB, Redis and MinIO credential rotation is evidenced in the rotation log (ADR-0031 F7) (erratum E-31).
   - No PR job runs on `muhabbet-cx43` (workflow inspection plus a test PR).
   - ADRs marked Accepted, Amended or Rejected by the owner.
   - Then the GitHub restructuring (ADR-0030/0031/0032) is applied.
@@ -1209,14 +1236,15 @@ All new milestones are created in GitHub only after approval (owner decision 3).
     - MOB-04 stopgap limited to "delete `PendingMessage` only on `ServerAck(requestId)`".
     - Group receipt aggregation.
     - **EARLY ENGINE:** version catalog, one convention plugin, SQLDelight `.sqm` migrations and `verifyMigrations`, `:shared:jvmTest` in CI.
-- **Entry.** Phase 0 exit. ROADMAP's four existing 0.4 conditions remain.
+- **Entry (amended 2026-11-12).** Implementation may start on branches now: P0-5 (ADR dispositions) is met by the delegated approval. Nothing is merged to `main`, deployed or released until P0-1…P0-4 are met (rotation evidenced, runner off cx43, `muhabbet-mordecai` resolved, protected environments). P0-6 (dev→main merge, rulesets) runs in parallel and must be complete before the 0.4 release tag, because release tags exist on `main` only (ADR-0030).
+- **Exit conditions carried from ROADMAP.** ROADMAP's four existing 0.4 conditions remain, as **exit** conditions (erratum E-29).
 - **Exit.**
   - Emulator, two test numbers:
     - kill mid-send gives no loss or duplicate after relaunch
     - double tick only after the recipient DB holds the row
     - logout then login as another number shows no prior data
     - a revoked device's socket closes within 5 s
-  - Under-15 registration is refused.
+  - Registration below the configured minimum age (`muhabbet.age.minimum-years`, currently 18 per the published Terms) is refused (ADR-0029).
   - Testcontainers: 50 concurrent senders give gapless unique seq, and concurrent prekey claims never return the same key.
   - Backend suite measured with Docker running (base versus branch).
   - Release APK installed and launched on emulator-5554.
@@ -1227,7 +1255,8 @@ All new milestones are created in GitHub only after approval (owner decision 3).
   - `:mobile:crypto` (type gate; no producer yet), `:mobile:messaging` engine, `:mobile:crypto-testkit`.
   - `WsClient` strangled into `WsServerLink`/`WsInboundSource`.
   - `RestChangeFeedSource`, `FcmHintSource`, `SyncCoordinator`.
-  - UI observes DB flows. `verifyUi` ratchet: `WsMessage`/`wsClient` in `ui/` goes to 0 (from 17 sites).
+  - UI observes DB flows. `verifyUi` ratchet: `WsMessage`/`wsClient` in `ui/` goes to 0 outside `ui/call/` (the 3 call-screen send sites and 1 collector stay frozen in the baseline until 0.7, erratum E-30). Baseline measured when the guardrail is added.
+  - ROADMAP's 0.5.0 exit question (every control the app shows either works or is not shown) remains.
   - **SQLCipher via fresh DB plus resync (ADR-0020).**
   - Backend:
     - `/changes`
@@ -1239,11 +1268,11 @@ All new milestones are created in GitHub only after approval (owner decision 3).
   - MOB-07 client label cleanup.
   - Plaintext fallback code deleted. E2E conversations do not exist yet, so nothing regresses.
   - **Rollout:** `engine.enabled` remote flag. Release 0.5.0 ships both paths with the engine on for internal testers. 0.5.1 switches the default once emulator parity is shown. The legacy path is deleted in 0.5.2 or later.
-- **Entry.** 0.4 shipped. ADR-0011/12/13/14/16/19/20/22/28 accepted. Docker available for Spring-config changes.
+- **Entry.** 0.4 shipped. ADR-0010/11/12/13/14/16/19/20/22/28 accepted. Docker available for Spring-config changes. A verified production Postgres backup plus a restore test (R30), before the fresh-DB migration makes the server the recovery source.
 - **Exit.**
   - SimulatedLink property suite (10k seeded runs: loss, duplication, reorder, partition, process death, 24 h offline, token expiry mid-session): every message ends in sender and receiver stores exactly once, in seq order, with TestClock.
   - `:mobile:messaging` has no Compose, Koin-annotation or `WsMessage` dependencies (build-enforced).
-  - The captured FCM payload contains no content.
+  - The captured FCM payload contains no content, conversation id or seq (ADR-0019).
   - Forensic check after logout: no readable DB.
   - Owner on the emulator: an airplane-mode toggling script recovers with no manual refresh; notification arrives with the app killed.
 - **Evidence.** CI reports, the payload capture, the owner's notes.
@@ -1255,12 +1284,12 @@ All new milestones are created in GitHub only after approval (owner decision 3).
   - Background sync on seq.
   - Per-device delivery rows (V32).
   - Per-device key schema (V33) and `IdentityKeyChanged`.
-  - **iOS decision as a BLOCKING gate:** either KMP-01 is fixed (entry point, Xcode project, DI, iOS CI build), or an ADR scopes iOS out of 1.0. 1.0 and 1.2 cross-platform claims depend on this.
+  - **iOS decision as a BLOCKING gate:** either KMP-01 is fixed (entry point, Xcode project, DI, iOS CI build), or, per owner decision D2, 1.0 ships Android-only and the UI and store-listing text say so (recorded in a scoping ADR). 1.0 and 1.2 cross-platform claims depend on this.
 - **Entry.** 0.5 exit.
 - **Exit.**
   - A message received while the app is killed is in the DB before the notification is tapped (owner, emulator).
   - Enumeration throttling integration test.
-  - iOS launches on a simulator, or the scoping ADR is accepted.
+  - iOS launches on a simulator, or the Android-only text required by D2 is present in the UI and the store listing (owner observation).
   - An identity-replacement attempt returns an error.
 
 ### 0.7.0: Live (DIRECT live sessions)
@@ -1278,15 +1307,15 @@ All new milestones are created in GitHub only after approval (owner decision 3).
 
 ### 1.0.0: Encrypted
 - **Scope.**
-  - ADR-0017 preconditions: licence approved and executed for `mobile/`, contributor audit, counsel opinion on Play and the App Store, and the **iOS bridge spike**. If iOS is not ready, 1.0 is Android-only by decision.
+  - ADR-0017 preconditions: the licence step per D1 (after counsel Q-L7, relicense `mobile/` or convey the combined app under AGPL; contributor audit only if relicensing), counsel opinion on Play and the App Store, and the **iOS bridge spike**. If KMP-01 is not fixed at the 0.6 gate, 1.0 is Android-only (D2).
   - libsignal adapters behind `SessionCryptoPort`, PQXDH and Kyber, per-device fan-out, sender-key groups, media E2E.
   - Safety-number QR. `IdentityKeyChanged` UX.
   - `message_envelopes` mailbox (V34). Protocol v2. On-device FTS. Sender-side link previews.
   - ADR 0007 `DeviceLinkCrypto` real.
-  - ADR-0021 cutover of existing plaintext history (owner's choice, Q-O4).
+  - ADR-0021 cutover of existing plaintext history (D3: download into the encrypted local DB → notified 30-day grace → server deletion of content, media and server-built backups; opt-in encrypted backup under a user-held key).
   - External crypto review.
   - LOCAL_ONLY only if Q-O3 is decided.
-- **Entry.** 0.7 shipped or explicitly deferred. Crypto reviewer engaged. Two-device Android round trip on real builds.
+- **Entry.** 0.7 shipped or explicitly deferred. Crypto reviewer engaged. Two-device Android round trip on real builds. Written counsel opinions Q-L1, Q-L4, Q-L7 and Q-L9 (Q-L9 also gates the D3 deletion schedule). Gradle dependency verification, wrapper SHA and `exclusiveContent` for the Signal repository in place (R24). Backup-key ADR accepted (ADR-0021).
 - **Exit.**
   - **Claims register:** every privacy claim maps to a test or a device observation.
   - SQL assertion: no plaintext content for E2E conversations.
@@ -1321,9 +1350,9 @@ All new milestones are created in GitHub only after approval (owner decision 3).
   - ADR-0031 in force.
   - HMS share in Turkey measured.
 - **Exit.**
-  - Two Android phones in airplane mode exchange E2E text and a photo through `LanLink` on shared Wi-Fi, and through `NearbyLink` with Wi-Fi off.
+  - Two Android phones in airplane mode exchange E2E text and a photo through `LanLink` on shared non-isolating Wi-Fi, and through `NearbyLink` with Wi-Fi off.
   - On reconnect each message appears once, in seq order, on both devices and a linked companion.
-  - Over-the-air capture shows no stable identifiers.
+  - Over-the-air capture shows no stable per-user or per-device identifiers outside TLS-to-server; the app-level fingerprint (fixed service type / serviceId) is a disclosed residual.
   - A revoked device is refused after certificate expiry or a CRL update (TestClock test plus owner observation).
 - **Kill criterion.** If the spike fails on iOS, ship Android plus LAN-only cross-platform and say so.
 
@@ -1342,7 +1371,7 @@ All new milestones are created in GitHub only after approval (owner decision 3).
 - **Kill criteria.** Telemetry below threshold, or any negative opinion or review.
 
 ### 1.4: Off-grid hardware (new; gated, droppable, TR-excluded until cleared)
-- **Scope.** `MeshtasticLink`, `AirtimeLedger`, constrained policy, certified hardware list.
+- **Scope.** `MeshtasticLink`, `AirtimeLedger`, RF admission policy (capability- and size-based: `SizeRule`, `AirtimeLedger`, established-session-only; not the server-path `constrained` flag), certified hardware list. RF carries only messages in an established session (no pending `PreKeySignalMessage`).
 - **Entry.** A written Art. 39/63(6), 2010-regulation and KET opinion. G-PROXIMITY in place.
 - **Exit.** Ledger tests plus a one-hour field log within the duty cycle. Text and receipts delivered between two certified nodes. The TR flavour includes the module only after counsel signs off.
 - **Kill criterion.** Negative opinion. This may never ship in TR.
@@ -1492,15 +1521,15 @@ CI cannot verify any of these, because there is no KVM on the Hetzner host. The 
 ## 17. Open questions
 
 ### For the owner
-- **Q-O1.** Approve the AGPL-3.0-or-later relicense of `mobile/` (`shared/` and `backend/` stay MIT), subject to counsel?
-- **Q-O2.** Is iOS in scope for 1.0, or does 1.0 ship Android-only if KMP-01 or the bridge is not ready by the 0.6 gate?
+- **Q-O1.** *Deferred to 1.0 entry after Q-L7 (D1).* Relicense `mobile/` to AGPL-3.0-or-later, or convey the combined app under AGPL with MIT sources (`shared/` and `backend/` stay MIT)?
+- **Q-O2.** *Decided (D2): Android-only 1.0 if KMP-01 is not fixed at the 0.6 gate.* Is iOS in scope for 1.0, or does 1.0 ship Android-only if KMP-01 or the bridge is not ready by the 0.6 gate?
 - **Q-O3.** LOCAL_ONLY receipt metadata. Does the server keep delivery receipts only as long as the envelope, or keep "who talked to whom" receipts longer? (Open T3 question.)
-- **Q-O4.** At the 1.0 cutover, are existing plaintext server histories deleted after a grace period, or encrypted to a user-held backup by default?
+- **Q-O4.** *Decided (D3).* At the 1.0 cutover, are existing plaintext server histories deleted after a grace period, or encrypted to a user-held backup by default?
 - **Q-O5.** Kill thresholds for 1.1 Direct, 1.3 Relay (share of Nearby sessions with one side offline) and 1.4.
-- **Q-O6.** Accept the ≤ 7-day offline revocation window and disclose it?
+- **Q-O6.** *Decided (D4): accepted and disclosed.* Accept the ≤ 7-day offline revocation window and disclose it?
 - **Q-O7.** Where will the device-CA intermediate and the uplink key live: a second small host, or a hardware token? They must not be on cx43 while it runs any PR job.
 - **Q-O8.** ADR 0009 LiveKit host placement and budget, and the TURN egress budget for 30–50% relayed calls.
-- **Q-O9.** Approve the governance changes (trunk-based `main`, agent identity, rulesets) after design approval.
+- **Q-O9.** *Approved (delegated review 2026-11-12).* Approve the governance changes (trunk-based `main`, agent identity, rulesets) after design approval.
 - **Q-O10.** Is a screen-state ADR (ViewModels or Decompose component state for MOB-02) wanted separately? This design does not need it.
 - **Q-O11.** Is a separate offline-mode label wanted in Turkish UI copy ("Yakındakiler", "Henüz eşitlenmedi")? Wording to be confirmed.
 
@@ -1511,6 +1540,68 @@ CI cannot verify any of these, because there is no KVM on the Hetzner host. The 
 - **Q-L4.** Is Muhabbet a "sosyal ağ sağlayıcı" under 5651 (now overseen by the Siber Güvenlik Başkanlığı), and at what user threshold? What takedown and reporting obligations apply to E2E content?
 - **Q-L5.** KVKK roles when a user's phone transiently holds another user's ciphertext (own-device custody, contact uplink mule). Is the relaying user a processor, a controller, or neither? Is a DPIA mandatory?
 - **Q-L6.** KVKK Art. 9 basis for FCM/APNs wake hints (content-free) and for LiveKit/TURN hosting. Consent is no longer to be used as the systematic basis.
-- **Q-L7.** AGPL-3.0 distribution through Google Play and the Apple App Store for a single-copyright-holder app linking libsignal.
+- **Q-L7.** AGPL-3.0 distribution through Google Play and the Apple App Store of an app linking libsignal, where Muhabbet is a third-party redistributor of Signal's AGPL code; relicensing `mobile/` versus conveying MIT sources in an AGPL combined work (D1).
 - **Q-L8.** Is ICE telemetry (candidate type, IP family, ASN; no IPs) personal data requiring notice?
 - **Q-L9.** The retention obligation, if any, for server-side delivery metadata under 5651 and 5809, given LOCAL_ONLY's delete-on-delivery promise.
+
+---
+
+## 18. Errata and amendments (delegated review, 2026-11-12)
+
+The derived documents recorded disagreements with this brief as reviewer notes. The delegated review
+resolved them. Each erratum below **amends the body text of this brief**; where a section above still
+reads otherwise, the erratum wins. Items that could not be resolved by the review are tracked in
+[`open-items.md`](open-items.md).
+
+| ID | Section | Amendment | Source |
+|---|---|---|---|
+| E-01 | §3 ADR-0010 Consequences | ADR-0010 sets the boundary; **ADR-0012** makes the ARCHITECTURE.md §8 amendment (three seams: `ServerLink`/`SealedLink`, `EnvelopeSealer`, `MailboxPort`). | ADR-0010 |
+| E-02 | §13 0.5 Entry | ADR-0010 is added to the ADRs accepted before 0.5 (applied above). Approving scopes 0.4–0.6 accepted the 0.4 slices of ADR-0010/0013/0014/0028/0029 before 0.4 starts. | ADR-0010 |
+| E-03 | §3 ADR-0012 Rationale bullet 2; §5 `ServerLink` row | Outbound `ServerLink` has `WsServerLink`, `SimulatedLink` for tests, and `RestServerLink` (0.5) for short-lived Android components (#510 notification reply, #596 push-handler ack), fed from the durable outbox and behind the Inbox commit. It is the type-level counterpart of `SealedLink`, whose real implementations start with `LanLink` at 1.2. | ADR-0012; spec R-5 |
+| E-04 | §3 ADR-0014 | A gap is *watermark < a hinted seq or a listed `lastSeq`*, never non-contiguity: edits, deletes, reactions and changes hidden from the requester consume seq values. The cursor is server-driven: each `/changes` page returns `nextAfterSeq` (the highest `change_seq` scanned, visible or not, = `lastSeq` when `hasMore=false`), and the client sets `watermark := nextAfterSeq` in the same transaction as the upsert. | ADR-0014; ICD §4.1 |
+| E-05 | §7 `LinkMetrics`; §3 ADR-0015 | `LinkMetrics(rttMs, lossPpm, goodputBps, costClass: FREE\|METERED, batteryClass: LOW\|HIGH, constrained: Boolean)`. `CONSTRAINED` is not a `CostClass` value. ADR-0015 lists `batteryClass`. | ADR-0015 |
+| E-06 | §3 ADR-0015 Consequences; §4.1 | "§17 doc plan" reads "README.md package index (transport-capability-matrix.md)". | ADR-0015; README; SAD |
+| E-07 | §5 `EnvelopeSealer` row; ADR-0028 module plan | `seal(…): SealResult` (produces `SealedFrame`, outbound only); `open(c: ReceivedCiphertext): OpenResult`. `:mobile:crypto-testkit` constructs `SealedFrame` only through the `@TestSealingApi` opt-in factory, and an architecture test fails if `@OptIn(TestSealingApi::class)` appears outside `*-testkit` modules or test source sets. | ADR-0016 |
+| E-08 | §5 `SessionCryptoPort` row | Direction "out (platform-bound interface, Koin-provided)"; `safetyNumber(peer: DeviceAddress)`. A single per-user QR is a 1.0 crypto-review question ([OI-01](open-items.md#oi-01)). | ADR-0018; ADR-0028 |
+| E-09 | §3 ADR-0022 | JWT out of the query string moves to **0.4** (BE-12); `hello` stays at 0.5. Pre-0.4 clients get a forced-update response (a structured error that triggers the update prompt), not a silent socket failure. | ADR-0022 |
+| E-10 | §6.2 | Custody is released only on (a) authenticated DELIVERED, (b) handover acknowledged by a higher-ranked custodian (server 2xx / `ServerAccepted`), or (c) expiry (applied above). | ADR-0025 |
+| E-11 | §8.2 | Custodian 3 (mule) learns the sender's identity and device and that this sender submitted something at time T. This is inherent to an authenticated link from a verified contact and is disclosed in the 1.3 DPIA and notice. | ADR-0025; threat model |
+| E-12 | §13 1.4 Scope; ADR-0026 | "RF admission policy (capability- and size-based: `SizeRule`, `AirtimeLedger`, established-session-only), not the server-path `constrained` flag." RF carries only messages in an established session; a conversation becomes RF-eligible only after the recipient has replied (no pending `PreKeySignalMessage`). The RF padding bucket is defined at 1.4 entry. | ADR-0026 |
+| E-13 | §16.2; ADR-0028 | `SimulatedLink` lives in `:mobile:messaging` commonTest. It moves to a test-only `:mobile:messaging-testkit` (same release-classpath check as `:mobile:crypto-testkit`) when a second module needs it (1.2 transport contract tests). | ADR-0028 |
+| E-14 | §3 ADR-0029 rule 6 | Seven DPIA triggers: the brief's five, plus DT-6 "kill-criterion or other new telemetry about off-server sessions", plus DT-7 "age assurance (date of birth, identity evidence)". The 0.4 age-gate DPIA is a 0.4 exit item. | ADR-0029; DPIA screening |
+| E-15 | every "DPIA (KVKK Art. 12)" | "a DPIA (best practice serving the KVKK Art. 12 security duty, and a self-imposed release gate)". Q-L5(f) asks whether one is legally required. | ADR-0029; DPIA screening |
+| E-16 | §11.1 | V29 = 0.4; V31 = 0.4 (cap); V31.2 = 0.6 (discoverability); contract steps V28.1, V29.1, V31.1, V34.1 per expand/contract (CICD-09). Check the highest version on `dev` (V27 today) before writing each. | data-model §2.2 |
+| E-17 | §11.1 V28 | V28 adds columns only; `SeqSweeper` backfills per conversation (resumable); `conversations.seq_ready` blocks numbering a new send before older rows; `UNIQUE(conversation_id, change_seq)`; `seq_ready` dropped in V34.1. | data-model §3.1 |
+| E-18 | §11.1 V30 | `user_age_assurance(user_id PK FK users ON DELETE CASCADE, birth_date, level, assured_at)`, mapped only by the age adapter (V27 row-rebuild precedent). | data-model §3.3 |
+| E-19 | §11.2 | The `.sq` files stay the schema; today's schema is snapshotted as `1.db` from the shipped APK; `verifyMigrations` runs without `deriveSchemaFromMigrations`; the first migration is `1.sqm` (1→2). | data-model §5.2 |
+| E-20 | §11.2 | Message index `(conversation_id, coalesce(seq, anchor_seq), local_order)`; `anchor_seq` = the last seq known to the creator. | data-model §5.3 |
+| E-21 | §11.2 | 0.5 uses `receipt_watermark`; the per-message `receipt` table arrives at 1.2 with off-server receipts for seq-less rows. | data-model §5.6 |
+| E-22 | §11.2 | Mobile `conversation` gains `delivered_up_to_seq` (client mirror of the server cursor); `outbox_entry` gains `cancel_requested`. | spec R-4, R-8 |
+| E-23 | §5 Clock/IdGenerator row | `kotlin.time.Clock` / `kotlin.time.Instant` (`kotlinx.datetime.Clock` is deprecated in the pinned 0.8.0). | spec R-10 |
+| E-24 | §6.1 | (1) Any non-terminal state except `SERVER_ACCEPTED` → `EXPIRED` on lifetime; `SERVER_ACCEPTED` is purged at lifetime (the server holds custody). (2) `RetryDelivery` only from `FAILED_PERMANENT`; for `EXPIRED` the UI offers "resend as new" (new `clientMessageId`). (3) `CONVERSATION_INFLIGHT_WINDOW = 1`; the head is held across `IN_FLIGHT` and `RETRY_WAIT` (I4); correctness before throughput, pipelining only on measured latency evidence. (4) A user delete of a submitted entry (`attempt > 0`) follows T32: withdrawn from everyone if the server accepted it. | spec R-2, R-7, R-8; outbox diagram |
+| E-25 | §10 | `security.key_changed` (existing) extended with `deviceId` (applied above). | ICD §3.11 |
+| E-26 | §10 | REST `GET heads` (ICD §4.3) and `GET receipts` (ICD §4.4) are added at 0.5 to satisfy P6. | ICD |
+| E-27 | §7 BULK footnote | "*unless `ConstrainedRule` has deferred BULK on the server link and LAN/PROXIMITY is already UP". | path-scopes diagram |
+| E-28 | §9 custodian 1 | "Server mailbox (`messages` today; `/changes` arrives in 0.5, ADR-0014; ciphertext from 1.0, ADR-0021)." | Gemini review |
+| E-29 | §13 0.4 | ROADMAP's four 0.4 conditions are exit conditions (applied above). | roadmap RN-R1 |
+| E-30 | §13 0.5 Exit | `ui/` count = 0 outside `ui/call/` at 0.5; the call screens close at 0.7 through `LiveSessionCoordinator` (RQ-24) (applied above). | roadmap RN-R10 |
+| E-31 | §13 Phase 0 Exit | Rotation evidence for DB, Redis and MinIO credentials (ADR-0031 F7) (applied above). | roadmap RN-R3 |
+| E-32 | §14 item 1; ADR-0031 | "Confirm and keep secret scanning and push protection (already enabled 2026-11-12); enable validity checks if offered." Rotate after the runner is off cx43 (item 2), or repeat the rotation after it. Rotating `JWT_SECRET` invalidates access tokens only; clients silently refresh (whether to also revoke all refresh tokens is [OI-09](open-items.md#oi-09)). | github-governance R-1; ADR-0031 |
+| E-33 | §14 item 2 | Remove the two required checks from classic protection together with the runner change; re-add them in `main-checks` once PR CI is off-host. The two-ruleset split is needed for "admin bypass does not skip checks". | github-governance R-4; ADR-0030 |
+| E-34 | §14 item 6 (Phase 0) | Also correct SECURITY.md:57, CLAUDE.md:4 and CLAUDE.md:188 (soft delete presented as KVKK erasure), and drop the "full verticals with mobile UI" and Phase 4 "DONE" claims for chat folders, pin-in-chat, backup and bots. Wiring or deleting those endpoints is [OI-26](open-items.md#oi-26). | project review |
+| E-35 | §13 0.4 / 0.5 Backend | 0.4: "BE-08 ArchUnit boundary rules for messaging, including BE-09". 0.5: "BE-10 delete the dead event layer (`MessagingEvents.kt`, unused `ApplicationEventPublisher` in `EncryptionService`)". | project review |
+| E-36 | §6.4; §13 0.4 | The 0.4 group receipt aggregation reads per-user `message_delivery_status` rows; it switches to per-device cursors at 0.6 (V32/BE-18). | project review |
+| E-37 | §15 | Add R23 (co-tenant stores), R24 (dependency verification; gate: 1.0 entry), R25 (account takeover; owner question at 1.0), R29 (keystore), R30 (production backup; gate: 0.5 entry), R37 (PR CI disabled; handled by the ADR-0030 transition order), R38 (age rule; the 0.4 age gate) and R44 (D3 history loss). See `risk-register.md`. | risk register RN-K2 |
+| E-38 | §16.3 | Once CI runs off cx43 on a runner with KVM (availability to verify), an automated emulator smoke (install, `am start`, no `FATAL`, screenshot) gates every release candidate. It adds to the owner's P13 observation and does not replace it. | vv-plan RN-V1; project review |
+| E-39 | §3 ADR-0013 §4; §6.4 | Ack split: tick-affecting receipts only from non-sender members' devices; watermark/custody acks from any registered device of any member (applied above). | ADR-0013; ICD §3.8 |
+| E-40 | §3 ADR-0013 §3 | Server idempotency follows ICD §3.6 A-1 (select → allocate → insert; roll back and reselect on a unique violation; no `ON CONFLICT`). `messages.id = client_message_id` is kept beside `UNIQUE(sender_device_id, client_message_id)` for 0.4–1.0; the brief-literal alternative is [OI-10](open-items.md#oi-10). | ADR-0013; ICD; data-model |
+| E-41 | §8; §15 | TB-9 (co-tenant `shared-postgres`/`shared-redis`/`shared-minio`) is in scope; the 1.0 external security review records the current isolation. | threat model RN-3 |
+| E-42 | §2 P9; §16 RQ-17 | "No stable per-user or per-device identifiers outside TLS-to-server"; app presence (fixed DNS-SD service type and Nearby `serviceId`) is a disclosed residual. | ADR-0024; threat model RN-2 |
+| E-43 | §13 1.2 Scope (gated) | 1.2 scope and DPIA include the telemetry "Nearby sessions where one side lacked internet" (screening S-09), which 1.3 entry needs. | roadmap RN-R7 |
+| E-44 | §3 ADR-0033 | Includes amendments G3 (`APPROVAL.md` never agent-editable) and G5 (`.claude/active-scope`), accepted under D6. | ADR-0033 |
+| E-45 | §3 ADR-0013; §6.4 | DELIVERED and READ `uptoSeq` = `conversation.complete_through_seq`; enqueue after commit; never a pushed or mid-pull value (applied above). | core-engine review |
+| E-46 | §3 ADR-0019 | The FCM/APNs data payload is `{t:"wake", v:1}`, optionally with a random per-device hint token mapped server-side. No `conversationId` or seq goes to the push provider. On wake the client calls `GET heads`, then `/changes` per advanced conversation. | ADR-0019 |
+| E-47 | §3 ADR-0018 | Prekey relationship check: "target has requester as a contact, or they share a conversation the target created or joined (not merely received an invite to)"; rule 2 (per-pair limit plus exhaustion alert, 0.4) is the primary M1 control. Device-set freshness: the server rejects an envelope set that does not address every active device of each recipient (`MSG_DEVICE_SET_STALE`). | ADR-0018 |
+| E-48 | §3 ADR-0021 | D3 applied: the readable server copy includes `messages.content`, search index rows, cached previews, MinIO media objects and thumbnails, and server-built backup archives; a conversation is labelled E2E only when none remain. The opt-in backup key is client-generated and high-entropy, and the backup format has its own ADR before 1.0 entry. | crypto-identity review |
+| E-49 | §13 0.4 Mobile | MOB-15 build-type-scoped `BASE_URL` (debug may point at a local or staging backend; release stays pinned to production with cleartext off) is added to 0.4 as a test enabler. | vv-plan RN-V2 |
+| E-50 | §3 ADR-0030 Decision 4 | Order: (a) ADR-0031 runner change; (b) PR CI green on non-production runners; (c) only then add `Build & Test` and `Android Build` to `main-checks`. | ADR-0030 |
