@@ -789,6 +789,7 @@ class MessagingServiceTest {
         )
 
         every { messageRepository.findById(messageId) } returns message
+        every { messageRepository.updateDeliveryStatus(messageId, userB, DeliveryStatus.DELIVERED) } returns true
 
         messageService.updateStatus(messageId, userB, DeliveryStatus.DELIVERED)
 

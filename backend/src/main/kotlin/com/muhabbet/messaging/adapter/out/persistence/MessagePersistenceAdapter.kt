@@ -109,18 +109,19 @@ class MessagePersistenceAdapter(
         statuses.forEach { entityManager.persist(MessageDeliveryStatusJpaEntity.fromDomain(it)) }
     }
 
-    override fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
-        val entity = deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) ?: return
+    override fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): Boolean {
+        val entity = deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) ?: return false
         // READ never regresses to DELIVERED. Two writers can now race for the same row: the
         // WebSocket ack the recipient's own open chat sends, and the REST DELIVERED ack #596 added
         // for a push that arrived while there was no socket to send one over. If that REST call is
         // merely slow — the FCM background service got its ten seconds, the recipient meanwhile
         // opened the chat and read it — it must not land after READ and drag the sender's tick
         // backwards to a state that is no longer true.
-        if (entity.status == DeliveryStatus.READ && status != DeliveryStatus.READ) return
+        if (entity.status == DeliveryStatus.READ && status != DeliveryStatus.READ) return false
         entity.status = status
         entity.updatedAt = Instant.now()
         deliveryStatusRepo.save(entity)
+        return true
     }
 
     override fun markConversationRead(conversationId: UUID, userId: UUID) {

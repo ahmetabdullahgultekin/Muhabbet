@@ -2,6 +2,7 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.FakeMessageCache
 import com.muhabbet.app.data.local.FakeTokenStorage
+import com.muhabbet.app.data.local.SessionDataGate
 import com.muhabbet.app.data.remote.ApiClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -27,6 +28,9 @@ class MessageRepositoryPushDeliveryTest {
         val historyStatus: HttpStatusCode = HttpStatusCode.OK,
         val historyIds: List<String> = listOf(MESSAGE),
         val cache: FakeMessageCache = FakeMessageCache(),
+        val gate: SessionDataGate = SessionDataGate(),
+        /** Simulates a logout landing while the history request is in flight. */
+        val logoutDuringFetch: Boolean = false,
     ) {
         val events = mutableListOf<String>()
     }
@@ -38,6 +42,7 @@ class MessageRepositoryPushDeliveryTest {
                 request.method == HttpMethod.Get && path == "/api/v1/conversations/$CONVERSATION/messages" -> {
                     // What the cache holds at the moment the history answers; the ack must come after.
                     backend.events += "history"
+                    if (backend.logoutDuringFetch) backend.gate.wipe {}
                     respond(page(backend.historyIds), backend.historyStatus, jsonContentType)
                 }
                 request.method == HttpMethod.Post && path == "/api/v1/messages/$MESSAGE/delivered" -> {
@@ -47,7 +52,7 @@ class MessageRepositoryPushDeliveryTest {
                 else -> respond("", HttpStatusCode.NotFound)
             }
         }
-        return MessageRepository(ApiClient(FakeTokenStorage(), engine), backend.cache)
+        return MessageRepository(ApiClient(FakeTokenStorage(), engine), backend.cache, backend.gate)
     }
 
     @Test
@@ -87,6 +92,20 @@ class MessageRepositoryPushDeliveryTest {
         val acked = repository(backend).storeThenMarkDelivered(MESSAGE, CONVERSATION)
 
         assertFalse(acked)
+        assertEquals(listOf("history"), backend.events)
+        assertTrue(backend.cache.stored.isEmpty())
+    }
+
+    @Test
+    fun `should neither store nor ack when the user logs out while the push is being handled`() = runTest {
+        // The push handler runs in a service, not the session. A page fetched for the account that
+        // just left must not be written after the logout wipe, or it sits on disk for the next one.
+        val backend = Backend(logoutDuringFetch = true)
+
+        val acked = repository(backend).storeThenMarkDelivered(MESSAGE, CONVERSATION)
+
+        assertFalse(acked)
+        assertTrue(backend.cache.stored.isEmpty(), "the departed account's messages came back after the wipe")
         assertEquals(listOf("history"), backend.events)
     }
 

@@ -30,6 +30,8 @@ import org.koin.dsl.module
 fun appModule(): Module = module {
     // The server refusing the refresh token reaches navigation through SessionRevocation (#752).
     single { com.muhabbet.app.session.SessionRevocation() }
+    // One gate for every writer of session data and the logout wipe, or it serialises nothing.
+    single { com.muhabbet.app.data.local.SessionDataGate() }
     single {
         val revocation = get<com.muhabbet.app.session.SessionRevocation>()
         ApiClient(tokenStorage = get(), onRefreshRejected = revocation::signal)
@@ -88,10 +90,19 @@ fun appModule(): Module = module {
         com.muhabbet.app.data.remote.DeliveryReceiptPump(
             incoming = wsClient.incoming,
             messageCache = get<com.muhabbet.app.data.local.LocalCache>(),
-            sendAck = wsClient::sendAck
+            sendAck = wsClient::sendAck,
+            gate = get()
         )
     }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }
+    // App-lifetime scope so a logout outlives the screen that started it. Main, because it ends by
+    // navigating to the login screen.
+    single {
+        com.muhabbet.app.session.SessionLogout(
+            authRepository = get(),
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+        )
+    }
     // Single source of truth for push token registration — used by both the login/app-start
     // effect in App.kt and MuhabbetFirebaseMessagingService.onNewToken (androidMain). See #398.
     single {
@@ -128,7 +139,9 @@ fun appModule(): Module = module {
     // the parameter's type is the narrower MessageCache interface, which nothing registers, and
     // Koin resolves get() by the parameter type — left implicit this fails at startup, not at
     // compile time.
-    single { MessageRepository(apiClient = get(), localCache = get<com.muhabbet.app.data.local.LocalCache>()) }
+    single {
+        MessageRepository(apiClient = get(), localCache = get<com.muhabbet.app.data.local.LocalCache>(), gate = get())
+    }
     // Media-blob E2E (Tier 1.4) — flag-gated (E2EConfig.mediaEncryptionActive), default OFF.
     single { com.muhabbet.app.crypto.MediaEncryptor() }
     single { MediaRepository(apiClient = get(), mediaEncryptor = get()) }
@@ -194,6 +207,7 @@ fun appModule(): Module = module {
             // the definitions above (#633).
             localDataWipe = com.muhabbet.app.session.DeviceLocalDataWipe(
                 cache = get<com.muhabbet.app.data.local.LocalCache>(),
+                gate = get(),
                 clearTransportState = get<WsClient>()::clearSessionState
             )
         )

@@ -2,6 +2,7 @@ package com.muhabbet.app.session
 
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.local.SessionDataCache
+import com.muhabbet.app.data.local.SessionDataGate
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.FakeWebSocketSession
 import com.muhabbet.app.data.remote.WsClient
@@ -10,6 +11,8 @@ import com.muhabbet.shared.protocol.WsMessage
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.coroutines.EmptyCoroutineContext
@@ -35,7 +38,7 @@ class DeviceLocalDataWipeTest {
     @Test
     fun `should erase the cached conversations, messages and outbox when it runs`() = runTest {
         val cache = RecordingCache()
-        val wipe = DeviceLocalDataWipe(cache, clearTransportState = {}, storageContext = EmptyCoroutineContext)
+        val wipe = DeviceLocalDataWipe(cache, SessionDataGate(), clearTransportState = {}, storageContext = EmptyCoroutineContext)
 
         wipe.wipe()
 
@@ -54,7 +57,7 @@ class DeviceLocalDataWipeTest {
             openSession = { FakeWebSocketSession().also { sessions.add(it) } }
         )
         ws.sendAck(WsMessage.AckMessage(messageId = "msg-1", conversationId = "conv-1", status = MessageStatus.DELIVERED))
-        val wipe = DeviceLocalDataWipe(RecordingCache(), ws::clearSessionState, EmptyCoroutineContext)
+        val wipe = DeviceLocalDataWipe(RecordingCache(), SessionDataGate(), ws::clearSessionState, EmptyCoroutineContext)
 
         wipe.wipe()
         ws.connect()
@@ -71,6 +74,7 @@ class DeviceLocalDataWipeTest {
         var transportCleared = false
         val wipe = DeviceLocalDataWipe(
             RecordingCache(fail = true),
+            SessionDataGate(),
             clearTransportState = { transportCleared = true },
             storageContext = EmptyCoroutineContext
         )
@@ -78,5 +82,43 @@ class DeviceLocalDataWipeTest {
         wipe.wipe()
 
         assertTrue(transportCleared, "one failed step must not leave the others undone")
+    }
+
+    @Test
+    fun `should finish erasing when the caller is cancelled in the middle of the wipe`() = runTest {
+        // The wipe runs from a Compose effect that an Activity recreation or a quick re-login can
+        // cancel. Abandoned halfway, it leaves exactly the data the user believed gone.
+        val cache = RecordingCache()
+        val transportStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var transportCleared = false
+        val wipe = DeviceLocalDataWipe(cache, SessionDataGate(), clearTransportState = {
+            transportStarted.complete(Unit)
+            release.await()
+            transportCleared = true
+        }, storageContext = EmptyCoroutineContext)
+
+        val job = launch { wipe.wipe() }
+        transportStarted.await()
+        job.cancel()
+        release.complete(Unit)
+        job.join()
+
+        assertEquals(1, cache.cleared)
+        assertTrue(transportCleared, "cancellation must not stop a wipe that has started")
+    }
+
+    @Test
+    fun `should drop a write for the ended session when it arrives after the wipe`() = runTest {
+        val gate = SessionDataGate()
+        val before = gate.currentSession()
+        val wipe = DeviceLocalDataWipe(RecordingCache(), gate, clearTransportState = {}, storageContext = EmptyCoroutineContext)
+
+        wipe.wipe()
+        var wrote = false
+        val result = gate.writeIfCurrent(before) { wrote = true }
+
+        assertEquals(null, result)
+        assertTrue(!wrote, "a write from the previous session must not land after the wipe")
     }
 }

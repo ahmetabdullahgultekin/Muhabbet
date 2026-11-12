@@ -2,6 +2,7 @@ package com.muhabbet.app.data.remote
 
 import com.muhabbet.app.data.local.FakeMessageCache
 import com.muhabbet.app.data.local.FakeTokenStorage
+import com.muhabbet.app.data.local.SessionDataGate
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
@@ -28,8 +29,9 @@ import kotlin.test.assertTrue
  * phone it was delivered to.
  *
  * These pin the order — the cache holds the message before a receipt is asked for — and the failure
- * direction: a write that does not land sends no receipt, because an unacknowledged message is
- * redelivered and an acknowledged one is not.
+ * direction: a write that does not land sends no receipt. The message then stays at one tick and
+ * this device picks it up on its next history fetch or sync; an acknowledged one it would never ask
+ * for again.
  */
 class DeliveryReceiptPumpTest {
 
@@ -42,7 +44,7 @@ class DeliveryReceiptPumpTest {
         val pump = DeliveryReceiptPump(frames, cache, sendAck = { _ ->
             storedWhenAcked += cache.stored.map { it.id }
             true
-        }, storageContext = EmptyCoroutineContext)
+        }, storageContext = EmptyCoroutineContext, gate = SessionDataGate())
         backgroundScope.launch { pump.run(currentUserId = ME) }
         runCurrent()
 
@@ -60,7 +62,8 @@ class DeliveryReceiptPumpTest {
             frames,
             FakeMessageCache(failOnUpsert = true),
             sendAck = { acks += it; true },
-            storageContext = EmptyCoroutineContext
+            storageContext = EmptyCoroutineContext,
+            gate = SessionDataGate()
         )
         backgroundScope.launch { pump.run(currentUserId = ME) }
         runCurrent()
@@ -84,7 +87,7 @@ class DeliveryReceiptPumpTest {
             }
         }
         val acks = mutableListOf<String>()
-        val pump = DeliveryReceiptPump(frames, cache, sendAck = { acks += it.messageId; true }, storageContext = EmptyCoroutineContext)
+        val pump = DeliveryReceiptPump(frames, cache, sendAck = { acks += it.messageId; true }, storageContext = EmptyCoroutineContext, gate = SessionDataGate())
         backgroundScope.launch { pump.run(currentUserId = ME) }
         runCurrent()
 
@@ -99,7 +102,7 @@ class DeliveryReceiptPumpTest {
     fun `should neither store nor acknowledge a message when this user sent it`() = runTest {
         val cache = FakeMessageCache()
         val acks = mutableListOf<WsMessage.AckMessage>()
-        val pump = DeliveryReceiptPump(frames, cache, sendAck = { acks += it; true }, storageContext = EmptyCoroutineContext)
+        val pump = DeliveryReceiptPump(frames, cache, sendAck = { acks += it; true }, storageContext = EmptyCoroutineContext, gate = SessionDataGate())
         backgroundScope.launch { pump.run(currentUserId = ME) }
         runCurrent()
 
@@ -123,7 +126,7 @@ class DeliveryReceiptPumpTest {
             openSession = { FakeWebSocketSession().also { sessions.add(it) } }
         )
         val cache = FakeMessageCache()
-        val pump = DeliveryReceiptPump(ws.incoming, cache, ws::sendAck, storageContext = EmptyCoroutineContext)
+        val pump = DeliveryReceiptPump(ws.incoming, cache, ws::sendAck, gate = SessionDataGate(), storageContext = EmptyCoroutineContext)
         backgroundScope.launch { pump.run(currentUserId = ME) }
         ws.connect()
         runCurrent()
@@ -139,6 +142,25 @@ class DeliveryReceiptPumpTest {
             .filter { it.status == MessageStatus.DELIVERED }
         assertEquals(listOf(MESSAGE), delivered.map { it.messageId })
         assertEquals(listOf(MESSAGE), cache.stored.map { it.id })
+    }
+
+    @Test
+    fun `should neither store nor acknowledge a message when the session was wiped before the write`() = runTest {
+        // A pump from the session that just logged out can still be holding a frame. Its write must
+        // not land after the wipe, or the departed account's message is back on disk for the next.
+        val gate = SessionDataGate()
+        val cache = FakeMessageCache()
+        val acks = mutableListOf<WsMessage.AckMessage>()
+        val pump = DeliveryReceiptPump(frames, cache, sendAck = { acks += it; true }, storageContext = EmptyCoroutineContext, gate = gate)
+        backgroundScope.launch { pump.run(currentUserId = ME) }
+        runCurrent()
+
+        gate.wipe {}
+        frames.emit(incoming(MESSAGE))
+        runCurrent()
+
+        assertTrue(cache.stored.isEmpty(), "a write for an ended session must be dropped")
+        assertTrue(acks.isEmpty(), "and nothing it did not keep may be acknowledged")
     }
 
     private fun incoming(id: String, senderId: String = "user-b") = WsMessage.NewMessage(

@@ -31,3 +31,10 @@ class SessionRevocation {
         _revoked.value = false
     }
 }
+
+/**
+ * Whether a raised [SessionRevocation] should take the app to the login screen: only when a session
+ * is on screen. Raised while already logged out — logout's own server call can be refused a
+ * refresh — it is acknowledged and nothing else, so an OTP being typed is not reset under the user.
+ */
+fun shouldLeaveForLogin(revoked: Boolean, sessionActive: Boolean): Boolean = revoked && sessionActive

@@ -562,8 +562,7 @@ fun ChatScreen(
                     } else scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
-                    messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
-                    else messages.map { m -> if (m.id == ws.messageId) m.copy(status = ws.status) else m }
+                    messages = messages.withStatusUpdate(ws, currentUserId)
                 }
                 is WsMessage.PresenceUpdate -> if (ws.userId != currentUserId) {
                     if (ws.conversationId == conversationId) {

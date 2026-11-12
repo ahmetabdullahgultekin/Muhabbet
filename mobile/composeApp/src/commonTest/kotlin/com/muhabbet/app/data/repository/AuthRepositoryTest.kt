@@ -10,7 +10,9 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -97,6 +99,31 @@ class AuthRepositoryTest {
         withContext(Dispatchers.Default) { repo.logout() }
 
         assertFalse(repo.isLoggedIn())
+    }
+
+    @Test
+    fun should_clear_tokens_when_the_caller_is_cancelled_during_the_server_logout() = runTest {
+        // The user taps "log out", nothing visibly happens on a slow network, and they leave
+        // Settings — cancelling the screen's scope mid-call. They must still end up logged out.
+        val requestStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val (apiClient, tokenStorage) = createApiClientWithMock {
+            requestStarted.complete(Unit)
+            release.await()
+            respond("", HttpStatusCode.NoContent)
+        }
+        tokenStorage.saveTokens("access", "refresh", "user1", "device1")
+        val repo = AuthRepository(apiClient, tokenStorage)
+
+        withContext(Dispatchers.Default) {
+            val screen = launch { repo.logout() }
+            requestStarted.await()
+            screen.cancel()
+            release.complete(Unit)
+            screen.join()
+        }
+
+        assertFalse(repo.isLoggedIn(), "leaving the screen kept the user signed in")
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.remote
 
 import com.muhabbet.app.data.local.MessageCache
+import com.muhabbet.app.data.local.SessionDataGate
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.model.MessageStatus
@@ -20,8 +21,11 @@ import kotlin.time.Instant
  * frame anywhere: [WsClient.incoming] does not replay, so a message that arrived with no chat open
  * existed only in memory, and a process death a second later lost it while the sender saw it as
  * delivered. Writing it to the local cache first is what makes the claim true; a write that fails
- * sends no receipt, because the server redelivers an unacknowledged message and never an
- * acknowledged one.
+ * sends no receipt. The server does not push the message again over the socket — it stays at one
+ * tick for the sender, and this device picks it up on its next history fetch or background sync.
+ *
+ * Writes go through [gate], so one still in flight when the session ends cannot land after the
+ * logout wipe and leave the departed account's message on disk.
  *
  * The **only** sender of DELIVERED over the socket. The conversation list used to send a second one
  * for every message from its own collector (#346); that one is gone, and a screen must not add it
@@ -37,30 +41,35 @@ class DeliveryReceiptPump(
     private val incoming: Flow<WsMessage>,
     private val messageCache: MessageCache,
     private val sendAck: suspend (WsMessage.AckMessage) -> Boolean,
+    private val gate: SessionDataGate,
     private val storageContext: CoroutineContext = Dispatchers.Default,
     private val clock: () -> Instant = { Clock.System.now() }
 ) {
 
     /** Collects until cancelled — which is the session ending. */
     suspend fun run(currentUserId: String) {
+        val session = gate.currentSession()
         incoming.collect { message ->
             if (message is WsMessage.NewMessage && message.senderId != currentUserId) {
-                persistThenAcknowledge(message)
+                persistThenAcknowledge(message, session)
             }
         }
     }
 
-    private suspend fun persistThenAcknowledge(message: WsMessage.NewMessage) {
+    private suspend fun persistThenAcknowledge(message: WsMessage.NewMessage, session: Long) {
         val stored = runCatchingCancellable {
-            withContext(storageContext) {
-                messageCache.upsertMessages(
-                    listOf(message.toMessage(receivedAt = clock()).copy(status = MessageStatus.DELIVERED))
-                )
+            gate.writeIfCurrent(session) {
+                withContext(storageContext) {
+                    messageCache.upsertMessages(
+                        listOf(message.toMessage(receivedAt = clock()).copy(status = MessageStatus.DELIVERED))
+                    )
+                }
             }
         }
-        if (stored.isFailure) {
-            // No receipt. The sender keeps one tick, which is the truth: the server still owes this
-            // device the message and will hand it over again on the next history fetch or sync.
+        if (stored.getOrNull() == null) {
+            // No receipt — the write failed, or the session ended under it. The sender keeps one
+            // tick, which is the truth: this device does not hold the message, and picks it up on
+            // its next history fetch or sync.
             Log.e(TAG, "Could not store ${message.messageId}; DELIVERED withheld", stored.exceptionOrNull())
             return
         }

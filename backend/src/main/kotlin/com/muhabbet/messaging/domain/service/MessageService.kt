@@ -341,7 +341,12 @@ open class MessageService(
     override fun updateStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
         val outcome = transactions.inTransaction { persistStatus(messageId, userId, status) }
 
+        // Nothing stored, nothing to announce. The case that matters is a DELIVERED that arrives
+        // after READ — the client now acks DELIVERED only once the message is on disk, so an open
+        // chat's READ routinely overtakes it. The row keeps READ; publishing the late DELIVERED
+        // anyway would pull the sender's tick back from blue to grey.
         val message = outcome.message ?: return
+        if (!outcome.applied) return
         messageBroadcaster.broadcastStatusUpdate(
             messageId,
             message.conversationId,
@@ -365,12 +370,13 @@ open class MessageService(
      * expressed as a value because [TransactionRunner.inTransaction] binds its result to a
      * non-null type.
      */
-    private data class StatusOutcome(val message: Message?, val published: DeliveryStatus)
+    private data class StatusOutcome(val message: Message?, val published: DeliveryStatus, val applied: Boolean)
 
     private fun persistStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): StatusOutcome {
-        messageRepository.updateDeliveryStatus(messageId, userId, status)
+        val applied = messageRepository.updateDeliveryStatus(messageId, userId, status)
+        if (!applied) return StatusOutcome(null, status, applied = false)
 
-        val message = messageRepository.findById(messageId) ?: return StatusOutcome(null, status)
+        val message = messageRepository.findById(messageId) ?: return StatusOutcome(null, status, applied = true)
         // A reader who has turned read receipts off still gets their own row stored as READ — that
         // row is what clears their unread badge — but the sender must not be told. We downgrade what
         // is *published*, never what is stored, because one column serves both concerns.
@@ -381,7 +387,7 @@ open class MessageService(
         } else {
             status
         }
-        return StatusOutcome(message, published)
+        return StatusOutcome(message, published, applied = true)
     }
 
     /**

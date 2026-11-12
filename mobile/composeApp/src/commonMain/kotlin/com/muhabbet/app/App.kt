@@ -24,6 +24,7 @@ import com.muhabbet.app.platform.AppVisibility
 import com.muhabbet.app.platform.CrashReporter
 import com.muhabbet.app.session.SessionRevocation
 import com.muhabbet.app.session.SessionWiring
+import com.muhabbet.app.session.shouldLeaveForLogin
 import com.muhabbet.app.util.Log
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.app_language_code
@@ -149,11 +150,15 @@ private fun SessionLifecycle(root: RootComponent) {
     // way a logout does, which is what flips `loggedIn` and runs the teardown below (#752). The
     // client used to clear the tokens and stop, leaving the app on signed-in screens with no
     // session behind them and the previous account's messages on disk.
+    //
+    // Only from a signed-in screen. The flag can also be raised when nobody is signed in — logout's
+    // own server call can be refused a refresh — and navigating then would reset the login screen,
+    // OTP entry and all, under a user who is already on it.
     val sessionRevocation: SessionRevocation = koinInject()
     val revoked by sessionRevocation.revoked.collectAsState()
     LaunchedEffect(revoked) {
         if (revoked) {
-            root.onSessionRevoked()
+            if (shouldLeaveForLogin(revoked, loggedIn)) root.onSessionRevoked()
             sessionRevocation.acknowledge()
         }
     }

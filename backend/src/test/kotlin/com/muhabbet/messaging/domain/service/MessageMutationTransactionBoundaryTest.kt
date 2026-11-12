@@ -74,6 +74,7 @@ class MessageMutationTransactionBoundaryTest {
         every { blockPolicy.hasBlocked(any(), any()) } returns false
         every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
         every { messageRepository.findById(messageId) } returns message()
+        every { messageRepository.updateDeliveryStatus(any(), any(), any()) } returns true
         every { conversationRepository.findById(conversationId) } returns
             Conversation(id = conversationId, type = ConversationType.GROUP)
         every { conversationRepository.findMembersByConversationId(conversationId) } returns listOf(

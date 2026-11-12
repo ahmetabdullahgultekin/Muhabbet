@@ -26,7 +26,14 @@ interface MessageRepository {
      * back to it. A caller with one row passes a list of one.
      */
     fun saveDeliveryStatuses(statuses: List<MessageDeliveryStatus>)
-    fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
+    /**
+     * Stores one recipient's status for one message.
+     *
+     * @return whether the row now holds [status]. False when there is no row for this recipient, or
+     *   when the write would move a READ row backwards — in both cases nothing changed, and the
+     *   caller must not tell the sender that something did.
+     */
+    fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): Boolean
     fun markConversationRead(conversationId: UUID, userId: UUID)
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
     fun getLastMessage(conversationId: UUID): Message?

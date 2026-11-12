@@ -10,6 +10,8 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
@@ -41,9 +43,11 @@ class MessagePersistenceAdapterDeliveryStatusTest {
     fun `should not downgrade an already-READ row to DELIVERED`() {
         every { deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) } returns existingRow(DeliveryStatus.READ)
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
+        val applied = adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
 
         verify(exactly = 0) { deliveryStatusRepo.save(any()) }
+        // Reported, so the service does not announce a DELIVERED the row never took.
+        assertFalse(applied)
     }
 
     @Test
@@ -55,9 +59,10 @@ class MessagePersistenceAdapterDeliveryStatusTest {
         val saved = slot<MessageDeliveryStatusJpaEntity>()
         every { deliveryStatusRepo.save(capture(saved)) } returns entity
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.READ)
+        val applied = adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.READ)
 
         assertEquals(DeliveryStatus.READ, saved.captured.status)
+        assertTrue(applied)
     }
 
     @Test
@@ -67,9 +72,10 @@ class MessagePersistenceAdapterDeliveryStatusTest {
         val saved = slot<MessageDeliveryStatusJpaEntity>()
         every { deliveryStatusRepo.save(capture(saved)) } returns entity
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
+        val applied = adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
 
         assertEquals(DeliveryStatus.DELIVERED, saved.captured.status)
+        assertTrue(applied)
     }
 
     @Test
@@ -79,8 +85,9 @@ class MessagePersistenceAdapterDeliveryStatusTest {
         // an arbitrary message id exists.
         every { deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) } returns null
 
-        adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
+        val applied = adapter.updateDeliveryStatus(messageId, userId, DeliveryStatus.DELIVERED)
 
         verify(exactly = 0) { deliveryStatusRepo.save(any()) }
+        assertFalse(applied)
     }
 }

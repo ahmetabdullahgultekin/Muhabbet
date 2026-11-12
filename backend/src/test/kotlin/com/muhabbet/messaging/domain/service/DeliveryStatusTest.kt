@@ -153,7 +153,7 @@ class DeliveryStatusTest {
         val conversationId = UUID.randomUUID()
         val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
 
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
         every { messageRepository.findById(messageId) } returns message
         every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns setOf(recipientId)
 
@@ -176,7 +176,7 @@ class DeliveryStatusTest {
         val conversationId = UUID.randomUUID()
         val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
 
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
         every { messageRepository.findById(messageId) } returns message
         every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns emptySet()
 
@@ -379,7 +379,7 @@ class DeliveryStatusTest {
         val conversationId = UUID.randomUUID()
         val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
 
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } just Runs
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
         every { messageRepository.findById(messageId) } returns message
 
         service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
@@ -387,6 +387,32 @@ class DeliveryStatusTest {
         verify(exactly = 1) { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) }
         verify(exactly = 1) {
             messageBroadcaster.broadcastStatusUpdate(messageId, conversationId, recipientId, senderId, DeliveryStatus.READ)
+        }
+    }
+
+    @Test
+    fun `should not broadcast DELIVERED when it arrives after READ and the row was not changed`() {
+        // The client acks DELIVERED only once the message is on disk, so an open chat's READ
+        // routinely reaches the server first. The adapter keeps the row at READ and says so; the
+        // late DELIVERED must not then be announced, or the sender's tick falls back from READ.
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        val conversationId = UUID.randomUUID()
+        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
+
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.DELIVERED) } returns false
+        every { messageRepository.findById(messageId) } returns message
+
+        service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
+        service.updateStatus(messageId, recipientId, DeliveryStatus.DELIVERED)
+
+        verify(exactly = 1) {
+            messageBroadcaster.broadcastStatusUpdate(messageId, conversationId, recipientId, senderId, DeliveryStatus.READ)
+        }
+        verify(exactly = 0) {
+            messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), DeliveryStatus.DELIVERED)
         }
     }
 

@@ -14,6 +14,8 @@ import com.muhabbet.shared.dto.VerifyOtpRequest
 import com.muhabbet.shared.model.UserProfile
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 class AuthRepository(
@@ -151,7 +153,11 @@ class AuthRepository(
      * locally whatever the network says, and never waits longer than [LOGOUT_TIMEOUT_MS] for it.
      * The tokens are cleared after the call, because the call needs them.
      */
-    suspend fun logout() {
+    suspend fun logout() = withContext(NonCancellable) {
+        // NonCancellable: once the user has confirmed, nothing about the caller may stop the tokens
+        // being cleared. The caller is a screen's scope, and a user who sees nothing happen on a
+        // slow network leaves the screen — which used to cancel this mid-call and leave them signed
+        // in. The timeout still bounds it.
         val revoked = withTimeoutOrNull(LOGOUT_TIMEOUT_MS) {
             runCatchingCancellable { apiClient.post<Unit>("/api/v1/auth/logout", Unit) }
                 .onFailure { e -> Log.w(TAG, "Server logout failed; clearing local session anyway: $e") }

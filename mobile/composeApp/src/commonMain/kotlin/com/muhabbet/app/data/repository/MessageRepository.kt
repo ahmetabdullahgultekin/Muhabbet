@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.MessageCache
+import com.muhabbet.app.data.local.SessionDataGate
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.util.Log
@@ -20,7 +21,8 @@ import io.ktor.http.encodeURLParameter
 
 class MessageRepository(
     private val apiClient: ApiClient,
-    private val localCache: MessageCache
+    private val localCache: MessageCache,
+    private val gate: SessionDataGate
 ) {
 
     private companion object {
@@ -107,20 +109,29 @@ class MessageRepository(
      * the phone did not hold: the notification could be swiped away and the process killed, and the
      * sender would still see two ticks. The latest page of the conversation is fetched and written
      * to the cache first, and the ack goes out only if that page contained the message and the
-     * write landed. Otherwise nothing is acked, which is the honest answer — the message is still
-     * owed to this device, and the next history fetch or socket delivery will bring it.
+     * write landed. Otherwise nothing is acked, which is the honest answer — the message stays at one
+     * tick for the sender, and this device picks it up on its next history fetch or background sync.
+     * The server does not push it again.
+     *
+     * The write goes through [gate] under the session this call started in, so a push handled
+     * across a logout cannot put the departed account's messages back on disk after the wipe.
      *
      * @return whether the message was stored and the ack attempted.
      */
     suspend fun storeThenMarkDelivered(messageId: String, conversationId: String): Boolean {
-        val stored = runCatchingCancellable {
-            val page = apiClient.get<PaginatedResponse<Message>>(
+        val session = gate.currentSession()
+        val page = runCatchingCancellable {
+            apiClient.get<PaginatedResponse<Message>>(
                 "/api/v1/conversations/$conversationId/messages?limit=$PUSH_FETCH_LIMIT"
             ).data?.items.orEmpty()
-            if (page.none { it.id == messageId }) throw IllegalStateException("MSG_PUSH_NOT_IN_LATEST_PAGE")
-            localCache.upsertMessages(page)
+        }.getOrElse { e ->
+            Log.w(TAG, "Message $messageId from push not fetched; DELIVERED withheld: $e")
+            return false
         }
-        if (stored.isFailure) {
+        // Expected, not an error: a message already pushed past the latest page by newer ones.
+        if (page.none { it.id == messageId }) return false
+        val stored = runCatchingCancellable { gate.writeIfCurrent(session) { localCache.upsertMessages(page) } }
+        if (stored.getOrNull() == null) {
             Log.w(TAG, "Message $messageId from push not stored; DELIVERED withheld: ${stored.exceptionOrNull()}")
             return false
         }
