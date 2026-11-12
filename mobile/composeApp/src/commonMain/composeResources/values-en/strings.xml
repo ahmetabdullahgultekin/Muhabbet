@@ -862,7 +862,7 @@
     <string name="status_post_failed">Could not post your status</string>
     <!-- Contact-sync consent (KVKK explicit consent, #425) -->
     <string name="contacts_consent_title">Match your contacts?</string>
-    <string name="contacts_consent_body">To find which of your contacts are on Muhabbet, we irreversibly hash each number on your phone (SHA-256) and send only those hashes to our server. The numbers themselves never leave your device, and hashes that do not match are not kept. You can withdraw this at any time, and if you decline you can still start a chat by typing a number.</string>
+    <string name="contacts_consent_body">To find which of your contacts are on Muhabbet, we hash each number on your phone (SHA-256) and send only those hashes to our server. Names and other address-book fields are not sent. Because there are only so many phone numbers, these hashes can be reversed by trying them all, so the server could recover the numbers you send. Hashes that do not match are not kept. You can withdraw this at any time, and if you decline you can still start a chat by typing a number.</string>
     <string name="contacts_consent_accept">I agree</string>
     <string name="contacts_consent_decline">Not now</string>
     <string name="contacts_consent_declined">You have not agreed to contact matching. You can still start a chat by typing a number.</string>
@@ -901,7 +901,7 @@
     <string name="welcome_intro_title">Welcome to Muhabbet</string>
     <string name="welcome_intro_body">Your messages will live here. Two short steps before you start, and you can skip both.</string>
     <string name="welcome_contacts_title">See who you already know on Muhabbet</string>
-    <string name="welcome_contacts_already_body">Contacts access is already on. One thing is left: agreeing to have your address book matched. The numbers themselves never leave your phone, only irreversible hashes (SHA-256) of them are sent.</string>
+    <string name="welcome_contacts_already_body">Contacts access is already on. One thing is left: agreeing to have your address book matched. Only SHA-256 hashes of the numbers are sent, though these hashes can be reversed into the numbers.</string>
     <string name="welcome_contacts_denied_note">Contacts access was refused earlier. Android never opens the permission dialog again after a second refusal, so system settings is the only way to turn it on.</string>
     <string name="welcome_contacts_action">Agree and allow contacts</string>
     <string name="welcome_contacts_skip">Not now</string>
@@ -922,7 +922,7 @@
     <string name="release_notes_version">Version %1$s</string>
     <string name="release_notes_current">The version you are on</string>
 
-    <string name="whatsnew_0_3_11_line_1">The first time you open the app it now tells you what to do. You read why we ask for contacts access — the numbers never leave your phone, only irreversible hashes of them are sent — and decide for yourself, and you can skip it.</string>
+    <string name="whatsnew_0_3_11_line_1">The first time you open the app it now tells you what to do. You read why we ask for contacts access — only SHA-256 hashes of the numbers are sent — and decide for yourself, and you can skip it.</string>
     <string name="whatsnew_0_3_11_line_2">Archived chats now sit in a single row at the top of the list and open in a screen of their own. You no longer have to go looking for a chat you archived.</string>
     <string name="whatsnew_0_3_11_line_3">When a message cannot be sent, the app says why: it is too long, you cannot post in that group, or the connection dropped.</string>
     <string name="whatsnew_0_3_11_line_4">One scheduled message that could not be sent used to hold up all the others behind it. Each message now goes out on its own.</string>

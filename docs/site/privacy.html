@@ -27,7 +27,7 @@
 <div class="wrap">
 
 <h1>Gizlilik Politikası</h1>
-<p class="updated">Yürürlük tarihi: 17 Ağustos 2026 · Sürüm 2.0</p>
+<p class="updated">Yürürlük tarihi: 12 Kasım 2026 · Sürüm 2.1</p>
 
 <div class="lang-bar">
   <a href="#turkce" aria-current="true">Türkçe</a>
@@ -58,7 +58,7 @@ E-posta: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a
 <thead><tr><th>Veri</th><th>Nasıl saklanır</th><th>Neden</th></tr></thead>
 <tbody>
 <tr><td>Telefon numarası</td><td><strong>Açık metin</strong> (şifrelenmemiş, hash'lenmemiş)</td><td>Hesabınızın kimliği ve giriş yönteminiz budur</td></tr>
-<tr><td>Telefon numarası özeti (SHA-256)</td><td>Ayrı bir tabloda, hash olarak</td><td>Rehberinizdeki kişilerin Muhabbet'te olup olmadığını, numaraları sunucuya göndermeden bulmak için</td></tr>
+<tr><td>Telefon numarası özeti (SHA-256)</td><td>Ayrı bir tabloda, hash olarak</td><td>Rehberinizdeki kişilerin Muhabbet'te olup olmadığını bulmak için. Özet, numaraya geri çevrilebilir — aşağıya bakın</td></tr>
 <tr><td>Görünen ad, profil fotoğrafı, hakkımda metni</td><td>Açık metin / dosya</td><td>Sizi tanıyanların sizi tanıması için. Üçü de isteğe bağlıdır</td></tr>
 <tr><td>Mesajlar (metin)</td><td><strong>Açık metin</strong></td><td>Mesajı iletmek ve siz silene kadar geçmişinizde tutmak için</td></tr>
 <tr><td>Medya (fotoğraf, ses, video, belge)</td><td>Nesne depolamada, dosya olarak</td><td>Aynı</td></tr>
@@ -71,14 +71,15 @@ E-posta: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a
 </table>
 </div>
 
-<h3>Rehberiniz sunucuya yüklenmez</h3>
+<h3>Rehber eşleştirmesi ve numara özetleri</h3>
 <p>Rehber eşleştirmesi yalnızca <strong>açık rızanızla</strong> ve yalnızca numaraların SHA-256 özetleri gönderilerek yapılır. İsimler, e-posta adresleri veya diğer rehber alanları hiçbir zaman gönderilmez. Sunucu, gönderdiğiniz özetlerden yalnızca Muhabbet'te karşılığı olanları döndürür; eşleşmeyen özetler saklanmaz.</p>
+<p><strong>Özetler numaraları gizlemez.</strong> Olası telefon numaralarının sayısı sınırlı olduğundan, bir SHA-256 özeti tüm numaralar denenerek kısa sürede numaraya geri çevrilebilir. Yani sunucu, gönderdiğiniz özetlerden rehberinizdeki numaraları bulabilir. Bunu yapmıyoruz ve eşleşmeyen özetleri saklamıyoruz; ancak bu bir taahhüttür, teknik bir engel değildir.</p>
 
 <h3>Toplamadığımız veriler</h3>
 <ul>
 <li><strong>Konum</strong> — yalnızca siz bir konum mesajı gönderirseniz, o mesajın içeriği olarak iletilir. Arka planda konum takibi yoktur.</li>
-<li><strong>Reklam kimliği, izleyici, analitik SDK'sı</strong> — hiçbiri yoktur. Uygulama sizi reklam için profillemez.</li>
-<li><strong>Rehberinizin kendisi</strong> — yukarıda açıklandığı gibi yalnızca özetler gönderilir.</li>
+<li><strong>Reklam kimliği, izleyici, analitik SDK'sı</strong> — hiçbiri yoktur. Uygulama sizi reklam için profillemez. GIF araması için kullanılan GIPHY bir içerik hizmetidir; ne gördüğü 4. bölümde yazılıdır.</li>
+<li><strong>Rehberinizdeki isimler ve diğer alanlar</strong> — gönderilmez. Numaralar yalnızca özet olarak gönderilir; özetlerin geri çevrilebileceğini yukarıda açıkladık.</li>
 </ul>
 
 <h2>3. İşleme amaçları ve hukuki sebepler</h2>
@@ -97,7 +98,9 @@ E-posta: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a
 </div>
 
 <h2>4. Kimlerle paylaşıyoruz</h2>
-<p>Verilerinizi <strong>satmıyoruz</strong> ve reklam amacıyla kimseyle paylaşmıyoruz. Hizmetin çalışması için zorunlu olan aşağıdaki sağlayıcılar kullanılmaktadır:</p>
+<p>Verilerinizi <strong>satmıyoruz</strong> ve reklam amacıyla kimseyle paylaşmıyoruz.</p>
+<p><strong>Sunucular Türkiye'dedir</strong> ve Muhabbet'in geliştiricisi tarafından işletilir. Hesabınız, mesajlarınız ve medya dosyalarınız bu sunucularda saklanır; barındırma için ayrı bir sağlayıcıya aktarılmaz.</p>
+<p>Hizmetin çalışması için aşağıdaki sağlayıcılar kullanılmaktadır:</p>
 
 <div class="scroll-x">
 <table>
@@ -119,9 +122,14 @@ E-posta: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a
   <td>ABD/AB — <em>yurt dışına aktarım</em></td>
 </tr>
 <tr>
-  <td><strong>Hetzner Online GmbH</strong> (sunucu barındırma)</td>
-  <td>Tüm veriler bu sağlayıcının makinesinde durur</td>
-  <td>Nürnberg, <strong>Almanya</strong></td>
+  <td><strong>Google Firebase Authentication</strong> (giriş doğrulaması)</td>
+  <td>Telefon numaranız ve cihazınıza ait teknik bilgiler. Girişte doğrulama SMS'i için önce bu hizmet denenir; çalışmazsa Twilio kullanılır</td>
+  <td>ABD/AB — <em>yurt dışına aktarım</em></td>
+</tr>
+<tr>
+  <td><strong>GIPHY</strong> (GIF ve çıkartma arama)</td>
+  <td>GIF veya çıkartma aradığınızda yazdığınız arama metni ve IP adresiniz. GIF içeren bir mesaj açtığınızda GIF doğrudan GIPHY'den yüklenir, bu yüzden IP adresinizi görür</td>
+  <td>ABD — <em>yurt dışına aktarım</em></td>
 </tr>
 </tbody>
 </table>
@@ -183,7 +191,7 @@ E-posta: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a
 
 <div id="english"></div>
 <h1>Privacy Policy</h1>
-<p class="updated">Effective: 17 August 2026 · Version 2.0</p>
+<p class="updated">Effective: 12 November 2026 · Version 2.1</p>
 
 <div class="note">
 <p><strong>The most important thing first.</strong> Muhabbet is <strong>not end-to-end encrypted</strong> today. Your messages are encrypted in transit with TLS between your device and our server, but they are <strong>stored unencrypted</strong> on that server. That means whoever operates the server can technically read them.</p>
@@ -205,7 +213,7 @@ Email: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a><
 <thead><tr><th>Data</th><th>How it is stored</th><th>Why</th></tr></thead>
 <tbody>
 <tr><td>Phone number</td><td><strong>Plaintext</strong> (not encrypted, not hashed)</td><td>It is your account identity and how you sign in</td></tr>
-<tr><td>Phone number digest (SHA-256)</td><td>Separate table, as a hash</td><td>To find which of your contacts are on Muhabbet without sending their numbers</td></tr>
+<tr><td>Phone number digest (SHA-256)</td><td>Separate table, as a hash</td><td>To find which of your contacts are on Muhabbet. A digest can be reversed into the number — see below</td></tr>
 <tr><td>Display name, profile photo, about text</td><td>Plaintext / file</td><td>So people recognise you. All three are optional</td></tr>
 <tr><td>Messages (text)</td><td><strong>Plaintext</strong></td><td>To deliver them and keep your history until you delete it</td></tr>
 <tr><td>Media (photo, audio, video, document)</td><td>Object storage, as files</td><td>Same</td></tr>
@@ -218,14 +226,15 @@ Email: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a><
 </table>
 </div>
 
-<h3>Your address book is never uploaded</h3>
+<h3>Contact matching and number digests</h3>
 <p>Contact matching happens only with your <strong>explicit consent</strong>, and only SHA-256 digests of numbers are sent. Names, email addresses and other address-book fields are never transmitted. The server returns only the digests that correspond to Muhabbet users; digests with no match are not retained.</p>
+<p><strong>The digests do not hide the numbers.</strong> There are only so many possible phone numbers, so a SHA-256 digest of one can be reversed quickly by trying them all. The server could therefore recover the numbers in your address book from the digests you send. We do not do this and we do not keep unmatched digests, but that is a commitment, not a technical barrier.</p>
 
 <h3>What we do not collect</h3>
 <ul>
 <li><strong>Location</strong> — only if you choose to send a location message, as that message's content. There is no background tracking.</li>
-<li><strong>Advertising identifiers, trackers, analytics SDKs</strong> — none. The app does not profile you for advertising.</li>
-<li><strong>Your address book itself</strong> — only digests, as above.</li>
+<li><strong>Advertising identifiers, trackers, analytics SDKs</strong> — none. The app does not profile you for advertising. GIPHY, used for GIF search, is a content service; what it sees is listed in section 4.</li>
+<li><strong>Names and other address-book fields</strong> — never sent. Numbers are sent only as digests, which, as explained above, can be reversed.</li>
 </ul>
 
 <h2>3. Purposes and legal bases</h2>
@@ -244,7 +253,9 @@ Email: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a><
 </div>
 
 <h2>4. Who we share with</h2>
-<p>We do <strong>not sell</strong> your data and share none of it for advertising. These providers are required for the service to function:</p>
+<p>We do <strong>not sell</strong> your data and share none of it for advertising.</p>
+<p><strong>The servers are in Türkiye</strong> and are operated by Muhabbet's developer. Your account, messages and media files are stored on them; no separate hosting provider receives them.</p>
+<p>These providers are used for the service to function:</p>
 <div class="scroll-x">
 <table>
 <thead><tr><th>Provider</th><th>What it sees</th><th>Where</th></tr></thead>
@@ -252,7 +263,8 @@ Email: <a href="mailto:rollingcat.help@gmail.com">rollingcat.help@gmail.com</a><
 <tr><td><strong>Twilio</strong> (verification SMS)</td><td>Your phone number and the verification code</td><td>USA — <em>international transfer</em></td></tr>
 <tr><td><strong>Google Firebase Cloud Messaging</strong> (notifications)</td><td>Device push token, sender name, and <strong>the first 100 characters of text messages</strong></td><td>USA/EU — <em>international transfer</em></td></tr>
 <tr><td><strong>Sentry</strong> (error monitoring)</td><td>Crash and error reports; may include technical context and a user id</td><td>USA/EU — <em>international transfer</em></td></tr>
-<tr><td><strong>Hetzner Online GmbH</strong> (hosting)</td><td>All data resides on this provider's machine</td><td>Nuremberg, <strong>Germany</strong></td></tr>
+<tr><td><strong>Google Firebase Authentication</strong> (sign-in verification)</td><td>Your phone number and technical details of your device. Sign-in tries this service first for the verification SMS and falls back to Twilio if it fails</td><td>USA/EU — <em>international transfer</em></td></tr>
+<tr><td><strong>GIPHY</strong> (GIF and sticker search)</td><td>The text you type when searching for a GIF or sticker, and your IP address. When you open a message containing a GIF, the GIF loads directly from GIPHY, so it sees your IP address</td><td>USA — <em>international transfer</em></td></tr>
 </tbody>
 </table>
 </div>

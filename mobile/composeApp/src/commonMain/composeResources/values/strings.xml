@@ -894,7 +894,7 @@
     <string name="status_post_failed">Durum paylaşılamadı</string>
     <!-- Contact-sync consent (KVKK explicit consent, #425) -->
     <string name="contacts_consent_title">Rehberinizi eşleştirelim mi?</string>
-    <string name="contacts_consent_body">Rehberinizdeki numaraların kimlerinin Muhabbet'te olduğunu bulmak için, numaraları telefonunuzda geri döndürülemez şekilde şifreleyip (SHA-256) yalnızca bu özetleri sunucumuza gönderiyoruz. Numaraların kendisi telefonunuzdan çıkmaz. Eşleşmeyen özetler saklanmaz. Bu izni istediğiniz zaman geri alabilirsiniz; onaylamazsanız da numara girerek sohbet başlatabilirsiniz.</string>
+    <string name="contacts_consent_body">Rehberinizdeki kişilerden kimlerin Muhabbet'te olduğunu bulmak için numaraları telefonunuzda SHA-256 ile özetleyip yalnızca bu özetleri sunucumuza gönderiyoruz. İsimler ve diğer rehber bilgileri gönderilmez. Ancak telefon numaralarının sayısı sınırlı olduğundan bu özetler denenerek numaralara geri çevrilebilir; yani sunucu, gönderilen numaraları bulabilir. Eşleşmeyen özetler saklanmaz. Bu izni istediğiniz zaman geri alabilirsiniz; onaylamazsanız da numara girerek sohbet başlatabilirsiniz.</string>
     <string name="contacts_consent_accept">Onaylıyorum</string>
     <string name="contacts_consent_decline">Şimdi değil</string>
     <string name="contacts_consent_declined">Rehber eşleştirmesini onaylamadınız. Numara girerek sohbet başlatabilirsiniz.</string>
@@ -935,7 +935,7 @@
     <string name="welcome_intro_title">Muhabbet'e hoş geldiniz</string>
     <string name="welcome_intro_body">Mesajlarınız burada olacak. Başlamadan önce iki kısa adım var, ikisini de atlayabilirsiniz.</string>
     <string name="welcome_contacts_title">Kimlerin Muhabbet'te olduğunu görün</string>
-    <string name="welcome_contacts_already_body">Rehber erişimi zaten açık. Geriye tek şey kaldı: rehberinizdeki numaraların eşleştirilmesini onaylamak. Numaraların kendisi telefonunuzdan çıkmaz, yalnızca geri döndürülemez özetleri (SHA-256) gönderilir.</string>
+    <string name="welcome_contacts_already_body">Rehber erişimi zaten açık. Geriye tek şey kaldı: rehberinizdeki numaraların eşleştirilmesini onaylamak. Yalnızca numaraların SHA-256 özetleri gönderilir; ancak bu özetler numaralara geri çevrilebilir.</string>
     <string name="welcome_contacts_denied_note">Rehber izni daha önce reddedilmiş. Android, ikinci reddin ardından izin penceresini bir daha hiç açmaz; açmanın tek yolu sistem ayarları.</string>
     <string name="welcome_contacts_action">Onayla ve rehbere izin ver</string>
     <string name="welcome_contacts_skip">Şimdi değil</string>
@@ -958,7 +958,7 @@
     <string name="release_notes_version">Sürüm %1$s</string>
     <string name="release_notes_current">Şu an kullandığınız sürüm</string>
 
-    <string name="whatsnew_0_3_11_line_1">Uygulamaya ilk girdiğinizde artık ne yapmanız gerektiği anlatılıyor. Rehber erişimini neden istediğimizi — numaralarınızın telefonunuzdan çıkmadığını, yalnızca geri döndürülemez özetlerinin gönderildiğini — okuyup karar veriyorsunuz, ve isterseniz atlıyorsunuz.</string>
+    <string name="whatsnew_0_3_11_line_1">Uygulamaya ilk girdiğinizde artık ne yapmanız gerektiği anlatılıyor. Rehber erişimini neden istediğimizi — yalnızca numaralarınızın SHA-256 özetlerinin gönderildiğini — okuyup karar veriyorsunuz, ve isterseniz atlıyorsunuz.</string>
     <string name="whatsnew_0_3_11_line_2">Arşivlediğiniz sohbetler artık listenin en üstündeki tek bir satırda toplanıyor ve kendi ekranında açılıyor. Arşive kaldırdığınız bir sohbeti aramak zorunda değilsiniz.</string>
     <string name="whatsnew_0_3_11_line_3">Bir mesaj gönderilemediğinde uygulama nedenini söylüyor: mesaj çok uzun, o gruba yazma yetkiniz yok ya da bağlantı koptu.</string>
     <string name="whatsnew_0_3_11_line_4">Zamanlanmış mesajlarda bir tanesi gönderilemediğinde arkasındakiler de takılıp kalıyordu. Artık her mesaj kendi başına yola çıkıyor.</string>
