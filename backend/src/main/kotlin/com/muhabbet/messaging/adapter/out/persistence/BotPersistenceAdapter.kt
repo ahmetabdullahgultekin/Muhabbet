@@ -24,7 +24,7 @@ class BotPersistenceAdapter(
             userId = bot.userId,
             name = bot.name,
             description = bot.description,
-            apiToken = bot.apiToken,
+            apiToken = bot.apiTokenHash,
             webhookUrl = bot.webhookUrl,
             isActive = bot.isActive,
             permissions = bot.permissions.joinToString(",") { "\"$it\"" }.let { "[$it]" },
@@ -38,8 +38,8 @@ class BotPersistenceAdapter(
         return springDataBotRepository.findById(id).orElse(null)?.toDomain()
     }
 
-    override fun findByApiToken(apiToken: String): Bot? {
-        return springDataBotRepository.findByApiToken(apiToken)?.toDomain()
+    override fun findByApiToken(apiTokenHash: String): Bot? {
+        return springDataBotRepository.findByApiToken(apiTokenHash)?.toDomain()
     }
 
     override fun findByOwnerId(ownerId: UUID): List<Bot> {
@@ -50,7 +50,7 @@ class BotPersistenceAdapter(
         return springDataBotRepository.findById(bot.id).map { entity ->
             entity.name = bot.name
             entity.description = bot.description
-            entity.apiToken = bot.apiToken
+            entity.apiToken = bot.apiTokenHash
             entity.webhookUrl = bot.webhookUrl
             entity.isActive = bot.isActive
             entity.updatedAt = bot.updatedAt
@@ -68,7 +68,7 @@ class BotPersistenceAdapter(
         userId = userId,
         name = name,
         description = description,
-        apiToken = apiToken,
+        apiTokenHash = apiToken,
         webhookUrl = webhookUrl,
         isActive = isActive,
         permissions = permissions.removeSurrounding("[", "]").split(",").map { it.trim().removeSurrounding("\"") },

@@ -2,8 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.port.`in`.CreateBotCommand
 import com.muhabbet.messaging.domain.port.`in`.ManageBotUseCase
-import com.muhabbet.shared.exception.BusinessException
-import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.messaging.domain.model.Bot
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -21,7 +20,7 @@ class BotController(
         @RequestBody request: CreateBotRequest
     ): ResponseEntity<*> {
         val userId = AuthenticatedUser.currentUserId()
-        val bot = manageBotUseCase.createBot(
+        val issued = manageBotUseCase.createBot(
             CreateBotCommand(
                 ownerId = userId,
                 name = request.name,
@@ -30,12 +29,13 @@ class BotController(
                 permissions = request.permissions ?: listOf("SEND_MESSAGE", "READ_MESSAGE")
             )
         )
+        // The only response that ever carries the token: it is stored hashed and cannot be shown again.
         return ApiResponseBuilder.ok(
             mapOf(
-                "botId" to bot.id.toString(),
-                "apiToken" to bot.apiToken,
-                "name" to bot.name,
-                "userId" to bot.userId.toString()
+                "botId" to issued.bot.id.toString(),
+                "apiToken" to issued.apiToken,
+                "name" to issued.bot.name,
+                "userId" to issued.bot.userId.toString()
             )
         )
     }
@@ -44,25 +44,16 @@ class BotController(
     fun listMyBots(): ResponseEntity<*> {
         val userId = AuthenticatedUser.currentUserId()
         val bots = manageBotUseCase.listBotsByOwner(userId)
-        return ApiResponseBuilder.ok(bots.map { bot ->
-            mapOf(
-                "botId" to bot.id.toString(),
-                "name" to bot.name,
-                "description" to bot.description,
-                "isActive" to bot.isActive,
-                "webhookUrl" to bot.webhookUrl,
-                "createdAt" to bot.createdAt.toString()
-            )
-        })
+        return ApiResponseBuilder.ok(bots.map { it.toSummary() })
     }
 
     @GetMapping("/{botId}")
     fun getBot(
         @PathVariable botId: String
     ): ResponseEntity<*> {
-        val bot = manageBotUseCase.getBot(UUID.fromString(botId))
-            ?: throw BusinessException(ErrorCode.BOT_NOT_FOUND)
-        return ApiResponseBuilder.ok(bot)
+        val userId = AuthenticatedUser.currentUserId()
+        val bot = manageBotUseCase.getBot(UUID.fromString(botId), userId)
+        return ApiResponseBuilder.ok(bot.toSummary())
     }
 
     @PatchMapping("/{botId}/webhook")
@@ -103,4 +94,15 @@ data class CreateBotRequest(
 
 data class UpdateWebhookRequest(
     val webhookUrl: String
+)
+
+/** What a bot's owner sees. Never the token or its hash. */
+private fun Bot.toSummary(): Map<String, Any?> = mapOf(
+    "botId" to id.toString(),
+    "name" to name,
+    "description" to description,
+    "isActive" to isActive,
+    "webhookUrl" to webhookUrl,
+    "permissions" to permissions,
+    "createdAt" to createdAt.toString()
 )

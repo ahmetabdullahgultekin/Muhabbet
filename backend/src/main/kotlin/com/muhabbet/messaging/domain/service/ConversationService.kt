@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.port.`in`.ConversationSummary
 import com.muhabbet.messaging.domain.port.`in`.ConversationWithMembers
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
@@ -22,7 +23,8 @@ import java.util.UUID
 open class ConversationService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val blockPolicy: BlockPolicyPort
 ) : CreateConversationUseCase, GetConversationsUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -42,6 +44,12 @@ open class ConversationService(
             if (participantIds[0] == creatorId) {
                 throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS, "Cannot create conversation with yourself")
             }
+        }
+
+        // A channel is created empty: subscribing is the only way in, so a creator cannot enrol
+        // people into a broadcast they never asked to receive.
+        if (type == ConversationType.CHANNEL && participantIds.any { it != creatorId }) {
+            throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
         }
 
         // Validate participants exist (batch query instead of N individual lookups)
@@ -64,29 +72,25 @@ open class ConversationService(
             }
         }
 
-        if (type == ConversationType.GROUP) {
-            if (name.isNullOrBlank()) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Grup adı gerekli")
-            }
-            if (!ValidationRules.isValidGroupName(name)) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz grup adı")
-            }
-            if (allParticipantIds.size > ValidationRules.MAX_GROUP_MEMBERS) {
-                throw BusinessException(ErrorCode.CONV_MAX_MEMBERS)
-            }
+        when (type) {
+            ConversationType.GROUP -> validateNewGroup(creatorId, participantIds, allParticipantIds.size, name)
+            ConversationType.CHANNEL -> validateNewChannel(name)
+            ConversationType.DIRECT -> Unit
         }
 
         val conversation = conversationRepository.save(
             Conversation(
                 type = type,
                 name = name,
-                createdBy = creatorId
+                createdBy = creatorId,
+                // A channel is a broadcast: only its owner and admins post to it.
+                announcementOnly = type == ConversationType.CHANNEL
             )
         )
 
         // Add members
         val members = allParticipantIds.map { userId ->
-            val role = if (userId == creatorId && type == ConversationType.GROUP) MemberRole.OWNER else MemberRole.MEMBER
+            val role = if (userId == creatorId && type != ConversationType.DIRECT) MemberRole.OWNER else MemberRole.MEMBER
             conversationRepository.saveMember(
                 ConversationMember(
                     conversationId = conversation.id,
@@ -122,8 +126,15 @@ open class ConversationService(
 
         val summaries = conversations.map { conv ->
             val lastMessage = lastMessageMap[conv.id]
-            val members = membersMap[conv.id] ?: emptyList()
-            val myMember = members.firstOrNull { it.userId == userId }
+            val allMembers = membersMap[conv.id] ?: emptyList()
+            val myMember = allMembers.firstOrNull { it.userId == userId }
+            // Anyone can subscribe to a channel, so its subscribers are not shown to each other:
+            // a channel lists the viewer and the people who run it, nobody else.
+            val members = if (conv.type == ConversationType.CHANNEL) {
+                allMembers.filter { it.userId == userId || it.role != MemberRole.MEMBER }
+            } else {
+                allMembers
+            }
 
             ConversationSummary(
                 conversationId = conv.id,
@@ -162,6 +173,33 @@ open class ConversationService(
     }
 
     // ─── Helpers ──────────────────────────────────────────────
+
+    private fun validateNewGroup(creatorId: UUID, participantIds: List<UUID>, memberCount: Int, name: String?) {
+        if (name.isNullOrBlank() || !ValidationRules.isValidGroupName(name)) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+        if (memberCount > ValidationRules.MAX_GROUP_MEMBERS) {
+            throw BusinessException(ErrorCode.CONV_MAX_MEMBERS)
+        }
+        refuseInviteesWhoBlockedCreator(creatorId, participantIds)
+    }
+
+    /**
+     * The rule GroupService.addMembers already applies: someone who has blocked the creator cannot
+     * be put in a group with them. Creating the group was the way round it.
+     */
+    private fun refuseInviteesWhoBlockedCreator(creatorId: UUID, participantIds: List<UUID>) {
+        if (participantIds.any { it != creatorId && blockPolicy.hasBlocked(it, creatorId) }) {
+            log.info("Group create refused, an invitee has blocked the creator: creator={}", creatorId)
+            throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS)
+        }
+    }
+
+    private fun validateNewChannel(name: String?) {
+        if (name.isNullOrBlank() || !ValidationRules.isValidGroupName(name)) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
+    }
 
     private fun sortUuids(a: UUID, b: UUID): Pair<UUID, UUID> {
         return if (a.toString() < b.toString()) Pair(a, b) else Pair(b, a)

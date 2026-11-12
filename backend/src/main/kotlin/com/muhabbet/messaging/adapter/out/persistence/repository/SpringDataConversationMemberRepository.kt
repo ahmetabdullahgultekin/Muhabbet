@@ -30,8 +30,41 @@ interface SpringDataConversationMemberRepository : JpaRepository<ConversationMem
     /** One user against many conversations — an existence check, so no rows are materialised. */
     fun existsByUserIdAndConversationIdIn(userId: UUID, conversationIds: List<UUID>): Boolean
 
-    @Query("SELECT DISTINCT m.userId FROM ConversationMemberJpaEntity m WHERE m.conversationId IN (SELECT m2.conversationId FROM ConversationMemberJpaEntity m2 WHERE m2.userId = :userId) AND m.userId != :userId")
-    fun findAllContactUserIds(userId: UUID): Set<UUID>
+    /**
+     * Everyone [userId] shares a conversation of one of [types] with, in a conversation where
+     * [userId] has taken part: created it, or sent at least one message in it.
+     */
+    @Query(
+        """
+        SELECT DISTINCT other.userId FROM ConversationMemberJpaEntity me, ConversationMemberJpaEntity other, ConversationJpaEntity c
+        WHERE me.userId = :userId
+          AND other.conversationId = me.conversationId
+          AND other.userId <> :userId
+          AND c.id = me.conversationId
+          AND c.type IN :types
+          AND (c.createdBy = :userId OR EXISTS (
+                SELECT 1 FROM MessageJpaEntity msg WHERE msg.conversationId = c.id AND msg.senderId = :userId))
+        """
+    )
+    fun findPeersEngagedBy(userId: UUID, types: List<ConversationType>): Set<UUID>
+
+    /**
+     * Everyone who shares a conversation of one of [types] with [userId] and has taken part in it:
+     * created it, or sent at least one message in it. The mirror image of [findPeersEngagedBy].
+     */
+    @Query(
+        """
+        SELECT DISTINCT other.userId FROM ConversationMemberJpaEntity me, ConversationMemberJpaEntity other, ConversationJpaEntity c
+        WHERE me.userId = :userId
+          AND other.conversationId = me.conversationId
+          AND other.userId <> :userId
+          AND c.id = me.conversationId
+          AND c.type IN :types
+          AND (c.createdBy = other.userId OR EXISTS (
+                SELECT 1 FROM MessageJpaEntity msg WHERE msg.conversationId = c.id AND msg.senderId = other.userId))
+        """
+    )
+    fun findUsersWhoEngagedWith(userId: UUID, types: List<ConversationType>): Set<UUID>
 
     /**
      * Whether the two users are both members of a conversation whose type is in [types]. The

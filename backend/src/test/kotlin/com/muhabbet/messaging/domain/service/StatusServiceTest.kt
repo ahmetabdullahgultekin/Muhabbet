@@ -77,7 +77,7 @@ class StatusServiceTest {
 
         @Test
         fun `should return nothing when the viewer has no contacts`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns emptySet()
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns emptySet()
 
             val groups = service.getContactStatusesForUser(viewer)
 
@@ -86,7 +86,7 @@ class StatusServiceTest {
 
         @Test
         fun `should not query statuses at all when the viewer has no contacts`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns emptySet()
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns emptySet()
 
             service.getContactStatusesForUser(viewer)
 
@@ -97,7 +97,7 @@ class StatusServiceTest {
 
         @Test
         fun `should ask only for statuses authored by the viewer's contacts`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(contact)) } returns emptyList()
 
             service.getContactStatusesForUser(viewer)
@@ -108,7 +108,7 @@ class StatusServiceTest {
         @Test
         fun `should not return a status from someone the viewer shares no conversation with`() {
             // The reported case: a default "everyone" status from an unrelated account.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(contact)) } returns
                 listOf(status(contact))
             every { userDirectory.findDisplayInfo(any()) } returns
@@ -129,7 +129,7 @@ class StatusServiceTest {
 
         @Test
         fun `should carry the author's name and avatar so the client never labels a user id`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(contact)) } returns
                 listOf(status(contact))
             every { userDirectory.findDisplayInfo(setOf(contact)) } returns
@@ -145,7 +145,7 @@ class StatusServiceTest {
 
         @Test
         fun `should leave the name null rather than invent one when the directory has no record`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(contact)) } returns
                 listOf(status(contact))
             every { userDirectory.findDisplayInfo(setOf(contact)) } returns emptyMap()
@@ -158,7 +158,7 @@ class StatusServiceTest {
         @Test
         fun `should resolve names for all authors in one directory call`() {
             val secondContact = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
-            every { conversationRepository.findAllContactUserIds(viewer) } returns
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns
                 setOf(contact, secondContact)
             every { statusRepository.findActiveByUserIds(any()) } returns
                 listOf(status(contact), status(secondContact))
@@ -171,7 +171,7 @@ class StatusServiceTest {
 
         @Test
         fun `should not touch the directory when no status survives the audience filter`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(contact)) } returns
                 listOf(status(contact, excluded = listOf(viewer)))
 
@@ -187,7 +187,7 @@ class StatusServiceTest {
 
         @BeforeEach
         fun contactExists() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { userDirectory.findDisplayInfo(any()) } returns
                 mapOf(contact to UserDisplayInfo(contact, "Zümra", null))
         }
@@ -241,7 +241,7 @@ class StatusServiceTest {
         fun `should group an author's statuses newest first`() {
             val older = Instant.now().minusSeconds(600)
             val newer = Instant.now()
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(contact)) } returns listOf(
                 status(contact, content = "older", createdAt = older),
                 status(contact, content = "newer", createdAt = newer)
@@ -279,7 +279,7 @@ class StatusServiceTest {
 
         @Test
         fun `should hide an author's statuses from someone that author has blocked`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { blockPolicy.findBlockedBy(viewer, setOf(contact)) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(any()) } returns listOf(status(contact))
             every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
@@ -291,7 +291,7 @@ class StatusServiceTest {
         fun `should keep the statuses of contacts who have not blocked the viewer`() {
             // The blocker is dropped and nobody else is: one hostile contact must not cost the
             // viewer the rest of the tab.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact, stranger)
             every { blockPolicy.findBlockedBy(viewer, any()) } returns setOf(contact)
             // Answers the ids it is actually asked for, the way the real query does. A stub that
             // returned both rows regardless would hide the whole point: the narrowing happens in
@@ -319,7 +319,7 @@ class StatusServiceTest {
         fun `should not read a status the blocker posted at all`() {
             // Narrowed before the repository call, not after it. A row that never leaves the
             // database cannot leak through a later change to the mapping, and the query is smaller.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact, stranger)
             every { blockPolicy.findBlockedBy(viewer, setOf(contact, stranger)) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(stranger)) } returns emptyList()
 
@@ -331,7 +331,7 @@ class StatusServiceTest {
 
         @Test
         fun `should return nothing without touching the repository when every contact has blocked the viewer`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { blockPolicy.findBlockedBy(viewer, setOf(contact)) } returns setOf(contact)
 
             assertTrue(service.getContactStatusesForUser(viewer).isEmpty())
@@ -343,7 +343,7 @@ class StatusServiceTest {
         fun `should not ask about blocks when the viewer has no contacts`() {
             // The empty-contact short circuit predates this guard and stays in front of it: no
             // contacts means no query of any kind, the block lookup included.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns emptySet()
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns emptySet()
 
             assertTrue(service.getContactStatusesForUser(viewer).isEmpty())
 
@@ -371,7 +371,7 @@ class StatusServiceTest {
 
         @Test
         fun `should hide the statuses of someone the viewer has blocked`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { blockPolicy.findBlockedAmong(viewer, setOf(contact)) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(any()) } returns listOf(status(contact))
             every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
@@ -385,7 +385,7 @@ class StatusServiceTest {
         @Test
         fun `should keep the statuses of contacts the viewer has not blocked`() {
             // Blocking one person costs the viewer that person's stories and nothing else.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact, stranger)
             every { blockPolicy.findBlockedAmong(viewer, any()) } returns setOf(contact)
             val posted = mapOf(
                 contact to status(contact, content = "from the person the viewer blocked"),
@@ -409,7 +409,7 @@ class StatusServiceTest {
         fun `should not read a status posted by someone the viewer blocked`() {
             // Narrowed before the repository call, exactly as the other direction is: a row that
             // is never loaded cannot leak through a later change to the mapping below it.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact, stranger)
             every { blockPolicy.findBlockedAmong(viewer, setOf(contact, stranger)) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(setOf(stranger)) } returns emptyList()
 
@@ -424,7 +424,7 @@ class StatusServiceTest {
             // The case a one-directional filter can never produce: one contact blocked the viewer,
             // the viewer blocked another, and a third is party to neither. Only the third survives.
             val third = UUID.fromString("00000000-0000-0000-0000-0000000000b1")
-            every { conversationRepository.findAllContactUserIds(viewer) } returns
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns
                 setOf(contact, stranger, third)
             every { blockPolicy.findBlockedBy(viewer, any()) } returns setOf(contact)
             every { blockPolicy.findBlockedAmong(viewer, any()) } returns setOf(stranger)
@@ -449,7 +449,7 @@ class StatusServiceTest {
 
         @Test
         fun `should return nothing without touching the repository when every contact is blocked either way`() {
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact, stranger)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact, stranger)
             every { blockPolicy.findBlockedBy(viewer, any()) } returns setOf(contact)
             every { blockPolicy.findBlockedAmong(viewer, any()) } returns setOf(stranger)
 
@@ -465,7 +465,7 @@ class StatusServiceTest {
             // row of the screen the app opens most.
             val third = UUID.fromString("00000000-0000-0000-0000-0000000000b2")
             val contacts = setOf(contact, stranger, third)
-            every { conversationRepository.findAllContactUserIds(viewer) } returns contacts
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns contacts
             every { statusRepository.findActiveByUserIds(any()) } returns emptyList()
 
             service.getContactStatusesForUser(viewer)
@@ -518,7 +518,7 @@ class StatusServiceTest {
             // The contact set never contains the viewer, so their own status is not merely filtered
             // out downstream — it is never asked for. Asserting on the argument rather than only on
             // the result is what makes that visible.
-            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { conversationRepository.findUsersWhoEngagedWith(viewer) } returns setOf(contact)
             every { statusRepository.findActiveByUserIds(any()) } returns listOf(status(contact))
             every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
 

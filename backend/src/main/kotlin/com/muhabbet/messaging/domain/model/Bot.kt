@@ -9,7 +9,8 @@ data class Bot(
     val userId: UUID,           // bot's user account ID
     val name: String,
     val description: String? = null,
-    val apiToken: String,
+    /** SHA-256 (hex) of the API token. The token itself is shown once, at issue, and never stored. */
+    val apiTokenHash: String,
     val webhookUrl: String? = null,
     val isActive: Boolean = true,
     val permissions: List<String> = listOf("SEND_MESSAGE", "READ_MESSAGE"),

@@ -56,6 +56,16 @@ class ConversationController(
      * Two batched queries for the whole page, not two per participant — this is the app's busiest
      * call, and either direction resolved per row would be an N+1 on the screen users open first.
      */
+    /**
+     * Whose phone numbers [viewerId] may see: their own, and those of people who have reached out
+     * to them — created, or written in, a 1:1 chat or group they share. Everyone else is shown by
+     * name only. A user id is handed out by many endpoints, so without this, creating a chat with
+     * any id — or subscribing to the same channel — turned it into a phone number. One query for
+     * the whole response.
+     */
+    private fun phoneVisibleTo(viewerId: UUID): Set<UUID> =
+        conversationRepository.findUsersWhoEngagedWith(viewerId) + viewerId
+
     private fun presenceHiddenFrom(viewerId: UUID, participantIds: List<UUID>): Set<UUID> {
         val others = participantIds.filter { it != viewerId }
         return blockPolicy.findBlockedBy(viewerId, others) + blockPolicy.findBlockedAmong(viewerId, others)
@@ -80,6 +90,7 @@ class ConversationController(
 
         val memberUserIds = result.members.map { it.userId }
         val usersMap = userRepository.findAllByIds(memberUserIds).associateBy { it.id }
+        val phoneVisible = phoneVisibleTo(userId)
         val onlineIds = presencePort.getOnlineUserIds(memberUserIds) - presenceHiddenFrom(userId, memberUserIds)
 
         val response = ConversationResponse(
@@ -92,7 +103,7 @@ class ConversationController(
                 ParticipantResponse(
                     userId = m.userId.toString(),
                     displayName = user?.displayName,
-                    phoneNumber = user?.phoneNumber,
+                    phoneNumber = user?.phoneNumber?.takeIf { m.userId in phoneVisible },
                     avatarUrl = user?.avatarUrl,
                     role = SharedMemberRole.valueOf(m.role.name),
                     isOnline = m.userId in onlineIds
@@ -118,6 +129,7 @@ class ConversationController(
 
         val allParticipantIds = page.items.flatMap { it.participantIds }.distinct()
         val usersMap = userRepository.findAllByIds(allParticipantIds).associateBy { it.id }
+        val phoneVisible = phoneVisibleTo(userId)
         val onlineIds =
             presencePort.getOnlineUserIds(allParticipantIds) - presenceHiddenFrom(userId, allParticipantIds)
 
@@ -132,7 +144,7 @@ class ConversationController(
                     ParticipantResponse(
                         userId = pid.toString(),
                         displayName = user?.displayName,
-                        phoneNumber = user?.phoneNumber,
+                        phoneNumber = user?.phoneNumber?.takeIf { pid in phoneVisible },
                         avatarUrl = user?.avatarUrl,
                         role = SharedMemberRole.MEMBER,
                         isOnline = pid in onlineIds

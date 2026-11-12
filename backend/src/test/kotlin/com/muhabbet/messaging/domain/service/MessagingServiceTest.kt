@@ -73,7 +73,8 @@ class MessagingServiceTest {
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            userRepository = userRepository
+            userRepository = userRepository,
+            blockPolicy = blockPolicy
         )
 
         messageService = MessageService(

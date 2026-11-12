@@ -233,11 +233,13 @@ class AppConfig {
     fun conversationService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        blockPolicy: BlockPolicyPort
     ): ConversationService = ConversationService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        userRepository = userRepository
+        userRepository = userRepository,
+        blockPolicy = blockPolicy
     )
 
     @Bean

@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.GroupInviteLink
 import com.muhabbet.messaging.domain.model.GroupJoinRequest
 import com.muhabbet.messaging.domain.model.JoinRequestStatus
 import com.muhabbet.messaging.domain.model.MemberRole
@@ -29,9 +30,8 @@ open class JoinRequestService(
         // conversation that asks for approval. The link recorded is the one looked up here, never
         // an id taken on trust, because approving a request spends a use of that link.
         val link = linkId?.let { inviteLinkRepository.findById(it) }
-        if (link == null || link.conversationId != conversationId || !link.isActive || !link.requiresApproval) {
-            throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
-        }
+            ?.takeIf { isApprovalLinkOf(it, conversationId) }
+            ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
         if (link.expiresAt != null && link.expiresAt.isBefore(Instant.now())) {
             throw BusinessException(ErrorCode.INVITE_LINK_EXPIRED)
         }
@@ -113,6 +113,9 @@ open class JoinRequestService(
         requireAdminOrOwner(conversationId, userId)
         return joinRequestRepository.findPendingByConversationId(conversationId)
     }
+
+    private fun isApprovalLinkOf(link: GroupInviteLink, conversationId: UUID): Boolean =
+        link.conversationId == conversationId && link.isActive && link.requiresApproval
 
     /**
      * The request, if it is still undecided and belongs to the conversation in the path. A

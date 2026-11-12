@@ -52,14 +52,7 @@ open class CallSignalingService(
         // callee has to be a real account. One refusal for all of them, so the answer does not say
         // which. A call id already in use is refused rather than overwritten, or a second caller
         // could take over someone else's call.
-        val refused = callerId == calleeId ||
-            activeCalls.containsKey(callId) ||
-            blockPolicy.hasBlocked(calleeId, callerId) ||
-            blockPolicy.hasBlocked(callerId, calleeId) ||
-            !userDirectory.findDisplayInfo(listOf(calleeId)).containsKey(calleeId)
-        if (refused) {
-            throw BusinessException(ErrorCode.CALL_INVALID_TARGET)
-        }
+        requireCallable(callId, callerId, calleeId)
         expireStaleRing(callerId)
         expireStaleRing(calleeId)
 
@@ -138,6 +131,17 @@ open class CallSignalingService(
             session.callerId -> session.calleeId
             session.calleeId -> session.callerId
             else -> null
+        }
+    }
+
+    private fun requireCallable(callId: String, callerId: UUID, calleeId: UUID) {
+        val refused = callerId == calleeId ||
+            activeCalls.containsKey(callId) ||
+            blockPolicy.hasBlocked(calleeId, callerId) ||
+            blockPolicy.hasBlocked(callerId, calleeId) ||
+            !userDirectory.findDisplayInfo(listOf(calleeId)).containsKey(calleeId)
+        if (refused) {
+            throw BusinessException(ErrorCode.CALL_INVALID_TARGET)
         }
     }
 
