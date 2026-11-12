@@ -31,6 +31,7 @@ import com.muhabbet.messaging.domain.port.out.ChatFolderRepository
 import com.muhabbet.messaging.domain.port.out.ChatWallpaperRepository
 import com.muhabbet.messaging.domain.port.out.CommunityRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.ConversationSequencePort
 import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
@@ -191,7 +192,8 @@ class AppConfig {
         messageRepository: MessageRepository,
         messageBroadcaster: MessageBroadcaster,
         ports: MessageServicePorts,
-        transactions: TransactionRunner
+        transactions: TransactionRunner,
+        sequence: ConversationSequencePort
     ): MessageService = MessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
@@ -200,7 +202,8 @@ class AppConfig {
         readReceiptPolicy = ports.readReceiptPolicy,
         blockPolicy = ports.blockPolicy,
         mediaAttachmentPolicy = ports.mediaAttachmentPolicy,
-        transactions = transactions
+        transactions = transactions,
+        sequence = sequence
     )
 
     /**

@@ -13,6 +13,7 @@ import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.FailingTransactionRunner
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.protocol.WsMessage
 import io.mockk.every
 import io.mockk.mockk
@@ -48,6 +49,8 @@ import com.muhabbet.shared.TestMediaAttachmentPolicy
  */
 class MessageMutationTransactionBoundaryTest {
 
+    private val sequence = InMemoryConversationSequence()
+
     private val conversationRepository: ConversationRepository = mockk(relaxed = true)
     private val messageRepository: MessageRepository = mockk(relaxed = true)
     private val messageBroadcaster: MessageBroadcaster = mockk(relaxed = true)
@@ -74,6 +77,8 @@ class MessageMutationTransactionBoundaryTest {
         every { blockPolicy.hasBlocked(any(), any()) } returns false
         every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
         every { messageRepository.findById(messageId) } returns message()
+        // A status is published only when the row actually moved (#299).
+        every { messageRepository.updateDeliveryStatus(any(), any(), any()) } returns true
         every { conversationRepository.findById(conversationId) } returns
             Conversation(id = conversationId, type = ConversationType.GROUP)
         every { conversationRepository.findMembersByConversationId(conversationId) } returns listOf(
@@ -90,7 +95,8 @@ class MessageMutationTransactionBoundaryTest {
         readReceiptPolicy = readReceiptPolicy,
         blockPolicy = blockPolicy,
         mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
-        transactions = transactions
+        transactions = transactions,
+        sequence = sequence
     )
 
     /**
@@ -208,6 +214,6 @@ class MessageMutationTransactionBoundaryTest {
         val edited = serviceWith(RecordingRunner { 0 }).editMessage(messageId, sender, "düzeltildi")
 
         assertEquals("düzeltildi", edited.content)
-        verify { messageRepository.updateContent(messageId, "düzeltildi", any()) }
+        verify { messageRepository.updateContent(messageId, "düzeltildi", any(), 1L) }
     }
 }

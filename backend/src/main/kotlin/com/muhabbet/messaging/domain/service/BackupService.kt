@@ -47,7 +47,7 @@ open class BackupService(
             val conversations = conversationRepository.findConversationsByUserId(userId)
             var messageCount = 0
             val convArchives = conversations.map { conv ->
-                val messages = fetchAllMessages(conv.id)
+                val messages = fetchAllMessages(conv.id, userId)
                 messageCount += messages.size
                 ConversationArchive(
                     conversationId = conv.id.toString(),
@@ -112,12 +112,15 @@ open class BackupService(
         }
     }
 
-    /** Page through a conversation's messages so a large history doesn't load in one shot. */
-    private fun fetchAllMessages(conversationId: UUID): List<Message> {
+    /**
+     * Page through a conversation's messages so a large history doesn't load in one shot. As
+     * [ownerId] sees them: someone else's unreleased scheduled message is not theirs to export (#746).
+     */
+    private fun fetchAllMessages(conversationId: UUID, ownerId: UUID): List<Message> {
         val all = mutableListOf<Message>()
         var before: Instant? = null
         while (true) {
-            val page = messageRepository.findByConversationId(conversationId, before, PAGE_SIZE)
+            val page = messageRepository.findByConversationId(conversationId, ownerId, before, PAGE_SIZE)
             if (page.isEmpty()) break
             all += page
             if (page.size < PAGE_SIZE || all.size >= MAX_MESSAGES_PER_CONVERSATION) break

@@ -146,7 +146,7 @@ class UserController(
             .filter { it.id in targetConvIds && it.type == ConversationType.DIRECT }
             .map { it.id }
         val sharedMediaCount = sharedConvIds.sumOf { convId ->
-            messageRepository.countMediaInConversation(convId)
+            messageRepository.countMediaInConversation(convId, currentUserId)
         }
 
         return ApiResponseBuilder.ok(

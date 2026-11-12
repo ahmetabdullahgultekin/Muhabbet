@@ -129,17 +129,19 @@ class MessageController(
         @RequestBody request: SendMessageRequest
     ): ResponseEntity<ApiResponse<SharedMessage>> {
         val userId = AuthenticatedUser.currentUserId()
-        val message = sendMessageUseCase.sendMessage(
+        val result = sendMessageUseCase.sendMessage(
             SendMessageCommand(
                 messageId = UUID.fromString(request.messageId),
                 conversationId = conversationId,
                 senderId = userId,
                 content = request.content,
                 contentType = ContentType.TEXT,
-                clientTimestamp = Instant.now()
+                clientTimestamp = Instant.now(),
+                senderDeviceId = AuthenticatedUser.currentDeviceId()
             )
         )
-        return ApiResponseBuilder.ok(message.toSharedMessage())
+        // A retried inline reply gets the original message back, not a 409 (#750).
+        return ApiResponseBuilder.ok(result.message.toSharedMessage())
     }
 
     /**
@@ -151,9 +153,10 @@ class MessageController(
      * [ChatWebSocketHandler] calls for the WebSocket `DELIVERED` ack — this is a second transport
      * for an existing decision, same shape as [sendMessage] above, not a new one.
      *
-     * Silently a no-op for a `messageId` this caller has no delivery row for (already read, blocked,
-     * someone else's message) — [UpdateDeliveryStatusUseCase.updateStatus] already behaves this way
-     * for the WebSocket ack, so a client cannot use this to probe whether an arbitrary id exists.
+     * Silently a no-op for a message in one of the caller's conversations that they have no row to
+     * advance for (already read, blocked, their own message). A message in a conversation they are
+     * not in — or an id that does not exist — is refused with the same MSG_NOT_MEMBER either way
+     * (#299), so a client can neither forge a receipt nor use this to probe whether an id exists.
      */
     @PostMapping("/messages/{messageId}/delivered")
     fun markDelivered(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {

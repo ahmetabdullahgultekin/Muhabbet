@@ -14,6 +14,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.mockk
@@ -64,7 +65,8 @@ class ConversationServiceTest {
             readReceiptPolicy = mockk(relaxed = true),
             blockPolicy = mockk(relaxed = true),
             mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            sequence = InMemoryConversationSequence()
         )
     }
 
@@ -251,7 +253,7 @@ class ConversationServiceTest {
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv1, conv2)
 
             // Batch: conv2 has more recent message
-            every { messageRepository.getLastMessages(any()) } returns mapOf(
+            every { messageRepository.getLastMessages(any(), any()) } returns mapOf(
                 conv1Id to Message(
                     id = UUID.randomUUID(), conversationId = conv1Id, senderId = userB,
                     content = "Older msg", serverTimestamp = now.minusSeconds(3600),
@@ -293,7 +295,7 @@ class ConversationServiceTest {
 
             every { conversationRepository.findConversationsByUserId(userA) } returns
                 listOf(Conversation(id = convId, type = ConversationType.DIRECT))
-            every { messageRepository.getLastMessages(any()) } returns mapOf(
+            every { messageRepository.getLastMessages(any(), any()) } returns mapOf(
                 convId to Message(
                     id = UUID.randomUUID(), conversationId = convId, senderId = userB,
                     contentType = ContentType.IMAGE, content = "Fotoğraf",
@@ -316,7 +318,7 @@ class ConversationServiceTest {
 
             every { conversationRepository.findConversationsByUserId(userA) } returns
                 listOf(Conversation(id = convId, type = ConversationType.DIRECT))
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(ConversationMember(conversationId = convId, userId = userA))
@@ -334,7 +336,7 @@ class ConversationServiceTest {
             val conv1 = Conversation(id = conv1Id, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv1)
-            every { messageRepository.getLastMessages(any()) } returns mapOf(
+            every { messageRepository.getLastMessages(any(), any()) } returns mapOf(
                 conv1Id to Message(
                     id = UUID.randomUUID(), conversationId = conv1Id, senderId = userB,
                     content = "Hello", serverTimestamp = now, clientTimestamp = now
@@ -371,7 +373,7 @@ class ConversationServiceTest {
                     clientTimestamp = now
                 )
             }.toMap()
-            every { messageRepository.getLastMessages(any()) } returns lastMessages
+            every { messageRepository.getLastMessages(any(), any()) } returns lastMessages
 
             val unreadCounts = conversations.associate { it.id to 0 }
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns unreadCounts
@@ -404,7 +406,7 @@ class ConversationServiceTest {
                     clientTimestamp = now
                 )
             }.toMap()
-            every { messageRepository.getLastMessages(any()) } returns lastMessages
+            every { messageRepository.getLastMessages(any(), any()) } returns lastMessages
 
             val unreadCounts = conversations.associate { it.id to 0 }
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns unreadCounts
@@ -429,7 +431,7 @@ class ConversationServiceTest {
             val longMessage = "A".repeat(200)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns mapOf(
+            every { messageRepository.getLastMessages(any(), any()) } returns mapOf(
                 convId to Message(
                     id = UUID.randomUUID(), conversationId = convId, senderId = userB,
                     content = longMessage, serverTimestamp = now, clientTimestamp = now
@@ -451,7 +453,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(
@@ -487,7 +489,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns mapOf(
+            every { messageRepository.getLastMessages(any(), any()) } returns mapOf(
                 convId to Message(
                     id = UUID.randomUUID(), conversationId = convId, senderId = userB,
                     content = "Hi", serverTimestamp = now, clientTimestamp = now
@@ -515,7 +517,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns mapOf(
+            every { messageRepository.getLastMessages(any(), any()) } returns mapOf(
                 convId to Message(
                     id = UUID.randomUUID(), conversationId = convId, senderId = userB,
                     content = "Hi", serverTimestamp = now, clientTimestamp = now
@@ -540,7 +542,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(
@@ -563,7 +565,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(
@@ -585,7 +587,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(
@@ -609,7 +611,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.GROUP, name = "Group")
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(
@@ -640,7 +642,7 @@ class ConversationServiceTest {
             val conv = Conversation(id = convId, type = ConversationType.DIRECT)
 
             every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-            every { messageRepository.getLastMessages(any()) } returns emptyMap()
+            every { messageRepository.getLastMessages(any(), any()) } returns emptyMap()
             every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 0)
             every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
                 convId to listOf(
@@ -682,7 +684,7 @@ class ConversationServiceTest {
 
             messageService.deleteMessage(messageId, userA)
 
-            verify { messageRepository.softDelete(messageId) }
+            verify { messageRepository.softDelete(messageId, 1L) }
             verify { messageBroadcaster.broadcastToUsers(any(), any()) }
         }
 
@@ -757,7 +759,7 @@ class ConversationServiceTest {
 
             assertEquals("edited content", result.content)
             assertNotNull(result.editedAt)
-            verify { messageRepository.updateContent(eq(messageId), eq("edited content"), any()) }
+            verify { messageRepository.updateContent(eq(messageId), eq("edited content"), any(), eq(1L)) }
             verify { messageBroadcaster.broadcastToUsers(any(), any()) }
         }
 

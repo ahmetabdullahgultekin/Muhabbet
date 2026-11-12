@@ -8,8 +8,12 @@ import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
+import jakarta.persistence.PersistenceException
+import org.hibernate.exception.ConstraintViolationException
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -70,7 +74,26 @@ class MessagePersistenceAdapter(
     override fun save(message: Message): Message {
         val entity = MessageJpaEntity.fromDomain(message)
         entityManager.persist(entity)
+        // Flushed here, not at commit, so a duplicate id surfaces at this call as the domain's
+        // MSG_DUPLICATE rather than at commit as a JDBC exception nobody upstream can name (#750).
+        // It costs no extra statement: the INSERT was going to be issued anyway, and the delivery
+        // rows that follow still batch among themselves.
+        try {
+            entityManager.flush()
+        } catch (e: PersistenceException) {
+            if (e.isUniqueViolation()) throw BusinessException(ErrorCode.MSG_DUPLICATE)
+            throw e
+        }
         return entity.toDomain()
+    }
+
+    /** SQLSTATE 23505 only: a foreign-key or check violation is a different fault, not a retry. */
+    private fun Throwable.isUniqueViolation(): Boolean =
+        generateSequence(this) { it.cause }
+            .any { it is ConstraintViolationException && it.sqlState == UNIQUE_VIOLATION }
+
+    private companion object {
+        const val UNIQUE_VIOLATION = "23505"
     }
 
     override fun findById(id: UUID): Message? =
@@ -79,12 +102,12 @@ class MessagePersistenceAdapter(
     override fun existsById(id: UUID): Boolean =
         messageRepo.existsById(id)
 
-    override fun findByConversationId(conversationId: UUID, before: Instant?, limit: Int): List<Message> {
+    override fun findByConversationId(conversationId: UUID, viewerId: UUID, before: Instant?, limit: Int): List<Message> {
         val pageable = PageRequest.of(0, limit)
         val entities = if (before != null) {
-            messageRepo.findByConversationIdBefore(conversationId, before, pageable)
+            messageRepo.findByConversationIdBefore(conversationId, viewerId, before, pageable)
         } else {
-            messageRepo.findByConversationIdLatest(conversationId, pageable)
+            messageRepo.findByConversationIdLatest(conversationId, viewerId, pageable)
         }
         return entities.map { it.toDomain() }
     }
@@ -109,18 +132,19 @@ class MessagePersistenceAdapter(
         statuses.forEach { entityManager.persist(MessageDeliveryStatusJpaEntity.fromDomain(it)) }
     }
 
-    override fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
-        val entity = deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) ?: return
-        // READ never regresses to DELIVERED. Two writers can now race for the same row: the
-        // WebSocket ack the recipient's own open chat sends, and the REST DELIVERED ack #596 added
-        // for a push that arrived while there was no socket to send one over. If that REST call is
-        // merely slow — the FCM background service got its ten seconds, the recipient meanwhile
-        // opened the chat and read it — it must not land after READ and drag the sender's tick
-        // backwards to a state that is no longer true.
-        if (entity.status == DeliveryStatus.READ && status != DeliveryStatus.READ) return
-        entity.status = status
-        entity.updatedAt = Instant.now()
-        deliveryStatusRepo.save(entity)
+    /**
+     * READ never regresses to DELIVERED. Two writers can race for the same row: the WebSocket ack
+     * the recipient's own open chat sends, and the REST DELIVERED ack #596 added for a push that
+     * arrived while there was no socket to send one over. If that REST call is merely slow it must
+     * not land after READ and drag the sender's tick backwards.
+     *
+     * One conditional statement rather than read-then-write, and it reports whether it moved the
+     * row, because since #299 that answer decides whether the sender is told anything at all.
+     */
+    override fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): Boolean {
+        val advanceFrom = DeliveryStatus.entries.filter { it.ordinal < status.ordinal }
+        if (advanceFrom.isEmpty()) return false
+        return deliveryStatusRepo.advanceStatus(messageId, userId, status, advanceFrom, Instant.now()) > 0
     }
 
     override fun markConversationRead(conversationId: UUID, userId: UUID) {
@@ -130,12 +154,12 @@ class MessagePersistenceAdapter(
     override fun getUnreadCount(conversationId: UUID, userId: UUID): Int =
         deliveryStatusRepo.countUnread(conversationId, userId, DeliveryStatus.READ)
 
-    override fun getLastMessage(conversationId: UUID): Message? =
-        messageRepo.findLastByConversationId(conversationId)?.toDomain()
+    override fun getLastMessage(conversationId: UUID, viewerId: UUID): Message? =
+        messageRepo.findLastByConversationId(conversationId, viewerId)?.toDomain()
 
-    override fun getLastMessages(conversationIds: List<UUID>): Map<UUID, Message> {
+    override fun getLastMessages(conversationIds: List<UUID>, viewerId: UUID): Map<UUID, Message> {
         if (conversationIds.isEmpty()) return emptyMap()
-        return messageRepo.findLastMessagesByConversationIds(conversationIds)
+        return messageRepo.findLastMessagesByConversationIds(conversationIds, viewerId)
             .associate { it.conversationId to it.toDomain() }
     }
 
@@ -145,23 +169,27 @@ class MessagePersistenceAdapter(
             .toCountById()
     }
 
-    override fun softDelete(messageId: UUID) {
-        messageRepo.softDelete(messageId)
+    override fun softDelete(messageId: UUID, changeSeq: Long?) {
+        if (changeSeq == null) {
+            messageRepo.softDelete(messageId)
+        } else {
+            messageRepo.softDeleteWithChange(messageId, changeSeq)
+        }
     }
 
-    override fun updateContent(messageId: UUID, newContent: String, editedAt: Instant) {
-        messageRepo.updateContent(messageId, newContent, editedAt)
+    override fun updateContent(messageId: UUID, newContent: String, editedAt: Instant, changeSeq: Long) {
+        messageRepo.updateContent(messageId, newContent, editedAt, changeSeq)
     }
 
-    override fun countMediaInConversation(conversationId: UUID): Int =
-        messageRepo.countMediaInConversation(conversationId)
+    override fun countMediaInConversation(conversationId: UUID, viewerId: UUID): Int =
+        messageRepo.countMediaInConversation(conversationId, viewerId)
 
     override fun getDeliveryStatuses(messageIds: List<UUID>): List<MessageDeliveryStatus> {
         if (messageIds.isEmpty()) return emptyList()
         return deliveryStatusRepo.findByMessageIdIn(messageIds).map { it.toDomain() }
     }
 
-    override fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message> {
+    override fun findMediaByConversationId(conversationId: UUID, viewerId: UUID, limit: Int, offset: Int): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
         val contentTypes = listOf(
             com.muhabbet.messaging.domain.model.ContentType.IMAGE,
@@ -169,7 +197,7 @@ class MessagePersistenceAdapter(
             com.muhabbet.messaging.domain.model.ContentType.DOCUMENT,
             com.muhabbet.messaging.domain.model.ContentType.VOICE
         )
-        return messageRepo.findMediaByConversationId(conversationId, contentTypes, pageable).map { it.toDomain() }
+        return messageRepo.findMediaByConversationId(conversationId, viewerId, contentTypes, pageable).map { it.toDomain() }
     }
 
     override fun searchInConversation(conversationId: UUID, userId: UUID, query: String, limit: Int, offset: Int): List<Message> {
@@ -188,9 +216,8 @@ class MessagePersistenceAdapter(
     override fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message> =
         messageRepo.findScheduledMessagesReadyToSend(now, PageRequest.of(0, limit)).map { it.toDomain() }
 
-    override fun markAsDelivered(messageId: UUID) {
-        messageRepo.markScheduledAsDelivered(messageId)
-    }
+    override fun markAsDelivered(messageId: UUID, seq: Long, releasedAt: Instant): Boolean =
+        messageRepo.markScheduledAsDelivered(messageId, seq, releasedAt) > 0
 
     override fun findExpiredMessages(now: Instant, limit: Int): List<Message> =
         messageRepo.findExpiredMessages(now, PageRequest.of(0, limit)).map { it.toDomain() }

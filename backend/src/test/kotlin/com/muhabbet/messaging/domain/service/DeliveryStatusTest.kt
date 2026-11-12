@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.*
@@ -31,6 +32,10 @@ class DeliveryStatusTest {
     fun setUp() {
         // Default: nobody has opted out, so aggregation behaves exactly as before this port existed.
         every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
+        // Default: every acking user is a member. The #299 tests below take membership away.
+        every { conversationRepository.findMember(any(), any()) } answers {
+            ConversationMember(conversationId = firstArg(), userId = secondArg())
+        }
         service = MessageService(
             conversationRepository,
             messageRepository,
@@ -39,7 +44,8 @@ class DeliveryStatusTest {
             readReceiptPolicy,
             blockPolicy,
             TestMediaAttachmentPolicy(),
-            InlineTransactionRunner()
+            InlineTransactionRunner(),
+            InMemoryConversationSequence()
         )
     }
 
@@ -153,7 +159,7 @@ class DeliveryStatusTest {
         val conversationId = UUID.randomUUID()
         val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
 
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
         every { messageRepository.findById(messageId) } returns message
         every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns setOf(recipientId)
 
@@ -176,7 +182,7 @@ class DeliveryStatusTest {
         val conversationId = UUID.randomUUID()
         val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
 
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
         every { messageRepository.findById(messageId) } returns message
         every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns emptySet()
 
@@ -379,7 +385,7 @@ class DeliveryStatusTest {
         val conversationId = UUID.randomUUID()
         val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
 
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } just Runs
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns true
         every { messageRepository.findById(messageId) } returns message
 
         service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
@@ -388,6 +394,72 @@ class DeliveryStatusTest {
         verify(exactly = 1) {
             messageBroadcaster.broadcastStatusUpdate(messageId, conversationId, recipientId, senderId, DeliveryStatus.READ)
         }
+    }
+
+    // ─── #299: an ack is accepted only from a member, and published only if it changed a row ───
+
+    @Test
+    fun `updateStatus should throw MSG_NOT_MEMBER and not broadcast when the acking user is not a member`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val strangerId = UUID.randomUUID()
+        val conversationId = UUID.randomUUID()
+        every { messageRepository.findById(messageId) } returns
+            createMessage(messageId, senderId).copy(conversationId = conversationId)
+        every { conversationRepository.findMember(conversationId, strangerId) } returns null
+
+        val error = assertThrows(com.muhabbet.shared.exception.BusinessException::class.java) {
+            service.updateStatus(messageId, strangerId, DeliveryStatus.READ)
+        }
+
+        assertEquals(com.muhabbet.shared.exception.ErrorCode.MSG_NOT_MEMBER, error.errorCode)
+        verify(exactly = 0) { messageRepository.updateDeliveryStatus(any(), any(), any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `updateStatus should throw MSG_NOT_MEMBER and not broadcast when the message id does not exist`() {
+        // The same answer as a foreign id, so the ack cannot be used to learn which ids exist.
+        val messageId = UUID.randomUUID()
+        every { messageRepository.findById(messageId) } returns null
+
+        val error = assertThrows(com.muhabbet.shared.exception.BusinessException::class.java) {
+            service.updateStatus(messageId, UUID.randomUUID(), DeliveryStatus.DELIVERED)
+        }
+
+        assertEquals(com.muhabbet.shared.exception.ErrorCode.MSG_NOT_MEMBER, error.errorCode)
+        verify(exactly = 0) { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `updateStatus should not broadcast when the row did not change`() {
+        // DELIVERED after READ, a repeated ack, or a member with no row (their own message): the
+        // stored row is untouched and the sender must not be told anything — before #299 the
+        // late DELIVERED was still announced and the sender's ticks went backwards on screen.
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientId = UUID.randomUUID()
+        every { messageRepository.findById(messageId) } returns createMessage(messageId, senderId)
+        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.DELIVERED) } returns false
+
+        service.updateStatus(messageId, recipientId, DeliveryStatus.DELIVERED)
+
+        verify(exactly = 0) { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `markConversationRead should throw MSG_NOT_MEMBER and write nothing when the user is not a member`() {
+        val conversationId = UUID.randomUUID()
+        val strangerId = UUID.randomUUID()
+        every { conversationRepository.findMember(conversationId, strangerId) } returns null
+
+        val error = assertThrows(com.muhabbet.shared.exception.BusinessException::class.java) {
+            service.markConversationRead(conversationId, strangerId)
+        }
+
+        assertEquals(com.muhabbet.shared.exception.ErrorCode.MSG_NOT_MEMBER, error.errorCode)
+        verify(exactly = 0) { messageRepository.markConversationRead(any(), any()) }
+        verify(exactly = 0) { conversationRepository.updateLastReadAt(any(), any(), any()) }
     }
 
     @Test
@@ -451,6 +523,10 @@ class DeliveryStatusTest {
             MessageDeliveryStatus(messageId, recipientId, DeliveryStatus.READ, readAt)
         )
         every { readReceiptPolicy.findReadReceiptsDisabled(any()) } returns emptySet()
+        // Default: every acking user is a member. The #299 tests below take membership away.
+        every { conversationRepository.findMember(any(), any()) } answers {
+            ConversationMember(conversationId = firstArg(), userId = secondArg())
+        }
 
         val recipient = service.getMessageInfo(messageId, senderId).recipients.single()
 

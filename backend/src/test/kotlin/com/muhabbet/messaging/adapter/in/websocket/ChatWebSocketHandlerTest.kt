@@ -4,9 +4,11 @@ import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
+import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.SendResult
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
@@ -24,6 +26,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.serialization.encodeToString
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -221,13 +224,15 @@ class ChatWebSocketHandlerTest {
                 content = "Hello!"
             )
 
-            every { sendMessageUseCase.sendMessage(any()) } returns Message(
-                id = messageId,
-                conversationId = convId,
-                senderId = userId,
-                content = "Hello!",
-                serverTimestamp = now,
-                clientTimestamp = now
+            every { sendMessageUseCase.sendMessage(any()) } returns SendResult(
+                Message(
+                    id = messageId,
+                    conversationId = convId,
+                    senderId = userId,
+                    content = "Hello!",
+                    serverTimestamp = now,
+                    clientTimestamp = now
+                )
             )
 
             val json = wsJson.encodeToString<WsMessage>(sendMessage)
@@ -239,6 +244,69 @@ class ChatWebSocketHandlerTest {
             val ackJson = messageSlot.captured
             assertTrue(ackJson.contains("\"status\":\"OK\""))
             assertTrue(ackJson.contains("req-1"))
+        }
+
+        @Test
+        fun `should replay the original seq and timestamp in the ack when a send is a retry`() {
+            // #750: a client that lost its first ack and resent the message gets that ack again —
+            // same seq, same server time, marked as a replay — and the device it is matched on is
+            // the one in the token, not anything the frame says.
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId, "deviceId" to deviceId)
+            val messageId = UUID.randomUUID()
+            val convId = UUID.randomUUID()
+            val committedAt = Instant.parse("2026-11-12T10:00:00Z")
+            val command = slot<SendMessageCommand>()
+            every { sendMessageUseCase.sendMessage(capture(command)) } returns SendResult(
+                Message(
+                    id = messageId,
+                    conversationId = convId,
+                    senderId = userId,
+                    content = "Hello!",
+                    serverTimestamp = committedAt,
+                    clientTimestamp = committedAt,
+                    seq = 42L
+                ),
+                replay = true
+            )
+
+            val frame = WsMessage.SendMessage(
+                requestId = "req-retry",
+                messageId = messageId.toString(),
+                conversationId = convId.toString(),
+                content = "Hello!"
+            )
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(frame)))
+
+            val sent = slot<String>()
+            verify { sessionManager.send(session, capture(sent)) }
+            val ack = wsJson.decodeFromString<WsMessage>(sent.captured) as WsMessage.ServerAck
+            assertEquals(42L, ack.seq)
+            assertTrue(ack.replay)
+            assertEquals(committedAt.toEpochMilli(), ack.serverTimestamp)
+            assertEquals(deviceId, command.captured.senderDeviceId)
+        }
+
+        @Test
+        fun `should advance the named message before bulk-marking the chat read when a READ ack arrives`() {
+            // Since #299 a status is published only if the row moved. Marking the whole
+            // conversation read first would move this row too, and the sender would never hear.
+            val session = createSession()
+            every { session.attributes } returns mutableMapOf<String, Any>("userId" to userId, "deviceId" to deviceId)
+            val messageId = UUID.randomUUID()
+            val convId = UUID.randomUUID()
+            val ack = WsMessage.AckMessage(
+                messageId = messageId.toString(),
+                conversationId = convId.toString(),
+                status = com.muhabbet.shared.model.MessageStatus.READ
+            )
+
+            handler.handleMessage(session, TextMessage(wsJson.encodeToString<WsMessage>(ack)))
+
+            io.mockk.verifyOrder {
+                updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.READ)
+                updateDeliveryStatusUseCase.markConversationRead(convId, userId)
+            }
         }
 
         @Test

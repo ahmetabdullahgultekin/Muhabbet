@@ -6,12 +6,23 @@ import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * **Reads that take a `viewerId` hide unreleased scheduled messages from everyone but their sender
+ * (#746).** A scheduled message is written when it is scheduled, so any read of another user's
+ * messages has to answer "is this one due yet" — the viewer is how it does.
+ */
 interface MessageRepository {
+    /**
+     * Inserts a new message. Throws `BusinessException(MSG_DUPLICATE)` when a row with the same id
+     * already exists — the concurrent-retry case the service's own lookup cannot see, which it
+     * answers by looking again in a fresh transaction and replaying the original ack (#750).
+     */
     fun save(message: Message): Message
     fun findById(id: UUID): Message?
     fun existsById(id: UUID): Boolean
     fun findByConversationId(
         conversationId: UUID,
+        viewerId: UUID,
         before: Instant?,
         limit: Int
     ): List<Message>
@@ -26,27 +37,39 @@ interface MessageRepository {
      * back to it. A caller with one row passes a list of one.
      */
     fun saveDeliveryStatuses(statuses: List<MessageDeliveryStatus>)
-    fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
+
+    /**
+     * Moves [userId]'s row for [messageId] forward to [status], never backwards, and reports
+     * whether anything changed. False for a row already at or past [status] and for a row that
+     * does not exist — and false is what tells the caller there is nothing to broadcast (#299).
+     */
+    fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): Boolean
     fun markConversationRead(conversationId: UUID, userId: UUID)
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
-    fun getLastMessage(conversationId: UUID): Message?
+    fun getLastMessage(conversationId: UUID, viewerId: UUID): Message?
 
     // Batch operations for inbox optimization (avoids N+1 queries)
-    fun getLastMessages(conversationIds: List<UUID>): Map<UUID, Message>
+    fun getLastMessages(conversationIds: List<UUID>, viewerId: UUID): Map<UUID, Message>
     fun getUnreadCounts(conversationIds: List<UUID>, userId: UUID): Map<UUID, Int>
 
     // Message management
-    fun softDelete(messageId: UUID)
-    fun updateContent(messageId: UUID, newContent: String, editedAt: Instant)
+
+    /**
+     * Soft-deletes a message. [changeSeq] is the value allocated for the delete as an event in the
+     * conversation's order (#750); null only for a row that never had a place in it — a scheduled
+     * message dropped before release.
+     */
+    fun softDelete(messageId: UUID, changeSeq: Long?)
+    fun updateContent(messageId: UUID, newContent: String, editedAt: Instant, changeSeq: Long)
 
     // Media count
-    fun countMediaInConversation(conversationId: UUID): Int
+    fun countMediaInConversation(conversationId: UUID, viewerId: UUID): Int
 
     // Batch delivery status lookup
     fun getDeliveryStatuses(messageIds: List<UUID>): List<MessageDeliveryStatus>
 
     // Media messages for shared media screen
-    fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message>
+    fun findMediaByConversationId(conversationId: UUID, viewerId: UUID, limit: Int, offset: Int): List<Message>
 
     // Search — membership-scoped: results are restricted to conversations the requesting user belongs to.
     fun searchInConversation(conversationId: UUID, userId: UUID, query: String, limit: Int, offset: Int): List<Message>
@@ -73,7 +96,12 @@ interface MessageRepository {
      * takes on. Unbounded, a backlog arrives as one list and — before #560 — as one transaction.
      */
     fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message>
-    fun markAsDelivered(messageId: UUID)
+
+    /**
+     * Releases a due scheduled message with its allocated [seq], as of [releasedAt]. False when it
+     * was no longer scheduled — another run released it first — so the caller can roll back.
+     */
+    fun markAsDelivered(messageId: UUID, seq: Long, releasedAt: Instant): Boolean
 
     // Disappearing messages
 

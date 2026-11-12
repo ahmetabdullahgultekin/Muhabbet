@@ -13,6 +13,7 @@ import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.FailingTransactionRunner
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.every
@@ -41,6 +42,8 @@ import java.util.UUID
  * edit would break, and it is checkable here without a database.
  */
 class SendMessageTransactionBoundaryTest {
+
+    private val sequence = InMemoryConversationSequence()
 
     private val conversationRepository: ConversationRepository = mockk(relaxed = true)
     private val messageRepository: MessageRepository = mockk(relaxed = true)
@@ -76,7 +79,8 @@ class SendMessageTransactionBoundaryTest {
         readReceiptPolicy = readReceiptPolicy,
         blockPolicy = blockPolicy,
             mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
-        transactions = transactions
+        transactions = transactions,
+        sequence = sequence
     )
 
     private fun command() = SendMessageCommand(
@@ -130,7 +134,7 @@ class SendMessageTransactionBoundaryTest {
     fun `should return the saved message to the caller when a message is sent`() {
         val command = command()
 
-        val sent: Message = serviceWith(InlineTransactionRunner()).sendMessage(command)
+        val sent: Message = serviceWith(InlineTransactionRunner()).sendMessage(command).message
 
         assertEquals(command.messageId, sent.id)
         assertEquals(command.content, sent.content)

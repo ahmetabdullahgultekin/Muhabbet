@@ -80,6 +80,23 @@ class MessageJpaEntity(
     @Column(name = "is_scheduled", nullable = false)
     var isScheduled: Boolean = false
 ) {
+    // Sequence (V28) and device-scoped idempotency (V29). Body properties rather than constructor
+    // parameters so the constructor's shape is unchanged. Written once at insert (see [fromDomain]);
+    // after that only the conditional @Modifying statements in SpringDataMessageRepository move them.
+    @Column(name = "seq")
+    var seq: Long? = null
+
+    @Column(name = "change_seq")
+    var changeSeq: Long? = null
+
+    @Column(name = "sender_device_id")
+    var senderDeviceId: UUID? = null
+
+    // The client's id is the row id; recorded separately only where a device is known, which is
+    // what the partial unique index (sender_device_id, client_message_id) keys on.
+    @Column(name = "client_message_id")
+    var clientMessageId: UUID? = null
+
     fun toDomain(): Message = Message(
         id = id, conversationId = conversationId, senderId = senderId,
         contentType = contentType, content = content, replyToId = replyToId,
@@ -88,7 +105,8 @@ class MessageJpaEntity(
         isDeleted = isDeleted, deletedAt = deletedAt, editedAt = editedAt,
         expiresAt = expiresAt, forwardedFrom = forwardedFrom,
         viewOnce = viewOnce, viewedAt = viewedAt, viewedBy = viewedBy,
-        scheduledAt = scheduledAt, isScheduled = isScheduled
+        scheduledAt = scheduledAt, isScheduled = isScheduled,
+        seq = seq, changeSeq = changeSeq, senderDeviceId = senderDeviceId
     )
 
     companion object {
@@ -101,6 +119,11 @@ class MessageJpaEntity(
             expiresAt = m.expiresAt, forwardedFrom = m.forwardedFrom,
             viewOnce = m.viewOnce, viewedAt = m.viewedAt, viewedBy = m.viewedBy,
             scheduledAt = m.scheduledAt, isScheduled = m.isScheduled
-        )
+        ).apply {
+            seq = m.seq
+            changeSeq = m.changeSeq
+            senderDeviceId = m.senderDeviceId
+            clientMessageId = m.senderDeviceId?.let { m.id }
+        }
     }
 }

@@ -16,6 +16,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PushNotificationPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.InMemoryConversationSequence
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
 import io.mockk.every
@@ -107,7 +108,8 @@ class BlockedSendPushSuppressionTest {
             readReceiptPolicy = readReceiptPolicy,
             blockPolicy = blockPolicy,
             mediaAttachmentPolicy = TestMediaAttachmentPolicy(),
-            transactions = InlineTransactionRunner()
+            transactions = InlineTransactionRunner(),
+            sequence = InMemoryConversationSequence()
         )
 
         val members = listOf(

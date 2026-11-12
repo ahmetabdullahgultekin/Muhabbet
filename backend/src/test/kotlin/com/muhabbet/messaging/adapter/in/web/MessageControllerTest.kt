@@ -11,6 +11,7 @@ import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.SendResult
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.shared.TestData
@@ -261,7 +262,7 @@ class MessageControllerTest {
         fun `should forward the send to the use case the socket handler also uses`() {
             val command = slot<SendMessageCommand>()
             every { sendMessageUseCase.sendMessage(capture(command)) } returns
-                TestData.textMessage(id = newMessageId, content = "merhaba")
+                SendResult(TestData.textMessage(id = newMessageId, content = "merhaba"))
 
             val response = controller.sendMessage(conversationId, request())
 

@@ -8,6 +8,27 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Fixed — ticks, scheduled messages and retries tell the truth
+
+- **Read receipts can no longer be forged, and ticks no longer go backwards** (#299). A delivery
+  or read ack — over the socket or `POST /messages/{id}/delivered` — is refused with
+  `MSG_NOT_MEMBER` unless whoever sends it is in the message's conversation (an unknown id gets the
+  same answer, so it cannot be used to probe), and `markConversationRead` has the same guard. A
+  status is broadcast only when the stored row actually moved, so a late DELIVERED after READ, or a
+  repeat, is no longer announced.
+- **A scheduled message stays invisible to everyone but its sender until it is due** (#746).
+  History, `/messages/since`, the chat list's last message, unread counts, search, shared media,
+  backups and message info all filter it. On release it takes the release time as its server
+  timestamp, so background sync that ran in between does not miss it.
+- **Every message has a per-conversation sequence number, and a retried send gets its original
+  ack back** (#750). `V28` adds `conversations.last_seq`, `messages.seq` and `messages.change_seq`
+  (existing history backfilled in `(server_timestamp, id)` order); a send allocates under the
+  conversation's row lock, so numbers are gapless and unique, and edits and deletes take a new
+  `change_seq`. `V29` records the sending device. Resending a message id from the same device now
+  returns the first `ack` with `replay: true` and the same `seq` and timestamp instead of
+  `MSG_DUPLICATE`. `ack` and `message.new` carry the new optional `seq` / `changeSeq` / `replay`
+  fields; older apps ignore them.
+
 ### Added — Enter sends, and you can say whether it does
 
 - **Enter still did not send a message, and now it does — behind a setting** (#516). #514 wired
