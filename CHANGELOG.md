@@ -15,9 +15,9 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   control. Links created before this change still carry the old address; revoke and recreate them.
 - Android app links are claimed for `muhabbet.rollingcatsoftware.com/chat/…` and verified by an
   `assetlinks.json` published on that site. The app no longer claims `/invite` links it cannot open.
-- The privacy policy and KVKK notice now say where the servers are (Türkiye, operated by the
-  developer), list GIPHY and Firebase Authentication as recipients, and say plainly that the hashed
-  numbers sent for contact matching can be reversed. The in-app contact consent text says the same.
+- The privacy policy and KVKK notice now say where the servers are (Hetzner, Germany, listed as
+  an international transfer), list GIPHY and Firebase Authentication as recipients, and say
+  plainly that the hashed numbers sent for contact matching can be reversed. The in-app contact consent text says the same.
 - Android: cached chats and app preferences are excluded from cloud backup and from device-to-device
   transfer on Android 12 and later.
 - Android: the app opens a chat with a title and group flag supplied in the launch intent only when
