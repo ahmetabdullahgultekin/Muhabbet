@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
 import java.security.SecureRandom
+import java.time.Instant
 import java.util.Base64
 import java.util.Date
 import java.util.UUID
@@ -15,7 +16,15 @@ import javax.crypto.SecretKey
 data class JwtClaims(
     val userId: UUID,
     val deviceId: UUID,
-    val isAdmin: Boolean = false
+    val isAdmin: Boolean = false,
+    /**
+     * The token's `exp`, so a long-lived consumer — a WebSocket session — can stop trusting the
+     * token at the moment the token stops being valid rather than at the moment it was presented
+     * (#747). [JwtProvider.validateToken] always sets it; it is nullable only so that claims built
+     * by hand for a controller test need not invent one, and a null is read as "no scheduled close",
+     * never as "valid forever" anywhere a real token is involved.
+     */
+    val expiresAt: Instant? = null
 )
 
 @Component
@@ -114,7 +123,8 @@ class JwtProvider(
             JwtClaims(
                 userId = UUID.fromString(claims.subject),
                 deviceId = UUID.fromString(claims["deviceId"] as String),
-                isAdmin = claims["admin"] as? Boolean ?: false
+                isAdmin = claims["admin"] as? Boolean ?: false,
+                expiresAt = claims.expiration?.toInstant()
             )
         } catch (ex: Exception) {
             log.debug("JWT validation failed: {}", ex.message)

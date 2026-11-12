@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import com.muhabbet.auth.domain.port.`in`.CheckSessionValidityUseCase
 import org.junit.jupiter.api.assertThrows
 import org.springframework.mock.env.MockEnvironment
 import org.springframework.mock.web.MockFilterChain
@@ -42,6 +43,9 @@ class JwtAdminClaimTest {
 
     private val userId: UUID = UUID.randomUUID()
     private val deviceId: UUID = UUID.randomUUID()
+
+    /** Every session is still valid here; revocation is JwtAuthFilterSessionValidityTest's subject. */
+    private val allowAll = CheckSessionValidityUseCase { _, _ -> true }
 
     @AfterEach
     fun clearContext() {
@@ -119,7 +123,7 @@ class JwtAdminClaimTest {
     private fun authoritiesAfterFilter(token: String): List<String> {
         SecurityContextHolder.clearContext()
         val request = MockHttpServletRequest().apply { addHeader("Authorization", "Bearer $token") }
-        JwtAuthFilter(provider).doFilter(request, MockHttpServletResponse(), MockFilterChain())
+        JwtAuthFilter(provider, allowAll).doFilter(request, MockHttpServletResponse(), MockFilterChain())
         return grantedAuthorities()
     }
 

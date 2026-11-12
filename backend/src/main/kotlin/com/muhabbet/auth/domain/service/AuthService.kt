@@ -7,7 +7,6 @@ import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
 import com.muhabbet.auth.domain.port.`in`.AuthResult
 import com.muhabbet.auth.domain.port.`in`.FirebaseVerifyUseCase
-import com.muhabbet.auth.domain.port.`in`.LogoutUseCase
 import com.muhabbet.auth.domain.port.`in`.OtpResult
 import com.muhabbet.auth.domain.port.`in`.RefreshTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RegisterPushTokenUseCase
@@ -84,7 +83,7 @@ open class AuthService(
     private val twoStepAttemptRepository: TwoStepAttemptRepository,
     private val twoStepMaxAttempts: Int = 5,
     private val twoStepLockSeconds: Long = 900
-) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
+) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
@@ -444,12 +443,6 @@ open class AuthService(
         val resolvedLocale = normalizeDeviceLocale(locale) ?: device.locale
         deviceRepository.save(device.copy(pushToken = pushToken, locale = resolvedLocale))
         log.info("Push token registered: userId={}, deviceId={}, locale={}", userId, deviceId, resolvedLocale)
-    }
-
-    @Transactional
-    override fun logout(userId: UUID, deviceId: UUID) {
-        refreshTokenRepository.revokeAllForDevice(userId, deviceId)
-        log.info("Logout: userId={}, deviceId={}", userId, deviceId)
     }
 
     private fun generateOtp(): String {

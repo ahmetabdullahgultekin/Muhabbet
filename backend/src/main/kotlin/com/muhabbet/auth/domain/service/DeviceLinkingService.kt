@@ -3,9 +3,11 @@ package com.muhabbet.auth.domain.service
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
+import com.muhabbet.auth.domain.model.SessionRevocationReason
 import com.muhabbet.auth.domain.port.`in`.LinkDeviceUseCase
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.SessionRevocationPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
@@ -28,7 +30,9 @@ import java.util.UUID
  */
 open class DeviceLinkingService(
     private val deviceLinkSessionRepository: DeviceLinkSessionRepository,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    /** Closes the revoked companion's open socket (#747); a tombstone alone does not reach it. */
+    private val sessionRevocationPort: SessionRevocationPort
 ) : LinkDeviceUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -146,6 +150,7 @@ open class DeviceLinkingService(
         // Crypto boundary: DeviceLinkCrypto.dropSession(deviceId) would run here to enforce forward
         // secrecy on the peers — NotYetImplemented (libsignal block). The tombstone alone already
         // excludes the device from findActiveByUserId / the (future) fan-out set.
+        sessionRevocationPort.revokeDeviceSessions(userId, deviceId, SessionRevocationReason.DEVICE_REVOKED)
         log.info("Device revoked: device={}, user={}", deviceId, userId)
         return revoked
     }

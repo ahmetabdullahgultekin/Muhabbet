@@ -1,5 +1,6 @@
 package com.muhabbet.shared.security
 
+import com.muhabbet.auth.domain.port.`in`.CheckSessionValidityUseCase
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -11,7 +12,8 @@ import org.springframework.web.filter.OncePerRequestFilter
 
 @Component
 class JwtAuthFilter(
-    private val jwtProvider: JwtProvider
+    private val jwtProvider: JwtProvider,
+    private val checkSessionValidityUseCase: CheckSessionValidityUseCase
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -22,7 +24,12 @@ class JwtAuthFilter(
         val token = extractBearerToken(request)
 
         if (token != null) {
+            // A valid signature is not enough on its own (#747): a token outlives the device it was
+            // issued to and the account that owned it, by up to its full lifetime. Left
+            // unauthenticated, the request falls to the entry point and is answered 401, which is
+            // what makes the client refresh — and the refresh is refused too, which is the point.
             val claims = jwtProvider.validateToken(token)
+                ?.takeIf { checkSessionValidityUseCase.isSessionValid(it.userId, it.deviceId) }
             if (claims != null) {
                 // Grant ROLE_ADMIN to admin tokens so SecurityConfig can gate admin-only endpoints
                 // (e.g. /actuator/metrics, /actuator/prometheus) with hasRole("ADMIN").

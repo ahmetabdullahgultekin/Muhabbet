@@ -5,6 +5,8 @@ import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.SessionRevocationPort
+import com.muhabbet.auth.domain.model.SessionRevocationReason
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -27,6 +29,7 @@ class DeviceLinkingServiceTest {
     private lateinit var sessionRepo: DeviceLinkSessionRepository
     private lateinit var deviceRepo: DeviceRepository
     private lateinit var service: DeviceLinkingService
+    private lateinit var sessionRevocation: SessionRevocationPort
 
     private val userId = UUID.randomUUID()
     private val primaryDeviceId = UUID.randomUUID()
@@ -46,7 +49,8 @@ class DeviceLinkingServiceTest {
     fun setUp() {
         sessionRepo = mockk(relaxed = true)
         deviceRepo = mockk(relaxed = true)
-        service = DeviceLinkingService(sessionRepo, deviceRepo)
+        sessionRevocation = mockk(relaxed = true)
+        service = DeviceLinkingService(sessionRepo, deviceRepo, sessionRevocation)
 
         every { sessionRepo.save(any()) } answers { firstArg() }
         every { deviceRepo.save(any()) } answers { firstArg() }
@@ -248,5 +252,27 @@ class DeviceLinkingServiceTest {
 
         assertFalse(result.isActive)
         verify(exactly = 0) { deviceRepo.save(any()) } // no second write
+    }
+
+    @Test
+    fun `should close the companion's live sessions when it is revoked`() {
+        val companionId = UUID.randomUUID()
+        every { deviceRepo.findById(companionId) } returns
+            Device(id = companionId, userId = userId, platform = "web", linkedByDeviceId = primaryDeviceId)
+
+        service.revokeDevice(userId, companionId)
+
+        verify(exactly = 1) {
+            sessionRevocation.revokeDeviceSessions(userId, companionId, SessionRevocationReason.DEVICE_REVOKED)
+        }
+    }
+
+    @Test
+    fun `should not close any session when revocation is refused`() {
+        every { deviceRepo.findById(primaryDeviceId) } returns primaryDevice()
+
+        assertThrows(BusinessException::class.java) { service.revokeDevice(userId, primaryDeviceId) }
+
+        verify(exactly = 0) { sessionRevocation.revokeDeviceSessions(any(), any(), any()) }
     }
 }
