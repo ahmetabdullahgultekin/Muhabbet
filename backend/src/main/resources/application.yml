@@ -42,6 +42,12 @@ spring:
     # It is relaxed only in application-dev.yml (local iteration) and application-test.yml
     # (each test class builds Postgres fresh from these files via Testcontainers, so there is
     # nothing to diverge, but the override keeps local dev/test behavior consistent).
+    postgresql:
+      # Session-level advisory lock, not the default transactional one. With the transactional
+      # lock Flyway keeps a transaction open for the whole run, and CREATE/DROP INDEX CONCURRENTLY
+      # waits for every older transaction to finish — including that one — so an online-safe
+      # migration would hang the deploy forever. See docs/adr/0015-online-safe-migrations.md.
+      transactional-lock: false
 
   # Redis
   data:
