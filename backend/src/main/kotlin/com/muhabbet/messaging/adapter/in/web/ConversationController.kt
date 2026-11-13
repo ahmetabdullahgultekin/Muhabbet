@@ -1,5 +1,7 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.toDomainOrNull
+import com.muhabbet.messaging.domain.model.toShared
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
@@ -65,11 +67,10 @@ class ConversationController(
     fun createConversation(@RequestBody request: CreateConversationRequest): ResponseEntity<ApiResponse<ConversationResponse>> {
         val userId = AuthenticatedUser.currentUserId()
 
-        val type = when (request.type) {
-            com.muhabbet.shared.model.ConversationType.DIRECT -> ConversationType.DIRECT
-            com.muhabbet.shared.model.ConversationType.GROUP -> ConversationType.GROUP
-            com.muhabbet.shared.model.ConversationType.CHANNEL -> ConversationType.CHANNEL
-        }
+        val type = request.type.toDomainOrNull()
+            ?: throw com.muhabbet.shared.exception.BusinessException(
+                com.muhabbet.shared.exception.ErrorCode.VALIDATION_ERROR
+            )
 
         val result = createConversationUseCase.createConversation(
             type = type,
@@ -94,7 +95,7 @@ class ConversationController(
                     displayName = user?.displayName,
                     phoneNumber = user?.phoneNumber,
                     avatarUrl = user?.avatarUrl,
-                    role = SharedMemberRole.valueOf(m.role.name),
+                    role = m.role.toShared(),
                     isOnline = m.userId in onlineIds
                 )
             },

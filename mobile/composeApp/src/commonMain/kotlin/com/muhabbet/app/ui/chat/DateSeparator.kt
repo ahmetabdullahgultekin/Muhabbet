@@ -13,7 +13,7 @@ import com.muhabbet.designsystem.theme.MuhabbetAlphas
 import com.muhabbet.designsystem.theme.MuhabbetElevation
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.app.util.DateTimeFormatter
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 @Composable
 fun DateSeparatorPill(date: String, modifier: Modifier = Modifier) {

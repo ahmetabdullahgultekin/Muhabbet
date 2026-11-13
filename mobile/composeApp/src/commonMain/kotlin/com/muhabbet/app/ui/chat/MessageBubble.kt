@@ -360,6 +360,17 @@ fun MessageBubble(
                             }
                             Spacer(Modifier.height(MuhabbetSpacing.XSmall))
                         }
+                        // A content type this build does not know (#875): the frame decoded, so the
+                        // message is kept, but its body is meaningless here. Saying so beats both
+                        // dropping it and rendering whatever the body holds.
+                        if (message.contentType == ContentType.UNKNOWN) {
+                            Text(
+                                text = stringResource(Res.string.message_unsupported_content),
+                                style = Muhabbet.text.ChatBody,
+                                color = onBubbleColor,
+                                modifier = Modifier.padding(horizontal = MuhabbetSpacing.Small)
+                            )
+                        }
                         // Text
                         // "Is there a caption", not "is this string the current locale's word for
                         // photo" (#534). The old test compared the stored body against a live
@@ -409,13 +420,13 @@ fun MessageBubble(
                         if (isOwn && !message.isDeleted) {
                             val (icon, tint) = when (message.status) {
                                 MessageStatus.SENDING -> Muhabbet.icons.Pending to onBubbleColor.copy(alpha = 0.5f)
-                                MessageStatus.SENT -> Muhabbet.icons.Sent to onBubbleColor.copy(alpha = 0.7f)
+                                MessageStatus.SENT, MessageStatus.UNKNOWN -> Muhabbet.icons.Sent to onBubbleColor.copy(alpha = 0.7f)
                                 MessageStatus.DELIVERED -> Muhabbet.icons.Delivered to onBubbleColor.copy(alpha = 0.7f)
                                 MessageStatus.READ -> Muhabbet.icons.Delivered to semanticColors.statusRead
                             }
                             val statusDesc = when (message.status) {
                                 MessageStatus.SENDING -> stringResource(Res.string.status_sending)
-                                MessageStatus.SENT -> stringResource(Res.string.status_sent)
+                                MessageStatus.SENT, MessageStatus.UNKNOWN -> stringResource(Res.string.status_sent)
                                 MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
                                 MessageStatus.READ -> stringResource(Res.string.status_read)
                             }
@@ -572,5 +583,5 @@ private fun linkifiedContent(
     }
 }
 
-internal fun formatMessageTime(instant: kotlinx.datetime.Instant): String =
+internal fun formatMessageTime(instant: kotlin.time.Instant): String =
     DateTimeFormatter.formatTime(instant)

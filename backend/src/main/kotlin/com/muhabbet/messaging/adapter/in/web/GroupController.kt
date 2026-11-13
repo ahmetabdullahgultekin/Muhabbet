@@ -1,5 +1,7 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.toDomainOrNull
+import com.muhabbet.messaging.domain.model.toShared
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
@@ -10,7 +12,6 @@ import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.dto.UpdateGroupRequest
 import com.muhabbet.shared.dto.UpdateRoleRequest
-import com.muhabbet.shared.model.MemberRole as SharedMemberRole
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -49,7 +50,7 @@ class GroupController(
                 displayName = user?.displayName,
                 phoneNumber = user?.phoneNumber,
                 avatarUrl = user?.avatarUrl,
-                role = SharedMemberRole.valueOf(m.role.name),
+                role = m.role.toShared(),
                 isOnline = m.userId in onlineIds
             )
         }
@@ -103,7 +104,8 @@ class GroupController(
         @RequestBody request: UpdateRoleRequest
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        val role = MemberRole.valueOf(request.role.name)
+        val role = request.role.toDomainOrNull()
+            ?: throw com.muhabbet.shared.exception.BusinessException(com.muhabbet.shared.exception.ErrorCode.VALIDATION_ERROR)
         manageGroupUseCase.updateMemberRole(conversationId, userId, targetUserId, role)
         return ApiResponseBuilder.ok(Unit)
     }

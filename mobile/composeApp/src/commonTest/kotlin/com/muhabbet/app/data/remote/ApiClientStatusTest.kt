@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.remote
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeTokenStorage
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -58,7 +59,7 @@ class ApiClientStatusTest {
         val failure = assertFailsWith<ApiException> { client.get<List<Thing>>("/api/v1/communities") }
 
         assertEquals(403, failure.status)
-        assertEquals("GROUP_PERMISSION_DENIED", failure.code)
+        assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, failure.code)
         assertEquals("Bu işlem için yetkiniz yok", failure.message)
     }
 
@@ -74,7 +75,7 @@ class ApiClientStatusTest {
         assertEquals(500, failure.status)
         // The code is what a screen maps to a message, so losing it would leave the UI with nothing
         // but an untranslated server string to show.
-        assertEquals("MEDIA_UPLOAD_FAILED", failure.code)
+        assertEquals(ErrorCode.MEDIA_UPLOAD_FAILED, failure.code)
     }
 
     @Test
@@ -91,7 +92,7 @@ class ApiClientStatusTest {
         val failure = assertFailsWith<ApiException> { client.get<Thing>("/api/v1/communities") }
 
         assertEquals(502, failure.status)
-        assertEquals("HTTP_502", failure.code)
+        assertEquals(null, failure.code)
         assertTrue(failure.message.contains("502 Bad Gateway"), "raw body should survive: ${failure.message}")
     }
 
@@ -199,6 +200,6 @@ class ApiClientStatusTest {
         val failure = assertFailsWith<ApiException> { client.get<Thing>("/api/v1/things/thing-1") }
 
         assertEquals(401, failure.status)
-        assertEquals("AUTH_TOKEN_EXPIRED", failure.code)
+        assertEquals(ErrorCode.AUTH_TOKEN_EXPIRED, failure.code)
     }
 }

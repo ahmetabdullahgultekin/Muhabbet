@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.exception.httpStatus
 import com.muhabbet.messaging.domain.model.GroupInviteLink
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.ConversationRepository

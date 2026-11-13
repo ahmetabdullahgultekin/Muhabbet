@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
@@ -76,7 +77,7 @@ class ModerationRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.blockUser("me") }
 
-        assertEquals("BLOCK_SELF", failure.code)
+        assertEquals(ErrorCode.BLOCK_SELF, failure.code)
     }
 
     @Test

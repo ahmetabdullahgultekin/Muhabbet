@@ -93,8 +93,7 @@ class WebSocketErrorContractTest {
 
         val ack = ackOf(send(sendMessageFrame()).single())
 
-        assertEquals(ErrorCode.MSG_NOT_MEMBER.name, ack.errorCode)
-        assertEquals(ErrorCode.MSG_NOT_MEMBER.defaultMessage, ack.errorMessage)
+        assertEquals(ErrorCode.MSG_NOT_MEMBER, ack.errorCode)
     }
 
     @Test
@@ -107,8 +106,8 @@ class WebSocketErrorContractTest {
         every { sendMessageUseCase.sendMessage(any()) } throws BusinessException(ErrorCode.MSG_NOT_MEMBER)
         val notMember = ackOf(send(sendMessageFrame()).single())
 
-        assertEquals(ErrorCode.MSG_CONTENT_TOO_LONG.name, tooLong.errorCode)
-        assertEquals(ErrorCode.MSG_NOT_MEMBER.name, notMember.errorCode)
+        assertEquals(ErrorCode.MSG_CONTENT_TOO_LONG, tooLong.errorCode)
+        assertEquals(ErrorCode.MSG_NOT_MEMBER, notMember.errorCode)
     }
 
     @Test
@@ -117,14 +116,14 @@ class WebSocketErrorContractTest {
 
         val ack = ackOf(send(sendMessageFrame()).single())
 
-        assertEquals(ErrorCode.INTERNAL_ERROR.name, ack.errorCode)
+        assertEquals(ErrorCode.INTERNAL_ERROR, ack.errorCode)
     }
 
     @Test
     fun `should never answer with a code that is not an ErrorCode`() {
         // The regression itself. MSG_SEND_FAILED was invented at the call site and is not a member
         // of the enum, which is exactly how it survived.
-        val codes = ErrorCode.entries.map { it.name }.toSet()
+        val codes = ErrorCode.entries.filter { it != ErrorCode.UNKNOWN }.toSet()
 
         every { sendMessageUseCase.sendMessage(any()) } throws BusinessException(ErrorCode.MSG_DUPLICATE)
         val refusal = ackOf(send(sendMessageFrame()).single())
@@ -151,7 +150,7 @@ class WebSocketErrorContractTest {
 
         verify(exactly = 0) { session.close(any()) }
         val error = wsJson.decodeFromString<WsMessage>(sent.single()) as WsMessage.Error
-        assertEquals(ErrorCode.VALIDATION_ERROR.name, error.code)
+        assertEquals(ErrorCode.VALIDATION_ERROR, error.code)
     }
 
     @Test
@@ -162,7 +161,7 @@ class WebSocketErrorContractTest {
         val sent = send(sendMessageFrame().copy(messageId = "not-a-uuid"))
 
         val ack = ackOf(sent.single())
-        assertEquals(ErrorCode.VALIDATION_ERROR.name, ack.errorCode)
+        assertEquals(ErrorCode.VALIDATION_ERROR, ack.errorCode)
         verify(exactly = 0) { sendMessageUseCase.sendMessage(any()) }
     }
 }

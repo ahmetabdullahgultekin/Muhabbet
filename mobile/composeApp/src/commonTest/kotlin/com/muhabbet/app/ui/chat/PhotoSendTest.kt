@@ -1,7 +1,7 @@
 package com.muhabbet.app.ui.chat
 
 import com.muhabbet.shared.model.ContentType
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

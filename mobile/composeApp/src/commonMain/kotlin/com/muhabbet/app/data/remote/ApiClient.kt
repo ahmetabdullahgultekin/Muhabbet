@@ -29,6 +29,13 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.platform.getPlatformName
+import com.muhabbet.shared.protocol.ClientInfo
+import com.muhabbet.shared.protocol.MuhabbetJson
+import com.muhabbet.shared.protocol.WireProtocol
+import io.ktor.client.request.header
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
@@ -66,6 +73,15 @@ class ApiClient(
          * direction of an exact list is the safe one: a token sent to an endpoint that ignores it
          * costs nothing, while a token withheld from one that needs it is a 401.
          */
+        /** This build, as the server sees it on every request and on the socket handshake (#873). */
+        val clientInfo: ClientInfo by lazy {
+            ClientInfo(
+                protocolVersion = WireProtocol.VERSION,
+                appVersion = BuildInfo.VERSION,
+                platform = getPlatformName(),
+            )
+        }
+
         internal val PRE_LOGIN_PATHS = setOf(
             "/api/v1/auth/otp/request",
             "/api/v1/auth/otp/verify",
@@ -74,10 +90,26 @@ class ApiClient(
         )
     }
 
-    val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-        isLenient = true
+    /**
+     * The shared wire configuration, not one of this client's own (#887). It used to be `isLenient`,
+     * so this decoder accepted bodies the WebSocket and the server would have rejected.
+     */
+    val json: Json = MuhabbetJson
+
+    private val _upgradeRequired = MutableStateFlow(false)
+
+    /**
+     * Whether the server has refused this build as too old (#873) — a 426 from any REST call here,
+     * or a 4426 close on the socket, which [WsClient] reports through [reportUpgradeRequired]. Once
+     * true it stays true for the life of the process: nothing this build can send will be accepted,
+     * so retrying would only burn battery. [WsClient] stops reconnecting and the connection strip
+     * says the app needs updating.
+     */
+    val upgradeRequired: StateFlow<Boolean> = _upgradeRequired
+
+    fun reportUpgradeRequired() {
+        if (!_upgradeRequired.value) Log.w(TAG, "Server requires a newer protocol than ${WireProtocol.VERSION}")
+        _upgradeRequired.value = true
     }
 
     private val clientConfig: HttpClientConfig<*>.() -> Unit = {
@@ -178,6 +210,10 @@ class ApiClient(
         defaultRequest {
             url(BASE_URL)
             contentType(ContentType.Application.Json)
+            // Who is calling (#873): the server refuses a protocol it no longer serves with 426, and
+            // logs which builds are still out there. The token-refresh call above sets it too,
+            // because `defaultRequest` applies to every request this client makes.
+            header(WireProtocol.CLIENT_HEADER, clientInfo.toHeaderValue())
         }
     }
 
@@ -228,7 +264,9 @@ class ApiClient(
         Log.d(TAG, "$method $path -> ${response.status}")
         val text = response.bodyAsText()
         if (!response.status.isSuccess()) {
-            throw ApiException.from(json, response.status, text)
+            val failure = ApiException.from(json, response.status, text)
+            if (failure.isUpgradeRequired) reportUpgradeRequired()
+            throw failure
         }
         return text
     }

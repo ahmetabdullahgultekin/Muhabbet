@@ -1,7 +1,7 @@
 package com.muhabbet.messaging.adapter.out
 
 import com.muhabbet.messaging.domain.model.Message
-import com.muhabbet.shared.model.ContentType as SharedContentType
+import com.muhabbet.messaging.domain.model.toShared
 import com.muhabbet.shared.protocol.WsMessage
 
 /**
@@ -25,10 +25,9 @@ internal fun Message.toNewMessageFrame(senderName: String?): WsMessage.NewMessag
     senderId = senderId.toString(),
     senderName = senderName,
     content = content,
-    // Falls back to TEXT rather than throwing: an unrecognised type means the two enums have drifted
-    // apart in a deploy, and a message that arrives as plain text is better than a broadcast that
-    // dies and delivers nothing to anyone in the conversation.
-    contentType = runCatching { SharedContentType.valueOf(contentType.name) }.getOrDefault(SharedContentType.TEXT),
+    // An exhaustive mapping, so the two enums cannot drift apart in a deploy: that is now a compile
+    // error rather than the runtime TEXT fallback this used to need.
+    contentType = contentType.toShared(),
     replyToId = replyToId?.toString(),
     // Sealed on the wire, not in the UI: a view-once frame names the flag and withholds the blob
     // URL, which is released once by POST /messages/{id}/view-once. See MessageMapper.

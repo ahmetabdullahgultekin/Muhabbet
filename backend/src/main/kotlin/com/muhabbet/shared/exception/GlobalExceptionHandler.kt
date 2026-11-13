@@ -221,7 +221,7 @@ class GlobalExceptionHandler {
 
     private fun envelope(code: ErrorCode, message: String): ApiResponse<Nothing> =
         ApiResponse(
-            error = ApiError(code = code.name, message = message),
+            error = ApiError(code = code, message = message),
             timestamp = Instant.now().toString()
         )
 }

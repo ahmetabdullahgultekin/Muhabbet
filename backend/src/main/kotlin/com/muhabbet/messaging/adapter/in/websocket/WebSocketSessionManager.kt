@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
+import com.muhabbet.shared.protocol.WireProtocol
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
@@ -53,7 +54,17 @@ class WebSocketSessionManager {
          * not slow, it is gone, and holding more of its backlog only costs this instance memory.
          */
         private const val SEND_BUFFER_LIMIT_BYTES = 8 * 64 * 1024
+
+        /**
+         * Session attribute holding the protocol the client announced at the handshake (#873). Absent
+         * means a client that predates versioning, which is what [protocolOf] reports for it.
+         */
+        const val PROTOCOL_VERSION_ATTRIBUTE = "protocolVersion"
     }
+
+    /** The protocol [session]'s client speaks; [WireProtocol.LEGACY_VERSION] if it never said. */
+    fun protocolOf(session: WebSocketSession): Int =
+        session.attributes[PROTOCOL_VERSION_ATTRIBUTE] as? Int ?: WireProtocol.LEGACY_VERSION
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -186,14 +197,21 @@ class WebSocketSessionManager {
         }
     }
 
-    fun sendToUser(userId: UUID, message: String) {
+    fun sendToUser(userId: UUID, message: String) = sendToUserByProtocol(userId) { message }
+
+    /**
+     * Writes to every session of [userId] the frame [payloadFor] chooses for that session's protocol
+     * (#873) — how one broadcast reaches an old build in the form it understands and a new build in
+     * the form it was written for, during the window both are installed.
+     */
+    fun sendToUserByProtocol(userId: UUID, payloadFor: (protocolVersion: Int) -> String) {
         val userSessions = sessions[userId] ?: return
         val stale = mutableListOf<WebSocketSession>()
         userSessions.forEach { session ->
             if (session.isOpen) {
                 try {
                     // No synchronized(): the set holds decorators, which serialise their own sends.
-                    session.sendMessage(TextMessage(message))
+                    session.sendMessage(TextMessage(payloadFor(protocolOf(session))))
                 } catch (e: Exception) {
                     log.warn("Failed to send WS message to session {}, marking stale: {}", session.id, e.message)
                     stale.add(session)

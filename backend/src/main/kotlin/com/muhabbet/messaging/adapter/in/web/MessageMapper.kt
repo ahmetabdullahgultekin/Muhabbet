@@ -1,10 +1,10 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.Message
-import com.muhabbet.shared.model.ContentType as SharedContentType
+import com.muhabbet.messaging.domain.model.toShared
 import com.muhabbet.shared.model.Message as SharedMessage
 import com.muhabbet.shared.model.MessageStatus
-import kotlinx.datetime.Instant as KInstant
+import kotlin.time.Instant as KInstant
 
 /**
  * Maps a backend domain Message to the shared module Message DTO.
@@ -28,7 +28,7 @@ fun Message.toSharedMessage(resolvedStatus: MessageStatus = MessageStatus.SENT):
     id = id.toString(),
     conversationId = conversationId.toString(),
     senderId = senderId.toString(),
-    contentType = SharedContentType.valueOf(contentType.name),
+    contentType = contentType.toShared(),
     content = if (isDeleted) "" else content,
     replyToId = replyToId?.toString(),
     mediaUrl = if (viewOnce) null else mediaUrl,

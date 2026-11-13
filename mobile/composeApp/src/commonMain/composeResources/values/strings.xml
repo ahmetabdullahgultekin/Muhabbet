@@ -905,6 +905,8 @@
          the wording has to cover a real outage rather than a momentary blip. -->
     <string name="connection_status_label">Bağlantı durumu</string>
     <string name="connection_offline_strip">Bağlantı yok. Mesajlar yeniden bağlanınca gönderilecek.</string>
+    <string name="connection_upgrade_required_strip">Bu sürüm artık desteklenmiyor. Mesajlaşmaya devam etmek için uygulamayı güncelleyin.</string>
+    <string name="message_unsupported_content">Bu mesajı görmek için uygulamayı güncelleyin.</string>
 
     <!-- First-run test-build notice, shown once per app version after login (#519) -->
     <string name="test_build_notice_title">Muhabbet henüz test aşamasında</string>

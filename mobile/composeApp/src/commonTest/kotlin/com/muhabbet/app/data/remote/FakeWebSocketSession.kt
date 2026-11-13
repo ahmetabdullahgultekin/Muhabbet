@@ -52,6 +52,11 @@ internal class FakeWebSocketSession : WebSocketSession {
         received.close()
     }
 
+    /** Delivers a frame from the "server" to the client reading [incoming]. */
+    fun deliver(text: String) {
+        received.trySend(Frame.Text(text))
+    }
+
     /** Everything written so far, as text, drained from the channel. */
     fun writtenText(): List<String> = buildList {
         while (true) {

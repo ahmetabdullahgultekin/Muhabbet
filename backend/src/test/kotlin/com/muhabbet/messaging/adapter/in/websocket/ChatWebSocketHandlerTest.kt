@@ -374,9 +374,9 @@ class ChatWebSocketHandlerTest {
             val json = wsJson.encodeToString<WsMessage>(typing)
             handler.handleMessage(session, TextMessage(json))
 
-            verify { sessionManager.sendToUser(otherUserId, any()) }
+            verify { sessionManager.sendToUserByProtocol(otherUserId, any()) }
             // Should NOT send to the sender
-            verify(exactly = 0) { sessionManager.sendToUser(eq(userId), any()) }
+            verify(exactly = 0) { sessionManager.sendToUserByProtocol(eq(userId), any()) }
         }
 
         @Test
@@ -401,7 +401,7 @@ class ChatWebSocketHandlerTest {
             val json = wsJson.encodeToString<WsMessage>(typing)
             handler.handleMessage(session, TextMessage(json))
 
-            verify(exactly = 0) { sessionManager.sendToUser(offlineUserId, any()) }
+            verify(exactly = 0) { sessionManager.sendToUserByProtocol(offlineUserId, any()) }
         }
     }
 
@@ -735,7 +735,7 @@ class ChatWebSocketHandlerTest {
 
             sendTyping()
 
-            verify(exactly = 0) { sessionManager.sendToUser(otherUserId, any()) }
+            verify(exactly = 0) { sessionManager.sendToUserByProtocol(otherUserId, any()) }
         }
 
         @Test
@@ -745,7 +745,7 @@ class ChatWebSocketHandlerTest {
 
             sendTyping()
 
-            verify(exactly = 0) { sessionManager.sendToUser(otherUserId, any()) }
+            verify(exactly = 0) { sessionManager.sendToUserByProtocol(otherUserId, any()) }
         }
 
         @Test
@@ -754,7 +754,7 @@ class ChatWebSocketHandlerTest {
 
             sendTyping()
 
-            verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUserByProtocol(otherUserId, any()) }
         }
 
         @Test
@@ -767,7 +767,7 @@ class ChatWebSocketHandlerTest {
 
             sendTyping()
 
-            verify(exactly = 1) { sessionManager.sendToUser(otherUserId, any()) }
+            verify(exactly = 1) { sessionManager.sendToUserByProtocol(otherUserId, any()) }
         }
 
         @Test

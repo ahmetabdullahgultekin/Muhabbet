@@ -1,8 +1,8 @@
 package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
-import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.toDomainOrNull
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
@@ -10,14 +10,17 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.model.ChatActivityKind
 import com.muhabbet.shared.model.PresenceStatus
-import com.muhabbet.shared.protocol.AckStatus
+import com.muhabbet.shared.protocol.ClientInfo
+import com.muhabbet.shared.protocol.WireProtocol
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import com.muhabbet.shared.security.JwtProvider
 import com.muhabbet.shared.security.WebSocketRateLimiter
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.PongMessage
@@ -39,34 +42,56 @@ class ChatWebSocketHandler(
     private val recordLastSeenUseCase: RecordLastSeenUseCase,
     private val callFrameHandler: CallFrameHandler,
     private val webSocketRateLimiter: WebSocketRateLimiter,
-    private val presenceVisibility: PresenceVisibility
+    private val presenceVisibility: PresenceVisibility,
+    /** Oldest client protocol still served; see `muhabbet.protocol.min-supported` (#873). */
+    @Value("\${muhabbet.protocol.min-supported:0}")
+    private val minSupportedProtocol: Int = WireProtocol.LEGACY_VERSION
 ) : TextWebSocketHandler() {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
+        // Before the token: a client too old to be served is told to update whatever its token says,
+        // and is closed with the one code its reconnect loop treats as final rather than retrying.
+        val client = extractClientInfo(session)
+        if (client.protocolVersion < minSupportedProtocol) {
+            log.info(
+                "Refusing WebSocket below minimum protocol: protocol={}, app={}, platform={}, min={}",
+                client.protocolVersion, client.appVersion, client.platform, minSupportedProtocol
+            )
+            sessionManager.sendError(session, ErrorCode.CLIENT_UPGRADE_REQUIRED)
+            session.close(CloseStatus(WireProtocol.CLOSE_UPGRADE_REQUIRED))
+            return
+        }
+
         val token = extractToken(session)
         if (token == null) {
-            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Missing token query parameter")
+            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID)
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
 
         val claims = jwtProvider.validateToken(token)
         if (claims == null) {
-            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID, "Invalid or expired JWT")
+            sessionManager.sendError(session, ErrorCode.AUTH_TOKEN_INVALID)
             session.close(CloseStatus.POLICY_VIOLATION)
             return
         }
 
         session.attributes["userId"] = claims.userId
         session.attributes["deviceId"] = claims.deviceId
+        session.attributes[WebSocketSessionManager.PROTOCOL_VERSION_ATTRIBUTE] = client.protocolVersion
         sessionManager.register(claims.userId, session)
 
         // Set online in Redis and broadcast presence
         presencePort.setOnline(claims.userId)
         broadcastPresence(claims.userId, PresenceStatus.ONLINE)
-        log.info("WebSocket connected: userId={}", claims.userId)
+        // The connected-client telemetry #873 asked for: which protocols and builds are still out there
+        // is what decides when the minimum can be raised.
+        log.info(
+            "WebSocket connected: userId={}, protocol={}, app={}, platform={}",
+            claims.userId, client.protocolVersion, client.appVersion, client.platform
+        )
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
@@ -78,14 +103,18 @@ class ChatWebSocketHandler(
 
         // Per-connection rate limiting
         if (!webSocketRateLimiter.allowMessage(userId)) {
-            sessionManager.sendError(session, ErrorCode.RATE_LIMITED, "Too many messages, please slow down")
+            sessionManager.sendError(session, ErrorCode.RATE_LIMITED)
             return
         }
 
+        // The parser's own text goes to the log and never to the client (#873): it describes this
+        // server's internals ("Unexpected JSON token at offset 12…"), it is English, and a client can
+        // act on a code but not on that.
         val wsMessage = try {
             wsJson.decodeFromString<WsMessage>(message.payload)
         } catch (e: Exception) {
-            sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR, "Invalid message format: ${e.message}")
+            log.debug("Undecodable frame from userId={}: {}", userId, e.message)
+            sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR)
             return
         }
 
@@ -118,13 +147,19 @@ class ChatWebSocketHandler(
                 is WsMessage.CallAnswer -> callFrameHandler.handleAnswer(session, userId, wsMessage)
                 is WsMessage.CallIceCandidate -> callFrameHandler.handleIce(userId, wsMessage)
                 is WsMessage.CallEnd -> callFrameHandler.handleEnd(userId, wsMessage)
-                else -> sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR, "Unexpected message type from client")
+                // A frame from a newer client than this server: refused with a code, not a parse
+                // error, and logged with its type so a rollout's leftovers are visible.
+                is WsMessage.Unknown -> {
+                    log.info("Unknown frame type from userId={}: type={}", userId, wsMessage.type)
+                    sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR)
+                }
+                else -> sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR)
             }
         } catch (e: BusinessException) {
             sessionManager.sendError(session, e.errorCode, e.message)
             log.warn("Frame rejected: type={}, {} - {}", wsMessage::class.simpleName, e.errorCode, e.message)
         } catch (e: Exception) {
-            sessionManager.sendError(session, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
+            sessionManager.sendError(session, ErrorCode.INTERNAL_ERROR)
             log.error("Unexpected failure handling frame: type={}", wsMessage::class.simpleName, e)
         }
     }
@@ -190,11 +225,10 @@ class ChatWebSocketHandler(
 
     private fun handleSendMessage(session: WebSocketSession, senderId: UUID, msg: WsMessage.SendMessage) {
         try {
-            val contentType = try {
-                ContentType.valueOf(msg.contentType.name)
-            } catch (e: Exception) {
-                ContentType.TEXT
-            }
+            // A type this server does not know is refused, not stored as TEXT: the old fallback put a
+            // message on record with a type its sender never chose (#875).
+            val contentType = msg.contentType.toDomainOrNull()
+                ?: throw BusinessException(ErrorCode.VALIDATION_ERROR)
 
             val message = sendMessageUseCase.sendMessage(
                 SendMessageCommand(
@@ -220,10 +254,9 @@ class ChatWebSocketHandler(
             )
 
             // Send ACK to sender
-            val ack = WsMessage.ServerAck(
+            val ack = WsMessage.ServerAck.accepted(
                 requestId = msg.requestId,
                 messageId = msg.messageId,
-                status = AckStatus.OK,
                 serverTimestamp = message.serverTimestamp.toEpochMilli()
             )
             sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
@@ -237,14 +270,14 @@ class ChatWebSocketHandler(
             // sentence or the server's Turkish text shown to someone reading the app in English.
             // The REST path never had this problem — GlobalExceptionHandler answers with
             // `errorCode.name` — so this is the WebSocket path being brought into line with it.
-            respondSendFailed(session, msg, e.errorCode, e.message)
+            respondSendFailed(session, msg, e.errorCode)
             log.warn("Message rejected: {} - {}", e.errorCode, e.message)
         } catch (e: Exception) {
             // A genuine fault, and kept distinct from a refusal on both channels: the client is told
             // INTERNAL_ERROR rather than something from the message domain, and the log carries the
             // stack trace instead of just `e.message`. GlobalExceptionHandler draws the same line
             // for the same reason — so this line stays worth paging on.
-            respondSendFailed(session, msg, ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage)
+            respondSendFailed(session, msg, ErrorCode.INTERNAL_ERROR)
             log.error("Unexpected failure sending message: conv={}", msg.conversationId, e)
         }
     }
@@ -287,20 +320,55 @@ class ChatWebSocketHandler(
         val members = conversationRepository.findMembersByConversationId(conversationId)
         val recipientIds = members.map { it.userId }.filter { it != userId }
 
-        val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
-        val presenceUpdate = WsMessage.PresenceUpdate(
-            userId = userId.toString(),
-            conversationId = msg.conversationId,
-            status = status
-        )
-        val json = wsJson.encodeToString<WsMessage>(presenceUpdate)
+        val frames = typingFrames(userId, msg)
 
         val hidden = presenceVisibility.hiddenFromTypingIn(conversationId, userId, recipientIds)
         recipientIds.forEach { recipientId ->
             if (recipientId !in hidden && sessionManager.isOnline(recipientId)) {
-                sessionManager.sendToUser(recipientId, json)
+                sessionManager.sendToUserByProtocol(recipientId) { protocol -> frames.forProtocol(protocol) }
             }
         }
+    }
+
+    /**
+     * Typing as each protocol understands it (#885).
+     *
+     * Protocol 1 gets `chat.activity`: a per-(conversation, member) fact, so a group can show several
+     * people typing and one of them stopping does not hide the others. Protocol 0 — every build that
+     * predates versioning — only knows the old smuggled form, `presence.update` with a conversation
+     * id, where `ONLINE` meant "stopped typing", and keeps getting exactly that until the minimum
+     * supported protocol is raised past it. Encoded once per broadcast, not per recipient.
+     */
+    private fun typingFrames(userId: UUID, msg: WsMessage.TypingIndicator): TypingFrames {
+        val activity = WsMessage.ChatActivity(
+            conversationId = msg.conversationId,
+            userId = userId.toString(),
+            activity = if (msg.isTyping) ChatActivityKind.TYPING else ChatActivityKind.IDLE
+        )
+        val legacy = WsMessage.PresenceUpdate(
+            userId = userId.toString(),
+            conversationId = msg.conversationId,
+            status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
+        )
+        return TypingFrames(
+            current = wsJson.encodeToString<WsMessage>(activity),
+            legacy = wsJson.encodeToString<WsMessage>(legacy)
+        )
+    }
+
+    private class TypingFrames(val current: String, val legacy: String) {
+        fun forProtocol(protocol: Int): String =
+            if (protocol >= CHAT_ACTIVITY_SINCE_PROTOCOL) current else legacy
+    }
+
+    private fun extractClientInfo(session: WebSocketSession): ClientInfo {
+        val uri = session.uri ?: return ClientInfo.LEGACY
+        val params = UriComponentsBuilder.fromUri(uri).build().queryParams
+        return ClientInfo.of(
+            protocol = params.getFirst(WireProtocol.QUERY_PROTOCOL),
+            appVersion = params.getFirst(WireProtocol.QUERY_APP_VERSION),
+            platform = params.getFirst(WireProtocol.QUERY_PLATFORM)
+        )
     }
 
     // ─── Messaging Helpers ────────────────────────────────────
@@ -308,16 +376,11 @@ class ChatWebSocketHandler(
     private fun respondSendFailed(
         session: WebSocketSession,
         msg: WsMessage.SendMessage,
-        code: ErrorCode,
-        message: String?
+        code: ErrorCode
     ) {
-        val ack = WsMessage.ServerAck(
-            requestId = msg.requestId,
-            messageId = msg.messageId,
-            status = AckStatus.ERROR,
-            errorCode = code.name,
-            errorMessage = message
-        )
+        // Code only. The ack used to carry the server's Turkish text as well, which invited showing
+        // it to users of the English app; the client localises the code (#881).
+        val ack = WsMessage.ServerAck.rejected(requestId = msg.requestId, messageId = msg.messageId, code = code)
         sessionManager.send(session, wsJson.encodeToString<WsMessage>(ack))
     }
 
@@ -361,5 +424,10 @@ class ChatWebSocketHandler(
         val uri = session.uri ?: return null
         val params = UriComponentsBuilder.fromUri(uri).build().queryParams
         return params.getFirst("token")
+    }
+
+    private companion object {
+        /** The first protocol that understands `chat.activity` (#885). */
+        const val CHAT_ACTIVITY_SINCE_PROTOCOL = 1
     }
 }

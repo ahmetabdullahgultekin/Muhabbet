@@ -2,6 +2,7 @@ package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.messaging.domain.model.toShared
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
@@ -101,7 +102,7 @@ open class GroupService(
         val allMemberIds = (existingUserIds + newUserIds).toList()
         val memberInfos = addedMembers.map { m ->
             val user = usersMap[m.userId]
-            GroupMemberInfo(userId = m.userId.toString(), displayName = user?.displayName, role = m.role.name)
+            GroupMemberInfo(userId = m.userId.toString(), displayName = user?.displayName, role = m.role.toShared())
         }
 
         return AddOutcome(addedMembers, allMemberIds, memberInfos)
@@ -213,7 +214,7 @@ open class GroupService(
                 conversationId = conversationId.toString(),
                 updatedBy = requesterId.toString(),
                 userId = targetUserId.toString(),
-                newRole = newRole.name
+                newRole = newRole.toShared()
             )
         )
 

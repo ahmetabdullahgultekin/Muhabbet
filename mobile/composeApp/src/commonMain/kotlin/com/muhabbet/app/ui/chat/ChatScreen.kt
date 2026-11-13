@@ -54,6 +54,8 @@ import com.muhabbet.app.platform.rememberAudioRecorder
 import com.muhabbet.app.platform.rememberCameraPickerLauncher
 import com.muhabbet.app.platform.rememberFilePickerLauncher
 import com.muhabbet.app.platform.rememberImagePickerLauncher
+import com.muhabbet.shared.model.ReactionAction
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.LocationData
 import com.muhabbet.shared.dto.PollData
@@ -70,7 +72,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -95,14 +97,6 @@ import com.muhabbet.app.ui.components.rememberRelativeDayLabels
 
 private const val TAG = "ChatScreen"
 
-/**
- * `ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED` as it arrives in the envelope's `error.code`.
- *
- * Matched on the code rather than the message: the message is Turkish prose that a backend deploy
- * may reword at any time, and the difference being decided here — "someone already opened this" vs
- * "the request failed" — is the difference between a correct refusal and a bug report.
- */
-private const val ViewOnceAlreadyViewedCode = "MSG_VIEW_ONCE_ALREADY_VIEWED"
 
 /**
  * The body of a message that is a picture, a voice note, a GIF or a sticker: nothing.
@@ -145,7 +139,9 @@ fun ChatScreen(
     var isLoading by remember { mutableStateOf(true) }
     var isLoadingMore by remember { mutableStateOf(false) }
     var nextCursor by remember { mutableStateOf<String?>(null) }
-    var peerTyping by remember { mutableStateOf(false) }
+    // Who is typing, per member (#885) — see ChatActivityReducer. `peerTyping` is derived from it.
+    var memberActivity by remember { mutableStateOf(emptyMap<String, MemberActivity>()) }
+    val peerTyping = memberActivity.isNotEmpty()
     var peerOnline by remember { mutableStateOf(false) }
     var peerLastSeen by remember { mutableStateOf<Long?>(null) }
     var isUploading by remember { mutableStateOf(false) }
@@ -219,7 +215,14 @@ fun ChatScreen(
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
     var isTypingSent by remember { mutableStateOf(false) }
-    var typingDismissJob by remember { mutableStateOf<Job?>(null) }
+
+    // Each member's activity lapses on its own deadline, so one silent member cannot keep the
+    // indicator up — and their silence cannot take anyone else's down with it.
+    LaunchedEffect(memberActivity) {
+        val next = ChatActivityReducer.nextExpiryMs(memberActivity) ?: return@LaunchedEffect
+        delay((next - Clock.System.now().toEpochMilliseconds()).coerceAtLeast(0))
+        memberActivity = ChatActivityReducer.expire(memberActivity, Clock.System.now().toEpochMilliseconds())
+    }
 
     // Dialog state.
     //
@@ -573,29 +576,17 @@ fun ChatScreen(
                     messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
                     else messages.map { m -> if (m.id == ws.messageId) m.copy(status = ws.status) else m }
                 }
-                is WsMessage.PresenceUpdate -> if (ws.userId != currentUserId) {
-                    if (ws.conversationId == conversationId) {
-                        if (ws.status == PresenceStatus.TYPING) {
-                            peerTyping = true
-                            typingDismissJob?.cancel()
-                            typingDismissJob = scope.launch {
-                                delay(com.muhabbet.designsystem.theme.MuhabbetDurations.TypingTimeoutMs)
-                                peerTyping = false
-                            }
-                        } else {
-                            // handleTypingIndicator (backend) sends this same conversationId with
-                            // PresenceStatus.ONLINE when the peer's `isTyping` frame was `false` —
-                            // the explicit "stopped typing" signal. Without handling it the bubble
-                            // depended entirely on the fallback timer above and could linger for up
-                            // to TypingTimeoutMs after the peer had already stopped.
-                            typingDismissJob?.cancel()
-                            peerTyping = false
-                        }
-                    }
-                    if (ws.conversationId == null) when (ws.status) {
+                is WsMessage.ChatActivity -> memberActivity = ChatActivityReducer.reduce(
+                    memberActivity, ws, conversationId, currentUserId, Clock.System.now().toEpochMilliseconds()
+                )
+                // Presence is account presence only. A presence frame that names a conversation is
+                // the legacy typing encoding (#885) a protocol-1 client is never sent; it is ignored
+                // rather than read as "online", which is what it used to be mistaken for.
+                is WsMessage.PresenceUpdate -> if (ws.userId != currentUserId && ws.conversationId == null) {
+                    when (ws.status) {
                         PresenceStatus.ONLINE -> { peerOnline = true; peerLastSeen = null }
                         PresenceStatus.OFFLINE -> { peerOnline = false; peerLastSeen = ws.lastSeenAt }
-                        PresenceStatus.TYPING -> {}
+                        PresenceStatus.TYPING, PresenceStatus.UNKNOWN -> {}
                     }
                 }
                 is WsMessage.MessageDeleted -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(isDeleted = true, content = "") else m }
@@ -609,12 +600,14 @@ fun ChatScreen(
                 // while the app was asleep or whose deadline this device never learned.
                 is WsMessage.MessageExpired -> if (ws.conversationId == conversationId) messages = messages.filterNot { it.id == ws.messageId }
                 is WsMessage.MessageEdited -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(content = ws.newContent, editedAt = Instant.fromEpochMilliseconds(ws.editedAt)) else m }
-                is WsMessage.MessageReaction -> if (ws.conversationId == conversationId) {
+                // An action this build does not know (#875) changes nothing rather than being read
+                // as a removal.
+                is WsMessage.MessageReaction -> if (ws.conversationId == conversationId && ws.action != ReactionAction.UNKNOWN) {
                     messages = messages.map { m ->
                         if (m.id == ws.messageId) {
                             val newReactions = m.reactions.toMutableMap()
                             val newMyReactions = m.myReactions.toMutableSet()
-                            if (ws.action == "add") {
+                            if (ws.action == ReactionAction.ADD) {
                                 newReactions[ws.emoji] = (newReactions[ws.emoji] ?: 0) + 1
                                 if (ws.userId == currentUserId) newMyReactions.add(ws.emoji)
                             } else {
@@ -963,7 +956,7 @@ fun ChatScreen(
                                         .onFailure { e ->
                                             Log.w(TAG, "Failed to open view-once $id: ${e.message}")
                                             val alreadyViewed =
-                                                (e as? ApiException)?.code == ViewOnceAlreadyViewedCode
+                                                (e as? ApiException)?.code == ErrorCode.MSG_VIEW_ONCE_ALREADY_VIEWED
                                             // A refusal means it really is spent, so the seal stays.
                                             // Anything else — the request never landed — must not cost
                                             // the user their one look; put the seal back so they can

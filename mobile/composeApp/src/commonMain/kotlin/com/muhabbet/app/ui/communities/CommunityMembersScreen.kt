@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.communities
 
+import com.muhabbet.shared.model.MemberRole
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -100,7 +101,7 @@ fun CommunityMembersScreen(
     val loaded = members
     val canManage = loaded
         ?.firstOrNull { it.userId == currentUserId }
-        ?.let { it.role == ROLE_OWNER || it.role == ROLE_ADMIN } == true
+        ?.let { it.role == MemberRole.OWNER || it.role == MemberRole.ADMIN } == true
 
     if (showAddSheet) {
         AddCommunityMemberSheet(
@@ -197,22 +198,22 @@ private fun CommunityMemberItem(
 
 /**
  * Only OWNER and ADMIN are labelled. A badge on every plain member would be noise, and an unknown
- * role — the server can add one before the app ships an update — shows nothing rather than a raw
- * enum name.
+ * role — the server can add one before the app ships an update, and it decodes to
+ * [MemberRole.UNKNOWN] (#875) — shows nothing rather than a raw enum name.
  */
 @Composable
-private fun RoleBadge(role: String) {
+private fun RoleBadge(role: MemberRole) {
     val label = when (role) {
-        ROLE_OWNER -> stringResource(Res.string.group_role_owner)
-        ROLE_ADMIN -> stringResource(Res.string.group_role_admin)
-        else -> return
+        MemberRole.OWNER -> stringResource(Res.string.group_role_owner)
+        MemberRole.ADMIN -> stringResource(Res.string.group_role_admin)
+        MemberRole.MEMBER, MemberRole.UNKNOWN -> return
     }
-    val background = if (role == ROLE_OWNER) {
+    val background = if (role == MemberRole.OWNER) {
         MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.tertiary
     }
-    val foreground = if (role == ROLE_OWNER) {
+    val foreground = if (role == MemberRole.OWNER) {
         MaterialTheme.colorScheme.onPrimary
     } else {
         MaterialTheme.colorScheme.onTertiary
@@ -231,12 +232,5 @@ private fun RoleBadge(role: String) {
         }
     }
 }
-
-/**
- * The wire values of `MemberRole`. Compared as strings because the DTO carries the raw name: a role
- * the server adds later must not fail the whole decode on an app that has not shipped yet.
- */
-internal const val ROLE_OWNER = "OWNER"
-internal const val ROLE_ADMIN = "ADMIN"
 
 private const val TAG = "CommunityMembersScreen"

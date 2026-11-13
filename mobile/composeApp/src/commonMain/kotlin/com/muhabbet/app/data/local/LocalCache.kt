@@ -9,16 +9,16 @@ import com.muhabbet.shared.model.MemberRole
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import com.muhabbet.shared.protocol.MuhabbetJson
 
 class LocalCache(driverFactory: DatabaseDriverFactory) :
     ConversationCache, MessageCache, PendingMessageCache {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = MuhabbetJson
 
     // --- Conversations ---
 

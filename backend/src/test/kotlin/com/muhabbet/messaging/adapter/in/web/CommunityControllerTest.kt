@@ -163,7 +163,7 @@ class CommunityControllerTest {
             assertEquals(communityId.toString(), decoded.id)
             assertEquals("Mahalle", decoded.name)
             assertEquals(128, decoded.memberCount)
-            assertEquals("OWNER", decoded.myRole)
+            assertEquals(com.muhabbet.shared.model.MemberRole.OWNER, decoded.myRole)
             assertEquals(createdAt.toString(), decoded.createdAt)
             assertEquals(1, decoded.groups.size)
             assertEquals(conversationId.toString(), decoded.groups[0].conversationId)
@@ -187,7 +187,7 @@ class CommunityControllerTest {
 
             // The client's field is nullable, but the server never sends null: non-members are
             // refused by the use case rather than served a roleless community (#375).
-            assertEquals("MEMBER", decoded.myRole)
+            assertEquals(com.muhabbet.shared.model.MemberRole.MEMBER, decoded.myRole)
             assertEquals(0, decoded.groups.size)
         }
 

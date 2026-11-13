@@ -2,11 +2,14 @@ package com.muhabbet.app.data.remote
 
 import com.muhabbet.app.data.local.PendingMessageCache
 import com.muhabbet.app.data.local.PendingMessageData
+import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.protocol.WireProtocol
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.websocket.DefaultWebSocketSession
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
@@ -178,6 +181,11 @@ class WsClient(
 
     private suspend fun connectInternal() {
         while (shouldReconnect) {
+            if (apiClient.upgradeRequired.value) {
+                _connectionState.value = ConnectionState.UPGRADE_REQUIRED
+                Log.w(TAG, "Server requires a newer app; not reconnecting")
+                return
+            }
             val token = tokenProvider()
             if (token == null) {
                 Log.w(TAG, "No token available, waiting...")
@@ -196,6 +204,12 @@ class WsClient(
                 val ws = openSession?.invoke(token)
                     ?: apiClient.httpClient.webSocketSession("${ApiClient.BASE_URL.replace("https", "wss")}/ws") {
                         parameter("token", token)
+                        // Which protocol this build speaks (#873), so the server can refuse a build it
+                        // no longer serves and send each session the frames it understands.
+                        val client = ApiClient.clientInfo
+                        parameter(WireProtocol.QUERY_PROTOCOL, client.protocolVersion)
+                        client.appVersion?.let { parameter(WireProtocol.QUERY_APP_VERSION, it) }
+                        client.platform?.let { parameter(WireProtocol.QUERY_PLATFORM, it) }
                     }
                 mySession = ws
                 session = ws
@@ -228,6 +242,16 @@ class WsClient(
                         val text = frame.readText()
                         try {
                             val decoded = wsJson.decodeFromString<WsMessage>(text)
+                            if (decoded is WsMessage.Unknown) {
+                                // A frame from a newer server (#873): known to be unknown, so it is
+                                // noted and skipped rather than reported as a parse error.
+                                Log.d(TAG, "Ignoring unknown frame type: ${decoded.type}")
+                                continue
+                            }
+                            if (decoded is WsMessage.Error && decoded.code == ErrorCode.CLIENT_UPGRADE_REQUIRED) {
+                                // Sent just before the server closes with 4426; final, see below.
+                                apiClient.reportUpgradeRequired()
+                            }
                             // Dedup: skip already-processed messages
                             val msgId = extractMessageId(decoded)
                             if (msgId != null && !processedMessageIds.add(msgId)) {
@@ -249,6 +273,11 @@ class WsClient(
                     }
                 }
 
+                // The close code, not only the error frame before it: a proxy may drop the frame, and
+                // 4426 is the one close this loop must not answer by reconnecting (#873).
+                val closeCode = (ws as? DefaultWebSocketSession)?.closeReason?.await()?.code
+                if (closeCode == WireProtocol.CLOSE_UPGRADE_REQUIRED.toShort()) apiClient.reportUpgradeRequired()
+
                 _connectionState.value = ConnectionState.DISCONNECTED
                 Log.d(TAG, "Session closed, will reconnect")
             } catch (e: Exception) {
@@ -264,7 +293,7 @@ class WsClient(
                 if (session === mySession) session = null
             }
 
-            if (shouldReconnect) {
+            if (shouldReconnect && !apiClient.upgradeRequired.value) {
                 reconnectAttempt++
                 val baseBackoff = minOf(1000L * (1L shl minOf(reconnectAttempt, 5)), 30_000L)
                 // Add jitter: ±25% randomization to prevent thundering herd
@@ -674,5 +703,11 @@ enum class ConnectionState {
     CONNECTING,
     CONNECTED,
     RECONNECTING,
-    WAITING_FOR_AUTH
+    WAITING_FOR_AUTH,
+
+    /**
+     * The server refused this build's protocol (#873). Final for the life of the process: the client
+     * stops reconnecting, because nothing it can send will be accepted until the app is updated.
+     */
+    UPGRADE_REQUIRED
 }

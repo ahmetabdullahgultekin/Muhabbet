@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeMessageCache
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
@@ -121,7 +122,7 @@ class MessageRepositorySendTest {
         }
 
         assertEquals(403, failure.status)
-        assertEquals("MSG_NOT_MEMBER", failure.code)
+        assertEquals(ErrorCode.MSG_NOT_MEMBER, failure.code)
         assertTrue(backend.cache.stored.isEmpty(), "a rejected send must not reach the cache")
     }
 

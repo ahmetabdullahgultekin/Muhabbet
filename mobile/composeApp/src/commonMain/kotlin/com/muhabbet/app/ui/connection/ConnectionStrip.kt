@@ -30,6 +30,7 @@ import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -40,6 +41,19 @@ import org.jetbrains.compose.resources.stringResource
  * and teach the user to ignore it, which is the one outcome worse than showing nothing.
  */
 private const val REVEAL_AFTER_MS = 4_000L
+
+/**
+ * What the strip says for [state]. A refused protocol (#873) is not an outage that will pass: the
+ * socket will never come back on this build, so the strip says to update instead of "reconnecting".
+ */
+internal fun connectionStripText(state: ConnectionState): StringResource = when (state) {
+    ConnectionState.UPGRADE_REQUIRED -> Res.string.connection_upgrade_required_strip
+    ConnectionState.DISCONNECTED,
+    ConnectionState.CONNECTING,
+    ConnectionState.CONNECTED,
+    ConnectionState.RECONNECTING,
+    ConnectionState.WAITING_FOR_AUTH -> Res.string.connection_offline_strip
+}
 
 /**
  * The slim "you are not connected" strip.
@@ -107,7 +121,7 @@ fun ConnectionStrip(
                 )
                 Spacer(Modifier.width(MuhabbetSpacing.Small))
                 Text(
-                    text = stringResource(Res.string.connection_offline_strip),
+                    text = stringResource(connectionStripText(state)),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.weight(1f)

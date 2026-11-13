@@ -1,5 +1,6 @@
 package com.muhabbet.shared.config
 
+import com.muhabbet.shared.protocol.MuhabbetJson
 import kotlinx.serialization.json.Json
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -15,22 +16,14 @@ import org.springframework.context.annotation.Configuration
  * fall back to showing something. For a privacy control that is the wrong way round, which is how
  * #269 was found — a test asserting the field is there.
  *
- * The same omission applies to every default-valued field in every response: `isPinned`,
- * `isMuted`, `isArchived`, `isLocked` and `announcementOnly` on a conversation all vanish when
- * false. Kotlin clients decode them back because they declare the same defaults, which is why this
- * survived; anything that is not this codebase sees a different API from the one documented.
- *
- * Responses get slightly larger. That is the cost of the payload matching the contract.
+ * The bean is the shared [MuhabbetJson] itself, not a configuration of its own (#887). It used to
+ * declare one here, and so did the app's REST client, and the two disagreed — the app's was
+ * `isLenient`. The REST bodies the server writes are now produced by exactly the configuration the
+ * app, the WebSocket and the local cache read them with; `MuhabbetJson` documents each setting.
  */
 @Configuration
 class JsonConfig {
 
     @Bean
-    fun json(): Json = Json {
-        encodeDefaults = true
-        // A field the server does not know about should not fail the request. Mobile clients update
-        // out of step with the backend, so an older server must tolerate a newer client's extra
-        // field rather than answering 400 for the whole call.
-        ignoreUnknownKeys = true
-    }
+    fun json(): Json = MuhabbetJson
 }

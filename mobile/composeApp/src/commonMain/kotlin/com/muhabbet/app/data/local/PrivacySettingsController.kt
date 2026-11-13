@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.local
 
+import com.muhabbet.shared.model.VisibilityLevel
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -44,8 +45,8 @@ class PrivacySettingsController(private val authRepository: AuthRepository) {
      */
     suspend fun update(
         readReceiptsEnabled: Boolean? = null,
-        onlineStatusVisibility: String? = null,
-        aboutVisibility: String? = null
+        onlineStatusVisibility: VisibilityLevel? = null,
+        aboutVisibility: VisibilityLevel? = null
     ): Result<PrivacySettingsResponse> {
         val previous = _settings.value
             ?: return Result.failure(IllegalStateException("PRIVACY_NOT_LOADED"))

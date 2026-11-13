@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
@@ -181,7 +182,7 @@ class TwoStepRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.enable("123456") }
 
-        assertEquals("AUTH_2FA_ALREADY_ENABLED", failure.code)
+        assertEquals(ErrorCode.AUTH_2FA_ALREADY_ENABLED, failure.code)
     }
 
     @Test
@@ -195,7 +196,7 @@ class TwoStepRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.disable("000000") }
 
-        assertEquals("AUTH_2FA_PIN_INVALID", failure.code)
+        assertEquals(ErrorCode.AUTH_2FA_PIN_INVALID, failure.code)
     }
 
     @Test

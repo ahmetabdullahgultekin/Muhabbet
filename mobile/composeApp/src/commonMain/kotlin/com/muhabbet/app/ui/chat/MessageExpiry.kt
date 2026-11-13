@@ -3,7 +3,7 @@ package com.muhabbet.app.ui.chat
 import com.muhabbet.shared.model.Message
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /**
  * When a disappearing message leaves the screen.

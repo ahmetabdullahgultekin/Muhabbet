@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.exception.defaultMessage
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.protocol.wsJson
 import kotlinx.serialization.encodeToString
@@ -25,8 +26,12 @@ private val log = LoggerFactory.getLogger("com.muhabbet.messaging.adapter.in.web
  * one; the single place that did not was the send-failure ack, which invented `MSG_SEND_FAILED` and
  * shipped it for months (#572). A String parameter is what allowed that, so the type is the guard.
  */
-internal fun WebSocketSessionManager.sendError(session: WebSocketSession, code: ErrorCode, message: String) {
-    val error = WsMessage.Error(code = code.name, message = message)
+internal fun WebSocketSessionManager.sendError(
+    session: WebSocketSession,
+    code: ErrorCode,
+    message: String = code.defaultMessage,
+) {
+    val error = WsMessage.Error(code = code, message = message)
     if (session.isOpen) {
         send(session, wsJson.encodeToString<WsMessage>(error))
     }

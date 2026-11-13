@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.communities
 
+import com.muhabbet.shared.model.MemberRole
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +27,7 @@ import com.muhabbet.designsystem.components.MuhabbetLoadingState
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.app.ui.conversations.ChatTarget
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityGroupInfo
 import kotlinx.coroutines.launch
@@ -89,9 +91,9 @@ fun CommunityDetailScreen(
     val current = detail
     // Only OWNER and ADMIN may change a community; the server enforces it, and hiding the controls
     // keeps a plain member from being shown buttons that would 403.
-    val canManage = current?.myRole == ROLE_OWNER || current?.myRole == ROLE_ADMIN
+    val canManage = current?.myRole == MemberRole.OWNER || current?.myRole == MemberRole.ADMIN
     // Delete is stricter still — owner only (#407), unlike rename/add-group which admins may also do.
-    val isOwner = current?.myRole == ROLE_OWNER
+    val isOwner = current?.myRole == MemberRole.OWNER
 
     if (showAddGroupSheet && current != null) {
         AddGroupToCommunitySheet(
@@ -127,7 +129,7 @@ fun CommunityDetailScreen(
                     // dialog, so the dialog stays up and says which field is wrong. Every other
                     // outcome — success or a failure this screen cannot explain — closes it and
                     // reports in the snackbar, as before.
-                    if ((failure as? ApiException)?.code == CommunityNameTakenCode) {
+                    if ((failure as? ApiException)?.code == ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS) {
                         editNameError = nameTakenMsg
                         return@launch
                     }

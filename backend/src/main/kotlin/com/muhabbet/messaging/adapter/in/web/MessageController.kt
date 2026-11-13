@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.messaging.domain.model.toShared
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
@@ -173,7 +174,7 @@ class MessageController(
                 userId = recipient.userId.toString(),
                 displayName = recipient.displayName ?: recipient.userId.toString().take(8),
                 avatarUrl = recipient.avatarUrl,
-                status = recipient.status.name,
+                status = recipient.status.toShared(),
                 // Null when the status was downgraded for a recipient with read receipts off; the
                 // client already renders the row without a time in that case.
                 updatedAt = recipient.updatedAt?.toString()
@@ -184,7 +185,7 @@ class MessageController(
             conversationId = message.conversationId.toString(),
             senderId = message.senderId.toString(),
             content = if (message.isDeleted) "" else message.content,
-            contentType = message.contentType.name,
+            contentType = message.contentType.toShared(),
             sentAt = message.serverTimestamp.toString(),
             // Message info builds its own response rather than going through toSharedMessage, so the
             // view-once rule has to be repeated here. It is not decoration: "Info" is reachable from

@@ -1,13 +1,18 @@
 package com.muhabbet.shared.protocol
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
+import com.muhabbet.shared.model.ChatActivityKind
 import com.muhabbet.shared.model.ContentType
+import com.muhabbet.shared.model.LenientEnumSerializer
+import com.muhabbet.shared.model.MemberRole
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
+import com.muhabbet.shared.model.ReactionAction
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 /**
  * All WebSocket messages exchanged between client and server.
@@ -137,7 +142,7 @@ sealed class WsMessage {
     data class CallIncoming(
         val callId: String,
         val callerId: String,
-        val callerName: String?,
+        val callerName: String? = null,
         val callType: CallType
     ) : WsMessage()
 
@@ -170,7 +175,7 @@ sealed class WsMessage {
         val messageId: String,
         val conversationId: String,
         val senderId: String,
-        val senderName: String?,
+        val senderName: String? = null,
         val content: String,
         val contentType: ContentType,
         val replyToId: String? = null,
@@ -204,8 +209,8 @@ sealed class WsMessage {
      * frame is what removes a message whose deadline passed while the app was asleep or whose clock
      * disagreed with the server's.
      *
-     * A client too old to know this frame drops it in `WsClient`'s per-frame `catch` and carries on
-     * — it simply keeps the behaviour it has today.
+     * A protocol-0 client too old to know this frame drops it in `WsClient`'s per-frame `catch` and
+     * carries on; a newer one decodes any frame it does not know to [Unknown] instead (#873).
      */
     @Serializable
     @SerialName("message.expired")
@@ -226,7 +231,17 @@ sealed class WsMessage {
         val timestamp: Long
     ) : WsMessage()
 
-    /** Server ACK for client's SendMessage */
+    /**
+     * Server ACK for client's SendMessage.
+     *
+     * The two legal shapes are enforced at construction, so neither side can produce — or decode —
+     * an `OK` without a [serverTimestamp] or an `ERROR` without an [errorCode] (#881). Build one with
+     * [accepted] or [rejected].
+     *
+     * There is no `errorMessage` any more. It carried the server's Turkish text, which invited showing
+     * it to users of the English app; the app localises [errorCode] instead. Dropping the field is
+     * wire compatible: every released build declares it `= null`.
+     */
     @Serializable
     @SerialName("ack")
     data class ServerAck(
@@ -234,19 +249,62 @@ sealed class WsMessage {
         val messageId: String,
         val status: AckStatus,
         val serverTimestamp: Long? = null,
-        val errorCode: String? = null,
-        val errorMessage: String? = null
-    ) : WsMessage()
+        val errorCode: ErrorCode? = null,
+    ) : WsMessage() {
+        init {
+            when (status) {
+                AckStatus.OK -> require(serverTimestamp != null) { "an accepted ack carries serverTimestamp" }
+                AckStatus.ERROR -> require(errorCode != null) { "a rejected ack carries errorCode" }
+                AckStatus.UNKNOWN -> Unit
+            }
+        }
 
-    /** Server notifies about presence changes */
+        companion object {
+            fun accepted(requestId: String, messageId: String, serverTimestamp: Long): ServerAck =
+                ServerAck(requestId, messageId, AckStatus.OK, serverTimestamp = serverTimestamp)
+
+            fun rejected(requestId: String, messageId: String, code: ErrorCode): ServerAck =
+                ServerAck(requestId, messageId, AckStatus.ERROR, errorCode = code)
+        }
+    }
+
+    /**
+     * Server notifies about an account's presence: online, offline, last seen.
+     *
+     * [conversationId] is **legacy** (#885). Before `chat.activity` existed the server smuggled typing
+     * through this frame — `TYPING` plus a conversation id meant "typing", `ONLINE` plus one meant
+     * "stopped typing" — and a protocol-0 client is still sent exactly that. A protocol-1 client is
+     * sent [ChatActivity] instead and must ignore any presence frame that carries a conversation id.
+     */
     @Serializable
     @SerialName("presence.update")
     data class PresenceUpdate(
         val userId: String,
-        val conversationId: String? = null, // null = global, set = typing in specific convo
+        val conversationId: String? = null,
         val status: PresenceStatus,
         val lastSeenAt: Long? = null
     ) : WsMessage()
+
+    /**
+     * What [userId] is doing in [conversationId] (#885): typing, recording a voice note, or nothing.
+     *
+     * One frame per (conversation, member) so a group can show several people at once, and a
+     * [ttlMs] so a lost `IDLE` (a dropped socket, a killed app) cannot leave someone typing forever:
+     * the client forgets an activity it has not heard renewed within that window.
+     */
+    @Serializable
+    @SerialName("chat.activity")
+    data class ChatActivity(
+        val conversationId: String,
+        val userId: String,
+        val activity: ChatActivityKind,
+        val ttlMs: Long = DEFAULT_TTL_MS,
+    ) : WsMessage() {
+        companion object {
+            /** How long an activity is believed without being renewed. */
+            const val DEFAULT_TTL_MS: Long = 6_000
+        }
+    }
 
     // ─── Group Events (Server → Client) ────────────────────
 
@@ -286,7 +344,7 @@ sealed class WsMessage {
         val conversationId: String,
         val updatedBy: String,
         val userId: String,
-        val newRole: String
+        val newRole: MemberRole
     ) : WsMessage()
 
     /** Server notifies that a member left the group */
@@ -328,7 +386,7 @@ sealed class WsMessage {
         val conversationId: String,
         val userId: String,
         val emoji: String,
-        val action: String  // "add" or "remove"
+        val action: ReactionAction
     ) : WsMessage()
 
     /** Server heartbeat response */
@@ -340,72 +398,35 @@ sealed class WsMessage {
     @Serializable
     @SerialName("error")
     data class Error(
-        val code: String,
-        val message: String
+        val code: ErrorCode,
+        /** Operator text, never a parser or exception message (#873). The app localises [code]. */
+        val message: String = ""
     ) : WsMessage()
 
-    // ─── Security & Auth (Server → Client) ──────────────────
+    // ─── Forward compatibility ─────────────────────────────
 
-    /** Server notifies about a security key change */
-    @Serializable
-    @SerialName("security.key_changed")
-    data class SecurityKeyChanged(
-        val userId: String,
-        val conversationId: String?,
-        val timestamp: Long
-    ) : WsMessage()
-
-    /** Server sends login approval request to existing device */
-    @Serializable
-    @SerialName("auth.login_approval")
-    data class LoginApprovalRequest(
-        val approvalId: String,
-        val deviceName: String?,
-        val platform: String?,
-        val timestamp: Long
-    ) : WsMessage()
-
-    /** Client responds to login approval */
-    @Serializable
-    @SerialName("auth.login_response")
-    data class LoginApprovalResponse(
-        val approvalId: String,
-        val approved: Boolean
-    ) : WsMessage()
-
-    /** Server notifies about a group call starting */
-    @Serializable
-    @SerialName("call.group_start")
-    data class GroupCallStarted(
-        val callId: String,
-        val conversationId: String,
-        val callerId: String,
-        val callerName: String?,
-        val callType: CallType,
-        val participantCount: Int
-    ) : WsMessage()
+    /**
+     * A frame whose `type` this build does not know (#873) — sent by a newer peer.
+     *
+     * Not `@Serializable`: it is never written, only produced by [MuhabbetJson]'s default
+     * deserializer, so an unknown frame decodes to a value a `when` can see instead of an exception a
+     * `catch` swallows. [type] is null when the frame had no `type` at all.
+     */
+    data class Unknown(val type: String?, val raw: JsonObject) : WsMessage()
 }
 
 @Serializable
 data class GroupMemberInfo(
     val userId: String,
-    val displayName: String?,
-    val role: String
+    val displayName: String? = null,
+    val role: MemberRole
 )
 
-@Serializable
+@Serializable(with = AckStatusSerializer::class)
 enum class AckStatus {
     OK,
-    ERROR
+    ERROR,
+    UNKNOWN
 }
 
-/**
- * JSON serializer configured for the WS protocol.
- * Use this SAME instance on both backend and mobile.
- */
-val wsJson = Json {
-    classDiscriminator = "type"
-    ignoreUnknownKeys = true
-    encodeDefaults = true
-    isLenient = false
-}
+object AckStatusSerializer : LenientEnumSerializer<AckStatus>("AckStatus", AckStatus.entries, AckStatus.UNKNOWN)

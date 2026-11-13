@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.privacy
 
+import com.muhabbet.shared.model.VisibilityLevel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -82,8 +83,8 @@ fun PrivacyDashboardScreen(
 
     fun save(
         readReceiptsEnabled: Boolean? = null,
-        onlineStatusVisibility: String? = null,
-        aboutVisibility: String? = null
+        onlineStatusVisibility: VisibilityLevel? = null,
+        aboutVisibility: VisibilityLevel? = null
     ) {
         scope.launch {
             val failed = privacySettings.update(
@@ -344,13 +345,16 @@ fun PrivacyDashboardScreen(
 private fun PrivacyVisibilityRow(
     label: String,
     description: String,
-    selectedValue: String,
-    onValueChange: (String) -> Unit
+    selectedValue: VisibilityLevel,
+    onValueChange: (VisibilityLevel) -> Unit
 ) {
+    // The typed levels, not the lowercase strings they travel as (#877). A level a newer server
+    // stored and this build does not know matches none of the chips, so none is shown selected —
+    // rather than the old string compare silently matching nothing for a different reason.
     val options = listOf(
-        "everyone" to stringResource(Res.string.privacy_visibility_everyone),
-        "contacts" to stringResource(Res.string.privacy_visibility_contacts),
-        "nobody" to stringResource(Res.string.privacy_visibility_nobody)
+        VisibilityLevel.EVERYONE to stringResource(Res.string.privacy_visibility_everyone),
+        VisibilityLevel.CONTACTS to stringResource(Res.string.privacy_visibility_contacts),
+        VisibilityLevel.NOBODY to stringResource(Res.string.privacy_visibility_nobody)
     )
 
     Column(

@@ -148,7 +148,7 @@ class MessageControllerTest {
             assert(response.statusCode.value() == 200)
             assert(response.body?.data?.messageId == message.id.toString())
             assert(response.body?.data?.recipients?.size == 1)
-            assert(response.body?.data?.recipients?.first()?.status == "READ")
+            assert(response.body?.data?.recipients?.first()?.status == com.muhabbet.shared.model.MessageStatus.READ)
             assert(response.body?.data?.recipients?.first()?.displayName == "User 2")
         }
 

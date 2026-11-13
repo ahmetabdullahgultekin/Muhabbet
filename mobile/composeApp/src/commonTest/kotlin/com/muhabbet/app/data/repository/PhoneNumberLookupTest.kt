@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeConversationCache
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
@@ -248,7 +249,7 @@ class PhoneNumberLookupTest {
         val failure = assertFailsWith<ApiException> { backend.lookup.startChatWith("0532 123 45 67") }
 
         assertEquals(500, failure.status)
-        assertEquals("INTERNAL_ERROR", failure.code)
+        assertEquals(ErrorCode.INTERNAL_ERROR, failure.code)
     }
 }
 

@@ -18,7 +18,7 @@ class DeviceLinkRepository(private val apiClient: ApiClient) {
     /** Primary device: open a link session; render [DeviceLinkBeginResponse.linkToken] as a QR. */
     suspend fun beginLink(): DeviceLinkBeginResponse {
         val response = apiClient.post<DeviceLinkBeginResponse>("/api/v1/devices/link/begin", Unit)
-        return response.data ?: throw Exception(response.error?.code ?: "DEVICE_LINK_BEGIN_FAILED")
+        return response.data ?: throw Exception(response.error?.code?.name ?: "DEVICE_LINK_BEGIN_FAILED")
     }
 
     /** Companion device: complete the handshake with the scanned token. */
@@ -37,7 +37,7 @@ class DeviceLinkRepository(private val apiClient: ApiClient) {
                 publicBundle = publicBundle
             )
         )
-        return response.data ?: throw Exception(response.error?.code ?: "DEVICE_LINK_COMPLETE_FAILED")
+        return response.data ?: throw Exception(response.error?.code?.name ?: "DEVICE_LINK_COMPLETE_FAILED")
     }
 
     /** List this account's active (non-revoked) devices for the management screen. */
@@ -49,6 +49,6 @@ class DeviceLinkRepository(private val apiClient: ApiClient) {
     /** Revoke a companion device the user owns. */
     suspend fun revokeDevice(deviceId: String): LinkedDeviceResponse {
         val response = apiClient.post<LinkedDeviceResponse>("/api/v1/devices/link/$deviceId/revoke", Unit)
-        return response.data ?: throw Exception(response.error?.code ?: "DEVICE_LINK_REVOKE_FAILED")
+        return response.data ?: throw Exception(response.error?.code?.name ?: "DEVICE_LINK_REVOKE_FAILED")
     }
 }

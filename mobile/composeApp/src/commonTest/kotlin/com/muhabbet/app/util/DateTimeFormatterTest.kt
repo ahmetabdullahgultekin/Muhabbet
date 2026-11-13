@@ -81,7 +81,7 @@ class DateTimeFormatterTest {
         for (daysAgo in 2..6) {
             val iso = isoDaysAgo(daysAgo)
             val expected = labels.weekdays[
-                kotlinx.datetime.Instant.parse(iso).toLocalDateTime(tz).date.dayOfWeek.ordinal
+                kotlin.time.Instant.parse(iso).toLocalDateTime(tz).date.dayOfWeek.ordinal
             ]
             assertEquals(
                 expected,

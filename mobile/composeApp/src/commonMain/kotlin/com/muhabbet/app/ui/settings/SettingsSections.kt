@@ -49,6 +49,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
+import com.muhabbet.shared.validation.ValidationRules
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.SettingsInfoRow
@@ -96,7 +97,7 @@ internal fun ProfileEditorSection(
 
     MuhabbetTextField(
         value = displayName,
-        onValueChange = { if (it.length <= 64) onDisplayNameChange(it) },
+        onValueChange = { if (it.length <= ValidationRules.DISPLAY_NAME_MAX) onDisplayNameChange(it) },
         modifier = Modifier.fillMaxWidth(),
         label = stringResource(Res.string.settings_display_name),
         singleLine = true
@@ -106,7 +107,7 @@ internal fun ProfileEditorSection(
 
     MuhabbetTextField(
         value = about,
-        onValueChange = { if (it.length <= 140) onAboutChange(it) },
+        onValueChange = { if (it.length <= ValidationRules.ABOUT_MAX) onAboutChange(it) },
         modifier = Modifier.fillMaxWidth(),
         label = stringResource(Res.string.settings_about),
         placeholder = stringResource(Res.string.settings_about_placeholder),

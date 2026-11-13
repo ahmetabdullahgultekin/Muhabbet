@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
@@ -49,7 +50,7 @@ class CommunityRepositoryTest {
         val failure = assertFailsWith<ApiException> { repository.getCommunities() }
 
         assertEquals(500, failure.status)
-        assertEquals("INTERNAL_ERROR", failure.code)
+        assertEquals(ErrorCode.INTERNAL_ERROR, failure.code)
     }
 
     @Test
@@ -85,7 +86,7 @@ class CommunityRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.addGroupToCommunity("c-1", "conv-1") }
 
-        assertEquals("GROUP_PERMISSION_DENIED", failure.code)
+        assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, failure.code)
     }
 
     @Test
@@ -122,7 +123,7 @@ class CommunityRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.getCommunityMembers("c-1") }
 
-        assertEquals("COMMUNITY_PERMISSION_DENIED", failure.code)
+        assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, failure.code)
     }
 
     @Test
@@ -162,7 +163,7 @@ class CommunityRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.addMemberToCommunity("c-1", "u-2") }
 
-        assertEquals("COMMUNITY_MEMBER_NOT_IN_ANY_GROUP", failure.code)
+        assertEquals(ErrorCode.COMMUNITY_MEMBER_NOT_IN_ANY_GROUP, failure.code)
     }
 
     @Test
@@ -199,7 +200,7 @@ class CommunityRepositoryTest {
         val failure = assertFailsWith<ApiException> { repository.updateCommunity("c-1", "Mahalle", null) }
 
         assertEquals(403, failure.status)
-        assertEquals("COMMUNITY_PERMISSION_DENIED", failure.code)
+        assertEquals(ErrorCode.COMMUNITY_PERMISSION_DENIED, failure.code)
     }
 
     @Test
@@ -221,6 +222,6 @@ class CommunityRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.leaveCommunity("c-1") }
 
-        assertEquals("COMMUNITY_LAST_MEMBER_CANNOT_LEAVE", failure.code)
+        assertEquals(ErrorCode.COMMUNITY_LAST_MEMBER_CANNOT_LEAVE, failure.code)
     }
 }

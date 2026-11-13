@@ -1,6 +1,7 @@
 package com.muhabbet.app.ui.auth
 
 import com.muhabbet.app.data.remote.ApiException
+import com.muhabbet.shared.exception.ErrorCode
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -68,8 +69,8 @@ class OtpSubmitGuardTest {
 
     @Test
     fun aRejectedCodeCountsAsAnAttemptAndStaysLatched() {
-        assertTrue(consumedAnAttempt(ApiException(401, "AUTH_OTP_INVALID", "Geçersiz doğrulama kodu")))
-        assertTrue(consumedAnAttempt(ApiException(401, "AUTH_OTP_MAX_ATTEMPTS", "Maksimum deneme sayısı aşıldı")))
+        assertTrue(consumedAnAttempt(ApiException(401, ErrorCode.AUTH_OTP_INVALID, "Geçersiz doğrulama kodu")))
+        assertTrue(consumedAnAttempt(ApiException(401, ErrorCode.AUTH_OTP_MAX_ATTEMPTS, "Maksimum deneme sayısı aşıldı")))
     }
 
     // ─── the two-step stage (#566) ──────────────────────
@@ -110,7 +111,7 @@ class OtpSubmitGuardTest {
         // The server refunds the OTP attempt when the code was right and only the PIN was missing,
         // so the screen must be free to resend the same digits. Treating this as attempt-consuming
         // would latch the code and strand the user one keystroke into the second factor.
-        val required = ApiException(403, "AUTH_2FA_PIN_REQUIRED", "İki adımlı doğrulama PIN'i gerekli")
+        val required = ApiException(403, ErrorCode.AUTH_2FA_PIN_REQUIRED, "İki adımlı doğrulama PIN'i gerekli")
         assertTrue(requiresTwoStepPin(required))
         assertFalse(consumedAnAttempt(required))
     }
@@ -120,17 +121,17 @@ class OtpSubmitGuardTest {
         // Both are two-step rejections; only the first switches the screen into the PIN stage. If
         // AUTH_2FA_PIN_INVALID also did, the error would be cleared and a wrong PIN would look
         // like nothing happened.
-        assertFalse(requiresTwoStepPin(ApiException(401, "AUTH_2FA_PIN_INVALID", "x")))
-        assertFalse(requiresTwoStepPin(ApiException(429, "AUTH_2FA_LOCKED", "x")))
-        assertFalse(requiresTwoStepPin(ApiException(401, "AUTH_OTP_INVALID", "x")))
+        assertFalse(requiresTwoStepPin(ApiException(401, ErrorCode.AUTH_2FA_PIN_INVALID, "x")))
+        assertFalse(requiresTwoStepPin(ApiException(429, ErrorCode.AUTH_2FA_LOCKED, "x")))
+        assertFalse(requiresTwoStepPin(ApiException(401, ErrorCode.AUTH_OTP_INVALID, "x")))
     }
 
     @Test
     fun aFailureThatNeverReachedTheCounterReleasesTheLatch() {
         // None of these spent an attempt, so refusing to resend the same digits would strand the
         // user on a dead Verify button holding a code that was never found wrong.
-        assertFalse(consumedAnAttempt(ApiException(502, "HTTP_502", "Bad Gateway")))
-        assertFalse(consumedAnAttempt(ApiException(500, "MEDIA_UPLOAD_FAILED", "x")))
+        assertFalse(consumedAnAttempt(ApiException(502, null, "Bad Gateway")))
+        assertFalse(consumedAnAttempt(ApiException(500, ErrorCode.MEDIA_UPLOAD_FAILED, "x")))
         assertFalse(consumedAnAttempt(IllegalStateException("Firebase verifyCode failed")))
     }
 }

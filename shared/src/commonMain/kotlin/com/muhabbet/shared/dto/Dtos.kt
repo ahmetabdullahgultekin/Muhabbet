@@ -1,8 +1,14 @@
 package com.muhabbet.shared.dto
 
+import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.model.CallStatus
+import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MemberRole
+import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.shared.model.VisibilityLevel
+import com.muhabbet.shared.model.WallpaperType
 import kotlinx.serialization.Serializable
 
 // ─── API Envelope ────────────────────────────────────────
@@ -14,10 +20,15 @@ data class ApiResponse<T>(
     val timestamp: String
 )
 
+/**
+ * [code] is the shared [ErrorCode] (#883): a code a newer server adds decodes to
+ * [ErrorCode.UNKNOWN] rather than failing the envelope. [message] is operator text — screens map the
+ * code, never show this.
+ */
 @Serializable
 data class ApiError(
-    val code: String,
-    val message: String
+    val code: ErrorCode,
+    val message: String = ""
 )
 
 // ─── Auth DTOs ───────────────────────────────────────────
@@ -402,8 +413,8 @@ data class CallHistoryResponse(
     val calleeId: String,
     val callerName: String? = null,
     val calleeName: String? = null,
-    val callType: String,           // VOICE or VIDEO
-    val status: String,             // INITIATED, ANSWERED, ENDED, DECLINED, MISSED
+    val callType: CallType,
+    val status: CallStatus,
     val startedAt: String,
     val answeredAt: String? = null,
     val endedAt: String? = null,
@@ -442,7 +453,7 @@ data class MessageInfoResponse(
     val conversationId: String,
     val senderId: String,
     val content: String,
-    val contentType: String,
+    val contentType: ContentType,
     val sentAt: String,
     val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
@@ -454,7 +465,8 @@ data class RecipientDeliveryInfo(
     val userId: String,
     val displayName: String? = null,
     val avatarUrl: String? = null,
-    val status: String,
+    /** SENT, DELIVERED or READ for this recipient. */
+    val status: MessageStatus,
     val updatedAt: String? = null
 )
 
@@ -476,7 +488,7 @@ data class StorageUsageResponse(
 @Serializable
 data class PaginatedResponse<T>(
     val items: List<T>,
-    val nextCursor: String?,            // null = no more pages
+    val nextCursor: String? = null,     // null = no more pages
     val hasMore: Boolean
 )
 
@@ -568,7 +580,7 @@ data class CommunityDetailResponse(
     val avatarUrl: String? = null,
     val groups: List<CommunityGroupInfo>,
     val memberCount: Int = 0,
-    val myRole: String? = null,
+    val myRole: MemberRole? = null,
     val createdAt: String,
     /**
      * The community's announcement channel (#584) — a GROUP conversation every member is enrolled
@@ -597,16 +609,16 @@ data class UpdateCommunityRequest(
 /**
  * One row of `GET /api/v1/communities/{id}/members`.
  *
- * [role] is the raw `MemberRole` name rather than the enum, for the same reason
- * [CommunityDetailResponse.myRole] is: a role added on the server must not fail the whole decode on
- * an app that has not shipped yet.
+ * [role] was a raw `String` so that a role added on the server could not fail the whole decode on an
+ * app that had not shipped yet. [MemberRole] is lenient now (#875) — an unknown role decodes to
+ * `UNKNOWN` — so the workaround is gone and the field is typed (#877). The wire value is unchanged.
  */
 @Serializable
 data class CommunityMemberResponse(
     val userId: String,
     val displayName: String? = null,
     val avatarUrl: String? = null,
-    val role: String,
+    val role: MemberRole,
     val joinedAt: String
 )
 
@@ -697,7 +709,7 @@ data class ViewOnceRevealResponse(
  */
 @Serializable
 data class SetWallpaperRequest(
-    val wallpaperType: String,  // DEFAULT, SOLID, GRADIENT, CUSTOM
+    val wallpaperType: WallpaperType,
     val wallpaperValue: String? = null,
     val darkModeValue: String? = null
 )
@@ -711,7 +723,7 @@ data class SetWallpaperRequest(
 data class WallpaperResponse(
     val id: String,
     val conversationId: String? = null,
-    val wallpaperType: String,
+    val wallpaperType: WallpaperType,
     val wallpaperValue: String? = null,
     val darkModeValue: String? = null,
     val createdAt: String
@@ -728,20 +740,21 @@ data class WallpaperResponse(
  * (see `UserController.resolveVisibility`). It is not a separate setting, which is why the screen
  * labels it "last seen" and sends it under this name.
  *
- * Values for the visibility fields: `everyone`, `contacts`, `nobody`.
+ * The visibility fields are [VisibilityLevel], whose wire names are the lowercase `everyone`,
+ * `contacts`, `nobody` these fields have always carried (#877).
  */
 @Serializable
 data class UpdatePrivacyRequest(
     val readReceiptsEnabled: Boolean? = null,
-    val onlineStatusVisibility: String? = null,
-    val aboutVisibility: String? = null
+    val onlineStatusVisibility: VisibilityLevel? = null,
+    val aboutVisibility: VisibilityLevel? = null
 )
 
 @Serializable
 data class PrivacySettingsResponse(
     val readReceiptsEnabled: Boolean,
-    val onlineStatusVisibility: String,
-    val aboutVisibility: String
+    val onlineStatusVisibility: VisibilityLevel,
+    val aboutVisibility: VisibilityLevel
 )
 
 // ─── Moderation DTOs ────────────────────────────────────
@@ -808,16 +821,6 @@ data class BroadcastMemberResponse(
     val userId: String,
     val displayName: String? = null,
     val avatarUrl: String? = null
-)
-
-// ─── Login Approval DTOs ────────────────────────────────
-@Serializable
-data class LoginApprovalNotification(
-    val approvalId: String,
-    val deviceName: String? = null,
-    val platform: String? = null,
-    val ipAddress: String? = null,
-    val createdAt: Long
 )
 
 // ─── Multi-Device Linking DTOs (Tier 2, NON-CRYPTO slice) ───────────────────

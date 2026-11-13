@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.settings
 
+import com.muhabbet.shared.exception.ErrorCode
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -392,12 +393,12 @@ private class TwoStepErrorMessages(
      * backend that does not serve what it asks for, which is a deploy problem, not the user's.
      */
     fun forFailure(e: Throwable): String = when ((e as? ApiException)?.code) {
-        "AUTH_2FA_ALREADY_ENABLED" -> alreadyEnabled
-        "AUTH_2FA_PIN_INVALID" -> pinInvalid
-        "AUTH_2FA_NOT_ENABLED" -> notEnabled
-        "AUTH_2FA_LOCKED" -> lockedOut
-        "AUTH_UNAUTHORIZED", "AUTH_TOKEN_EXPIRED" -> sessionExpired
-        "VALIDATION_ERROR" -> malformedPin
+        ErrorCode.AUTH_2FA_ALREADY_ENABLED -> alreadyEnabled
+        ErrorCode.AUTH_2FA_PIN_INVALID -> pinInvalid
+        ErrorCode.AUTH_2FA_NOT_ENABLED -> notEnabled
+        ErrorCode.AUTH_2FA_LOCKED -> lockedOut
+        ErrorCode.AUTH_UNAUTHORIZED, ErrorCode.AUTH_TOKEN_EXPIRED -> sessionExpired
+        ErrorCode.VALIDATION_ERROR -> malformedPin
         else -> generic
     }
 }

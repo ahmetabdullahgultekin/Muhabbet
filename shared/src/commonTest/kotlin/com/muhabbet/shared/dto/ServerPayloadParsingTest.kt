@@ -1,6 +1,7 @@
 package com.muhabbet.shared.dto
 
-import kotlinx.serialization.json.Json
+import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.protocol.MuhabbetJson
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -23,11 +24,8 @@ import kotlin.test.assertNull
  */
 class ServerPayloadParsingTest {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-        isLenient = true
-    }
+    /** The production configuration, not a copy of it — a copy is how the two drifted (#887). */
+    private val json = MuhabbetJson
 
     @Test
     fun `decodes the create-community response the server actually sends`() {
@@ -82,6 +80,6 @@ class ServerPayloadParsingTest {
         )
 
         assertNull(response.data)
-        assertEquals("AUTH_OTP_INVALID", response.error?.code)
+        assertEquals(ErrorCode.AUTH_OTP_INVALID, response.error?.code)
     }
 }

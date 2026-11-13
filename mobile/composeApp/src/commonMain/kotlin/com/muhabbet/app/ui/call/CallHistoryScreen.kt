@@ -1,5 +1,7 @@
 package com.muhabbet.app.ui.call
 
+import com.muhabbet.shared.model.CallType
+import com.muhabbet.shared.model.CallStatus
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -163,16 +165,16 @@ fun CallHistoryScreen(
             ) {
                 items(calls, key = { it.id }) { call ->
                     val isOutgoing = call.callerId == currentUserId
-                    val isMissed = call.status == "MISSED"
-                    val isDeclined = call.status == "DECLINED"
+                    val isMissed = call.status == CallStatus.MISSED
+                    val isDeclined = call.status == CallStatus.DECLINED
                     val otherName = if (isOutgoing) call.calleeName else call.callerName
                     val otherUserId = if (isOutgoing) call.calleeId else call.callerId
-                    val isVideo = call.callType == "VIDEO"
+                    val isVideo = call.callType == CallType.VIDEO
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onCallUser(otherUserId, otherName, call.callType) }
+                            .clickable { onCallUser(otherUserId, otherName, call.callType.name) }
                             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -219,7 +221,7 @@ fun CallHistoryScreen(
                         MuhabbetIconButton(
                             icon = if (isVideo) Muhabbet.icons.VideoCall else Muhabbet.icons.CallStart,
                             contentDescription = if (isVideo) videoLabel else voiceLabel,
-                            onClick = { onCallUser(otherUserId, otherName, call.callType) },
+                            onClick = { onCallUser(otherUserId, otherName, call.callType.name) },
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }

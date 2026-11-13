@@ -33,7 +33,9 @@ class ContentTypeLabelTest {
         ContentType.STICKER,
         // Both of these put JSON in the body — without a label the list rendered a raw object.
         ContentType.LOCATION,
-        ContentType.POLL
+        ContentType.POLL,
+        // A type a newer app sent (#875): its body means nothing to this build.
+        ContentType.UNKNOWN
     )
 
     /**

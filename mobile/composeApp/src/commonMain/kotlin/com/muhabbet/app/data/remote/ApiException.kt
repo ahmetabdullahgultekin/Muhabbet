@@ -1,5 +1,7 @@
 package com.muhabbet.app.data.remote
 
+import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.exception.ErrorCodeSerializer
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -15,9 +17,13 @@ import kotlinx.serialization.json.JsonPrimitive
  * callers that ignore the return value reported success after a 403. Non-2xx now produces this
  * exception instead of a well-formed lie.
  *
- * [code] is what the UI maps to a message. It is the backend `ErrorCode` value when the body is the
- * standard envelope, and a synthetic `HTTP_<status>` when it is not — a Traefik 502 HTML page never
- * reached the application, so there is no application error code to report.
+ * [code] is the shared [ErrorCode] the server put in the envelope (#883) — a typed value, so a
+ * screen matches `ErrorCode.AUTH_OTP_INVALID` and a renamed code is a compile error instead of a
+ * silently generic message. A code from a newer server than this build is [ErrorCode.UNKNOWN].
+ * [code] is **null** when the body was not the envelope at all: a Traefik 502 HTML page never
+ * reached the application, so there is no application code to report, only [status]. That used to
+ * be a synthetic `"HTTP_502"` string sharing the server's namespace, which is exactly the kind of
+ * client-invented code #883 removes.
  *
  * [message] carries the server's own text or, failing that, the start of the raw body. No
  * user-facing text is invented here: it is a diagnostic for logs, and screens map [code] rather than
@@ -25,9 +31,17 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 class ApiException(
     val status: Int,
-    val code: String,
+    val code: ErrorCode?,
     override val message: String,
 ) : Exception(message) {
+
+    /**
+     * Whether the server refused this client as too old (#873): 426 with
+     * [ErrorCode.CLIENT_UPGRADE_REQUIRED]. Either half is enough — a proxy that rewrites the body
+     * still passes the status through.
+     */
+    val isUpgradeRequired: Boolean
+        get() = status == HttpStatusCode.UpgradeRequired.value || code == ErrorCode.CLIENT_UPGRADE_REQUIRED
 
     override fun toString(): String = "ApiException(status=$status, code=$code, message=$message)"
 
@@ -46,7 +60,7 @@ class ApiException(
             val error = errorObject(json, body)
             return ApiException(
                 status = status.value,
-                code = error?.stringField("code") ?: "HTTP_${status.value}",
+                code = error?.stringField("code")?.let(ErrorCodeSerializer::fromWire),
                 message = error?.stringField("message")
                     ?: body.trim().take(MAX_RAW_BODY).ifBlank { status.toString() },
             )
@@ -56,8 +70,8 @@ class ApiException(
          * The envelope's `error` object, or null when [body] is not the envelope at all.
          *
          * Not a swallowed failure: a body that does not parse is the documented second case — an
-         * HTML error page from the proxy, or an empty body — and the caller answers it with the
-         * `HTTP_<status>` code and the raw text.
+         * HTML error page from the proxy, or an empty body — and the caller answers it with a null
+         * code and the raw text.
          */
         private fun errorObject(json: Json, body: String): JsonObject? =
             try {

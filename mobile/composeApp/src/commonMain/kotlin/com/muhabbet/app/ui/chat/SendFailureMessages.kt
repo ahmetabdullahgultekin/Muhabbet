@@ -1,5 +1,7 @@
 package com.muhabbet.app.ui.chat
 
+import com.muhabbet.shared.exception.ErrorCode
+
 /**
  * Why a `message.send` was refused, in the device's language.
  *
@@ -28,10 +30,10 @@ internal class SendFailureMessages(
     private val notMember: String,
     private val announcementOnly: String,
 ) {
-    fun forCode(code: String?): String = when (code) {
-        "MSG_CONTENT_TOO_LONG" -> tooLong
-        "MSG_NOT_MEMBER" -> notMember
-        "MSG_ANNOUNCEMENT_ONLY" -> announcementOnly
+    fun forCode(code: ErrorCode?): String = when (code) {
+        ErrorCode.MSG_CONTENT_TOO_LONG -> tooLong
+        ErrorCode.MSG_NOT_MEMBER -> notMember
+        ErrorCode.MSG_ANNOUNCEMENT_ONLY -> announcementOnly
         else -> generic
     }
 }
@@ -45,4 +47,4 @@ internal class SendFailureMessages(
  * a send failure is a lie the user acts on by typing it again, so it is treated as the acceptance
  * it actually is and says nothing.
  */
-internal fun serverAlreadyHasMessage(code: String?): Boolean = code == "MSG_DUPLICATE"
+internal fun serverAlreadyHasMessage(code: ErrorCode?): Boolean = code == ErrorCode.MSG_DUPLICATE

@@ -875,6 +875,8 @@
          in these files (#471). -->
     <string name="connection_status_label">Connection status</string>
     <string name="connection_offline_strip">No connection. Messages will send once you are back online.</string>
+    <string name="connection_upgrade_required_strip">This version is no longer supported. Update the app to keep messaging.</string>
+    <string name="message_unsupported_content">Update the app to see this message.</string>
 
     <!-- First-run test-build notice, shown once per app version after login (#519) -->
     <string name="test_build_notice_title">Muhabbet is still being tested</string>

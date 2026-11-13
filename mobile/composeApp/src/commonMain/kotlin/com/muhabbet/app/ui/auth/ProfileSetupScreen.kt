@@ -116,7 +116,7 @@ fun ProfileSetupScreen(
         MuhabbetTextField(
             value = displayName,
             onValueChange = {
-                if (it.length <= 64) displayName = it
+                if (it.length <= ValidationRules.DISPLAY_NAME_MAX) displayName = it
                 error = null
             },
             modifier = Modifier.fillMaxWidth(),

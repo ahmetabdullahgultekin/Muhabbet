@@ -62,7 +62,7 @@ class UserController(
 
     private data class VisibleProfile(
         val isOnline: Boolean,
-        val lastSeen: kotlinx.datetime.Instant?,
+        val lastSeen: kotlin.time.Instant?,
         val about: String?
     )
 
@@ -111,7 +111,7 @@ class UserController(
             isOnline = presenceVisible && presencePort.isOnline(user.id),
             lastSeen = user.lastSeenAt
                 ?.takeIf { presenceVisible }
-                ?.let { kotlinx.datetime.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong()) },
+                ?.let { kotlin.time.Instant.fromEpochSeconds(it.epochSecond, it.nano.toLong()) },
             about = user.about?.takeIf { allows(user.aboutVisibility) }
         )
     }
@@ -198,8 +198,8 @@ class UserController(
         return ApiResponseBuilder.ok(
             PrivacySettingsResponse(
                 readReceiptsEnabled = user.readReceiptsEnabled,
-                onlineStatusVisibility = user.onlineStatusVisibility,
-                aboutVisibility = user.aboutVisibility
+                onlineStatusVisibility = user.onlineStatusVisibility.toVisibilityLevel(),
+                aboutVisibility = user.aboutVisibility.toVisibilityLevel()
             )
         )
     }
@@ -213,8 +213,8 @@ class UserController(
         val updated = userRepository.save(
             user.copy(
                 readReceiptsEnabled = request.readReceiptsEnabled ?: user.readReceiptsEnabled,
-                onlineStatusVisibility = request.onlineStatusVisibility ?: user.onlineStatusVisibility,
-                aboutVisibility = request.aboutVisibility ?: user.aboutVisibility,
+                onlineStatusVisibility = request.onlineStatusVisibility?.toStored() ?: user.onlineStatusVisibility,
+                aboutVisibility = request.aboutVisibility?.toStored() ?: user.aboutVisibility,
                 updatedAt = java.time.Instant.now()
             )
         )
@@ -222,8 +222,8 @@ class UserController(
         return ApiResponseBuilder.ok(
             PrivacySettingsResponse(
                 readReceiptsEnabled = updated.readReceiptsEnabled,
-                onlineStatusVisibility = updated.onlineStatusVisibility,
-                aboutVisibility = updated.aboutVisibility
+                onlineStatusVisibility = updated.onlineStatusVisibility.toVisibilityLevel(),
+                aboutVisibility = updated.aboutVisibility.toVisibilityLevel()
             )
         )
     }

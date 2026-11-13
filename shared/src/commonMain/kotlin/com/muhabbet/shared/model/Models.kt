@@ -1,19 +1,34 @@
 package com.muhabbet.shared.model
 
 import kotlinx.serialization.Serializable
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 // ─── Enums ───────────────────────────────────────────────
+//
+// Every enum here crosses the wire, and every one is **tolerant**: it carries an `UNKNOWN` constant
+// and a [LenientEnumSerializer] that decodes a name this build has never seen to `UNKNOWN` instead
+// of failing the frame or page around it (#875). `WireEnumPolicyTest` fails for any `@Serializable`
+// enum in this module that does not follow the rule, so a new one cannot quietly opt out.
+//
+// Two rules follow from it, and they are the whole evolution policy:
+//  - **Adding a constant is safe**; an older app reads it as `UNKNOWN` and degrades.
+//  - **Renaming or removing one is a breaking change**: the wire name is the contract.
+// `UNKNOWN` is a reader's stand-in. Nothing ever sends it on purpose, and a server receiving it
+// treats it as a value it cannot act on.
 
-@Serializable
+@Serializable(with = MessageStatusSerializer::class)
 enum class MessageStatus {
     SENDING,    // client-only: queued locally
     SENT,       // server ACKed receipt
     DELIVERED,  // recipient device received
-    READ        // recipient opened conversation
+    READ,       // recipient opened conversation
+    UNKNOWN
 }
 
-@Serializable
+object MessageStatusSerializer :
+    LenientEnumSerializer<MessageStatus>("MessageStatus", MessageStatus.entries, MessageStatus.UNKNOWN)
+
+@Serializable(with = ContentTypeSerializer::class)
 enum class ContentType {
     TEXT,
     IMAGE,
@@ -24,56 +39,145 @@ enum class ContentType {
     CONTACT,
     POLL,
     STICKER,
-    GIF
+    GIF,
+
+    /** A type added after this build. The app shows "update the app to see this message". */
+    UNKNOWN
 }
 
-@Serializable
+object ContentTypeSerializer :
+    LenientEnumSerializer<ContentType>("ContentType", ContentType.entries, ContentType.UNKNOWN)
+
+@Serializable(with = ConversationTypeSerializer::class)
 enum class ConversationType {
     DIRECT,
     GROUP,
-    CHANNEL
+    CHANNEL,
+    UNKNOWN
 }
 
-@Serializable
+object ConversationTypeSerializer :
+    LenientEnumSerializer<ConversationType>("ConversationType", ConversationType.entries, ConversationType.UNKNOWN)
+
+/**
+ * A member's role. `UNKNOWN` is a role this build cannot describe, and it grants **nothing**: every
+ * permission check compares against a named role, so an unrecognised one fails closed.
+ */
+@Serializable(with = MemberRoleSerializer::class)
 enum class MemberRole {
     OWNER,
     ADMIN,
-    MEMBER
+    MEMBER,
+    UNKNOWN
 }
 
-@Serializable
+object MemberRoleSerializer :
+    LenientEnumSerializer<MemberRole>("MemberRole", MemberRole.entries, MemberRole.UNKNOWN)
+
+/**
+ * Account presence.
+ *
+ * [TYPING] is **deprecated**: typing is a per-conversation activity, not a presence. It is what the
+ * server put in `presence.update` before `chat.activity` existed (#885), and only a legacy
+ * (protocol 0) client is still sent it. Remove it once the minimum supported protocol is 1.
+ */
+@Serializable(with = PresenceStatusSerializer::class)
 enum class PresenceStatus {
     ONLINE,
     OFFLINE,
-    TYPING
+    TYPING,
+    UNKNOWN
 }
 
-@Serializable
+object PresenceStatusSerializer :
+    LenientEnumSerializer<PresenceStatus>("PresenceStatus", PresenceStatus.entries, PresenceStatus.UNKNOWN)
+
+/**
+ * What one member is doing in one conversation right now (#885).
+ *
+ * Separate from [PresenceStatus] because it is a different fact: presence belongs to an account,
+ * activity to a (conversation, member) pair, and a group can have several members typing at once.
+ */
+@Serializable(with = ChatActivityKindSerializer::class)
+enum class ChatActivityKind {
+    TYPING,
+    RECORDING_AUDIO,
+    IDLE,
+    UNKNOWN
+}
+
+object ChatActivityKindSerializer :
+    LenientEnumSerializer<ChatActivityKind>("ChatActivityKind", ChatActivityKind.entries, ChatActivityKind.UNKNOWN)
+
+@Serializable(with = CallTypeSerializer::class)
 enum class CallType {
     VOICE,
-    VIDEO
+    VIDEO,
+    UNKNOWN
 }
 
-@Serializable
+object CallTypeSerializer : LenientEnumSerializer<CallType>("CallType", CallType.entries, CallType.UNKNOWN)
+
+@Serializable(with = CallEndReasonSerializer::class)
 enum class CallEndReason {
     ENDED,
     DECLINED,
     MISSED,
     BUSY,
-    FAILED
+    FAILED,
+    UNKNOWN
 }
 
-@Serializable
-enum class JoinRequestStatus { PENDING, APPROVED, REJECTED }
+object CallEndReasonSerializer :
+    LenientEnumSerializer<CallEndReason>("CallEndReason", CallEndReason.entries, CallEndReason.UNKNOWN)
 
-@Serializable
-enum class RsvpStatus { GOING, NOT_GOING, MAYBE }
+/** Where a call record ended up. Names match the backend domain `CallStatus` one for one. */
+@Serializable(with = CallStatusSerializer::class)
+enum class CallStatus {
+    INITIATED,
+    ANSWERED,
+    ENDED,
+    DECLINED,
+    MISSED,
+    UNKNOWN
+}
 
-@Serializable
-enum class WallpaperType { DEFAULT, SOLID, CUSTOM }
+object CallStatusSerializer : LenientEnumSerializer<CallStatus>("CallStatus", CallStatus.entries, CallStatus.UNKNOWN)
 
-@Serializable
-enum class VisibilityLevel { EVERYONE, CONTACTS, NOBODY }
+/** `message.reaction`'s verb. Lowercase on the wire, as it has always been. */
+@Serializable(with = ReactionActionSerializer::class)
+enum class ReactionAction(val wireName: String) {
+    ADD("add"),
+    REMOVE("remove"),
+    UNKNOWN("unknown")
+}
+
+object ReactionActionSerializer : LenientEnumSerializer<ReactionAction>(
+    "ReactionAction", ReactionAction.entries, ReactionAction.UNKNOWN, { it.wireName }
+)
+
+/**
+ * Who may see a profile field. Lowercase on the wire — `UpdatePrivacyRequest` has always carried
+ * `"everyone"`/`"contacts"`/`"nobody"`, and those strings are the contract.
+ */
+@Serializable(with = VisibilityLevelSerializer::class)
+enum class VisibilityLevel(val wireName: String) {
+    EVERYONE("everyone"),
+    CONTACTS("contacts"),
+    NOBODY("nobody"),
+    UNKNOWN("unknown")
+}
+
+object VisibilityLevelSerializer : LenientEnumSerializer<VisibilityLevel>(
+    "VisibilityLevel", VisibilityLevel.entries, VisibilityLevel.UNKNOWN, { it.wireName }
+)
+
+/** Includes [GRADIENT], which the backend has stored since #380 and this enum could not express (#877). */
+@Serializable(with = WallpaperTypeSerializer::class)
+enum class WallpaperType { DEFAULT, SOLID, GRADIENT, CUSTOM, UNKNOWN }
+
+object WallpaperTypeSerializer :
+    LenientEnumSerializer<WallpaperType>("WallpaperType", WallpaperType.entries, WallpaperType.UNKNOWN)
 
 // ─── Domain Models ───────────────────────────────────────
 
@@ -125,39 +229,14 @@ data class Message(
 )
 
 @Serializable
-data class Conversation(
-    val id: String,
-    val type: ConversationType,
-    val name: String? = null,           // null for direct messages
-    val avatarUrl: String? = null,
-    val lastMessage: Message? = null,
-    val unreadCount: Int = 0,
-    val updatedAt: Instant,
-    val isPinned: Boolean = false,
-    val isMuted: Boolean = false,
-    val isArchived: Boolean = false,
-    val isLocked: Boolean = false,
-    val announcementOnly: Boolean = false
-)
-
-@Serializable
 data class UserProfile(
     val id: String,
     // Nullable: only the caller's own profile (GET /users/me) exposes the phone number.
     // Public lookups (GET /users/{id}) return null to prevent phone-number harvesting (KVKK).
     val phoneNumber: String? = null,
-    val displayName: String?,
-    val avatarUrl: String?,
+    val displayName: String? = null,
+    val avatarUrl: String? = null,
     val about: String? = null,
     val isOnline: Boolean = false,
     val lastSeenAt: Instant? = null
-)
-
-@Serializable
-data class Contact(
-    val userId: String,
-    val displayName: String?,
-    val phoneNumber: String,
-    val avatarUrl: String?,
-    val isRegistered: Boolean          // matched in our system
 )

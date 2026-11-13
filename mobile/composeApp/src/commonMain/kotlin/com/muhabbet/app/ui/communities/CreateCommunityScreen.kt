@@ -33,7 +33,9 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.CreateCommunityRequest
+import com.muhabbet.shared.validation.ValidationRules
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -80,7 +82,7 @@ fun CreateCommunityScreen(
             MuhabbetTextField(
                 value = name,
                 onValueChange = {
-                    if (it.length <= 64) name = it
+                    if (it.length <= ValidationRules.COMMUNITY_NAME_MAX) name = it
                     // The name the server refused is no longer the name in the field, so the
                     // complaint about it has to go with it.
                     nameError = null
@@ -124,7 +126,7 @@ fun CreateCommunityScreen(
                             // The one failure the user can actually fix from this screen (#446).
                             // Everything else stays a snackbar: it says nothing about the name, so
                             // pinning it under the name field would misdirect.
-                            if (e.code == CommunityNameTakenCode) {
+                            if (e.code == ErrorCode.COMMUNITY_NAME_ALREADY_EXISTS) {
                                 nameError = nameTakenMsg
                             } else {
                                 createFailed = true

@@ -76,7 +76,7 @@ class CommunityMemberControllerTest {
             assertEquals(memberId.toString(), decoded[0].userId)
             assertEquals("Ayşe Yılmaz", decoded[0].displayName)
             assertEquals("https://cdn.example/a.jpg", decoded[0].avatarUrl)
-            assertEquals("OWNER", decoded[0].role)
+            assertEquals(com.muhabbet.shared.model.MemberRole.OWNER, decoded[0].role)
             assertEquals(joinedAt.toString(), decoded[0].joinedAt)
         }
 

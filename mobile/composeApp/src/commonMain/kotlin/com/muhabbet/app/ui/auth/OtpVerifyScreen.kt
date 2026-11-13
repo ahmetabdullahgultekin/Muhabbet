@@ -1,5 +1,7 @@
 package com.muhabbet.app.ui.auth
 
+import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.validation.ValidationRules
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -382,15 +384,19 @@ fun OtpVerifyScreen(
     }
 }
 
-/** Digits in a verification code. Both the field and the submit guard read it. */
-internal const val OtpLength = 6
+/**
+ * Digits in a verification code. Both the field and the submit guard read it. The shared rule, not
+ * a second declaration of it (#892): this screen used to redeclare 6 beside an unused
+ * `ValidationRules.OTP_LENGTH`.
+ */
+internal const val OtpLength = ValidationRules.OTP_LENGTH
 
 /**
- * Digits in a two-step PIN. Kept equal to `ValidationRules.TWO_STEP_PIN_LENGTH`, which is what both
- * the setup screen and the server enforce — a field that accepted a different length would offer a
- * PIN no account could ever hold.
+ * Digits in a two-step PIN — `ValidationRules.TWO_STEP_PIN_LENGTH`, which is what both the setup
+ * screen and the server enforce. A field that accepted a different length would offer a PIN no
+ * account could ever hold, which is why this is the rule itself and not a copy of its value.
  */
-internal const val TwoStepPinLength = 6
+internal const val TwoStepPinLength = ValidationRules.TWO_STEP_PIN_LENGTH
 
 private const val TAG = "OtpVerifyScreen"
 
@@ -440,7 +446,7 @@ internal fun attemptKey(code: String, pin: String?): String =
  * answers *about that code* and the guess is spent. `AUTH_OTP_EXPIRED` is thrown before the claim
  * and so is absent: nothing was counted, though nothing can be retried either.
  */
-private val AttemptConsumingCodes = setOf("AUTH_OTP_INVALID", "AUTH_OTP_MAX_ATTEMPTS")
+private val AttemptConsumingCodes = setOf(ErrorCode.AUTH_OTP_INVALID, ErrorCode.AUTH_OTP_MAX_ATTEMPTS)
 
 /**
  * Whether [e] means an attempt was spent, and so whether the same digits must never go out again.
@@ -460,7 +466,7 @@ internal fun consumedAnAttempt(e: Throwable): Boolean =
  * be charged to the SMS budget. The screen must therefore be free to resend the same digits.
  */
 internal fun requiresTwoStepPin(e: Throwable): Boolean =
-    (e as? ApiException)?.code == "AUTH_2FA_PIN_REQUIRED"
+    (e as? ApiException)?.code == ErrorCode.AUTH_2FA_PIN_REQUIRED
 
 /**
  * The four rejections the OTP endpoints report in normal use, in the device's language.
@@ -487,12 +493,12 @@ private class OtpErrorMessages(
      * are malfunctions, and naming them precisely helps nobody holding a phone.
      */
     fun forFailure(e: Throwable, fallback: String): String = when ((e as? ApiException)?.code) {
-        "AUTH_OTP_INVALID" -> invalid
-        "AUTH_OTP_EXPIRED" -> expired
-        "AUTH_OTP_MAX_ATTEMPTS" -> maxAttempts
-        "AUTH_OTP_COOLDOWN", "AUTH_OTP_RATE_LIMIT" -> cooldown
-        "AUTH_2FA_PIN_INVALID" -> twoStepInvalid
-        "AUTH_2FA_LOCKED" -> twoStepLocked
+        ErrorCode.AUTH_OTP_INVALID -> invalid
+        ErrorCode.AUTH_OTP_EXPIRED -> expired
+        ErrorCode.AUTH_OTP_MAX_ATTEMPTS -> maxAttempts
+        ErrorCode.AUTH_OTP_COOLDOWN, ErrorCode.AUTH_OTP_RATE_LIMIT -> cooldown
+        ErrorCode.AUTH_2FA_PIN_INVALID -> twoStepInvalid
+        ErrorCode.AUTH_2FA_LOCKED -> twoStepLocked
         else -> fallback
     }
 }

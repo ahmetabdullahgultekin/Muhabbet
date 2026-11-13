@@ -69,7 +69,7 @@ class PendingAckQueue(private val maxSize: Int = DEFAULT_MAX_SIZE) {
      */
     private fun rank(status: MessageStatus): Int =
         when (status) {
-            MessageStatus.SENDING -> 0
+            MessageStatus.SENDING, MessageStatus.UNKNOWN -> 0
             MessageStatus.SENT -> 1
             MessageStatus.DELIVERED -> 2
             MessageStatus.READ -> 3

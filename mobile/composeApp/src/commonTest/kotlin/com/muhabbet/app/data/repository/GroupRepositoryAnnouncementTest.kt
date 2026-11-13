@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
@@ -125,6 +126,6 @@ class GroupRepositoryAnnouncementTest {
         val failure = assertFailsWith<ApiException> { repository.setAnnouncementMode("conv-1", enabled = true) }
 
         assertEquals(403, failure.status)
-        assertEquals("GROUP_PERMISSION_DENIED", failure.code)
+        assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, failure.code)
     }
 }

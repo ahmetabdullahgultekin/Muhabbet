@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.model.VisibilityLevel
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.AuthTokenResponse
@@ -98,8 +99,8 @@ class AuthRepository(
      */
     suspend fun updatePrivacySettings(
         readReceiptsEnabled: Boolean? = null,
-        onlineStatusVisibility: String? = null,
-        aboutVisibility: String? = null
+        onlineStatusVisibility: VisibilityLevel? = null,
+        aboutVisibility: VisibilityLevel? = null
     ): PrivacySettingsResponse {
         val response = apiClient.patch<PrivacySettingsResponse>(
             "/api/v1/users/me/privacy",

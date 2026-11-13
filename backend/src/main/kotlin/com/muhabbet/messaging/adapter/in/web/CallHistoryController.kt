@@ -5,6 +5,8 @@ import com.muhabbet.messaging.domain.port.`in`.GetCallHistoryUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.CallHistoryResponse
 import com.muhabbet.shared.dto.PaginatedResponse
+import com.muhabbet.shared.model.CallStatusSerializer
+import com.muhabbet.shared.model.CallTypeSerializer
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -40,8 +42,8 @@ class CallHistoryController(
                 calleeId = record.calleeId.toString(),
                 callerName = usersMap[record.callerId]?.displayName,
                 calleeName = usersMap[record.calleeId]?.displayName,
-                callType = record.callType,
-                status = record.status,
+                callType = CallTypeSerializer.fromWire(record.callType),
+                status = CallStatusSerializer.fromWire(record.status),
                 startedAt = record.startedAt.toString(),
                 answeredAt = record.answeredAt?.toString(),
                 endedAt = record.endedAt?.toString(),

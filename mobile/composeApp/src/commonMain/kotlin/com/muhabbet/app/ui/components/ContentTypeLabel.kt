@@ -10,6 +10,7 @@ import com.muhabbet.composeapp.generated.resources.attach_sticker
 import com.muhabbet.composeapp.generated.resources.chat_photo
 import com.muhabbet.composeapp.generated.resources.chat_video
 import com.muhabbet.composeapp.generated.resources.chat_voice_message
+import com.muhabbet.composeapp.generated.resources.message_unsupported_content
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -42,6 +43,9 @@ internal fun contentTypeLabelResource(contentType: ContentType?): StringResource
     // conversation list rendered a raw serialized object as the preview.
     ContentType.LOCATION -> Res.string.attach_location
     ContentType.POLL -> Res.string.attach_poll
+    // A type a newer sender's app produced (#875). Its body means nothing to this build, so the
+    // preview says what to do about it rather than showing whatever the body happens to hold.
+    ContentType.UNKNOWN -> Res.string.message_unsupported_content
     ContentType.TEXT, ContentType.DOCUMENT, ContentType.CONTACT, null -> null
 }
 

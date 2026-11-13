@@ -23,13 +23,13 @@ import com.muhabbet.composeapp.generated.resources.location_open_in_maps
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.LocationData
-import kotlinx.serialization.json.Json
+import com.muhabbet.shared.protocol.MuhabbetJson
 import com.muhabbet.designsystem.Muhabbet
 import org.jetbrains.compose.resources.stringResource
 
 private const val TAG = "LocationBubble"
 
-private val locationJson = Json { ignoreUnknownKeys = true }
+private val locationJson = MuhabbetJson
 
 /**
  * A shared location: label, coordinates, and a tap that opens the point in a map.

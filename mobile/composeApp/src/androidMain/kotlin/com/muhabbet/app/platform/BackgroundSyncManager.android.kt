@@ -12,7 +12,7 @@ import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.app.util.Log
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit

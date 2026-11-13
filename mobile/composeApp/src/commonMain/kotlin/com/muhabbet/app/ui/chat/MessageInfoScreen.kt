@@ -1,5 +1,8 @@
 package com.muhabbet.app.ui.chat
 
+import com.muhabbet.app.ui.components.contentTypeLabel
+import com.muhabbet.shared.model.ContentType
+import com.muhabbet.shared.model.MessageStatus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
@@ -114,9 +117,9 @@ fun MessageInfoScreen(
                 )
             }
             data != null -> {
-                val readRecipients = data.recipients.filter { it.status == "READ" }
-                val deliveredRecipients = data.recipients.filter { it.status == "DELIVERED" }
-                val sentRecipients = data.recipients.filter { it.status != "READ" && it.status != "DELIVERED" }
+                val readRecipients = data.recipients.filter { it.status == MessageStatus.READ }
+                val deliveredRecipients = data.recipients.filter { it.status == MessageStatus.DELIVERED }
+                val sentRecipients = data.recipients.filter { it.status != MessageStatus.READ && it.status != MessageStatus.DELIVERED }
 
                 AnimatedVisibility(visible = true, enter = fadeIn()) {
                     LazyColumn(
@@ -137,7 +140,7 @@ fun MessageInfoScreen(
                                 Column(modifier = Modifier.padding(MuhabbetSpacing.Large)) {
                                     // Media preview (image/video thumbnail)
                                     val previewUrl = data.thumbnailUrl ?: data.mediaUrl
-                                    if (previewUrl != null && data.contentType in listOf("IMAGE", "VIDEO")) {
+                                    if (previewUrl != null && data.contentType in listOf(ContentType.IMAGE, ContentType.VIDEO)) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -151,7 +154,7 @@ fun MessageInfoScreen(
                                                 modifier = Modifier.fillMaxSize(),
                                                 contentScale = ContentScale.Crop
                                             )
-                                            if (data.contentType == "VIDEO") {
+                                            if (data.contentType == ContentType.VIDEO) {
                                                 // On its own scrim, not bare on the frame. A
                                                 // hardcoded white glyph vanished against a pale
                                                 // thumbnail, and against the surfaceVariant card
@@ -180,7 +183,7 @@ fun MessageInfoScreen(
                                     }
 
                                     // Content type badge for non-text
-                                    if (data.contentType != "TEXT") {
+                                    if (data.contentType != ContentType.TEXT) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
                                                 Muhabbet.icons.Image,
@@ -190,7 +193,8 @@ fun MessageInfoScreen(
                                             )
                                             Spacer(Modifier.width(6.dp))
                                             Text(
-                                                text = data.contentType,
+                                                // The reader's word for the type, not its enum name.
+                                                text = contentTypeLabel(data.contentType) ?: data.contentType.name,
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
@@ -342,11 +346,16 @@ private fun RecipientRow(recipient: RecipientDeliveryInfo, statusColor: Color) {
 
         // Status icon
         val (icon, tint) = when (recipient.status) {
-            "READ" -> Muhabbet.icons.Delivered to LocalSemanticColors.current.statusRead
-            "DELIVERED" -> Muhabbet.icons.Delivered to MaterialTheme.colorScheme.onSurfaceVariant
+            MessageStatus.READ -> Muhabbet.icons.Delivered to LocalSemanticColors.current.statusRead
+            MessageStatus.DELIVERED -> Muhabbet.icons.Delivered to MaterialTheme.colorScheme.onSurfaceVariant
             else -> Muhabbet.icons.Sent to MaterialTheme.colorScheme.onSurfaceVariant
         }
-        Icon(icon, contentDescription = recipient.status, modifier = Modifier.size(18.dp), tint = tint)
+        val statusDescription = when (recipient.status) {
+            MessageStatus.READ -> stringResource(Res.string.status_read)
+            MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
+            else -> stringResource(Res.string.status_sent)
+        }
+        Icon(icon, contentDescription = statusDescription, modifier = Modifier.size(18.dp), tint = tint)
     }
 }
 

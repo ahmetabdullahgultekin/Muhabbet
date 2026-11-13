@@ -8,6 +8,7 @@ import com.muhabbet.shared.dto.SetWallpaperRequest
 import com.muhabbet.shared.dto.WallpaperResponse
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.model.WallpaperType as SharedWallpaperType
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -85,20 +86,29 @@ class ChatWallpaperController(
 private fun ChatWallpaper.toResponse() = WallpaperResponse(
     id = id.toString(),
     conversationId = conversationId?.toString(),
-    wallpaperType = wallpaperType.name,
+    wallpaperType = wallpaperType.toShared(),
     wallpaperValue = wallpaperValue,
     darkModeValue = darkModeValue,
     createdAt = createdAt.toString()
 )
 
+private fun WallpaperType.toShared(): SharedWallpaperType = when (this) {
+    WallpaperType.DEFAULT -> SharedWallpaperType.DEFAULT
+    WallpaperType.SOLID -> SharedWallpaperType.SOLID
+    WallpaperType.GRADIENT -> SharedWallpaperType.GRADIENT
+    WallpaperType.CUSTOM -> SharedWallpaperType.CUSTOM
+}
+
 /**
- * `uppercase()` with no locale is Kotlin's root-locale conversion, so "solid" does not become
- * "SOLİD" on a Turkish device — the trap CLAUDE.md warns about applies to the JDK's locale-sensitive
- * overload, not this one.
- *
- * An unknown type is a client error, not a server one: without this, `valueOf` throws
- * `IllegalArgumentException` and Spring answers 500 for what is a malformed request body.
+ * The request field is the shared [SharedWallpaperType] now (#877), which decodes a type this server
+ * does not know to `UNKNOWN` instead of failing the body — so an unknown type is still answered with
+ * `WALLPAPER_INVALID_TYPE`, a client error, rather than a 500 from `valueOf`. The wire value is the
+ * exact upper-case name, as the shared contract has always documented it.
  */
-private fun SetWallpaperRequest.toWallpaperType(): WallpaperType =
-    WallpaperType.entries.firstOrNull { it.name == wallpaperType.uppercase() }
-        ?: throw BusinessException(ErrorCode.WALLPAPER_INVALID_TYPE)
+private fun SetWallpaperRequest.toWallpaperType(): WallpaperType = when (wallpaperType) {
+    SharedWallpaperType.DEFAULT -> WallpaperType.DEFAULT
+    SharedWallpaperType.SOLID -> WallpaperType.SOLID
+    SharedWallpaperType.GRADIENT -> WallpaperType.GRADIENT
+    SharedWallpaperType.CUSTOM -> WallpaperType.CUSTOM
+    SharedWallpaperType.UNKNOWN -> throw BusinessException(ErrorCode.WALLPAPER_INVALID_TYPE)
+}

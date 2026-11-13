@@ -4,7 +4,7 @@ import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.protocol.WsMessage
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /**
  * A photo about to be sent: the bubble drawn immediately, and the frame put on the wire.

@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * number changed.
  *
  * Epoch milliseconds on both sides on purpose: the backend holds `java.time.Instant` and the app
- * holds `kotlinx.datetime.Instant`, and a shared rule cannot depend on either.
+ * holds `kotlin.time.Instant`, and a shared rule cannot depend on either.
  */
 class EditWindowRuleTest {
 

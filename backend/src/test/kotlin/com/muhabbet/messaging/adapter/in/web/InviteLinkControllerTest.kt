@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.shared.exception.httpStatus
 import com.muhabbet.messaging.domain.model.GroupInviteLink
 import com.muhabbet.messaging.domain.port.`in`.ManageInviteLinkUseCase
 import com.muhabbet.shared.TestData

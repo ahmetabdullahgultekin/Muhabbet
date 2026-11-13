@@ -5,6 +5,7 @@ import com.muhabbet.messaging.domain.port.`in`.ManageReactionUseCase
 import com.muhabbet.messaging.domain.port.`in`.ReactionGroup
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.shared.model.ReactionAction
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
@@ -38,7 +39,7 @@ class ReactionController(
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         manageReactionUseCase.addReaction(messageId, userId, request.emoji)
-        broadcastReaction(messageId, userId, request.emoji, "add")
+        broadcastReaction(messageId, userId, request.emoji, ReactionAction.ADD)
         return ApiResponseBuilder.ok(Unit)
     }
 
@@ -49,11 +50,11 @@ class ReactionController(
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
         manageReactionUseCase.removeReaction(messageId, userId, emoji)
-        broadcastReaction(messageId, userId, emoji, "remove")
+        broadcastReaction(messageId, userId, emoji, ReactionAction.REMOVE)
         return ApiResponseBuilder.ok(Unit)
     }
 
-    private fun broadcastReaction(messageId: UUID, userId: UUID, emoji: String, action: String) {
+    private fun broadcastReaction(messageId: UUID, userId: UUID, emoji: String, action: ReactionAction) {
         val message = messageRepository.findById(messageId) ?: return
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
         val wsMessage = wsJson.encodeToString(

@@ -34,13 +34,13 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.error_action_failed
 import com.muhabbet.composeapp.generated.resources.poll_vote_count
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
+import com.muhabbet.shared.protocol.MuhabbetJson
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.modifier.pressable
 
-private val pollJson = Json { ignoreUnknownKeys = true }
+private val pollJson = MuhabbetJson
 
 @Composable
 fun PollBubble(

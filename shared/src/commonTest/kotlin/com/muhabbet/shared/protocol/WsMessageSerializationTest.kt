@@ -1,10 +1,12 @@
 package com.muhabbet.shared.protocol
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.MessageStatus
 import com.muhabbet.shared.model.PresenceStatus
+import com.muhabbet.shared.model.ReactionAction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -192,7 +194,7 @@ class WsMessageSerializationTest {
         val msg = wsJson.decodeFromString<WsMessage>(json)
         assertIs<WsMessage.ServerAck>(msg)
         assertEquals(AckStatus.ERROR, msg.status)
-        assertEquals("MSG_CONVERSATION_NOT_FOUND", msg.errorCode)
+        assertEquals(ErrorCode.MSG_CONVERSATION_NOT_FOUND, msg.errorCode)
     }
 
     @Test
@@ -255,7 +257,7 @@ class WsMessageSerializationTest {
         val json = """{"type":"message.reaction","messageId":"m1","conversationId":"c1","userId":"u1","emoji":"👍","action":"add"}"""
         val msg = wsJson.decodeFromString<WsMessage>(json)
         assertIs<WsMessage.MessageReaction>(msg)
-        assertEquals("add", msg.action)
+        assertEquals(ReactionAction.ADD, msg.action)
     }
 
     @Test
@@ -267,10 +269,10 @@ class WsMessageSerializationTest {
 
     @Test
     fun should_deserialize_Error() {
-        val json = """{"type":"error","code":"AUTH_EXPIRED","message":"Token expired"}"""
+        val json = """{"type":"error","code":"AUTH_TOKEN_EXPIRED","message":"Token expired"}"""
         val msg = wsJson.decodeFromString<WsMessage>(json)
         assertIs<WsMessage.Error>(msg)
-        assertEquals("AUTH_EXPIRED", msg.code)
+        assertEquals(ErrorCode.AUTH_TOKEN_EXPIRED, msg.code)
     }
 
     // ─── Round-trip tests ─────────────────────────

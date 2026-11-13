@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.ApiException
@@ -163,7 +164,7 @@ class BroadcastListRepositoryTest {
 
         val failure = assertFailsWith<ApiException> { repository.getBroadcastListMembers("b-1") }
 
-        assertEquals("BROADCAST_LIST_NOT_FOUND", failure.code)
+        assertEquals(ErrorCode.BROADCAST_LIST_NOT_FOUND, failure.code)
     }
 
     @Test
