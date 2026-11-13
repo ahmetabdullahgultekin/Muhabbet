@@ -148,9 +148,6 @@ object MuhabbetIcons {
     val Share: ImageVector get() = Icons.Default.Share
     val Download: ImageVector get() = Icons.Default.Download
 
-    /** The mark on a selected row or avatar. Same glyph as [Sent] today, but a different meaning. */
-    val Selected: ImageVector get() = Icons.Default.Check
-
     // Delivery state
     val Sent: ImageVector get() = Icons.Default.Check
     val Delivered: ImageVector get() = Icons.Default.DoneAll

@@ -51,18 +51,10 @@ import kotlinx.coroutines.delay
  * - Nothing fires on first composition. Opening a search screen with a restored query is not a
  *   new search.
  *
- * **This field owns the fetch timing; the screen's Store must not add its own.** Under ADR 0010 the
- * Store receives [onSearch] as an event and fetches on it directly — no second `debounce` or
- * `distinctUntilChanged` on top, which would stack two waits into one slower one. A Store that
- * genuinely needs to own the query flow itself (to combine it with other inputs, say) passes
- * `debounce = Duration.ZERO` and does its timing there instead, so exactly one of the two waits.
- *
  * @param placeholder what the empty field says. Caller-supplied: the module carries no strings.
  * @param clearContentDescription TalkBack label for the clear button. Required rather than
  *   defaulted, because a default would have to be a string.
  * @param loading shows a small spinner in the trailing slot while results are being fetched.
- * @param debounce how long typing must pause before [onSearch]. `Duration.ZERO` emits every change
- *   of the effective query at once — still trimmed, still deduplicated.
  * @param autoFocus request focus on first composition — for a screen whose only job is search.
  */
 @Composable

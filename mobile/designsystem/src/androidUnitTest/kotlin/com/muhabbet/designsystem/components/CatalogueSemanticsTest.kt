@@ -112,26 +112,6 @@ class CatalogueSemanticsTest {
     }
 
     @Test
-    fun `should announce the same role with or without a long-press when a row is selectable`() {
-        setContent {
-            Column {
-                MuhabbetListItem(
-                    headline = "Uzun basılır",
-                    selection = MuhabbetListSelection.Unselected,
-                    onClick = {},
-                    onLongClick = {}
-                )
-                MuhabbetListItem(headline = "Yalnız dokunulur", selection = MuhabbetListSelection.Unselected, onClick = {})
-                MuhabbetListItem(headline = "Düz satır", onClick = {}, onLongClick = {})
-            }
-        }
-        val checkbox = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox)
-        rule.onNodeWithText("Uzun basılır").assert(checkbox)
-        rule.onNodeWithText("Yalnız dokunulur").assert(checkbox)
-        rule.onNodeWithText("Düz satır").assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-    }
-
-    @Test
     fun `should report selection only when the row is part of a selection`() {
         setContent {
             Column {

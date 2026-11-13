@@ -2,9 +2,6 @@ package com.muhabbet.designsystem.image
 
 import androidx.test.core.app.ApplicationProvider
 import android.content.Context
-import android.graphics.Bitmap
-import coil3.asImage
-import coil3.memory.MemoryCache
 import coil3.request.crossfadeMillis
 import coil3.request.ImageRequest
 import org.junit.Assert.assertEquals
@@ -45,26 +42,6 @@ class MuhabbetImageLoaderTest {
         val loader = MuhabbetImageLoader.newImageLoader(context)
         val request = ImageRequest.Builder(context).data("x").defaults(loader.defaults).build()
         assertEquals(MuhabbetImageLoader.CrossfadeMillis, request.crossfadeMillis)
-    }
-
-    @Test
-    fun `should empty both caches when they are cleared on logout`() {
-        val loader = MuhabbetImageLoader.newImageLoader(context)
-        val disk = requireNotNull(loader.diskCache)
-        val memory = requireNotNull(loader.memoryCache)
-        disk.openEditor("media-42")?.let { editor ->
-            disk.fileSystem.write(editor.data) { writeUtf8("private chat photo") }
-            editor.commit()
-        }
-        val photo = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888).asImage()
-        memory[MemoryCache.Key("media-42")] = MemoryCache.Value(photo)
-        assertTrue("precondition: something is cached", disk.size > 0 && memory.size > 0)
-
-        MuhabbetImageLoader.clearCaches(loader)
-
-        assertEquals(0L, disk.size)
-        assertEquals(null, disk.openSnapshot("media-42"))
-        assertEquals(0L, memory.size)
     }
 
     @Test

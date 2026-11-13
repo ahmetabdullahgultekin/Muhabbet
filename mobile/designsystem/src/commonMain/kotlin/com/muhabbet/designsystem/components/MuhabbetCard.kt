@@ -67,11 +67,6 @@ fun MuhabbetCard(
             animationSpec = MuhabbetMotion.spatialFast(),
             label = "cardPress"
         )
-        // The same shadow → clip → background → clickable order Modifier.pressable owns, written out
-        // here on purpose: pressable lays down a plain shadowElevation, whereas a card's ground is a
-        // whole depth level (shadow in light, tonal step in dark, outline on OLED) via
-        // Modifier.depth, and the press scale has to sit outside all of it. Folding MuhabbetDepth
-        // into pressable would make every pressable carry a depth parameter only cards use.
         Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .depth(depth, shape)

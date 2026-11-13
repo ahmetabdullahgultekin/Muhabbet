@@ -28,14 +28,7 @@ object MuhabbetImageLoader {
     /** Share of the app's memory budget decoded bitmaps may hold. Coil's own default, made explicit. */
     const val MemoryCachePercent: Double = 0.25
 
-    /**
-     * Cap on the on-disk cache. A chat app's media is large and re-fetchable; 256 MB is generous.
-     *
-     * Media URLs are presigned and change on every fetch, so a raw URL is a cache key that never
-     * repeats. Requests for server media must carry a stable `memoryCacheKey` and `diskCacheKey`
-     * (the media id) — `MuhabbetImage` accepts a full `ImageRequest` for exactly this — or this
-     * cache fills with copies that are never read again.
-     */
+    /** Cap on the on-disk cache. A chat app's media is large and re-fetchable; 256 MB is generous. */
     const val DiskCacheMaxBytes: Long = 256L * 1024 * 1024
 
     /** Subdirectory of the platform cache directory the disk cache owns. */
@@ -66,16 +59,6 @@ object MuhabbetImageLoader {
         .crossfade(CrossfadeMillis)
         .apply(configure)
         .build()
-
-    /**
-     * Empties both caches of [loader]. The disk cache holds private chat media unencrypted, so the
-     * app must call this on logout and on account deletion — the next account on the device must
-     * not find the last one's photos in `cacheDir`, and a KVKK erasure request covers them too.
-     */
-    fun clearCaches(loader: ImageLoader) {
-        loader.memoryCache?.clear()
-        loader.diskCache?.clear()
-    }
 }
 
 /**
