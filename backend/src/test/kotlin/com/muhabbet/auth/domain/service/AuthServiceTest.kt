@@ -203,6 +203,24 @@ class AuthServiceTest {
     }
 
     @Test
+    fun `should record sign-in on an existing device without writing its row back when the device is known`() {
+        // #908: the row was read before the write. Saving it back would rewrite a push_token another
+        // device may have taken in between, so sign-in must use the targeted update only.
+        stubVerifiableOtp()
+        val user = User(id = UUID.randomUUID(), phoneNumber = validPhone, status = UserStatus.ACTIVE)
+        val known = Device(userId = user.id, platform = "android", deviceName = "Old", pushToken = "stale-token")
+        every { userRepository.findByPhoneNumber(validPhone) } returns user
+        every { deviceRepository.findByUserIdAndPlatform(user.id, "android") } returns known
+        every { deviceRepository.recordSignIn(known.id, "Test Device", any()) } returns 1
+
+        val result = authService.verifyOtp(validPhone, validOtp, "Test Device", "android")
+
+        assertEquals(known.id.toString(), result.deviceId)
+        verify(exactly = 1) { deviceRepository.recordSignIn(known.id, "Test Device", any()) }
+        verify(exactly = 0) { deviceRepository.save(any()) }
+    }
+
+    @Test
     fun `should mint an ordinary token when the user row does not have is_admin set`() {
         stubVerifiableOtp()
         val plain = User(id = UUID.randomUUID(), phoneNumber = validPhone, status = UserStatus.ACTIVE)

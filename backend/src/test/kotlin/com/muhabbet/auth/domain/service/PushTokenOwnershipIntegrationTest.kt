@@ -215,6 +215,34 @@ class PushTokenOwnershipIntegrationTest {
     }
 
     @Test
+    fun `signing in on a device read before its token moved does not take the token back`() {
+        // Sign-in reads the device row, then writes it. If another account's registration moves the
+        // phone's token in between, writing the whole row back would reinstate the token on the
+        // stale row — a second holder the index refuses, so sign-in would fail with a 500.
+        val a = accountWithDevice()
+        val b = accountWithDevice()
+        val token = newToken()
+        registerPushToken.registerPushToken(a.userId, a.id, token, null)
+        val readBySignIn = deviceRepository.findById(a.id) ?: error("device vanished")
+        assertEquals(token, readBySignIn.pushToken)
+
+        registerPushToken.registerPushToken(b.userId, b.id, token, null) // moves it to b
+
+        // What sign-in used to do with that row: refused by the index.
+        assertThrows<DataIntegrityViolationException> {
+            deviceRepository.save(readBySignIn.copy(deviceName = "Pixel 9", lastActiveAt = Instant.now()))
+        }
+        // What it does now.
+        TransactionTemplate(transactionManager).executeWithoutResult {
+            assertEquals(1, deviceRepository.recordSignIn(a.id, "Pixel 9", Instant.now()))
+        }
+
+        assertNull(tokenOf(a), "sign-in reinstated a token another device had taken")
+        assertEquals(token, tokenOf(b))
+        assertEquals("Pixel 9", deviceRepository.findById(a.id)?.deviceName)
+    }
+
+    @Test
     fun `two devices registering one token at the same moment end with the later one holding it`() {
         // Without the per-token lock neither transaction can see the other's uncommitted row, so
         // neither detaches anything and the second fails on the unique index instead of winning.

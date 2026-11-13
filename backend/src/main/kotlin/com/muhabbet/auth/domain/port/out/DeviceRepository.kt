@@ -1,6 +1,7 @@
 package com.muhabbet.auth.domain.port.out
 
 import com.muhabbet.auth.domain.model.Device
+import java.time.Instant
 import java.util.UUID
 
 interface DeviceRepository {
@@ -24,12 +25,25 @@ interface DeviceRepository {
     /** All of a user's non-revoked devices — the device set used for (future) fan-out. */
     fun findActiveByUserId(userId: UUID): List<Device>
 
+    /**
+     * Records a sign-in on an existing device: its name and last-active time, and **nothing else**.
+     *
+     * Sign-in must not go through [save]. [save] writes every column of the row it is given, and
+     * the row sign-in holds was read before the write — if another device's registration moved the
+     * phone's push token away in between, saving it back would reinstate the token on this row and
+     * fail on the unique index (#908). A targeted update cannot carry a stale `push_token`.
+     * Returns how many rows were updated (0 if the device no longer exists).
+     */
+    fun recordSignIn(deviceId: UUID, deviceName: String, at: Instant): Int
+
     // ─── Push registration (#908) ───
     //
     // A push token addresses one app install on one phone, so it can belong to at most one device
     // row. `devices.push_token` carries a unique index (V29) that enforces it; these two methods
-    // are the only writes that move a token *between* rows, so every caller goes through them
-    // rather than nulling the column on a row it happened to load.
+    // are the only writes that move a token *between* rows. The only [save] calls that carry a
+    // push_token set it explicitly to what the row must hold now — the token just registered after
+    // the detach, or null on logout and revoke; nothing saves a loaded row's token back unchanged
+    // (see [recordSignIn]).
 
     /**
      * Takes [pushToken] away from every device except [keepDeviceId], and returns how many rows

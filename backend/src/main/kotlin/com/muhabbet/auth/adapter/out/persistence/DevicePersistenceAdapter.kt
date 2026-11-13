@@ -5,6 +5,7 @@ import com.muhabbet.auth.adapter.out.persistence.repository.SpringDataDeviceRepo
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.util.UUID
 
 @Component
@@ -31,6 +32,9 @@ class DevicePersistenceAdapter(
 
     override fun findActiveByUserId(userId: UUID): List<Device> =
         springDataDeviceRepository.findByUserIdAndRevokedAtIsNull(userId).map { it.toDomain() }
+
+    override fun recordSignIn(deviceId: UUID, deviceName: String, at: Instant): Int =
+        springDataDeviceRepository.recordSignIn(deviceId, deviceName, at)
 
     override fun detachPushTokenFromOtherDevices(pushToken: String, keepDeviceId: UUID): Int {
         springDataDeviceRepository.lockPushToken(pushToken)

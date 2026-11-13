@@ -342,12 +342,11 @@ open class AuthService(
         // Find or create device
         val existingDevice = deviceRepository.findByUserIdAndPlatform(user.id, platform)
         val device = if (existingDevice != null) {
-            deviceRepository.save(
-                existingDevice.copy(
-                    deviceName = deviceName,
-                    lastActiveAt = Instant.now()
-                )
-            )
+            // A targeted update, not save(existingDevice.copy(...)): the row was read above, and
+            // saving it back would rewrite a push_token another device may have taken since (#908).
+            val now = Instant.now()
+            deviceRepository.recordSignIn(existingDevice.id, deviceName, now)
+            existingDevice.copy(deviceName = deviceName, lastActiveAt = now)
         } else {
             deviceRepository.save(
                 Device(

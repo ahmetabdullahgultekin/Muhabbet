@@ -54,7 +54,7 @@ module/
 - `user` — Profile endpoints in auth module for now (`GET/PATCH /users/me`)
 
 ### Cross-Cutting (`shared/` package in backend)
-Five packages — the list is stable, the counts are not. It said "23 files" on 2026-08-21 and was
+Six packages — the list is stable, the counts are not. It said "23 files" on 2026-08-21 and was
 **25** on 2026-09-02; `AppConfig` said 33 `@Bean`s and had **36**. Count them, do not quote them —
 this is the same trap as the test counts in the build section, and it has already caught this file.
 - `config/` — `AppConfig` (where domain services are wired so they stay Spring-free),
@@ -69,14 +69,21 @@ this is the same trap as the test counts in the build section, and it has alread
   for the entry you want rather than looking for a file named after the enum.
 - `web/` — `ApiResponseBuilder`, the only place the response envelope is built
 - `analytics/` — `AnalyticsEvent`
-- ~~`event/` — DomainEvent marker interface~~ — **does not exist**, and neither does the mechanism
-  it implies (corrected 2026-08-21 from two independent checks, re-verified 2026-09-02). There is no `DomainEvent` type
-  anywhere in the repository, and not a single `@EventListener`, `@TransactionalEventListener` or
-  `publishEvent` call in the backend. `messaging/domain/event/MessagingEvents.kt` declares two POJOs
-  that nothing publishes or listens to, and `EncryptionService` takes an `ApplicationEventPublisher`
-  it never uses and is not wired with. **Rule 3 below describes an intention, not the code** — when
-  you need cross-module communication, you are building the first instance of it, not following an
-  existing pattern.
+- `event/` — application events that cross a module boundary. **One so far:**
+  `PushTokenRejectedEvent` (#908, added 2026-11-13), published by the messaging module's
+  `FcmPushNotificationAdapter` when FCM says a token is permanently dead and consumed by the auth
+  module's `auth/adapter/in/event/PushTokenRejectedListener`, which calls
+  `InvalidatePushTokenUseCase`. That listener is the backend's **first and only** `@EventListener`,
+  and the adapter's the first `publishEvent`. Before it (corrected 2026-08-21, re-verified
+  2026-09-02) there was no event mechanism at all, and some leftovers still say otherwise: there is
+  no `DomainEvent` marker type anywhere, `messaging/domain/event/MessagingEvents.kt` declares two
+  POJOs that nothing publishes or listens to, and `EncryptionService` takes an
+  `ApplicationEventPublisher` it never uses and is not wired with. Know what the one instance is
+  before copying it: **synchronous, no transaction phase, no async executor**, and the listener
+  swallows its own failures so a cleanup error never reaches the publisher. That fits a
+  fire-and-forget notice from a publisher that holds no transaction; it is not a general bus with
+  delivery guarantees — an event published inside a transaction is delivered before commit, and
+  one dropped by a crash is gone.
 
 ## Software Engineering Principles — ALWAYS Follow These
 
@@ -115,11 +122,16 @@ Every piece of code in this project MUST adhere to these principles. These are n
    - **NO JPA entity instantiation in controllers.** Controllers must not import `*JpaEntity` classes.
    - **NO `SpringData*Repository` in controllers.** Controllers call use case interfaces only.
 2. **Domain models ≠ JPA entities.** Always map between them. Domain model lives in `domain/model/`, JPA entity lives in `adapter/out/persistence/`.
-3. **Modules communicate via Spring ApplicationEvent**, never by direct imports across module
-   boundaries. **Aspirational — nothing implements this today** (see the note above). Cross-module
-   reach currently goes through a port with an adapter on the other side (`BlockPolicyPort`,
-   `ReadReceiptPolicyPort`, `UserDirectoryPort`, `OfflinePushSender`), which is the pattern to
-   follow until an actual event bus exists.
+3. **Modules never import each other's domain types directly.** Two mechanisms exist, and which
+   one fits depends on the direction of the call:
+   - **A port with an adapter on the other side** when the caller needs an answer or an effect it
+     waits for — `BlockPolicyPort`, `ReadReceiptPolicyPort`, `UserDirectoryPort`,
+     `OfflinePushSender`. This is still almost all cross-module reach, and the default.
+   - **A Spring `ApplicationEvent` in `shared/event/`** when one module reports something that
+     happened and has no use for who reacts — `PushTokenRejectedEvent` (#908) is the first and
+     only one (see the `event/` note above for what it does and does not guarantee). The rule
+     used to read "modules communicate via ApplicationEvent" while nothing did; it is now one of
+     two tools, not the only one.
 4. **All use cases are interfaces** (in-ports). Services implement them.
 5. **All repositories are interfaces** (out-ports). JPA adapters implement them.
 6. **No Spring annotations in domain layer.** Domain is framework-agnostic.
@@ -1140,8 +1152,13 @@ evidence that it works.
   mix it with transactional statements), and precede it with `DROP INDEX CONCURRENTLY IF EXISTS` so a
   failed build's INVALID index cannot be kept by a retry.
 - **A push token belongs to one device** (#908): `devices.push_token` is globally unique (V29).
-  Move a token only through `DeviceRepository.detachPushTokenFromOtherDevices` (per-token advisory
-  lock) or `clearPushToken`; never null or copy the column from a row you happened to load.
+  Move a token between rows only through `DeviceRepository.detachPushTokenFromOtherDevices`
+  (per-token advisory lock) or `clearPushToken`. **Never save a loaded row's token back
+  unchanged**: `DeviceRepository.save` writes every column, so a row read before another device
+  took its token would reinstate it and fail on the index. A `save` may carry `push_token` only
+  when it sets it explicitly to what the row must hold now — registration (after the detach),
+  logout and companion revoke (to null). Anything else that touches a device row, sign-in included,
+  uses a targeted update such as `recordSignIn`.
 - **MinIO `@PostConstruct` in tests**: Any `@PostConstruct` that connects to MinIO on startup will crash the Spring test context if MinIO isn't running. Wrap in try-catch and log a warning instead of failing.
 - **MockK test stubs must match what the controller actually calls**: If the controller calls `statusService.getContactStatusesForUser(userId)`, stub THAT — not a different method like `manageStatusUseCase.getContactStatuses()`. Stubs that don't match throw `MockKException: no answer found`.
 - **Firebase credentials**: `infra/firebase-adminsdk.json` (gitignored, mounted in docker-compose.prod.yml).

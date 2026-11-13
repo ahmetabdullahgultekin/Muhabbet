@@ -83,6 +83,26 @@ class PushTokenUniquenessMigrationTest {
             it.executeQuery().use { rs -> rs.next(); rs.getString(1) }
         }
 
+    /** (indisunique, indisvalid) of the named index, or null if it does not exist. */
+    private fun Connection.uniqueAndValid(indexName: String): Pair<Boolean, Boolean>? =
+        prepareStatement(
+            """
+            SELECT ix.indisunique, ix.indisvalid
+            FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid
+            WHERE c.relname = ?
+            """.trimIndent()
+        ).use {
+            it.setString(1, indexName)
+            it.executeQuery().use { rs -> if (rs.next()) rs.getBoolean(1) to rs.getBoolean(2) else null }
+        }
+
+    private fun Connection.setToken(deviceId: UUID, token: String): Int =
+        prepareStatement("UPDATE devices SET push_token = ? WHERE id = ?").use {
+            it.setString(1, token)
+            it.setObject(2, deviceId)
+            it.executeUpdate()
+        }
+
     @Test
     fun `should leave each token on its most recently active device and then enforce one holder`() {
         flyway(MigrationVersion.fromVersion("27")).migrate()
@@ -108,22 +128,14 @@ class PushTokenUniquenessMigrationTest {
             assertNull(db.tokenOf(otherBlank))
             assertNull(db.tokenOf(revoked), "a revoked companion kept a delivery address")
 
-            val index = db.prepareStatement(
-                """
-                SELECT ix.indisunique, ix.indisvalid
-                FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid
-                WHERE c.relname = 'uq_devices_push_token'
-                """.trimIndent()
-            ).use { it.executeQuery().use { rs -> if (rs.next()) rs.getBoolean(1) to rs.getBoolean(2) else null } }
-            assertEquals(true to true, index, "uq_devices_push_token must exist, be unique and be valid")
+            assertEquals(
+                true to true,
+                db.uniqueAndValid("uq_devices_push_token"),
+                "uq_devices_push_token must exist, be unique and be valid"
+            )
 
             // And it bites: a second holder is refused by the database itself.
-            val ex = assertThrows<SQLException> {
-                db.prepareStatement("UPDATE devices SET push_token = 'phone-token' WHERE id = ?").use {
-                    it.setObject(1, oldest)
-                    it.executeUpdate()
-                }
-            }
+            val ex = assertThrows<SQLException> { db.setToken(oldest, "phone-token") }
             assertEquals("23505", ex.sqlState, "expected a unique violation, got: ${ex.message}")
 
             // Many devices with no token are still fine — NULLs are not a shared value. Throws if not.

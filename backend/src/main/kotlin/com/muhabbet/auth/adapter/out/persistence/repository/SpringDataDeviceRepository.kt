@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.time.Instant
 import java.util.UUID
 
 interface SpringDataDeviceRepository : JpaRepository<DeviceJpaEntity, UUID> {
@@ -12,6 +13,15 @@ interface SpringDataDeviceRepository : JpaRepository<DeviceJpaEntity, UUID> {
     fun findByUserId(userId: UUID): List<DeviceJpaEntity>
     fun findByUserIdIn(userIds: Collection<UUID>): List<DeviceJpaEntity>
     fun findByUserIdAndRevokedAtIsNull(userId: UUID): List<DeviceJpaEntity>
+
+    /** Sign-in's write: name and last-active only, never `push_token` (#908, see the port). */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE DeviceJpaEntity d SET d.deviceName = :deviceName, d.lastActiveAt = :at WHERE d.id = :deviceId")
+    fun recordSignIn(
+        @Param("deviceId") deviceId: UUID,
+        @Param("deviceName") deviceName: String,
+        @Param("at") at: Instant
+    ): Int
 
     /**
      * A transaction-scoped advisory lock keyed on the token (#908), released at commit or rollback.
