@@ -66,11 +66,12 @@ permissions:
 jobs:
   cleanup:
     # Self-hosted: GitHub-hosted jobs are refused before they start on this account, with a billing
-    # lock that renders as a red X and no log. See dependabot-auto-merge.yml for the full note.
+    # lock that renders as a red X and no log (CICD-04, docs/process/ci-trust-boundary.md).
     runs-on: [self-hosted, linux, x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Delete stale branches

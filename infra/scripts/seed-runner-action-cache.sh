@@ -17,14 +17,20 @@
 # and returns early if it exists. Runner 2.336.0 has no ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE knob
 # (checked: the string is in none of its assemblies), so the watermark is the mechanism available.
 #
-# We populate that tree with `git clone --depth 1 --branch <ref>` against github.com, which is a
-# different host from codeload and is not throttled. The result is byte-identical to what the runner
-# would have extracted from the tarball: the tarball is just the tree at that ref.
+# We populate that tree from github.com, which is a different host from codeload and is not
+# throttled: `git fetch --depth 1 origin <sha>` followed by a checkout of FETCH_HEAD. The result is
+# byte-identical to what the runner would have extracted from the tarball: the tarball is just the
+# tree at that commit.
 #
-# THE TRADE-OFF, STATED PLAINLY: a seeded action is pinned. The runner will never re-download it, so
-# if `v4` moves — including for a security fix — this host keeps running the old one until the cache
-# is refreshed. That is why this is a script you re-run rather than a thing you did once. Run it
-# after any runner reinstall, and on a schedule you are willing to defend; `--force` re-clones.
+# Every `uses:` is pinned to a full commit SHA (F35), and the runner caches a SHA-pinned action under
+# that SHA, not under the tag in the trailing comment. So the list below is read from the workflows
+# themselves rather than kept by hand: a hand-kept `@v4` list stopped matching anything the moment
+# the pins landed, and the cache silently went unused.
+#
+# Because every ref is a SHA, a seeded copy can never go stale under its own name: when Dependabot
+# bumps a pin, the workflow names a new SHA, the cache has no entry for it, and the runner downloads
+# it (or this script seeds it on its next run). Re-run after any runner reinstall and after merging
+# an action bump; `--force` re-fetches everything.
 #
 # Usage:
 #   ./seed-runner-action-cache.sh [--force] [runner-dir ...]
@@ -32,30 +38,25 @@
 
 set -euo pipefail
 
-# Every action referenced by .github/workflows/*.yml, as <owner>/<repo>@<ref>. A sub-action such as
-# `gradle/actions/setup-gradle@v4` or `github/codeql-action/init@v3` caches under its *repository*,
-# not its path, so it is listed once here as `gradle/actions@v4` / `github/codeql-action@v3`.
-#
-# `dependabot/fetch-metadata` is listed even though `dependabot-auto-merge.yml` currently runs on
-# `ubuntu-latest`, where this cache is irrelevant. The invariant the list keeps is "every action any
-# workflow references", not "every action the self-hosted runner happens to need today" — the moment
-# somebody moves that job to `self-hosted` to save hosted minutes, an unlisted action is a job that
-# dies in *Set up job* on the next 429 day, with no log to explain it.
-ACTIONS=(
-  "actions/checkout@v4"
-  "actions/setup-java@v4"
-  "actions/upload-artifact@v4"
-  "appleboy/ssh-action@v1"
-  "aquasecurity/trivy-action@master"
-  "dependabot/fetch-metadata@v2"
-  "docker/build-push-action@v6"
-  "docker/setup-buildx-action@v3"
-  "github/codeql-action@v3"
-  "gitleaks/gitleaks-action@v2"
-  "gradle/actions@v4"
-  "madrapps/jacoco-report@v1.7.1"
-  "mikepenz/action-junit-report@v5"
+# Every action referenced by .github/workflows/*.yml, as <owner>/<repo>@<sha>. A sub-action such as
+# `gradle/actions/setup-gradle@<sha>` caches under its *repository*, not its path, so the path is
+# dropped and duplicates collapse. Override the directory with WORKFLOWS_DIR when running the script
+# from somewhere other than a checkout of this repository.
+WORKFLOWS_DIR="${WORKFLOWS_DIR:-$(cd "$(dirname "$0")/../.." && pwd)/.github/workflows}"
+if [ ! -d "$WORKFLOWS_DIR" ]; then
+  echo "Workflow directory not found: $WORKFLOWS_DIR (set WORKFLOWS_DIR)." >&2
+  exit 1
+fi
+mapfile -t ACTIONS < <(
+  grep -hoE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]+)?@[0-9a-f]{40}' \
+      "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml 2>/dev/null \
+    | sed -E 's/^uses:[[:space:]]*//; s#^([^/]+/[^/@]+)[^@]*@#\1@#' \
+    | sort -u
 )
+if [ ${#ACTIONS[@]} -eq 0 ]; then
+  echo "No SHA-pinned actions found under $WORKFLOWS_DIR." >&2
+  exit 1
+fi
 
 FORCE=0
 RUNNER_DIRS=()
@@ -102,7 +103,9 @@ for runner in "${RUNNER_DIRS[@]}"; do
     rm -rf "$dest" "$marker"
     mkdir -p "$(dirname "$dest")"
 
-    if git clone --quiet --depth 1 --branch "$ref" "https://github.com/$repo" "$dest" 2>/dev/null; then
+    if git init --quiet "$dest" \
+        && git -C "$dest" fetch --quiet --depth 1 "https://github.com/$repo" "$ref" 2>/dev/null \
+        && git -C "$dest" -c advice.detachedHead=false checkout --quiet FETCH_HEAD; then
       rm -rf "$dest/.git"
       # The runner writes a timestamp here. It never reads the contents — only File.Exists — but
       # matching the format keeps the directory legible to whoever looks at it next.
@@ -110,7 +113,7 @@ for runner in "${RUNNER_DIRS[@]}"; do
       echo "   seed  $spec"
       seeded=$((seeded + 1))
     else
-      echo "   FAIL  $spec (could not clone $ref)" >&2
+      echo "   FAIL  $spec (could not fetch $ref)" >&2
       rm -rf "$dest"
       failed=$((failed + 1))
     fi
