@@ -77,6 +77,7 @@ after rotation, that commit is added to the commit allowlist in `.gitleaks.toml`
 | 2026-11-12 | This record opened. | — |
 | 2026-11-12 | Owner states that production runs on mordecai and that `muhabbet-mordecai` is the owner's machine; the CX43 no longer runs Muhabbet production. A second JWT value (old `test_bot.py`) and a third (docs file) are found; the docs copy is redacted from the current tree. | owner; security review |
 | 2026-11-13 | MinIO root password rotated; Muhabbet moved to the bucket-scoped user `muhabbet-app`. | §6 |
+| 2026-11-13 | `harden-host.sh` on the production host: **no** env file or running container holds any of the six values known to have leaked (both `.env.prod` sets, the `test_bot.py` JWT value, the docs-file values — compared by SHA-256), so no JWT rotation is needed. The `muhabbet-mordecai` runner service was stopped and disabled; anonymous read on `muhabbet-media/thumbnails` removed (`mandalean-media` stays download-only, as that project serves public media). Six runners of four other, private repositories still run on the production host, three of them as the `deploy` user that owns the Muhabbet env file — see A2. Full-history gitleaks over all 498 refs (PR refs included) found no secret beyond the ones listed in §2. | owner terminal output; scan run 2026-11-13 |
 
 `forks_count: 0` does not bound exposure: clones, caches and scrapers of public repositories are not
 counted.
