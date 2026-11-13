@@ -238,6 +238,34 @@ val verifyDesignSystem by tasks.registering {
             }
         }
 
+        // screenshotCoverage (#759): public design-system composables that no screenshot test
+        // names. Not a line pattern, so it is computed here rather than as a UiRule, but it rides
+        // the same ratchet: the count may only fall, and a new component arrives with its golden.
+        run {
+            val componentsDir = File(designSystemSrc, "commonMain/kotlin/com/muhabbet/designsystem/components")
+            val screenshotTests = File(designSystemSrc, "androidUnitTest/kotlin").kotlinFiles()
+                .filter { it.name.endsWith("ScreenshotTest.kt") }
+                .joinToString("\n") { it.analysableLines().joinToString("\n") }
+            val publicComposable = Regex("""^fun\s+([A-Z][A-Za-z0-9]*)\s*\(""")
+            val uncovered = componentsDir.kotlinFiles().flatMap { file ->
+                val lines = file.analysableLines()
+                lines.mapIndexedNotNull { i, line ->
+                    val name = publicComposable.find(line.trim())?.groupValues?.get(1) ?: return@mapIndexedNotNull null
+                    val annotated = (maxOf(0, i - 3) until i).any { lines[it].contains("@Composable") }
+                    name.takeIf { annotated }
+                }
+            }.distinct().filterNot { Regex("""\b$it\s*\(""").containsMatchIn(screenshotTests) }
+            val id = "screenshotCoverage"
+            counts[id] = uncovered.size
+            val allowed = baseline[id]
+            when {
+                allowed == null -> logger.lifecycle("ui-guardrails: new rule '$id' at ${uncovered.size} — recording as baseline")
+                uncovered.size > allowed -> regressions += "  $id: ${uncovered.size} (baseline $allowed, +${uncovered.size - allowed})\n" +
+                    "      Every public design-system composable needs a golden in a *ScreenshotTest. Uncovered: ${uncovered.sorted().joinToString()}"
+                uncovered.size < allowed -> logger.lifecycle("ui-guardrails: $id improved $allowed -> ${uncovered.size} (lower the baseline)")
+            }
+        }
+
         if (project.hasProperty("updateUiBaseline") || !baselineFile.exists()) {
             baselineFile.writeText(
                 buildString {

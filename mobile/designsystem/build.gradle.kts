@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.android.library")
+    id("io.github.takahirom.roborazzi")
 }
 
 group = "com.muhabbet"
@@ -73,6 +74,19 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+
+        // Screenshot goldens (#759). Robolectric renders with the real Android graphics stack
+        // (GraphicsMode.NATIVE) on the JVM, so the CI host needs no emulator. Versions pinned to
+        // what the module already resolves (androidx.compose.ui 1.11.2).
+        androidUnitTest.dependencies {
+            implementation("junit:junit:4.13.2")
+            implementation("org.robolectric:robolectric:4.17")
+            implementation("io.github.takahirom.roborazzi:roborazzi:1.79.0")
+            implementation("io.github.takahirom.roborazzi:roborazzi-compose:1.79.0")
+            implementation("io.github.takahirom.roborazzi:roborazzi-junit-rule:1.79.0")
+            implementation("androidx.compose.ui:ui-test-junit4:1.11.2")
+            implementation("androidx.compose.ui:ui-test-manifest:1.11.2")
+        }
     }
 }
 
@@ -89,5 +103,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    // Robolectric needs the merged resources and assets — Compose Resources ships Manrope as an
+    // Android asset, and a golden rendered in the fallback font would be a lie about the product.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }

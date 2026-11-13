@@ -12,6 +12,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.10" apply false
     id("app.cash.sqldelight") version "2.3.2" apply false
     id("com.google.gms.google-services") version "4.5.0" apply false
+    // Screenshot tests on the JVM (Robolectric native graphics) — the CI host has no emulator.
+    id("io.github.takahirom.roborazzi") version "1.79.0" apply false
 }
 
 // Static UI guardrails. Applied at the root because they must run without an Android SDK — see the

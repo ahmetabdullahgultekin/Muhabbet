@@ -2,6 +2,11 @@ name: Mobile CI
 
 on:
   workflow_dispatch:
+    inputs:
+      record_goldens:
+        description: 'Re-record the design-system screenshot goldens and upload them as an artifact (#759)'
+        type: boolean
+        default: false
   push:
     branches: [main, develop]
     paths:
@@ -191,9 +196,37 @@ jobs:
 
       # Until now nothing in CI ran the mobile tests at all — including the WCAG contrast checks
       # that guard the palette. Not continue-on-error: a failure here should stop the build.
+      #
+      # The design-system tests run through `verifyRoborazziDebug`, which is `testDebugUnitTest`
+      # with every `captureRoboImage` compared against its committed golden (#759): a component
+      # whose pixels changed fails here, with the diff image uploaded below. Goldens are rendered by
+      # Robolectric's native graphics on the JVM, so this needs no emulator.
       - name: Run mobile unit tests
-        if: steps.changes.outputs.mobile == 'true'
-        run: ./gradlew :mobile:designsystem:testDebugUnitTest :mobile:composeApp:testDebugUnitTest
+        if: steps.changes.outputs.mobile == 'true' && inputs.record_goldens != true
+        run: ./gradlew :mobile:designsystem:verifyRoborazziDebug :mobile:composeApp:testDebugUnitTest
+
+      # Manual re-record, for an intended visual change: run the workflow with record_goldens,
+      # download the artifact, and commit the PNGs it contains alongside the change that caused them.
+      - name: Record screenshot goldens
+        if: inputs.record_goldens == true
+        run: ./gradlew :mobile:designsystem:recordRoborazziDebug
+
+      - name: Upload recorded goldens
+        if: inputs.record_goldens == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: designsystem-goldens
+          path: mobile/designsystem/src/androidUnitTest/goldens/
+          retention-days: 7
+
+      - name: Upload screenshot diffs
+        if: failure() && steps.changes.outputs.mobile == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: designsystem-screenshot-diffs
+          path: mobile/designsystem/build/outputs/roborazzi/
+          retention-days: 3
 
       # Uploading a report is a convenience, not a gate. It has failed the whole Android job on
       # "Artifact storage quota has been hit" — an account-level condition with nothing to do with
