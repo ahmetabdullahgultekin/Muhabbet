@@ -278,6 +278,17 @@ List conversations (inbox).
 
 ---
 
+### GET /api/v1/conversations/{conversationId}
+One conversation, for a member of it (#800). Same shape as a list item, except that every
+participant carries their **real** `role` (the list reports `member` for everyone) and
+`announcementOnly` reflects the group setting. Screens that hold only an id — Chat, Group Info —
+use this instead of scanning a page of the list.
+
+**Errors:** `404 CONV_NOT_FOUND` when the conversation does not exist **or the caller is not a
+member** — the two are deliberately indistinguishable.
+
+---
+
 ### POST /api/v1/conversations
 Create a new conversation.
 

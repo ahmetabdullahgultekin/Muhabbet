@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
+import com.muhabbet.messaging.domain.port.`in`.GetConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.PresencePort
@@ -33,6 +34,7 @@ import java.util.UUID
 class ConversationController(
     private val createConversationUseCase: CreateConversationUseCase,
     private val getConversationsUseCase: GetConversationsUseCase,
+    private val getConversationUseCase: GetConversationUseCase,
     private val manageGroupUseCase: com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase,
     private val conversationRepository: com.muhabbet.messaging.domain.port.out.ConversationRepository,
     private val userRepository: UserRepository,
@@ -162,6 +164,59 @@ class ConversationController(
         )
     }
 
+    /**
+     * One conversation by id, for the member asking (#800).
+     *
+     * Unlike the list, every participant carries their **real** role and the conversation its
+     * announcement-only flag, because the screens that call this — Chat and Group Info — decide
+     * from exactly those whether to offer admin controls and whether the composer is open. The
+     * list reports every participant as MEMBER; this must not.
+     *
+     * Missing and not-a-member are both 404 `CONV_NOT_FOUND` (see [GetConversationUseCase]).
+     */
+    @GetMapping("/{conversationId}")
+    fun getConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<ConversationResponse>> {
+        val userId = AuthenticatedUser.currentUserId()
+        val detail = getConversationUseCase.getConversation(userId, conversationId)
+
+        val memberUserIds = detail.members.map { it.userId }
+        val usersMap = userRepository.findAllByIds(memberUserIds).associateBy { it.id }
+        val onlineIds = presencePort.getOnlineUserIds(memberUserIds) - presenceHiddenFrom(userId, memberUserIds)
+        val conversation = detail.conversation
+
+        val response = ConversationResponse(
+            id = conversation.id.toString(),
+            type = com.muhabbet.shared.model.ConversationType.valueOf(conversation.type.name),
+            name = conversation.name,
+            avatarUrl = conversation.avatarUrl,
+            participants = detail.members.map { m ->
+                val user = usersMap[m.userId]
+                ParticipantResponse(
+                    userId = m.userId.toString(),
+                    displayName = user?.displayName,
+                    phoneNumber = user?.phoneNumber,
+                    avatarUrl = user?.avatarUrl,
+                    role = SharedMemberRole.valueOf(m.role.name),
+                    isOnline = m.userId in onlineIds
+                )
+            },
+            lastMessagePreview = detail.lastMessage?.content?.take(LAST_MESSAGE_PREVIEW_LENGTH),
+            lastMessageContentType = detail.lastMessage?.contentType?.let {
+                runCatching { com.muhabbet.shared.model.ContentType.valueOf(it.name) }.getOrNull()
+            },
+            lastMessageAt = detail.lastMessage?.serverTimestamp?.toString(),
+            unreadCount = detail.unreadCount,
+            createdAt = conversation.createdAt.toString(),
+            disappearAfterSeconds = conversation.disappearAfterSeconds,
+            isPinned = detail.viewer.pinned,
+            isMuted = detail.viewer.isMuted(),
+            isArchived = detail.viewer.archived,
+            isLocked = detail.viewer.locked,
+            announcementOnly = conversation.announcementOnly
+        )
+        return ApiResponseBuilder.ok(response)
+    }
+
     @DeleteMapping("/{conversationId}")
     fun deleteConversation(@PathVariable conversationId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
@@ -268,6 +323,11 @@ class ConversationController(
         val userId = AuthenticatedUser.currentUserId()
         val updated = manageGroupUseCase.setAnnouncementMode(conversationId, userId, request.enabled)
         return ApiResponseBuilder.ok(AnnouncementModeResponse(announcementOnly = updated.announcementOnly))
+    }
+
+    private companion object {
+        /** Same truncation the list applies in `ConversationService.getConversations`. */
+        const val LAST_MESSAGE_PREVIEW_LENGTH = 100
     }
 }
 

@@ -59,6 +59,7 @@ class ConversationAnnouncementControllerTest {
         controller = ConversationController(
             createConversationUseCase = mockk<CreateConversationUseCase>(),
             getConversationsUseCase = mockk<GetConversationsUseCase>(),
+            getConversationUseCase = mockk(),
             manageGroupUseCase = manageGroupUseCase,
             conversationRepository = mockk<ConversationRepository>(relaxed = true),
             userRepository = mockk<UserRepository>(),

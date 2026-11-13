@@ -63,6 +63,7 @@ class ConversationPresenceBlockTest {
         controller = ConversationController(
             createConversationUseCase = createConversationUseCase,
             getConversationsUseCase = getConversationsUseCase,
+            getConversationUseCase = mockk(),
             manageGroupUseCase = manageGroupUseCase,
             conversationRepository = conversationRepository,
             userRepository = userRepository,

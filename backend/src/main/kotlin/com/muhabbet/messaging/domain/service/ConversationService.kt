@@ -5,10 +5,12 @@ import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.MemberRole
+import com.muhabbet.messaging.domain.port.`in`.ConversationDetail
 import com.muhabbet.messaging.domain.port.`in`.ConversationPage
 import com.muhabbet.messaging.domain.port.`in`.ConversationSummary
 import com.muhabbet.messaging.domain.port.`in`.ConversationWithMembers
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
+import com.muhabbet.messaging.domain.port.`in`.GetConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -23,7 +25,7 @@ open class ConversationService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val userRepository: UserRepository
-) : CreateConversationUseCase, GetConversationsUseCase {
+) : CreateConversationUseCase, GetConversationsUseCase, GetConversationUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -159,6 +161,23 @@ open class ConversationService(
         val nextCursor = if (hasMore) page.lastOrNull()?.conversationId?.toString() else null
 
         return ConversationPage(items = page, nextCursor = nextCursor, hasMore = hasMore)
+    }
+
+    @Transactional(readOnly = true)
+    override fun getConversation(userId: UUID, conversationId: UUID): ConversationDetail {
+        val conversation = conversationRepository.findById(conversationId)
+            ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
+        val members = conversationRepository.findMembersByConversationId(conversationId)
+        // Not a member reads exactly like "does not exist" — see GetConversationUseCase.
+        val viewer = members.firstOrNull { it.userId == userId }
+            ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
+        return ConversationDetail(
+            conversation = conversation,
+            members = members,
+            viewer = viewer,
+            lastMessage = messageRepository.getLastMessages(listOf(conversationId))[conversationId],
+            unreadCount = messageRepository.getUnreadCounts(listOf(conversationId), userId)[conversationId] ?: 0
+        )
     }
 
     // ─── Helpers ──────────────────────────────────────────────
