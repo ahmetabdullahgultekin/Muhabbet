@@ -46,6 +46,7 @@ import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.app.navigation.BACKEND_CODE_LIFETIME_SECONDS
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetButton
 
@@ -54,7 +55,9 @@ fun OtpVerifyScreen(
     phoneNumber: String,
     mockCode: String? = null,
     firebaseVerificationId: String? = null,
+    initialCountdownSeconds: Int,
     onOtpVerified: (isNewUser: Boolean) -> Unit,
+    onCodeResent: (devCode: String?) -> Unit = {},
     onBack: () -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
@@ -72,7 +75,9 @@ fun OtpVerifyScreen(
     // the SMS code a second time. Firebase refuses a verification code it has already consumed, so
     // without this the retry would fail before it ever reached our own backend.
     var firebaseIdToken by remember { mutableStateOf<String?>(null) }
-    var countdown by remember { mutableStateOf(if (firebaseVerificationId != null) 60 else 300) }
+    // Seeded from when the code was *sent*, which the sign-in flow keeps (#819), not from full: a
+    // rotation or a process kill used to give an expired code a fresh five minutes on screen.
+    var countdown by remember { mutableStateOf(initialCountdownSeconds) }
     var isResending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -318,8 +323,9 @@ fun OtpVerifyScreen(
                         isResending = true
                         scope.launch {
                             try {
-                                authRepository.requestOtp(phoneNumber)
-                                countdown = 300
+                                val resent = authRepository.requestOtp(phoneNumber)
+                                onCodeResent(resent.mockCode)
+                                countdown = BACKEND_CODE_LIFETIME_SECONDS
                                 otp = ""
                                 error = null
                             } catch (e: Exception) {

@@ -49,6 +49,7 @@
     <string name="phone_continue">Continue</string>
     <string name="phone_invalid">Invalid phone number</string>
     <string name="phone_auth_failed">Couldn't start verification. Please try again later.</string>
+    <string name="session_expired_notice">Your session has expired. Please sign in again to continue.</string>
 
     <!-- OtpVerifyScreen -->
     <string name="otp_title">Verification Code</string>

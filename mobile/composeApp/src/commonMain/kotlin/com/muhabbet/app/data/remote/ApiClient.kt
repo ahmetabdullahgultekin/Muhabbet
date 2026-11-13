@@ -29,6 +29,8 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import com.muhabbet.app.util.Log
+import com.muhabbet.app.session.RefreshOutcomeListener
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
@@ -42,10 +44,13 @@ import kotlinx.serialization.serializer
  *
  * @param engine supplied only by tests, so they can drive the repositories through a mock engine
  * instead of reaching the network. Production callers pass nothing and get the platform engine.
+ * @param refreshOutcomes where a token refresh's result is reported — the `SessionManager` in the
+ * app. What a rejected refresh *means* is the session's decision, not this client's (#813).
  */
 class ApiClient(
     private val tokenStorage: TokenStorage,
     engine: HttpClientEngine? = null,
+    private val refreshOutcomes: RefreshOutcomeListener = RefreshOutcomeListener.None,
 ) {
 
     companion object {
@@ -95,6 +100,14 @@ class ApiClient(
 
         install(Auth) {
             bearer {
+                // Read the token store on every request instead of letting Ktor cache the first
+                // answer (#813). The cache lives in this client, which is a process-wide singleton,
+                // and nothing ever invalidated it: after logging out and signing in as someone else,
+                // requests went on carrying the previous account's access token until a 401 forced a
+                // refresh. With the store as the only copy, a sign-in, a logout and a refresh are
+                // all seen by the very next request. A preferences read per request is free next to
+                // the request itself.
+                cacheTokens = false
                 loadTokens {
                     val access = tokenStorage.getAccessToken()
                     val refresh = tokenStorage.getRefreshToken()
@@ -104,43 +117,32 @@ class ApiClient(
                 }
                 refreshTokens {
                     val refresh = tokenStorage.getRefreshToken() ?: return@refreshTokens null
-                    try {
-                        val response = client.post("$BASE_URL/api/v1/auth/token/refresh") {
-                            contentType(ContentType.Application.Json)
-                            setBody(mapOf("refreshToken" to refresh))
+                    refreshOutcomes.onRefreshStarted()
+                    when (val outcome = requestRefresh(client, refresh)) {
+                        is RefreshOutcome.Renewed -> {
+                            tokenStorage.saveTokens(
+                                accessToken = outcome.accessToken,
+                                refreshToken = outcome.refreshToken,
+                                userId = tokenStorage.getUserId() ?: "",
+                                deviceId = tokenStorage.getDeviceId() ?: ""
+                            )
+                            refreshOutcomes.onRefreshSucceeded()
+                            BearerTokens(outcome.accessToken, outcome.refreshToken)
                         }
-                        // Only clear tokens if server explicitly rejects the refresh token
-                        if (response.status.value in listOf(401, 403)) {
-                            Log.w(TAG, "Refresh token rejected (${response.status})")
-                            tokenStorage.clear()
-                            return@refreshTokens null
+                        // The session is over. Reported, not acted on: this used to call
+                        // tokenStorage.clear() itself and tell nobody, which left the signed-in UI
+                        // on screen with every request failing and the socket polling an empty
+                        // token store every two seconds for as long as the app stayed open (#813).
+                        RefreshOutcome.Rejected -> {
+                            refreshOutcomes.onRefreshRejected()
+                            null
                         }
-                        if (!response.status.isSuccess()) {
-                            Log.w(TAG, "Token refresh server error (${response.status})")
-                            return@refreshTokens null
+                        // No network, or the server failed: nothing is known about the session, so
+                        // it stays as it is and the next request tries again.
+                        RefreshOutcome.Failed -> {
+                            refreshOutcomes.onRefreshFailedTransiently()
+                            null
                         }
-                        val text = response.bodyAsText()
-                        val body = json.decodeFromString(
-                            ApiResponse.serializer(serializer<Map<String, String>>()),
-                            text
-                        )
-                        val data = body.data ?: run {
-                            tokenStorage.clear()
-                            return@refreshTokens null
-                        }
-                        val newAccess = data["accessToken"] ?: return@refreshTokens null
-                        val newRefresh = data["refreshToken"] ?: return@refreshTokens null
-                        tokenStorage.saveTokens(
-                            accessToken = newAccess,
-                            refreshToken = newRefresh,
-                            userId = tokenStorage.getUserId() ?: "",
-                            deviceId = tokenStorage.getDeviceId() ?: ""
-                        )
-                        BearerTokens(newAccess, newRefresh)
-                    } catch (e: Exception) {
-                        // Network error — don't clear tokens, user stays logged in
-                        Log.e(TAG, "Token refresh failed (network): ${e.message}")
-                        null
                     }
                 }
                 // Attach the bearer token up front unless the endpoint is one of the four that runs
@@ -183,6 +185,55 @@ class ApiClient(
 
     val httpClient =
         if (engine == null) HttpClient(clientConfig) else HttpClient(engine, clientConfig)
+
+    /**
+     * Asks the server to renew the session and says what it answered — and nothing else. Storing the
+     * result and deciding what a rejection means both happen in the caller.
+     */
+    private suspend fun requestRefresh(client: HttpClient, refreshToken: String): RefreshOutcome {
+        val response = try {
+            client.post("$BASE_URL/api/v1/auth/token/refresh") {
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("refreshToken" to refreshToken))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Token refresh failed (network): ${e.message}")
+            return RefreshOutcome.Failed
+        }
+        if (response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.Forbidden) {
+            Log.w(TAG, "Refresh token rejected (${response.status})")
+            return RefreshOutcome.Rejected
+        }
+        if (!response.status.isSuccess()) {
+            Log.w(TAG, "Token refresh server error (${response.status})")
+            return RefreshOutcome.Failed
+        }
+        val data = try {
+            json.decodeFromString(
+                ApiResponse.serializer(serializer<Map<String, String>>()),
+                response.bodyAsText()
+            ).data
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Token refresh returned an unreadable body: ${e.message}")
+            return RefreshOutcome.Failed
+        }
+        // An accepted call that issues no session is a refusal in all but status code — the
+        // previous code cleared the store here too.
+        data ?: return RefreshOutcome.Rejected
+        val access = data["accessToken"] ?: return RefreshOutcome.Failed
+        val refresh = data["refreshToken"] ?: return RefreshOutcome.Failed
+        return RefreshOutcome.Renewed(access, refresh)
+    }
+
+    private sealed interface RefreshOutcome {
+        data class Renewed(val accessToken: String, val refreshToken: String) : RefreshOutcome
+        data object Rejected : RefreshOutcome
+        data object Failed : RefreshOutcome
+    }
 
     suspend inline fun <reified T> get(path: String): ApiResponse<T> {
         Log.d(TAG, "GET $path")

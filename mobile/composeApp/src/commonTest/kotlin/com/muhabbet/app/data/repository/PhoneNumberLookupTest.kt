@@ -1,5 +1,7 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.session.testSessionManager
+
 import com.muhabbet.app.data.local.FakeConversationCache
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
@@ -108,7 +110,7 @@ class PhoneNumberLookupTest {
         val lookup: PhoneNumberLookup = ApiClient(FakeTokenStorage(), engine).let { apiClient ->
             PhoneNumberLookup(
                 conversationRepository = ConversationRepository(apiClient, FakeConversationCache()),
-                authRepository = AuthRepository(apiClient, FakeTokenStorage()),
+                authRepository = FakeTokenStorage().let { AuthRepository(apiClient, it, testSessionManager(it)) },
             )
         }
     }

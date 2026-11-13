@@ -18,15 +18,38 @@ import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
 import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.session.SessionManager
+import com.muhabbet.app.session.SessionState
+import com.muhabbet.app.session.activeUserId
+import com.arkivanov.essenty.lifecycle.doOnDestroy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 import com.muhabbet.app.ui.notice.shouldShowTestBuildNotice
 import com.muhabbet.app.ui.onboarding.FirstRunSurfaces
 import com.muhabbet.app.ui.settings.AppLockGate
 import com.muhabbet.app.ui.whatsnew.versionToRecordOnFirstLaunch
 import kotlinx.serialization.Serializable
 
+/**
+ * The app's top level: the sign-in flow or the signed-in app, and nothing else.
+ *
+ * Which of the two is showing follows [SessionManager.state] for the life of the component (#813).
+ * It used to be chosen once, from `tokenStorage.isLoggedIn()`, and afterwards changed only when a
+ * screen called back — so an expired or revoked session left the conversation list on screen with
+ * nothing behind it working. Now an expiry, a logout and an account deletion all arrive here the same
+ * way and all land on the sign-in flow; an expiry also tells the user why ([AuthComponent]).
+ *
+ * @param mainContext where the session is observed. Injected only so a test can drive it.
+ */
 class RootComponent(
     componentContext: ComponentContext,
-    private val tokenStorage: TokenStorage
+    private val tokenStorage: TokenStorage,
+    private val sessionManager: SessionManager,
+    mainContext: CoroutineContext = Dispatchers.Main.immediate
 ) : ComponentContext by componentContext {
 
     private val navigation = StackNavigation<Config>()
@@ -70,14 +93,34 @@ class RootComponent(
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
         serializer = Config.serializer(),
-        initialConfiguration = if (tokenStorage.isLoggedIn()) Config.Main else Config.Auth,
+        initialConfiguration = configFor(sessionManager.state.value),
         handleBackButton = true,
         childFactory = ::createChild
     )
 
+    init {
+        val scope = CoroutineScope(mainContext + SupervisorJob())
+        lifecycle.doOnDestroy { scope.cancel() }
+        scope.launch {
+            sessionManager.state.collect { state ->
+                val target = configFor(state)
+                if (childStack.value.active.configuration != target) {
+                    navigation.replaceAll(target)
+                }
+            }
+        }
+    }
+
     private fun createChild(config: Config, componentContext: ComponentContext): Child =
         when (config) {
-            Config.Auth -> Child.Auth(AuthComponent(componentContext, ::onAuthComplete))
+            Config.Auth -> Child.Auth(
+                AuthComponent(
+                    componentContext = componentContext,
+                    startAtProfile = sessionManager.state.value is SessionState.NeedsProfile,
+                    sessionState = sessionManager.state,
+                    onFinishOnboarding = sessionManager::completeProfile
+                )
+            )
             Config.Main -> {
                 val openAtLanguageSettings = pendingLanguageSettings
                 pendingLanguageSettings = false
@@ -85,13 +128,18 @@ class RootComponent(
             }
         }
 
-    private fun onAuthComplete() {
-        navigation.replaceAll(Config.Main)
+    /** The session decides; navigation follows when [SessionManager.state] changes. */
+    private fun onLogout() {
+        sessionManager.logout()
     }
 
-    private fun onLogout() {
-        tokenStorage.clear()
-        navigation.replaceAll(Config.Auth)
+    companion object {
+        /**
+         * Which top-level child a session state shows. [SessionState.NeedsProfile] is the sign-in
+         * flow — a new account that has not chosen a name is not yet in the app (#819).
+         */
+        fun configFor(state: SessionState): Config =
+            if (state.activeUserId != null) Config.Main else Config.Auth
     }
 
     @Serializable
@@ -107,17 +155,13 @@ class RootComponent(
 }
 
 /**
- * Whether a signed-in session is on screen right now.
+ * Whether the signed-in app is on screen right now.
  *
- * The one definition of "logged in" that the composition is allowed to use, because it is the only
- * one that is *reactive*. `tokenStorage.isLoggedIn()` answers correctly but only once, at the moment
- * it is read; an effect keyed on `Unit` above the auth/main switch therefore samples the login
- * screen's answer and keeps it for the life of the process. That is #349, and it cost the app its
- * WebSocket, push token, E2E keys and background sync for every first session after signing in.
- *
- * This flips the instant `RootComponent.onAuthComplete` swaps `Config.Auth` -> `Config.Main`, and
- * back on logout — so effects keyed on it fire in both directions. Named and shared rather than
- * re-derived at each call site, so "is anyone signed in" has one answer rather than one per caller.
+ * For what the *screen* layers on top of the app — the first-run surfaces and App Lock's cover —
+ * which belong to whatever is showing. Nothing that runs *for the session* keys on this any more:
+ * the socket, receipts, push and E2E registration, sync and crash identity follow
+ * `SessionManager.state` in `SessionCoordinator` (#813), because the stack can only say what is on
+ * screen, not whether the session behind it is still alive.
  */
 @Composable
 fun isSessionActive(root: RootComponent): Boolean {

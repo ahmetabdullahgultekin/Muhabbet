@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.testTag
 import com.muhabbet.app.data.remote.ApiException
@@ -48,6 +49,8 @@ import org.koin.compose.koinInject
 fun PhoneInputScreen(
     onPhoneSubmitted: (phoneNumber: String, mockCode: String?, firebaseVerificationId: String?) -> Unit,
     onFirebaseAutoVerified: (isNewUser: Boolean) -> Unit = {},
+    /** The user is here because their session expired, not because they logged out (#813). */
+    sessionExpired: Boolean = false,
     authRepository: AuthRepository = koinInject()
 ) {
     // Digits only. The country code is a prefix on the field, not part of the value — seeding the
@@ -96,6 +99,19 @@ fun PhoneInputScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        // Said once, here, rather than as a toast on whatever screen was open when the refresh was
+        // rejected: an unexplained return to the login screen reads as the app having lost the
+        // account.
+        if (sessionExpired) {
+            Spacer(Modifier.height(MuhabbetSpacing.Medium))
+            Text(
+                text = stringResource(Res.string.session_expired_notice),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center
+            )
+        }
 
         Spacer(Modifier.height(MuhabbetSpacing.XLarge))
 

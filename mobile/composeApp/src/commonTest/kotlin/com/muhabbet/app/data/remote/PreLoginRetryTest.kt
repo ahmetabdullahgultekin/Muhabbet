@@ -1,5 +1,7 @@
 package com.muhabbet.app.data.remote
 
+import com.muhabbet.app.session.testSessionManager
+
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.repository.AuthRepository
 import io.ktor.client.engine.mock.MockEngine
@@ -78,7 +80,7 @@ class PreLoginRetryTest {
     fun rejectedCode_costsExactlyOneVerifyRequest() = runTest {
         val traffic = Traffic()
         val storage = FakeTokenStorage()
-        val repo = AuthRepository(clientRejectingEverything(traffic, storage), storage)
+        val repo = AuthRepository(clientRejectingEverything(traffic, storage), storage, testSessionManager(storage))
 
         assertFailsWith<ApiException> {
             repo.verifyOtp("+905000000001", "000000", "Pixel", "ANDROID")
@@ -96,7 +98,7 @@ class PreLoginRetryTest {
         val traffic = Traffic()
         val storage = FakeTokenStorage()
         storage.saveTokens("stale-access", "stale-refresh", "user-1", "device-1")
-        val repo = AuthRepository(clientRejectingEverything(traffic, storage), storage)
+        val repo = AuthRepository(clientRejectingEverything(traffic, storage), storage, testSessionManager(storage))
 
         assertFailsWith<ApiException> {
             repo.verifyOtp("+905000000001", "000000", "Pixel", "ANDROID")
@@ -111,7 +113,7 @@ class PreLoginRetryTest {
         // a real handset, so it doubles just as quietly.
         val traffic = Traffic()
         val storage = FakeTokenStorage()
-        val repo = AuthRepository(clientRejectingEverything(traffic, storage), storage)
+        val repo = AuthRepository(clientRejectingEverything(traffic, storage), storage, testSessionManager(storage))
 
         assertFailsWith<ApiException> {
             repo.verifyFirebaseToken("bad-id-token", "Pixel", "ANDROID")

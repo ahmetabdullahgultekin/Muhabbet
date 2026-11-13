@@ -1,5 +1,7 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.session.testSessionManager
+
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.platform.PushTokenProvider
@@ -59,7 +61,7 @@ class PushTokenRegistrarTest {
 
         val tokenStorage = FakeTokenStorage()
         val apiClient = ApiClient(tokenStorage, engine)
-        val authRepository = AuthRepository(apiClient, tokenStorage)
+        val authRepository = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
 
         fun loggedIn() {
             tokenStorage.saveTokens("access", "refresh", "user-1", "device-1")

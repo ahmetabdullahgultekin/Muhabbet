@@ -9,10 +9,9 @@ import com.muhabbet.app.util.Log
  * The two things a signed-in session leaves **outside** the composition, and therefore the two that
  * have to be switched off by hand when it ends.
  *
- * `App.kt` wires four other session concerns — the WebSocket, the global DELIVERED ack pump, push
- * token registration and E2E key registration — directly in effects keyed on `loggedIn` (#349,
- * #454). Those need nothing here: each one dies with the composition or with the process. These two
- * do not.
+ * [SessionCoordinator] runs four other session concerns — the WebSocket, the global DELIVERED ack
+ * pump, push token registration and E2E key registration — as coroutines that die when the session
+ * does (#813). These two do not: they live outside the process's coroutines entirely.
  *
  * - **The background sync job** is written into WorkManager's own database by
  *   `enqueueUniquePeriodicWork`. It survives the composition, the Activity, process death and a
@@ -29,8 +28,8 @@ import com.muhabbet.app.util.Log
  * effects and said so plainly of the fifth: *"`setUser` has the same defect … flagged rather than
  * done."* This is that, plus the off-switch the sixth never had.
  *
- * Deliberately a plain class rather than more Compose effects: it is called from exactly one
- * `LaunchedEffect(loggedIn)` in `App.kt`, and being ordinary Kotlin is what makes the logout
+ * Deliberately a plain class rather than more Compose effects: it is called only by
+ * [SessionCoordinator], and being ordinary Kotlin is what makes the logout
  * direction testable at all on a host with no emulator — the same reasoning that pulled
  * `PushTokenRegistrar` out of the composition for #398.
  */

@@ -8,6 +8,29 @@ interface TokenStorage {
     fun saveTokens(accessToken: String, refreshToken: String, userId: String, deviceId: String)
     fun clear()
     fun isLoggedIn(): Boolean = getAccessToken() != null
+
+    /**
+     * Whether the signed-in account was created by this sign-in and has not saved a display name yet
+     * (#819). Written **before** the tokens by `SessionManager.signIn`, so a process that dies during
+     * profile setup resumes there instead of opening the app as a nameless account. Absent means
+     * false, which is what every install upgraded from a build without the flag correctly reads.
+     *
+     * Cleared by [clear]: it describes the session, not the install. Abstract, for the reason every
+     * other member here is (#380): a defaulted no-op would read back false and silently restore #819.
+     */
+    fun isProfileSetupPending(): Boolean
+    fun setProfileSetupPending(pending: Boolean)
+
+    /**
+     * The account the on-device caches (conversations, messages, the unsent-message queue) belong
+     * to, or null when they belong to nobody (#829).
+     *
+     * Deliberately **not** cleared by [clear]: an expired session clears the credentials but keeps
+     * the cache for the person who will most likely sign back in, and this is how the next sign-in
+     * tells whether that is who it is. A different account wipes the cache before it can see it.
+     */
+    fun getLocalDataOwner(): String?
+    fun setLocalDataOwner(userId: String?)
     fun getLanguage(): String? = null
     fun setLanguage(lang: String) {}
 

@@ -1,5 +1,7 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.session.testSessionManager
+
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
 import io.ktor.client.HttpClient
@@ -40,7 +42,7 @@ class AuthRepositoryTest {
     fun should_return_false_when_not_logged_in() {
         val tokenStorage = FakeTokenStorage()
         val apiClient = ApiClient(tokenStorage)
-        val repo = AuthRepository(apiClient, tokenStorage)
+        val repo = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
 
         assertFalse(repo.isLoggedIn())
     }
@@ -50,7 +52,7 @@ class AuthRepositoryTest {
         val tokenStorage = FakeTokenStorage()
         tokenStorage.saveTokens("access", "refresh", "user1", "device1")
         val apiClient = ApiClient(tokenStorage)
-        val repo = AuthRepository(apiClient, tokenStorage)
+        val repo = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
 
         assertTrue(repo.isLoggedIn())
     }
@@ -60,7 +62,7 @@ class AuthRepositoryTest {
         val tokenStorage = FakeTokenStorage()
         tokenStorage.saveTokens("access", "refresh", "user1", "device1")
         val apiClient = ApiClient(tokenStorage)
-        val repo = AuthRepository(apiClient, tokenStorage)
+        val repo = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
 
         assertTrue(repo.isLoggedIn())
         repo.logout()
@@ -92,7 +94,7 @@ class AuthRepositoryTest {
                 respond("Not found", HttpStatusCode.NotFound)
             }
         }
-        val repo = AuthRepository(apiClient, tokenStorage)
+        val repo = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
         assertFalse(tokenStorage.isLoggedIn())
 
         // Previously this test wrote the tokens itself and asserted its own writes back out, so it
@@ -115,7 +117,7 @@ class AuthRepositoryTest {
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )
         }
-        val repo = AuthRepository(apiClient, tokenStorage)
+        val repo = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
 
         assertFailsWith<Exception> { repo.verifyOtp("+905000000001", "000000", "Pixel", "ANDROID") }
 
@@ -135,7 +137,7 @@ class AuthRepositoryTest {
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )
         }
-        val repo = AuthRepository(apiClient, tokenStorage)
+        val repo = AuthRepository(apiClient, tokenStorage, testSessionManager(tokenStorage))
 
         // assertFailsWith<Exception> alone would also pass on a SerializationException from a
         // changed envelope, which is a crash the user sees as untranslatable text rather than the

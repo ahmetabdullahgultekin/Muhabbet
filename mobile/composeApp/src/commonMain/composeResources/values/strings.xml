@@ -49,6 +49,7 @@
     <string name="phone_continue">Devam Et</string>
     <string name="phone_invalid">Geçersiz telefon numarası</string>
     <string name="phone_auth_failed">Doğrulama başlatılamadı. Lütfen daha sonra tekrar deneyin.</string>
+    <string name="session_expired_notice">Oturumunuzun süresi doldu. Devam etmek için lütfen tekrar giriş yapın.</string>
 
     <!-- OtpVerifyScreen -->
     <string name="otp_title">Doğrulama Kodu</string>

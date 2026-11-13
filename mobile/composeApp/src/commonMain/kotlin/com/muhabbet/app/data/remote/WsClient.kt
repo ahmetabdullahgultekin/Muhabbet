@@ -488,6 +488,25 @@ class WsClient(
         }
     }
 
+    /**
+     * The account's session is over — logged out, deleted, or expired (#813, #829).
+     *
+     * Stronger than [disconnect]: it stops the connect loop *now*, wherever it is, and forgets what
+     * this client remembered on the account's behalf. Before this, an expired session left the loop
+     * parked in WAITING_FOR_AUTH re-reading an empty token store every two seconds for as long as
+     * the app stayed open, and the focused conversation and queued receipts were still held when the
+     * next account connected — so they were restated and replayed under that account's token.
+     */
+    suspend fun endSession() {
+        disconnect(generation)
+        connectJob?.cancel()
+        focusedConversationId = null
+        pendingAcks.takeAll()
+    }
+
+    /** Visible for tests only: the conversation the client would restate on the next connect. */
+    internal val focusedConversationForTest: String? get() = focusedConversationId
+
     // --- Offline Queue ---
 
     /**

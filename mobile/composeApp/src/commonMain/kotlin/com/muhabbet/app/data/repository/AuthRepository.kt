@@ -2,6 +2,8 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.session.SessionManager
+import com.muhabbet.app.session.signIn
 import com.muhabbet.shared.dto.AuthTokenResponse
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
 import com.muhabbet.shared.dto.PrivacySettingsResponse
@@ -13,9 +15,15 @@ import com.muhabbet.shared.dto.UpdateProfileRequest
 import com.muhabbet.shared.dto.VerifyOtpRequest
 import com.muhabbet.shared.model.UserProfile
 
+/**
+ * @param sessionManager every sign-in, logout and account deletion is reported there rather than
+ *   written straight into [TokenStorage] — the session decides what each one means and tells the
+ *   rest of the app (#813).
+ */
 class AuthRepository(
     private val apiClient: ApiClient,
-    private val tokenStorage: TokenStorage
+    private val tokenStorage: TokenStorage,
+    private val sessionManager: SessionManager
 ) {
 
     suspend fun requestOtp(phoneNumber: String): RequestOtpResponse {
@@ -46,12 +54,7 @@ class AuthRepository(
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "VERIFY_OTP_FAILED")
 
-        tokenStorage.saveTokens(
-            accessToken = data.accessToken,
-            refreshToken = data.refreshToken,
-            userId = data.userId,
-            deviceId = data.deviceId
-        )
+        sessionManager.signIn(data)
 
         return data
     }
@@ -69,12 +72,7 @@ class AuthRepository(
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "FIREBASE_VERIFY_FAILED")
 
-        tokenStorage.saveTokens(
-            accessToken = data.accessToken,
-            refreshToken = data.refreshToken,
-            userId = data.userId,
-            deviceId = data.deviceId
-        )
+        sessionManager.signIn(data)
 
         return data
     }
@@ -128,13 +126,14 @@ class AuthRepository(
         apiClient.get<Unit>("/api/v1/users/data/export")
     }
 
+    /** Throws if the server refuses, and then the session is left exactly as it was. */
     suspend fun deleteAccount() {
         apiClient.delete<Unit>("/api/v1/users/data/account")
-        tokenStorage.clear()
+        sessionManager.accountDeleted()
     }
 
     fun logout() {
-        tokenStorage.clear()
+        sessionManager.logout()
     }
 
     fun isLoggedIn(): Boolean = tokenStorage.isLoggedIn()

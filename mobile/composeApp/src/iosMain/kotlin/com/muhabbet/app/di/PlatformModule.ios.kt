@@ -54,6 +54,25 @@ class IosTokenStorage : TokenStorage {
         listOf("access_token", "refresh_token", "user_id", "device_id").forEach {
             keychain.delete(it)
         }
+        defaults.removeObjectForKey("profile_setup_pending")
+    }
+
+    // Cleared by clear(): it describes this session (#819).
+    override fun isProfileSetupPending(): Boolean = defaults.boolForKey("profile_setup_pending")
+
+    override fun setProfileSetupPending(pending: Boolean) {
+        defaults.setBool(pending, forKey = "profile_setup_pending")
+    }
+
+    // Must outlive clear() — see TokenStorage.getLocalDataOwner (#829).
+    override fun getLocalDataOwner(): String? = defaults.stringForKey("local_data_owner")
+
+    override fun setLocalDataOwner(userId: String?) {
+        if (userId == null) {
+            defaults.removeObjectForKey("local_data_owner")
+        } else {
+            defaults.setObject(userId, forKey = "local_data_owner")
+        }
     }
 
     override fun getLanguage(): String? = defaults.stringForKey("app_language")

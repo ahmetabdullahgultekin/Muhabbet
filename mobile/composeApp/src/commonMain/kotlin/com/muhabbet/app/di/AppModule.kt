@@ -24,11 +24,28 @@ import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.data.repository.StatusRepository
 import com.muhabbet.app.data.repository.TwoStepRepository
 import com.muhabbet.app.data.repository.WallpaperRepository
+import com.muhabbet.app.session.SessionCoordinator
+import com.muhabbet.app.session.SessionManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
 fun appModule(): Module = module {
-    single { ApiClient(tokenStorage = get()) }
+    // The session's single owner (#813). Everything that signs in, logs out or learns a refresh was
+    // rejected reports here; the root navigation and SessionCoordinator observe it. LocalCache is
+    // resolved explicitly for the reason given at WsClient below: nothing registers the narrower
+    // AccountDataStore interface, and Koin resolves get() by the parameter's type.
+    single { KoinAccountScope(getKoin()) }
+    single {
+        SessionManager(
+            tokenStorage = get(),
+            accountData = get<com.muhabbet.app.data.local.LocalCache>(),
+            accountScope = get<KoinAccountScope>()
+        )
+    }
+    single { ApiClient(tokenStorage = get(), refreshOutcomes = get<SessionManager>()) }
     // E2E encrypt-on-send / decrypt-on-receive. Gated by E2EConfig.ENABLED (default OFF).
     // Resolves the 1:1 peer from the local conversation cache and ensures a Signal session
     // before encrypting; group / unresolved / non-text bodies fall back to plaintext.
@@ -76,7 +93,7 @@ fun appModule(): Module = module {
             messageEncryptor = get()
         )
     }
-    single { AuthRepository(apiClient = get(), tokenStorage = get()) }
+    single { AuthRepository(apiClient = get(), tokenStorage = get(), sessionManager = get()) }
     // Single source of truth for push token registration — used by both the login/app-start
     // effect in App.kt and MuhabbetFirebaseMessagingService.onNewToken (androidMain). See #398.
     single {
@@ -132,8 +149,16 @@ fun appModule(): Module = module {
     single { WallpaperRepository(tokenStorage = get()) }
     // Read at the composition root, above MuhabbetTheme — see App.kt.
     single { com.muhabbet.app.data.local.ThemeController(tokenStorage = get()) }
-    // Singleton on purpose: read receipts appear on two screens and must not disagree.
-    single { com.muhabbet.app.data.local.PrivacySettingsController(authRepository = get()) }
+    // One instance per signed-in account, not per process (#829): read receipts appear on two
+    // screens and must not disagree, and the next account to sign in must not be handed this one's
+    // settings. The scoped definition holds the instance; the root factory hands callers whichever
+    // instance belongs to the account signed in now, so `koinInject()` call sites need not know.
+    scope(ACCOUNT_SCOPE) {
+        scoped { com.muhabbet.app.data.local.PrivacySettingsController(authRepository = get()) }
+    }
+    factory {
+        get<KoinAccountScope>().current().get<com.muhabbet.app.data.local.PrivacySettingsController>()
+    }
     // Composer preferences (#516) — singleton for the same reason again: the Enter-to-send switch
     // is in Settings and the behaviour it controls is in the chat composer.
     single { com.muhabbet.app.data.local.ComposerSettingsController(tokenStorage = get()) }
@@ -175,6 +200,23 @@ fun appModule(): Module = module {
             tokenStorage = get(),
             backgroundSync = com.muhabbet.app.session.PlatformBackgroundSync(get()),
             crashIdentity = com.muhabbet.app.session.PlatformCrashIdentity
+        )
+    }
+    // Starts and stops everything a session runs, keyed on SessionManager.state (#813). Confined to
+    // the main thread, as the composition effects it replaces were: WsClient's connect/disconnect
+    // bookkeeping is not synchronised.
+    single {
+        SessionCoordinator(
+            sessionManager = get(),
+            wsClient = get(),
+            sessionWiring = get(),
+            registerPushToken = { tag -> get<PushTokenRegistrar>().registerIfLoggedIn(languageTag = tag) },
+            // Only when E2E is actually on. With the flag off and NoOpKeyManager wired this used to
+            // publish placeholder key material to the production backend on every launch (#379).
+            registerE2EKeys = {
+                if (com.muhabbet.app.crypto.E2EConfig.ENABLED) get<E2ESetupService>().registerKeys()
+            },
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         )
     }
     // Multi-device linking (Tier 2, NON-CRYPTO slice) — gated by MultiDeviceConfig.ENABLED, default OFF.

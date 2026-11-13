@@ -25,7 +25,16 @@ class FakeTokenStorage : TokenStorage {
         refreshToken = null
         userId = null
         deviceId = null
+        profileSetupPending = false
     }
+
+    private var profileSetupPending: Boolean = false
+    override fun isProfileSetupPending(): Boolean = profileSetupPending
+    override fun setProfileSetupPending(pending: Boolean) { profileSetupPending = pending }
+
+    private var localDataOwner: String? = null
+    override fun getLocalDataOwner(): String? = localDataOwner
+    override fun setLocalDataOwner(userId: String?) { localDataOwner = userId }
 
     override fun isLoggedIn(): Boolean = accessToken != null
 

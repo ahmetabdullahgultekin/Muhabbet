@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.local
 
 import com.muhabbet.app.db.MuhabbetDatabase
+import com.muhabbet.app.session.AccountDataStore
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.ContentType
@@ -14,7 +15,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class LocalCache(driverFactory: DatabaseDriverFactory) :
-    ConversationCache, MessageCache, PendingMessageCache {
+    ConversationCache, MessageCache, PendingMessageCache, AccountDataStore {
 
     private val database = MuhabbetDatabase(driverFactory.createDriver())
     private val queries = database.muhabbetDatabaseQueries
@@ -228,6 +229,24 @@ class LocalCache(driverFactory: DatabaseDriverFactory) :
 
     override fun incrementRetryCount(id: String) {
         queries.incrementRetryCount(id)
+    }
+
+    // --- Account ---
+
+    /**
+     * Deletes everything here that belongs to the signed-in account, in one transaction (#829).
+     *
+     * Every table in this database is per-account: the cached chat list, the cached messages and the
+     * queue of messages typed but not yet sent. None of it was ever cleared on logout, so the next
+     * account to sign in on the device saw the previous one's chat list until the network replaced
+     * it — and the socket drained the previous account's unsent messages under the new one's token.
+     */
+    override fun wipe() {
+        database.transaction {
+            queries.clearPendingMessages()
+            queries.clearMessages()
+            queries.clearConversations()
+        }
     }
 
     // --- Helpers ---

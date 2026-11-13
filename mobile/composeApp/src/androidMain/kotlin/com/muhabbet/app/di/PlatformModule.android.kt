@@ -76,6 +76,25 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         prefs.edit().clear().apply()
     }
 
+    // Encrypted prefs, so clear() takes it with the tokens: it describes this session (#819).
+    override fun isProfileSetupPending(): Boolean = prefs.getBoolean("profile_setup_pending", false)
+
+    override fun setProfileSetupPending(pending: Boolean) {
+        prefs.edit().putBoolean("profile_setup_pending", pending).apply()
+    }
+
+    // Plain prefs, because it must outlive clear() — see TokenStorage.getLocalDataOwner (#829). An
+    // opaque account id, in the same app-private sandbox as the SQLite cache it describes.
+    override fun getLocalDataOwner(): String? = plainPrefs.getString("local_data_owner", null)
+
+    override fun setLocalDataOwner(userId: String?) {
+        if (userId == null) {
+            plainPrefs.edit().remove("local_data_owner").apply()
+        } else {
+            plainPrefs.edit().putString("local_data_owner", userId).apply()
+        }
+    }
+
     override fun getLanguage(): String? = plainPrefs.getString("app_language", null)
 
     override fun setLanguage(lang: String) {
