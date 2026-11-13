@@ -17,7 +17,7 @@ import java.util.UUID
  * requester is not a member, so the client gets a clear authorization error rather than an
  * empty result set.
  */
-open class SearchService(
+class SearchService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository
 ) : SearchMessagesUseCase {

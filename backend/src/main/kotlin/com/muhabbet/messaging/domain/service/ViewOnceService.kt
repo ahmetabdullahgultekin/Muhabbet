@@ -9,8 +9,8 @@ import com.muhabbet.messaging.domain.port.out.MediaObjectPort
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -22,10 +22,11 @@ import java.util.UUID
  * storage, and the only destructive one, so it now owns its own collaborator instead of handing a
  * media port to the class that also processes every text message sent.
  */
-open class ViewOnceService(
+class ViewOnceService(
     private val messageRepository: MessageRepository,
     private val conversationRepository: ConversationRepository,
-    private val mediaObjects: MediaObjectPort
+    private val mediaObjects: MediaObjectPort,
+    private val transactions: TransactionRunner
 ) : BurnViewOnceUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -46,8 +47,7 @@ open class ViewOnceService(
      *   for the common case, but two taps can both pass it. The conditional UPDATE can only match
      *   once, so a zero row count means someone else won and this caller gets nothing.
      */
-    @Transactional
-    override fun markViewOnceViewed(messageId: UUID, userId: UUID): ViewOnceReveal {
+    override fun markViewOnceViewed(messageId: UUID, userId: UUID): ViewOnceReveal = transactions.inTransaction {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 
@@ -74,7 +74,7 @@ open class ViewOnceService(
         }
 
         log.info("View-once message viewed: msg={}, user={}, purged={}", messageId, userId, released != null)
-        return ViewOnceReveal(
+        return@inTransaction ViewOnceReveal(
             messageId = messageId,
             mediaBytes = released?.data,
             mediaContentType = released?.contentType,

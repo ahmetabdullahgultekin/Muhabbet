@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.Message
@@ -51,7 +52,7 @@ class ViewOnceServiceTest {
         messageRepository = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
         mediaObjects = mockk(relaxed = true)
-        service = ViewOnceService(messageRepository, conversationRepository, mediaObjects)
+        service = ViewOnceService(messageRepository, conversationRepository, mediaObjects, InlineTransactionRunner())
     }
 
     private fun message(mediaId: UUID? = null) = Message(

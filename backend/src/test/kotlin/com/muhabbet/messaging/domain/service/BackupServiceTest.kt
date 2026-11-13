@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.Message
@@ -45,7 +46,7 @@ class BackupServiceTest {
         conversationRepository = mockk(relaxed = true)
         messageRepository = mockk(relaxed = true)
         archivePort = mockk(relaxed = true)
-        service = BackupService(backupRepository, conversationRepository, messageRepository, archivePort)
+        service = BackupService(backupRepository, conversationRepository, messageRepository, archivePort, InlineTransactionRunner())
 
         // save() echoes back the PENDING row it was given (preserving the generated id).
         every { backupRepository.save(any()) } answers { firstArg() }

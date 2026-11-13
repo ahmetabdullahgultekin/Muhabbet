@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.GroupInviteLink
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -44,7 +45,7 @@ class InviteLinkServiceTest {
 
     @BeforeEach
     fun setUp() {
-        service = InviteLinkService(inviteLinkRepository, joinRequestRepository, conversationRepository)
+        service = InviteLinkService(inviteLinkRepository, joinRequestRepository, conversationRepository, InlineTransactionRunner())
         every { conversationRepository.findById(groupId) } returns TestData.groupConversation(id = groupId)
     }
 

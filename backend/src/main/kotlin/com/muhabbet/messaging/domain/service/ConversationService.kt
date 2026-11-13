@@ -14,33 +14,33 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class ConversationService(
+class ConversationService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val transactions: TransactionRunner
 ) : CreateConversationUseCase, GetConversationsUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional
     override fun createConversation(
         type: ConversationType,
         creatorId: UUID,
         participantIds: List<UUID>,
         name: String?
-    ): ConversationWithMembers {
+    ): ConversationWithMembers = transactions.inTransaction {
         // Early validation for direct conversations
         if (type == ConversationType.DIRECT) {
             if (participantIds.size != 1) {
-                throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS, "Direct conversations require exactly 1 other participant")
+                throw BusinessException(ErrorCode.CONV_DIRECT_REQUIRES_ONE_PARTICIPANT)
             }
             if (participantIds[0] == creatorId) {
-                throw BusinessException(ErrorCode.CONV_INVALID_PARTICIPANTS, "Cannot create conversation with yourself")
+                throw BusinessException(ErrorCode.CONV_SELF_CONVERSATION)
             }
         }
 
@@ -60,16 +60,16 @@ open class ConversationService(
                 val conv = conversationRepository.findById(existingConvId)
                     ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
                 val members = conversationRepository.findMembersByConversationId(existingConvId)
-                return ConversationWithMembers(conv, members)
+                return@inTransaction ConversationWithMembers(conv, members)
             }
         }
 
         if (type == ConversationType.GROUP) {
             if (name.isNullOrBlank()) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Grup adı gerekli")
+                throw BusinessException(ErrorCode.GROUP_NAME_REQUIRED)
             }
             if (!ValidationRules.isValidGroupName(name)) {
-                throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz grup adı")
+                throw BusinessException(ErrorCode.GROUP_NAME_INVALID)
             }
             if (allParticipantIds.size > ValidationRules.MAX_GROUP_MEMBERS) {
                 throw BusinessException(ErrorCode.CONV_MAX_MEMBERS)
@@ -103,14 +103,13 @@ open class ConversationService(
         }
 
         log.info("Conversation created: id={}, type={}, members={}", conversation.id, type, allParticipantIds.size)
-        return ConversationWithMembers(conversation, members)
+        return@inTransaction ConversationWithMembers(conversation, members)
     }
 
-    @Transactional(readOnly = true)
-    override fun getConversations(userId: UUID, cursor: String?, limit: Int): ConversationPage {
+    override fun getConversations(userId: UUID, cursor: String?, limit: Int): ConversationPage = transactions.inReadOnlyTransaction {
         val conversations = conversationRepository.findConversationsByUserId(userId)
         if (conversations.isEmpty()) {
-            return ConversationPage(items = emptyList(), nextCursor = null, hasMore = false)
+            return@inReadOnlyTransaction ConversationPage(items = emptyList(), nextCursor = null, hasMore = false)
         }
 
         val conversationIds = conversations.map { it.id }
@@ -158,7 +157,7 @@ open class ConversationService(
         val hasMore = startIndex + effectiveLimit < summaries.size
         val nextCursor = if (hasMore) page.lastOrNull()?.conversationId?.toString() else null
 
-        return ConversationPage(items = page, nextCursor = nextCursor, hasMore = hasMore)
+        return@inReadOnlyTransaction ConversationPage(items = page, nextCursor = nextCursor, hasMore = hasMore)
     }
 
     // ─── Helpers ──────────────────────────────────────────────

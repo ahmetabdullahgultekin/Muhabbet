@@ -4,6 +4,8 @@ import com.muhabbet.messaging.domain.model.CallSession
 import com.muhabbet.messaging.domain.model.CallStatus
 import com.muhabbet.messaging.domain.model.CallType
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
@@ -15,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Enforces max 1 active call per user.
  * Persists call history when calls end.
  */
-open class CallSignalingService(
+class CallSignalingService(
     private val callHistoryRepository: CallHistoryRepository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -222,6 +224,9 @@ data class CallHistoryRecord(
 )
 
 /**
- * Thrown when a user is already in an active call.
+ * Thrown when a user is already in an active call. A [BusinessException] carrying
+ * [ErrorCode.CALL_USER_BUSY] (#895), so it belongs to the same error model as every other domain
+ * refusal; a type of its own because the call frame handler answers it with `call.end(BUSY)`
+ * rather than an error frame.
  */
-class CallBusyException(val userId: UUID) : RuntimeException("User $userId is already in an active call")
+class CallBusyException(val userId: UUID) : BusinessException(ErrorCode.CALL_USER_BUSY)

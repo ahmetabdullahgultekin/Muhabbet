@@ -1,18 +1,18 @@
 package com.muhabbet.messaging.adapter.`in`.scheduler
 
-import com.muhabbet.messaging.domain.service.MessageService
+import com.muhabbet.messaging.domain.port.`in`.DeliverScheduledMessagesUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
 @Component
 class ScheduledMessageJob(
-    private val messageService: MessageService
+    private val deliverScheduledMessages: DeliverScheduledMessagesUseCase
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
-     * Delivery is transactional in [MessageService] (#556). This job's only remaining job is to say
+     * Delivery is transactional in the service behind [DeliverScheduledMessagesUseCase] (#556). This job's only remaining job is to say
      * out loud what happened, which is what it was not doing: a failure went to `log.warn` carrying
      * `e.message` and no stack trace, so the reason a scheduled message never arrived was a single
      * line with no cause in it — and a message that never arrives looks exactly like a message
@@ -25,7 +25,7 @@ class ScheduledMessageJob(
     @Scheduled(fixedDelay = 60_000) // every minute
     fun deliverScheduledMessages() {
         try {
-            val delivered = messageService.deliverScheduledMessages()
+            val delivered = deliverScheduledMessages.deliverScheduledMessages()
             // Only when something happened. At one run a minute, logging every empty sweep would
             // bury the runs that matter under 1,440 lines a day saying nothing.
             if (delivered > 0) {

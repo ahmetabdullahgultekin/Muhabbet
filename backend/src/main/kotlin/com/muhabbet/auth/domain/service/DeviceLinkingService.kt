@@ -8,8 +8,8 @@ import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.UUID
@@ -26,9 +26,10 @@ import java.util.UUID
  * Reachability is gated upstream by the `muhabbet.multi-device.enabled` flag at the controller, so
  * with the flag OFF this service is never invoked and the single-device path is unchanged.
  */
-open class DeviceLinkingService(
+class DeviceLinkingService(
     private val deviceLinkSessionRepository: DeviceLinkSessionRepository,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val transactions: TransactionRunner
 ) : LinkDeviceUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -40,8 +41,7 @@ open class DeviceLinkingService(
         const val MAX_COMPANION_DEVICES = 4               // WhatsApp-style cap (excludes the primary)
     }
 
-    @Transactional
-    override fun beginLink(userId: UUID, primaryDeviceId: UUID): DeviceLinkSession {
+    override fun beginLink(userId: UUID, primaryDeviceId: UUID): DeviceLinkSession = transactions.inTransaction {
         // The opener must be a device the user actually owns.
         val primary = deviceRepository.findById(primaryDeviceId)
             ?: throw BusinessException(ErrorCode.DEVICE_NOT_FOUND)
@@ -62,16 +62,15 @@ open class DeviceLinkingService(
         )
         val saved = deviceLinkSessionRepository.save(session)
         log.info("Device link session opened: id={}, user={}, primary={}", saved.id, userId, primaryDeviceId)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
     override fun completeLink(
         linkToken: String,
         companionPlatform: String,
         companionDeviceName: String?,
         publicBundle: String?
-    ): Device {
+    ): Device = transactions.inTransaction {
         val session = deviceLinkSessionRepository.findByLinkToken(linkToken)
             ?: throw BusinessException(ErrorCode.DEVICE_LINK_TOKEN_INVALID)
 
@@ -121,15 +120,14 @@ open class DeviceLinkingService(
             "Device linked: companion={}, user={}, platform={}, bundlePresent={}",
             companion.id, session.userId, companionPlatform, publicBundle != null
         )
-        return companion
+        return@inTransaction companion
     }
 
-    @Transactional(readOnly = true)
-    override fun listDevices(userId: UUID): List<Device> =
+    override fun listDevices(userId: UUID): List<Device> = transactions.inReadOnlyTransaction {
         deviceRepository.findActiveByUserId(userId).sortedByDescending { it.createdAt }
+    }
 
-    @Transactional
-    override fun revokeDevice(userId: UUID, deviceId: UUID): Device {
+    override fun revokeDevice(userId: UUID, deviceId: UUID): Device = transactions.inTransaction {
         val device = deviceRepository.findById(deviceId)
             ?: throw BusinessException(ErrorCode.DEVICE_NOT_FOUND)
         if (device.userId != userId) {
@@ -139,7 +137,7 @@ open class DeviceLinkingService(
             throw BusinessException(ErrorCode.DEVICE_CANNOT_REVOKE_PRIMARY)
         }
         if (!device.isActive) {
-            return device // already revoked — idempotent
+            return@inTransaction device // already revoked — idempotent
         }
 
         val revoked = deviceRepository.save(device.copy(revokedAt = Instant.now()))
@@ -147,7 +145,7 @@ open class DeviceLinkingService(
         // secrecy on the peers — NotYetImplemented (libsignal block). The tombstone alone already
         // excludes the device from findActiveByUserId / the (future) fan-out set.
         log.info("Device revoked: device={}, user={}", deviceId, userId)
-        return revoked
+        return@inTransaction revoked
     }
 
     private fun generateToken(): String {

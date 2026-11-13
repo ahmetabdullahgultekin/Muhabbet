@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -43,7 +44,7 @@ class PollServiceTest {
         messageRepository = mockk()
         pollVoteRepository = mockk(relaxed = true)
         conversationRepository = mockk()
-        service = PollService(messageRepository, pollVoteRepository, conversationRepository)
+        service = PollService(messageRepository, pollVoteRepository, conversationRepository, InlineTransactionRunner())
 
         every { messageRepository.findById(messageId) } returns Message(
             id = messageId,

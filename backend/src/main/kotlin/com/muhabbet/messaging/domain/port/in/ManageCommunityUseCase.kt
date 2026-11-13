@@ -101,20 +101,7 @@ interface ManageCommunityUseCase {
     fun update(communityId: UUID, requesterId: UUID, name: String, description: String?): CommunitySummary
 
     /**
-     * Links an existing GROUP conversation to a community. The caller must be an admin or owner of
-     * the community **and** a member of the conversation — the conversation id comes from the
-     * caller, so it is authorization, not a lookup key.
-     *
-     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_PERMISSION_DENIED` when the
-     * caller does not run the community, `GROUP_NOT_MEMBER` when the caller is not in the
-     * conversation, `COMMUNITY_NOT_A_GROUP` when the conversation is a direct chat or a channel.
-     */
-    fun addGroup(communityId: UUID, conversationId: UUID, userId: UUID): CommunityGroup
-
-    fun removeGroup(communityId: UUID, conversationId: UUID, userId: UUID)
-
-    /**
-     * Deletes the community outright. Owner only — unlike [update] and [addGroup], an admin cannot
+     * Deletes the community outright. Owner only — unlike [update] and [ManageCommunityGroupsUseCase.addGroup], an admin cannot
      * do this: it is irreversible and cannot be undone from inside the app the way a rename or an
      * unlink can.
      *
@@ -139,13 +126,28 @@ interface ManageCommunityUseCase {
     fun listForUser(userId: UUID): List<CommunitySummary>
 }
 
+/** Which groups a community links. Admins and owners only. */
+interface ManageCommunityGroupsUseCase {
+    /**
+     * Links an existing GROUP conversation to a community. The caller must be an admin or owner of
+     * the community **and** a member of the conversation — the conversation id comes from the
+     * caller, so it is authorization, not a lookup key.
+     *
+     * @throws com.muhabbet.shared.exception.BusinessException `COMMUNITY_PERMISSION_DENIED` when the
+     * caller does not run the community, `GROUP_NOT_MEMBER` when the caller is not in the
+     * conversation, `COMMUNITY_NOT_A_GROUP` when the conversation is a direct chat or a channel.
+     */
+    fun addGroup(communityId: UUID, conversationId: UUID, userId: UUID): CommunityGroup
+
+    fun removeGroup(communityId: UUID, conversationId: UUID, userId: UUID)
+}
+
 /**
  * Who is in a community, and how that changes.
  *
  * Split from [ManageCommunityUseCase] rather than added to it: the two are used by different
  * screens and, with the members work, a single interface would have reached ten methods — the exact
- * shape CLAUDE.md's interface-segregation rule names. One service still implements both, so no
- * behaviour is spread across classes; only the contracts a caller must depend on are narrowed.
+ * shape CLAUDE.md's interface-segregation rule names. Each port now has its own service (#894).
  */
 interface ManageCommunityMembershipUseCase {
 

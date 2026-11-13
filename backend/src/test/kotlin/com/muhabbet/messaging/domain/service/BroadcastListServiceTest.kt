@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.BroadcastList
 import com.muhabbet.messaging.domain.model.BroadcastListMember
 import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
@@ -41,7 +42,7 @@ class BroadcastListServiceTest {
     fun setUp() {
         repository = mockk(relaxUnitFun = true)
         userDirectory = mockk()
-        service = BroadcastListService(repository, userDirectory)
+        service = BroadcastListService(repository, userDirectory, InlineTransactionRunner())
     }
 
     @Test

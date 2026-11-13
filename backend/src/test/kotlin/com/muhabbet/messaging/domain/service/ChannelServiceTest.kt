@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
@@ -25,7 +26,7 @@ class ChannelServiceTest {
     @BeforeEach
     fun setUp() {
         conversationRepository = mockk(relaxed = true)
-        service = ChannelService(conversationRepository)
+        service = ChannelService(conversationRepository, InlineTransactionRunner())
     }
 
     @Test

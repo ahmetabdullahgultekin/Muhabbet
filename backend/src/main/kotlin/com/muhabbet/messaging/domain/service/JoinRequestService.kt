@@ -10,21 +10,21 @@ import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
-open class JoinRequestService(
+class JoinRequestService(
     private val joinRequestRepository: GroupJoinRequestRepository,
     private val conversationRepository: ConversationRepository,
-    private val inviteLinkRepository: GroupInviteLinkRepository
+    private val inviteLinkRepository: GroupInviteLinkRepository,
+    private val transactions: TransactionRunner
 ) : ManageJoinRequestUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional
-    override fun requestJoin(conversationId: UUID, userId: UUID, linkId: UUID?): GroupJoinRequest {
+    override fun requestJoin(conversationId: UUID, userId: UUID, linkId: UUID?): GroupJoinRequest = transactions.inTransaction {
         // Check not already a member
         val existing = conversationRepository.findMember(conversationId, userId)
         if (existing != null) {
@@ -46,59 +46,61 @@ open class JoinRequestService(
         )
         val saved = joinRequestRepository.save(request)
         log.info("Join request created: conv={}, user={}", conversationId, userId)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
     override fun approveJoin(requestId: UUID, adminId: UUID) {
-        val request = joinRequestRepository.findById(requestId)
-            ?: throw BusinessException(ErrorCode.JOIN_REQUEST_NOT_FOUND)
+        transactions.inTransaction<Unit> {
+            val request = joinRequestRepository.findById(requestId)
+                ?: throw BusinessException(ErrorCode.JOIN_REQUEST_NOT_FOUND)
 
-        requireAdminOrOwner(request.conversationId, adminId)
+            requireAdminOrOwner(request.conversationId, adminId)
 
-        val updated = request.copy(
-            status = JoinRequestStatus.APPROVED,
-            reviewedBy = adminId,
-            reviewedAt = Instant.now()
-        )
-        joinRequestRepository.save(updated)
-
-        // Add user as member
-        conversationRepository.saveMember(
-            ConversationMember(
-                conversationId = request.conversationId,
-                userId = request.userId,
-                role = MemberRole.MEMBER
+            val updated = request.copy(
+                status = JoinRequestStatus.APPROVED,
+                reviewedBy = adminId,
+                reviewedAt = Instant.now()
             )
-        )
+            joinRequestRepository.save(updated)
 
-        // Increment invite link use count if applicable
-        if (request.inviteLinkId != null) {
-            inviteLinkRepository.incrementUseCount(request.inviteLinkId)
+            // Add user as member
+            conversationRepository.saveMember(
+                ConversationMember(
+                    conversationId = request.conversationId,
+                    userId = request.userId,
+                    role = MemberRole.MEMBER
+                )
+            )
+
+            // Increment invite link use count if applicable
+            if (request.inviteLinkId != null) {
+                inviteLinkRepository.incrementUseCount(request.inviteLinkId)
+            }
+
+            log.info("Join request approved: id={}, user={}, by={}", requestId, request.userId, adminId)
         }
-
-        log.info("Join request approved: id={}, user={}, by={}", requestId, request.userId, adminId)
     }
 
-    @Transactional
     override fun rejectJoin(requestId: UUID, adminId: UUID) {
-        val request = joinRequestRepository.findById(requestId)
-            ?: throw BusinessException(ErrorCode.JOIN_REQUEST_NOT_FOUND)
+        transactions.inTransaction<Unit> {
+            val request = joinRequestRepository.findById(requestId)
+                ?: throw BusinessException(ErrorCode.JOIN_REQUEST_NOT_FOUND)
 
-        requireAdminOrOwner(request.conversationId, adminId)
+            requireAdminOrOwner(request.conversationId, adminId)
 
-        val updated = request.copy(
-            status = JoinRequestStatus.REJECTED,
-            reviewedBy = adminId,
-            reviewedAt = Instant.now()
-        )
-        joinRequestRepository.save(updated)
-        log.info("Join request rejected: id={}, user={}, by={}", requestId, request.userId, adminId)
+            val updated = request.copy(
+                status = JoinRequestStatus.REJECTED,
+                reviewedBy = adminId,
+                reviewedAt = Instant.now()
+            )
+            joinRequestRepository.save(updated)
+            log.info("Join request rejected: id={}, user={}, by={}", requestId, request.userId, adminId)
+        }
     }
 
-    @Transactional(readOnly = true)
-    override fun getPendingRequests(conversationId: UUID): List<GroupJoinRequest> =
+    override fun getPendingRequests(conversationId: UUID): List<GroupJoinRequest> = transactions.inReadOnlyTransaction {
         joinRequestRepository.findPendingByConversationId(conversationId)
+    }
 
     private fun requireAdminOrOwner(conversationId: UUID, userId: UUID) {
         val member = conversationRepository.findMember(conversationId, userId)

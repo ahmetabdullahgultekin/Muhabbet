@@ -5,16 +5,15 @@ import com.muhabbet.messaging.domain.port.`in`.ManageDisappearingMessageUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.WsMessage
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
-open class DisappearingMessageService(
+class DisappearingMessageService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val messageBroadcaster: MessageBroadcaster,
@@ -35,17 +34,18 @@ open class DisappearingMessageService(
         internal const val EXPIRY_BATCH_LIMIT = 200
     }
 
-    @Transactional
     override fun setDisappearTimer(conversationId: UUID, userId: UUID, seconds: Int?) {
-        val conversation = conversationRepository.findById(conversationId)
-            ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
+        transactions.inTransaction<Unit> {
+            val conversation = conversationRepository.findById(conversationId)
+                ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
 
-        val updated = conversation.copy(
-            disappearAfterSeconds = seconds,
-            updatedAt = Instant.now()
-        )
-        conversationRepository.updateConversation(updated)
-        log.info("Disappear timer set: conv={}, seconds={}, by={}", conversationId, seconds, userId)
+            val updated = conversation.copy(
+                disappearAfterSeconds = seconds,
+                updatedAt = Instant.now()
+            )
+            conversationRepository.updateConversation(updated)
+            log.info("Disappear timer set: conv={}, seconds={}, by={}", conversationId, seconds, userId)
+        }
     }
 
     /**

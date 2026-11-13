@@ -4,7 +4,9 @@ import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
+import com.muhabbet.messaging.domain.port.`in`.GetMessageInfoUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.ResolveDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
@@ -39,6 +41,8 @@ import java.util.UUID
 @RequestMapping("/api/v1")
 class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
+    private val resolveDeliveryStatusUseCase: ResolveDeliveryStatusUseCase,
+    private val getMessageInfoUseCase: GetMessageInfoUseCase,
     private val manageMessageUseCase: ManageMessageUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
     private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
@@ -62,7 +66,7 @@ class MessageController(
             direction = direction
         )
 
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(page.items, userId)
+        val statusMap = resolveDeliveryStatusUseCase.resolveDeliveryStatuses(page.items, userId)
         val items = page.items.map { msg ->
             msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
         }
@@ -80,7 +84,7 @@ class MessageController(
     ): ResponseEntity<ApiResponse<PaginatedResponse<SharedMessage>>> {
         val userId = AuthenticatedUser.currentUserId()
         val messages = getMessageHistoryUseCase.getMediaMessages(conversationId, userId, limit, offset)
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
+        val statusMap = resolveDeliveryStatusUseCase.resolveDeliveryStatuses(messages, userId)
         val items = messages.map { msg ->
             msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
         }
@@ -101,7 +105,7 @@ class MessageController(
         }
 
         val messages = getMessageHistoryUseCase.getMessagesSince(userId, since)
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
+        val statusMap = resolveDeliveryStatusUseCase.resolveDeliveryStatuses(messages, userId)
         val items = messages.map { msg ->
             msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
         }
@@ -167,7 +171,7 @@ class MessageController(
         val userId = AuthenticatedUser.currentUserId()
         // Lookup, membership authorization and recipient resolution all happen behind the use case
         // (closes IDOR). All that is left here is shaping the response.
-        val (message, recipients) = getMessageHistoryUseCase.getMessageInfo(messageId, userId)
+        val (message, recipients) = getMessageInfoUseCase.getMessageInfo(messageId, userId)
         val recipientInfos = recipients.map { recipient ->
             RecipientDeliveryInfo(
                 userId = recipient.userId.toString(),

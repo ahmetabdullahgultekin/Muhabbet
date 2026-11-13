@@ -1,6 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
-import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
+import com.muhabbet.messaging.domain.port.`in`.ResolveDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.`in`.SearchMessagesUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.PaginatedResponse
@@ -18,7 +18,7 @@ import java.util.UUID
 @RequestMapping("/api/v1/search")
 class SearchController(
     private val searchMessagesUseCase: SearchMessagesUseCase,
-    private val getMessageHistoryUseCase: GetMessageHistoryUseCase
+    private val resolveDeliveryStatusUseCase: ResolveDeliveryStatusUseCase
 ) {
 
     @GetMapping("/messages")
@@ -37,7 +37,7 @@ class SearchController(
             searchMessagesUseCase.searchGlobal(userId, likeQuery, limit, offset)
         }
 
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(results, userId)
+        val statusMap = resolveDeliveryStatusUseCase.resolveDeliveryStatuses(results, userId)
         val items = results.map { msg ->
             msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
         }

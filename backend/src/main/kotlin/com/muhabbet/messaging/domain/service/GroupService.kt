@@ -10,14 +10,13 @@ import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.protocol.GroupMemberInfo
 import com.muhabbet.shared.protocol.WsMessage
 import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -36,7 +35,7 @@ import java.util.UUID
  * shape it replaces could hand every member a `GroupMemberAdded` for a row a rollback then removed,
  * which no later load corrects.
  */
-open class GroupService(
+class GroupService(
     private val conversationRepository: ConversationRepository,
     private val userRepository: UserRepository,
     private val messageBroadcaster: MessageBroadcaster,
@@ -187,7 +186,7 @@ open class GroupService(
         permissions.requireAdminOrOwner(conversationId, requesterId)
 
         if (name != null && !ValidationRules.isValidGroupName(name)) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Geçersiz grup adı")
+            throw BusinessException(ErrorCode.GROUP_NAME_INVALID)
         }
 
         val updated = conversation.copy(
@@ -230,7 +229,7 @@ open class GroupService(
 
         val requesterMember = permissions.requireMember(conversationId, requesterId)
         if (requesterMember.role != MemberRole.OWNER) {
-            throw BusinessException(ErrorCode.GROUP_PERMISSION_DENIED, "Sadece grup sahibi rol değiştirebilir")
+            throw BusinessException(ErrorCode.GROUP_OWNER_ONLY)
         }
 
         conversationRepository.findMember(conversationId, targetUserId)
@@ -293,8 +292,7 @@ open class GroupService(
         return LeaveOutcome(remainingMembers.map { it.userId })
     }
 
-    @Transactional
-    override fun setAnnouncementMode(conversationId: UUID, requesterId: UUID, enabled: Boolean): Conversation {
+    override fun setAnnouncementMode(conversationId: UUID, requesterId: UUID, enabled: Boolean): Conversation = transactions.inTransaction {
         val conversation = conversationRepository.findById(conversationId)
             ?: throw BusinessException(ErrorCode.GROUP_NOT_FOUND)
 
@@ -310,7 +308,7 @@ open class GroupService(
             conversation.copy(announcementOnly = enabled, updatedAt = Instant.now())
         )
         log.info("Announcement mode set to {} on conversation {} by {}", enabled, conversationId, requesterId)
-        return saved
+        return@inTransaction saved
     }
 
     // ─── Helpers ──────────────────────────────────────────────

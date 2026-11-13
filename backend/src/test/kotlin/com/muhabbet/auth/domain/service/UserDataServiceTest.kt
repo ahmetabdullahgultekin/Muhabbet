@@ -1,5 +1,6 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
@@ -69,7 +70,8 @@ class UserDataServiceTest {
             deviceRepository = deviceRepository,
             loginApprovalRepository = loginApprovalRepository,
             deviceLinkSessionRepository = deviceLinkSessionRepository,
-            phoneHashRepository = phoneHashRepository
+            phoneHashRepository = phoneHashRepository,
+            transactions = InlineTransactionRunner()
         )
     }
 

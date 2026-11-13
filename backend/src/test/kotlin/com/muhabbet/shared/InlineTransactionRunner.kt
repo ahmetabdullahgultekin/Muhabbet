@@ -1,6 +1,6 @@
 package com.muhabbet.shared
 
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 
 /**
  * Runs the block, and that is the whole of it.
@@ -12,7 +12,7 @@ import com.muhabbet.messaging.domain.port.out.TransactionRunner
  * fail on something unrelated to what the test is about.
  */
 class InlineTransactionRunner : TransactionRunner {
-    override fun <T : Any> inTransaction(block: () -> T): T = block()
+    override fun <T> inTransaction(block: () -> T): T = block()
 }
 
 /**
@@ -20,7 +20,7 @@ class InlineTransactionRunner : TransactionRunner {
  * failure would. Lets a test assert that nothing was fanned out for work that did not commit.
  */
 class FailingTransactionRunner(private val failure: RuntimeException) : TransactionRunner {
-    override fun <T : Any> inTransaction(block: () -> T): T {
+    override fun <T> inTransaction(block: () -> T): T {
         block()
         throw failure
     }

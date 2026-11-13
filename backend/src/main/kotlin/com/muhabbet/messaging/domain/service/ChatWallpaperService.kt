@@ -6,18 +6,18 @@ import com.muhabbet.messaging.domain.port.`in`.ManageChatWallpaperUseCase
 import com.muhabbet.messaging.domain.port.out.ChatWallpaperRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class ChatWallpaperService(
-    private val chatWallpaperRepository: ChatWallpaperRepository
+class ChatWallpaperService(
+    private val chatWallpaperRepository: ChatWallpaperRepository,
+    private val transactions: TransactionRunner
 ) : ManageChatWallpaperUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional
-    override fun setGlobalWallpaper(userId: UUID, type: WallpaperType, value: String?, darkModeValue: String?): ChatWallpaper {
+    override fun setGlobalWallpaper(userId: UUID, type: WallpaperType, value: String?, darkModeValue: String?): ChatWallpaper = transactions.inTransaction {
         val wallpaper = ChatWallpaper(
             userId = userId,
             conversationId = null,
@@ -27,17 +27,16 @@ open class ChatWallpaperService(
         )
         val saved = chatWallpaperRepository.save(wallpaper)
         log.info("Global wallpaper set for user={}, type={}", userId, type)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
     override fun setConversationWallpaper(
         userId: UUID,
         conversationId: UUID,
         type: WallpaperType,
         value: String?,
         darkModeValue: String?
-    ): ChatWallpaper {
+    ): ChatWallpaper = transactions.inTransaction {
         val wallpaper = ChatWallpaper(
             userId = userId,
             conversationId = conversationId,
@@ -47,16 +46,17 @@ open class ChatWallpaperService(
         )
         val saved = chatWallpaperRepository.save(wallpaper)
         log.info("Conversation wallpaper set: user={}, conv={}, type={}", userId, conversationId, type)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional(readOnly = true)
-    override fun getWallpapers(userId: UUID): List<ChatWallpaper> =
+    override fun getWallpapers(userId: UUID): List<ChatWallpaper> = transactions.inReadOnlyTransaction {
         chatWallpaperRepository.findAllByUserId(userId)
+    }
 
-    @Transactional
     override fun removeWallpaper(wallpaperId: UUID, userId: UUID) {
-        chatWallpaperRepository.delete(wallpaperId)
-        log.info("Wallpaper removed: id={}, user={}", wallpaperId, userId)
+        transactions.inTransaction<Unit> {
+            chatWallpaperRepository.delete(wallpaperId)
+            log.info("Wallpaper removed: id={}, user={}", wallpaperId, userId)
+        }
     }
 }

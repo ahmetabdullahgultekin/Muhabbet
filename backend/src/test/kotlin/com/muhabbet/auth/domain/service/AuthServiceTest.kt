@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import com.muhabbet.auth.adapter.out.external.BCryptPasswordHasher
 import java.time.Instant
 import java.util.UUID
 
@@ -40,8 +40,8 @@ class AuthServiceTest {
     private lateinit var phoneHashRepository: PhoneHashRepository
     private lateinit var otpSender: OtpSender
     private lateinit var jwtProvider: JwtProvider
-    private lateinit var passwordEncoder: BCryptPasswordEncoder
-    private lateinit var authService: AuthService
+    private lateinit var passwordEncoder: BCryptPasswordHasher
+    private lateinit var authService: AuthServiceFixture
 
     private val validPhone = "+905321234567"
     private val validOtp = "123456"
@@ -54,7 +54,7 @@ class AuthServiceTest {
         refreshTokenRepository = mockk()
         phoneHashRepository = mockk()
         otpSender = mockk()
-        passwordEncoder = BCryptPasswordEncoder()
+        passwordHasher = BCryptPasswordHasher()
 
         val jwtProperties = JwtProperties(
             secret = "test-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256",
@@ -64,7 +64,7 @@ class AuthServiceTest {
         )
         jwtProvider = JwtProvider(jwtProperties, MockEnvironment())
 
-        authService = AuthService(
+        authService = AuthServiceFixture(
             userRepository = userRepository,
             otpRepository = otpRepository,
             deviceRepository = deviceRepository,
@@ -72,7 +72,7 @@ class AuthServiceTest {
             phoneHashRepository = phoneHashRepository,
             otpSender = otpSender,
             jwtProvider = jwtProvider,
-            passwordEncoder = passwordEncoder,
+            passwordHasher = passwordEncoder,
             otpLength = 6,
             otpExpirySeconds = 300,
             otpCooldownSeconds = 60,
@@ -134,7 +134,7 @@ class AuthServiceTest {
 
     @Test
     fun `should return AuthResult when OTP is correct and new user`() {
-        val otpHash = passwordEncoder.encode(validOtp) ?: ""
+        val otpHash = passwordEncoder.hash(validOtp)
         val activeOtp = OtpRequest(
             phoneNumber = validPhone,
             otpHash = otpHash,
@@ -171,7 +171,7 @@ class AuthServiceTest {
     private fun stubVerifiableOtp(): OtpRequest {
         val activeOtp = OtpRequest(
             phoneNumber = validPhone,
-            otpHash = passwordEncoder.encode(validOtp) ?: "",
+            otpHash = passwordEncoder.hash(validOtp),
             attempts = 0,
             expiresAt = Instant.now().plusSeconds(240),
             verified = false
@@ -253,7 +253,7 @@ class AuthServiceTest {
 
     @Test
     fun `should throw AUTH_OTP_INVALID when wrong OTP`() {
-        val otpHash = passwordEncoder.encode("999999") ?: ""
+        val otpHash = passwordEncoder.hash("999999")
         val activeOtp = OtpRequest(
             phoneNumber = validPhone,
             otpHash = otpHash,
@@ -294,7 +294,7 @@ class AuthServiceTest {
     @Test
     fun `should return new tokens when refresh token is valid`() {
         val rawToken = jwtProvider.generateRefreshToken()
-        val tokenHash = AuthService.sha256(rawToken)
+        val tokenHash = sha256Hex(rawToken)
         val userId = UUID.randomUUID()
         val deviceId = UUID.randomUUID()
 

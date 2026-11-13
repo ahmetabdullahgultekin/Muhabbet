@@ -19,8 +19,8 @@ import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -30,25 +30,25 @@ import java.util.UUID
  * [UserDataExport]'s doc for the privacy rule applied when assembling it and the symmetry with
  * [UserDataQueryPort.erasePersonalData].
  */
-open class UserDataService(
+class UserDataService(
     private val userRepository: UserRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val userDataQueryPort: UserDataQueryPort,
     private val deviceRepository: DeviceRepository,
     private val loginApprovalRepository: LoginApprovalRepository,
     private val deviceLinkSessionRepository: DeviceLinkSessionRepository,
-    private val phoneHashRepository: PhoneHashRepository
+    private val phoneHashRepository: PhoneHashRepository,
+    private val transactions: TransactionRunner
 ) : ManageUserDataUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional(readOnly = true)
     override fun exportUserData(
         userId: UUID,
         messagesCursor: String?,
         mediaCursor: String?,
         pageSize: Int
-    ): UserDataExport {
+    ): UserDataExport = transactions.inReadOnlyTransaction {
         val user = userRepository.findById(userId)
             ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 
@@ -132,46 +132,47 @@ open class UserDataService(
         )
 
         log.info("User data exported: userId={}, messages={}/{}, media={}/{}", userId, messagesPage.size, messagesTotal, mediaPage.size, mediaTotal)
-        return export
+        return@inReadOnlyTransaction export
     }
 
-    @Transactional
     override fun requestAccountDeletion(userId: UUID) {
-        val user = userRepository.findById(userId)
-            ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
+        transactions.inTransaction<Unit> {
+            val user = userRepository.findById(userId)
+                ?: throw BusinessException(ErrorCode.USER_NOT_FOUND)
 
-        if (user.status == UserStatus.DELETED) {
-            throw BusinessException(ErrorCode.USER_ALREADY_DELETED)
-        }
+            if (user.status == UserStatus.DELETED) {
+                throw BusinessException(ErrorCode.USER_ALREADY_DELETED)
+            }
 
-        refreshTokenRepository.revokeAllForUser(userId)
-        userDataQueryPort.removeUserFromAllConversations(userId)
+            refreshTokenRepository.revokeAllForUser(userId)
+            userDataQueryPort.removeUserFromAllConversations(userId)
 
-        // Everything that identifies the person or makes them findable — discovery hash, devices,
-        // push tokens, keys, contacts, per-user settings.
-        userDataQueryPort.erasePersonalData(userId)
+            // Everything that identifies the person or makes them findable — discovery hash, devices,
+            // push tokens, keys, contacts, per-user settings.
+            userDataQueryPort.erasePersonalData(userId)
 
-        // The row itself has to survive: messages.sender_id references it, and those messages sit
-        // in other people's conversations. So the identity is overwritten in place rather than the
-        // row deleted. This used to only set status and deletedAt, which left the phone number in
-        // plaintext and the account fully reconstructible — a status flag is not erasure under
-        // KVKK m.7 or GDPR Art. 17 (#426).
-        userRepository.save(
-            user.copy(
-                phoneNumber = anonymousPhonePlaceholder(userId),
-                displayName = null,
-                avatarUrl = null,
-                about = null,
-                lastSeenAt = null,
-                twoStepPinHash = null,
-                twoStepEmail = null,
-                twoStepEnabledAt = null,
-                status = UserStatus.DELETED,
-                deletedAt = Instant.now()
+            // The row itself has to survive: messages.sender_id references it, and those messages sit
+            // in other people's conversations. So the identity is overwritten in place rather than the
+            // row deleted. This used to only set status and deletedAt, which left the phone number in
+            // plaintext and the account fully reconstructible — a status flag is not erasure under
+            // KVKK m.7 or GDPR Art. 17 (#426).
+            userRepository.save(
+                user.copy(
+                    phoneNumber = anonymousPhonePlaceholder(userId),
+                    displayName = null,
+                    avatarUrl = null,
+                    about = null,
+                    lastSeenAt = null,
+                    twoStepPinHash = null,
+                    twoStepEmail = null,
+                    twoStepEnabledAt = null,
+                    status = UserStatus.DELETED,
+                    deletedAt = Instant.now()
+                )
             )
-        )
 
-        log.info("Account erased: userId={}", userId)
+            log.info("Account erased: userId={}", userId)
+        }
     }
 
     /**

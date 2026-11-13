@@ -10,7 +10,7 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.FailingTransactionRunner
 import com.muhabbet.shared.protocol.WsMessage
@@ -101,7 +101,7 @@ class MessageMutationTransactionBoundaryTest {
      */
     private class RecordingRunner(private val broadcasterCalls: () -> Int) : TransactionRunner {
         var callsAtCommit: Int = -1
-        override fun <T : Any> inTransaction(block: () -> T): T {
+        override fun <T> inTransaction(block: () -> T): T {
             val result = block()
             callsAtCommit = broadcasterCalls()
             return result

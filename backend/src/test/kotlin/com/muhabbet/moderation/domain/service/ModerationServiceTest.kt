@@ -1,5 +1,6 @@
 package com.muhabbet.moderation.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.moderation.domain.model.*
 import com.muhabbet.moderation.domain.port.out.BlockRepository
 import com.muhabbet.moderation.domain.port.out.ReportRepository
@@ -18,7 +19,7 @@ class ModerationServiceTest {
 
     @BeforeEach
     fun setUp() {
-        service = ModerationService(reportRepository, blockRepository)
+        service = ModerationService(reportRepository, blockRepository, InlineTransactionRunner())
     }
 
     @Test

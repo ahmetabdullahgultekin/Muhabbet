@@ -1,5 +1,6 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
@@ -46,7 +47,7 @@ class DeviceLinkingServiceTest {
     fun setUp() {
         sessionRepo = mockk(relaxed = true)
         deviceRepo = mockk(relaxed = true)
-        service = DeviceLinkingService(sessionRepo, deviceRepo)
+        service = DeviceLinkingService(sessionRepo, deviceRepo, InlineTransactionRunner())
 
         every { sessionRepo.save(any()) } answers { firstArg() }
         every { deviceRepo.save(any()) } answers { firstArg() }

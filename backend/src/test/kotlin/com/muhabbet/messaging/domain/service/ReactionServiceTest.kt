@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -41,7 +42,7 @@ class ReactionServiceTest {
         reactionRepository = mockk(relaxed = true)
         messageRepository = mockk()
         conversationRepository = mockk()
-        service = ReactionService(reactionRepository, messageRepository, conversationRepository)
+        service = ReactionService(reactionRepository, messageRepository, conversationRepository, InlineTransactionRunner())
 
         every { messageRepository.findById(messageId) } returns Message(
             id = messageId,

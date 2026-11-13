@@ -1,6 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
-import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
+import com.muhabbet.messaging.domain.port.`in`.ResolveDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.PaginatedResponse
@@ -21,7 +21,7 @@ import java.util.UUID
 @RequestMapping("/api/v1/starred")
 class StarredMessageController(
     private val starredMessageRepository: StarredMessageRepository,
-    private val getMessageHistoryUseCase: GetMessageHistoryUseCase
+    private val resolveDeliveryStatusUseCase: ResolveDeliveryStatusUseCase
 ) {
 
     @PostMapping("/{messageId}")
@@ -46,7 +46,7 @@ class StarredMessageController(
         val userId = AuthenticatedUser.currentUserId()
         val messages = starredMessageRepository.getStarredMessages(userId, limit, offset)
 
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
+        val statusMap = resolveDeliveryStatusUseCase.resolveDeliveryStatuses(messages, userId)
         val items = messages.map { msg ->
             msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
         }

@@ -10,7 +10,7 @@ import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
@@ -125,7 +125,7 @@ class ScheduledDeliveryIsolationTest {
         every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns messages
         var transactions = 0
         val counting = object : TransactionRunner {
-            override fun <T : Any> inTransaction(block: () -> T): T {
+            override fun <T> inTransaction(block: () -> T): T {
                 transactions++
                 return block()
             }
@@ -146,7 +146,7 @@ class ScheduledDeliveryIsolationTest {
         var broadcasts = 0
         every { messageBroadcaster.broadcastMessage(any(), any()) } answers { broadcasts++; Unit }
         val recording = object : TransactionRunner {
-            override fun <T : Any> inTransaction(block: () -> T): T {
+            override fun <T> inTransaction(block: () -> T): T {
                 val result = block()
                 broadcastsAtCommit = broadcasts
                 return result

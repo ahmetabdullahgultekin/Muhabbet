@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.mock.env.MockEnvironment
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import com.muhabbet.auth.adapter.out.external.BCryptPasswordHasher
 
 /**
  * Covers the SMS bypass that makes emulator sign-in possible at all.
@@ -41,7 +41,7 @@ class AuthServiceTestNumberTest {
         testNumbers: Set<String>,
         otpRepository: OtpRepository = mockk(relaxed = true),
         otpVerifier: OtpVerifier = mockk(relaxed = true),
-    ) = AuthService(
+    ) = AuthServiceFixture(
         userRepository = mockk<UserRepository>(relaxed = true),
         otpRepository = otpRepository,
         deviceRepository = mockk<DeviceRepository>(relaxed = true),
@@ -51,7 +51,7 @@ class AuthServiceTestNumberTest {
             JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
             MockEnvironment().withProperty("spring.profiles.active", "test"),
         ),
-        passwordEncoder = BCryptPasswordEncoder(),
+        passwordHasher = BCryptPasswordHasher(),
         otpVerifier = otpVerifier,
         testNumbers = testNumbers,
     
@@ -77,7 +77,7 @@ class AuthServiceTestNumberTest {
 
         verify(exactly = 0) { verifier.start(any()) }
         // A real hash, not the sentinel — the code exists on this side and can be checked here.
-        assertNotEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
+        assertNotEquals(OtpAuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
         assertTrue(saved.captured.otpHash.startsWith("\$2"), "expected a bcrypt hash")
     }
 
@@ -93,7 +93,7 @@ class AuthServiceTestNumberTest {
         buildService(setOf(testPhone), otpRepository, verifier).requestOtp(realPhone)
 
         verify(exactly = 1) { verifier.start(realPhone) }
-        assertEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
+        assertEquals(OtpAuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
     }
 
     @Test
@@ -113,7 +113,7 @@ class AuthServiceTestNumberTest {
 
     @Test
     fun `more than a handful of test numbers is refused at startup`() {
-        val tooMany = (1..AuthService.MAX_TEST_NUMBERS + 1)
+        val tooMany = (1..OtpAuthService.MAX_TEST_NUMBERS + 1)
             .map { "+905000000" + it.toString().padStart(3, '0') }
             .toSet()
 
@@ -133,6 +133,6 @@ class AuthServiceTestNumberTest {
         buildService(emptySet(), otpRepository, verifier).requestOtp(testPhone)
 
         verify(exactly = 1) { verifier.start(testPhone) }
-        assertEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
+        assertEquals(OtpAuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
     }
 }

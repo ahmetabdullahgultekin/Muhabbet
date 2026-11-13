@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.EncryptionKeyBundle
 import com.muhabbet.messaging.domain.model.OneTimePreKey
 import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
@@ -47,7 +48,7 @@ class EncryptionServiceTest {
     @BeforeEach
     fun setUp() {
         encryptionKeyRepository = mockk(relaxed = true)
-        service = EncryptionService(encryptionKeyRepository)
+        service = EncryptionService(encryptionKeyRepository, InlineTransactionRunner())
     }
 
     @Nested

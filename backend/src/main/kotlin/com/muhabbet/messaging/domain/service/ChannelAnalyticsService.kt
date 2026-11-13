@@ -7,22 +7,22 @@ import com.muhabbet.messaging.domain.port.out.ChannelAnalyticsRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.util.UUID
 
-open class ChannelAnalyticsService(
+class ChannelAnalyticsService(
     private val analyticsRepository: ChannelAnalyticsRepository,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val transactions: TransactionRunner
 ) : ManageChannelAnalyticsUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional(readOnly = true)
     override fun getAnalytics(
         channelId: UUID, userId: UUID, startDate: LocalDate, endDate: LocalDate
-    ): ChannelAnalyticsSummary {
+    ): ChannelAnalyticsSummary = transactions.inReadOnlyTransaction {
         // Verify user is channel owner/admin
         val member = conversationRepository.findMember(channelId, userId)
             ?: throw BusinessException(ErrorCode.CHANNEL_NOT_FOUND)
@@ -30,7 +30,7 @@ open class ChannelAnalyticsService(
         val stats = analyticsRepository.findByChannelIdAndDateRange(channelId, startDate, endDate)
         val totalSubscribers = analyticsRepository.getSubscriberCount(channelId)
 
-        return ChannelAnalyticsSummary(
+        return@inReadOnlyTransaction ChannelAnalyticsSummary(
             channelId = channelId.toString(),
             totalSubscribers = totalSubscribers,
             dailyStats = stats.map { stat ->
@@ -47,9 +47,10 @@ open class ChannelAnalyticsService(
         )
     }
 
-    @Transactional
     override fun recordView(channelId: UUID, userId: UUID) {
-        val today = LocalDate.now()
-        analyticsRepository.incrementViewCount(channelId, today)
+        transactions.inTransaction<Unit> {
+            val today = LocalDate.now()
+            analyticsRepository.incrementViewCount(channelId, today)
+        }
     }
 }

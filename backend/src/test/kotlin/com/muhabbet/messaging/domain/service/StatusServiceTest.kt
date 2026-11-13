@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -52,7 +53,8 @@ class StatusServiceTest {
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
         every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
         service = StatusService(
-            statusRepository, conversationRepository, userDirectory, blockPolicy, TestMediaAttachmentPolicy()
+            statusRepository, conversationRepository, userDirectory, blockPolicy, TestMediaAttachmentPolicy(),
+            InlineTransactionRunner()
         )
     }
 

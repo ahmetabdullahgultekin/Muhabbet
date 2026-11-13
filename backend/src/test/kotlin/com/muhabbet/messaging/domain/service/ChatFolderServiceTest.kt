@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.ChatFolder
 import com.muhabbet.messaging.domain.model.ChatFolderEntry
 import com.muhabbet.messaging.domain.port.out.ChatFolderRepository
@@ -24,7 +25,7 @@ class ChatFolderServiceTest {
 
     @BeforeEach
     fun setUp() {
-        service = ChatFolderService(repository)
+        service = ChatFolderService(repository, InlineTransactionRunner())
     }
 
     @Test

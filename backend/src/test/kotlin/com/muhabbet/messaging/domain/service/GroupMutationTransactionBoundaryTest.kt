@@ -10,7 +10,7 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.FailingTransactionRunner
 import io.mockk.every
 import io.mockk.mockk
@@ -81,7 +81,7 @@ class GroupMutationTransactionBoundaryTest {
     /** See [MessageMutationTransactionBoundaryTest] — same recorder, same reason for starting at -1. */
     private class RecordingRunner(private val broadcasterCalls: () -> Int) : TransactionRunner {
         var callsAtCommit: Int = -1
-        override fun <T : Any> inTransaction(block: () -> T): T {
+        override fun <T> inTransaction(block: () -> T): T {
             val result = block()
             callsAtCommit = broadcasterCalls()
             return result

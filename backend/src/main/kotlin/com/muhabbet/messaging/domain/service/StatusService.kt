@@ -10,16 +10,17 @@ import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class StatusService(
+class StatusService(
     private val statusRepository: StatusRepository,
     private val conversationRepository: ConversationRepository,
     private val userDirectory: UserDirectoryPort,
     private val blockPolicy: BlockPolicyPort,
-    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort,
+    private val transactions: TransactionRunner
 ) : ManageStatusUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -42,8 +43,7 @@ open class StatusService(
         return url
     }
 
-    @Transactional
-    override fun createStatus(userId: UUID, content: String?, mediaUrl: String?): Status {
+    override fun createStatus(userId: UUID, content: String?, mediaUrl: String?): Status = transactions.inTransaction {
         val status = Status(
             userId = userId,
             content = content,
@@ -51,10 +51,9 @@ open class StatusService(
         )
         val saved = statusRepository.save(status)
         log.info("Status created: id={}, user={}", saved.id, userId)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
     override fun createStatusWithAudience(
         userId: UUID,
         content: String?,
@@ -62,7 +61,7 @@ open class StatusService(
         visibility: String,
         excludedUserIds: List<UUID>,
         includedUserIds: List<UUID>
-    ): Status {
+    ): Status = transactions.inTransaction {
         val status = Status(
             userId = userId,
             content = content,
@@ -73,12 +72,11 @@ open class StatusService(
         )
         val saved = statusRepository.save(status)
         log.info("Status created with audience: id={}, user={}, visibility={}", saved.id, userId, visibility)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional(readOnly = true)
-    override fun getMyStatuses(userId: UUID): List<Status> {
-        return statusRepository.findActiveByUserId(userId)
+    override fun getMyStatuses(userId: UUID): List<Status> = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction statusRepository.findActiveByUserId(userId)
     }
 
     /**
@@ -122,24 +120,23 @@ open class StatusService(
      * direction for the whole set — the Updates tab resolves every contact the moment it opens, so
      * asking per author would be an N+1 on a screen that is opened constantly.
      */
-    @Transactional(readOnly = true)
-    override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
+    override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> = transactions.inReadOnlyTransaction {
         val contactIds = conversationRepository.findAllContactUserIds(viewerUserId)
-        if (contactIds.isEmpty()) return emptyList()
+        if (contactIds.isEmpty()) return@inReadOnlyTransaction emptyList()
 
         val authorIds = contactIds -
             blockPolicy.findBlockedBy(viewerUserId, contactIds) -
             blockPolicy.findBlockedAmong(viewerUserId, contactIds)
-        if (authorIds.isEmpty()) return emptyList()
+        if (authorIds.isEmpty()) return@inReadOnlyTransaction emptyList()
 
         val visible = statusRepository.findActiveByUserIds(authorIds)
             .filter { status -> isVisibleTo(status, viewerUserId) }
-        if (visible.isEmpty()) return emptyList()
+        if (visible.isEmpty()) return@inReadOnlyTransaction emptyList()
 
         val byUser = visible.groupBy { it.userId }
         val displayInfo = userDirectory.findDisplayInfo(byUser.keys)
 
-        return byUser.map { (userId, statuses) ->
+        return@inReadOnlyTransaction byUser.map { (userId, statuses) ->
             StatusGroup(
                 userId = userId,
                 statuses = statuses.sortedByDescending { it.createdAt },
@@ -159,12 +156,13 @@ open class StatusService(
         else -> viewerUserId !in status.excludedUserIds
     }
 
-    @Transactional
     override fun deleteStatus(statusId: UUID, userId: UUID) {
-        val status = statusRepository.findById(statusId)
-        if (status != null && status.userId == userId) {
-            statusRepository.delete(statusId)
-            log.info("Status deleted: id={}, user={}", statusId, userId)
+        transactions.inTransaction<Unit> {
+            val status = statusRepository.findById(statusId)
+            if (status != null && status.userId == userId) {
+                statusRepository.delete(statusId)
+                log.info("Status deleted: id={}, user={}", statusId, userId)
+            }
         }
     }
 }

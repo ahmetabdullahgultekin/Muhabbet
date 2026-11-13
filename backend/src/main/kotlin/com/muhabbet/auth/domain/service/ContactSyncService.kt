@@ -6,13 +6,14 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.dto.MatchedContact
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class ContactSyncService(
+class ContactSyncService(
     private val phoneHashRepository: PhoneHashRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val transactions: TransactionRunner
 ) : ContactSyncUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -21,10 +22,9 @@ open class ContactSyncService(
         private const val MAX_HASHES_PER_REQUEST = 1000
     }
 
-    @Transactional(readOnly = true)
-    override fun syncContacts(userId: UUID, phoneHashes: List<String>): List<MatchedContact> {
+    override fun syncContacts(userId: UUID, phoneHashes: List<String>): List<MatchedContact> = transactions.inReadOnlyTransaction {
         if (phoneHashes.size > MAX_HASHES_PER_REQUEST) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR, "Tek seferde en fazla $MAX_HASHES_PER_REQUEST kişi senkronize edilebilir")
+            throw BusinessException(ErrorCode.CONTACT_SYNC_TOO_MANY)
         }
 
         val hashToUserId = phoneHashRepository.findUserIdsByPhoneHashes(phoneHashes)
@@ -47,6 +47,6 @@ open class ContactSyncService(
         }
 
         log.info("Contact sync: userId={}, requested={}, matched={}", userId, phoneHashes.size, matchedContacts.size)
-        return matchedContacts
+        return@inReadOnlyTransaction matchedContacts
     }
 }

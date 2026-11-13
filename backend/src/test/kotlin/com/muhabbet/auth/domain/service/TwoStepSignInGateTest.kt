@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.mock.env.MockEnvironment
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import com.muhabbet.auth.adapter.out.external.BCryptPasswordHasher
 import java.time.Instant
 import java.util.UUID
 
@@ -54,11 +54,11 @@ class TwoStepSignInGateTest {
     private lateinit var phoneHashRepository: PhoneHashRepository
     private lateinit var otpSender: OtpSender
     private lateinit var attempts: InMemoryTwoStepAttemptRepository
-    private lateinit var authService: AuthService
+    private lateinit var authService: AuthServiceFixture
 
     private val phone = TestData.PHONE_1
     private val pin = "654321"
-    private val encoder = BCryptPasswordEncoder()
+    private val encoder = BCryptPasswordHasher()
     private val storedHash = encoder.encode(pin)
 
     /** A verifier that recognises exactly one token, so the Firebase path is reachable in a test. */
@@ -104,7 +104,7 @@ class TwoStepSignInGateTest {
             MockEnvironment()
         )
 
-        authService = AuthService(
+        authService = AuthServiceFixture(
             userRepository = userRepository,
             otpRepository = otpRepository,
             deviceRepository = deviceRepository,
@@ -113,7 +113,7 @@ class TwoStepSignInGateTest {
             otpSender = otpSender,
             jwtProvider = jwtProvider,
             // The real encoder, because "does the stored hash match" is the thing under test.
-            passwordEncoder = encoder,
+            passwordHasher = encoder,
             otpQuotaPort = mockk<OtpQuotaPort>().also { every { it.tryConsume(any()) } returns true },
             firebaseTokenVerifier = firebaseVerifier,
             twoStepAttemptRepository = attempts,
@@ -131,7 +131,7 @@ class TwoStepSignInGateTest {
     }
 
     /** The service compares the *supplied* code against the stored hash, so store a real one. */
-    private fun otpMatching(code: String) = liveOtp.copy(otpHash = encoder.encode(code) ?: "")
+    private fun otpMatching(code: String) = liveOtp.copy(otpHash = encoder.hash(code))
 
     private fun givenLiveOtpFor(code: String) {
         every { otpRepository.findActiveByPhoneNumber(phone) } returns otpMatching(code)

@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.PinnedMessage
@@ -31,7 +32,7 @@ class PinnedMessageServiceTest {
 
     @BeforeEach
     fun setUp() {
-        service = PinnedMessageService(conversationRepository, messageRepository, pinnedMessageRepository)
+        service = PinnedMessageService(conversationRepository, messageRepository, pinnedMessageRepository, InlineTransactionRunner())
     }
 
     private fun aMessage(convId: UUID = conversationId) = Message(

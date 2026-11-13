@@ -1,5 +1,6 @@
 package com.muhabbet.shared.config
 
+import com.muhabbet.auth.domain.model.OtpSettings
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
@@ -9,11 +10,18 @@ import com.muhabbet.auth.domain.port.out.TwoStepAttemptRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
+import com.muhabbet.auth.domain.port.out.PasswordHasher
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
-import com.muhabbet.auth.domain.service.AuthService
+import com.muhabbet.auth.domain.service.DeviceRegistrationService
+import com.muhabbet.auth.domain.service.FirebaseSignInService
+import com.muhabbet.auth.domain.service.OtpAuthService
+import com.muhabbet.auth.domain.service.PhoneSignIn
+import com.muhabbet.auth.domain.service.SessionTokens
+import com.muhabbet.auth.domain.service.TokenService
+import com.muhabbet.auth.domain.service.TwoStepSignInGate
 import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
 import com.muhabbet.auth.domain.service.LastSeenService
@@ -46,7 +54,7 @@ import com.muhabbet.messaging.domain.port.out.NotificationTextPort
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.messaging.domain.service.ViewOnceService
@@ -57,6 +65,8 @@ import com.muhabbet.messaging.domain.service.PinnedMessageService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
 import com.muhabbet.messaging.domain.service.ChatWallpaperService
+import com.muhabbet.messaging.domain.service.CommunityGroupService
+import com.muhabbet.messaging.domain.service.CommunityMembershipService
 import com.muhabbet.messaging.domain.service.CommunityService
 import com.muhabbet.messaging.domain.service.ConversationService
 import com.muhabbet.messaging.domain.service.DisappearingMessageService
@@ -65,7 +75,11 @@ import com.muhabbet.messaging.domain.service.GroupEventService
 import com.muhabbet.messaging.domain.service.GroupService
 import com.muhabbet.messaging.domain.service.InviteLinkService
 import com.muhabbet.messaging.domain.service.JoinRequestService
-import com.muhabbet.messaging.domain.service.MessageService
+import com.muhabbet.messaging.domain.service.DeliveryReceiptService
+import com.muhabbet.messaging.domain.service.MessageEditService
+import com.muhabbet.messaging.domain.service.MessageHistoryService
+import com.muhabbet.messaging.domain.service.ScheduledDeliveryService
+import com.muhabbet.messaging.domain.service.SendMessageService
 import com.muhabbet.messaging.domain.service.PollService
 import com.muhabbet.messaging.domain.service.ReactionService
 import com.muhabbet.messaging.domain.service.SearchService
@@ -75,8 +89,6 @@ import com.muhabbet.shared.security.JwtProvider
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
-import org.springframework.security.crypto.password.PasswordEncoder
 
 @Configuration
 @EnableConfigurationProperties(
@@ -90,69 +102,136 @@ import org.springframework.security.crypto.password.PasswordEncoder
 )
 class AppConfig {
 
-    @Bean
-    fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
+    // ─── Sign-in and sessions (#894: one service per concern) ─────────
 
     @Bean
-    fun authService(
-        userRepository: UserRepository,
-        otpRepository: OtpRepository,
-        deviceRepository: DeviceRepository,
-        refreshTokenRepository: RefreshTokenRepository,
-        phoneHashRepository: PhoneHashRepository,
-        otpSender: OtpSender?,
+    fun sessionTokens(
         jwtProvider: JwtProvider,
-        passwordEncoder: PasswordEncoder,
-        otpProperties: OtpProperties,
-        jwtProperties: JwtProperties,
-        otpVerifier: OtpVerifier?,
-        otpQuotaPort: OtpQuotaPort,
-        firebaseTokenVerifier: FirebaseTokenVerifier,
+        refreshTokenRepository: RefreshTokenRepository,
+        jwtProperties: JwtProperties
+    ): SessionTokens = SessionTokens(
+        jwtProvider = jwtProvider,
+        refreshTokenRepository = refreshTokenRepository,
+        refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry
+    )
+
+    @Bean
+    fun twoStepSignInGate(
+        passwordHasher: PasswordHasher,
         twoStepAttemptRepository: TwoStepAttemptRepository,
         twoStepProperties: TwoStepProperties
-    ): AuthService = AuthService(
+    ): TwoStepSignInGate = TwoStepSignInGate(
+        passwordHasher = passwordHasher,
+        twoStepAttemptRepository = twoStepAttemptRepository,
+        maxAttempts = twoStepProperties.maxAttempts,
+        lockSeconds = twoStepProperties.lockSeconds
+    )
+
+    @Bean
+    fun phoneSignIn(
+        userRepository: UserRepository,
+        phoneHashRepository: PhoneHashRepository,
+        deviceRepository: DeviceRepository,
+        sessionTokens: SessionTokens
+    ): PhoneSignIn = PhoneSignIn(
+        userRepository = userRepository,
+        phoneHashRepository = phoneHashRepository,
+        deviceRepository = deviceRepository,
+        sessionTokens = sessionTokens
+    )
+
+    @Bean
+    fun otpAuthService(
+        userRepository: UserRepository,
+        otpRepository: OtpRepository,
+        otpSender: OtpSender?,
+        otpVerifier: OtpVerifier?,
+        passwordHasher: PasswordHasher,
+        otpQuotaPort: OtpQuotaPort,
+        twoStepSignInGate: TwoStepSignInGate,
+        phoneSignIn: PhoneSignIn,
+        otpProperties: OtpProperties,
+        transactions: TransactionRunner
+    ): OtpAuthService = OtpAuthService(
         userRepository = userRepository,
         otpRepository = otpRepository,
-        deviceRepository = deviceRepository,
-        refreshTokenRepository = refreshTokenRepository,
-        phoneHashRepository = phoneHashRepository,
         otpSender = otpSender,
-        jwtProvider = jwtProvider,
-        passwordEncoder = passwordEncoder,
-        otpLength = otpProperties.length,
-        otpExpirySeconds = otpProperties.expirySeconds,
-        otpCooldownSeconds = otpProperties.cooldownSeconds,
         otpVerifier = otpVerifier,
-        otpMaxAttempts = otpProperties.maxAttempts,
-        refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
-        mockEnabled = otpProperties.mockEnabled,
-        testNumbers = otpProperties.testNumbers.toSet(),
+        passwordHasher = passwordHasher,
         otpQuotaPort = otpQuotaPort,
+        twoStepGate = twoStepSignInGate,
+        phoneSignIn = phoneSignIn,
+        settings = OtpSettings(
+            length = otpProperties.length,
+            expirySeconds = otpProperties.expirySeconds,
+            cooldownSeconds = otpProperties.cooldownSeconds,
+            maxAttempts = otpProperties.maxAttempts,
+            mockEnabled = otpProperties.mockEnabled,
+            testNumbers = otpProperties.testNumbers.toSet()
+        ),
+        transactions = transactions
+    )
+
+    @Bean
+    fun firebaseSignInService(
+        firebaseTokenVerifier: FirebaseTokenVerifier,
+        userRepository: UserRepository,
+        twoStepSignInGate: TwoStepSignInGate,
+        phoneSignIn: PhoneSignIn,
+        transactions: TransactionRunner
+    ): FirebaseSignInService = FirebaseSignInService(
         firebaseTokenVerifier = firebaseTokenVerifier,
-        twoStepAttemptRepository = twoStepAttemptRepository,
-        twoStepMaxAttempts = twoStepProperties.maxAttempts,
-        twoStepLockSeconds = twoStepProperties.lockSeconds
+        userRepository = userRepository,
+        twoStepGate = twoStepSignInGate,
+        phoneSignIn = phoneSignIn,
+        transactions = transactions
+    )
+
+    @Bean
+    fun tokenService(
+        refreshTokenRepository: RefreshTokenRepository,
+        userRepository: UserRepository,
+        sessionTokens: SessionTokens,
+        transactions: TransactionRunner
+    ): TokenService = TokenService(
+        refreshTokenRepository = refreshTokenRepository,
+        userRepository = userRepository,
+        sessionTokens = sessionTokens,
+        transactions = transactions
+    )
+
+    @Bean
+    fun deviceRegistrationService(
+        deviceRepository: DeviceRepository,
+        transactions: TransactionRunner
+    ): DeviceRegistrationService = DeviceRegistrationService(
+        deviceRepository = deviceRepository,
+        transactions = transactions
     )
 
     /**
-     * The transaction boundary for `last_seen_at` (#402). Declared as a bean like every other
-     * domain service so Spring proxies it — that proxy is the entire fix, because the WebSocket
-     * adapter that calls it has no transaction of its own and the write is a `@Modifying` query.
+     * The transaction boundary for `last_seen_at` (#402). The WebSocket adapter that calls it has
+     * no transaction of its own and the write is a `@Modifying` query, so the service opens one
+     * through [TransactionRunner] (ADR 0014).
      */
     @Bean
     fun lastSeenService(
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        transactions: TransactionRunner
     ): LastSeenService = LastSeenService(
-        userRepository = userRepository
+        userRepository = userRepository,
+        transactions = transactions
     )
 
     @Bean
     fun contactSyncService(
         phoneHashRepository: PhoneHashRepository,
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        transactions: TransactionRunner
     ): ContactSyncService = ContactSyncService(
         phoneHashRepository = phoneHashRepository,
-        userRepository = userRepository
+        userRepository = userRepository,
+        transactions = transactions
     )
 
     @Bean
@@ -163,7 +242,8 @@ class AppConfig {
         deviceRepository: DeviceRepository,
         loginApprovalRepository: LoginApprovalRepository,
         deviceLinkSessionRepository: DeviceLinkSessionRepository,
-        phoneHashRepository: PhoneHashRepository
+        phoneHashRepository: PhoneHashRepository,
+        transactions: TransactionRunner
     ): UserDataService = UserDataService(
         userRepository = userRepository,
         refreshTokenRepository = refreshTokenRepository,
@@ -171,35 +251,98 @@ class AppConfig {
         deviceRepository = deviceRepository,
         loginApprovalRepository = loginApprovalRepository,
         deviceLinkSessionRepository = deviceLinkSessionRepository,
-        phoneHashRepository = phoneHashRepository
+        phoneHashRepository = phoneHashRepository,
+        transactions = transactions
     )
 
     @Bean
     fun conversationService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        transactions: TransactionRunner
     ): ConversationService = ConversationService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        userRepository = userRepository
+        userRepository = userRepository,
+        transactions = transactions
     )
 
+    /**
+     * The message services, one per concern (#894). They share their out-ports through
+     * [MessageServicePorts] and nothing else; the rules they have in common are small domain
+     * policies each one composes, not a base class.
+     */
     @Bean
-    fun messageService(
+    fun sendMessageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
         messageBroadcaster: MessageBroadcaster,
         ports: MessageServicePorts,
         transactions: TransactionRunner
-    ): MessageService = MessageService(
+    ): SendMessageService = SendMessageService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        messageBroadcaster = messageBroadcaster,
+        blockPolicy = ports.blockPolicy,
+        mediaAttachmentPolicy = ports.mediaAttachmentPolicy,
+        transactions = transactions
+    )
+
+    @Bean
+    fun messageHistoryService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        transactions: TransactionRunner
+    ): MessageHistoryService = MessageHistoryService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        transactions = transactions
+    )
+
+    @Bean
+    fun deliveryReceiptService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        messageBroadcaster: MessageBroadcaster,
+        ports: MessageServicePorts,
+        transactions: TransactionRunner
+    ): DeliveryReceiptService = DeliveryReceiptService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         messageBroadcaster = messageBroadcaster,
         userDirectory = ports.userDirectory,
         readReceiptPolicy = ports.readReceiptPolicy,
+        transactions = transactions
+    )
+
+    @Bean
+    fun messageEditService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        messageBroadcaster: MessageBroadcaster,
+        ports: MessageServicePorts,
+        transactions: TransactionRunner
+    ): MessageEditService = MessageEditService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        messageBroadcaster = messageBroadcaster,
         blockPolicy = ports.blockPolicy,
-        mediaAttachmentPolicy = ports.mediaAttachmentPolicy,
+        transactions = transactions
+    )
+
+    @Bean
+    fun scheduledDeliveryService(
+        conversationRepository: ConversationRepository,
+        messageRepository: MessageRepository,
+        messageBroadcaster: MessageBroadcaster,
+        ports: MessageServicePorts,
+        transactions: TransactionRunner
+    ): ScheduledDeliveryService = ScheduledDeliveryService(
+        conversationRepository = conversationRepository,
+        messageRepository = messageRepository,
+        messageBroadcaster = messageBroadcaster,
+        blockPolicy = ports.blockPolicy,
         transactions = transactions
     )
 
@@ -213,11 +356,13 @@ class AppConfig {
     fun viewOnceService(
         messageRepository: MessageRepository,
         conversationRepository: ConversationRepository,
-        mediaObjects: MediaObjectPort
+        mediaObjects: MediaObjectPort,
+        transactions: TransactionRunner
     ): ViewOnceService = ViewOnceService(
         messageRepository = messageRepository,
         conversationRepository = conversationRepository,
-        mediaObjects = mediaObjects
+        mediaObjects = mediaObjects,
+        transactions = transactions
     )
 
     @Bean
@@ -279,42 +424,50 @@ class AppConfig {
         conversationRepository: ConversationRepository,
         userDirectory: UserDirectoryPort,
         blockPolicy: BlockPolicyPort,
-        mediaAttachmentPolicy: MediaAttachmentPolicyPort
+        mediaAttachmentPolicy: MediaAttachmentPolicyPort,
+        transactions: TransactionRunner
     ): StatusService = StatusService(
         statusRepository = statusRepository,
         conversationRepository = conversationRepository,
         userDirectory = userDirectory,
         blockPolicy = blockPolicy,
-        mediaAttachmentPolicy = mediaAttachmentPolicy
+        mediaAttachmentPolicy = mediaAttachmentPolicy,
+        transactions = transactions
     )
 
     @Bean
     fun channelService(
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
     ): ChannelService = ChannelService(
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        transactions = transactions
     )
 
     @Bean
     fun pollService(
         messageRepository: MessageRepository,
         pollVoteRepository: PollVoteRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
     ): PollService = PollService(
         messageRepository = messageRepository,
         pollVoteRepository = pollVoteRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        transactions = transactions
     )
 
     @Bean
     fun reactionService(
         reactionRepository: ReactionRepository,
         messageRepository: MessageRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
     ): ReactionService = ReactionService(
         reactionRepository = reactionRepository,
         messageRepository = messageRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        transactions = transactions
     )
 
     @Bean
@@ -332,9 +485,11 @@ class AppConfig {
 
     @Bean
     fun encryptionService(
-        encryptionKeyRepository: EncryptionKeyRepository
+        encryptionKeyRepository: EncryptionKeyRepository,
+        transactions: TransactionRunner
     ): EncryptionService = EncryptionService(
-        encryptionKeyRepository = encryptionKeyRepository
+        encryptionKeyRepository = encryptionKeyRepository,
+        transactions = transactions
     )
 
     @Bean
@@ -346,9 +501,11 @@ class AppConfig {
 
     @Bean
     fun callHistoryService(
-        callHistoryRepository: CallHistoryRepository
+        callHistoryRepository: CallHistoryRepository,
+        transactions: TransactionRunner
     ): CallHistoryService = CallHistoryService(
-        callHistoryRepository = callHistoryRepository
+        callHistoryRepository = callHistoryRepository,
+        transactions = transactions
     )
 
     // ─── Phase 2: Content Moderation ──────────────────
@@ -356,11 +513,13 @@ class AppConfig {
     @Bean
     fun moderationService(
         reportRepository: com.muhabbet.moderation.domain.port.out.ReportRepository,
-        blockRepository: com.muhabbet.moderation.domain.port.out.BlockRepository
+        blockRepository: com.muhabbet.moderation.domain.port.out.BlockRepository,
+        transactions: TransactionRunner
     ): com.muhabbet.moderation.domain.service.ModerationService =
         com.muhabbet.moderation.domain.service.ModerationService(
             reportRepository = reportRepository,
-            blockRepository = blockRepository
+            blockRepository = blockRepository,
+            transactions = transactions
         )
 
     // ─── Phase 4: Message Backup ──────────────────────
@@ -370,13 +529,15 @@ class AppConfig {
         backupRepository: com.muhabbet.messaging.domain.port.out.BackupRepository,
         conversationRepository: ConversationRepository,
         messageRepository: com.muhabbet.messaging.domain.port.out.MessageRepository,
-        backupArchivePort: com.muhabbet.messaging.domain.port.out.BackupArchivePort
+        backupArchivePort: com.muhabbet.messaging.domain.port.out.BackupArchivePort,
+        transactions: TransactionRunner
     ): com.muhabbet.messaging.domain.service.BackupService =
         com.muhabbet.messaging.domain.service.BackupService(
             backupRepository = backupRepository,
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            backupArchivePort = backupArchivePort
+            backupArchivePort = backupArchivePort,
+            transactions = transactions
         )
 
     // ─── Phase 6: Channel Analytics ───────────────────
@@ -384,11 +545,13 @@ class AppConfig {
     @Bean
     fun channelAnalyticsService(
         channelAnalyticsRepository: com.muhabbet.messaging.domain.port.out.ChannelAnalyticsRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
     ): com.muhabbet.messaging.domain.service.ChannelAnalyticsService =
         com.muhabbet.messaging.domain.service.ChannelAnalyticsService(
             analyticsRepository = channelAnalyticsRepository,
-            conversationRepository = conversationRepository
+            conversationRepository = conversationRepository,
+            transactions = transactions
         )
 
     // ─── Phase 6: Bot Platform ────────────────────────
@@ -396,11 +559,13 @@ class AppConfig {
     @Bean
     fun botService(
         botRepository: com.muhabbet.messaging.domain.port.out.BotRepository,
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        transactions: TransactionRunner
     ): com.muhabbet.messaging.domain.service.BotService =
         com.muhabbet.messaging.domain.service.BotService(
             botRepository = botRepository,
-            userRepository = userRepository
+            userRepository = userRepository,
+            transactions = transactions
         )
 
     // ─── WhatsApp Feature Parity ──────────────────────
@@ -408,109 +573,153 @@ class AppConfig {
     @Bean
     fun twoStepVerificationService(
         userRepository: UserRepository,
-        passwordEncoder: PasswordEncoder,
+        passwordHasher: PasswordHasher,
         twoStepAttemptRepository: TwoStepAttemptRepository,
-        twoStepProperties: TwoStepProperties
+        twoStepProperties: TwoStepProperties,
+        transactions: TransactionRunner
     ): TwoStepVerificationService = TwoStepVerificationService(
         userRepository = userRepository,
-        passwordEncoder = passwordEncoder,
+        passwordHasher = passwordHasher,
         twoStepAttemptRepository = twoStepAttemptRepository,
         maxAttempts = twoStepProperties.maxAttempts,
-        lockSeconds = twoStepProperties.lockSeconds
+        lockSeconds = twoStepProperties.lockSeconds,
+        transactions = transactions
     )
 
     @Bean
     fun loginApprovalService(
-        loginApprovalRepository: LoginApprovalRepository
+        loginApprovalRepository: LoginApprovalRepository,
+        transactions: TransactionRunner
     ): LoginApprovalService = LoginApprovalService(
-        loginApprovalRepository = loginApprovalRepository
+        loginApprovalRepository = loginApprovalRepository,
+        transactions = transactions
     )
 
     @Bean
     fun deviceLinkingService(
         deviceLinkSessionRepository: DeviceLinkSessionRepository,
-        deviceRepository: DeviceRepository
+        deviceRepository: DeviceRepository,
+        transactions: TransactionRunner
     ): DeviceLinkingService = DeviceLinkingService(
         deviceLinkSessionRepository = deviceLinkSessionRepository,
-        deviceRepository = deviceRepository
+        deviceRepository = deviceRepository,
+        transactions = transactions
     )
 
     @Bean
     fun inviteLinkService(
         inviteLinkRepository: GroupInviteLinkRepository,
         joinRequestRepository: GroupJoinRequestRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
     ): InviteLinkService = InviteLinkService(
         inviteLinkRepository = inviteLinkRepository,
         joinRequestRepository = joinRequestRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        transactions = transactions
     )
 
     @Bean
     fun joinRequestService(
         joinRequestRepository: GroupJoinRequestRepository,
         conversationRepository: ConversationRepository,
-        inviteLinkRepository: GroupInviteLinkRepository
+        inviteLinkRepository: GroupInviteLinkRepository,
+        transactions: TransactionRunner
     ): JoinRequestService = JoinRequestService(
         joinRequestRepository = joinRequestRepository,
         conversationRepository = conversationRepository,
-        inviteLinkRepository = inviteLinkRepository
+        inviteLinkRepository = inviteLinkRepository,
+        transactions = transactions
     )
 
     @Bean
     fun communityService(
         communityRepository: CommunityRepository,
         conversationRepository: ConversationRepository,
-        userDirectoryPort: UserDirectoryPort,
-        blockPolicy: BlockPolicyPort
+        transactions: TransactionRunner
     ): CommunityService = CommunityService(
         communityRepository = communityRepository,
         conversationRepository = conversationRepository,
+        transactions = transactions
+    )
+
+    @Bean
+    fun communityGroupService(
+        communityRepository: CommunityRepository,
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
+    ): CommunityGroupService = CommunityGroupService(
+        communityRepository = communityRepository,
+        conversationRepository = conversationRepository,
+        transactions = transactions
+    )
+
+    @Bean
+    fun communityMembershipService(
+        communityRepository: CommunityRepository,
+        conversationRepository: ConversationRepository,
+        userDirectoryPort: UserDirectoryPort,
+        blockPolicy: BlockPolicyPort,
+        transactions: TransactionRunner
+    ): CommunityMembershipService = CommunityMembershipService(
+        communityRepository = communityRepository,
+        conversationRepository = conversationRepository,
         userDirectoryPort = userDirectoryPort,
-        blockPolicy = blockPolicy
+        blockPolicy = blockPolicy,
+        transactions = transactions
     )
 
     @Bean
     fun groupEventService(
         groupEventRepository: GroupEventRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        transactions: TransactionRunner
     ): GroupEventService = GroupEventService(
         groupEventRepository = groupEventRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        transactions = transactions
     )
 
     @Bean
     fun chatWallpaperService(
-        chatWallpaperRepository: ChatWallpaperRepository
+        chatWallpaperRepository: ChatWallpaperRepository,
+        transactions: TransactionRunner
     ): ChatWallpaperService = ChatWallpaperService(
-        chatWallpaperRepository = chatWallpaperRepository
+        chatWallpaperRepository = chatWallpaperRepository,
+        transactions = transactions
     )
 
     @Bean
     fun broadcastListService(
         broadcastListRepository: BroadcastListRepository,
-        userDirectoryPort: UserDirectoryPort
+        userDirectoryPort: UserDirectoryPort,
+        transactions: TransactionRunner
     ): BroadcastListService = BroadcastListService(
         broadcastListRepository = broadcastListRepository,
-        userDirectoryPort = userDirectoryPort
+        userDirectoryPort = userDirectoryPort,
+        transactions = transactions
     )
 
     @Bean
     fun chatFolderService(
-        chatFolderRepository: ChatFolderRepository
+        chatFolderRepository: ChatFolderRepository,
+        transactions: TransactionRunner
     ): ChatFolderService = ChatFolderService(
-        chatFolderRepository = chatFolderRepository
+        chatFolderRepository = chatFolderRepository,
+        transactions = transactions
     )
 
     @Bean
     fun pinnedMessageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        pinnedMessageRepository: PinnedMessageRepository
+        pinnedMessageRepository: PinnedMessageRepository,
+        transactions: TransactionRunner
     ): PinnedMessageService = PinnedMessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        pinnedMessageRepository = pinnedMessageRepository
+        pinnedMessageRepository = pinnedMessageRepository,
+        transactions = transactions
     )
 
     @Bean

@@ -11,9 +11,9 @@ import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 /**
@@ -21,17 +21,17 @@ import java.util.UUID
  * deciding. Both were reachable with nothing but a message id until #557 — no membership check
  * existed on either path.
  */
-open class PollService(
+class PollService(
     private val messageRepository: MessageRepository,
     private val pollVoteRepository: PollVoteRepository,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val transactions: TransactionRunner
 ) : ManagePollUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val json = Json { ignoreUnknownKeys = true }
 
-    @Transactional
-    override fun vote(messageId: UUID, userId: UUID, optionIndex: Int): PollResult {
+    override fun vote(messageId: UUID, userId: UUID, optionIndex: Int): PollResult = transactions.inTransaction {
         val message = requireMemberOfMessageConversation(messageId, userId)
 
         val pollData = json.decodeFromString<PollData>(message.content)
@@ -51,16 +51,15 @@ open class PollService(
 
         val votes = pollVoteRepository.findByMessageId(messageId)
         log.debug("Poll vote recorded: msg={}, user={}, option={}", messageId, userId, optionIndex)
-        return buildResult(messageId, pollData, votes, userId)
+        return@inTransaction buildResult(messageId, pollData, votes, userId)
     }
 
-    @Transactional(readOnly = true)
-    override fun getResults(messageId: UUID, userId: UUID): PollResult {
+    override fun getResults(messageId: UUID, userId: UUID): PollResult = transactions.inReadOnlyTransaction {
         val message = requireMemberOfMessageConversation(messageId, userId)
 
         val pollData = json.decodeFromString<PollData>(message.content)
         val votes = pollVoteRepository.findByMessageId(messageId)
-        return buildResult(messageId, pollData, votes, userId)
+        return@inReadOnlyTransaction buildResult(messageId, pollData, votes, userId)
     }
 
     /**

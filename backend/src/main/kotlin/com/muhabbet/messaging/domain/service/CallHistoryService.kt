@@ -3,15 +3,15 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.port.`in`.CallHistoryPage
 import com.muhabbet.messaging.domain.port.`in`.GetCallHistoryUseCase
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
-import org.springframework.transaction.annotation.Transactional
+import com.muhabbet.shared.transaction.TransactionRunner
 import java.util.UUID
 
-open class CallHistoryService(
-    private val callHistoryRepository: CallHistoryRepository
+class CallHistoryService(
+    private val callHistoryRepository: CallHistoryRepository,
+    private val transactions: TransactionRunner
 ) : GetCallHistoryUseCase {
 
-    @Transactional(readOnly = true)
-    override fun getCallHistory(userId: UUID, page: Int, size: Int): CallHistoryPage {
+    override fun getCallHistory(userId: UUID, page: Int, size: Int): CallHistoryPage = transactions.inReadOnlyTransaction {
         val effectivePage = page.coerceAtLeast(0)
         val effectiveSize = size.coerceIn(1, 50)
         val offset = effectivePage * effectiveSize
@@ -20,7 +20,7 @@ open class CallHistoryService(
         val totalCount = callHistoryRepository.countByUserId(userId)
         val hasMore = offset + effectiveSize < totalCount
 
-        return CallHistoryPage(
+        return@inReadOnlyTransaction CallHistoryPage(
             items = items,
             totalCount = totalCount,
             page = effectivePage,

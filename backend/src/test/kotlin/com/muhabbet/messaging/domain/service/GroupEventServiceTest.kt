@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.messaging.domain.model.GroupEvent
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
@@ -31,7 +32,7 @@ class GroupEventServiceTest {
     fun setUp() {
         groupEventRepository = mockk()
         conversationRepository = mockk()
-        groupEventService = GroupEventService(groupEventRepository, conversationRepository)
+        groupEventService = GroupEventService(groupEventRepository, conversationRepository, InlineTransactionRunner())
     }
 
     private fun event(id: UUID = UUID.randomUUID()) = GroupEvent(

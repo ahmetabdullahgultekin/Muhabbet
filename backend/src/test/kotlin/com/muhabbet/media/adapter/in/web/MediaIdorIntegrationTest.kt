@@ -12,7 +12,7 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.security.JwtProvider
 import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Test

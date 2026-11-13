@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.util.UUID
 
-open class MediaService(
+class MediaService(
     private val mediaStoragePort: MediaStoragePort,
     private val mediaFileRepository: MediaFileRepository,
     private val thumbnailPort: ThumbnailPort,

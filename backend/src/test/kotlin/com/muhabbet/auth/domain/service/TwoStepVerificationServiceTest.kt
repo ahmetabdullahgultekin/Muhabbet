@@ -1,6 +1,8 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.PasswordHasher
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.InMemoryTwoStepAttemptRepository
 import com.muhabbet.shared.TestData
@@ -18,7 +20,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.security.crypto.password.PasswordEncoder
 import java.time.Instant
 
 /**
@@ -31,17 +32,16 @@ import java.time.Instant
 class TwoStepVerificationServiceTest {
 
     private lateinit var userRepository: UserRepository
-    private lateinit var passwordEncoder: PasswordEncoder
+    private lateinit var passwordEncoder: PasswordHasher
     private lateinit var attempts: InMemoryTwoStepAttemptRepository
     private lateinit var service: TwoStepVerificationService
 
     private val userId = TestData.USER_ID_1
 
     /** A trivially reversible stand-in: the real encoder's salting is not what is under test. */
-    private class ReversibleEncoder : PasswordEncoder {
-        override fun encode(rawPassword: CharSequence?): String = "hashed:$rawPassword"
-        override fun matches(rawPassword: CharSequence?, encodedPassword: String?): Boolean =
-            encodedPassword == "hashed:$rawPassword"
+    private class ReversibleEncoder : PasswordHasher {
+        override fun hash(raw: String): String = "hashed:$raw"
+        override fun matches(raw: String, hashed: String): Boolean = hashed == "hashed:$raw"
     }
 
     private fun user(
@@ -61,7 +61,7 @@ class TwoStepVerificationServiceTest {
         userRepository = mockk()
         passwordEncoder = ReversibleEncoder()
         attempts = InMemoryTwoStepAttemptRepository()
-        service = TwoStepVerificationService(userRepository, passwordEncoder, attempts)
+        service = TwoStepVerificationService(userRepository, passwordEncoder, attempts, transactions = InlineTransactionRunner())
     }
 
     @Test

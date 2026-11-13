@@ -11,18 +11,18 @@ import com.muhabbet.moderation.domain.port.out.BlockRepository
 import com.muhabbet.moderation.domain.port.out.ReportRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class ModerationService(
+class ModerationService(
     private val reportRepository: ReportRepository,
-    private val blockRepository: BlockRepository
+    private val blockRepository: BlockRepository,
+    private val transactions: TransactionRunner
 ) : ReportUserUseCase, BlockUserUseCase, ReviewReportsUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional
     override fun reportUser(
         reporterId: UUID,
         reportedUserId: UUID?,
@@ -30,7 +30,7 @@ open class ModerationService(
         reportedConversationId: UUID?,
         reason: ReportReason,
         description: String?
-    ): UserReport {
+    ): UserReport = transactions.inTransaction {
         val report = reportRepository.save(
             UserReport(
                 reporterId = reporterId,
@@ -42,57 +42,55 @@ open class ModerationService(
             )
         )
         log.info("Report created: id={}, reporter={}, reason={}", report.id, reporterId, reason)
-        return report
+        return@inTransaction report
     }
 
-    @Transactional
     override fun blockUser(blockerId: UUID, blockedId: UUID) {
-        if (blockerId == blockedId) {
-            throw BusinessException(ErrorCode.BLOCK_SELF)
-        }
-        if (!blockRepository.exists(blockerId, blockedId)) {
-            blockRepository.save(UserBlock(blockerId = blockerId, blockedId = blockedId))
-            log.info("User {} blocked {}", blockerId, blockedId)
+        transactions.inTransaction<Unit> {
+            if (blockerId == blockedId) {
+                throw BusinessException(ErrorCode.BLOCK_SELF)
+            }
+            if (!blockRepository.exists(blockerId, blockedId)) {
+                blockRepository.save(UserBlock(blockerId = blockerId, blockedId = blockedId))
+                log.info("User {} blocked {}", blockerId, blockedId)
+            }
         }
     }
 
-    @Transactional
     override fun unblockUser(blockerId: UUID, blockedId: UUID) {
-        blockRepository.delete(blockerId, blockedId)
-        log.info("User {} unblocked {}", blockerId, blockedId)
+        transactions.inTransaction<Unit> {
+            blockRepository.delete(blockerId, blockedId)
+            log.info("User {} unblocked {}", blockerId, blockedId)
+        }
     }
 
-    @Transactional(readOnly = true)
-    override fun getBlockedUsers(userId: UUID): List<UserBlock> {
-        return blockRepository.findByBlockerId(userId)
+    override fun getBlockedUsers(userId: UUID): List<UserBlock> = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction blockRepository.findByBlockerId(userId)
     }
 
-    @Transactional(readOnly = true)
-    override fun isBlocked(blockerId: UUID, blockedId: UUID): Boolean {
-        return blockRepository.exists(blockerId, blockedId)
+    override fun isBlocked(blockerId: UUID, blockedId: UUID): Boolean = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction blockRepository.exists(blockerId, blockedId)
     }
 
-    @Transactional(readOnly = true)
-    override fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
-        return blockRepository.findBlockersAmong(userId, candidateIds)
+    override fun findBlockersAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction blockRepository.findBlockersAmong(userId, candidateIds)
     }
 
-    @Transactional(readOnly = true)
-    override fun findBlockedAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
-        return blockRepository.findBlockedAmong(userId, candidateIds)
+    override fun findBlockedAmong(userId: UUID, candidateIds: Collection<UUID>): Set<UUID> = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction blockRepository.findBlockedAmong(userId, candidateIds)
     }
 
-    @Transactional(readOnly = true)
-    override fun getPendingReports(limit: Int, offset: Int): List<UserReport> {
-        return reportRepository.findByStatus(ReportStatus.PENDING, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
+    override fun getPendingReports(limit: Int, offset: Int): List<UserReport> = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction reportRepository.findByStatus(ReportStatus.PENDING, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
     }
 
-    @Transactional
     override fun resolveReport(reportId: UUID, reviewerId: UUID, dismiss: Boolean) {
-        val report = reportRepository.findById(reportId)
-            ?: throw BusinessException(ErrorCode.REPORT_NOT_FOUND)
-        val newStatus = if (dismiss) ReportStatus.DISMISSED else ReportStatus.RESOLVED
-        reportRepository.updateStatus(reportId, newStatus, reviewerId)
-        log.info("Report {} {} by {}", reportId, newStatus, reviewerId)
+        transactions.inTransaction<Unit> {
+            val report = reportRepository.findById(reportId)
+                ?: throw BusinessException(ErrorCode.REPORT_NOT_FOUND)
+            val newStatus = if (dismiss) ReportStatus.DISMISSED else ReportStatus.RESOLVED
+            reportRepository.updateStatus(reportId, newStatus, reviewerId)
+            log.info("Report {} {} by {}", reportId, newStatus, reviewerId)
+        }
     }
 }

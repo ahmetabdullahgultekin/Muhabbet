@@ -9,19 +9,19 @@ import com.muhabbet.messaging.domain.port.out.BroadcastListRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class BroadcastListService(
+class BroadcastListService(
     private val broadcastListRepository: BroadcastListRepository,
-    private val userDirectoryPort: UserDirectoryPort
+    private val userDirectoryPort: UserDirectoryPort,
+    private val transactions: TransactionRunner
 ) : ManageBroadcastListUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional
-    override fun create(ownerId: UUID, name: String, memberIds: List<UUID>): BroadcastListSummary {
+    override fun create(ownerId: UUID, name: String, memberIds: List<UUID>): BroadcastListSummary = transactions.inTransaction {
         val list = BroadcastList(ownerId = ownerId, name = name)
         val saved = broadcastListRepository.save(list)
 
@@ -34,31 +34,28 @@ open class BroadcastListService(
         }
 
         log.info("Broadcast list created: id={}, name={}, members={}", saved.id, name, distinctMemberIds.size)
-        return BroadcastListSummary(list = saved, memberCount = distinctMemberIds.size)
+        return@inTransaction BroadcastListSummary(list = saved, memberCount = distinctMemberIds.size)
     }
 
-    @Transactional(readOnly = true)
-    override fun getByOwner(ownerId: UUID): List<BroadcastListSummary> {
+    override fun getByOwner(ownerId: UUID): List<BroadcastListSummary> = transactions.inReadOnlyTransaction {
         val lists = broadcastListRepository.findByOwnerId(ownerId)
-        if (lists.isEmpty()) return emptyList()
+        if (lists.isEmpty()) return@inReadOnlyTransaction emptyList()
 
         // One count query for the page, not one per row.
         val counts = broadcastListRepository.countMembersByListIds(lists.map { it.id })
-        return lists.map { BroadcastListSummary(list = it, memberCount = counts[it.id] ?: 0) }
+        return@inReadOnlyTransaction lists.map { BroadcastListSummary(list = it, memberCount = counts[it.id] ?: 0) }
     }
 
-    @Transactional(readOnly = true)
-    override fun getMembers(broadcastListId: UUID, ownerId: UUID): List<BroadcastListMemberSummary> {
+    override fun getMembers(broadcastListId: UUID, ownerId: UUID): List<BroadcastListMemberSummary> = transactions.inReadOnlyTransaction {
         requireOwner(broadcastListId, ownerId)
-        return withDisplayInfo(broadcastListRepository.findMembers(broadcastListId))
+        return@inReadOnlyTransaction withDisplayInfo(broadcastListRepository.findMembers(broadcastListId))
     }
 
-    @Transactional
     override fun addMembers(
         broadcastListId: UUID,
         ownerId: UUID,
         memberIds: List<UUID>
-    ): List<BroadcastListMemberSummary> {
+    ): List<BroadcastListMemberSummary> = transactions.inTransaction {
         requireOwner(broadcastListId, ownerId)
         val existing = broadcastListRepository.findMembers(broadcastListId).map { it.userId }.toSet()
 
@@ -67,20 +64,22 @@ open class BroadcastListService(
                 BroadcastListMember(broadcastListId = broadcastListId, userId = memberId)
             )
         }
-        return withDisplayInfo(added)
+        return@inTransaction withDisplayInfo(added)
     }
 
-    @Transactional
     override fun removeMember(broadcastListId: UUID, ownerId: UUID, userId: UUID) {
-        requireOwner(broadcastListId, ownerId)
-        broadcastListRepository.removeMember(broadcastListId, userId)
+        transactions.inTransaction<Unit> {
+            requireOwner(broadcastListId, ownerId)
+            broadcastListRepository.removeMember(broadcastListId, userId)
+        }
     }
 
-    @Transactional
     override fun delete(broadcastListId: UUID, ownerId: UUID) {
-        requireOwner(broadcastListId, ownerId)
-        broadcastListRepository.delete(broadcastListId)
-        log.info("Broadcast list deleted: id={}", broadcastListId)
+        transactions.inTransaction<Unit> {
+            requireOwner(broadcastListId, ownerId)
+            broadcastListRepository.delete(broadcastListId)
+            log.info("Broadcast list deleted: id={}", broadcastListId)
+        }
     }
 
     /** Puts a name and a face on membership rows that hold nothing but ids. One lookup per call. */

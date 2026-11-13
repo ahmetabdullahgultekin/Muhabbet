@@ -7,14 +7,15 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-open class PinnedMessageService(
+class PinnedMessageService(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val pinnedMessageRepository: PinnedMessageRepository
+    private val pinnedMessageRepository: PinnedMessageRepository,
+    private val transactions: TransactionRunner
 ) : ManagePinnedMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -23,8 +24,7 @@ open class PinnedMessageService(
         private const val MAX_PINS_PER_CONVERSATION = 3
     }
 
-    @Transactional
-    override fun pin(conversationId: UUID, messageId: UUID, userId: UUID): PinnedMessage {
+    override fun pin(conversationId: UUID, messageId: UUID, userId: UUID): PinnedMessage = transactions.inTransaction {
         requireMember(conversationId, userId)
 
         val message = messageRepository.findById(messageId)
@@ -35,7 +35,7 @@ open class PinnedMessageService(
         }
 
         // Idempotent: re-pinning an already-pinned message is a no-op that returns the existing pin.
-        pinnedMessageRepository.find(conversationId, messageId)?.let { return it }
+        pinnedMessageRepository.find(conversationId, messageId)?.let { return@inTransaction it }
 
         if (pinnedMessageRepository.countByConversationId(conversationId) >= MAX_PINS_PER_CONVERSATION) {
             throw BusinessException(ErrorCode.MSG_PIN_LIMIT_REACHED)
@@ -45,20 +45,20 @@ open class PinnedMessageService(
             PinnedMessage(conversationId = conversationId, messageId = messageId, pinnedBy = userId)
         )
         log.info("Message pinned: conv={}, msg={}, by={}", conversationId, messageId, userId)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
     override fun unpin(conversationId: UUID, messageId: UUID, userId: UUID) {
-        requireMember(conversationId, userId)
-        pinnedMessageRepository.delete(conversationId, messageId)
-        log.info("Message unpinned: conv={}, msg={}, by={}", conversationId, messageId, userId)
+        transactions.inTransaction<Unit> {
+            requireMember(conversationId, userId)
+            pinnedMessageRepository.delete(conversationId, messageId)
+            log.info("Message unpinned: conv={}, msg={}, by={}", conversationId, messageId, userId)
+        }
     }
 
-    @Transactional(readOnly = true)
-    override fun getPinned(conversationId: UUID, userId: UUID): List<PinnedMessage> {
+    override fun getPinned(conversationId: UUID, userId: UUID): List<PinnedMessage> = transactions.inReadOnlyTransaction {
         requireMember(conversationId, userId)
-        return pinnedMessageRepository.findByConversationId(conversationId)
+        return@inReadOnlyTransaction pinnedMessageRepository.findByConversationId(conversationId)
     }
 
     private fun requireMember(conversationId: UUID, userId: UUID) {

@@ -8,10 +8,10 @@ import com.muhabbet.messaging.domain.port.out.BackupRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBackup
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.shared.transaction.TransactionRunner
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -26,24 +26,24 @@ import java.util.UUID
  * Failure handling: any error during build/upload marks the backup FAILED (rather than a false
  * COMPLETED) so the UX and any retry logic can react truthfully.
  */
-open class BackupService(
+class BackupService(
     private val backupRepository: BackupRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val backupArchivePort: BackupArchivePort
+    private val backupArchivePort: BackupArchivePort,
+    private val transactions: TransactionRunner
 ) : ManageBackupUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val json = Json { prettyPrint = false; encodeDefaults = true }
 
-    @Transactional
-    override fun createBackup(userId: UUID): BackupInfo {
+    override fun createBackup(userId: UUID): BackupInfo = transactions.inTransaction {
         val backup = backupRepository.save(
             MessageBackup(userId = userId, status = "PENDING")
         )
         log.info("Backup started: id={}, userId={}", backup.id, userId)
 
-        return try {
+        return@inTransaction try {
             val conversations = conversationRepository.findConversationsByUserId(userId)
             var messageCount = 0
             val convArchives = conversations.map { conv ->
@@ -128,14 +128,12 @@ open class BackupService(
         return all
     }
 
-    @Transactional(readOnly = true)
-    override fun getLatestBackup(userId: UUID): BackupInfo? {
-        return backupRepository.findLatestByUserId(userId)?.toInfo()
+    override fun getLatestBackup(userId: UUID): BackupInfo? = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction backupRepository.findLatestByUserId(userId)?.toInfo()
     }
 
-    @Transactional(readOnly = true)
-    override fun listBackups(userId: UUID): List<BackupInfo> {
-        return backupRepository.findByUserId(userId).map { it.toInfo() }
+    override fun listBackups(userId: UUID): List<BackupInfo> = transactions.inReadOnlyTransaction {
+        return@inReadOnlyTransaction backupRepository.findByUserId(userId).map { it.toInfo() }
     }
 
     private fun Message.toArchive() = MessageArchive(

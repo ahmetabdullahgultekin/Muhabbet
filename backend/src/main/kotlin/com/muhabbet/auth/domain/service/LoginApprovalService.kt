@@ -6,13 +6,14 @@ import com.muhabbet.auth.domain.port.`in`.LoginApprovalUseCase
 import com.muhabbet.auth.domain.port.out.LoginApprovalRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.transaction.TransactionRunner
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
-open class LoginApprovalService(
-    private val loginApprovalRepository: LoginApprovalRepository
+class LoginApprovalService(
+    private val loginApprovalRepository: LoginApprovalRepository,
+    private val transactions: TransactionRunner
 ) : LoginApprovalUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -21,8 +22,7 @@ open class LoginApprovalService(
         private const val APPROVAL_EXPIRY_SECONDS = 300L // 5 minutes
     }
 
-    @Transactional
-    override fun requestApproval(userId: UUID, deviceName: String?, platform: String?, ip: String?): LoginApproval {
+    override fun requestApproval(userId: UUID, deviceName: String?, platform: String?, ip: String?): LoginApproval = transactions.inTransaction {
         val approval = LoginApproval(
             userId = userId,
             deviceName = deviceName,
@@ -32,11 +32,10 @@ open class LoginApprovalService(
         )
         val saved = loginApprovalRepository.save(approval)
         log.info("Login approval requested: id={}, user={}, device={}", saved.id, userId, deviceName)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
-    override fun approveLogin(approvalId: UUID, userId: UUID): LoginApproval {
+    override fun approveLogin(approvalId: UUID, userId: UUID): LoginApproval = transactions.inTransaction {
         val approval = loginApprovalRepository.findById(approvalId)
             ?: throw BusinessException(ErrorCode.LOGIN_APPROVAL_NOT_FOUND)
 
@@ -54,11 +53,10 @@ open class LoginApprovalService(
         )
         val saved = loginApprovalRepository.save(updated)
         log.info("Login approved: id={}, user={}", approvalId, userId)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional
-    override fun denyLogin(approvalId: UUID, userId: UUID): LoginApproval {
+    override fun denyLogin(approvalId: UUID, userId: UUID): LoginApproval = transactions.inTransaction {
         val approval = loginApprovalRepository.findById(approvalId)
             ?: throw BusinessException(ErrorCode.LOGIN_APPROVAL_NOT_FOUND)
 
@@ -72,11 +70,11 @@ open class LoginApprovalService(
         )
         val saved = loginApprovalRepository.save(updated)
         log.info("Login denied: id={}, user={}", approvalId, userId)
-        return saved
+        return@inTransaction saved
     }
 
-    @Transactional(readOnly = true)
-    override fun getPendingApprovals(userId: UUID): List<LoginApproval> =
+    override fun getPendingApprovals(userId: UUID): List<LoginApproval> = transactions.inReadOnlyTransaction {
         loginApprovalRepository.findPendingByUserId(userId)
-            .filter { it.expiresAt.isAfter(Instant.now()) }
+        .filter { it.expiresAt.isAfter(Instant.now()) }
+    }
 }

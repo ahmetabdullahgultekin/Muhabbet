@@ -4,7 +4,7 @@ import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
-import com.muhabbet.messaging.domain.port.out.TransactionRunner
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.protocol.WsMessage
 import io.mockk.every
@@ -53,7 +53,7 @@ class DisappearingMessageExpiryTest {
         // Runs the block, and records that the transaction ended. The real runner returns only
         // once the transaction has committed, which is the property the ordering test depends on.
         val transactions = object : TransactionRunner {
-            override fun <T : Any> inTransaction(block: () -> T): T =
+            override fun <T> inTransaction(block: () -> T): T =
                 block().also { events += "committed" }
         }
         every { messageRepository.softDeleteExpired(any(), any()) } answers { events += "deleted"; 1 }

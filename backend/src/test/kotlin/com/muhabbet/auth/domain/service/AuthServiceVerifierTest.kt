@@ -23,7 +23,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.mock.env.MockEnvironment
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import com.muhabbet.auth.adapter.out.external.BCryptPasswordHasher
 import java.time.Instant
 
 /**
@@ -36,7 +36,7 @@ class AuthServiceVerifierTest {
 
     private lateinit var otpRepository: OtpRepository
     private lateinit var otpVerifier: OtpVerifier
-    private lateinit var authService: AuthService
+    private lateinit var authService: AuthServiceFixture
 
     @BeforeEach
     fun setUp() {
@@ -54,7 +54,7 @@ class AuthServiceVerifierTest {
             env,
         )
 
-        authService = AuthService(
+        authService = AuthServiceFixture(
             userRepository = mockk<UserRepository>(relaxed = true),
             otpRepository = otpRepository,
             deviceRepository = mockk<DeviceRepository>(relaxed = true),
@@ -62,7 +62,7 @@ class AuthServiceVerifierTest {
             phoneHashRepository = mockk<PhoneHashRepository>(relaxed = true),
             // No sender: the constructor now rejects having both, which is the point.
             jwtProvider = jwtProvider,
-            passwordEncoder = BCryptPasswordEncoder(),
+            passwordHasher = BCryptPasswordHasher(),
             otpVerifier = otpVerifier,
         
             otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
@@ -87,7 +87,7 @@ class AuthServiceVerifierTest {
         verify(exactly = 1) { otpVerifier.start(phone) }
         // No code exists on this side, so none can be echoed back even in mock mode.
         assertNull(result.mockCode)
-        assertEquals(AuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
+        assertEquals(OtpAuthService.EXTERNALLY_VERIFIED, saved.captured.otpHash)
     }
 
     @Test
@@ -133,7 +133,7 @@ class AuthServiceVerifierTest {
         assertTrue(error.message!!.contains("exactly one"))
     }
 
-    private fun buildService(sender: OtpSender?, verifier: OtpVerifier?) = AuthService(
+    private fun buildService(sender: OtpSender?, verifier: OtpVerifier?) = AuthServiceFixture(
         userRepository = mockk(relaxed = true),
         otpRepository = mockk(relaxed = true),
         deviceRepository = mockk(relaxed = true),
@@ -144,7 +144,7 @@ class AuthServiceVerifierTest {
             JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
             MockEnvironment().withProperty("spring.profiles.active", "test"),
         ),
-        passwordEncoder = BCryptPasswordEncoder(),
+        passwordHasher = BCryptPasswordHasher(),
         otpVerifier = verifier,
     
             otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
@@ -159,7 +159,7 @@ class AuthServiceVerifierTest {
 
     private fun activeRequest() = OtpRequest(
         phoneNumber = phone,
-        otpHash = AuthService.EXTERNALLY_VERIFIED,
+        otpHash = OtpAuthService.EXTERNALLY_VERIFIED,
         expiresAt = Instant.now().plusSeconds(300),
     )
 }

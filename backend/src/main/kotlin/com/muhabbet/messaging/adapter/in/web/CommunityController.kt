@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.port.`in`.CommunityDetails
 import com.muhabbet.messaging.domain.port.`in`.CommunitySummary
+import com.muhabbet.messaging.domain.port.`in`.ManageCommunityGroupsUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageCommunityUseCase
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.security.AuthenticatedUser
@@ -59,7 +60,8 @@ data class CommunityGroupInfoResponse(
 @RestController
 @RequestMapping("/api/v1/communities")
 class CommunityController(
-    private val manageCommunityUseCase: ManageCommunityUseCase
+    private val manageCommunityUseCase: ManageCommunityUseCase,
+    private val manageCommunityGroupsUseCase: ManageCommunityGroupsUseCase
 ) {
 
     @PostMapping
@@ -99,7 +101,7 @@ class CommunityController(
         @RequestBody request: AddGroupRequest
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageCommunityUseCase.addGroup(communityId, UUID.fromString(request.conversationId), userId)
+        manageCommunityGroupsUseCase.addGroup(communityId, UUID.fromString(request.conversationId), userId)
         return ApiResponseBuilder.ok(Unit)
     }
 
@@ -109,7 +111,7 @@ class CommunityController(
         @PathVariable conversationId: UUID
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageCommunityUseCase.removeGroup(communityId, conversationId, userId)
+        manageCommunityGroupsUseCase.removeGroup(communityId, conversationId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 

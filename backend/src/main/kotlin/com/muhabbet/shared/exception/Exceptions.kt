@@ -30,6 +30,8 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // Conversation
     CONV_ALREADY_EXISTS(HttpStatus.CONFLICT, "Bu kullanıcıyla zaten bir konuşma mevcut"),
     CONV_INVALID_PARTICIPANTS(HttpStatus.BAD_REQUEST, "Geçersiz katılımcı"),
+    CONV_DIRECT_REQUIRES_ONE_PARTICIPANT(HttpStatus.BAD_REQUEST, "Birebir sohbet tam olarak bir kişiyle başlatılabilir"),
+    CONV_SELF_CONVERSATION(HttpStatus.BAD_REQUEST, "Kendinizle sohbet başlatamazsınız"),
     CONV_NOT_FOUND(HttpStatus.NOT_FOUND, "Konuşma bulunamadı"),
     CONV_MAX_MEMBERS(HttpStatus.BAD_REQUEST, "Grup maksimum üye sayısına ulaştı"),
 
@@ -50,6 +52,9 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     GROUP_ALREADY_MEMBER(HttpStatus.CONFLICT, "Kullanıcı zaten grup üyesi"),
     GROUP_CANNOT_REMOVE_OWNER(HttpStatus.BAD_REQUEST, "Grup sahibi çıkarılamaz"),
     GROUP_OWNER_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "Grup sahibi gruptan ayrılamaz, önce sahipliği devredin"),
+    GROUP_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "Grup adı gerekli"),
+    GROUP_NAME_INVALID(HttpStatus.BAD_REQUEST, "Geçersiz grup adı"),
+    GROUP_OWNER_ONLY(HttpStatus.FORBIDDEN, "Bu işlemi yalnızca grup sahibi yapabilir"),
     GROUP_CANNOT_MODIFY_DIRECT(HttpStatus.BAD_REQUEST, "Direkt mesajlaşma grupları değiştirilemez"),
 
     // Message management
@@ -183,6 +188,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     DEVICE_LINK_ALREADY_USED(HttpStatus.CONFLICT, "Bu bağlantı kodu zaten kullanıldı"),
     DEVICE_LINK_LIMIT_REACHED(HttpStatus.CONFLICT, "Bağlı cihaz sınırına ulaşıldı"),
     DEVICE_NOT_FOUND(HttpStatus.NOT_FOUND, "Cihaz bulunamadı"),
+    CONTACT_SYNC_TOO_MANY(HttpStatus.BAD_REQUEST, "Tek seferde senkronize edilebilecek kişi sayısı aşıldı"),
     DEVICE_CANNOT_REVOKE_PRIMARY(HttpStatus.BAD_REQUEST, "Birincil cihaz buradan kaldırılamaz"),
     DEVICE_LINKING_DISABLED(HttpStatus.FORBIDDEN, "Çoklu cihaz özelliği etkin değil"),
 
@@ -205,8 +211,13 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
 
 /**
  * Business exception — thrown by domain services, caught by GlobalExceptionHandler.
+ *
+ * The domain throws it with an [ErrorCode] alone (#895): the client-facing text is the code's
+ * [ErrorCode.defaultMessage], so every message lives in this one enum and the API never mixes
+ * languages. `HexagonalArchitectureTest.DomainErrorModel` holds the line. `open` for the few
+ * failures a caller must recognise by type, such as `CallBusyException`.
  */
-class BusinessException(
+open class BusinessException(
     val errorCode: ErrorCode,
     override val message: String = errorCode.defaultMessage,
     override val cause: Throwable? = null

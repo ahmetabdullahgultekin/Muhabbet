@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional
  * #560 — the half of the fix that no behavioural test can see.
  *
  * [MessageService.deliverScheduledMessages] isolates failures by giving each message its own
- * transaction through [com.muhabbet.messaging.domain.port.out.TransactionRunner].
+ * transaction through [com.muhabbet.shared.transaction.TransactionRunner].
  * `SpringTransactionRunner` propagates as `REQUIRED`, so that isolation only exists while there is
  * **no transaction already open around the loop**. Put `@Transactional` back on the method — or on
  * the job that calls it — and every per-message boundary silently joins the outer one: the run is

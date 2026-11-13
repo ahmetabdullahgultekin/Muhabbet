@@ -7,8 +7,8 @@ import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import org.springframework.stereotype.Component
 
 /**
- * The four cross-module seams `MessageService` asks questions through, collected so the `@Bean`
- * method that builds it stays a list of arguments a person can read.
+ * The four cross-module seams the message services ask questions through, collected so the
+ * `@Bean` methods that build them stay a list of arguments a person can read.
  *
  * Each is a port with an adapter on the far side, and they are the complete set of "somebody else's
  * module has to answer this before the message goes out": who the participants are
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component
  * method past detekt's parameter limit, and grouping them is the answer detekt is actually asking
  * for rather than a larger number in the config.
  *
- * A wiring type, deliberately: `MessageService` still takes the four ports individually, so the
+ * A wiring type, deliberately: the services take the ports they need individually, so the
  * domain never sees this class and a test can hand it four fakes without knowing it exists.
  */
 @Component
