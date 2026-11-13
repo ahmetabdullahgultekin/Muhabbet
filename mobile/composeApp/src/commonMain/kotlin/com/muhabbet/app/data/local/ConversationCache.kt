@@ -15,6 +15,9 @@ import com.muhabbet.shared.dto.ConversationResponse
  */
 interface ConversationCache {
     fun getConversations(): List<ConversationResponse>
+
+    /** The cached copy of one conversation, or null when this device has none (#800). */
+    fun getConversation(id: String): ConversationResponse?
     fun upsertConversation(conv: ConversationResponse)
     fun upsertConversations(conversations: List<ConversationResponse>)
     fun deleteConversation(id: String)

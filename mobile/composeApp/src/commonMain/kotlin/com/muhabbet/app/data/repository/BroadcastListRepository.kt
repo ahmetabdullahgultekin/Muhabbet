@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.BroadcastListResponse
 import com.muhabbet.shared.dto.BroadcastMemberResponse
 import com.muhabbet.shared.dto.CreateBroadcastListRequest
@@ -35,7 +36,7 @@ class BroadcastListRepository(
             BASE_PATH,
             CreateBroadcastListRequest(name = name, memberIds = memberIds)
         )
-        return response.data ?: throw Exception("BROADCAST_LIST_CREATE_FAILED")
+        return response.requireData()
     }
 
     /**

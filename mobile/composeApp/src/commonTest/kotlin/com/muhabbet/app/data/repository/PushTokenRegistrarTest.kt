@@ -2,6 +2,7 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.FakeTokenStorage
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.HttpTransportPolicy
 import com.muhabbet.app.platform.PushTokenProvider
 import com.muhabbet.shared.dto.RegisterPushTokenRequest
 import io.ktor.client.engine.mock.MockEngine
@@ -58,7 +59,9 @@ class PushTokenRegistrarTest {
         }
 
         val tokenStorage = FakeTokenStorage()
-        val apiClient = ApiClient(tokenStorage, engine)
+        // No sleeping between transport retries: the PUT is idempotent, so a 5xx is retried (#822),
+        // and these tests count requests rather than wait for backoff.
+        val apiClient = ApiClient(tokenStorage, engine, HttpTransportPolicy(retryJitterMs = 0, sleep = {}))
         val authRepository = AuthRepository(apiClient, tokenStorage)
 
         fun loggedIn() {
@@ -192,6 +195,11 @@ class PushTokenRegistrarTest {
 
         registrar.registerIfLoggedIn()
 
-        assertEquals(listOf(PUSH_TOKEN_PATH), backend.requestedPaths)
+        // Registering the same token is idempotent (a PUT), so the transport retries a 5xx before
+        // giving up (#822) — and the registrar still absorbs the final failure.
+        assertEquals(
+            List(1 + HttpTransportPolicy.Default.maxRetries) { PUSH_TOKEN_PATH },
+            backend.requestedPaths,
+        )
     }
 }

@@ -22,12 +22,15 @@ import kotlinx.serialization.json.JsonPrimitive
  * [message] carries the server's own text or, failing that, the start of the raw body. No
  * user-facing text is invented here: it is a diagnostic for logs, and screens map [code] rather than
  * showing [message] raw, because it arrives untranslated and can be an HTML fragment.
+ *
+ * A [DataException] (#824): its [error] is the status classified into a [DataError.Http] carrying
+ * the same [code], so a caller that handles data-layer failures by kind needs no second catch.
  */
 class ApiException(
     val status: Int,
     val code: String,
     override val message: String,
-) : Exception(message) {
+) : DataException(DataError.fromHttp(status, code), message) {
 
     override fun toString(): String = "ApiException(status=$status, code=$code, message=$message)"
 

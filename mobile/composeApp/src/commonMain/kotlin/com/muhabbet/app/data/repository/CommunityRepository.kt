@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.CommunityDetailResponse
 import com.muhabbet.shared.dto.CommunityMemberCandidateResponse
 import com.muhabbet.shared.dto.CommunityMemberResponse
@@ -19,12 +20,12 @@ class CommunityRepository(
 
     suspend fun getCommunityDetail(communityId: String): CommunityDetailResponse {
         val response = apiClient.get<CommunityDetailResponse>("/api/v1/communities/$communityId")
-        return response.data ?: throw Exception("COMMUNITY_LOAD_FAILED")
+        return response.requireData()
     }
 
     suspend fun createCommunity(request: CreateCommunityRequest): CommunityResponse {
         val response = apiClient.post<CommunityResponse>("/api/v1/communities", request)
-        return response.data ?: throw Exception("COMMUNITY_CREATE_FAILED")
+        return response.requireData()
     }
 
     suspend fun addGroupToCommunity(communityId: String, conversationId: String) {
@@ -68,7 +69,7 @@ class CommunityRepository(
             "/api/v1/communities/$communityId",
             UpdateCommunityRequest(name = name, description = description)
         )
-        return response.data ?: throw Exception("COMMUNITY_UPDATE_FAILED")
+        return response.requireData()
     }
 
     suspend fun leaveCommunity(communityId: String) {

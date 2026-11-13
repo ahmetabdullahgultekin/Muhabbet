@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.DeviceLinkBeginResponse
 import com.muhabbet.shared.dto.DeviceLinkCompleteRequest
 import com.muhabbet.shared.dto.LinkedDeviceResponse
@@ -18,7 +19,7 @@ class DeviceLinkRepository(private val apiClient: ApiClient) {
     /** Primary device: open a link session; render [DeviceLinkBeginResponse.linkToken] as a QR. */
     suspend fun beginLink(): DeviceLinkBeginResponse {
         val response = apiClient.post<DeviceLinkBeginResponse>("/api/v1/devices/link/begin", Unit)
-        return response.data ?: throw Exception(response.error?.code ?: "DEVICE_LINK_BEGIN_FAILED")
+        return response.requireData()
     }
 
     /** Companion device: complete the handshake with the scanned token. */
@@ -37,7 +38,7 @@ class DeviceLinkRepository(private val apiClient: ApiClient) {
                 publicBundle = publicBundle
             )
         )
-        return response.data ?: throw Exception(response.error?.code ?: "DEVICE_LINK_COMPLETE_FAILED")
+        return response.requireData()
     }
 
     /** List this account's active (non-revoked) devices for the management screen. */
@@ -49,6 +50,6 @@ class DeviceLinkRepository(private val apiClient: ApiClient) {
     /** Revoke a companion device the user owns. */
     suspend fun revokeDevice(deviceId: String): LinkedDeviceResponse {
         val response = apiClient.post<LinkedDeviceResponse>("/api/v1/devices/link/$deviceId/revoke", Unit)
-        return response.data ?: throw Exception(response.error?.code ?: "DEVICE_LINK_REVOKE_FAILED")
+        return response.requireData()
     }
 }

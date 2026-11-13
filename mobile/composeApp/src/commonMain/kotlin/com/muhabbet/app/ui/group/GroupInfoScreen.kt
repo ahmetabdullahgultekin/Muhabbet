@@ -136,9 +136,12 @@ fun GroupInfoScreen(
 
     LaunchedEffect(conversationId) {
         val failure = runCatchingCancellable {
-            val convs = conversationRepository.getConversations()
-            conversation = convs.items.firstOrNull { it.id == conversationId }
-            announcementOnly = conversation?.announcementOnly ?: false
+            // By id (#800). Scanning page one of the list missed any group past the twentieth chat,
+            // and even a hit carried every member as MEMBER — the list does not report roles — so
+            // the owner was never offered admin controls.
+            val loaded = conversationRepository.getConversation(conversationId)
+            conversation = loaded
+            announcementOnly = loaded.announcementOnly
         }.exceptionOrNull()
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isLoading = false

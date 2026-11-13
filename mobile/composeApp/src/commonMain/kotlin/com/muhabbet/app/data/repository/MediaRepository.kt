@@ -1,116 +1,68 @@
 package com.muhabbet.app.data.repository
 
-import com.muhabbet.app.crypto.MediaEncryptor
 import com.muhabbet.app.data.remote.ApiClient
-import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.app.data.remote.UploadPart
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.MediaUploadResponse
 import com.muhabbet.shared.dto.StorageUsageResponse
-import com.muhabbet.shared.port.MediaKeyMaterial
-import io.ktor.client.request.forms.MultiPartFormDataContent
-import io.ktor.client.request.get
-import io.ktor.client.request.forms.formData
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsBytes
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
-import kotlinx.serialization.serializer
 
+/**
+ * Media endpoints, all through [ApiClient]'s checked path (#798).
+ *
+ * There used to be three copy-pasted multipart posts on the raw `httpClient` here, none of which
+ * looked at the status, plus an unchecked `downloadMedia` that nothing called and that would have
+ * handed a 403 page to the decryptor as if it were the file. Every call now either returns what the
+ * server accepted or throws a typed [com.muhabbet.app.data.remote.DataException].
+ *
+ * [onProgress] receives bytes sent and the total; it is optional so callers that show no progress
+ * need not pass it.
+ */
 class MediaRepository(
     private val apiClient: ApiClient,
-    private val mediaEncryptor: MediaEncryptor = MediaEncryptor()
 ) {
 
-    suspend fun uploadImage(bytes: ByteArray, mimeType: String, fileName: String): MediaUploadResponse {
-        val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/upload") {
-            setBody(
-                MultiPartFormDataContent(
-                    formData {
-                        append("file", bytes, Headers.build {
-                            append(HttpHeaders.ContentType, mimeType)
-                            append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        })
-                    }
-                )
-            )
-        }
-        val text = response.bodyAsText()
-        val apiResponse = apiClient.json.decodeFromString(
-            ApiResponse.serializer(serializer<MediaUploadResponse>()),
-            text
-        )
-        return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "Upload failed")
-    }
+    suspend fun uploadImage(
+        bytes: ByteArray,
+        mimeType: String,
+        fileName: String,
+        onProgress: ((sent: Long, total: Long?) -> Unit)? = null,
+    ): MediaUploadResponse = upload(IMAGE_PATH, UploadPart(bytes, mimeType, fileName), onProgress = onProgress)
 
-    suspend fun uploadAudio(bytes: ByteArray, mimeType: String, fileName: String, durationSeconds: Int?): MediaUploadResponse {
-        val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/audio") {
-            setBody(
-                MultiPartFormDataContent(
-                    formData {
-                        append("file", bytes, Headers.build {
-                            append(HttpHeaders.ContentType, mimeType)
-                            append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        })
-                        if (durationSeconds != null) {
-                            append("durationSeconds", durationSeconds.toString())
-                        }
-                    }
-                )
-            )
-        }
-        val text = response.bodyAsText()
-        val apiResponse = apiClient.json.decodeFromString(
-            ApiResponse.serializer(serializer<MediaUploadResponse>()),
-            text
-        )
-        return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "Upload failed")
-    }
+    suspend fun uploadAudio(
+        bytes: ByteArray,
+        mimeType: String,
+        fileName: String,
+        durationSeconds: Int?,
+        onProgress: ((sent: Long, total: Long?) -> Unit)? = null,
+    ): MediaUploadResponse = upload(
+        AUDIO_PATH,
+        UploadPart(bytes, mimeType, fileName),
+        fields = durationSeconds?.let { mapOf(DURATION_FIELD to it.toString()) } ?: emptyMap(),
+        onProgress = onProgress,
+    )
 
-    suspend fun uploadDocument(bytes: ByteArray, mimeType: String, fileName: String): MediaUploadResponse {
-        val response = apiClient.httpClient.post("${ApiClient.BASE_URL}/api/v1/media/document") {
-            setBody(
-                MultiPartFormDataContent(
-                    formData {
-                        append("file", bytes, Headers.build {
-                            append(HttpHeaders.ContentType, mimeType)
-                            append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        })
-                    }
-                )
-            )
-        }
-        val text = response.bodyAsText()
-        val apiResponse = apiClient.json.decodeFromString(
-            ApiResponse.serializer(serializer<MediaUploadResponse>()),
-            text
-        )
-        return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "Upload failed")
-    }
+    suspend fun uploadDocument(
+        bytes: ByteArray,
+        mimeType: String,
+        fileName: String,
+        onProgress: ((sent: Long, total: Long?) -> Unit)? = null,
+    ): MediaUploadResponse = upload(DOCUMENT_PATH, UploadPart(bytes, mimeType, fileName), onProgress = onProgress)
 
-    suspend fun getStorageUsage(): StorageUsageResponse {
-        val response = apiClient.httpClient.get("${ApiClient.BASE_URL}/api/v1/media/storage")
-        val text = response.bodyAsText()
-        val apiResponse = apiClient.json.decodeFromString(
-            ApiResponse.serializer(serializer<StorageUsageResponse>()),
-            text
-        )
-        return apiResponse.data ?: throw Exception(apiResponse.error?.message ?: "STORAGE_USAGE_FAILED")
-    }
+    suspend fun getStorageUsage(): StorageUsageResponse =
+        apiClient.get<StorageUsageResponse>(STORAGE_PATH).requireData()
 
-    /**
-     * Download a media blob and, when [keyMaterial] is present (recovered from the decrypted message
-     * body), verify its integrity hash and AES-GCM-decrypt it. Returns the plaintext bytes ready to
-     * render.
-     *
-     * - [keyMaterial] null → legacy / plaintext media: the bytes are returned as fetched (the flag
-     *   was OFF when this media was sent, or it predates media E2E). Byte-identical to today.
-     * - [keyMaterial] non-null → ciphertext blob: a tampered blob or wrong key throws
-     *   [com.muhabbet.app.crypto.MediaDecryptException] (fail closed) so the UI can surface a visible
-     *   decrypt-failed state — it never renders corrupted bytes as if valid.
-     */
-    suspend fun downloadMedia(url: String, keyMaterial: MediaKeyMaterial? = null): ByteArray {
-        val blob = apiClient.httpClient.get(url).bodyAsBytes()
-        return mediaEncryptor.decryptDownloaded(blob, keyMaterial)
+    private suspend fun upload(
+        path: String,
+        part: UploadPart,
+        fields: Map<String, String> = emptyMap(),
+        onProgress: ((sent: Long, total: Long?) -> Unit)?,
+    ): MediaUploadResponse = apiClient.upload<MediaUploadResponse>(path, part, fields, onProgress).requireData()
+
+    private companion object {
+        const val IMAGE_PATH = "/api/v1/media/upload"
+        const val AUDIO_PATH = "/api/v1/media/audio"
+        const val DOCUMENT_PATH = "/api/v1/media/document"
+        const val STORAGE_PATH = "/api/v1/media/storage"
+        const val DURATION_FIELD = "durationSeconds"
     }
 }

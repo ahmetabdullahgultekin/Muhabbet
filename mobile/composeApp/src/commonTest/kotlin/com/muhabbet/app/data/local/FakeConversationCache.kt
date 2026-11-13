@@ -16,6 +16,8 @@ class FakeConversationCache : ConversationCache {
 
     override fun getConversations(): List<ConversationResponse> = stored.toList()
 
+    override fun getConversation(id: String): ConversationResponse? = stored.firstOrNull { it.id == id }
+
     override fun upsertConversation(conv: ConversationResponse) {
         stored.removeAll { it.id == conv.id }
         stored += conv

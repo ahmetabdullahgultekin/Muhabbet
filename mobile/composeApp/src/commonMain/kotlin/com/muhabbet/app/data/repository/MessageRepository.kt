@@ -1,8 +1,12 @@
 package com.muhabbet.app.data.repository
 
+import com.muhabbet.app.data.DefaultDispatcherProvider
+import com.muhabbet.app.data.DispatcherProvider
 import com.muhabbet.app.data.local.MessageCache
 import com.muhabbet.app.data.remote.ApiClient
-import com.muhabbet.app.data.remote.ApiException
+import com.muhabbet.app.data.remote.DataException
+import com.muhabbet.app.data.remote.isConnectivity
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.MessageInfoResponse
@@ -16,10 +20,12 @@ import com.muhabbet.shared.dto.ViewOnceRevealResponse
 import com.muhabbet.shared.model.Message
 import kotlin.coroutines.cancellation.CancellationException
 import io.ktor.http.encodeURLParameter
+import kotlinx.coroutines.withContext
 
 class MessageRepository(
     private val apiClient: ApiClient,
-    private val localCache: MessageCache
+    private val localCache: MessageCache,
+    private val dispatchers: DispatcherProvider = DefaultDispatcherProvider,
 ) {
 
     private companion object {
@@ -41,26 +47,21 @@ class MessageRepository(
             }
             val response = apiClient.get<PaginatedResponse<Message>>(path)
             val result = response.data ?: PaginatedResponse(emptyList(), null, false)
-            // Cache messages
-            localCache.upsertMessages(result.items)
+            // Write through to the cache, off the caller's thread (#820).
+            withContext(dispatchers.io) { localCache.upsertMessages(result.items) }
             result
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApiException) {
+        } catch (e: DataException) {
             // The cache answers an UNREACHABLE server, not one that answered and said no. Serving
-            // it here would hide a 403 behind data the user has no reason to doubt — the same
-            // failure-that-looks-like-success this whole change exists to remove.
-            Log.e(TAG, "Message fetch rejected by the server: $e")
-            throw e
-        } catch (e: Exception) {
+            // it for a 403 would hide the refusal behind data the user has no reason to doubt —
+            // the failure-that-looks-like-success #374 removed. Only connectivity falls back.
+            if (!e.error.isConnectivity || cursor != null) {
+                Log.e(TAG, "Message fetch failed: $e")
+                throw e
+            }
             // Genuinely offline: stale beats blank, but never silent in the log.
             Log.w(TAG, "Message fetch failed, falling back to cache: $e")
-            if (cursor == null) {
-                val cached = localCache.getMessagesByPage(conversationId, limit)
-                if (cached.isNotEmpty()) {
-                    PaginatedResponse(cached, null, false)
-                } else throw e
-            } else throw e
+            val cached = withContext(dispatchers.io) { localCache.getMessagesByPage(conversationId, limit) }
+            if (cached.isNotEmpty()) PaginatedResponse(cached, null, false) else throw e
         }
     }
 
@@ -84,10 +85,10 @@ class MessageRepository(
             // stored, so this is what stops a retried POST from posting the message twice.
             SendMessageRequest(messageId = generateMessageId(), content = content)
         )
-        val sent = response.data ?: throw Exception("MSG_SEND_FAILED")
+        val sent = response.requireData()
         // Cached so the message is on screen the moment the app is opened, rather than only after
         // the first history fetch comes back.
-        localCache.upsertMessages(listOf(sent))
+        withContext(dispatchers.io) { localCache.upsertMessages(listOf(sent)) }
         return sent
     }
 
@@ -141,12 +142,12 @@ class MessageRepository(
             "/api/v1/polls/$messageId/vote",
             PollVoteRequest(optionIndex)
         )
-        return response.data ?: throw Exception("Vote failed")
+        return response.requireData()
     }
 
     suspend fun getPollResults(messageId: String): PollResultResponse {
         val response = apiClient.get<PollResultResponse>("/api/v1/polls/$messageId/results")
-        return response.data ?: throw Exception("Failed to load poll results")
+        return response.requireData()
     }
 
     suspend fun addReaction(messageId: String, emoji: String) {
@@ -169,7 +170,7 @@ class MessageRepository(
 
     suspend fun getMessageInfo(messageId: String): MessageInfoResponse {
         val response = apiClient.get<MessageInfoResponse>("/api/v1/messages/$messageId/info")
-        return response.data ?: throw Exception("Failed to load message info")
+        return response.requireData()
     }
 
     /**
@@ -187,7 +188,7 @@ class MessageRepository(
      */
     suspend fun revealViewOnce(messageId: String): ViewOnceRevealResponse {
         val response = apiClient.post<ViewOnceRevealResponse>("/api/v1/messages/$messageId/view-once", Unit)
-        return response.data ?: throw Exception("VIEW_ONCE_REVEAL_FAILED")
+        return response.requireData()
     }
 
     suspend fun syncMessagesSince(timestamp: String): List<Message> {
@@ -199,7 +200,7 @@ class MessageRepository(
         )
         val messages = response.data?.items ?: emptyList()
         if (messages.isNotEmpty()) {
-            localCache.upsertMessages(messages)
+            withContext(dispatchers.io) { localCache.upsertMessages(messages) }
         }
         return messages
     }

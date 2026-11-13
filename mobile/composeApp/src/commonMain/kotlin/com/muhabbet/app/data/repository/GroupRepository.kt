@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.AddMembersRequest
 import com.muhabbet.shared.dto.AnnouncementModeResponse
 import com.muhabbet.shared.dto.ConversationResponse
@@ -12,10 +13,7 @@ import com.muhabbet.shared.dto.UpdateGroupRequest
 import com.muhabbet.shared.dto.UpdateRoleRequest
 import com.muhabbet.shared.model.ConversationType
 import com.muhabbet.shared.model.MemberRole
-import io.ktor.client.request.patch
-import io.ktor.client.request.setBody
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
+import kotlinx.serialization.json.JsonElement
 
 class GroupRepository(private val apiClient: ApiClient) {
 
@@ -28,7 +26,7 @@ class GroupRepository(private val apiClient: ApiClient) {
                 name = name
             )
         )
-        return response.data ?: throw Exception(response.error?.message ?: "GROUP_CREATE_FAILED")
+        return response.requireData()
     }
 
     suspend fun addMembers(conversationId: String, userIds: List<String>): List<ParticipantResponse> {
@@ -54,7 +52,7 @@ class GroupRepository(private val apiClient: ApiClient) {
             "/api/v1/conversations/$conversationId",
             UpdateGroupRequest(name = name, description = description, avatarUrl = avatarUrl)
         )
-        return response.data ?: throw Exception(response.error?.message ?: "GROUP_UPDATE_FAILED")
+        return response.requireData()
     }
 
     /**
@@ -74,8 +72,7 @@ class GroupRepository(private val apiClient: ApiClient) {
             "/api/v1/conversations/$conversationId/announcement",
             SetAnnouncementModeRequest(enabled = enabled)
         )
-        return response.data?.announcementOnly
-            ?: throw Exception(response.error?.message ?: "GROUP_ANNOUNCEMENT_UPDATE_FAILED")
+        return response.requireData().announcementOnly
     }
 
     suspend fun updateMemberRole(conversationId: String, userId: String, role: MemberRole) {
@@ -93,13 +90,13 @@ class GroupRepository(private val apiClient: ApiClient) {
         apiClient.delete<Unit>("/api/v1/messages/$messageId")
     }
 
+    /**
+     * Through the checked `patch` like every other call (#798), so a refusal is an `ApiException`
+     * with the server's code rather than a bare `MESSAGE_EDIT_FAILED`. Decoded as [JsonElement]: the
+     * caller has already updated its list optimistically and needs nothing back, and an untyped
+     * decode keeps a change to the edited message's shape from failing an edit the server accepted.
+     */
     suspend fun editMessage(messageId: String, content: String) {
-        val response = apiClient.httpClient.patch("${ApiClient.BASE_URL}/api/v1/messages/$messageId") {
-            setBody(EditMessageRequest(content))
-            contentType(io.ktor.http.ContentType.Application.Json)
-        }
-        if (!response.status.isSuccess()) {
-            throw Exception("MESSAGE_EDIT_FAILED")
-        }
+        apiClient.patch<JsonElement>("/api/v1/messages/$messageId", EditMessageRequest(content))
     }
 }

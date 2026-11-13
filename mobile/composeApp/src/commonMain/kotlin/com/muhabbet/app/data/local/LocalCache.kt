@@ -1,5 +1,6 @@
 package com.muhabbet.app.data.local
 
+import com.muhabbet.app.db.CachedConversation
 import com.muhabbet.app.db.MuhabbetDatabase
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.ParticipantResponse
@@ -22,25 +23,28 @@ class LocalCache(driverFactory: DatabaseDriverFactory) :
 
     // --- Conversations ---
 
-    override fun getConversations(): List<ConversationResponse> {
-        return queries.getConversations().executeAsList().map { row ->
-            ConversationResponse(
-                id = row.id,
-                type = ConversationType.valueOf(row.type),
-                name = row.name,
-                avatarUrl = row.avatarUrl,
-                participants = try {
-                    json.decodeFromString<List<ParticipantResponse>>(row.participantsJson)
-                } catch (_: Exception) { emptyList() },
-                lastMessagePreview = row.lastMessagePreview,
-                lastMessageAt = row.lastMessageAt,
-                unreadCount = row.unreadCount.toInt(),
-                createdAt = row.createdAt,
-                disappearAfterSeconds = row.disappearAfterSeconds?.toInt(),
-                isPinned = row.isPinned != 0L
-            )
-        }
-    }
+    override fun getConversations(): List<ConversationResponse> =
+        queries.getConversations().executeAsList().map { it.toConversationResponse() }
+
+    override fun getConversation(id: String): ConversationResponse? =
+        queries.getConversationById(id).executeAsOneOrNull()?.toConversationResponse()
+
+    private fun CachedConversation.toConversationResponse(): ConversationResponse =
+        ConversationResponse(
+            id = id,
+            type = ConversationType.valueOf(type),
+            name = name,
+            avatarUrl = avatarUrl,
+            participants = try {
+                json.decodeFromString<List<ParticipantResponse>>(participantsJson)
+            } catch (_: Exception) { emptyList() },
+            lastMessagePreview = lastMessagePreview,
+            lastMessageAt = lastMessageAt,
+            unreadCount = unreadCount.toInt(),
+            createdAt = createdAt,
+            disappearAfterSeconds = disappearAfterSeconds?.toInt(),
+            isPinned = isPinned != 0L
+        )
 
     override fun upsertConversation(conv: ConversationResponse) {
         queries.upsertConversation(

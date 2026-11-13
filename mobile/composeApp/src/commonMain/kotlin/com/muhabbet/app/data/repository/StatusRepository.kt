@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.StatusCreateRequest
 import com.muhabbet.shared.dto.StatusResponse
 import com.muhabbet.shared.dto.UserStatusGroup
@@ -12,7 +13,7 @@ class StatusRepository(private val apiClient: ApiClient) {
             "/api/v1/statuses",
             StatusCreateRequest(content = content, mediaUrl = mediaUrl)
         )
-        return response.data ?: throw Exception("Failed to create status")
+        return response.requireData()
     }
 
     suspend fun getMyStatuses(): List<StatusResponse> {

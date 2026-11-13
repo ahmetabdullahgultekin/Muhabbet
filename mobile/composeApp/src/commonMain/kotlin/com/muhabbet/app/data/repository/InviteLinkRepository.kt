@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.shared.dto.CreateInviteLinkRequest
 import com.muhabbet.shared.dto.InviteLinkResponse
@@ -35,7 +36,7 @@ class InviteLinkRepository(
             "/api/v1/conversations/$conversationId/invite-link",
             request
         )
-        return response.data ?: throw Exception("INVITE_LINK_CREATE_FAILED")
+        return response.requireData()
     }
 
     suspend fun revokeInviteLink(conversationId: String, linkId: String) {

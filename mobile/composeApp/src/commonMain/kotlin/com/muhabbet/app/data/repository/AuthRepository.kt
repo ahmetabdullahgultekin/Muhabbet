@@ -2,6 +2,7 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.AuthTokenResponse
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
 import com.muhabbet.shared.dto.PrivacySettingsResponse
@@ -23,7 +24,7 @@ class AuthRepository(
             "/api/v1/auth/otp/request",
             RequestOtpRequest(phoneNumber)
         )
-        return response.data ?: throw Exception(response.error?.message ?: "OTP_REQUEST_FAILED")
+        return response.requireData()
     }
 
     /**
@@ -44,7 +45,7 @@ class AuthRepository(
             "/api/v1/auth/otp/verify",
             VerifyOtpRequest(phoneNumber, otp, deviceName, platform, twoStepPin)
         )
-        val data = response.data ?: throw Exception(response.error?.message ?: "VERIFY_OTP_FAILED")
+        val data = response.requireData()
 
         tokenStorage.saveTokens(
             accessToken = data.accessToken,
@@ -67,7 +68,7 @@ class AuthRepository(
             "/api/v1/auth/firebase-verify",
             FirebaseVerifyRequest(idToken, deviceName, platform, twoStepPin)
         )
-        val data = response.data ?: throw Exception(response.error?.message ?: "FIREBASE_VERIFY_FAILED")
+        val data = response.requireData()
 
         tokenStorage.saveTokens(
             accessToken = data.accessToken,
@@ -81,7 +82,7 @@ class AuthRepository(
 
     suspend fun getProfile(): UserProfile {
         val response = apiClient.get<UserProfile>("/api/v1/users/me")
-        return response.data ?: throw Exception(response.error?.message ?: "PROFILE_LOAD_FAILED")
+        return response.requireData()
     }
 
     suspend fun updateProfile(displayName: String? = null, about: String? = null, avatarUrl: String? = null) {
@@ -90,7 +91,7 @@ class AuthRepository(
 
     suspend fun getPrivacySettings(): PrivacySettingsResponse {
         val response = apiClient.get<PrivacySettingsResponse>("/api/v1/users/me/privacy")
-        return response.data ?: throw Exception(response.error?.message ?: "PRIVACY_LOAD_FAILED")
+        return response.requireData()
     }
 
     /**
@@ -109,7 +110,7 @@ class AuthRepository(
                 aboutVisibility = aboutVisibility
             )
         )
-        return response.data ?: throw Exception(response.error?.message ?: "PRIVACY_UPDATE_FAILED")
+        return response.requireData()
     }
 
     /**

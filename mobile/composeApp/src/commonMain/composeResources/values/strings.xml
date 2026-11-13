@@ -8,6 +8,14 @@
     <string name="unknown_person">Bilinmeyen kişi</string>
     <string name="error_generic">Bir hata oluştu</string>
     <string name="error_network">Bağlantı hatası. Lütfen tekrar deneyin.</string>
+    <string name="data_error_timeout">Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.</string>
+    <string name="data_error_unauthorized">Oturumunuzun süresi doldu. Lütfen yeniden giriş yapın.</string>
+    <string name="data_error_forbidden">Bu işlem için yetkiniz yok.</string>
+    <string name="data_error_not_found">Aradığınız içerik bulunamadı ya da artık erişiminiz yok.</string>
+    <string name="data_error_too_large">Dosya gönderilemeyecek kadar büyük.</string>
+    <string name="data_error_rate_limited">Çok fazla deneme yapıldı. Lütfen biraz bekleyip tekrar deneyin.</string>
+    <string name="data_error_rejected">İstek kabul edilmedi.</string>
+    <string name="data_error_server">Sunucuda bir sorun oluştu. Lütfen daha sonra tekrar deneyin.</string>
     <string name="error_load_conversations">Konuşmalar yüklenemedi</string>
     <string name="error_load_messages">Mesajlar yüklenemedi</string>
     <string name="error_send_failed">Mesaj gönderilemedi</string>

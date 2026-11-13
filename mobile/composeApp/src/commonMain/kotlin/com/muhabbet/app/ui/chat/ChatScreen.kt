@@ -395,10 +395,12 @@ fun ChatScreen(
     // ── Data loading effects ─────────────────
     LaunchedEffect(conversationId) {
         runCatchingCancellable {
-            val conv = conversationRepository.getConversations().items.firstOrNull { it.id == conversationId }
-            disappearAfterSeconds = conv?.disappearAfterSeconds
-            isAnnouncementOnly = conv?.announcementOnly ?: false
-            val myParticipant = conv?.participants?.firstOrNull { it.userId == currentUserId }
+            // By id, not by scanning page one of the list (#800): a chat past the twentieth used to
+            // open with every flag below at its permissive default.
+            val conv = conversationRepository.getConversation(conversationId)
+            disappearAfterSeconds = conv.disappearAfterSeconds
+            isAnnouncementOnly = conv.announcementOnly
+            val myParticipant = conv.participants.firstOrNull { it.userId == currentUserId }
             isAdminOrOwner = myParticipant?.role == com.muhabbet.shared.model.MemberRole.OWNER ||
                 myParticipant?.role == com.muhabbet.shared.model.MemberRole.ADMIN
 
@@ -412,7 +414,7 @@ fun ChatScreen(
             // isOnline=false/lastSeenAt=null here too, so this seeds exactly what that setting
             // allows and nothing more. Only meaningful for a 1:1 chat: a group has no single peer.
             if (!isGroup) {
-                val peerId = conv?.participants?.firstOrNull { it.userId != currentUserId }?.userId
+                val peerId = conv.participants.firstOrNull { it.userId != currentUserId }?.userId
                 if (peerId != null) {
                     val profile = conversationRepository.getUserProfile(peerId)
                     peerOnline = profile.isOnline

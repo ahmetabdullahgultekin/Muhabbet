@@ -8,6 +8,14 @@
     <string name="unknown_person">Unknown contact</string>
     <string name="error_generic">An error occurred</string>
     <string name="error_network">Connection error. Please try again.</string>
+    <string name="data_error_timeout">The server did not answer in time. Please try again.</string>
+    <string name="data_error_unauthorized">Your session has expired. Please sign in again.</string>
+    <string name="data_error_forbidden">You do not have permission to do that.</string>
+    <string name="data_error_not_found">That could not be found, or you no longer have access to it.</string>
+    <string name="data_error_too_large">The file is too large to send.</string>
+    <string name="data_error_rate_limited">Too many attempts. Please wait a moment and try again.</string>
+    <string name="data_error_rejected">The request was not accepted.</string>
+    <string name="data_error_server">Something went wrong on the server. Please try again later.</string>
     <string name="error_load_conversations">Failed to load conversations</string>
     <string name="error_load_messages">Failed to load messages</string>
     <string name="error_send_failed">Failed to send message</string>

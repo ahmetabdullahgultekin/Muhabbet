@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.app.data.remote.requireData
 import com.muhabbet.shared.dto.PreKeyBundleResponse
 import com.muhabbet.shared.dto.PreKeyDto
 import com.muhabbet.shared.dto.RegisterKeyBundleRequest
@@ -60,7 +61,6 @@ class EncryptionRepository(private val apiClient: ApiClient) {
         val response = apiClient.get<PreKeyBundleResponse>(
             "/api/v1/encryption/bundle/$targetUserId"
         )
-        return response.data
-            ?: throw Exception("ENCRYPTION_KEY_BUNDLE_NOT_FOUND")
+        return response.requireData()
     }
 }
