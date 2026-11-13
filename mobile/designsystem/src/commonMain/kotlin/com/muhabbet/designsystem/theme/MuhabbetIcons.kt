@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Group
@@ -152,6 +153,9 @@ object MuhabbetIcons {
     val Sent: ImageVector get() = Icons.Default.Check
     val Delivered: ImageVector get() = Icons.Default.DoneAll
     val Pending: ImageVector get() = Icons.Default.AccessTime
+
+    /** The outbox gave up on a message; the bubble is the retry button (#792). */
+    val SendFailed: ImageVector get() = Icons.Default.ErrorOutline
 
     // Media
     val Image: ImageVector get() = Icons.Default.Image

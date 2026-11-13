@@ -548,6 +548,7 @@
     <string name="status_sent">Gönderildi</string>
     <string name="status_delivered">İletildi</string>
     <string name="status_read">Okundu</string>
+    <string name="status_failed">Gönderilemedi. Yeniden denemek için dokunun</string>
 
     <!-- Call screen -->
     <string name="call_switch_camera">Kamerayı Değiştir</string>
@@ -634,7 +635,6 @@
     <string name="view_once_not_opened_yet">Henüz açılmadı</string>
     <string name="view_once_already_opened">Bu fotoğraf zaten açıldı</string>
     <string name="view_once_open_failed">Fotoğraf açılamadı</string>
-    <string name="view_once_offline">Bir kez görüntülenecek fotoğraf çevrimdışıyken gönderilemez</string>
     <string name="view_once_photo">Fotoğraf</string>
     <string name="view_once_video">Video</string>
 

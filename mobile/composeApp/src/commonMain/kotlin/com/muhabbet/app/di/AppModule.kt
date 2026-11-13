@@ -61,19 +61,28 @@ fun appModule(): Module = module {
             selfDeviceId = { tokenStorage.getDeviceId() }
         )
     }
-    // localCache resolved as LocalCache **explicitly**. WsClient's parameter is the narrower
-    // PendingMessageCache interface, which nothing registers, and Koin resolves get() by the
-    // parameter type — so a bare get() here compiles and then throws NoDefinitionFoundException the
-    // first time anything injects WsClient, which is at launch. That shipped as 0.3.7 and crashed
-    // the app on start for every user (#633). The same note already sat two definitions below this
-    // one, for ConversationRepository, and the parameter type was narrowed in #579 without anyone
-    // coming back here.
+    // The durable outbox (#792) and the reconnect gap-fill (#797) share LocalCache's database, so
+    // there is one SQLite connection and one schema version on the device.
+    single {
+        com.muhabbet.app.data.outbox.Outbox(
+            store = com.muhabbet.app.data.local.SqlOutboxStore(get<com.muhabbet.app.data.local.LocalCache>().database),
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+            clock = { kotlin.time.Clock.System.now().toEpochMilliseconds() }
+        )
+    }
+    single {
+        com.muhabbet.app.data.sync.MissedMessageCatchUp(
+            store = com.muhabbet.app.data.local.SqlSyncWatermarkStore(get<com.muhabbet.app.data.local.LocalCache>().database),
+            fetchSince = { since -> get<MessageRepository>().syncMessagesSince(since) }
+        )
+    }
     single {
         WsClient(
             apiClient = get(),
             tokenProvider = { get<com.muhabbet.app.data.local.TokenStorage>().getAccessToken() },
-            localCache = get<com.muhabbet.app.data.local.LocalCache>(),
-            messageEncryptor = get()
+            outbox = get(),
+            messageEncryptor = get(),
+            catchUp = get()
         )
     }
     single { AuthRepository(apiClient = get(), tokenStorage = get()) }

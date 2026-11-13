@@ -20,7 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import com.muhabbet.app.data.remote.ConnectionState
+import com.muhabbet.app.data.remote.connection.ConnectionState
+import com.muhabbet.app.data.remote.connection.isLive
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -63,7 +64,7 @@ fun ConnectionStrip(
     state: ConnectionState,
     modifier: Modifier = Modifier
 ) {
-    val connected = state == ConnectionState.CONNECTED
+    val connected = state.isLive
     var visible by remember { mutableStateOf(false) }
     // Keyed on connected-or-not, NOT on the state itself. A client that cannot reach the server
     // cycles CONNECTING -> DISCONNECTED -> RECONNECTING every couple of seconds while the backoff

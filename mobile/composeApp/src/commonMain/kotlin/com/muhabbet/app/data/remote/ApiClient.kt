@@ -7,6 +7,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.authProvider
+import io.ktor.client.plugins.auth.providers.BearerAuthProvider
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -102,47 +104,7 @@ class ApiClient(
                         BearerTokens(access, refresh)
                     } else null
                 }
-                refreshTokens {
-                    val refresh = tokenStorage.getRefreshToken() ?: return@refreshTokens null
-                    try {
-                        val response = client.post("$BASE_URL/api/v1/auth/token/refresh") {
-                            contentType(ContentType.Application.Json)
-                            setBody(mapOf("refreshToken" to refresh))
-                        }
-                        // Only clear tokens if server explicitly rejects the refresh token
-                        if (response.status.value in listOf(401, 403)) {
-                            Log.w(TAG, "Refresh token rejected (${response.status})")
-                            tokenStorage.clear()
-                            return@refreshTokens null
-                        }
-                        if (!response.status.isSuccess()) {
-                            Log.w(TAG, "Token refresh server error (${response.status})")
-                            return@refreshTokens null
-                        }
-                        val text = response.bodyAsText()
-                        val body = json.decodeFromString(
-                            ApiResponse.serializer(serializer<Map<String, String>>()),
-                            text
-                        )
-                        val data = body.data ?: run {
-                            tokenStorage.clear()
-                            return@refreshTokens null
-                        }
-                        val newAccess = data["accessToken"] ?: return@refreshTokens null
-                        val newRefresh = data["refreshToken"] ?: return@refreshTokens null
-                        tokenStorage.saveTokens(
-                            accessToken = newAccess,
-                            refreshToken = newRefresh,
-                            userId = tokenStorage.getUserId() ?: "",
-                            deviceId = tokenStorage.getDeviceId() ?: ""
-                        )
-                        BearerTokens(newAccess, newRefresh)
-                    } catch (e: Exception) {
-                        // Network error — don't clear tokens, user stays logged in
-                        Log.e(TAG, "Token refresh failed (network): ${e.message}")
-                        null
-                    }
-                }
+                refreshTokens { exchangeRefreshToken(client) }
                 // Attach the bearer token up front unless the endpoint is one of the four that runs
                 // before anyone is signed in. It used to skip **any** path with an `auth` segment,
                 // which swept in `/api/v1/auth/two-step/**` — endpoints that identify the caller
@@ -183,6 +145,66 @@ class ApiClient(
 
     val httpClient =
         if (engine == null) HttpClient(clientConfig) else HttpClient(engine, clientConfig)
+
+    /**
+     * Swaps the stored refresh token for a new pair. Shared by the `Auth` plugin, which calls it on
+     * a 401, and [refreshAccessToken], which the WebSocket calls when the server rejects the token
+     * on the upgraded socket — a path the plugin never sees, because no HTTP response carries it.
+     */
+    private suspend fun exchangeRefreshToken(client: HttpClient): BearerTokens? {
+        val refresh = tokenStorage.getRefreshToken() ?: return null
+        return try {
+            val response = client.post("$BASE_URL/api/v1/auth/token/refresh") {
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("refreshToken" to refresh))
+            }
+            // Only clear tokens if server explicitly rejects the refresh token
+            if (response.status.value in listOf(401, 403)) {
+                Log.w(TAG, "Refresh token rejected (${response.status})")
+                tokenStorage.clear()
+                return null
+            }
+            if (!response.status.isSuccess()) {
+                Log.w(TAG, "Token refresh server error (${response.status})")
+                return null
+            }
+            val text = response.bodyAsText()
+            val body = json.decodeFromString(
+                ApiResponse.serializer(serializer<Map<String, String>>()),
+                text
+            )
+            val data = body.data ?: run {
+                tokenStorage.clear()
+                return null
+            }
+            val newAccess = data["accessToken"] ?: return null
+            val newRefresh = data["refreshToken"] ?: return null
+            tokenStorage.saveTokens(
+                accessToken = newAccess,
+                refreshToken = newRefresh,
+                userId = tokenStorage.getUserId() ?: "",
+                deviceId = tokenStorage.getDeviceId() ?: ""
+            )
+            BearerTokens(newAccess, newRefresh)
+        } catch (e: Exception) {
+            // Network error — don't clear tokens, user stays logged in
+            Log.e(TAG, "Token refresh failed (network): ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Refreshes the access token now, and makes the `Auth` plugin reload it.
+     *
+     * Called by `WsClient` after the server rejected the socket's token (#811). It used to provoke a
+     * refresh by firing `GET /users/me` after every failed attempt, whatever the cause, so that the
+     * plugin would see a 401 — a REST round trip per reconnect, for a problem only one cause has.
+     */
+    suspend fun refreshAccessToken(): Boolean {
+        val tokens = exchangeRefreshToken(httpClient)
+        httpClient.authProvider<BearerAuthProvider>()?.clearToken()
+        return tokens != null
+    }
 
     suspend inline fun <reified T> get(path: String): ApiResponse<T> {
         Log.d(TAG, "GET $path")

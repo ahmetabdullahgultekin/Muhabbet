@@ -37,8 +37,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiException
-import com.muhabbet.app.data.remote.MessageQueuedException
-import com.muhabbet.app.data.remote.ViewOnceNotQueueableException
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.ui.connection.ConnectionStrip
 import com.muhabbet.app.ui.conversations.ChatTarget
@@ -60,6 +58,8 @@ import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.model.ContentType
 import com.muhabbet.shared.model.Message
 import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.shared.model.advance
+import com.muhabbet.app.data.outbox.OutboxPolicy
 import com.muhabbet.shared.model.PresenceStatus
 import com.muhabbet.shared.protocol.AckStatus
 import com.muhabbet.shared.protocol.WsMessage
@@ -160,6 +160,11 @@ fun ChatScreen(
     val uriHandler = LocalUriHandler.current
     // Rendered by the ConnectionStrip below. Nothing had ever read this flow before #511.
     val connectionState by wsClient.connectionState.collectAsState()
+    // This conversation's outbox: queued, in-flight and failed sends, persisted across restarts
+    // (#792). Merged into the list rather than owned by it — the list used to be the only place a
+    // pending message existed, so leaving the chat lost it.
+    val outbox by remember(conversationId) { wsClient.outboxFor(conversationId) }.collectAsState(emptyList())
+    LaunchedEffect(outbox) { messages = messages.withOutbox(outbox, currentUserId) }
 
     // Resolved strings for coroutine blocks
     val errorLoadMsg = stringResource(Res.string.error_load_messages)
@@ -176,7 +181,6 @@ fun ChatScreen(
     val errorOpenMsg = stringResource(Res.string.error_open_failed)
     val errorVideoUnavailableMsg = stringResource(Res.string.error_video_unavailable)
     val groupAvatarLabel = stringResource(Res.string.cd_group_avatar)
-    val viewOnceOfflineMsg = stringResource(Res.string.view_once_offline)
     val viewOnceAlreadyOpenedMsg = stringResource(Res.string.view_once_already_opened)
     val viewOnceOpenFailedMsg = stringResource(Res.string.view_once_open_failed)
     // Spoken once when the placeholder bubbles appear; the bubbles themselves are silent.
@@ -190,17 +194,14 @@ fun ChatScreen(
         announcementOnly = stringResource(Res.string.error_send_announcement_only),
     )
 
-    // One place decides what a send that did not reach the wire looks like.
+    // One place decides what a send that could not even be accepted looks like.
     //
-    // A message the socket *queued* is not a failure: it is sitting in the offline queue and will
-    // go out on the next connect. Deleting its bubble and reporting "could not send" — which is
-    // what every one of these call sites used to do — tells the user something untrue and invites
-    // them to type it again, so it arrives twice. A queued message therefore stays exactly where it
-    // is, still MessageStatus.SENDING, which already renders as a pending clock, and the
-    // ConnectionStrip above explains why it is still waiting. Only a genuine failure removes the
-    // bubble and says so. (#511)
+    // `wsClient.send` no longer throws for a socket that is down: a message goes into the durable
+    // outbox first and its progress — queued, sending, failed with a retry — arrives on the outbox
+    // flow merged above (#792). The only failure left is that the outbox could not persist it, in
+    // which case nothing will ever send it, so the bubble goes and the user is told.
     suspend fun reportSendOutcome(messageId: String, error: Throwable) {
-        if (error is MessageQueuedException) return
+        Log.w(TAG, "Send not accepted for $messageId: ${error.message}")
         messages = messages.filter { it.id != messageId }
         snackbarHostState.showSnackbar(errorSendMsg)
     }
@@ -366,19 +367,9 @@ fun ChatScreen(
         viewOnceEnabled = false
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isUploading = false
-        when (sendError) {
-            null -> Unit
-            // The one send outcome that is neither "sent" nor "will be sent": a view-once photo is
-            // refused rather than queued, because the offline queue cannot carry the flag and would
-            // deliver it unsealed on the next reconnect. Say so specifically — "could not send"
-            // over a socket that is merely down invites the user to retry immediately and fail
-            // again, and gives no hint that the setting is what made this send different.
-            is ViewOnceNotQueueableException -> {
-                messages = messages.filter { it.id != msgId }
-                snackbarHostState.showSnackbar(viewOnceOfflineMsg)
-            }
-            else -> reportSendOutcome(msgId, sendError)
-        }
+        // A view-once photo is no longer refused offline: the outbox carries the whole frame, the
+        // flag included, so a queued one arrives sealed (#795).
+        sendError?.let { reportSendOutcome(msgId, it) }
     }
 
     val imagePickerLauncher = rememberImagePickerLauncher { picked ->
@@ -432,7 +423,7 @@ fun ChatScreen(
     LaunchedEffect(conversationId) {
         val loadFailure = runCatchingCancellable {
             val result = messageRepository.getMessages(conversationId)
-            messages = result.items.reversed(); nextCursor = result.nextCursor
+            messages = result.items.reversed().withOutbox(outbox, currentUserId); nextCursor = result.nextCursor
         }.exceptionOrNull()
         // Same ordering as the pagination handler below, and for the same reason: showSnackbar
         // suspends until dismissed (~4s), and it used to sit between the failure and both
@@ -561,17 +552,21 @@ fun ChatScreen(
                     }
                 }
                 is WsMessage.ServerAck -> {
-                    // MSG_DUPLICATE joins the OK arm rather than the failure one: it means the
-                    // server already holds this messageId, which is what the offline queue draining
-                    // after a reconnect looks like from the server's side. The message went. An
-                    // error ack carries no serverTimestamp, so the existing one is kept.
+                    // Through the shared lattice, never by assignment (#879): a late ack — the
+                    // outbox re-sending after a reconnect, answered MSG_DUPLICATE — must not drag a
+                    // message that is already DELIVERED or READ back to SENT. An error ack carries no
+                    // serverTimestamp, so the existing one is kept.
                     if (ws.status == AckStatus.OK || serverAlreadyHasMessage(ws.errorCode)) {
-                        messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
-                    } else scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
+                        messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = m.status.advance(MessageStatus.SENT), serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
+                    } else if (ws.errorCode !in OutboxPolicy.TRANSIENT_CODES) {
+                        // A refusal the outbox will not retry: the bubble turns FAILED through the
+                        // outbox flow; this says why. A transient one is retried and says nothing.
+                        scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
+                    }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
                     messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
-                    else messages.map { m -> if (m.id == ws.messageId) m.copy(status = ws.status) else m }
+                    else messages.map { m -> if (m.id == ws.messageId) m.copy(status = m.status.advance(ws.status)) else m }
                 }
                 is WsMessage.PresenceUpdate -> if (ws.userId != currentUserId) {
                     if (ws.conversationId == conversationId) {
@@ -986,7 +981,8 @@ fun ChatScreen(
                             // whole point — a tap that does nothing is the defect being fixed.
                             onMediaUnavailable = {
                                 scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
-                            }
+                            },
+                            onRetry = { message -> scope.launch { wsClient.retry(message.id) } }
                         )
                     )
                 }

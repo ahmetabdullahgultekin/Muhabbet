@@ -42,7 +42,9 @@ CREATE TABLE cachedMessage (
 CREATE INDEX idx_msg_conv ON cachedMessage(conversationId, clientTimestamp);
 CREATE INDEX idx_msg_status ON cachedMessage(status);
 
--- Pending messages queued while offline
+-- LEGACY (schema v1). Superseded by outboxMessage in v2 (migration 1.sqm). Kept in the expand
+-- phase so rows written by an older build survive the upgrade: SqlOutboxStore imports and deletes
+-- them on first load. Drop it in a later migration once no v1 install can still be upgrading.
 CREATE TABLE pendingMessage (
     id TEXT NOT NULL PRIMARY KEY,
     messageId TEXT NOT NULL,
@@ -57,6 +59,30 @@ CREATE TABLE pendingMessage (
 );
 
 CREATE INDEX idx_pending_created ON pendingMessage(createdAt);
+
+-- The durable outbox (#792, #795): every message the user sent that the server has not yet
+-- confirmed. Holds the complete serialized `message.send` frame rather than a hand-picked
+-- projection of it, so no protocol field (viewOnce, scheduledAt, mediaId, thumbnailUrl,
+-- forwardedFrom, anything added later) can be dropped between composing offline and sending.
+-- state is QUEUED | SENDING | FAILED; a row is deleted when the server acknowledges it.
+CREATE TABLE outboxMessage (
+    messageId TEXT NOT NULL PRIMARY KEY,
+    conversationId TEXT NOT NULL,
+    frameJson TEXT NOT NULL,
+    state TEXT NOT NULL,
+    failureCode TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    createdAt INTEGER NOT NULL
+);
+
+CREATE INDEX idx_outbox_created ON outboxMessage(createdAt);
+
+-- The newest server timestamp this device has seen, per stream, so a reconnect can ask the
+-- server for exactly what it missed (#797). Server time, never the device clock.
+CREATE TABLE syncWatermark (
+    stream TEXT NOT NULL PRIMARY KEY,
+    epochMillis INTEGER NOT NULL
+);
 
 -- getConversations: all conversations ordered by pinned first, then updatedAt
 getConversations:
@@ -120,24 +146,33 @@ DELETE FROM cachedMessage WHERE conversationId = ?;
 clearMessages:
 DELETE FROM cachedMessage;
 
--- getPendingMessages: all pending messages in order
+-- getPendingMessages: legacy rows awaiting import into the outbox
 getPendingMessages:
 SELECT * FROM pendingMessage
 ORDER BY createdAt ASC;
-
--- insertPendingMessage
-insertPendingMessage:
-INSERT OR REPLACE INTO pendingMessage(id, messageId, conversationId, contentType, content, replyToId, mediaUrl, clientTimestamp, retryCount, createdAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- deletePendingMessage
 deletePendingMessage:
 DELETE FROM pendingMessage WHERE id = ?;
 
--- clearPendingMessages
-clearPendingMessages:
-DELETE FROM pendingMessage;
+-- getOutbox: every unconfirmed message, oldest first (the order they must go out in)
+getOutbox:
+SELECT * FROM outboxMessage
+ORDER BY createdAt ASC;
 
--- incrementRetryCount
-incrementRetryCount:
-UPDATE pendingMessage SET retryCount = retryCount + 1 WHERE id = ?;
+-- upsertOutbox
+upsertOutbox:
+INSERT OR REPLACE INTO outboxMessage(messageId, conversationId, frameJson, state, failureCode, attempts, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- deleteOutbox
+deleteOutbox:
+DELETE FROM outboxMessage WHERE messageId = ?;
+
+-- getWatermark
+getWatermark:
+SELECT epochMillis FROM syncWatermark WHERE stream = ?;
+
+-- putWatermark
+putWatermark:
+INSERT OR REPLACE INTO syncWatermark(stream, epochMillis) VALUES (?, ?);

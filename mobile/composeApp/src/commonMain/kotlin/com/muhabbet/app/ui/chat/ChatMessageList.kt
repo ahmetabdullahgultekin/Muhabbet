@@ -67,7 +67,9 @@ internal class ChatMessageActions(
      */
     val onOpenUrl: (String) -> Unit,
     /** A video bubble drawn from a thumbnail whose video itself is not reachable (#361). */
-    val onMediaUnavailable: () -> Unit
+    val onMediaUnavailable: () -> Unit,
+    /** Send a failed message again (#792). */
+    val onRetry: (Message) -> Unit
 )
 
 /**
@@ -196,7 +198,8 @@ internal fun ChatMessageList(
                                 onInfo = { actions.onInfo(message) },
                                 onViewOnce = { id -> actions.onViewOnce(id) },
                                 onOpenUrl = { url -> actions.onOpenUrl(url) },
-                                onMediaUnavailable = { actions.onMediaUnavailable() }
+                                onMediaUnavailable = { actions.onMediaUnavailable() },
+                                onRetry = { actions.onRetry(message) }
                             )
                         }
                     }

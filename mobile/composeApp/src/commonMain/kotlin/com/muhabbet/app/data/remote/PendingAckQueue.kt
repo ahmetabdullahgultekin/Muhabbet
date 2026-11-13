@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.remote
 
 import com.muhabbet.shared.model.MessageStatus
+import com.muhabbet.shared.model.deliveryRank
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,17 +64,8 @@ class PendingAckQueue(private val maxSize: Int = DEFAULT_MAX_SIZE) {
 
     suspend fun size(): Int = mutex.withLock { pending.size }
 
-    /**
-     * Receipt strength. Only DELIVERED and READ ever reach the wire (see [WsMessage.AckMessage]);
-     * the other two are listed so the `when` stays exhaustive if [MessageStatus] grows.
-     */
-    private fun rank(status: MessageStatus): Int =
-        when (status) {
-            MessageStatus.SENDING -> 0
-            MessageStatus.SENT -> 1
-            MessageStatus.DELIVERED -> 2
-            MessageStatus.READ -> 3
-        }
+    /** Receipt strength: the shared delivery lattice, so this queue and the chat agree (#879). */
+    private fun rank(status: MessageStatus): Int = status.deliveryRank
 
     private companion object {
         /**

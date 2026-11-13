@@ -797,17 +797,29 @@ evidence that it works.
 
 #### SQLDelight Offline Cache
 - **Plugin**: `app.cash.sqldelight` (declared in root build.gradle.kts — read the version there)
-- **Schema**: `MuhabbetDatabase.sq` with tables: `CachedConversation`, `CachedMessage`, `PendingMessage`.
-  It lives in the `sqldelight` source set (`commonMain/sqldelight/com/muhabbet/app/db/`), not `kotlin/`.
+- **Schema**: `MuhabbetDatabase.sq` with tables: `cachedConversation`, `cachedMessage`, `outboxMessage`,
+  `syncWatermark` and the legacy `pendingMessage` (expand phase; imported and emptied by
+  `SqlOutboxStore`). It lives in the `sqldelight` source set (`commonMain/sqldelight/com/muhabbet/app/db/`),
+  not `kotlin/`. **Schema version 2.** Any table change needs the next numbered `.sqm` beside it **and**
+  a case in `androidUnitTest/.../OutboxSchemaMigrationTest` — without a migration, upgraded phones keep
+  the old tables while fresh installs get the new ones.
 - **Pattern**: Repository-level cache — repositories check local DB first, fetch from API on miss, write-through on success
-- **Offline queue**: `PendingMessage` table stores unsent messages, drained on WS reconnect
+- **Outbox**: `outboxMessage` holds every unconfirmed send as the whole frame — see WebSocket Resilience
 - **Platform drivers**: Android `AndroidSqliteDriver`, iOS `NativeSqliteDriver`
 
 #### WebSocket Resilience
-- **Offline queue**: Messages sent while disconnected stored in SQLDelight `PendingMessage` table
-- **Drain on reconnect**: `WsClient.connect()` drains pending queue after successful auth
-- **Deduplication**: `clientMessageId` (UUID generated client-side) used as idempotency key
-- **Exponential backoff**: Already implemented (1s→30s), enhanced with jitter
+- **Durable outbox (#792, #795)**: `data/outbox/` — `OutgoingMessage` + pure `reduce()` (Queued, Sending,
+  Sent, Delivered, Read, Failed) and the `Outbox` processor. Persist first, confirm only on `ack`,
+  re-send the identical frame on a missed deadline, `Failed` after five, retry by tapping the bubble.
+  `WsClient.send(SendMessage)` no longer throws for a socket that is down.
+- **Connection state machine (#811)**: `data/remote/connection/` — sealed `ConnectionState`, pure
+  `reduce()`, one actor in `WsClient`. Backoff 1 s → 30 s, reset only after 10 s healthy. No more
+  `GET /users/me` pokes; a token the server rejects on the socket triggers `ApiClient.refreshAccessToken()`.
+- **Liveness (#802)**: `SessionLiveness` pings a quiet line and declares it dead 10 s later without an
+  answer; `Pong` never reaches `incoming`.
+- **Gap-fill (#797)**: `MissedMessageCatchUp` replays `/messages/since` after the persisted server-time
+  watermark on every entry into `Live`, through the same de-duplication as live frames.
+- **Status is a lattice**: shared `MessageStatus.advance()` — never assign a status from an event.
 
 #### Persistent E2E Key Storage — **not in the build**
 - **Android**: `PersistentSignalProtocolStore` (`EncryptedSharedPreferences` for identity key pair,

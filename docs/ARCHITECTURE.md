@@ -257,12 +257,24 @@ transitions may only be built in `navigation/MuhabbetStackAnimations.kt`; a guar
 build if a `StackAnimation` is constructed anywhere else. The physics comes from the design system,
 the plumbing stays in the app, because a design library must not know what navigation is.
 
-**The local database is a cache and an outbox, not a source of truth.** SQLDelight holds
-`CachedConversation`, `CachedMessage` and `PendingMessage`. Repositories read cache-first and
-write through on success. Critically, **a message sent while the socket is up never touches the
-database** — the optimistic bubble is in-memory Compose state. The database is written only when the
-socket is *down*, and if that write fails the send throws a *different* exception, so a message that
-was never stored cannot be shown to the user with a "queued" clock over it.
+**The local database is a cache and an outbox, not a source of truth.** SQLDelight (schema v2,
+migration `1.sqm`) holds `cachedConversation`, `cachedMessage`, `outboxMessage` and
+`syncWatermark`; the v1 `pendingMessage` table survives only until its rows are imported (expand
+phase). Repositories read cache-first and write through on success. **Every message the user sends
+is written to the outbox before it touches the socket** (`data/outbox/Outbox.kt`, #792): the complete
+`message.send` frame, so no protocol field can be dropped offline (#795). A row leaves only on the
+server's `ack`; an unanswered dispatch is re-sent under the same `messageId` with a growing deadline,
+and after five it becomes `Failed` — persisted, shown on the bubble, and retried by tapping it. If
+the outbox write itself fails the send throws, so a message that was never stored is never shown as
+queued.
+
+**The socket is an explicit state machine** (`data/remote/connection/ConnectionMachine.kt`, #811):
+`Disconnected → Connecting → Authenticating → Live`, with `Backoff(n)` and `WaitingForAuth`, a pure
+`reduce()` and one actor in `WsClient` executing its effects. `Live` means the server has answered on
+this socket, not merely that it opened; a ping that draws no frame within 10 s ends it (#802). Every
+entry into `Live` drains the outbox and pending receipts, restates conversation focus, and replays
+what `GET /messages/since` returns after the last server timestamp seen (#797) — edits, deletes and
+receipts made during the gap are not covered by that endpoint.
 
 **`platform/` is the only place `expect`/`actual` lives.** 22 declarations — camera, audio record and
 play, contacts, push tokens, biometrics, speech, background sync. A screen never knows which platform
@@ -316,7 +328,8 @@ sequenceDiagram
 Details that matter and are easy to get wrong:
 
 - **Idempotency is the client's `messageId`.** The client mints a UUIDv7 and the server treats a
-  repeat as the same message. This is what makes the offline queue safe to drain more than once.
+  repeat as the same message (`MSG_DUPLICATE`, which the outbox reads as success). This is what
+  makes the outbox safe to re-send after a dropped socket or a missed ack.
 - **The single tick is a server ack, not delivery.** `SENT` means the server stored it. `DELIVERED`
   and `READ` require the *other* device to send `message.ack` back — so if the recipient's app is
   closed and its push path is not working, the sender sits on one tick forever. That is not a bug in

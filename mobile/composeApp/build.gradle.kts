@@ -133,6 +133,12 @@ kotlin {
             implementation("io.insert-koin:koin-test:$koin")
         }
 
+        // The real schema and migrations on the JVM SQLite driver, so the on-device upgrade path
+        // (1.sqm) and the outbox table are exercised by tests rather than first by users.
+        androidUnitTest.dependencies {
+            implementation("app.cash.sqldelight:sqlite-driver:2.3.2")
+        }
+
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:$ktor")
             implementation("app.cash.sqldelight:native-driver:2.3.2")

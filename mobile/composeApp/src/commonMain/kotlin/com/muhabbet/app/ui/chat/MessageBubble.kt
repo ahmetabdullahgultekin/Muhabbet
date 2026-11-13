@@ -104,7 +104,10 @@ fun MessageBubble(
     onOpenUrl: (String) -> Unit = {},
     // A video that arrived as a thumbnail with no playable url. Same division of labour: the bubble
     // knows the media is unreachable, the screen owns telling the user.
-    onMediaUnavailable: () -> Unit = {}
+    onMediaUnavailable: () -> Unit = {},
+    // A message the outbox gave up on (#792). Tapping the bubble sends the same message again,
+    // under the same id, so a copy that did land in the meantime is recognised, not duplicated.
+    onRetry: () -> Unit = {}
 ) {
     // Dispatch view-once messages to ViewOnceBubble
     if (message.viewOnce && !message.isDeleted) {
@@ -155,7 +158,7 @@ fun MessageBubble(
                     .longPressable(
                         shape = bubbleShape,
                         shadowElevation = MuhabbetElevation.Level1,
-                        onClick = {},
+                        onClick = { if (isOwn && message.status == MessageStatus.FAILED) onRetry() },
                         onLongClick = onLongPress,
                         onDoubleClick = onDoubleTap
                     )
@@ -412,12 +415,16 @@ fun MessageBubble(
                                 MessageStatus.SENT -> Muhabbet.icons.Sent to onBubbleColor.copy(alpha = 0.7f)
                                 MessageStatus.DELIVERED -> Muhabbet.icons.Delivered to onBubbleColor.copy(alpha = 0.7f)
                                 MessageStatus.READ -> Muhabbet.icons.Delivered to semanticColors.statusRead
+                                // Same ink as the other ticks: the glyph carries the difference,
+                                // as it does for the rest (see the contrast note on the palette).
+                                MessageStatus.FAILED -> Muhabbet.icons.SendFailed to onBubbleColor
                             }
                             val statusDesc = when (message.status) {
                                 MessageStatus.SENDING -> stringResource(Res.string.status_sending)
                                 MessageStatus.SENT -> stringResource(Res.string.status_sent)
                                 MessageStatus.DELIVERED -> stringResource(Res.string.status_delivered)
                                 MessageStatus.READ -> stringResource(Res.string.status_read)
+                                MessageStatus.FAILED -> stringResource(Res.string.status_failed)
                             }
                             // The tick changes because the other device answered, so it is worth
                             // showing rather than swapping. Effects spring, not spatial: this is a

@@ -5,12 +5,25 @@ import kotlinx.datetime.Instant
 
 // ─── Enums ───────────────────────────────────────────────
 
+/**
+ * Where a message is on its way to the reader.
+ *
+ * Not a free-for-all enum: every change goes through [advance] (see `MessageStatusTransitions.kt`),
+ * which only ever moves forward along SENDING → SENT → DELIVERED → READ. [FAILED] sits beside
+ * [SENDING] — both mean "the server has not confirmed this" — and is left only by an explicit
+ * [retry] or by a late proof that the server did take the message.
+ *
+ * [SENDING] and [FAILED] are client-only. The server never emits either, and it refuses either as a
+ * receipt. [FAILED] is appended rather than inserted so every name and ordinal already on the wire,
+ * in a cache row or in a test fixture means what it meant before.
+ */
 @Serializable
 enum class MessageStatus {
-    SENDING,    // client-only: queued locally
+    SENDING,    // client-only: in the outbox, not yet confirmed by the server
     SENT,       // server ACKed receipt
     DELIVERED,  // recipient device received
-    READ        // recipient opened conversation
+    READ,       // recipient opened conversation
+    FAILED      // client-only: the outbox gave up or the server refused; retry is possible
 }
 
 @Serializable

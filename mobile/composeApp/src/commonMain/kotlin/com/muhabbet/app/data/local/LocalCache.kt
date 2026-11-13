@@ -13,10 +13,9 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class LocalCache(driverFactory: DatabaseDriverFactory) :
-    ConversationCache, MessageCache, PendingMessageCache {
+class LocalCache(val database: MuhabbetDatabase) : ConversationCache, MessageCache {
 
-    private val database = MuhabbetDatabase(driverFactory.createDriver())
+    constructor(driverFactory: DatabaseDriverFactory) : this(MuhabbetDatabase(driverFactory.createDriver()))
     private val queries = database.muhabbetDatabaseQueries
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -185,66 +184,9 @@ class LocalCache(driverFactory: DatabaseDriverFactory) :
         queries.clearMessages()
     }
 
-    // --- Pending Messages (offline queue) ---
-
-    override fun getPendingMessages(): List<PendingMessageData> {
-        return queries.getPendingMessages().executeAsList().map { row ->
-            PendingMessageData(
-                id = row.id,
-                messageId = row.messageId,
-                conversationId = row.conversationId,
-                contentType = row.contentType,
-                content = row.content,
-                replyToId = row.replyToId,
-                mediaUrl = row.mediaUrl,
-                clientTimestamp = row.clientTimestamp,
-                retryCount = row.retryCount.toInt()
-            )
-        }
-    }
-
-    override fun insertPendingMessage(msg: PendingMessageData) {
-        queries.insertPendingMessage(
-            id = msg.id,
-            messageId = msg.messageId,
-            conversationId = msg.conversationId,
-            contentType = msg.contentType,
-            content = msg.content,
-            replyToId = msg.replyToId,
-            mediaUrl = msg.mediaUrl,
-            clientTimestamp = msg.clientTimestamp,
-            retryCount = msg.retryCount.toLong(),
-            createdAt = Clock.System.now().toString()
-        )
-    }
-
-    override fun deletePendingMessage(id: String) {
-        queries.deletePendingMessage(id)
-    }
-
-    fun clearPendingMessages() {
-        queries.clearPendingMessages()
-    }
-
-    override fun incrementRetryCount(id: String) {
-        queries.incrementRetryCount(id)
-    }
-
     // --- Helpers ---
 
     private fun safeParseInstant(value: String): Instant? {
         return try { Instant.parse(value) } catch (_: Exception) { null }
     }
 }
-
-data class PendingMessageData(
-    val id: String,
-    val messageId: String,
-    val conversationId: String,
-    val contentType: String,
-    val content: String,
-    val replyToId: String?,
-    val mediaUrl: String?,
-    val clientTimestamp: String,
-    val retryCount: Int = 0
-)
