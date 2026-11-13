@@ -20,7 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -99,7 +99,7 @@ fun GroupInfoScreen(
     // Only ever set true when conversation?.avatarUrl is non-null — see the render sites below.
     var showPhotoViewer by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val updateFailedMsg = stringResource(Res.string.group_update_failed)
     val leaveFailedMsg = stringResource(Res.string.group_leave_failed)
@@ -130,7 +130,7 @@ fun GroupInfoScreen(
             // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploadingPhoto = false
             // Success needs no snackbar: the avatar itself changes, in place, immediately.
-            if (failed) snackbarHostState.showSnackbar(photoFailedMsg)
+            if (failed) snackbar.show(photoFailedMsg)
         }
     }
 
@@ -147,7 +147,7 @@ fun GroupInfoScreen(
             // as a group with no members and no admin rights — indistinguishable from a group the
             // user really has been removed from.
             Log.e(TAG, "Failed to load group info", failure)
-            snackbarHostState.showSnackbar(loadFailedMsg)
+            snackbar.show(loadFailedMsg)
         }
     }
 
@@ -169,7 +169,7 @@ fun GroupInfoScreen(
                                 groupRepository.updateGroupInfo(conversationId, editName, null)
                                 conversation = conversation?.copy(name = editName)
                             } catch (_: Exception) {
-                                snackbarHostState.showSnackbar(updateFailedMsg)
+                                snackbar.show(updateFailedMsg)
                             }
                         }
                     }
@@ -191,7 +191,7 @@ fun GroupInfoScreen(
             conversationId = conversationId,
             canManage = isAdminOrOwner,
             onDismiss = { showInviteLinkSheet = false },
-            snackbarHostState = snackbarHostState
+            snackbar = snackbar
         )
     }
 
@@ -225,7 +225,7 @@ fun GroupInfoScreen(
                         groupRepository.leaveGroup(conversationId)
                         onBack()
                     } catch (_: Exception) {
-                        snackbarHostState.showSnackbar(leaveFailedMsg)
+                        snackbar.show(leaveFailedMsg)
                     }
                 }
                 showLeaveDialog = false
@@ -266,7 +266,7 @@ fun GroupInfoScreen(
                 }
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
@@ -451,12 +451,12 @@ fun GroupInfoScreen(
                                         stored.onSuccess { serverValue ->
                                             announcementOnly = serverValue
                                             conversation = conversation?.copy(announcementOnly = serverValue)
-                                            snackbarHostState.showSnackbar(
+                                            snackbar.show(
                                                 if (serverValue) announcementEnabledMsg else announcementDisabledMsg
                                             )
                                         }.onFailure { failure ->
                                             Log.e(TAG, "Failed to set announcement mode", failure)
-                                            snackbarHostState.showSnackbar(updateFailedMsg)
+                                            snackbar.show(updateFailedMsg)
                                         }
                                     }
                                 }
@@ -523,7 +523,7 @@ fun GroupInfoScreen(
                                         participants = (conversation?.participants ?: emptyList()).filter { it.userId != member.userId }
                                     )
                                 } catch (_: Exception) {
-                                    snackbarHostState.showSnackbar(removeFailedMsg)
+                                    snackbar.show(removeFailedMsg)
                                 }
                             }
                         }

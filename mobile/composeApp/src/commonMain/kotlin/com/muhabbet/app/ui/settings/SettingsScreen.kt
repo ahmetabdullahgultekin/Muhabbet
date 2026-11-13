@@ -19,7 +19,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -106,7 +106,7 @@ fun SettingsScreen(
     var showPhotoViewer by remember { mutableStateOf(false) }
     var storageUsage by remember { mutableStateOf<StorageUsageResponse?>(null) }
     var storageLoading by remember { mutableStateOf(true) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
     val restartApp = rememberRestartApp()
     val themeController: ThemeController = koinInject()
@@ -161,7 +161,7 @@ fun SettingsScreen(
             // Both outcomes reported here, because the success snackbar held the avatar spinner
             // just as long as the failure one did.
             isUploadingPhoto = false
-            snackbarHostState.showSnackbar(
+            snackbar.show(
                 if (uploadFailed) photoUploadFailedMsg else profileUpdatedMsg
             )
         }
@@ -181,7 +181,7 @@ fun SettingsScreen(
             // The form stays blank on failure, and Save writes what the form holds — so a load the
             // user was never told about is how a display name gets overwritten with "".
             Log.e(TAG, "Failed to load profile", failure)
-            snackbarHostState.showSnackbar(genericErrorMsg)
+            snackbar.show(genericErrorMsg)
         }
     }
 
@@ -225,7 +225,7 @@ fun SettingsScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
@@ -267,7 +267,7 @@ fun SettingsScreen(
                             // dismissed (~4s). Both outcomes, for the same reason as the photo
                             // upload above: a successful save spun the button just as long.
                             isSaving = false
-                            snackbarHostState.showSnackbar(
+                            snackbar.show(
                                 if (saveFailed) genericErrorMsg else profileUpdatedMsg
                             )
                         }
@@ -407,7 +407,7 @@ fun SettingsScreen(
 
                 PrivacySection(
                     onSaveFailed = {
-                        scope.launch { snackbarHostState.showSnackbar(privacySaveFailedMsg) }
+                        scope.launch { snackbar.show(privacySaveFailedMsg) }
                     }
                 )
 

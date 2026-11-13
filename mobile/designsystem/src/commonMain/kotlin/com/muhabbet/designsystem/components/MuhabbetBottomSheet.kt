@@ -10,6 +10,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetDepth
@@ -34,31 +36,58 @@ import com.muhabbet.designsystem.theme.depth
  * anchored dragging from scratch — a materially bigger, riskier change for a surface this host
  * cannot render to verify.
  *
- * @param skipPartiallyExpanded for a sheet with a fixed-height body, where a half-open state would
- *   just clip it. The GIF picker is the only one, and it says so at the call site instead of
- *   reaching for `rememberModalBottomSheetState` itself.
- * @param sheetState only worth passing when the caller drives the sheet itself — the GIF picker
- *   animates it closed before reporting a pick, so it holds its own. Everyone else takes the
- *   default and never names the type.
+ * @param controller only worth passing when the caller drives the sheet itself — the GIF picker and
+ *   the What's-new sheet animate it closed before reporting, so they hold their own. Everyone else
+ *   takes the default.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MuhabbetBottomSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    skipPartiallyExpanded: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(MuhabbetSpacing.XLarge),
-    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded),
+    controller: MuhabbetSheetController = rememberMuhabbetSheetController(),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(topStart = MuhabbetCorners.Large, topEnd = MuhabbetCorners.Large)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
+        sheetState = controller.state,
         modifier = modifier.depth(MuhabbetDepth.Overlay, shape),
         shape = shape,
         containerColor = MuhabbetDepth.Overlay.containerColor()
     ) {
         Column(modifier = Modifier.padding(contentPadding), content = content)
     }
+}
+
+/**
+ * A handle on an open [MuhabbetBottomSheet], for the callers that close it themselves (#844).
+ *
+ * Wraps Material's `SheetState` rather than exposing it, so a screen can animate its sheet away
+ * without naming a Material type — and without reaching for `show`, `expand` or the anchor API,
+ * none of which any sheet in the app has a use for.
+ */
+@Stable
+class MuhabbetSheetController @OptIn(ExperimentalMaterial3Api::class) internal constructor(
+    internal val state: SheetState
+) {
+    /**
+     * Animates the sheet off screen and returns once it is gone. Report the outcome *after* this,
+     * not instead of it: removing the sheet from the composition skips the animation, and the sheet
+     * vanishes while its scrim is still fading.
+     */
+    @OptIn(ExperimentalMaterial3Api::class)
+    suspend fun hide() = state.hide()
+}
+
+/**
+ * @param skipPartiallyExpanded for a sheet with a fixed-height body, where a half-open state would
+ *   just clip it. The GIF picker is the only one.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun rememberMuhabbetSheetController(skipPartiallyExpanded: Boolean = false): MuhabbetSheetController {
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
+    return remember(state) { MuhabbetSheetController(state) }
 }

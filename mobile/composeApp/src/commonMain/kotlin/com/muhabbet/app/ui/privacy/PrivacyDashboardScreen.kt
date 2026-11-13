@@ -16,7 +16,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +69,7 @@ fun PrivacyDashboardScreen(
     val settings by privacySettings.settings.collectAsState()
     var loadFailed by remember { mutableStateOf(false) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val exportStartedMsg = stringResource(Res.string.privacy_export_started)
@@ -91,7 +91,7 @@ fun PrivacyDashboardScreen(
                 onlineStatusVisibility = onlineStatusVisibility,
                 aboutVisibility = aboutVisibility
             ).isFailure
-            if (failed) snackbarHostState.showSnackbar(saveFailedMsg)
+            if (failed) snackbar.show(saveFailedMsg)
         }
     }
 
@@ -106,14 +106,14 @@ fun PrivacyDashboardScreen(
                 scope.launch {
                     try {
                         authRepository.deleteAccount()
-                        snackbarHostState.showSnackbar(deleteSuccessMsg)
+                        snackbar.show(deleteSuccessMsg)
                         onLogout()
                     } catch (e: Exception) {
                         // deleteAccount() cleared the tokens before checking anything, so a 500 used
                         // to log the user out and tell them their account was gone. The snackbar was
                         // already here; the log was not, and this is a KVKK path worth a record.
                         Log.e(TAG, "Account deletion failed", e)
-                        snackbarHostState.showSnackbar(errorMsg)
+                        snackbar.show(errorMsg)
                     }
                 }
             },
@@ -130,7 +130,7 @@ fun PrivacyDashboardScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding)
@@ -283,7 +283,7 @@ fun PrivacyDashboardScreen(
                             // dismissed (~4s). Both outcomes: the "export started" confirmation
                             // held the row spinner exactly as long as the failure one did.
                             isExporting = false
-                            snackbarHostState.showSnackbar(
+                            snackbar.show(
                                 if (exportFailed) exportFailedMsg else exportStartedMsg
                             )
                         }

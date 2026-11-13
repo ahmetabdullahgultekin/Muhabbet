@@ -82,7 +82,7 @@ val uiRules = listOf(
     ),
     UiRule(
         "rawTopAppBar",
-        "Hand-rolled TopAppBar. Use MuhabbetTopBar; ChatScreen and HomeShellScreen are the two deliberate exceptions.",
+        "Hand-rolled TopAppBar. Use MuhabbetTopBar — its slot overload covers bars whose title is more than a string.",
         Regex("""[^a-zA-Z]TopAppBar\("""), inDesignSystem
     ),
     UiRule(
@@ -163,6 +163,25 @@ val uiRules = listOf(
         "rawCombinedClickable",
         "Long-press comes from Modifier.longPressable, which takes the shape the ripple must follow — RectangleShape included.",
         Regex("""combinedClickable\("""), inPressableModifier
+    ),
+    UiRule(
+        // Starts at 0 and stays there (#844). The design system owns the snackbar channel:
+        // MuhabbetSnackbarState, from rememberMuhabbetSnackbarState() or LocalMuhabbetSnackbar, with
+        // show() and the undo-first showUndo(). A screen holding Material's SnackbarHostState again
+        // would be back to a host with no undo and a type the design system cannot restyle.
+        "snackbarHostState",
+        "Snackbars go through MuhabbetSnackbarState (rememberMuhabbetSnackbarState / LocalMuhabbetSnackbar), which has show() and showUndo().",
+        Regex("""\bSnackbarHostState\b"""), inDesignSystem
+    ),
+    UiRule(
+        // A ratchet at today's count, not a target of zero yet (#844, epic #762). Every
+        // `MaterialTheme.colorScheme` / `.typography` / `.shapes` read in a screen is a place that
+        // must change when composeApp stops depending on material3 (#766), and until the design
+        // system offers its own accessors there is nothing to migrate them to — so this only stops
+        // the number growing while that vocabulary lands.
+        "materialThemeRead",
+        "Theme values come from the design system (Muhabbet.*). Do not add new MaterialTheme reads in screens.",
+        Regex("""\bMaterialTheme\."""), inDesignSystem
     )
 )
 

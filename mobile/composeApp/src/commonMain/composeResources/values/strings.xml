@@ -510,6 +510,8 @@
     <!-- Archive / Mute -->
     <string name="conv_archive">Arşivle</string>
     <string name="conv_unarchive">Arşivden Çıkar</string>
+    <string name="conv_archived_undoable">Sohbet arşivlendi</string>
+    <string name="action_undo">Geri al</string>
     <string name="conv_mute">Sessize Al</string>
     <string name="conv_unmute">Sesi Aç</string>
     <string name="conv_archived_section">Arşivlenmiş Sohbetler</string>

@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,7 +58,7 @@ fun CommunityListScreen(
 ) {
     var communities by remember { mutableStateOf<List<CommunityResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
     val loadingLabel = stringResource(Res.string.communities_loading)
@@ -70,12 +70,12 @@ fun CommunityListScreen(
         if (failure != null) {
             // Without this the screen shows the "no communities" empty state, which is a lie.
             Log.e("CommunityListScreen", "Failed to load communities", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         floatingActionButton = {
             MuhabbetFab(
                 icon = Muhabbet.icons.Add,

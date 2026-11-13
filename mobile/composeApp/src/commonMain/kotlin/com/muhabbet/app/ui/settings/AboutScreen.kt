@@ -11,7 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -57,7 +57,7 @@ private const val TERMS_URL = "https://muhabbet.rollingcatsoftware.com/terms.htm
 fun AboutScreen(onBack: () -> Unit, onReleaseNotes: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val openFailedMsg = stringResource(Res.string.error_open_failed)
 
     // Same division of labour as ChatScreen.openExternally: opening is a platform call that can
@@ -67,7 +67,7 @@ fun AboutScreen(onBack: () -> Unit, onReleaseNotes: () -> Unit) {
         runCatchingCancellable { uriHandler.openUri(url) }
             .onFailure { e ->
                 Log.e(TAG, "Failed to open $url externally", e)
-                scope.launch { snackbarHostState.showSnackbar(openFailedMsg) }
+                scope.launch { snackbar.show(openFailedMsg) }
             }
     }
 
@@ -79,7 +79,7 @@ fun AboutScreen(onBack: () -> Unit, onReleaseNotes: () -> Unit) {
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(
             modifier = Modifier

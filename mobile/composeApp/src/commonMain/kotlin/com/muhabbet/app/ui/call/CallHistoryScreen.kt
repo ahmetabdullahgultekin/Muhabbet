@@ -19,7 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -75,7 +75,7 @@ fun CallHistoryScreen(
 
     var calls by remember { mutableStateOf<List<CallHistoryResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
@@ -93,7 +93,7 @@ fun CallHistoryScreen(
     val callComingSoonMsg = stringResource(Res.string.call_coming_soon)
     val callComingSoonDetail = stringResource(Res.string.call_coming_soon_detail)
     val onCallUser: (userId: String, name: String?, callType: String) -> Unit = { _, _, _ ->
-        scope.launch { snackbarHostState.showSnackbar(callComingSoonMsg) }
+        scope.launch { snackbar.show(callComingSoonMsg) }
     }
 
     LaunchedEffect(Unit) {
@@ -109,7 +109,7 @@ fun CallHistoryScreen(
             // Without this a failed load is indistinguishable from the empty state below, which
             // explains why there are no calls for a reason that is not "the request failed".
             Log.e("CallHistoryScreen", "Failed to load call history", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
@@ -136,7 +136,7 @@ fun CallHistoryScreen(
         // Config.PickContactForCall and NewConversationScreen's isCallPickerMode are deliberately
         // left in place — they are the right destination the day calling is wired. Only the FAB
         // that reaches them today is gone.
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))

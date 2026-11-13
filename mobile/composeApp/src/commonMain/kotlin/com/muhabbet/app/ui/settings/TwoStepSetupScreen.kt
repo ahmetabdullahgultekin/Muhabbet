@@ -16,7 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,7 +81,7 @@ fun TwoStepSetupScreen(
     var state by remember { mutableStateOf<TwoStepState>(TwoStepState.Loading) }
     var reloadToken by remember { mutableStateOf(0) }
     var isSaving by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val errors = TwoStepErrorMessages(
@@ -105,8 +105,8 @@ fun TwoStepSetupScreen(
         if (!isSaving && pin.isNotBlank() && confirmPin.isNotBlank()) {
             scope.launch {
                 when {
-                    !ValidationRules.isValidTwoStepPin(pin) -> snackbarHostState.showSnackbar(pinLengthMsg)
-                    pin != confirmPin -> snackbarHostState.showSnackbar(pinMismatchMsg)
+                    !ValidationRules.isValidTwoStepPin(pin) -> snackbar.show(pinLengthMsg)
+                    pin != confirmPin -> snackbar.show(pinMismatchMsg)
                     else -> {
                         isSaving = true
                         val failure = runCatchingCancellable {
@@ -118,7 +118,7 @@ fun TwoStepSetupScreen(
                         // dismissed (~4s). This is the success path too: the button spun for
                         // the whole time the "two-step enabled" confirmation was on screen.
                         isSaving = false
-                        snackbarHostState.showSnackbar(
+                        snackbar.show(
                             if (failure == null) enabledMsg else errors.forFailure(failure)
                         )
                     }
@@ -131,7 +131,7 @@ fun TwoStepSetupScreen(
         if (!isSaving && currentPin.isNotBlank()) {
             scope.launch {
                 if (!ValidationRules.isValidTwoStepPin(currentPin)) {
-                    snackbarHostState.showSnackbar(pinLengthMsg)
+                    snackbar.show(pinLengthMsg)
                 } else {
                     isSaving = true
                     val failure = runCatchingCancellable {
@@ -144,7 +144,7 @@ fun TwoStepSetupScreen(
                         Log.e(TAG, "Two-step disable failed", failure)
                     }
                     isSaving = false
-                    snackbarHostState.showSnackbar(
+                    snackbar.show(
                         if (failure == null) disabledMsg else errors.forFailure(failure)
                     )
                 }
@@ -174,7 +174,7 @@ fun TwoStepSetupScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         val contentModifier = Modifier.fillMaxSize().padding(padding)
         when (val current = state) {

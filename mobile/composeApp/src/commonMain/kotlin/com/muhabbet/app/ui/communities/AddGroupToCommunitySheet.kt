@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.MuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,7 +64,7 @@ fun AddGroupToCommunitySheet(
     excludeConversationIds: Set<String>,
     onDismiss: () -> Unit,
     onGroupAdded: () -> Unit,
-    snackbarHostState: SnackbarHostState,
+    snackbar: MuhabbetSnackbarState,
     communityRepository: CommunityRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject()
 ) {
@@ -86,7 +86,7 @@ fun AddGroupToCommunitySheet(
             // have no groups to add" to a user who has plenty.
             Log.e(TAG, "Failed to load groups eligible for this community", e)
             eligibleGroups = emptyList()
-            snackbarHostState.showSnackbar(loadFailedMsg)
+            snackbar.show(loadFailedMsg)
         }
     }
 
@@ -155,14 +155,14 @@ fun AddGroupToCommunitySheet(
                                         // suspends until dismissed (~4s).
                                         isAdding = false
                                         if (addFailed) {
-                                            snackbarHostState.showSnackbar(failedMsg)
+                                            snackbar.show(failedMsg)
                                         } else {
                                             // The report still precedes the dismiss on purpose:
                                             // this coroutine runs on the sheet's own
                                             // rememberCoroutineScope, so onDismiss() takes the
                                             // sheet out of composition and cancels it — a
                                             // snackbar started after that never appears.
-                                            snackbarHostState.showSnackbar(addedMsg)
+                                            snackbar.show(addedMsg)
                                             onGroupAdded()
                                             onDismiss()
                                         }

@@ -16,10 +16,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,7 +63,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
-import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.util.foldForSearch
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
@@ -130,7 +127,7 @@ fun HomeShellScreen(
     // is indistinguishable from search being broken and is how #638 was reported.
     val searchFocus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val errorLoadConversationsMsg = stringResource(Res.string.error_load_conversations)
 
     val appName = stringResource(Res.string.app_name)
@@ -177,7 +174,7 @@ fun HomeShellScreen(
             }.onFailure { e ->
                 // Without this, search over an empty list reports "no results" for every query.
                 Log.e("HomeShellScreen", "Failed to load conversations for search", e)
-                snackbarHostState.showSnackbar(errorLoadConversationsMsg)
+                snackbar.show(errorLoadConversationsMsg)
             }
         }
     }
@@ -210,10 +207,10 @@ fun HomeShellScreen(
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             if (isSearchActive) {
-                TopAppBar(
+                MuhabbetTopBar(
                     title = {
                         OutlinedTextField(
                             value = searchQuery,
@@ -235,7 +232,7 @@ fun HomeShellScreen(
                                             // confident "nothing you have said contains that".
                                             Log.e("HomeShell", "Message search failed", e)
                                             messageResults = emptyList()
-                                            snackbarHostState.showSnackbar(searchFailedMsg)
+                                            snackbar.show(searchFailedMsg)
                                         }
                                     }
                                 } else {
@@ -263,8 +260,6 @@ fun HomeShellScreen(
                         }
                         )
                     },
-                    // Bespoke bar (transforms into a search field), shared colours.
-                    colors = MuhabbetTopBarDefaults.colors()
                 )
             } else {
                 MuhabbetTopBar(

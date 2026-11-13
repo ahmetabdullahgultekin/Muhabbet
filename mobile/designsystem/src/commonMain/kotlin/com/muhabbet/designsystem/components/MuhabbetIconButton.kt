@@ -1,23 +1,22 @@
 package com.muhabbet.designsystem.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.muhabbet.designsystem.modifier.MuhabbetPress
+import com.muhabbet.designsystem.modifier.pressScale
 import com.muhabbet.designsystem.theme.LocalHaptics
-import com.muhabbet.designsystem.theme.MuhabbetMotion
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetSizes
+import com.muhabbet.designsystem.theme.performingHaptic
 
 /**
  * An icon that can be pressed.
@@ -27,11 +26,14 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
  * the minimum touch target now come for free: previously every screen had to remember, and several
  * did not.
  *
- * The press scale is a spatial spring rather than a duration, so an interrupted press settles
- * rather than snapping.
+ * The press is [MuhabbetPress.Strong] — the deepest squeeze, because a 48dp target is the smallest
+ * thing in the app that presses.
  *
  * @param contentDescription what a screen reader announces. Pass null only when an adjacent label
  *   already says it — the icon is then hidden from accessibility rather than announced as unlabelled.
+ * @param haptic silent by default: most icon buttons open something or navigate, which is on the
+ *   do-not-buzz list. Name a UI intent when the tap itself is the event (declining a call, say). A
+ *   send button does *not* pass `MessageSent` — that fires when the server acknowledges the message.
  */
 @Composable
 fun MuhabbetIconButton(
@@ -40,21 +42,16 @@ fun MuhabbetIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    tint: Color = LocalContentColor.current
+    tint: Color = LocalContentColor.current,
+    haptic: MuhabbetHapticIntent? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) PressedScale else 1f,
-        animationSpec = MuhabbetMotion.spatialFast(),
-        label = "iconButtonPress"
-    )
 
     IconButton(
-        onClick = onClick,
+        onClick = LocalHaptics.current.performingHaptic(haptic, onClick),
         modifier = modifier
             .sizeIn(minWidth = MuhabbetSizes.MinTouchTarget, minHeight = MuhabbetSizes.MinTouchTarget)
-            .graphicsLayer { scaleX = scale; scaleY = scale },
+            .pressScale(interactionSource, MuhabbetPress.Strong),
         enabled = enabled,
         interactionSource = interactionSource
     ) {
@@ -69,5 +66,3 @@ fun MuhabbetIconButton(
         )
     }
 }
-
-private const val PressedScale = 0.88f

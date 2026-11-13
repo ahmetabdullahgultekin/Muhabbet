@@ -27,7 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -97,7 +97,7 @@ fun SharedMediaScreen(
     var selectedTab by remember { mutableStateOf(0) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val uriHandler = LocalUriHandler.current
     val audioPlayer = rememberAudioPlayer()
 
@@ -144,7 +144,7 @@ fun SharedMediaScreen(
             }.onFailure { e ->
                 // Otherwise the picker opens empty and reads as "no chats to forward to".
                 Log.e(TAG, "Failed to load forward targets", e)
-                snackbarHostState.showSnackbar(errorLoadConversationsMsg)
+                snackbar.show(errorLoadConversationsMsg)
             }
         }
     }
@@ -157,7 +157,7 @@ fun SharedMediaScreen(
             }.onFailure { e ->
                 // The tile stays on screen on failure — say why instead of looking like a no-op.
                 Log.e(TAG, "Failed to delete message $id", e)
-                snackbarHostState.showSnackbar(errorDeleteMsg)
+                snackbar.show(errorDeleteMsg)
             }
         }
     }
@@ -167,7 +167,7 @@ fun SharedMediaScreen(
             .onFailure { e ->
                 // No handler app installed, or a malformed URL — the tap looks dead otherwise.
                 Log.e(TAG, "Failed to open media externally", e)
-                scope.launch { snackbarHostState.showSnackbar(errorOpenMsg) }
+                scope.launch { snackbar.show(errorOpenMsg) }
             }
     }
 
@@ -181,7 +181,7 @@ fun SharedMediaScreen(
         if (failure != null) {
             // Without this the screen shows the "no shared media" empty state, which is a lie.
             Log.e(TAG, "Failed to load shared media", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
@@ -219,7 +219,7 @@ fun SharedMediaScreen(
             wsClient = wsClient,
             scope = scope,
             errorSendMsg = errorSendMsg,
-            snackbarHostState = snackbarHostState,
+            snackbar = snackbar,
             onDismiss = { forwardMessage = null }
         )
     }
@@ -232,7 +232,7 @@ fun SharedMediaScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = selectedTab) {

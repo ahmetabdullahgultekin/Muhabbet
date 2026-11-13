@@ -19,7 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -68,7 +68,7 @@ fun BroadcastListScreen(
     var lists by remember { mutableStateOf<List<BroadcastListResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showCreateDialog by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -82,7 +82,7 @@ fun BroadcastListScreen(
         if (failure != null) {
             // Without this the screen shows the "no broadcast lists" empty state, which is a lie.
             Log.e(TAG, "Failed to load broadcast lists", failure)
-            snackbarHostState.showSnackbar(genericErrorMsg)
+            snackbar.show(genericErrorMsg)
         }
     }
 
@@ -105,7 +105,7 @@ fun BroadcastListScreen(
                                 // A swallowed failure here closed the dialog and showed nothing,
                                 // so a rejected create looked exactly like a successful one.
                                 Log.e(TAG, "Failed to create broadcast list", e)
-                                snackbarHostState.showSnackbar(genericErrorMsg)
+                                snackbar.show(genericErrorMsg)
                             }
                         }
                     },
@@ -138,7 +138,7 @@ fun BroadcastListScreen(
                 onClick = { showCreateDialog = true }
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))

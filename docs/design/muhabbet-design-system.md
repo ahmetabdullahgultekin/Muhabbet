@@ -38,10 +38,16 @@ A module boundary is enforced by the compiler rather than by review:
 
 ### The limit of centralisation
 
-`MuhabbetTopBar` serves 23 screens. `ChatScreen` (avatar + name + presence subtitle) and
-`HomeShellScreen` (transforms into a search field) keep their own bars — but take their colours from
-`MuhabbetTopBarDefaults` and their metrics from `MuhabbetSizes`. Two bespoke bars is correct; one
-universal bar with nine parameters is a god-component.
+`MuhabbetTopBar` serves every screen. `ChatScreen` (avatar + name + presence subtitle) and
+`HomeShellScreen` (transforms into a search field) use its **slot overload** — `title` and
+`navigationIcon` as composables — so they share tone, scroll lift and hairline with the rest while
+keeping their own content (#844). `MuhabbetTopBarDefaults` is internal now: its return type is
+Material's. Two bespoke titles is correct; one universal bar with nine parameters is a god-component.
+
+The bar lifts from `surface` to `surfaceContainer` and draws a hairline as content scrolls under it,
+scroll-linked over `MuhabbetSizes.TopBarLiftDistance`. `MuhabbetScaffold` owns the
+`MuhabbetTopBarScroll` state and its nested-scroll connection, so no screen wires it, and the bar
+reads the offset in the **draw phase** so a scroll never recomposes it (#845).
 
 The same judgement applies elsewhere: 20 of 28 text fields use `MuhabbetTextField`; the OTP boxes,
 the chat composer, two search fields and two password fields stay raw because they are genuinely
@@ -340,7 +346,9 @@ one file. The user's on/off preference is checked in exactly one place, inside
 
 | Interaction | Intent |
 |---|---|
-| Send button | `MessageSent` |
+| Server acknowledged a message this device sent (ServerAck, once) | `MessageSent` |
+| Server accepted a reaction | `ReactionApplied` |
+| Pull-to-refresh released past its threshold | `RefreshTriggered` |
 | Long-press a bubble or row | `ItemLongPressed` |
 | Swipe-to-reply crossing / releasing the threshold | `SwipeArmed` / `SwipeCommitted` |
 | Bottom-nav tab change | `TabSwitched` |
@@ -353,7 +361,25 @@ one file. The user's on/off preference is checked in exactly one place, inside
 job), back navigation, anything on a repeating animation. Over-haptics is the fastest way to make an
 app feel cheap, and it costs battery.
 
-Components carry the haptic by default, so no screen has to remember.
+**Two kinds of intent** (#836). *UI* intents describe what a control did under the finger and are
+fired by the component that owns the gesture — a switch its toggle, a chip its segment, a
+destructive button its confirmation. *Domain* intents (`MessageSent`, `ReactionApplied`,
+`RefreshTriggered`, the call intents) report a product event and are fired by the feature at the
+moment the event is **confirmed** — a message on its ServerAck, not on the tap. No component names a
+domain intent as a default: the old `MuhabbetButton` fallback made every Cancel buzz `MessageSent`.
+
+`MuhabbetButton`, `MuhabbetIconButton`, the FABs and `MuhabbetMenuItem` take `haptic:
+MuhabbetHapticIntent?`, `null` by default — a destructive button defaults to `DestructiveConfirmed`.
+
+## 7a. Press feedback
+
+One implementation (#846): `MuhabbetPress` names three squeeze strengths — `Subtle` (0.98, full-width
+rows), `Standard` (0.95, buttons, chips, FABs, dialog buttons), `Strong` (0.88, icon buttons) — and a
+`Modifier.Node` springs the scale on `MuhabbetMotion.spatialFast` and reads it only in draw, so a
+press never recomposes the element. `MuhabbetTheme` provides `MuhabbetPressIndication()` (ripple +
+`Subtle` squeeze) as `LocalIndication`, so every raw `clickable` in a screen and `pressable` /
+`longPressable` get the same feel; components wrapping a Material control that hard-wires `ripple()`
+apply the internal `pressScale` modifier with the same node.
 
 ---
 
@@ -361,14 +387,14 @@ Components carry the haptic by default, so no screen has to remember.
 
 | Component | Replaced |
 |---|---|
-| `MuhabbetTopBar` + `MuhabbetTopBarDefaults` | 26 bars, 23 duplicated colour blocks in 3 colours |
-| `MuhabbetScaffold` | 27 `Scaffold`s + the one correct `WindowInsets` policy |
+| `MuhabbetTopBar` (string + slot overloads) | 26 bars, 23 duplicated colour blocks in 3 colours |
+| `MuhabbetScaffold` + `MuhabbetSnackbarState` / `MuhabbetTopBarScroll` | 27 `Scaffold`s + the one correct `WindowInsets` policy; 26 raw `SnackbarHostState`s with no undo (`showUndo` → `MuhabbetUndoResult`) |
 | `MuhabbetScreenState` (`Loading`/`Empty`/`Error`) | 44 bare spinners, ~18 `Text` empty states, 10 dead-end error surfaces |
 | `MuhabbetSkeleton` + `Modifier.shimmer` | one shared shimmer transition instead of one per row |
-| `MuhabbetButton` / `IconButton` / `Switch` / `Divider` | press spring + haptic by default |
+| `MuhabbetButton` / `IconButton` / `Switch` / `Divider` | press squeeze by default; haptic only where it means something |
 | `MuhabbetTextField` | 20 of 28 `OutlinedTextField`s |
 | `MuhabbetDialog` + `ConfirmDialog` | 13 `AlertDialog`s |
-| `MuhabbetBottomSheet` | 4 sheets, 3 identical openings |
+| `MuhabbetBottomSheet` + `MuhabbetSheetController` | 4 sheets, 3 identical openings; no `SheetState` in a screen |
 | `SettingsRow` (Nav/Switch/Radio/Info) | two incompatible geometries for the same row |
 | `SectionHeader` | a private reimplementation in the privacy dashboard |
 | `UserAvatar` | 16 sites, 6 different sizes |

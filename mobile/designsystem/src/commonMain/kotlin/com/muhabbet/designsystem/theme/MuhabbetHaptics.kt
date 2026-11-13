@@ -18,15 +18,25 @@ import androidx.compose.ui.platform.LocalHapticFeedback
  * nearest constant happened to be.
  *
  * The app had zero haptics before this.
+ *
+ * **Two kinds of intent, fired from two different places** (#836):
+ *  - *Domain* intents — [MessageSent], [ReactionApplied], [RefreshTriggered], [CallAccepted],
+ *    [CallDeclined] — report that something happened in the product. The feature fires them at the
+ *    moment the event is *confirmed* (a message on its ServerAck, not on the tap that queued it), so
+ *    no component ever names one as a default. A button that buzzed `MessageSent` on every Cancel
+ *    is exactly the failure this split exists to prevent.
+ *  - *UI* intents — everything else — describe what a control did under the finger, and the
+ *    component that owns the gesture fires them: a switch its toggle, a chip its segment, a
+ *    destructive button its confirmation, a long-press its menu.
  */
 enum class MuhabbetHapticIntent {
-    /** A message left the device. */
+    /** Domain: the server acknowledged a message this device sent. Fired once, on the ServerAck. */
     MessageSent,
 
-    /** A reaction was attached to a message. */
+    /** Domain: a reaction was attached to a message (fired when the server accepted it). */
     ReactionApplied,
 
-    /** Long-press opened a context menu on a bubble or a conversation row. */
+    /** UI: long-press opened a context menu on a bubble or a conversation row. */
     ItemLongPressed,
 
     /** A drag crossed the threshold at which releasing would do something. */
@@ -44,7 +54,7 @@ enum class MuhabbetHapticIntent {
     CallAccepted,
     CallDeclined,
 
-    /** Pull-to-refresh passed its trigger distance. */
+    /** Domain: pull-to-refresh was released past its trigger distance and a refresh started. */
     RefreshTriggered,
 
     /** A destructive confirmation was accepted — delete, leave group, revoke device. */
@@ -101,6 +111,20 @@ private fun MuhabbetHapticIntent.toFeedbackType(): HapticFeedbackType = when (th
     MuhabbetHapticIntent.InputRejected -> HapticFeedbackType.Reject
     MuhabbetHapticIntent.SegmentAdvanced -> HapticFeedbackType.SegmentTick
 }
+
+/**
+ * [onClick], preceded by [intent] when there is one. The single place a component turns an optional
+ * intent into a click handler, so "no intent" can only ever mean silence.
+ */
+internal fun MuhabbetHaptics.performingHaptic(intent: MuhabbetHapticIntent?, onClick: () -> Unit): () -> Unit =
+    if (intent == null) {
+        onClick
+    } else {
+        {
+            perform(intent)
+            onClick()
+        }
+    }
 
 /**
  * The live haptics instance. Provided by [MuhabbetTheme]; defaults to a no-op so a component used

@@ -13,7 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -55,7 +55,7 @@ fun CreateCommunityScreen(
     // not in a snackbar — a 409 reported as a generic failure reads as a broken button, and the one
     // thing the user needs to know is which field to change.
     var nameError by remember { mutableStateOf<String?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -69,7 +69,7 @@ fun CreateCommunityScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(
             modifier = Modifier
@@ -135,7 +135,7 @@ fun CreateCommunityScreen(
                         // Clear the spinner BEFORE reporting — showSnackbar suspends until
                         // dismissed (~4s).
                         isCreating = false
-                        if (createFailed) snackbarHostState.showSnackbar(genericErrorMsg)
+                        if (createFailed) snackbar.show(genericErrorMsg)
                     }
                 },
                 enabled = !isCreating && name.isNotBlank(),

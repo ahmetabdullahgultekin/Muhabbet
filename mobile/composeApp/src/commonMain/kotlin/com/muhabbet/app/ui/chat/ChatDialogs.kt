@@ -235,7 +235,7 @@ fun ForwardPickerDialog(
     wsClient: WsClient,
     scope: CoroutineScope,
     errorSendMsg: String,
-    snackbarHostState: androidx.compose.material3.SnackbarHostState,
+    snackbar: com.muhabbet.designsystem.components.MuhabbetSnackbarState,
     onDismiss: () -> Unit,
     onNavigateToConversation: ((ChatTarget) -> Unit)? = null
 ) {
@@ -290,7 +290,7 @@ fun ForwardPickerDialog(
                                             )
                                             onNavigateToConversation?.invoke(target)
                                         } catch (_: Exception) {
-                                            snackbarHostState.showSnackbar(errorSendMsg)
+                                            snackbar.show(errorSendMsg)
                                         }
                                     }
                                 }

@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,7 +65,7 @@ fun ArchivedChatsScreen(
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     var showLongPressMenu by remember { mutableStateOf(false) }
@@ -98,7 +98,7 @@ fun ArchivedChatsScreen(
             conversations = result.items.filter { it.isArchived }
         }.onFailure { e ->
             Log.e(TAG, "Failed to load archived conversations", e)
-            snackbarHostState.showSnackbar(errorMsg)
+            snackbar.show(errorMsg)
         }
     }
 
@@ -129,7 +129,7 @@ fun ArchivedChatsScreen(
                         load()
                     }.onFailure { e ->
                         Log.e(TAG, "Pin toggle failed", e)
-                        snackbarHostState.showSnackbar(actionFailedMsg)
+                        snackbar.show(actionFailedMsg)
                     }
                 }
             },
@@ -144,7 +144,7 @@ fun ArchivedChatsScreen(
                         load()
                     }.onFailure { e ->
                         Log.e(TAG, "Unarchive failed", e)
-                        snackbarHostState.showSnackbar(actionFailedMsg)
+                        snackbar.show(actionFailedMsg)
                     }
                 }
             },
@@ -157,7 +157,7 @@ fun ArchivedChatsScreen(
                             load()
                         }.onFailure { e ->
                             Log.e(TAG, "Unmute failed", e)
-                            snackbarHostState.showSnackbar(actionFailedMsg)
+                            snackbar.show(actionFailedMsg)
                         }
                     }
                 } else {
@@ -174,7 +174,7 @@ fun ArchivedChatsScreen(
                         load()
                     }.onFailure { e ->
                         Log.e(TAG, "Lock toggle failed", e)
-                        snackbarHostState.showSnackbar(actionFailedMsg)
+                        snackbar.show(actionFailedMsg)
                     }
                 }
             },
@@ -200,7 +200,7 @@ fun ArchivedChatsScreen(
                         conversations = conversations.filter { it.id != conv.id }
                     }.onFailure { e ->
                         Log.e(TAG, "Failed to delete conversation", e)
-                        snackbarHostState.showSnackbar(convDeleteFailed)
+                        snackbar.show(convDeleteFailed)
                     }
                 }
             },
@@ -221,7 +221,7 @@ fun ArchivedChatsScreen(
                             load()
                         }.onFailure { e ->
                             Log.e(TAG, "Mute failed", e)
-                            snackbarHostState.showSnackbar(actionFailedMsg)
+                            snackbar.show(actionFailedMsg)
                         }
                     }
                 }
@@ -230,7 +230,7 @@ fun ArchivedChatsScreen(
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = stringResource(Res.string.conv_archived_section),

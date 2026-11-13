@@ -21,7 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -79,7 +79,7 @@ fun GroupEventScreen(
     var events by remember { mutableStateOf<List<GroupEventResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showCreateDialog by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -95,7 +95,7 @@ fun GroupEventScreen(
             // Otherwise the screen renders "no events yet" — the same thing it shows a group that
             // genuinely has none, and the user would go on to create a duplicate.
             Log.e(TAG, "Failed to load group events", failure)
-            snackbarHostState.showSnackbar(genericErrorMsg)
+            snackbar.show(genericErrorMsg)
         }
     }
 
@@ -119,7 +119,7 @@ fun GroupEventScreen(
                             events = events + newEvent
                         }
                     } catch (_: Exception) {
-                        snackbarHostState.showSnackbar(genericErrorMsg)
+                        snackbar.show(genericErrorMsg)
                     }
                 }
                 showCreateDialog = false
@@ -142,7 +142,7 @@ fun GroupEventScreen(
                 onClick = { showCreateDialog = true }
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
@@ -169,7 +169,7 @@ fun GroupEventScreen(
                                         RsvpRequest(status = status)
                                     )
                                 } catch (_: Exception) {
-                                    snackbarHostState.showSnackbar(genericErrorMsg)
+                                    snackbar.show(genericErrorMsg)
                                 }
                             }
                         }

@@ -1,8 +1,6 @@
 package com.muhabbet.designsystem.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -14,21 +12,24 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
+import com.muhabbet.designsystem.modifier.MuhabbetPress
+import com.muhabbet.designsystem.modifier.pressScale
 import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
-import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.performingHaptic
 
 /**
- * What a button means, which decides both how it looks and how it feels.
+ * What a button means, which decides how it looks — and, for [Destructive] only, how it feels.
  *
- * Tying the haptic to the *role* rather than to the call site is the point: a destructive confirm
- * should feel different from an ordinary one, and no screen should have to remember that.
+ * Only the destructive role carries a haptic of its own, because "you just confirmed something you
+ * cannot take back" is a UI fact the role already states. Every other role is silent unless the
+ * caller names an intent: a Cancel, a Save and a Continue are not events the hand needs telling
+ * about, and the old fallback that made all of them buzz `MessageSent` taught users to ignore the
+ * channel altogether (#836).
  */
 enum class MuhabbetButtonRole {
     /** The main action on the screen. Filled. */
@@ -47,11 +48,13 @@ enum class MuhabbetButtonRole {
 /**
  * A button that presses back.
  *
- * Carries the press spring and the haptic so the 19 button call sites do not each have to — and
- * before this, none of them did: the app had zero haptics anywhere.
+ * Carries the press squeeze ([MuhabbetPress.Standard]) so no call site has to, and a haptic only
+ * when one means something: see [MuhabbetButtonRole].
  *
- * The scale is a spatial spring rather than a duration, so an interrupted press settles instead of
- * snapping back.
+ * @param haptic what the hand is told when the button fires. Defaults to
+ *   [MuhabbetHapticIntent.DestructiveConfirmed] for [MuhabbetButtonRole.Destructive] and to nothing
+ *   for every other role. A *domain* event — a message sent, a reaction applied — is never named
+ *   here: it fires from the feature when the event is confirmed, not from the tap that requested it.
  */
 @Composable
 fun MuhabbetButton(
@@ -60,25 +63,12 @@ fun MuhabbetButton(
     modifier: Modifier = Modifier,
     role: MuhabbetButtonRole = MuhabbetButtonRole.Primary,
     enabled: Boolean = true,
+    haptic: MuhabbetHapticIntent? = MuhabbetButtonDefaults.haptic(role),
     content: (@Composable RowScope.() -> Unit)? = null
 ) {
-    val haptics = LocalHaptics.current
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) PressedScale else 1f,
-        animationSpec = MuhabbetMotion.spatialFast(),
-        label = "buttonPress"
-    )
-    val pressModifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-
-    val handleClick = {
-        haptics.perform(
-            if (role == MuhabbetButtonRole.Destructive) MuhabbetHapticIntent.DestructiveConfirmed
-            else MuhabbetHapticIntent.MessageSent
-        )
-        onClick()
-    }
+    val pressModifier = modifier.pressScale(interactionSource, MuhabbetPress.Standard)
+    val handleClick = LocalHaptics.current.performingHaptic(haptic, onClick)
     val label: @Composable RowScope.() -> Unit = content ?: { Text(text) }
 
     when (role) {
@@ -166,4 +156,9 @@ fun MuhabbetDivider(
     )
 }
 
-private const val PressedScale = 0.97f
+/** The defaults [MuhabbetButton] derives from its role, named so a caller can reason about them. */
+object MuhabbetButtonDefaults {
+    /** [MuhabbetHapticIntent.DestructiveConfirmed] for a destructive button; nothing otherwise. */
+    fun haptic(role: MuhabbetButtonRole): MuhabbetHapticIntent? =
+        if (role == MuhabbetButtonRole.Destructive) MuhabbetHapticIntent.DestructiveConfirmed else null
+}

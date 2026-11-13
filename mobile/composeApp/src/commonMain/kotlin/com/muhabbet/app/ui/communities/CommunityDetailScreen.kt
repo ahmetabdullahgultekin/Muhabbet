@@ -3,7 +3,7 @@ package com.muhabbet.app.ui.communities
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,7 +51,7 @@ fun CommunityDetailScreen(
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var groupPendingRemoval by remember { mutableStateOf<CommunityGroupInfo?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
@@ -74,7 +74,7 @@ fun CommunityDetailScreen(
             // Without this the screen sits on a generic title with no groups, indistinguishable
             // from an empty community.
             Log.e(TAG, "Failed to load community $communityId", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
@@ -99,7 +99,7 @@ fun CommunityDetailScreen(
             excludeConversationIds = current.groups.map { it.conversationId }.toSet(),
             onDismiss = { showAddGroupSheet = false },
             onGroupAdded = { scope.launch { loadDetail() } },
-            snackbarHostState = snackbarHostState,
+            snackbar = snackbar,
             communityRepository = communityRepository
         )
     }
@@ -133,7 +133,7 @@ fun CommunityDetailScreen(
                     }
                     showEditDialog = false
                     editNameError = null
-                    snackbarHostState.showSnackbar(if (failure == null) updatedMsg else updateFailedMsg)
+                    snackbar.show(if (failure == null) updatedMsg else updateFailedMsg)
                 }
             }
         )
@@ -160,7 +160,7 @@ fun CommunityDetailScreen(
                         // strand rows nothing can reach. The user has to be told, not silently
                         // returned to a list that still shows the community.
                         Log.e(TAG, "Failed to leave community $communityId", failure)
-                        snackbarHostState.showSnackbar(leaveFailedMsg)
+                        snackbar.show(leaveFailedMsg)
                     }
                 }
             }
@@ -185,7 +185,7 @@ fun CommunityDetailScreen(
                         onBack()
                     } else {
                         Log.e(TAG, "Failed to delete community $communityId", failure)
-                        snackbarHostState.showSnackbar(deleteFailedMsg)
+                        snackbar.show(deleteFailedMsg)
                     }
                 }
             }
@@ -211,7 +211,7 @@ fun CommunityDetailScreen(
                     if (failure != null) {
                         Log.e(TAG, "Failed to remove group ${group.conversationId}", failure)
                     }
-                    snackbarHostState.showSnackbar(
+                    snackbar.show(
                         if (failure == null) groupRemovedMsg else groupRemoveFailedMsg
                     )
                 }
@@ -220,7 +220,7 @@ fun CommunityDetailScreen(
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = detail?.name ?: stringResource(Res.string.communities_title),

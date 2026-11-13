@@ -12,7 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,7 +88,7 @@ fun StorageUsageScreen(
 ) {
     val cache = rememberDeviceMediaCache()
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
 
     // Null while measuring — the screen says "calculating" rather than showing 0 B, which is also a
     // real answer and would be indistinguishable from it.
@@ -105,7 +105,7 @@ fun StorageUsageScreen(
     val freedMessage = stringResource(Res.string.storage_freed, formatBytes(freedBytes ?: 0L))
     LaunchedEffect(freedBytes) {
         if (freedBytes == null) return@LaunchedEffect
-        snackbarHostState.showSnackbar(freedMessage)
+        snackbar.show(freedMessage)
         freedBytes = null
     }
 
@@ -127,7 +127,7 @@ fun StorageUsageScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(
             modifier = Modifier

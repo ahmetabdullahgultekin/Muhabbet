@@ -17,7 +17,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.MuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -69,7 +69,7 @@ fun InviteLinkSheet(
     conversationId: String,
     canManage: Boolean,
     onDismiss: () -> Unit,
-    snackbarHostState: SnackbarHostState,
+    snackbar: MuhabbetSnackbarState,
     inviteLinkRepository: InviteLinkRepository = koinInject()
 ) {
     val scope = rememberCoroutineScope()
@@ -94,7 +94,7 @@ fun InviteLinkSheet(
             // reaching here is a real failure. Left unreported the sheet shows the "create a link"
             // branch, which invites a user without the right to create one to try.
             Log.e(TAG, "Failed to load invite link", failure)
-            snackbarHostState.showSnackbar(genericErrorMsg)
+            snackbar.show(genericErrorMsg)
         }
     }
 
@@ -154,7 +154,7 @@ fun InviteLinkSheet(
                             contentDescription = stringResource(Res.string.invite_link_copy),
                             onClick = {
                             clipboardManager.setText(AnnotatedString(link.inviteUrl))
-                            scope.launch { snackbarHostState.showSnackbar(linkCopiedMsg) }
+                            scope.launch { snackbar.show(linkCopiedMsg) }
                         }
                         )
                         Text(
@@ -186,7 +186,7 @@ fun InviteLinkSheet(
                                             inviteLinkRepository.revokeInviteLink(conversationId, link.id)
                                             inviteLink = null
                                         } catch (_: Exception) {
-                                            snackbarHostState.showSnackbar(genericErrorMsg)
+                                            snackbar.show(genericErrorMsg)
                                         }
                                     }
                                 },
@@ -244,7 +244,7 @@ fun InviteLinkSheet(
                             // Clear the spinner BEFORE reporting — showSnackbar suspends until
                             // dismissed (~4s).
                             isLoading = false
-                            if (createFailed) snackbarHostState.showSnackbar(genericErrorMsg)
+                            if (createFailed) snackbar.show(genericErrorMsg)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

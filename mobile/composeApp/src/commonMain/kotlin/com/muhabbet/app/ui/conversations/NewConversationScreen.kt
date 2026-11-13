@@ -17,7 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,7 +107,7 @@ fun NewConversationScreen(
     val contactSyncConsented by contactsAccessController.syncConsented.collectAsState()
     var showConsentDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
 
     val defaultChatName = stringResource(Res.string.chat_default_name)
     val errorMsg = stringResource(Res.string.error_generic)
@@ -142,7 +142,7 @@ fun NewConversationScreen(
         }
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isSyncing = false
-        if (syncFailed) snackbarHostState.showSnackbar(errorMsg)
+        if (syncFailed) snackbar.show(errorMsg)
     }
 
     LaunchedEffect(hasPermission, contactSyncConsented) {
@@ -183,7 +183,7 @@ fun NewConversationScreen(
                 }
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Above the `when`, not inside the contacts list, on purpose.
@@ -352,7 +352,7 @@ fun NewConversationScreen(
                                                 // Honest "not yet" (#367–#373), not a call screen
                                                 // for a call that is not happening.
                                                 scope.launch {
-                                                    snackbarHostState.showSnackbar(callComingSoonMsg)
+                                                    snackbar.show(callComingSoonMsg)
                                                 }
                                                 return@ContactItem
                                             }
@@ -378,7 +378,7 @@ fun NewConversationScreen(
                                                     // Clear the spinner BEFORE reporting —
                                                     // showSnackbar suspends until dismissed (~4s).
                                                     isCreating = false
-                                                    snackbarHostState.showSnackbar(errorMsg)
+                                                    snackbar.show(errorMsg)
                                                 }
                                             }
                                         }

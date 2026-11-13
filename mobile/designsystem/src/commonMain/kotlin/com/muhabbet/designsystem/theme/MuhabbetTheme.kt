@@ -1,5 +1,6 @@
 package com.muhabbet.designsystem.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -12,6 +13,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.muhabbet.designsystem.modifier.MuhabbetPressIndication
 import com.muhabbet.designsystem.platform.SystemBarsEffect
 import kotlin.math.pow
 import kotlin.time.Duration
@@ -436,6 +438,13 @@ object MuhabbetSizes {
     val BorderHairline: Dp = 1.dp
 
     /**
+     * How far content scrolls under the top bar before the bar has fully lifted to
+     * `surfaceContainer` and its hairline is fully drawn. Scroll-linked rather than a timed
+     * animation: the bar lifts exactly as fast as the finger moves the content under it.
+     */
+    val TopBarLiftDistance: Dp = 16.dp
+
+    /**
      * A focused or errored outline, the brand mark's ring, and — since #433 — the width of the
      * ring [MuhabbetTextField] draws around itself on focus. Doubled so it reads as a state.
      */
@@ -673,8 +682,13 @@ fun MuhabbetTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
-            shapes = MuhabbetShapes,
-            content = content
-        )
+            shapes = MuhabbetShapes
+        ) {
+            // Inside MaterialTheme, which provides its own plain ripple as LocalIndication: every
+            // clickable in the app — raw ones in screens included — gets the design system's press
+            // feel instead (#846). Material controls that hard-wire ripple() get it through the
+            // components that wrap them.
+            CompositionLocalProvider(LocalIndication provides MuhabbetPressIndication(), content = content)
+        }
     }
 }

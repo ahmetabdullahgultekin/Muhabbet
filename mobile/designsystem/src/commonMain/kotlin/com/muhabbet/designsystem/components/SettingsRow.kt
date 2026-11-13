@@ -1,11 +1,7 @@
 package com.muhabbet.designsystem.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,18 +18,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
-import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 
@@ -49,8 +41,9 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
  * One geometry now: the dashboard's, which supports a subtitle — the reason it was written in the
  * first place — with the minimum tap target the other one had.
  *
- * A clickable row also presses back a fraction, the same spatial spring every other pressable
- * control in the app uses, and a leading icon sits in a tinted tile rather than floating bare on
+ * A clickable row also presses back a fraction — the theme's indication,
+ * [com.muhabbet.designsystem.modifier.MuhabbetPress.Subtle], the same one every other full-width
+ * pressable in the app gets — and a leading icon sits in a tinted tile rather than floating bare on
  * the row — this was the one component in the catalogue setting no colour, shape or motion of its
  * own, and it is the whole of the Settings surface.
  */
@@ -60,22 +53,9 @@ private fun RowFrame(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit
 ) {
-    // Built only when the row is actually clickable: a row with no action (SettingsInfoRow) has no
-    // press state to track, and this keeps it from paying for one every recomposition.
-    val pressModifier = if (onClick != null) {
-        val interactionSource = remember { MutableInteractionSource() }
-        val pressed by interactionSource.collectIsPressedAsState()
-        val scale by animateFloatAsState(
-            targetValue = if (pressed) RowPressedScale else 1f,
-            animationSpec = MuhabbetMotion.spatialFast(),
-            label = "settingsRowPress"
-        )
-        Modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
-    } else {
-        Modifier
-    }
+    // The squeeze comes from the theme's LocalIndication (MuhabbetPress.Subtle — the full-width
+    // strength), so a settings row and a raw clickable row in a screen press identically.
+    val pressModifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
 
     Row(
         modifier = modifier
@@ -273,4 +253,3 @@ fun SettingsInfoRow(
 }
 
 private val LoadingStrokeWidth = MuhabbetSizes.ProgressStrokeThin
-private const val RowPressedScale = 0.98f

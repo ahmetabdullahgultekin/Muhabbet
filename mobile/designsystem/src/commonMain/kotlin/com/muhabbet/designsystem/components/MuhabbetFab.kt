@@ -1,8 +1,6 @@
 package com.muhabbet.designsystem.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,17 +11,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.muhabbet.designsystem.modifier.MuhabbetPress
+import com.muhabbet.designsystem.modifier.pressScale
+import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 import com.muhabbet.designsystem.theme.MuhabbetElevation
-import com.muhabbet.designsystem.theme.MuhabbetMotion
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.performingHaptic
 
 /**
  * The primary action on a list screen.
@@ -41,26 +41,27 @@ import com.muhabbet.designsystem.theme.depth
  *    flat shadow is the "sticker" look the depth scale exists to replace, it goes grey over a warm
  *    surface, and on OLED it renders as nothing at all — where [depth] draws the outline that keeps
  *    a copper disc from floating in a void.
- *  - **It presses back**, with the same spatial spring as [MuhabbetIconButton] and [MuhabbetChip].
+ *  - **It presses back** with [MuhabbetPress.Standard], the same squeeze as every control its size.
  *
- * No haptic. A FAB opens a screen, and navigation is on the explicit do-not-buzz list — a phone that
- * vibrates every time you move between screens feels broken, not responsive.
+ * Silent by default. A FAB opens a screen, and navigation is on the explicit do-not-buzz list — a
+ * phone that vibrates every time you move between screens feels broken, not responsive. [haptic] is
+ * there for the rare FAB whose tap is itself the event.
  */
 @Composable
 fun MuhabbetFab(
     icon: ImageVector,
     contentDescription: String?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    haptic: MuhabbetHapticIntent? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val scale by rememberPressScale(interactionSource)
     val shape = RoundedCornerShape(MuhabbetCorners.Bubble)
 
     FloatingActionButton(
-        onClick = onClick,
+        onClick = LocalHaptics.current.performingHaptic(haptic, onClick),
         modifier = modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .pressScale(interactionSource, MuhabbetPress.Standard)
             .depth(MuhabbetDepth.Floating, shape),
         shape = shape,
         containerColor = MaterialTheme.colorScheme.primary,
@@ -87,16 +88,16 @@ fun MuhabbetExtendedFab(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    haptic: MuhabbetHapticIntent? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val scale by rememberPressScale(interactionSource)
     val shape = RoundedCornerShape(MuhabbetCorners.Pill)
 
     ExtendedFloatingActionButton(
-        onClick = onClick,
+        onClick = LocalHaptics.current.performingHaptic(haptic, onClick),
         modifier = modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .pressScale(interactionSource, MuhabbetPress.Standard)
             .depth(MuhabbetDepth.Floating, shape),
         shape = shape,
         containerColor = MaterialTheme.colorScheme.primary,
@@ -125,16 +126,3 @@ private fun flatElevation() = FloatingActionButtonDefaults.elevation(
     focusedElevation = MuhabbetElevation.None,
     hoveredElevation = MuhabbetElevation.None
 )
-
-/** Shared press physics, so the two variants cannot drift apart. */
-@Composable
-private fun rememberPressScale(interactionSource: MutableInteractionSource) =
-    animateFloatAsState(
-        targetValue = if (interactionSource.collectIsPressedAsState().value) PressedScale else 1f,
-        animationSpec = MuhabbetMotion.spatialFast(),
-        label = "fabPress"
-    )
-
-/** Shallower than [MuhabbetIconButton]'s 0.88: the same proportional squeeze on a 56dp target would
- *  travel four times as far in pixels and read as the button collapsing. */
-private const val PressedScale = 0.94f

@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,7 +71,7 @@ fun CommunityMembersScreen(
     var showAddSheet by remember { mutableStateOf(false) }
     var retryKey by remember { mutableStateOf(0) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
 
@@ -88,7 +88,7 @@ fun CommunityMembersScreen(
             // Without this an authorisation failure renders as a community with no members,
             // which is indistinguishable from one the user has just been removed from.
             Log.e(TAG, "Failed to load members of community $communityId", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
@@ -107,13 +107,13 @@ fun CommunityMembersScreen(
             communityId = communityId,
             onDismiss = { showAddSheet = false },
             onMemberAdded = { scope.launch { loadMembers() } },
-            snackbarHostState = snackbarHostState,
+            snackbar = snackbar,
             communityRepository = communityRepository
         )
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = stringResource(Res.string.community_members),

@@ -11,6 +11,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.muhabbet.shared.dto.UserStatusGroup
+import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.designsystem.components.EmptyChatsIllustration
@@ -55,10 +57,16 @@ internal fun ConversationListBody(
 ) {
     val showSkeleton = rememberSkeletonVisible(isLoading)
     val loadingLabel = stringResource(Res.string.chats_loading)
+    val haptics = Muhabbet.haptics
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
-        onRefresh = onRefresh,
+        // PullToRefreshBox calls this exactly when the pull is released past its threshold — the
+        // moment RefreshTriggered names (#836). Not on every frame past the line: that is a buzz.
+        onRefresh = {
+            haptics.perform(MuhabbetHapticIntent.RefreshTriggered)
+            onRefresh()
+        },
         modifier = Modifier.fillMaxSize()
     ) {
         // MuhabbetSkeletonList, not a LazyColumn of hand-rolled rows: it wraps its rows in a

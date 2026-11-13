@@ -22,7 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import com.muhabbet.designsystem.components.rememberMuhabbetSheetController
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,7 +63,7 @@ fun GifStickerPicker(
     onStickerSelected: (url: String, previewUrl: String) -> Unit,
     initialTab: GifStickerTab = GifStickerTab.GIF
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetController = rememberMuhabbetSheetController(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val giphyClient = remember { GiphyClient() }
 
@@ -105,7 +105,7 @@ fun GifStickerPicker(
         onDismiss = onDismiss,
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(MuhabbetSpacing.None),
-        sheetState = sheetState
+        controller = sheetController
     ) {
         Column(modifier = Modifier.fillMaxWidth().height(MuhabbetSizes.PickerSheetHeight)) {
             // Tab row: GIF | Stickers
@@ -178,7 +178,7 @@ fun GifStickerPicker(
                                         } else {
                                             onStickerSelected(fullUrl, previewUrl)
                                         }
-                                        sheetState.hide()
+                                        sheetController.hide()
                                         onDismiss()
                                     }
                                 },

@@ -16,11 +16,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -83,10 +81,11 @@ import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.app.util.runCatchingCancellable
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.transition.handoffAvatar
 import com.muhabbet.designsystem.components.MuhabbetScaffold
-import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
+import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.MuhabbetIconButton
 import com.muhabbet.designsystem.components.MuhabbetSkeletonConversation
 import com.muhabbet.designsystem.components.MuhabbetSkeletonGate
@@ -156,7 +155,8 @@ fun ChatScreen(
     // walking into a different chat starts clean. See AckedMessageIds for why the receipt cannot be
     // gated on the message list any more (#478).
     val ackedMessageIds = remember(conversationId) { AckedMessageIds() }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
+    val haptics = Muhabbet.haptics
     val uriHandler = LocalUriHandler.current
     // Rendered by the ConnectionStrip below. Nothing had ever read this flow before #511.
     val connectionState by wsClient.connectionState.collectAsState()
@@ -202,7 +202,7 @@ fun ChatScreen(
     suspend fun reportSendOutcome(messageId: String, error: Throwable) {
         if (error is MessageQueuedException) return
         messages = messages.filter { it.id != messageId }
-        snackbarHostState.showSnackbar(errorSendMsg)
+        snackbar.show(errorSendMsg)
     }
 
     // Documents, link previews and shared locations all end here. Opening can genuinely fail —
@@ -212,7 +212,7 @@ fun ChatScreen(
         runCatchingCancellable { uriHandler.openUri(url) }
             .onFailure { e ->
                 Log.e(TAG, "Failed to open $url externally", e)
-                scope.launch { snackbarHostState.showSnackbar(errorOpenMsg) }
+                scope.launch { snackbar.show(errorOpenMsg) }
             }
     }
 
@@ -311,7 +311,7 @@ fun ChatScreen(
         } catch (_: Exception) { sendFailed = true }
         // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
         isUploading = false
-        if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
+        if (sendFailed) snackbar.show(errorSendMsg)
     }
 
     // ── Media pickers ────────────────────────
@@ -331,7 +331,7 @@ fun ChatScreen(
             } catch (_: Exception) { sendFailed = true }
             // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
             isUploading = false
-            if (sendFailed) snackbarHostState.showSnackbar(errorSendMsg)
+            if (sendFailed) snackbar.show(errorSendMsg)
         }
     }
 
@@ -375,7 +375,7 @@ fun ChatScreen(
             // again, and gives no hint that the setting is what made this send different.
             is ViewOnceNotQueueableException -> {
                 messages = messages.filter { it.id != msgId }
-                snackbarHostState.showSnackbar(viewOnceOfflineMsg)
+                snackbar.show(viewOnceOfflineMsg)
             }
             else -> reportSendOutcome(msgId, sendError)
         }
@@ -441,7 +441,7 @@ fun ChatScreen(
         isLoading = false
         if (loadFailure != null) {
             Log.e(TAG, "Failed to load messages", loadFailure)
-            scope.launch { snackbarHostState.showSnackbar(errorLoadMsg) }
+            scope.launch { snackbar.show(errorLoadMsg) }
         }
         // One receipt covers the whole conversation: the backend's READ ack bulk-marks every unread
         // message and moves `last_read_at`, so naming the newest incoming message is enough.
@@ -566,8 +566,14 @@ fun ChatScreen(
                     // after a reconnect looks like from the server's side. The message went. An
                     // error ack carries no serverTimestamp, so the existing one is kept.
                     if (ws.status == AckStatus.OK || serverAlreadyHasMessage(ws.errorCode)) {
+                        // Decided before the list is updated, which is what makes it once: the
+                        // update below moves the message out of SENDING, so a repeated ack for the
+                        // same id (an offline-queue drain answered MSG_DUPLICATE) finds nothing
+                        // pending and stays silent (#836).
+                        val confirmsSend = ackConfirmsPendingSend(messages, ws.messageId)
                         messages = messages.map { m -> if (m.id == ws.messageId) m.copy(status = MessageStatus.SENT, serverTimestamp = ws.serverTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: m.serverTimestamp) else m }
-                    } else scope.launch { snackbarHostState.showSnackbar(sendFailures.forCode(ws.errorCode)) }
+                        if (confirmsSend) haptics.perform(MuhabbetHapticIntent.MessageSent)
+                    } else scope.launch { snackbar.show(sendFailures.forCode(ws.errorCode)) }
                 }
                 is WsMessage.StatusUpdate -> if (ws.conversationId == conversationId) {
                     messages = if (ws.status == MessageStatus.READ) messages.map { m -> if (m.senderId == currentUserId && m.status in listOf(MessageStatus.SENT, MessageStatus.DELIVERED)) m.copy(status = MessageStatus.READ) else m }
@@ -694,7 +700,7 @@ fun ChatScreen(
                 isLoadingMore = false
                 if (failure != null) {
                     Log.e(TAG, "Failed to load older messages", failure)
-                    scope.launch { snackbarHostState.showSnackbar(errorLoadMsg) }
+                    scope.launch { snackbar.show(errorLoadMsg) }
                 }
             }
         }
@@ -717,13 +723,13 @@ fun ChatScreen(
 
     // ── Dialogs ──────────────────────────────
     fullImage?.let { image -> FullImageViewer(image) { fullImage = null } }
-    forwardMessage?.let { msg -> ForwardPickerDialog(msg, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbarHostState, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation) }
+    forwardMessage?.let { msg -> ForwardPickerDialog(msg, forwardConversations, conversationId, currentUserId, wsClient, scope, errorSendMsg, snackbar, onDismiss = { forwardMessage = null }, onNavigateToConversation = onNavigateToConversation) }
     if (showDeleteDialog && deleteTargetId != null) DeleteConfirmDialog(
         onConfirm = { val id = deleteTargetId ?: return@DeleteConfirmDialog
             showDeleteDialog = false
             deleteTargetId = null
             scope.launch { try { groupRepository.deleteMessage(id)
-            messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } } },
+            messages = messages.map { if (it.id == id) it.copy(isDeleted = true, content = "") else it } } catch (_: Exception) { snackbar.show(errorSendMsg) } } },
         onDismiss = { showDeleteDialog = false; deleteTargetId = null }
     )
     if (showDisappearDialog) DisappearTimerDialog(
@@ -739,7 +745,7 @@ fun ChatScreen(
                     .onFailure { e ->
                         Log.e(TAG, "Failed to set disappearing timer", e)
                         disappearAfterSeconds = previous
-                        snackbarHostState.showSnackbar(errorDisappearingMsg)
+                        snackbar.show(errorDisappearingMsg)
                     }
             }
         },
@@ -790,10 +796,10 @@ fun ChatScreen(
             scope.launch {
                 try {
                     wsClient.send(WsMessage.SendMessage(requestId = rid, messageId = mid, conversationId = conversationId, content = text, contentType = ContentType.TEXT, replyToId = replyId, scheduledAt = epochMillis))
-                    snackbarHostState.showSnackbar(scheduleQueuedMsg)
+                    snackbar.show(scheduleQueuedMsg)
                 } catch (_: Exception) {
                     pendingScheduled = pendingScheduled.filter { it.messageId != mid }
-                    snackbarHostState.showSnackbar(errorSendMsg)
+                    snackbar.show(errorSendMsg)
                 }
             }
         },
@@ -807,7 +813,7 @@ fun ChatScreen(
             pendingScheduled = pendingScheduled.filter { it.messageId != item.messageId }
             if (pendingScheduled.isEmpty()) showScheduledListDialog = false
             scope.launch { try { groupRepository.deleteMessage(item.messageId)
-                snackbarHostState.showSnackbar(scheduleCancelledMsg) } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
+                snackbar.show(scheduleCancelledMsg) } catch (_: Exception) { snackbar.show(errorSendMsg) } }
         },
         onDismiss = { showScheduledListDialog = false }
     )
@@ -815,7 +821,7 @@ fun ChatScreen(
     // ── Scaffold UI ──────────────────────────
     MuhabbetScaffold(
         topBar = {
-            TopAppBar(
+            MuhabbetTopBar(
                 title = {
                     // Avatar in the title, not just a name. Every messenger worth comparing against
                     // shows the person you are talking to at the top of the conversation, and its
@@ -865,11 +871,9 @@ fun ChatScreen(
                                 contentDescription = stringResource(Res.string.chat_disappearing),
                                 onClick = { showDisappearDialog = true }
                             ) },
-                // Bespoke bar (avatar + name + presence subtitle), shared colours.
-                colors = MuhabbetTopBarDefaults.colors()
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
             // Above the messages and below the bar, so it is the first thing read on a screen the
@@ -906,28 +910,33 @@ fun ChatScreen(
                             onForward = { msg -> contextMenuMessageId = null
                                 forwardMessage = msg
                                 scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
-                                snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                                snackbar.show(errorLoadConversationsMsg) } } },
                             onStar = { msg, isStarred -> contextMenuMessageId = null
                                 scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
                                 starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
                                 starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
-                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                                snackbar.show(errorActionMsg) } } },
                             onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                             onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
                             onImageClick = { fullImage = it },
                             onReactionToggle = { msg, emoji ->
                                 scope.launch {
                                     runCatchingCancellable {
-                                        if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
-                                        else messageRepository.addReaction(msg.id, emoji)
+                                        if (emoji in msg.myReactions) {
+                                            messageRepository.removeReaction(msg.id, emoji)
+                                        } else {
+                                            messageRepository.addReaction(msg.id, emoji)
+                                            // After the server accepted it, not on the tap (#836).
+                                            haptics.perform(MuhabbetHapticIntent.ReactionApplied)
+                                        }
                                     }.onFailure { e ->
                                         Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
-                                        snackbarHostState.showSnackbar(errorActionMsg)
+                                        snackbar.show(errorActionMsg)
                                     }
                                 }
                             },
-                            onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
-                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                            onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji); haptics.perform(MuhabbetHapticIntent.ReactionApplied) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
+                                snackbar.show(errorActionMsg) } } },
                             onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
                             // Not bookkeeping — this call *is* the view.
                             //
@@ -975,7 +984,7 @@ fun ChatScreen(
                                                     if (it.id == id) it.copy(viewOnceViewed = false) else it
                                                 }
                                             }
-                                            snackbarHostState.showSnackbar(
+                                            snackbar.show(
                                                 if (alreadyViewed) viewOnceAlreadyOpenedMsg else viewOnceOpenFailedMsg
                                             )
                                         }
@@ -985,7 +994,7 @@ fun ChatScreen(
                             // The bubble drew a video it has no playable url for. Saying so is the
                             // whole point — a tap that does nothing is the defect being fixed.
                             onMediaUnavailable = {
-                                scope.launch { snackbarHostState.showSnackbar(errorVideoUnavailableMsg) }
+                                scope.launch { snackbar.show(errorVideoUnavailableMsg) }
                             }
                         )
                     )
@@ -1078,7 +1087,7 @@ fun ChatScreen(
                         if (editingMessageId != null) {
                             val id = editingMessageId ?: return@MessageInputBar; val content = messageText.trim(); editingMessageId = null; messageText = ""
                             scope.launch { try { groupRepository.editMessage(id, content)
-                                messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbarHostState.showSnackbar(errorSendMsg) } }
+                                messages = messages.map { if (it.id == id) it.copy(content = content, editedAt = Clock.System.now()) else it } } catch (_: Exception) { snackbar.show(errorSendMsg) } }
                         } else {
                             val text = messageText; val replyId = replyingTo?.id; messageText = ""; replyingTo = null; typingJob?.cancel()
                             if (isTypingSent) { scope.launch { sendTypingIndicator(wsClient, conversationId, false) }; isTypingSent = false }

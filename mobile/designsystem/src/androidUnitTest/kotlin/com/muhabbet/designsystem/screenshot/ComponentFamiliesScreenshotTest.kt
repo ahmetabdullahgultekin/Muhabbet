@@ -5,8 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.muhabbet.designsystem.Muhabbet
@@ -35,7 +36,9 @@ import com.muhabbet.designsystem.components.MuhabbetSkeletonListRow
 import com.muhabbet.designsystem.components.MuhabbetSkeletonParagraph
 import com.muhabbet.designsystem.components.MuhabbetStepRail
 import com.muhabbet.designsystem.components.MuhabbetTextField
+import com.muhabbet.designsystem.components.LocalMuhabbetTopBarScroll
 import com.muhabbet.designsystem.components.MuhabbetTopBar
+import com.muhabbet.designsystem.components.MuhabbetTopBarScroll
 import com.muhabbet.designsystem.components.SectionHeader
 import com.muhabbet.designsystem.components.SettingsInfoRow
 import com.muhabbet.designsystem.components.SettingsNavRow
@@ -55,8 +58,6 @@ import org.robolectric.annotation.GraphicsMode
  * their own window and are covered separately; animated states are captured at their first frame.
  * Fixture text is Turkish on purpose — it is the default locale and carries İ ı Ğ ş.
  */
-// MuhabbetTopBar still exposes M3's experimental TopAppBarScrollBehavior (#762).
-@OptIn(ExperimentalMaterial3Api::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w360dp-h1280dp-xhdpi")
@@ -187,6 +188,25 @@ class ComponentFamiliesScreenshotTest {
                 selectedIndex = 0,
                 onSelect = {},
             )
+        }
+    }
+
+    /**
+     * #845: the bar at rest and the bar with content scrolled under it — lifted to
+     * `surfaceContainer` with its hairline. The scrolled state is supplied the way MuhabbetScaffold
+     * supplies it, through LocalMuhabbetTopBarScroll.
+     */
+    @Test
+    fun topBarScroll() = MuhabbetSnapshotMatrix.capture(rule, "topbarscroll") {
+        Column(
+            Modifier.width(Muhabbet.sizes.BubbleMaxWidth),
+            verticalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Large)
+        ) {
+            MuhabbetTopBar(title = "En üstte", onBack = {}, backContentDescription = "Geri")
+            val scrolled = remember { MuhabbetTopBarScroll(initialContentOffset = -10_000f) }
+            CompositionLocalProvider(LocalMuhabbetTopBarScroll provides scrolled) {
+                MuhabbetTopBar(title = "Kaydırılmış", onBack = {}, backContentDescription = "Geri")
+            }
         }
     }
 

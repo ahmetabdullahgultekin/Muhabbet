@@ -20,7 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -85,7 +85,7 @@ fun StarredMessagesScreen(
     var conversations by remember { mutableStateOf<Map<String, ConversationResponse>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
@@ -100,7 +100,7 @@ fun StarredMessagesScreen(
         if (failure != null) {
             // Without this the screen shows the "no starred messages" empty state, which is a lie.
             Log.e("StarredMessagesScreen", "Failed to load starred messages", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
             return@LaunchedEffect
         }
         // A second, independent request, and deliberately not folded into the one above: if the
@@ -124,7 +124,7 @@ fun StarredMessagesScreen(
     val contactNames = rememberContactNames()
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = stringResource(Res.string.starred_title),
@@ -181,7 +181,7 @@ fun StarredMessagesScreen(
                                 } else {
                                     // Navigating anyway is what #543 was: the right conversation,
                                     // opened with nothing to draw it with. Saying so is better.
-                                    scope.launch { snackbarHostState.showSnackbar(unavailableMsg) }
+                                    scope.launch { snackbar.show(unavailableMsg) }
                                 }
                             }
                         )

@@ -3,10 +3,9 @@ package com.muhabbet.app.ui.whatsnew
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import com.muhabbet.designsystem.components.rememberMuhabbetSheetController
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,7 +50,6 @@ const val WhatsNewSheetTag = "whats_new_sheet"
  * Settings → About → Release notes, which is the half of #672 that is always reachable; a sheet that
  * grew a section per skipped version would stop being something anyone reads to the end.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WhatsNewSheet(modifier: Modifier = Modifier) {
     val tokenStorage: TokenStorage = koinInject()
@@ -71,7 +69,7 @@ fun WhatsNewSheet(modifier: Modifier = Modifier) {
     }
     if (!visible || note == null) return
 
-    val sheetState = rememberModalBottomSheetState()
+    val sheetController = rememberMuhabbetSheetController()
     val scope = rememberCoroutineScope()
 
     // The flag is written here rather than after the animation: a user who dismisses the sheet and
@@ -85,7 +83,7 @@ fun WhatsNewSheet(modifier: Modifier = Modifier) {
     MuhabbetBottomSheet(
         onDismiss = record,
         modifier = modifier.testTag(WhatsNewSheetTag),
-        sheetState = sheetState
+        controller = sheetController
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Large)) {
             Column(verticalArrangement = Arrangement.spacedBy(MuhabbetSpacing.XSmall)) {
@@ -116,7 +114,7 @@ fun WhatsNewSheet(modifier: Modifier = Modifier) {
                 // ModalBottomSheet does not do for you: dropping it would make the sheet vanish on
                 // the frame the button is released while the scrim fades on its own, and the two
                 // halves of the same surface would come apart.
-                onClick = { scope.launch { sheetState.hide() }.invokeOnCompletion { record() } },
+                onClick = { scope.launch { sheetController.hide() }.invokeOnCompletion { record() } },
                 modifier = Modifier.fillMaxWidth()
             )
         }

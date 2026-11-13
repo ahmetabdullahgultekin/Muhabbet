@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,7 +55,7 @@ fun CreateGroupScreen(
     var groupName by remember { mutableStateOf("") }
     var isCreating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
 
     val errorMsg = stringResource(Res.string.error_generic)
     val groupNameRequiredMsg = stringResource(Res.string.group_name_required)
@@ -69,7 +69,7 @@ fun CreateGroupScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         floatingActionButton = {
             MuhabbetExtendedFab(
                 text = stringResource(Res.string.group_create_button),
@@ -78,11 +78,11 @@ fun CreateGroupScreen(
                 onClick = createGroup@{
                     if (isCreating) return@createGroup
                     if (groupName.isBlank()) {
-                        scope.launch { snackbarHostState.showSnackbar(groupNameRequiredMsg) }
+                        scope.launch { snackbar.show(groupNameRequiredMsg) }
                         return@createGroup
                     }
                     if (selectedUserIds.isEmpty()) {
-                        scope.launch { snackbarHostState.showSnackbar(groupSelectMinimumMsg) }
+                        scope.launch { snackbar.show(groupSelectMinimumMsg) }
                         return@createGroup
                     }
                     isCreating = true
@@ -98,7 +98,7 @@ fun CreateGroupScreen(
                             // Clear the spinner BEFORE reporting — showSnackbar suspends until
                             // dismissed (~4s).
                             isCreating = false
-                            snackbarHostState.showSnackbar(errorMsg)
+                            snackbar.show(errorMsg)
                         }
                     }
                 }

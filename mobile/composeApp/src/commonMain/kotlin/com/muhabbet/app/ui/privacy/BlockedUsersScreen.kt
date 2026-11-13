@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,7 +73,7 @@ fun BlockedUsersScreen(
     var retryKey by remember { mutableStateOf(0) }
     var pendingUnblock by remember { mutableStateOf<BlockedUserResponse?>(null) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val loadFailedMsg = stringResource(Res.string.blocked_users_load_failed)
@@ -89,7 +89,7 @@ fun BlockedUsersScreen(
         loadFailed = failure != null
         if (failure != null) {
             Log.e(TAG, "Failed to load blocked users", failure)
-            snackbarHostState.showSnackbar(loadFailedMsg)
+            snackbar.show(loadFailedMsg)
         }
     }
 
@@ -112,11 +112,11 @@ fun BlockedUsersScreen(
                             // Drop the row locally rather than re-fetching the whole list — the
                             // server has nothing more to tell us about a block that no longer exists.
                             blockedUsers = blockedUsers?.filterNot { it.userId == target.userId }
-                            snackbarHostState.showSnackbar(unblockSuccessMsg)
+                            snackbar.show(unblockSuccessMsg)
                         }
                         .onFailure { e ->
                             Log.e(TAG, "Failed to unblock ${target.userId}", e)
-                            snackbarHostState.showSnackbar(unblockFailedMsg)
+                            snackbar.show(unblockFailedMsg)
                         }
                 }
             },
@@ -125,7 +125,7 @@ fun BlockedUsersScreen(
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = stringResource(Res.string.privacy_blocked_contacts),

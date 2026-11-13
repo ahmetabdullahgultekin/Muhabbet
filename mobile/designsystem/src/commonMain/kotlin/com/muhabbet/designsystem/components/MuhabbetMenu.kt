@@ -12,12 +12,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetDepth
 import com.muhabbet.designsystem.theme.MuhabbetElevation
+import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.containerColor
 import com.muhabbet.designsystem.theme.depth
+import com.muhabbet.designsystem.theme.performingHaptic
 
 /**
  * The one dropdown menu.
@@ -77,6 +80,8 @@ fun MuhabbetMenu(
  * @param iconTint an explicit override for the rare row whose icon carries its own state rather
  *   than the row's action — the star item's filled-vs-outline icon is `tertiary` only while
  *   starred, which `destructive` cannot express.
+ * @param haptic silent by default — choosing a menu row is navigation-like and the long-press that
+ *   opened the menu already buzzed. Name an intent only when picking the row is itself the event.
  */
 @Composable
 fun MuhabbetMenuItem(
@@ -86,7 +91,8 @@ fun MuhabbetMenuItem(
     icon: ImageVector? = null,
     enabled: Boolean = true,
     destructive: Boolean = false,
-    iconTint: Color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    iconTint: Color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    haptic: MuhabbetHapticIntent? = null
 ) {
     DropdownMenuItem(
         text = {
@@ -95,7 +101,7 @@ fun MuhabbetMenuItem(
                 color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified
             )
         },
-        onClick = onClick,
+        onClick = LocalHaptics.current.performingHaptic(haptic, onClick),
         modifier = modifier,
         enabled = enabled,
         leadingIcon = icon?.let {

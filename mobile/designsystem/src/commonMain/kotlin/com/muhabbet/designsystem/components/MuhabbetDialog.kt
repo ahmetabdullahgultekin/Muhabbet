@@ -1,23 +1,21 @@
 package com.muhabbet.designsystem.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import com.muhabbet.designsystem.modifier.MuhabbetPress
+import com.muhabbet.designsystem.modifier.pressScale
 import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
-import com.muhabbet.designsystem.theme.MuhabbetMotion
+import com.muhabbet.designsystem.theme.performingHaptic
 
 /**
  * The one dialog.
@@ -90,8 +88,8 @@ fun MuhabbetDialog(
 }
 
 /**
- * A dialog's text button, pressing back the same spatial spring every other control in the app
- * uses. Kept private: it is a detail of how [MuhabbetDialog] renders its two buttons, not a general
+ * A dialog's text button, pressing back with [MuhabbetPress.Standard] like every other control its
+ * size. Kept private: it is a detail of how [MuhabbetDialog] renders its two buttons, not a general
  * button variant — that is [MuhabbetButton]'s job.
  */
 @Composable
@@ -102,22 +100,12 @@ private fun DialogTextButton(
     color: Color,
     hapticIntent: MuhabbetHapticIntent?
 ) {
-    val haptics = LocalHaptics.current
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) DialogButtonPressedScale else 1f,
-        animationSpec = MuhabbetMotion.spatialFast(),
-        label = "dialogButtonPress"
-    )
     TextButton(
-        onClick = {
-            hapticIntent?.let { haptics.perform(it) }
-            onClick()
-        },
+        onClick = LocalHaptics.current.performingHaptic(hapticIntent, onClick),
         enabled = enabled,
         interactionSource = interactionSource,
-        modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+        modifier = Modifier.pressScale(interactionSource, MuhabbetPress.Standard)
     ) {
         Text(text = label, color = color)
     }
@@ -151,5 +139,3 @@ fun ConfirmDialog(
         Text(message)
     }
 }
-
-private const val DialogButtonPressedScale = 0.95f

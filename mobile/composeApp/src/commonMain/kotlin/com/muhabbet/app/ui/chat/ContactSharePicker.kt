@@ -19,7 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -62,7 +62,7 @@ fun ContactSharePicker(
 ) {
     var conversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
 
     val errorLoadMsg = stringResource(Res.string.error_load_conversations)
     val unknownLabel = stringResource(Res.string.unknown)
@@ -78,12 +78,12 @@ fun ContactSharePicker(
         if (failure != null) {
             // Without this the picker just renders empty, reading as "you have no contacts".
             Log.e("ContactSharePicker", "Failed to load contacts", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = stringResource(Res.string.share_contact),

@@ -17,7 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -66,7 +66,7 @@ fun LinkedDevicesScreen(
     var devices by remember { mutableStateOf<List<LinkedDeviceResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var pendingRevokeId by remember { mutableStateOf<String?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val scope = rememberCoroutineScope()
 
     val title = stringResource(Res.string.linked_devices_title)
@@ -86,7 +86,7 @@ fun LinkedDevicesScreen(
         isLoading = false
         if (failure != null) {
             Log.e(TAG, "Failed to list linked devices", failure)
-            snackbarHostState.showSnackbar(loadFailedMsg)
+            snackbar.show(loadFailedMsg)
         }
     }
 
@@ -95,7 +95,7 @@ fun LinkedDevicesScreen(
     }
 
     MuhabbetScaffold(
-        snackbarHostState = snackbarHostState,
+        snackbarState = snackbar,
         topBar = {
             MuhabbetTopBar(
                 title = title,
@@ -149,11 +149,11 @@ fun LinkedDevicesScreen(
                     runCatchingCancellable { repository.revokeDevice(toRevoke) }
                         .onSuccess {
                             reload()
-                            snackbarHostState.showSnackbar(revokedMsg)
+                            snackbar.show(revokedMsg)
                         }
                         .onFailure { e ->
                             Log.e(TAG, "Failed to revoke device", e)
-                            snackbarHostState.showSnackbar(actionFailedMsg)
+                            snackbar.show(actionFailedMsg)
                         }
                 }
             },

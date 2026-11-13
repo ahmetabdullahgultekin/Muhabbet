@@ -43,7 +43,7 @@ import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.ModerationRepository
@@ -92,7 +92,7 @@ fun UserProfileScreen(
     var showReportDialog by remember { mutableStateOf(false) }
     // Only ever set true when profile.avatarUrl is non-null — see the render site below.
     var showPhotoViewer by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val relativeDayLabels = rememberRelativeDayLabels()
     val scope = rememberCoroutineScope()
 
@@ -130,11 +130,11 @@ fun UserProfileScreen(
                     runCatchingCancellable { moderationRepository.blockUser(userId) }
                         .onSuccess {
                             isBlocked = true
-                            snackbarHostState.showSnackbar(blockSuccessMsg)
+                            snackbar.show(blockSuccessMsg)
                         }
                         .onFailure { e ->
                             Log.e(TAG, "Failed to block $userId", e)
-                            snackbarHostState.showSnackbar(blockFailedMsg)
+                            snackbar.show(blockFailedMsg)
                         }
                 }
             },
@@ -155,11 +155,11 @@ fun UserProfileScreen(
                     runCatchingCancellable { moderationRepository.unblockUser(userId) }
                         .onSuccess {
                             isBlocked = false
-                            snackbarHostState.showSnackbar(unblockSuccessMsg)
+                            snackbar.show(unblockSuccessMsg)
                         }
                         .onFailure { e ->
                             Log.e(TAG, "Failed to unblock $userId", e)
-                            snackbarHostState.showSnackbar(unblockFailedMsg)
+                            snackbar.show(unblockFailedMsg)
                         }
                 }
             },
@@ -179,10 +179,10 @@ fun UserProfileScreen(
                     runCatchingCancellable {
                         moderationRepository.reportUser(reportedUserId = userId)
                     }
-                        .onSuccess { snackbarHostState.showSnackbar(reportSuccessMsg) }
+                        .onSuccess { snackbar.show(reportSuccessMsg) }
                         .onFailure { e ->
                             Log.e(TAG, "Failed to report $userId", e)
-                            snackbarHostState.showSnackbar(reportFailedMsg)
+                            snackbar.show(reportFailedMsg)
                         }
                 }
             },
@@ -205,7 +205,7 @@ fun UserProfileScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         if (isLoading) {
             MuhabbetLoadingState(Modifier.fillMaxSize().padding(padding))
@@ -289,7 +289,7 @@ fun UserProfileScreen(
                         ProfileActionButton(
                             icon = Muhabbet.icons.CallStart,
                             label = stringResource(Res.string.profile_action_call),
-                            onClick = { scope.launch { snackbarHostState.showSnackbar(callComingSoonMsg) } }
+                            onClick = { scope.launch { snackbar.show(callComingSoonMsg) } }
                         )
                     }
                     Spacer(Modifier.height(MuhabbetSpacing.Small))

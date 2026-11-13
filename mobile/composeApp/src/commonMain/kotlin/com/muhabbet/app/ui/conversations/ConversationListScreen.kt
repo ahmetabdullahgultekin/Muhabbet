@@ -11,7 +11,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.MuhabbetUndoResult
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -81,7 +82,7 @@ fun ConversationListScreen(
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<Message>>(emptyList()) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val scope = rememberCoroutineScope()
     // Rendered by the ConnectionStrip below. Nothing had ever read this flow before #511.
@@ -124,6 +125,8 @@ fun ConversationListScreen(
     val unpinText = stringResource(Res.string.conv_unpin)
     val archiveText = stringResource(Res.string.conv_archive)
     val unarchiveText = stringResource(Res.string.conv_unarchive)
+    val archivedUndoableMsg = stringResource(Res.string.conv_archived_undoable)
+    val undoLabel = stringResource(Res.string.action_undo)
     val muteText = stringResource(Res.string.conv_mute)
     val unmuteText = stringResource(Res.string.conv_unmute)
     val lockText = stringResource(Res.string.chat_lock)
@@ -155,7 +158,7 @@ fun ConversationListScreen(
             // is dismissed (~4s), and loadConversations() is also driven by the WebSocket collector
             // and by pull-to-refresh. Awaiting it here would stall the collector for every incoming
             // event and hold the refresh spinner for the life of the snackbar.
-            scope.launch { snackbarHostState.showSnackbar(errorMsg) }
+            scope.launch { snackbar.show(errorMsg) }
         }
     }
 
@@ -254,7 +257,7 @@ fun ConversationListScreen(
                     showStatusInput = false
                     statusText = ""
                     statusPickedImage = null
-                    if (postFailed) snackbarHostState.showSnackbar(statusPostFailedMsg)
+                    if (postFailed) snackbar.show(statusPostFailedMsg)
                 }
             }
         },
@@ -272,7 +275,7 @@ fun ConversationListScreen(
                     // Unchecked post/delete until now: a rejected pin silently left the row
                     // unchanged and the tap looked like it had simply not registered.
                     Log.e(TAG, "Pin toggle failed", e)
-                    snackbarHostState.showSnackbar(actionFailedMsg)
+                    snackbar.show(actionFailedMsg)
                 }
             }
         },
@@ -280,12 +283,23 @@ fun ConversationListScreen(
             showLongPressMenu = false; longPressTargetConv = null
             scope.launch {
                 try {
-                    if (conv.isArchived) conversationRepository.unarchiveConversation(conv.id)
-                    else conversationRepository.archiveConversation(conv.id)
-                    loadConversations()
+                    if (conv.isArchived) {
+                        conversationRepository.unarchiveConversation(conv.id)
+                        loadConversations()
+                    } else {
+                        conversationRepository.archiveConversation(conv.id)
+                        loadConversations()
+                        // Archiving moves the row out of sight, which is exactly when an accidental
+                        // long-press choice is hardest to notice and find again. Archive is
+                        // reversible by its own inverse, so the undo is that inverse (#844).
+                        if (snackbar.showUndo(archivedUndoableMsg, undoLabel) == MuhabbetUndoResult.Undone) {
+                            conversationRepository.unarchiveConversation(conv.id)
+                            loadConversations()
+                        }
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Archive toggle failed", e)
-                    snackbarHostState.showSnackbar(actionFailedMsg)
+                    snackbar.show(actionFailedMsg)
                 }
             }
         },
@@ -298,7 +312,7 @@ fun ConversationListScreen(
                         loadConversations()
                     } catch (e: Exception) {
                         Log.e(TAG, "Unmute failed", e)
-                        snackbarHostState.showSnackbar(actionFailedMsg)
+                        snackbar.show(actionFailedMsg)
                     }
                 }
             } else {
@@ -315,7 +329,7 @@ fun ConversationListScreen(
                     loadConversations()
                 } catch (e: Exception) {
                     Log.e(TAG, "Lock toggle failed", e)
-                    snackbarHostState.showSnackbar(actionFailedMsg)
+                    snackbar.show(actionFailedMsg)
                 }
             }
         },
@@ -334,7 +348,7 @@ fun ConversationListScreen(
                     conversations = conversations.filter { it.id != conv.id }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to delete conversation", e)
-                    snackbarHostState.showSnackbar(convDeleteFailed)
+                    snackbar.show(convDeleteFailed)
                 }
             }
         },
@@ -348,7 +362,7 @@ fun ConversationListScreen(
                     loadConversations()
                 } catch (e: Exception) {
                     Log.e(TAG, "Mute failed", e)
-                    snackbarHostState.showSnackbar(actionFailedMsg)
+                    snackbar.show(actionFailedMsg)
                 }
             }
             muteTargetConvId = null
@@ -386,7 +400,7 @@ fun ConversationListScreen(
                 modifier = Modifier.testTag("new_chat_fab")
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Above the search field and the list, outside the pull-to-refresh area so it cannot
@@ -408,7 +422,7 @@ fun ConversationListScreen(
                                     // in your messages says that".
                                     Log.e(TAG, "Message search failed", e)
                                     searchResults = emptyList()
-                                    snackbarHostState.showSnackbar(searchFailedMsg)
+                                    snackbar.show(searchFailedMsg)
                                 }
                             }
                         } else {
@@ -469,7 +483,7 @@ fun ConversationListScreen(
                     // Unchecked post/delete until now: a rejected pin silently left the row
                     // unchanged and the tap looked like it had simply not registered.
                     Log.e(TAG, "Pin toggle failed", e)
-                    snackbarHostState.showSnackbar(actionFailedMsg)
+                    snackbar.show(actionFailedMsg)
                 }
                         }
                     }

@@ -183,7 +183,12 @@ internal fun ChatMessageList(
                             if (reactionTargetId == message.id) QuickReactionBar(visible = true, onReaction = { emoji -> reactionTargetId = null; actions.onQuickReaction(message, emoji) })
                             MessageBubble(message, isOwn, audioPlayer, repliedMessage, isStarred,
                                 showContextMenu = contextMenuMessageId == message.id,
-                                onLongPress = { if (!message.isDeleted) actions.onLongPress(message) },
+                                onLongPress = {
+                                    if (!message.isDeleted) {
+                                        haptics.perform(MuhabbetHapticIntent.ItemLongPressed)
+                                        actions.onLongPress(message)
+                                    }
+                                },
                                 onDoubleTap = { if (!message.isDeleted) reactionTargetId = if (reactionTargetId == message.id) null else message.id },
                                 onDismissMenu = { actions.onDismissMenu() },
                                 onReply = { actions.onReply(message) },

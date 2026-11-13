@@ -21,7 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHostState
+import com.muhabbet.designsystem.components.rememberMuhabbetSnackbarState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -69,7 +69,7 @@ fun ChannelListScreen(
     var channels by remember { mutableStateOf<List<ChannelInfoResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberMuhabbetSnackbarState()
 
     val errorLoadMsg = stringResource(Res.string.error_load_failed)
     val errorActionMsg = stringResource(Res.string.error_action_failed)
@@ -82,7 +82,7 @@ fun ChannelListScreen(
         if (failure != null) {
             // Without this the screen shows the "no channels" empty state, which is a lie.
             Log.e(TAG, "Failed to load channels", failure)
-            snackbarHostState.showSnackbar(errorLoadMsg)
+            snackbar.show(errorLoadMsg)
         }
     }
 
@@ -94,7 +94,7 @@ fun ChannelListScreen(
                 backContentDescription = stringResource(Res.string.action_back)
             )
         },
-        snackbarHostState = snackbarHostState
+        snackbarState = snackbar
     ) { padding ->
         // Same avatar-plus-two-lines row as the conversation and community lists, so the same
         // skeleton serves it.
@@ -140,7 +140,7 @@ fun ChannelListScreen(
                                         // The subscribe button never flips on failure, so without this
                                         // the tap looks like it simply did nothing.
                                         Log.e(TAG, "Failed to toggle subscription for ${channel.id}", e)
-                                        snackbarHostState.showSnackbar(errorActionMsg)
+                                        snackbar.show(errorActionMsg)
                                     }
                                 }
                             }
