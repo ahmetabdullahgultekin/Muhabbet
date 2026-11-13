@@ -80,6 +80,8 @@ internal object MuhabbetNotifications {
         if (conversationId != null) {
             putExtra(EXTRA_CONVERSATION_ID, conversationId)
             putExtra(EXTRA_SENDER_NAME, senderName)
+            // Marks this intent as built by the app, so MainActivity trusts the extras above.
+            putExtra(NotificationLaunchToken.EXTRA_LAUNCH_TOKEN, NotificationLaunchToken.of(context))
         }
     }
 

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.muhabbet.app",
+      "sha256_cert_fingerprints": [
+        "E8:48:19:11:21:87:6E:08:CC:09:68:AE:2A:3C:8C:59:18:10:AD:D5:02:E5:2E:5D:D5:E1:DD:8C:1B:B2:AA:35:60"
+      ]
+    }
+  }
+]

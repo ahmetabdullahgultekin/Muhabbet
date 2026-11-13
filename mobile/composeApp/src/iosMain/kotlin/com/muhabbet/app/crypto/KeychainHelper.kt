@@ -17,6 +17,8 @@ import platform.Security.SecItemDelete
 import platform.Security.SecItemUpdate
 import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
+import platform.Security.kSecAttrAccessible
+import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 import platform.Security.kSecAttrAccount
 import platform.Security.kSecAttrService
 import platform.Security.kSecClass
@@ -49,7 +51,13 @@ object KeychainHelper {
             kSecClass to kSecClassGenericPassword,
             kSecAttrService to SERVICE_NAME,
             kSecAttrAccount to key,
-            kSecValueData to data
+            kSecValueData to data,
+            // This device only, and only once it has been unlocked since boot: the item is left
+            // out of encrypted backups and iCloud Keychain, so tokens do not follow a backup to
+            // another phone. Readable while locked after the first unlock, which background sync
+            // needs. Items written before this was set pick it up on their next save, because
+            // save() deletes and re-adds.
+            kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         )
 
         val status = SecItemAdd(query as CFDictionaryRef, null)

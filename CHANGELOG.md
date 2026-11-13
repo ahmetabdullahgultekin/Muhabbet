@@ -101,6 +101,23 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
   docs now state where production runs (#745). Rotation, not removal, is the remedy for values in
   history; the record is `docs/process/security-incident-2026-11-env-prod.md`.
 
+- Group invite links now point at the project's own site (`muhabbet.rollingcatsoftware.com/invite/…`),
+  which shows a page telling the recipient to open the app, instead of a domain the project does not
+  control. Links created before this change still carry the old address; revoke and recreate them.
+- Android app links are claimed for `muhabbet.rollingcatsoftware.com/chat/…` and verified by an
+  `assetlinks.json` published on that site. The app no longer claims `/invite` links it cannot open.
+- The privacy policy and KVKK notice now say where the servers are (Türkiye, operated by the
+  developer), list GIPHY and Firebase Authentication as recipients, and say plainly that the hashed
+  numbers sent for contact matching can be reversed. The in-app contact consent text says the same.
+- Android: cached chats and app preferences are excluded from cloud backup and from device-to-device
+  transfer on Android 12 and later.
+- Android: the app opens a chat with a title and group flag supplied in the launch intent only when
+  that intent was created by the app itself (a notification or conversation shortcut). Links from
+  other apps can name a conversation by id only, and the id must be well formed.
+- Android: release builds no longer write debug logs, and no build logs any part of the push token.
+- iOS: sign-in tokens in the Keychain are now kept on this device only, available after first unlock,
+  and are not carried into backups or iCloud Keychain.
+
 ### Fixed — ticks, scheduled messages and retries tell the truth
 
 - **Read receipts can no longer be forged, and ticks no longer go backwards** (#299). A delivery

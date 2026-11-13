@@ -16,9 +16,10 @@ import androidx.fragment.app.FragmentActivity
 import com.arkivanov.decompose.defaultComponentContext
 import com.muhabbet.app.di.androidPlatformModule
 import com.muhabbet.app.di.bootstrapOrReuseKoin
-import com.muhabbet.app.navigation.ChatOpenRequest
+import com.muhabbet.app.platform.ChatIntentResolver
 import com.muhabbet.app.navigation.PendingChatOpen
 import com.muhabbet.app.platform.MuhabbetNotifications
+import com.muhabbet.app.platform.NotificationLaunchToken
 import java.util.Locale
 
 /**
@@ -109,35 +110,42 @@ class MainActivity : FragmentActivity() {
      *
      * Deliberately tolerant: a malformed link or an intent with nothing on it parks nothing and the
      * app opens where it always does. There is no user-visible failure mode worth inventing here.
+     *
+     * This Activity is exported, so the intent may come from any app. [ChatIntentResolver] trusts
+     * the extras only when they carry this install's [NotificationLaunchToken], which only the
+     * app's own notifications and shortcuts have; anything else can name a conversation by id and
+     * nothing more.
      */
     private fun handleChatIntent(intent: android.content.Intent?, platformModule: org.koin.core.module.Module) {
         val intent = intent ?: return
 
-        val fromNotification = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
         val fromDeepLink = intent.data
             ?.takeIf { it.host == DEEP_LINK_CHAT_HOST || it.pathSegments.firstOrNull() == DEEP_LINK_CHAT_HOST }
             ?.pathSegments
             ?.lastOrNull()
 
-        val conversationId = (fromNotification ?: fromDeepLink)?.takeIf { it.isNotBlank() } ?: return
+        val presentedToken = intent.getStringExtra(NotificationLaunchToken.EXTRA_LAUNCH_TOKEN)
+        val request = ChatIntentResolver.resolve(
+            notificationConversationId = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID),
+            notificationSenderName = intent.getStringExtra(MuhabbetNotifications.EXTRA_SENDER_NAME),
+            notificationConversationType = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_TYPE),
+            presentedLaunchToken = presentedToken,
+            // Read from disk only when there is something to compare it with; an ordinary launch
+            // from the home screen carries no token.
+            expectedLaunchToken = if (presentedToken != null) NotificationLaunchToken.of(applicationContext) else "",
+            deepLinkConversationId = fromDeepLink
+        )
 
         // Consumed on the way in so a configuration change — or the language switch, which recreates
         // this Activity on purpose — cannot replay the same navigation a second time.
         intent.removeExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
+        intent.removeExtra(NotificationLaunchToken.EXTRA_LAUNCH_TOKEN)
 
-        val isGroup = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_TYPE) ==
-            MuhabbetNotifications.CONVERSATION_TYPE_GROUP
+        request ?: return
 
         bootstrapOrReuseKoin(platformModule)
             .get<PendingChatOpen>()
-            .request(
-                ChatOpenRequest(
-                    conversationId = conversationId,
-                    // Present for a notification, absent for a deep link — the consumer resolves it.
-                    displayName = intent.getStringExtra(MuhabbetNotifications.EXTRA_SENDER_NAME),
-                    isGroup = isGroup
-                )
-            )
+            .request(request)
     }
 
     override fun onResume() {

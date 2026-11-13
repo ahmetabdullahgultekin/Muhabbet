@@ -29,7 +29,7 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "New token: ${token.take(10)}...")
+        Log.d(TAG, "New push token received")
         // Used to be a comment ("Token will be registered when the app next connects via
         // App.kt") with no code behind it, so a rotated token was never re-sent and the row on
         // the server just went stale (#398). The system can deliver this callback before
