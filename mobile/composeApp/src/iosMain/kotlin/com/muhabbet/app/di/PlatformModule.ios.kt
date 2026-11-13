@@ -182,6 +182,14 @@ class IosTokenStorage : TokenStorage {
         defaults.setBool(enabled, forKey = "wallpaper_dark_mode")
     }
 
+    // NSUserDefaults, deliberately not the Keychain: Keychain items survive an uninstall, and a
+    // reinstall must be a new device (#882). `clear()` never touches defaults, so a sign-out keeps it.
+    override fun getInstallationId(): String? = defaults.stringForKey("installation_id")
+
+    override fun setInstallationId(id: String) {
+        defaults.setObject(id, forKey = "installation_id")
+    }
+
     override fun getTestBuildNoticeAckVersion(): String? =
         defaults.stringForKey("test_build_notice_ack_version")
 

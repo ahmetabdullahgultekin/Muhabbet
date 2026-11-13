@@ -49,11 +49,12 @@ class ModerationServiceTest {
         val blockerId = UUID.randomUUID()
         val blockedId = UUID.randomUUID()
 
-        every { blockRepository.exists(blockerId, blockedId) } returns false
-        every { blockRepository.save(any()) } answers { firstArg() }
+        every { blockRepository.blockIfAbsent(blockerId, blockedId) } returns true
 
         assertDoesNotThrow { service.blockUser(blockerId, blockedId) }
-        verify { blockRepository.save(any()) }
+        verify { blockRepository.blockIfAbsent(blockerId, blockedId) }
+        // #899: idempotency is the write's job; a preceding exists() is the race being removed.
+        verify(exactly = 0) { blockRepository.exists(any(), any()) }
     }
 
     @Test
@@ -69,10 +70,11 @@ class ModerationServiceTest {
         val blockerId = UUID.randomUUID()
         val blockedId = UUID.randomUUID()
 
-        every { blockRepository.exists(blockerId, blockedId) } returns true
+        // The pair already has a row: the conditional insert reports it created nothing.
+        every { blockRepository.blockIfAbsent(blockerId, blockedId) } returns false
 
-        service.blockUser(blockerId, blockedId)
-        verify(exactly = 0) { blockRepository.save(any()) }
+        assertDoesNotThrow { service.blockUser(blockerId, blockedId) }
+        verify(exactly = 1) { blockRepository.blockIfAbsent(blockerId, blockedId) }
     }
 
     @Test

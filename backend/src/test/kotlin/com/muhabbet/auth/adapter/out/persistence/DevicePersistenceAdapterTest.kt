@@ -1,5 +1,6 @@
 package com.muhabbet.auth.adapter.out.persistence
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.adapter.out.persistence.entity.DeviceJpaEntity
 import com.muhabbet.auth.adapter.out.persistence.repository.SpringDataDeviceRepository
 import com.muhabbet.auth.domain.model.Device
@@ -33,7 +34,7 @@ class DevicePersistenceAdapterTest {
     private fun fullyPopulatedDevice() = Device(
         id = UUID.randomUUID(),
         userId = userId,
-        platform = "android",
+        platform = DevicePlatform.ANDROID,
         deviceName = "Pixel 8",
         pushToken = "fcm-token",
         lastActiveAt = Instant.parse("2026-08-01T10:15:30Z"),
@@ -42,7 +43,9 @@ class DevicePersistenceAdapterTest {
         locale = "tr-TR",
         linkedByDeviceId = UUID.randomUUID(),
         displayName = "Chrome on macOS",
-        revokedAt = Instant.parse("2026-08-10T12:00:00Z")
+        revokedAt = Instant.parse("2026-08-10T12:00:00Z"),
+        installationId = UUID.randomUUID(),
+        tokenVersion = 3
     )
 
     @Test
@@ -57,7 +60,7 @@ class DevicePersistenceAdapterTest {
         val entity = entitySlot.captured
         assertEquals(device.id, entity.id)
         assertEquals(device.userId, entity.userId)
-        assertEquals(device.platform, entity.platform)
+        assertEquals(device.platform.wireName, entity.platform)
         assertEquals(device.deviceName, entity.deviceName)
         assertEquals(device.pushToken, entity.pushToken)
         assertEquals(device.lastActiveAt, entity.lastActiveAt)
@@ -67,24 +70,30 @@ class DevicePersistenceAdapterTest {
         assertEquals(device.linkedByDeviceId, entity.linkedByDeviceId)
         assertEquals(device.displayName, entity.displayName)
         assertEquals(device.revokedAt, entity.revokedAt)
+        assertEquals(device.installationId, entity.installationId)
+        assertEquals(device.tokenVersion, entity.tokenVersion)
         // …and as one value on the way back out.
         assertEquals(device, saved)
     }
 
     @Test
-    fun `findByUserIdAndPlatform should map the row when one exists`() {
-        val device = fullyPopulatedDevice()
-        every { springData.findByUserIdAndPlatform(userId, "android") } returns
-            DeviceJpaEntity.fromDomain(device)
+    fun `should look an installation up through the revoked-excluding finder`() {
+        // #882: a revoked row must never be resurrected by signing in again on the same install.
+        val device = fullyPopulatedDevice().copy(revokedAt = null)
+        val installationId = UUID.randomUUID()
+        every {
+            springData.findByUserIdAndInstallationIdAndRevokedAtIsNull(userId, installationId)
+        } returns DeviceJpaEntity.fromDomain(device)
 
-        assertEquals(device, adapter.findByUserIdAndPlatform(userId, "android"))
+        assertEquals(device, adapter.findActiveByInstallation(userId, installationId))
     }
 
     @Test
-    fun `findByUserIdAndPlatform should return null when there is no row`() {
-        every { springData.findByUserIdAndPlatform(userId, "ios") } returns null
+    fun `should pass the platform's wire name to the legacy lookup`() {
+        every { springData.findLegacyPrimaryCandidate(userId, "ios") } returns null
 
-        assertNull(adapter.findByUserIdAndPlatform(userId, "ios"))
+        assertNull(adapter.findLegacyPrimaryCandidate(userId, DevicePlatform.IOS))
+        verify { springData.findLegacyPrimaryCandidate(userId, "ios") }
     }
 
     @Test
@@ -107,7 +116,7 @@ class DevicePersistenceAdapterTest {
     @Test
     fun `findByUserId should map every row`() {
         val a = fullyPopulatedDevice()
-        val b = fullyPopulatedDevice().copy(platform = "ios", revokedAt = null)
+        val b = fullyPopulatedDevice().copy(platform = DevicePlatform.IOS, revokedAt = null)
         every { springData.findByUserId(userId) } returns
             listOf(DeviceJpaEntity.fromDomain(a), DeviceJpaEntity.fromDomain(b))
 

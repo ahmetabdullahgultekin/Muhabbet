@@ -13,7 +13,12 @@ interface ReportRepository {
 }
 
 interface BlockRepository {
-    fun save(block: UserBlock): UserBlock
+    /**
+     * Records that [blockerId] blocks [blockedId], and reports whether this call created the row
+     * (#899). Idempotent by the `UNIQUE(blocker_id, blocked_id)` constraint itself rather than by
+     * a preceding existence check, which a double tap could pass twice and turn into a 500.
+     */
+    fun blockIfAbsent(blockerId: UUID, blockedId: UUID): Boolean
     fun delete(blockerId: UUID, blockedId: UUID)
     fun findByBlockerId(blockerId: UUID): List<UserBlock>
     fun exists(blockerId: UUID, blockedId: UUID): Boolean

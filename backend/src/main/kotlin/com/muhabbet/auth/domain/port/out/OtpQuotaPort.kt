@@ -23,4 +23,13 @@ interface OtpQuotaPort {
      * than an unexpected invoice or a provider cutoff nobody chose.
      */
     fun tryConsume(phoneNumber: String): Boolean
+
+    /**
+     * Hands back one unit taken by a successful [tryConsume] for a verification that was **never
+     * started**, because the provider call failed (#886). Without it, a provider outage spends the
+     * budget of everyone who retries during it, and the deployment can run out of logins while
+     * nothing at all was billed. Never called for a refused [tryConsume] — there is nothing to give
+     * back — and never driven below zero.
+     */
+    fun refund(phoneNumber: String)
 }

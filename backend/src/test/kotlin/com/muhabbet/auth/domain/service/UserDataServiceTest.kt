@@ -1,5 +1,6 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
@@ -152,7 +153,7 @@ class UserDataServiceTest {
 
             val deviceId = TestData.DEVICE_ID_1
             every { deviceRepository.findByUserId(userId) } returns listOf(
-                Device(id = deviceId, userId = userId, platform = "android", isPrimary = true)
+                Device(id = deviceId, userId = userId, platform = DevicePlatform.ANDROID, isPrimary = true)
             )
             every { refreshTokenRepository.findByUserId(userId) } returns listOf(
                 RefreshTokenRecord(userId = userId, deviceId = deviceId, tokenHash = "irrelevant-in-export", expiresAt = Instant.now())

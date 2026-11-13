@@ -98,6 +98,7 @@ class MessagingServiceTest {
         val convSlot = slot<Conversation>()
         every { conversationRepository.save(capture(convSlot)) } answers { convSlot.captured }
         every { conversationRepository.findDirectConversation(any(), any()) } returns null
+        every { conversationRepository.claimDirectLookup(any(), any(), any()) } answers { thirdArg() }
         every { conversationRepository.saveMember(any()) } answers { firstArg() }
 
         val result = conversationService.createConversation(
@@ -108,7 +109,7 @@ class MessagingServiceTest {
 
         assertEquals(ConversationType.DIRECT, result.conversation.type)
         assertEquals(2, result.members.size)
-        verify { conversationRepository.saveDirectLookup(any(), any(), any()) }
+        verify { conversationRepository.claimDirectLookup(any(), any(), result.conversation.id) }
     }
 
     @Test
@@ -134,6 +135,35 @@ class MessagingServiceTest {
         assertEquals(existingConvId, result.conversation.id)
         assertEquals(2, result.members.size)
         verify(exactly = 0) { conversationRepository.save(any()) }
+    }
+
+    @Test
+    fun `should return the winner's conversation and discard its own when it loses the race`() {
+        // #899: both requests passed the lookup read; the lookup's key decided against this one.
+        stubUserExists(userA, userB)
+        val winnerId = UUID.randomUUID()
+        val winner = Conversation(id = winnerId, type = ConversationType.DIRECT)
+        val winnerMembers = listOf(
+            ConversationMember(conversationId = winnerId, userId = userA),
+            ConversationMember(conversationId = winnerId, userId = userB)
+        )
+        val ours = slot<Conversation>()
+        every { conversationRepository.findDirectConversation(any(), any()) } returns null
+        every { conversationRepository.save(capture(ours)) } answers { ours.captured }
+        every { conversationRepository.claimDirectLookup(any(), any(), any()) } returns winnerId
+        every { conversationRepository.findById(winnerId) } returns winner
+        every { conversationRepository.findMembersByConversationId(winnerId) } returns winnerMembers
+
+        val result = conversationService.createConversation(
+            type = ConversationType.DIRECT,
+            creatorId = userA,
+            participantIds = listOf(userB)
+        )
+
+        assertEquals(winnerId, result.conversation.id)
+        assertEquals(winnerMembers, result.members)
+        verify { conversationRepository.discardUnclaimedConversation(ours.captured.id) }
+        verify(exactly = 0) { conversationRepository.saveMember(any()) }
     }
 
     @Test

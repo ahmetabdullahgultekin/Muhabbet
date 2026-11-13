@@ -19,6 +19,10 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     AUTH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token süresi doldu"),
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "Token iptal edildi"),
     AUTH_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Yetkilendirme gerekli"),
+    /** Sign-in to an account that exists but is not ACTIVE (#880): no session can be issued to it. */
+    AUTH_ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "Hesap askıya alındı"),
+    /** A write lost a race to a concurrent identical write (#899); safe to retry. */
+    RESOURCE_CONFLICT(HttpStatus.CONFLICT, "Eşzamanlı bir değişiklikle çakıştı, lütfen tekrar deneyin"),
 
     // Messaging
     MSG_CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Konuşma bulunamadı"),

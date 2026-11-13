@@ -6,7 +6,7 @@ import java.util.UUID
 data class Device(
     val id: UUID = UUID.randomUUID(),
     val userId: UUID,
-    val platform: String,
+    val platform: DevicePlatform,
     val deviceName: String? = null,
     val pushToken: String? = null,
     val lastActiveAt: Instant? = null,
@@ -27,8 +27,21 @@ data class Device(
     val linkedByDeviceId: UUID? = null,
     /** User-facing label shown on the "Linked devices" screen (e.g. "Chrome on macOS"). */
     val displayName: String? = null,
-    /** Soft-tombstone: a revoked companion is excluded from the active device set. */
-    val revokedAt: Instant? = null
+    /** Soft-tombstone: a revoked device is excluded from the active device set and never reused. */
+    val revokedAt: Instant? = null,
+    /**
+     * The client-generated id of the app installation this row stands for (#882), unique per
+     * account among active rows (V29). Null for rows written before clients sent one, and for
+     * legacy clients that still do not.
+     */
+    val installationId: UUID? = null,
+    /**
+     * The access-token epoch (#923). Every access token carries the value current when it was
+     * minted; incrementing it invalidates all of them on the next request. Only ever incremented in
+     * the database (see `DeviceRepository.bumpTokenVersion`), never through [copy], so a stale copy
+     * saved later cannot roll it back — the JPA mapping marks the column non-updatable.
+     */
+    val tokenVersion: Int = 0
 ) {
     /** A device participates in fan-out only while it has not been revoked. */
     val isActive: Boolean get() = revokedAt == null
@@ -36,4 +49,3 @@ data class Device(
     /** True when this device was linked as a companion (vs a primary / legacy single device). */
     val isCompanion: Boolean get() = linkedByDeviceId != null
 }
-

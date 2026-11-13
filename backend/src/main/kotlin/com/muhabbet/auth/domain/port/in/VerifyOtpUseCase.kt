@@ -14,13 +14,17 @@ interface VerifyOtpUseCase {
      * @param twoStepPin null on the first attempt, since the client cannot know whether the account
      *   has a second factor until it is told. A correct code with a missing PIN does **not** spend
      *   the code — see `OtpRepository.refundAttempt`.
+     * @param installationId the client-generated id of this app installation (#882). It, not the
+     *   platform, decides which device row the sign-in belongs to. Null only from clients that
+     *   predate it; must be a UUID when present.
      */
     fun verifyOtp(
         phoneNumber: String,
         otp: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String? = null
+        twoStepPin: String? = null,
+        installationId: String? = null
     ): AuthResult
 }
 

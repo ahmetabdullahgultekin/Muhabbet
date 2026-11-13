@@ -3,6 +3,7 @@ package com.muhabbet.shared.exception
 import com.muhabbet.shared.dto.ApiError
 import com.muhabbet.shared.dto.ApiResponse
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.HttpMediaTypeNotAcceptableException
@@ -200,6 +201,19 @@ class GlobalExceptionHandler {
     fun handleNotFound(ex: Exception): ResponseEntity<ApiResponse<Nothing>> {
         log.debug("No handler for request: {}", ex.message)
         return respond(ErrorCode.ENDPOINT_NOT_FOUND)
+    }
+
+    /**
+     * A write lost a race against a concurrent identical write and hit a unique or foreign-key
+     * constraint (#899). The known races — opening a direct chat, blocking — are now idempotent at
+     * the write itself, so this arm is the safety net for any that remain: 409 says "retry",
+     * which is true, where a 500 said "the server is broken", which is not. Logged at WARN with the
+     * constraint so a new race is still visible and fixable at its source.
+     */
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleConflict(ex: DataIntegrityViolationException): ResponseEntity<ApiResponse<Nothing>> {
+        log.warn("Constraint violation answered as 409: {}", ex.mostSpecificCause.message)
+        return respond(ErrorCode.RESOURCE_CONFLICT)
     }
 
     /**

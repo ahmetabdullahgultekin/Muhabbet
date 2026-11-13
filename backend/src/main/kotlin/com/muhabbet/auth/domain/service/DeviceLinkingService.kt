@@ -3,6 +3,7 @@ package com.muhabbet.auth.domain.service
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.port.`in`.LinkDeviceUseCase
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
@@ -28,7 +29,8 @@ import java.util.UUID
  */
 open class DeviceLinkingService(
     private val deviceLinkSessionRepository: DeviceLinkSessionRepository,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val sessionRevocation: SessionRevocation
 ) : LinkDeviceUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -72,6 +74,8 @@ open class DeviceLinkingService(
         companionDeviceName: String?,
         publicBundle: String?
     ): Device {
+        val platform = DevicePlatform.parse(companionPlatform)
+            ?: throw BusinessException(ErrorCode.VALIDATION_ERROR, "Unknown platform")
         val session = deviceLinkSessionRepository.findByLinkToken(linkToken)
             ?: throw BusinessException(ErrorCode.DEVICE_LINK_TOKEN_INVALID)
 
@@ -93,7 +97,7 @@ open class DeviceLinkingService(
         val companion = deviceRepository.save(
             Device(
                 userId = session.userId,
-                platform = companionPlatform,
+                platform = platform,
                 deviceName = companionDeviceName,
                 displayName = companionDeviceName,
                 linkedByDeviceId = session.primaryDeviceId,
@@ -142,7 +146,11 @@ open class DeviceLinkingService(
             return device // already revoked — idempotent
         }
 
-        val revoked = deviceRepository.save(device.copy(revokedAt = Instant.now()))
+        val revoked = deviceRepository.save(device.copy(revokedAt = Instant.now(), pushToken = null))
+        // The tombstone alone left the companion's refresh tokens live, so a revoked device kept
+        // minting access tokens indefinitely, and its current access token kept working on REST
+        // (#880, #923). Ending its sessions is part of revoking it.
+        sessionRevocation.endDeviceSessions(userId, deviceId)
         // Crypto boundary: DeviceLinkCrypto.dropSession(deviceId) would run here to enforce forward
         // secrecy on the peers — NotYetImplemented (libsignal block). The tombstone alone already
         // excludes the device from findActiveByUserId / the (future) fan-out set.

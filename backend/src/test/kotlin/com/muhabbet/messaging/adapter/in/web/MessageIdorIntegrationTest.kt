@@ -1,7 +1,9 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.TestSessions
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
@@ -55,6 +57,9 @@ class MessageIdorIntegrationTest {
     private lateinit var userRepository: UserRepository
 
     @Autowired
+    private lateinit var deviceRepository: DeviceRepository
+
+    @Autowired
     private lateinit var conversationRepository: ConversationRepository
 
     @Autowired
@@ -104,7 +109,7 @@ class MessageIdorIntegrationTest {
     }
 
     private fun bearer(userId: UUID): String =
-        "Bearer " + jwtProvider.generateAccessToken(userId, UUID.randomUUID())
+        TestSessions.bearer(jwtProvider, deviceRepository, userId)
 
     private fun seedConversationOwnedBy(owner: UUID): UUID {
         val conversationId = UUID.randomUUID()

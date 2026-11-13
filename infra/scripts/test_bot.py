@@ -119,14 +119,21 @@ def generate_reply(content: str) -> str:
 def create_jwt() -> str:
     """Create a JWT token for the Test Bot."""
     now = int(time.time())
+    # Since #923 the server verifies by key id and requires an audience and a token epoch: a token
+    # without `kid` names no key and is refused, as is one without `aud` or `tv`. JWT_KEY_ID must
+    # match muhabbet.jwt.key-id on the server (default "primary"). `tv` is the device's
+    # token_version; the WebSocket handshake does not check it, but REST does.
     payload = {
         "sub": BOT_USER_ID,
         "deviceId": BOT_DEVICE_ID,
         "iss": "muhabbet",
+        "aud": "muhabbet-app",
+        "tv": int(os.environ.get("BOT_TOKEN_VERSION", "0")),
         "iat": now,
         "exp": now + 86400,  # 24h
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    headers = {"kid": os.environ.get("JWT_KEY_ID", "primary")}
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256", headers=headers)
 
 
 async def run_bot():

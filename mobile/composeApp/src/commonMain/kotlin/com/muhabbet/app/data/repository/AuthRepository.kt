@@ -1,6 +1,7 @@
 package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.TokenStorage
+import com.muhabbet.app.data.local.installationId
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.dto.AuthTokenResponse
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
@@ -42,7 +43,7 @@ class AuthRepository(
     ): AuthTokenResponse {
         val response = apiClient.post<AuthTokenResponse>(
             "/api/v1/auth/otp/verify",
-            VerifyOtpRequest(phoneNumber, otp, deviceName, platform, twoStepPin)
+            VerifyOtpRequest(phoneNumber, otp, deviceName, platform, twoStepPin, tokenStorage.installationId())
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "VERIFY_OTP_FAILED")
 
@@ -65,7 +66,7 @@ class AuthRepository(
     ): AuthTokenResponse {
         val response = apiClient.post<AuthTokenResponse>(
             "/api/v1/auth/firebase-verify",
-            FirebaseVerifyRequest(idToken, deviceName, platform, twoStepPin)
+            FirebaseVerifyRequest(idToken, deviceName, platform, twoStepPin, tokenStorage.installationId())
         )
         val data = response.data ?: throw Exception(response.error?.message ?: "FIREBASE_VERIFY_FAILED")
 

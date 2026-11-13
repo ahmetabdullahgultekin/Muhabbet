@@ -49,7 +49,8 @@ class AuthController(
             otp = request.otp,
             deviceName = request.deviceName,
             platform = request.platform,
-            twoStepPin = request.twoStepPin
+            twoStepPin = request.twoStepPin,
+            installationId = request.installationId
         )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(
@@ -69,7 +70,8 @@ class AuthController(
             idToken = request.idToken,
             deviceName = request.deviceName,
             platform = request.platform,
-            twoStepPin = request.twoStepPin
+            twoStepPin = request.twoStepPin,
+            installationId = request.installationId
         )
         return ApiResponseBuilder.ok(
             AuthTokenResponse(

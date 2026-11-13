@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
@@ -85,7 +86,7 @@ class BlockedSendPushSuppressionTest {
         every { sessionManager.isOnline(victim) } returns false
         every { sessionManager.isViewingConversation(any(), any()) } returns false
         every { deviceRepository.findByUserIdIn(any()) } returns listOf(
-            Device(userId = victim, platform = "android", pushToken = "fcm-token-victim", locale = "tr")
+            Device(userId = victim, platform = DevicePlatform.ANDROID, pushToken = "fcm-token-victim", locale = "tr")
         )
 
         val broadcaster = WebSocketMessageBroadcaster(

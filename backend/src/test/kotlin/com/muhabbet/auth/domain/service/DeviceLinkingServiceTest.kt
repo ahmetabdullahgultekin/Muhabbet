@@ -1,10 +1,12 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.model.DeviceLinkStatus
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
@@ -26,13 +28,14 @@ class DeviceLinkingServiceTest {
 
     private lateinit var sessionRepo: DeviceLinkSessionRepository
     private lateinit var deviceRepo: DeviceRepository
+    private lateinit var refreshTokenRepo: RefreshTokenRepository
     private lateinit var service: DeviceLinkingService
 
     private val userId = UUID.randomUUID()
     private val primaryDeviceId = UUID.randomUUID()
 
     private fun primaryDevice() = Device(
-        id = primaryDeviceId, userId = userId, platform = "android",
+        id = primaryDeviceId, userId = userId, platform = DevicePlatform.ANDROID,
         deviceName = "Pixel", isPrimary = true
     )
 
@@ -46,7 +49,8 @@ class DeviceLinkingServiceTest {
     fun setUp() {
         sessionRepo = mockk(relaxed = true)
         deviceRepo = mockk(relaxed = true)
-        service = DeviceLinkingService(sessionRepo, deviceRepo)
+        refreshTokenRepo = mockk(relaxed = true)
+        service = DeviceLinkingService(sessionRepo, deviceRepo, SessionRevocation(refreshTokenRepo, deviceRepo))
 
         every { sessionRepo.save(any()) } answers { firstArg() }
         every { deviceRepo.save(any()) } answers { firstArg() }
@@ -83,7 +87,7 @@ class DeviceLinkingServiceTest {
     @Test
     fun `beginLink rejects when the companion-device cap is already reached`() {
         val companions = (1..4).map {
-            Device(userId = userId, platform = "web", linkedByDeviceId = primaryDeviceId)
+            Device(userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = primaryDeviceId)
         }
         every { deviceRepo.findActiveByUserId(userId) } returns listOf(primaryDevice()) + companions
 
@@ -112,7 +116,7 @@ class DeviceLinkingServiceTest {
 
         // A companion device row owned by the same user is created.
         assertEquals(userId, device.userId)
-        assertEquals("web", device.platform)
+        assertEquals(DevicePlatform.WEB, device.platform)
         assertTrue(device.isCompanion)
         assertFalse(device.isPrimary)
         assertEquals(primaryDeviceId, device.linkedByDeviceId)
@@ -178,7 +182,7 @@ class DeviceLinkingServiceTest {
     @Test
     fun `completeLink rejects when the cap was filled concurrently`() {
         every { sessionRepo.findByLinkToken("tok-123") } returns pendingSession()
-        val companions = (1..4).map { Device(userId = userId, platform = "web", linkedByDeviceId = primaryDeviceId) }
+        val companions = (1..4).map { Device(userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = primaryDeviceId) }
         every { deviceRepo.findActiveByUserId(userId) } returns listOf(primaryDevice()) + companions
 
         val ex = assertThrows(BusinessException::class.java) {
@@ -192,9 +196,9 @@ class DeviceLinkingServiceTest {
 
     @Test
     fun `listDevices returns only active devices, newest first`() {
-        val old = Device(userId = userId, platform = "web", linkedByDeviceId = primaryDeviceId,
+        val old = Device(userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = primaryDeviceId,
             createdAt = Instant.now().minusSeconds(100))
-        val new = Device(userId = userId, platform = "desktop", linkedByDeviceId = primaryDeviceId,
+        val new = Device(userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = primaryDeviceId,
             createdAt = Instant.now())
         every { deviceRepo.findActiveByUserId(userId) } returns listOf(old, new)
 
@@ -208,7 +212,7 @@ class DeviceLinkingServiceTest {
     @Test
     fun `revokeDevice tombstones a companion the user owns`() {
         val companionId = UUID.randomUUID()
-        val companion = Device(id = companionId, userId = userId, platform = "web", linkedByDeviceId = primaryDeviceId)
+        val companion = Device(id = companionId, userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = primaryDeviceId)
         every { deviceRepo.findById(companionId) } returns companion
         val saved = slot<Device>()
         every { deviceRepo.save(capture(saved)) } answers { firstArg() }
@@ -217,6 +221,28 @@ class DeviceLinkingServiceTest {
 
         assertFalse(revoked.isActive)
         assertNotNull(saved.captured.revokedAt)
+    }
+
+    @Test
+    fun `should end the revoked companion's sessions, not only tombstone it`() {
+        // #880 / #923: the tombstone alone left its refresh tokens live and its access token valid.
+        val companionId = UUID.randomUUID()
+        every { deviceRepo.findById(companionId) } returns
+            Device(id = companionId, userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = primaryDeviceId)
+
+        service.revokeDevice(userId, companionId)
+
+        verify { refreshTokenRepo.revokeAllForDevice(userId, companionId) }
+        verify { deviceRepo.bumpTokenVersion(companionId) }
+    }
+
+    @Test
+    fun `should reject a companion with an unknown platform`() {
+        val ex = assertThrows(BusinessException::class.java) {
+            service.completeLink("tok-123", "smart-fridge", "Fridge", null)
+        }
+        assertEquals(ErrorCode.VALIDATION_ERROR, ex.errorCode)
+        verify(exactly = 0) { deviceRepo.save(any()) }
     }
 
     @Test
@@ -231,7 +257,7 @@ class DeviceLinkingServiceTest {
     fun `revokeDevice refuses a device owned by another user`() {
         val otherId = UUID.randomUUID()
         every { deviceRepo.findById(otherId) } returns
-            Device(id = otherId, userId = UUID.randomUUID(), platform = "web", linkedByDeviceId = UUID.randomUUID())
+            Device(id = otherId, userId = UUID.randomUUID(), platform = DevicePlatform.WEB, linkedByDeviceId = UUID.randomUUID())
         val ex = assertThrows(BusinessException::class.java) { service.revokeDevice(userId, otherId) }
         assertEquals(ErrorCode.DEVICE_NOT_FOUND, ex.errorCode)
     }
@@ -240,7 +266,7 @@ class DeviceLinkingServiceTest {
     fun `revokeDevice is idempotent on an already-revoked device`() {
         val companionId = UUID.randomUUID()
         every { deviceRepo.findById(companionId) } returns Device(
-            id = companionId, userId = userId, platform = "web",
+            id = companionId, userId = userId, platform = DevicePlatform.WEB,
             linkedByDeviceId = primaryDeviceId, revokedAt = Instant.now().minusSeconds(60)
         )
 

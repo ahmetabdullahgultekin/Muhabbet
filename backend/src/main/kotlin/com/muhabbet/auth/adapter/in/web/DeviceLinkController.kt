@@ -95,7 +95,7 @@ private fun DeviceLinkSession.toBeginResponse() = DeviceLinkBeginResponse(
 
 private fun Device.toLinkedResponse() = LinkedDeviceResponse(
     id = id.toString(),
-    platform = platform,
+    platform = platform.wireName,
     displayName = displayName ?: deviceName,
     isPrimary = isPrimary,
     isCompanion = isCompanion,

@@ -57,10 +57,7 @@ open class ConversationService(
             val (low, high) = sortUuids(creatorId, participantIds[0])
             val existingConvId = conversationRepository.findDirectConversation(low, high)
             if (existingConvId != null) {
-                val conv = conversationRepository.findById(existingConvId)
-                    ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
-                val members = conversationRepository.findMembersByConversationId(existingConvId)
-                return ConversationWithMembers(conv, members)
+                return existingDirectConversation(existingConvId)
             }
         }
 
@@ -84,6 +81,19 @@ open class ConversationService(
             )
         )
 
+        // Claim the pair before adding anyone (#899). The read above is only a fast path: two
+        // people opening a chat with each other at once both pass it, and the lookup's primary key
+        // decides between them here. The loser discards its still-empty row and returns the
+        // winner's conversation, exactly as if it had arrived a moment later.
+        if (type == ConversationType.DIRECT) {
+            val (low, high) = sortUuids(creatorId, participantIds[0])
+            val winner = conversationRepository.claimDirectLookup(low, high, conversation.id)
+            if (winner != conversation.id) {
+                conversationRepository.discardUnclaimedConversation(conversation.id)
+                return existingDirectConversation(winner)
+            }
+        }
+
         // Add members
         val members = allParticipantIds.map { userId ->
             val role = if (userId == creatorId && type == ConversationType.GROUP) MemberRole.OWNER else MemberRole.MEMBER
@@ -94,12 +104,6 @@ open class ConversationService(
                     role = role
                 )
             )
-        }
-
-        // Save direct lookup
-        if (type == ConversationType.DIRECT) {
-            val (low, high) = sortUuids(creatorId, participantIds[0])
-            conversationRepository.saveDirectLookup(low, high, conversation.id)
         }
 
         log.info("Conversation created: id={}, type={}, members={}", conversation.id, type, allParticipantIds.size)
@@ -162,6 +166,12 @@ open class ConversationService(
     }
 
     // ─── Helpers ──────────────────────────────────────────────
+
+    private fun existingDirectConversation(conversationId: UUID): ConversationWithMembers {
+        val conv = conversationRepository.findById(conversationId)
+            ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
+        return ConversationWithMembers(conv, conversationRepository.findMembersByConversationId(conversationId))
+    }
 
     private fun sortUuids(a: UUID, b: UUID): Pair<UUID, UUID> {
         return if (a.toString() < b.toString()) Pair(a, b) else Pair(b, a)

@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.external
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.adapter.`in`.websocket.WebSocketSessionManager
@@ -56,7 +57,7 @@ class BatchedDeviceLookupTest {
 
             val deviceRepository: DeviceRepository = mockk()
             every { deviceRepository.findByUserIdIn(any()) } returns recipients.map {
-                Device(userId = it, platform = "android", pushToken = "token-$it", locale = "tr")
+                Device(userId = it, platform = DevicePlatform.ANDROID, pushToken = "token-$it", locale = "tr")
             }
             val pushPort: PushNotificationPort = mockk(relaxed = true)
             val composer: PushNotificationComposer = mockk(relaxed = true)

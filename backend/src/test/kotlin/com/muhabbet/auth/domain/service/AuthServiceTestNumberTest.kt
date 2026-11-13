@@ -1,14 +1,10 @@
 package com.muhabbet.auth.domain.service
 
 import com.muhabbet.auth.domain.model.OtpRequest
-import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.OtpChannel
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpVerifier
-import com.muhabbet.auth.domain.port.out.PhoneHashRepository
-import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
-import com.muhabbet.auth.domain.port.out.UserRepository
-import com.muhabbet.shared.security.JwtProperties
-import com.muhabbet.shared.security.JwtProvider
+import com.muhabbet.shared.AuthTestFixtures
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -18,8 +14,6 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.mock.env.MockEnvironment
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 
 /**
  * Covers the SMS bypass that makes emulator sign-in possible at all.
@@ -41,29 +35,11 @@ class AuthServiceTestNumberTest {
         testNumbers: Set<String>,
         otpRepository: OtpRepository = mockk(relaxed = true),
         otpVerifier: OtpVerifier = mockk(relaxed = true),
-    ) = AuthService(
-        userRepository = mockk<UserRepository>(relaxed = true),
+    ) = AuthTestFixtures.authService(
+        otpChannel = OtpChannel.ExternalVerifier(otpVerifier),
         otpRepository = otpRepository,
-        deviceRepository = mockk<DeviceRepository>(relaxed = true),
-        refreshTokenRepository = mockk<RefreshTokenRepository>(relaxed = true),
-        phoneHashRepository = mockk<PhoneHashRepository>(relaxed = true),
-        jwtProvider = JwtProvider(
-            JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
-            MockEnvironment().withProperty("spring.profiles.active", "test"),
-        ),
-        passwordEncoder = BCryptPasswordEncoder(),
-        otpVerifier = otpVerifier,
-        testNumbers = testNumbers,
-    
-            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
-            // Relaxed mocks answer false for Boolean, which would make every test here
-            // fail on the quota rather than on what it is testing. The quota itself is
-            // covered by RedisOtpQuotaAdapterTest against a real Redis.
-            io.mockk.every { it.tryConsume(any()) } returns true
-        },
-            firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
-            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
-        )
+        testNumbers = testNumbers
+    )
 
     @Test
     fun `a test number is never handed to the SMS provider`() {
@@ -71,7 +47,7 @@ class AuthServiceTestNumberTest {
         val verifier = mockk<OtpVerifier>(relaxed = true)
         every { otpRepository.findActiveByPhoneNumber(testPhone) } returns null
         val saved = slot<OtpRequest>()
-        every { otpRepository.save(capture(saved)) } answers { saved.captured }
+        every { otpRepository.createUnlessCoolingDown(capture(saved), any()) } answers { saved.captured }
 
         buildService(setOf(testPhone), otpRepository, verifier).requestOtp(testPhone)
 
@@ -88,7 +64,7 @@ class AuthServiceTestNumberTest {
         val verifier = mockk<OtpVerifier>(relaxed = true)
         every { otpRepository.findActiveByPhoneNumber(realPhone) } returns null
         val saved = slot<OtpRequest>()
-        every { otpRepository.save(capture(saved)) } answers { saved.captured }
+        every { otpRepository.createUnlessCoolingDown(capture(saved), any()) } answers { saved.captured }
 
         buildService(setOf(testPhone), otpRepository, verifier).requestOtp(realPhone)
 
@@ -127,7 +103,7 @@ class AuthServiceTestNumberTest {
         val verifier = mockk<OtpVerifier>(relaxed = true)
         every { otpRepository.findActiveByPhoneNumber(testPhone) } returns null
         val saved = slot<OtpRequest>()
-        every { otpRepository.save(capture(saved)) } answers { saved.captured }
+        every { otpRepository.createUnlessCoolingDown(capture(saved), any()) } answers { saved.captured }
 
         // Same number as the first test; the only difference is that it is not configured.
         buildService(emptySet(), otpRepository, verifier).requestOtp(testPhone)

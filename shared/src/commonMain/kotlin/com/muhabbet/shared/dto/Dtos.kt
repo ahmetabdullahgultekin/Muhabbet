@@ -47,7 +47,16 @@ data class VerifyOtpRequest(
      * an account with two-step on answers `AUTH_2FA_PIN_REQUIRED` — which is a refusal it can show,
      * rather than a sign-in it silently gets away with.
      */
-    val twoStepPin: String? = null
+    val twoStepPin: String? = null,
+    /**
+     * A UUID the app generated once for this installation and keeps across sign-outs (#882). It,
+     * not [platform], decides which device the sign-in is for — so two Android phones of one
+     * account are two devices with their own push tokens and sessions, not one row they fight over.
+     *
+     * Additive and defaulted: an older build omits it and keeps the previous one-device-per-platform
+     * behaviour.
+     */
+    val installationId: String? = null
 )
 
 @Serializable
@@ -66,7 +75,9 @@ data class FirebaseVerifyRequest(
     val deviceName: String,
     val platform: String,
     /** See [VerifyOtpRequest.twoStepPin]. Both token-minting paths carry the same second factor. */
-    val twoStepPin: String? = null
+    val twoStepPin: String? = null,
+    /** See [VerifyOtpRequest.installationId]. */
+    val installationId: String? = null
 )
 
 @Serializable

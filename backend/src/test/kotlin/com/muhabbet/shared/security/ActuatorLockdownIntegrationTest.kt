@@ -1,5 +1,9 @@
 package com.muhabbet.shared.security
 
+import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.TestSessions
 import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -36,6 +40,12 @@ class ActuatorLockdownIntegrationTest {
     @Autowired
     private lateinit var jwtProvider: JwtProvider
 
+    @Autowired
+    private lateinit var userRepository: UserRepository
+
+    @Autowired
+    private lateinit var deviceRepository: DeviceRepository
+
     companion object {
         @Container
         @JvmStatic
@@ -61,8 +71,10 @@ class ActuatorLockdownIntegrationTest {
         }
     }
 
-    private fun nonAdminBearer(): String =
-        "Bearer " + jwtProvider.generateAccessToken(UUID.randomUUID(), UUID.randomUUID())
+    private fun nonAdminBearer(): String {
+        val user = userRepository.save(User(id = UUID.randomUUID(), phoneNumber = "+90500" + (1000000..9999999).random()))
+        return TestSessions.bearer(jwtProvider, deviceRepository, user.id)
+    }
 
     @Test
     fun `prometheus is not public`() {

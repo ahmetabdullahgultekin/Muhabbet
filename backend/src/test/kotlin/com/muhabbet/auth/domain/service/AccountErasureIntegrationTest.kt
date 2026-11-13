@@ -1,5 +1,6 @@
 package com.muhabbet.auth.domain.service
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
@@ -83,7 +84,7 @@ class AccountErasureIntegrationTest {
         userRepository.save(User(id = userId, phoneNumber = phone, displayName = "Silinecek", about = "merhaba"))
         phoneHashRepository.save(userId, "hash-of-$phone")
         deviceRepository.save(
-            Device(userId = userId, deviceName = "Pixel", platform = "ANDROID", pushToken = "fcm-token-123")
+            Device(userId = userId, deviceName = "Pixel", platform = DevicePlatform.ANDROID, pushToken = "fcm-token-123")
         )
 
         // Preconditions — otherwise a passing test could just be asserting empty tables.

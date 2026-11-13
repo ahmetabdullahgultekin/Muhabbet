@@ -1,33 +1,28 @@
 package com.muhabbet.auth.domain.service
 
-import com.muhabbet.auth.domain.model.Device
-import com.muhabbet.auth.domain.model.normalizeDeviceLocale
 import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
+import com.muhabbet.auth.domain.model.normalizeDeviceLocale
 import com.muhabbet.auth.domain.port.`in`.AuthResult
 import com.muhabbet.auth.domain.port.`in`.FirebaseVerifyUseCase
-import com.muhabbet.auth.domain.port.`in`.LogoutUseCase
 import com.muhabbet.auth.domain.port.`in`.OtpResult
-import com.muhabbet.auth.domain.port.`in`.RefreshTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RegisterPushTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
-import com.muhabbet.auth.domain.port.`in`.TokenResult
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
+import com.muhabbet.auth.domain.port.out.OtpChannel
 import com.muhabbet.auth.domain.port.out.OtpQuotaPort
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
-import com.muhabbet.auth.domain.port.out.RefreshTokenRecord
-import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.TwoStepAttemptRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
-import com.muhabbet.shared.security.JwtProvider
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.validation.ValidationRules
 import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -38,27 +33,34 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * Phone sign-in: OTP request and verify, Firebase verify, and push-token registration.
+ *
+ * **Transaction boundaries (#886).** None of the sign-in methods is `@Transactional`. Each one
+ * talks to an outside service — the SMS provider, Twilio Verify, Firebase — that can take seconds,
+ * and a method-wide transaction held a pool connection (two, during a verify) for all of it, so a
+ * burst of logins against a slow provider could drain the twenty-connection pool and take
+ * messaging down with it. The database work now runs in short [TransactionRunner] blocks on either
+ * side of the provider call, never around it.
+ *
+ * Refresh and logout live in [SessionService]; the device/token tail of a sign-in in
+ * [SignInSessionIssuer].
+ */
 open class AuthService(
     private val userRepository: UserRepository,
     private val otpRepository: OtpRepository,
     private val deviceRepository: DeviceRepository,
-    private val refreshTokenRepository: RefreshTokenRepository,
     private val phoneHashRepository: PhoneHashRepository,
-    /** Absent when an [otpVerifier] owns delivery; see the init block. */
-    private val otpSender: OtpSender? = null,
-    private val jwtProvider: JwtProvider,
+    /** How codes reach a phone; exactly one strategy by construction. See [OtpChannel]. */
+    private val otpChannel: OtpChannel,
     private val passwordEncoder: PasswordEncoder,
+    private val sessionIssuer: SignInSessionIssuer,
+    private val transactions: TransactionRunner,
     private val otpLength: Int = 6,
     private val otpExpirySeconds: Int = 300,
     private val otpCooldownSeconds: Int = 60,
     private val otpMaxAttempts: Int = 5,
-    private val refreshTokenExpirySeconds: Long = 2592000,
     private val mockEnabled: Boolean = false,
-    /**
-     * Present only when an external verification provider is configured. When set, it owns code
-     * generation and checking; [otpSender] and the local hash comparison are bypassed.
-     */
-    private val otpVerifier: OtpVerifier? = null,
     /**
      * Numbers that bypass the SMS provider: the code is generated here and written to the log.
      * See [com.muhabbet.shared.config.OtpProperties.testNumbers] for why this exists and why it is
@@ -84,25 +86,12 @@ open class AuthService(
     private val twoStepAttemptRepository: TwoStepAttemptRepository,
     private val twoStepMaxAttempts: Int = 5,
     private val twoStepLockSeconds: Long = 900
-) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
+) : RequestOtpUseCase, VerifyOtpUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
 
     init {
-        // Exactly one delivery path must exist. Neither means every login silently fails at the
-        // first OTP; both means the configuration is ambiguous about who owns the code. Failing
-        // here stops the context with a message naming the property, instead of a bare
-        // NoSuchBeanDefinitionException on OtpSender.
-        require(otpSender != null || otpVerifier != null) {
-            "No OTP delivery configured: muhabbet.sms.provider matched neither an OtpSender " +
-                "(mock/netgsm/twilio) nor an OtpVerifier (twilio-verify)"
-        }
-        require(otpSender == null || otpVerifier == null) {
-            "Both an OtpSender and an OtpVerifier are configured; muhabbet.sms.provider must " +
-                "select exactly one"
-        }
-
         // A test number skips the SMS provider entirely, so anyone able to add one to the config
         // could turn a real person's number into an account they can sign into by reading the log.
         // Restricting the list to +90500 — a range BTK has not allocated, so no handset can ever
@@ -132,94 +121,131 @@ open class AuthService(
 
     private fun isTestNumber(phoneNumber: String) = phoneNumber in testNumbers
 
-    @Transactional
+    /** How this one request's code will be produced and delivered; decided once, used twice. */
+    private sealed interface Delivery {
+        /** The code exists here; null when the provider owns it. */
+        val localCode: String?
+
+        /** A test number: generated here, written to the log, sent nowhere. */
+        data class LoggedTestCode(override val localCode: String) : Delivery
+        data class LocalSms(val sender: OtpSender, override val localCode: String) : Delivery
+        data class ProviderOwned(val verifier: OtpVerifier) : Delivery {
+            override val localCode: String? get() = null
+        }
+    }
+
+    private fun deliveryFor(phoneNumber: String): Delivery = when {
+        // A test number always takes the local path, whichever provider is configured: the code is
+        // generated here, hashed here, and checked here.
+        isTestNumber(phoneNumber) -> Delivery.LoggedTestCode(generateOtp())
+        else -> when (val channel = otpChannel) {
+            is OtpChannel.LocalCode -> Delivery.LocalSms(channel.sender, generateOtp())
+            is OtpChannel.ExternalVerifier -> Delivery.ProviderOwned(channel.verifier)
+        }
+    }
+
+    private sealed interface Issue {
+        data class Stored(val request: OtpRequest) : Issue
+        data object CoolingDown : Issue
+    }
+
     override fun requestOtp(phoneNumber: String): OtpResult {
         if (!ValidationRules.isValidTurkishPhone(phoneNumber)) {
             throw BusinessException(ErrorCode.AUTH_INVALID_PHONE)
         }
 
-        // Check cooldown
-        val activeOtp = otpRepository.findActiveByPhoneNumber(phoneNumber)
-        if (activeOtp != null) {
-            val elapsed = Duration.between(activeOtp.createdAt, Instant.now())
-            if (elapsed.seconds < otpCooldownSeconds) {
-                throw BusinessException(ErrorCode.AUTH_OTP_COOLDOWN)
-            }
-        }
-
-        // Checked after the cooldown so a client hammering one number spends its own cooldown
-        // rather than the deployment's hourly budget, and before anything is generated or stored so
-        // a refusal costs nothing. Test numbers are exempt: they never reach the provider, so they
-        // cost nothing and must not be able to exhaust the budget real users share.
-        if (!isTestNumber(phoneNumber) && !otpQuotaPort.tryConsume(phoneNumber)) {
-            throw BusinessException(ErrorCode.AUTH_OTP_RATE_LIMIT)
-        }
-
+        val delivery = deliveryFor(phoneNumber)
         // With an external verifier the code never exists on this side, so there is nothing to
-        // generate or hash. The record is still written — cooldown, expiry and attempt limits are
-        // ours either way. The stored hash is a sentinel that no input can match, so a mis-wired
-        // branch fails closed rather than accepting an unchecked code.
-        // A test number always takes the local path, whichever provider is configured: the code is
-        // generated here, hashed here, and checked here.
-        val local = otpVerifier == null || isTestNumber(phoneNumber)
-        val otp = if (local) generateOtp() else null
-        val otpHash = otp?.let { passwordEncoder.encode(it) ?: "" } ?: EXTERNALLY_VERIFIED
-
-        val otpRequest = OtpRequest(
+        // hash. The record is still written — cooldown, expiry and attempt limits are ours either
+        // way. The stored hash is a sentinel that no input can match, so a mis-wired branch fails
+        // closed rather than accepting an unchecked code.
+        val otpHash = delivery.localCode?.let { passwordEncoder.encode(it) } ?: EXTERNALLY_VERIFIED
+        val candidate = OtpRequest(
             phoneNumber = phoneNumber,
             otpHash = otpHash,
             expiresAt = Instant.now().plusSeconds(otpExpirySeconds.toLong())
         )
-        otpRepository.save(otpRequest)
 
-        when {
-            // Nothing is sent anywhere. The code reaches the log and nowhere else, so signing in as
-            // a test account requires server access rather than a handset.
-            isTestNumber(phoneNumber) ->
-                log.warn("TEST NUMBER {} — OTP not sent, code is {}", phoneNumber, otp)
-            otpVerifier != null -> otpVerifier.start(phoneNumber)
-            else -> otpSender!!.send(phoneNumber, otp!!)
+        // 1. A short transaction decides the cooldown and stores the request in one serialised
+        //    step, so two parallel taps produce one stored request and one SMS, not two.
+        val issue = transactions.inTransaction {
+            otpRepository.createUnlessCoolingDown(candidate, Duration.ofSeconds(otpCooldownSeconds.toLong()))
+                ?.let { Issue.Stored(it) }
+                ?: Issue.CoolingDown
+        }
+        val stored = when (issue) {
+            is Issue.Stored -> issue.request
+            Issue.CoolingDown -> throw BusinessException(ErrorCode.AUTH_OTP_COOLDOWN)
+        }
+
+        // 2. The budget. Checked after the cooldown so a client hammering one number spends its own
+        //    cooldown rather than the deployment's hourly budget. Test numbers are exempt: they
+        //    never reach the provider, so they cost nothing and must not exhaust the budget real
+        //    users share. A refusal retires the stored request, which was never delivered.
+        val billable = delivery !is Delivery.LoggedTestCode
+        if (billable && !otpQuotaPort.tryConsume(phoneNumber)) {
+            otpRepository.retire(stored)
+            throw BusinessException(ErrorCode.AUTH_OTP_RATE_LIMIT)
+        }
+
+        // 3. The provider call, outside any transaction. If it fails, nothing was delivered: the
+        //    request is retired (no unusable active OTP, no cooldown for a code that never arrived)
+        //    and the budget unit is handed back.
+        try {
+            deliver(phoneNumber, delivery)
+        } catch (e: RuntimeException) {
+            otpRepository.retire(stored)
+            if (billable) otpQuotaPort.refund(phoneNumber)
+            log.warn("OTP delivery failed for phone={}; request retired and budget refunded", phoneNumber.takeLast(4))
+            throw e
         }
         log.info("OTP requested for phone={}", phoneNumber.takeLast(4))
 
         return OtpResult(
             ttlSeconds = otpExpirySeconds,
             retryAfterSeconds = otpCooldownSeconds,
-            mockCode = if (mockEnabled) otp else null
+            mockCode = if (mockEnabled) delivery.localCode else null
         )
     }
 
-    @Transactional
+    private fun deliver(phoneNumber: String, delivery: Delivery) {
+        when (delivery) {
+            // Nothing is sent anywhere. The code reaches the log and nowhere else, so signing in as
+            // a test account requires server access rather than a handset.
+            is Delivery.LoggedTestCode ->
+                log.warn("TEST NUMBER {} — OTP not sent, code is {}", phoneNumber, delivery.localCode)
+            is Delivery.LocalSms -> delivery.sender.send(phoneNumber, delivery.localCode)
+            is Delivery.ProviderOwned -> delivery.verifier.start(phoneNumber)
+        }
+    }
+
     override fun verifyOtp(
         phoneNumber: String,
         otp: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String?
+        twoStepPin: String?,
+        installationId: String?
     ): AuthResult {
+        // Validated before an attempt is spent: a malformed client request is not a guess.
+        val signIn = DeviceSignIn.parse(deviceName, platform, installationId)
+
         val activeOtp = otpRepository.findActiveByPhoneNumber(phoneNumber)
             ?: throw BusinessException(ErrorCode.AUTH_OTP_EXPIRED)
 
         // Claiming an attempt and enforcing the limit are the same statement, so concurrent verifies
-        // cannot each read an under-limit count and all be granted a guess.
+        // cannot each read an under-limit count and all be granted a guess. Commits on its own.
         if (!otpRepository.claimAttempt(activeOtp, otpMaxAttempts)) {
             throw BusinessException(ErrorCode.AUTH_OTP_MAX_ATTEMPTS)
         }
 
-        // Must mirror requestOtp's branch exactly. Asking the verifier about a test number would
-        // always fail — it was never told to start one — and comparing a hash for a normal number
-        // would always fail too, since the stored value is the EXTERNALLY_VERIFIED sentinel.
-        val accepted = if (otpVerifier != null && !isTestNumber(phoneNumber)) {
-            otpVerifier.check(phoneNumber, otp)
-        } else {
-            passwordEncoder.matches(otp, activeOtp.otpHash)
-        }
-        if (!accepted) {
+        // Outside any transaction: with Twilio Verify this is an HTTP round trip.
+        if (!codeMatches(phoneNumber, otp, activeOtp)) {
             throw BusinessException(ErrorCode.AUTH_OTP_INVALID)
         }
 
         // The code is right. Knowing it is now only the first of two things the account may require.
-        // This read is also the one authenticatePhone uses below, so a sign-in is one query, not two.
+        // This read is also the one signInAs uses below, so a sign-in is one query, not two.
         val existing = userRepository.findByPhoneNumber(phoneNumber)
         if (existing != null && hasTwoStep(existing)) {
             // Hand the attempt back before refusing. The code was not guessed wrong — it was
@@ -231,18 +257,38 @@ open class AuthService(
             requireTwoStepPin(existing, twoStepPin)
         }
 
-        otpRepository.markVerified(activeOtp)
-
-        return authenticatePhone(phoneNumber, deviceName, platform, "OTP verified", existing)
+        return transactions.inTransaction {
+            // Conditional, so two concurrent verifies of one correct code cannot both sign in.
+            if (!otpRepository.markVerified(activeOtp)) {
+                throw BusinessException(ErrorCode.AUTH_OTP_EXPIRED)
+            }
+            signInAs(phoneNumber, existing, signIn, "OTP verified")
+        }
     }
 
-    @Transactional
+    /**
+     * Must mirror [deliveryFor] exactly. Asking the verifier about a test number would always fail —
+     * it was never told to start one — and comparing a hash for a provider-owned code would always
+     * fail too, since the stored value is the [EXTERNALLY_VERIFIED] sentinel.
+     */
+    private fun codeMatches(phoneNumber: String, otp: String, activeOtp: OtpRequest): Boolean {
+        if (isTestNumber(phoneNumber)) return passwordEncoder.matches(otp, activeOtp.otpHash)
+        return when (val channel = otpChannel) {
+            is OtpChannel.LocalCode -> passwordEncoder.matches(otp, activeOtp.otpHash)
+            is OtpChannel.ExternalVerifier -> channel.verifier.check(phoneNumber, otp)
+        }
+    }
+
     override fun verifyFirebaseToken(
         idToken: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String?
+        twoStepPin: String?,
+        installationId: String?
     ): AuthResult {
+        val signIn = DeviceSignIn.parse(deviceName, platform, installationId)
+
+        // Outside any transaction: the Admin SDK may fetch Google's signing certificates.
         val phoneNumber = try {
             firebaseTokenVerifier.phoneNumberOf(idToken)
         } catch (e: IllegalArgumentException) {
@@ -254,15 +300,15 @@ open class AuthService(
             throw BusinessException(ErrorCode.AUTH_INVALID_PHONE)
         }
 
-        // Same gate as the OTP path, and it has to be here rather than in authenticatePhone: only
-        // the two entry points know which factor they have just checked, and putting it in the
-        // shared tail would also gate the new-user creation branch, where there is no PIN to know.
+        // Same gate as the OTP path, and it has to be here rather than in signInAs: only the two
+        // entry points know which factor they have just checked, and putting it in the shared tail
+        // would also gate the new-user creation branch, where there is no PIN to know.
         val existing = userRepository.findByPhoneNumber(phoneNumber)
         if (existing != null && hasTwoStep(existing)) {
             requireTwoStepPin(existing, twoStepPin)
         }
 
-        return authenticatePhone(phoneNumber, deviceName, platform, "Firebase verified", existing)
+        return transactions.inTransaction { signInAs(phoneNumber, existing, signIn, "Firebase verified") }
     }
 
     /** Two-step is on only when both halves are present; either alone is a half-written row. */
@@ -313,124 +359,38 @@ open class AuthService(
     }
 
     /**
+     * The shared tail of both sign-in paths, inside their transaction.
+     *
      * @param existingUser the account both entry points have already read to decide the two-step
      *   gate. Passed in rather than read again: two reads of the same row would be one query more
      *   than the sign-in needs, and would let the gate and the session be decided about *different*
      *   states of the account.
      */
-    private fun authenticatePhone(
+    private fun signInAs(
         phoneNumber: String,
-        deviceName: String,
-        platform: String,
-        logPrefix: String,
-        existingUser: User?
+        existingUser: User?,
+        signIn: DeviceSignIn,
+        logPrefix: String
     ): AuthResult {
-        val isNewUser = existingUser == null
-        val user = existingUser ?: userRepository.save(
-            User(
-                id = UUID.randomUUID(),
-                phoneNumber = phoneNumber,
-                status = UserStatus.ACTIVE
-            )
-        )
-
-        // Store phone hash for contact sync
-        if (isNewUser) {
-            val phoneHash = sha256(phoneNumber)
-            phoneHashRepository.save(user.id, phoneHash)
-            log.info("New user created: userId={}", user.id)
+        // A suspended account would be handed tokens that every request and every refresh then
+        // refuses (#880) — a sign-in that only looks like one. Refuse it here, plainly.
+        if (existingUser != null && existingUser.status != UserStatus.ACTIVE) {
+            throw BusinessException(ErrorCode.AUTH_ACCOUNT_SUSPENDED)
         }
-
-        // Find or create device
-        val existingDevice = deviceRepository.findByUserIdAndPlatform(user.id, platform)
-        val device = if (existingDevice != null) {
-            deviceRepository.save(
-                existingDevice.copy(
-                    deviceName = deviceName,
-                    lastActiveAt = Instant.now()
-                )
-            )
-        } else {
-            deviceRepository.save(
-                Device(
-                    userId = user.id,
-                    platform = platform,
-                    deviceName = deviceName,
-                    lastActiveAt = Instant.now(),
-                    isPrimary = deviceRepository.findByUserId(user.id).isEmpty()
-                )
-            )
-        }
-
-        // Generate tokens
-        val accessToken = jwtProvider.generateAccessToken(user.id, device.id, user.isAdmin)
-        val refreshToken = jwtProvider.generateRefreshToken()
-        val refreshTokenHash = sha256(refreshToken)
-
-        refreshTokenRepository.save(
-            RefreshTokenRecord(
-                userId = user.id,
-                deviceId = device.id,
-                tokenHash = refreshTokenHash,
-                expiresAt = Instant.now().plusSeconds(refreshTokenExpirySeconds)
-            )
-        )
-
-        log.info("{}: userId={}, deviceId={}, isNewUser={}", logPrefix, user.id, device.id, isNewUser)
-
-        return AuthResult(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            expiresIn = jwtProvider.accessTokenExpirySeconds,
-            userId = user.id.toString(),
-            deviceId = device.id.toString(),
-            isNewUser = isNewUser
-        )
+        val user = existingUser ?: createUser(phoneNumber)
+        val result = sessionIssuer.issue(user, signIn, isNewUser = existingUser == null)
+        log.info("{}: userId={}, deviceId={}, isNewUser={}", logPrefix, user.id, result.deviceId, result.isNewUser)
+        return result
     }
 
-    @Transactional
-    override fun refresh(refreshToken: String): TokenResult {
-        val tokenHash = sha256(refreshToken)
-        val record = refreshTokenRepository.findByTokenHash(tokenHash)
-            ?: throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
-
-        if (record.revokedAt != null) {
-            throw BusinessException(ErrorCode.AUTH_TOKEN_REVOKED)
-        }
-
-        if (record.expiresAt.isBefore(Instant.now())) {
-            throw BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED)
-        }
-
-        // Revoke old refresh token (rotation)
-        refreshTokenRepository.revokeByTokenHash(tokenHash)
-
-        // Generate new tokens. The admin flag is re-read from the user row on every refresh rather
-        // than carried over from the old token, so a grant or a revoke takes effect within one
-        // access-token lifetime instead of persisting until the holder logs out.
-        val isAdmin = userRepository.findById(record.userId)?.isAdmin ?: false
-        val newAccessToken = jwtProvider.generateAccessToken(record.userId, record.deviceId, isAdmin)
-        val newRefreshToken = jwtProvider.generateRefreshToken()
-        val newRefreshTokenHash = sha256(newRefreshToken)
-
-        refreshTokenRepository.save(
-            RefreshTokenRecord(
-                userId = record.userId,
-                deviceId = record.deviceId,
-                tokenHash = newRefreshTokenHash,
-                expiresAt = Instant.now().plusSeconds(refreshTokenExpirySeconds)
-            )
+    private fun createUser(phoneNumber: String): User {
+        val user = userRepository.save(
+            User(id = UUID.randomUUID(), phoneNumber = phoneNumber, status = UserStatus.ACTIVE)
         )
-
-        log.info("Token refreshed: userId={}, deviceId={}", record.userId, record.deviceId)
-
-        return TokenResult(
-            accessToken = newAccessToken,
-            refreshToken = newRefreshToken,
-            expiresIn = jwtProvider.accessTokenExpirySeconds,
-            userId = record.userId.toString(),
-            deviceId = record.deviceId.toString()
-        )
+        // Store phone hash for contact sync
+        phoneHashRepository.save(user.id, sha256(phoneNumber))
+        log.info("New user created: userId={}", user.id)
+        return user
     }
 
     @Transactional
@@ -444,12 +404,6 @@ open class AuthService(
         val resolvedLocale = normalizeDeviceLocale(locale) ?: device.locale
         deviceRepository.save(device.copy(pushToken = pushToken, locale = resolvedLocale))
         log.info("Push token registered: userId={}, deviceId={}, locale={}", userId, deviceId, resolvedLocale)
-    }
-
-    @Transactional
-    override fun logout(userId: UUID, deviceId: UUID) {
-        refreshTokenRepository.revokeAllForDevice(userId, deviceId)
-        log.info("Logout: userId={}, deviceId={}", userId, deviceId)
     }
 
     private fun generateOtp(): String {

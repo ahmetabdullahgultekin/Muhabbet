@@ -57,16 +57,8 @@ class BlockPersistenceAdapter(
     private val springDataBlockRepository: SpringDataBlockRepository
 ) : BlockRepository {
 
-    override fun save(block: UserBlock): UserBlock {
-        val entity = BlockJpaEntity(
-            id = block.id,
-            blockerId = block.blockerId,
-            blockedId = block.blockedId,
-            createdAt = block.createdAt
-        )
-        val saved = springDataBlockRepository.save(entity)
-        return saved.toDomain()
-    }
+    override fun blockIfAbsent(blockerId: UUID, blockedId: UUID): Boolean =
+        springDataBlockRepository.insertIfAbsent(UUID.randomUUID(), blockerId, blockedId, Instant.now()) == 1
 
     override fun delete(blockerId: UUID, blockedId: UUID) {
         springDataBlockRepository.deleteByBlockerIdAndBlockedId(blockerId, blockedId)

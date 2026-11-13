@@ -1098,7 +1098,7 @@ evidence that it works.
 - **WsClient.send() was a silent no-op**: `session?.outgoing?.send()` does nothing when session is null — must throw instead so callers can handle the error. Fixed to `session ?: throw Exception("WebSocket not connected")`
 - **Unread badge never cleared**: Backend `updateDeliveryStatus` only updated ONE message. READ ack should bulk-update ALL unread messages via `markConversationRead()` + update `last_read_at` on `conversation_members`
 - **Backend ConversationController was returning null for participant data**: Must inject `UserRepository` and lookup user displayName/phoneNumber when building `ParticipantResponse`
-- **JWT for scripts/bots**: JWT must include `iss: "muhabbet"` claim (validated by `requireIssuer`). Use HMAC-SHA with `JWT_SECRET` env var
+- **JWT for scripts/bots**: JWT must include `iss: "muhabbet"`, `aud: "muhabbet-app"`, a `tv` (token-version) claim and a `kid` header equal to the server's `JWT_KEY_ID` (default `primary`) — #923; a token missing any of them is refused. Use HMAC-SHA with `JWT_SECRET`. On **REST** the token must also name a real, non-revoked device of an ACTIVE user whose `devices.token_version` equals `tv`; the WebSocket handshake does not check that yet (#747). A separate ops key is #927.
 - **Test Bot script**: `infra/scripts/test_bot.py` — Python script that connects as Test Bot via WS and auto-replies. Requires `pip install PyJWT websockets`
 - **Python on Windows**: Console encoding breaks with emojis — use `sys.stdout.reconfigure(encoding="utf-8")` and `PYTHONUNBUFFERED=1` for background execution
 - **WsMessage type discriminators** (critical — JSON `type` field values from `@SerialName`):

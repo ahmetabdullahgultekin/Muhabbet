@@ -6,18 +6,17 @@ import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
-import com.muhabbet.auth.domain.port.out.OtpQuotaPort
+import com.muhabbet.auth.domain.port.out.OtpChannel
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.AuthTestFixtures
 import com.muhabbet.shared.InMemoryTwoStepAttemptRepository
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
-import com.muhabbet.shared.security.JwtProperties
-import com.muhabbet.shared.security.JwtProvider
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -26,7 +25,6 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.mock.env.MockEnvironment
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import java.time.Instant
 import java.util.UUID
@@ -94,39 +92,27 @@ class TwoStepSignInGateTest {
         otpSender = mockk(relaxed = true)
         attempts = InMemoryTwoStepAttemptRepository()
 
-        val jwtProvider = JwtProvider(
-            JwtProperties(
-                secret = "test-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256",
-                accessTokenExpiry = 900,
-                refreshTokenExpiry = 2592000,
-                issuer = "muhabbet-test"
-            ),
-            MockEnvironment()
-        )
-
-        authService = AuthService(
+        authService = AuthTestFixtures.authService(
+            otpChannel = OtpChannel.LocalCode(otpSender),
             userRepository = userRepository,
             otpRepository = otpRepository,
             deviceRepository = deviceRepository,
             refreshTokenRepository = refreshTokenRepository,
             phoneHashRepository = phoneHashRepository,
-            otpSender = otpSender,
-            jwtProvider = jwtProvider,
             // The real encoder, because "does the stored hash match" is the thing under test.
             passwordEncoder = encoder,
-            otpQuotaPort = mockk<OtpQuotaPort>().also { every { it.tryConsume(any()) } returns true },
             firebaseTokenVerifier = firebaseVerifier,
-            twoStepAttemptRepository = attempts,
-            twoStepMaxAttempts = 5,
-            twoStepLockSeconds = 900
+            twoStepAttemptRepository = attempts
         )
 
         every { otpRepository.findActiveByPhoneNumber(phone) } returns liveOtp
         every { otpRepository.claimAttempt(any(), any()) } returns true
+        every { otpRepository.markVerified(any()) } returns true
         // The OTP itself is always right in these tests: what is under examination is what happens
         // after it is right.
-        every { deviceRepository.findByUserIdAndPlatform(any(), any()) } returns null
-        every { deviceRepository.findByUserId(any()) } returns emptyList()
+        every { deviceRepository.findActiveByInstallation(any(), any()) } returns null
+        every { deviceRepository.findLegacyPrimaryCandidate(any(), any()) } returns null
+        every { deviceRepository.findActiveByUserId(any()) } returns emptyList()
         every { deviceRepository.save(any()) } answers { firstArg() }
     }
 

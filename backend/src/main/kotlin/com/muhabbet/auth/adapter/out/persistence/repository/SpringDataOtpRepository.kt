@@ -68,6 +68,25 @@ interface SpringDataOtpRepository : JpaRepository<OtpRequestJpaEntity, UUID> {
      * and saving it here would flush that stale value back over the increment on commit.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE OtpRequestJpaEntity o SET o.verified = true WHERE o.id = :id")
+    @Query("UPDATE OtpRequestJpaEntity o SET o.verified = true WHERE o.id = :id AND o.verified = false")
     fun markVerified(@Param("id") id: UUID): Int
+
+    /**
+     * Serialises OTP issuance per phone number for the rest of the current transaction (#886).
+     *
+     * An advisory lock rather than a unique constraint because "one *active* request per number" is
+     * a predicate over time (`expires_at > now()`), which no index can express; and rather than
+     * `SELECT ... FOR UPDATE` because the race is between two requests that both find *no* row to
+     * lock. Released automatically at commit or rollback, so it cannot leak. The key is namespaced
+     * so it cannot collide with any other advisory lock taken on the same database.
+     */
+    @Query(
+        nativeQuery = true,
+        value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended('otp-request:' || :phoneNumber, 0))) AS l"
+    )
+    fun lockPhoneForIssue(@Param("phoneNumber") phoneNumber: String): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OtpRequestJpaEntity o SET o.expiresAt = :now WHERE o.id = :id")
+    fun expireNow(@Param("id") id: UUID, @Param("now") now: Instant): Int
 }

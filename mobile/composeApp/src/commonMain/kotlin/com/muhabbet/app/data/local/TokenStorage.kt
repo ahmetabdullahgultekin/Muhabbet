@@ -119,6 +119,20 @@ interface TokenStorage {
     fun setDarkModeWallpaperEnabled(enabled: Boolean)
 
     /**
+     * This installation's id, sent on every sign-in so the server can tell two phones of one
+     * account apart (#882). Use [installationId], which creates it on first use.
+     *
+     * Must survive [clear]: signing out and back in on the same phone is the same device, and a
+     * fresh id each time would leave a trail of dead device rows. Must **not** survive an uninstall,
+     * so it lives in ordinary app storage (wiped with the app), never in the iOS Keychain (kept).
+     *
+     * Abstract for the same reason as every neighbour that says so: a defaulted getter returning
+     * null would mint a new id on every sign-in and quietly restore the takeover this exists to fix.
+     */
+    fun getInstallationId(): String?
+    fun setInstallationId(id: String)
+
+    /**
      * The app version whose test-build notice the user has already acknowledged, or null if they
      * never have. Compared against `BuildInfo.VERSION`, so the notice returns once after an update
      * and stays away on every launch in between.

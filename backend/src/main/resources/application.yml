@@ -38,6 +38,13 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
+    # Session-level rather than transaction-level migration lock (#880, #882). With the default
+    # transactional lock, Flyway holds an open transaction on a second connection for the whole run,
+    # and `CREATE INDEX CONCURRENTLY` (V29) waits for every open transaction to finish — so the
+    # migration waits on Flyway's own lock forever. The session lock gives the same mutual exclusion
+    # between instances without an open transaction.
+    postgresql:
+      transactional-lock: false
     # validate-on-migrate defaults to true here on purpose — this file is what production runs.
     # It is relaxed only in application-dev.yml (local iteration) and application-test.yml
     # (each test class builds Postgres fresh from these files via Testcontainers, so there is
@@ -140,6 +147,12 @@ muhabbet:
     access-token-expiry: 900         # 15 minutes in seconds
     refresh-token-expiry: 2592000    # 30 days in seconds
     issuer: muhabbet
+    # Key rotation (#923). Every token carries the `kid` of the key that signed it. To rotate:
+    # set JWT_SECRET to the new key and JWT_KEY_ID to a new id, and keep the old pair verifying for
+    # one access-token lifetime via MUHABBET_JWT_PREVIOUSKEYS_0_ID / MUHABBET_JWT_PREVIOUSKEYS_0_SECRET.
+    # Remove it after the overlap; nobody is logged out at any point.
+    key-id: ${JWT_KEY_ID:primary}
+    audience: muhabbet-app
 
   otp:
     length: 6

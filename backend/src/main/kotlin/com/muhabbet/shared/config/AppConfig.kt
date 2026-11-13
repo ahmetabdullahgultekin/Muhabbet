@@ -7,8 +7,7 @@ import com.muhabbet.auth.domain.port.out.FirebaseTokenVerifier
 import com.muhabbet.auth.domain.port.out.OtpQuotaPort
 import com.muhabbet.auth.domain.port.out.TwoStepAttemptRepository
 import com.muhabbet.auth.domain.port.out.OtpRepository
-import com.muhabbet.auth.domain.port.out.OtpSender
-import com.muhabbet.auth.domain.port.out.OtpVerifier
+import com.muhabbet.auth.domain.port.out.OtpChannel
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.UserDataQueryPort
@@ -18,6 +17,8 @@ import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
 import com.muhabbet.auth.domain.service.LastSeenService
 import com.muhabbet.auth.domain.service.LoginApprovalService
+import com.muhabbet.auth.domain.service.SessionRevocation
+import com.muhabbet.auth.domain.service.SignInSessionIssuer
 import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
 import com.muhabbet.media.domain.port.out.MediaFileRepository
@@ -71,7 +72,6 @@ import com.muhabbet.messaging.domain.service.ReactionService
 import com.muhabbet.messaging.domain.service.SearchService
 import com.muhabbet.messaging.domain.service.StatusService
 import com.muhabbet.shared.security.JwtProperties
-import com.muhabbet.shared.security.JwtProvider
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -98,14 +98,12 @@ class AppConfig {
         userRepository: UserRepository,
         otpRepository: OtpRepository,
         deviceRepository: DeviceRepository,
-        refreshTokenRepository: RefreshTokenRepository,
         phoneHashRepository: PhoneHashRepository,
-        otpSender: OtpSender?,
-        jwtProvider: JwtProvider,
+        otpChannel: OtpChannel,
         passwordEncoder: PasswordEncoder,
+        signInSessionIssuer: SignInSessionIssuer,
+        transactions: TransactionRunner,
         otpProperties: OtpProperties,
-        jwtProperties: JwtProperties,
-        otpVerifier: OtpVerifier?,
         otpQuotaPort: OtpQuotaPort,
         firebaseTokenVerifier: FirebaseTokenVerifier,
         twoStepAttemptRepository: TwoStepAttemptRepository,
@@ -114,17 +112,15 @@ class AppConfig {
         userRepository = userRepository,
         otpRepository = otpRepository,
         deviceRepository = deviceRepository,
-        refreshTokenRepository = refreshTokenRepository,
         phoneHashRepository = phoneHashRepository,
-        otpSender = otpSender,
-        jwtProvider = jwtProvider,
+        otpChannel = otpChannel,
         passwordEncoder = passwordEncoder,
+        sessionIssuer = signInSessionIssuer,
+        transactions = transactions,
         otpLength = otpProperties.length,
         otpExpirySeconds = otpProperties.expirySeconds,
         otpCooldownSeconds = otpProperties.cooldownSeconds,
-        otpVerifier = otpVerifier,
         otpMaxAttempts = otpProperties.maxAttempts,
-        refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry,
         mockEnabled = otpProperties.mockEnabled,
         testNumbers = otpProperties.testNumbers.toSet(),
         otpQuotaPort = otpQuotaPort,
@@ -133,6 +129,7 @@ class AppConfig {
         twoStepMaxAttempts = twoStepProperties.maxAttempts,
         twoStepLockSeconds = twoStepProperties.lockSeconds
     )
+
 
     /**
      * The transaction boundary for `last_seen_at` (#402). Declared as a bean like every other
@@ -429,10 +426,12 @@ class AppConfig {
     @Bean
     fun deviceLinkingService(
         deviceLinkSessionRepository: DeviceLinkSessionRepository,
-        deviceRepository: DeviceRepository
+        deviceRepository: DeviceRepository,
+        sessionRevocation: SessionRevocation
     ): DeviceLinkingService = DeviceLinkingService(
         deviceLinkSessionRepository = deviceLinkSessionRepository,
-        deviceRepository = deviceRepository
+        deviceRepository = deviceRepository,
+        sessionRevocation = sessionRevocation
     )
 
     @Bean

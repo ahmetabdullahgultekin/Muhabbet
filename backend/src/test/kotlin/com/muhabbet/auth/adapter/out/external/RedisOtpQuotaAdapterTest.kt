@@ -87,4 +87,29 @@ class RedisOtpQuotaAdapterTest {
             "the two globally-refused attempts did not count against the number's daily budget"
         )
     }
+
+    @Test
+    fun `should give the unit back when the provider never started the verification`() {
+        // #886: a provider outage used to spend the budget of every retry during it.
+        val quota = adapter(perNumber = 1)
+        val phone = uniqueNumber()
+
+        assertTrue(quota.tryConsume(phone))
+        quota.refund(phone)
+
+        assertTrue(quota.tryConsume(phone), "the refunded unit was not available again")
+        assertFalse(quota.tryConsume(phone), "the cap no longer applies after a refund")
+    }
+
+    @Test
+    fun `should not mint credit when refunding a bucket that does not exist`() {
+        val quota = adapter(perNumber = 1)
+        val phone = uniqueNumber()
+
+        quota.refund(phone)
+        quota.refund(phone)
+
+        assertTrue(quota.tryConsume(phone))
+        assertFalse(quota.tryConsume(phone), "refunds before any consume became spendable credit")
+    }
 }

@@ -17,7 +17,7 @@ class RefreshTokenPersistenceAdapter(
         springDataRefreshTokenRepository.save(RefreshTokenJpaEntity.fromDomain(record)).toDomain()
 
     override fun findByTokenHash(tokenHash: String): RefreshTokenRecord? =
-        springDataRefreshTokenRepository.findByTokenHashActive(tokenHash, Instant.now())?.toDomain()
+        springDataRefreshTokenRepository.findByTokenHash(tokenHash)?.toDomain()
 
     override fun findByUserId(userId: UUID): List<RefreshTokenRecord> =
         springDataRefreshTokenRepository.findByUserId(userId).map { it.toDomain() }
@@ -30,7 +30,10 @@ class RefreshTokenPersistenceAdapter(
         springDataRefreshTokenRepository.revokeAllForUser(userId, Instant.now())
     }
 
-    override fun revokeByTokenHash(tokenHash: String) {
-        springDataRefreshTokenRepository.revokeByTokenHash(tokenHash, Instant.now())
+    override fun markRotated(tokenHash: String, at: Instant): Boolean =
+        springDataRefreshTokenRepository.markRotated(tokenHash, at) == 1
+
+    override fun revokeFamily(familyId: UUID, at: Instant) {
+        springDataRefreshTokenRepository.revokeFamily(familyId, at)
     }
 }

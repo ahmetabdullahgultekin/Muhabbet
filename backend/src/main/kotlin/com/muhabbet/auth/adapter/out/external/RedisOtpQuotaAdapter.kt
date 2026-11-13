@@ -63,6 +63,29 @@ class RedisOtpQuotaAdapter(
         }
     }
 
+    override fun refund(phoneNumber: String) {
+        val now = Instant.now()
+        try {
+            giveBack("otp:quota:global:${HOUR.format(now)}")
+            giveBack("otp:quota:number:$phoneNumber:${DAY.format(now)}")
+        } catch (e: Exception) {
+            // A lost refund costs one unit of budget; failing the caller over it would turn a
+            // provider outage into a second error on top.
+            log.error("OTP quota refund failed. Redis unreachable?", e)
+        }
+    }
+
+    /**
+     * DECR, but never below zero and never leaving a key behind without its TTL: DECR on a missing
+     * key would create it at -1 with no expiry, an immortal credit. A bucket that reaches zero is
+     * deleted instead; the next [consume] recreates it with its TTL.
+     */
+    private fun giveBack(key: String) {
+        if (redisTemplate.hasKey(key) != true) return
+        val count = redisTemplate.opsForValue().decrement(key) ?: return
+        if (count <= 0L) redisTemplate.delete(key)
+    }
+
     private fun consume(key: String, limit: Int, ttl: Duration, label: String): Boolean {
         val count = redisTemplate.opsForValue().increment(key) ?: return true
         if (count == 1L) {

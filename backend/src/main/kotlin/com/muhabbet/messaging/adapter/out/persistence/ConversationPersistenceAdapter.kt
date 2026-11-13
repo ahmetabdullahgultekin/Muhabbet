@@ -2,7 +2,6 @@ package com.muhabbet.messaging.adapter.out.persistence
 
 import com.muhabbet.messaging.adapter.out.persistence.entity.ConversationJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.entity.ConversationMemberJpaEntity
-import com.muhabbet.messaging.adapter.out.persistence.entity.DirectConversationLookupJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataConversationMemberRepository
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataConversationRepository
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataDirectConversationLookupRepository
@@ -71,14 +70,17 @@ class ConversationPersistenceAdapter(
     override fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID? =
         directLookupRepo.findByUserIdLowAndUserIdHigh(userIdLow, userIdHigh)?.conversationId
 
-    override fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID) {
-        directLookupRepo.save(
-            DirectConversationLookupJpaEntity(
-                userIdLow = userIdLow,
-                userIdHigh = userIdHigh,
-                conversationId = conversationId
-            )
-        )
+    override fun claimDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID): UUID {
+        if (directLookupRepo.insertIfAbsent(userIdLow, userIdHigh, conversationId) == 1) return conversationId
+        // Lost the race: the winner has committed (that is what released our insert), so a fresh
+        // statement under READ COMMITTED sees its row.
+        return directLookupRepo.findByUserIdLowAndUserIdHigh(userIdLow, userIdHigh)?.conversationId
+            ?: error("direct_conversation_lookup conflict for a pair with no row")
+    }
+
+    override fun discardUnclaimedConversation(conversationId: UUID) {
+        conversationRepo.deleteById(conversationId)
+        conversationRepo.flush()
     }
 
     override fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: Instant) {

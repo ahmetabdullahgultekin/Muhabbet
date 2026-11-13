@@ -7,6 +7,7 @@ import com.muhabbet.auth.domain.port.out.OtpRepository
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
 import java.time.Instant
 
 @Component
@@ -16,6 +17,25 @@ class OtpPersistenceAdapter(
 
     override fun save(otpRequest: OtpRequest): OtpRequest =
         springDataOtpRepository.save(OtpRequestJpaEntity.fromDomain(otpRequest)).toDomain()
+
+    /**
+     * MANDATORY rather than REQUIRED: the advisory lock is held until the *caller's* transaction
+     * ends, so running this in a transaction of its own would release the lock before the caller
+     * had done anything with the result. Refusing to run without one makes that misuse loud.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    override fun createUnlessCoolingDown(otpRequest: OtpRequest, cooldown: Duration): OtpRequest? {
+        springDataOtpRepository.lockPhoneForIssue(otpRequest.phoneNumber)
+        val now = Instant.now()
+        val latest = springDataOtpRepository.findActiveByPhoneNumber(otpRequest.phoneNumber, now)
+        if (latest != null && Duration.between(latest.createdAt, now) < cooldown) return null
+        return save(otpRequest)
+    }
+
+    @Transactional
+    override fun retire(otpRequest: OtpRequest) {
+        springDataOtpRepository.expireNow(otpRequest.id, Instant.now())
+    }
 
     override fun findActiveByPhoneNumber(phoneNumber: String): OtpRequest? =
         springDataOtpRepository.findActiveByPhoneNumber(phoneNumber, Instant.now())?.toDomain()
@@ -47,7 +67,6 @@ class OtpPersistenceAdapter(
         springDataOtpRepository.refundAttempt(otpRequest.id)
     }
 
-    override fun markVerified(otpRequest: OtpRequest) {
-        springDataOtpRepository.markVerified(otpRequest.id)
-    }
+    override fun markVerified(otpRequest: OtpRequest): Boolean =
+        springDataOtpRepository.markVerified(otpRequest.id) == 1
 }

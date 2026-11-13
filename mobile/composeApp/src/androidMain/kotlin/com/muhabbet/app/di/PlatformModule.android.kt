@@ -188,6 +188,17 @@ class AndroidTokenStorage(private val context: Context) : TokenStorage {
         plainPrefs.edit().putBoolean("wallpaper_dark_mode", enabled).apply()
     }
 
+    // Plain prefs: `clear()` wipes only the encrypted store, so the id survives a sign-out, and an
+    // uninstall wipes both, so a reinstall is a new device. Not secret — it identifies an install,
+    // not a person, and the server only ever pairs it with an account it already authenticated.
+    override fun getInstallationId(): String? = plainPrefs.getString("installation_id", null)
+
+    override fun setInstallationId(id: String) {
+        // commit(), not apply(): the id is sent in the request that follows immediately, and a
+        // process death before an async write lands would mint a second id for the same install.
+        plainPrefs.edit().putString("installation_id", id).commit()
+    }
+
     // Plain prefs, not the encrypted ones: this is read on the first frame after login, and it says
     // nothing about the user that a stranger with the phone could not learn by opening the app.
     override fun getTestBuildNoticeAckVersion(): String? =

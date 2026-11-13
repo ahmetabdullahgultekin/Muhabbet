@@ -28,7 +28,24 @@ interface ConversationRepository {
     fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int>
     fun findAllContactUserIds(userId: UUID): Set<UUID>
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?
-    fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID)
+
+    /**
+     * Registers [conversationId] as the direct conversation of the pair — unless one already is —
+     * and returns whichever conversation **is** the pair's now (#899).
+     *
+     * An idempotent insert decided by the lookup table's primary key, not a read followed by an
+     * insert: two users opening a chat with each other at the same moment both used to find no
+     * lookup row, both insert, and the loser got a constraint violation as a 500. Here the loser's
+     * insert waits on the winner's row lock and then does nothing, and the caller learns the
+     * winner's id. A return value other than [conversationId] means the caller lost the race.
+     */
+    fun claimDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID): UUID
+
+    /**
+     * Deletes a conversation row the caller created moments ago, in the same transaction, that never
+     * became anyone's — it lost [claimDirectLookup]'s race and has no members. Not a general delete.
+     */
+    fun discardUnclaimedConversation(conversationId: UUID)
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: java.time.Instant)
 
     // Group management

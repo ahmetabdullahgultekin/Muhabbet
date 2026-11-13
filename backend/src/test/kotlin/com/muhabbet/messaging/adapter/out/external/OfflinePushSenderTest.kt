@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.external
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.messaging.domain.model.ContentType
@@ -53,7 +54,7 @@ class OfflinePushSenderTest {
 
     private fun device(token: String, locale: String?) = Device(
         userId = recipientId,
-        platform = "android",
+        platform = DevicePlatform.ANDROID,
         pushToken = token,
         locale = locale
     )
@@ -144,7 +145,7 @@ class OfflinePushSenderTest {
 
     @Test
     fun `should skip a device with no push token`() {
-        val sent = sendTo(device("token-en", locale = "en"), Device(userId = recipientId, platform = "ios"))
+        val sent = sendTo(device("token-en", locale = "en"), Device(userId = recipientId, platform = DevicePlatform.IOS))
 
         assertEquals(1, sent.size)
     }

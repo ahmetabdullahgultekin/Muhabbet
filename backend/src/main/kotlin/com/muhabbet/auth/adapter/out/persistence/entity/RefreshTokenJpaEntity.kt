@@ -30,7 +30,17 @@ class RefreshTokenJpaEntity(
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "revoked_at")
-    var revokedAt: Instant? = null
+    var revokedAt: Instant? = null,
+
+    /**
+     * Nullable only for the expand window of V28: rows written by an instance that predates it.
+     * Read as the row's own id, which is exactly what V28's backfill assigns.
+     */
+    @Column(name = "family_id", updatable = false)
+    val familyId: UUID? = null,
+
+    @Column(name = "rotated_at")
+    var rotatedAt: Instant? = null
 ) {
     fun toDomain(): RefreshTokenRecord = RefreshTokenRecord(
         id = id,
@@ -39,7 +49,9 @@ class RefreshTokenJpaEntity(
         tokenHash = tokenHash,
         expiresAt = expiresAt,
         createdAt = createdAt,
-        revokedAt = revokedAt
+        revokedAt = revokedAt,
+        familyId = familyId ?: id,
+        rotatedAt = rotatedAt
     )
 
     companion object {
@@ -50,7 +62,9 @@ class RefreshTokenJpaEntity(
             tokenHash = record.tokenHash,
             expiresAt = record.expiresAt,
             createdAt = record.createdAt,
-            revokedAt = record.revokedAt
+            revokedAt = record.revokedAt,
+            familyId = record.familyId,
+            rotatedAt = record.rotatedAt
         )
     }
 }

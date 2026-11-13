@@ -1,17 +1,15 @@
 package com.muhabbet.auth.domain.service
 
 import com.muhabbet.auth.domain.model.OtpRequest
-import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.OtpChannel
 import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
-import com.muhabbet.auth.domain.port.out.PhoneHashRepository
-import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
-import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.AuthTestFixtures
+import com.muhabbet.shared.config.AuthSessionConfig
 import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.transaction.TransactionRunner
 import com.muhabbet.shared.exception.ErrorCode
-import com.muhabbet.shared.security.JwtProperties
-import com.muhabbet.shared.security.JwtProvider
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -22,8 +20,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.mock.env.MockEnvironment
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import java.time.Instant
 
 /**
@@ -48,31 +44,9 @@ class AuthServiceVerifierTest {
         // the verifier is ever consulted. Grant by default; the limit itself is covered elsewhere.
         every { otpRepository.claimAttempt(any(), any()) } returns true
 
-        val env = MockEnvironment().withProperty("spring.profiles.active", "test")
-        val jwtProvider = JwtProvider(
-            JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
-            env,
-        )
-
-        authService = AuthService(
-            userRepository = mockk<UserRepository>(relaxed = true),
-            otpRepository = otpRepository,
-            deviceRepository = mockk<DeviceRepository>(relaxed = true),
-            refreshTokenRepository = mockk<RefreshTokenRepository>(relaxed = true),
-            phoneHashRepository = mockk<PhoneHashRepository>(relaxed = true),
-            // No sender: the constructor now rejects having both, which is the point.
-            jwtProvider = jwtProvider,
-            passwordEncoder = BCryptPasswordEncoder(),
-            otpVerifier = otpVerifier,
-        
-            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
-            // Relaxed mocks answer false for Boolean, which would make every test here
-            // fail on the quota rather than on what it is testing. The quota itself is
-            // covered by RedisOtpQuotaAdapterTest against a real Redis.
-            io.mockk.every { it.tryConsume(any()) } returns true
-        },
-            firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
-            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
+        authService = AuthTestFixtures.authService(
+            otpChannel = OtpChannel.ExternalVerifier(otpVerifier),
+            otpRepository = otpRepository
         )
     }
 
@@ -80,7 +54,7 @@ class AuthServiceVerifierTest {
     fun `should ask the verifier to send and never use the local sender`() {
         every { otpRepository.findActiveByPhoneNumber(phone) } returns null
         val saved = slot<OtpRequest>()
-        every { otpRepository.save(capture(saved)) } answers { saved.captured }
+        every { otpRepository.createUnlessCoolingDown(capture(saved), any()) } answers { saved.captured }
 
         val result = authService.requestOtp(phone)
 
@@ -118,44 +92,48 @@ class AuthServiceVerifierTest {
     }
 
     @Test
+    fun `should check the code with the verifier outside any transaction`() {
+        // #886: verifyOtp used to hold its own connection plus claimAttempt's REQUIRES_NEW one for
+        // the whole Twilio round trip.
+        var openTransactions = 0
+        var checkedInsideTransaction: Boolean? = null
+        val transactions = object : TransactionRunner {
+            override fun <T : Any> inTransaction(block: () -> T): T {
+                openTransactions++
+                try { return block() } finally { openTransactions-- }
+            }
+        }
+        every { otpRepository.findActiveByPhoneNumber(phone) } returns activeRequest()
+        every { otpVerifier.check(phone, "123456") } answers {
+            checkedInsideTransaction = openTransactions > 0
+            false
+        }
+        val service = AuthTestFixtures.authService(
+            otpChannel = OtpChannel.ExternalVerifier(otpVerifier),
+            otpRepository = otpRepository,
+            transactions = transactions
+        )
+
+        assertThrows<BusinessException> { service.verifyOtp(phone, "123456", "Pixel", "android") }
+
+        assertEquals(false, checkedInsideTransaction)
+    }
+
+    @Test
     fun `should refuse to start with no delivery path at all`() {
         // muhabbet.sms.provider=twilio-verify matches no OtpSender, so without this guard the
         // context died on an unresolved OtpSender bean and took the whole API down with it.
-        val error = assertThrows<IllegalArgumentException> { buildService(sender = null, verifier = null) }
-        assertTrue(error.message!!.contains("muhabbet.sms.provider"))
+        val error = assertThrows<IllegalStateException> { AuthSessionConfig().otpChannel(null, null) }
+        assertTrue(error.message.orEmpty().contains("muhabbet.sms.provider"))
     }
 
     @Test
     fun `should refuse to start with two competing delivery paths`() {
-        val error = assertThrows<IllegalArgumentException> {
-            buildService(sender = mockk(relaxed = true), verifier = mockk(relaxed = true))
+        val error = assertThrows<IllegalStateException> {
+            AuthSessionConfig().otpChannel(mockk<OtpSender>(relaxed = true), mockk<OtpVerifier>(relaxed = true))
         }
-        assertTrue(error.message!!.contains("exactly one"))
+        assertTrue(error.message.orEmpty().contains("exactly one"))
     }
-
-    private fun buildService(sender: OtpSender?, verifier: OtpVerifier?) = AuthService(
-        userRepository = mockk(relaxed = true),
-        otpRepository = mockk(relaxed = true),
-        deviceRepository = mockk(relaxed = true),
-        refreshTokenRepository = mockk(relaxed = true),
-        phoneHashRepository = mockk(relaxed = true),
-        otpSender = sender,
-        jwtProvider = JwtProvider(
-            JwtProperties(secret = "test-secret-that-is-long-enough-for-hs256-signing-1234567890"),
-            MockEnvironment().withProperty("spring.profiles.active", "test"),
-        ),
-        passwordEncoder = BCryptPasswordEncoder(),
-        otpVerifier = verifier,
-    
-            otpQuotaPort = mockk<com.muhabbet.auth.domain.port.out.OtpQuotaPort>().also {
-            // Relaxed mocks answer false for Boolean, which would make every test here
-            // fail on the quota rather than on what it is testing. The quota itself is
-            // covered by RedisOtpQuotaAdapterTest against a real Redis.
-            io.mockk.every { it.tryConsume(any()) } returns true
-        },
-            firebaseTokenVerifier = com.muhabbet.shared.NoFirebaseTokenVerifier,
-            twoStepAttemptRepository = com.muhabbet.shared.InMemoryTwoStepAttemptRepository()
-        )
 
     private fun activeRequest() = OtpRequest(
         phoneNumber = phone,

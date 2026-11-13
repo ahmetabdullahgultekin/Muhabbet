@@ -1,5 +1,6 @@
 package com.muhabbet.auth.adapter.`in`.web
 
+import com.muhabbet.auth.domain.model.DevicePlatform
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
 import com.muhabbet.auth.domain.port.`in`.LinkDeviceUseCase
@@ -37,7 +38,7 @@ class DeviceLinkControllerTest {
     private fun controller(enabled: Boolean) =
         DeviceLinkController(useCase, MultiDeviceProperties(enabled = enabled))
 
-    private fun device() = Device(userId = userId, platform = "web", linkedByDeviceId = deviceId, displayName = "Web")
+    private fun device() = Device(userId = userId, platform = DevicePlatform.WEB, linkedByDeviceId = deviceId, displayName = "Web")
 
     // ─── Flag gating (the reversibility guarantee) ───────
 

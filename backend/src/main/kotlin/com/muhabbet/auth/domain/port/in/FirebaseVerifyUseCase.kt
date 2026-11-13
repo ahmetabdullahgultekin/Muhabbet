@@ -12,6 +12,7 @@ interface FirebaseVerifyUseCase {
         idToken: String,
         deviceName: String,
         platform: String,
-        twoStepPin: String? = null
+        twoStepPin: String? = null,
+        installationId: String? = null
     ): AuthResult
 }

@@ -80,7 +80,7 @@ open class UserDataService(
             devices = deviceRepository.findByUserId(userId).map {
                 ExportedDevice(
                     id = it.id,
-                    platform = it.platform,
+                    platform = it.platform.wireName,
                     deviceName = it.deviceName,
                     displayName = it.displayName,
                     isPrimary = it.isPrimary,

@@ -1,7 +1,9 @@
 package com.muhabbet.auth.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.TestSessions
 import com.muhabbet.shared.security.JwtProvider
 import com.redis.testcontainers.RedisContainer
 import org.junit.jupiter.api.Test
@@ -43,6 +45,9 @@ class UserProfilePrivacyIntegrationTest {
     @Autowired
     private lateinit var userRepository: UserRepository
 
+    @Autowired
+    private lateinit var deviceRepository: DeviceRepository
+
     companion object {
         @Container
         @JvmStatic
@@ -83,7 +88,7 @@ class UserProfilePrivacyIntegrationTest {
     }
 
     private fun bearer(userId: UUID): String =
-        "Bearer " + jwtProvider.generateAccessToken(userId, UUID.randomUUID())
+        TestSessions.bearer(jwtProvider, deviceRepository, userId)
 
     @Test
     fun `GET users by id does not leak phone number to another user`() {

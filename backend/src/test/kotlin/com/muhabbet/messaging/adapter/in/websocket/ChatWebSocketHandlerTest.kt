@@ -110,7 +110,7 @@ class ChatWebSocketHandlerTest {
     }
 
     private fun generateValidToken(): String {
-        return jwtProvider.generateAccessToken(userId, deviceId)
+        return jwtProvider.generateAccessToken(userId, deviceId, tokenVersion = 0)
     }
 
     // ─── Connection / JWT Validation ──────────────────────
@@ -172,7 +172,7 @@ class ChatWebSocketHandlerTest {
                 issuer = "muhabbet-test"
             )
             val expiredProvider = JwtProvider(expiredProps, MockEnvironment())
-            val expiredToken = expiredProvider.generateAccessToken(userId, deviceId)
+            val expiredToken = expiredProvider.generateAccessToken(userId, deviceId, tokenVersion = 0)
 
             // Small delay to ensure token is expired
             Thread.sleep(10)

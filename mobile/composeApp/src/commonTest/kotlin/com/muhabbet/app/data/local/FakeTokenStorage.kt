@@ -80,6 +80,11 @@ class FakeTokenStorage : TokenStorage {
     override fun getDarkModeWallpaperEnabled(): Boolean = darkModeWallpaperEnabled
     override fun setDarkModeWallpaperEnabled(enabled: Boolean) { darkModeWallpaperEnabled = enabled }
 
+    // Not touched by clear(), like the real stores: a sign-out keeps the installation's identity.
+    private var installationId: String? = null
+    override fun getInstallationId(): String? = installationId
+    override fun setInstallationId(id: String) { installationId = id }
+
     private var testBuildNoticeAckVersion: String? = null
     override fun getTestBuildNoticeAckVersion(): String? = testBuildNoticeAckVersion
     override fun setTestBuildNoticeAckVersion(version: String) { testBuildNoticeAckVersion = version }

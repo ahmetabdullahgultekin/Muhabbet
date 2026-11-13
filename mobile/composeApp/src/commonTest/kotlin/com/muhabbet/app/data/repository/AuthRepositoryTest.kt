@@ -5,6 +5,7 @@ import com.muhabbet.app.data.remote.ApiClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -104,6 +105,36 @@ class AuthRepositoryTest {
         assertEquals("new-refresh-token", tokenStorage.getRefreshToken())
         assertEquals("user-123", tokenStorage.getUserId())
         assertEquals("device-456", tokenStorage.getDeviceId())
+    }
+
+    @Test
+    fun should_send_one_stable_installation_id_across_sign_ins_and_sign_outs() = runTest {
+        // #882: the server tells two phones of one account apart by this id, not by the platform.
+        // A fresh id per sign-in would make every sign-in a new device; none would reintroduce the
+        // one-row-per-platform takeover.
+        val sent = mutableListOf<String?>()
+        val (apiClient, tokenStorage) = createApiClientWithMock { request ->
+            val body = request.body.toByteArray().decodeToString()
+            sent += json.decodeFromString(com.muhabbet.shared.dto.VerifyOtpRequest.serializer(), body).installationId
+            respond(
+                content = """
+                    {"data":{"accessToken":"a","refreshToken":"r","expiresIn":900,"userId":"u",
+                    "deviceId":"d","isNewUser":false},"timestamp":"2026-11-13T12:00:00Z"}
+                """.trimIndent(),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+            )
+        }
+        val repo = AuthRepository(apiClient, tokenStorage)
+
+        repo.verifyOtp("+905000000001", "123456", "Pixel", "android")
+        repo.logout()
+        repo.verifyOtp("+905000000001", "654321", "Pixel", "android")
+
+        assertEquals(2, sent.size)
+        val first = sent[0]
+        assertTrue(first != null && first.length == 36, "expected a UUID, got $first")
+        assertEquals(first, sent[1], "a sign-out minted a new installation id")
     }
 
     @Test

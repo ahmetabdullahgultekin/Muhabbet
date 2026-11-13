@@ -1,7 +1,9 @@
 package com.muhabbet.media.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.User
+import com.muhabbet.auth.domain.port.out.DeviceRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
+import com.muhabbet.shared.TestSessions
 import com.muhabbet.media.domain.model.MediaFile
 import com.muhabbet.media.domain.port.out.MediaFileRepository
 import com.muhabbet.media.domain.port.out.MediaStoragePort
@@ -83,6 +85,9 @@ class MediaIdorIntegrationTest {
     private lateinit var userRepository: UserRepository
 
     @Autowired
+    private lateinit var deviceRepository: DeviceRepository
+
+    @Autowired
     private lateinit var mediaFileRepository: MediaFileRepository
 
     @Autowired
@@ -134,7 +139,7 @@ class MediaIdorIntegrationTest {
     }
 
     private fun bearer(userId: UUID): String =
-        "Bearer " + jwtProvider.generateAccessToken(userId, UUID.randomUUID())
+        TestSessions.bearer(jwtProvider, deviceRepository, userId)
 
     @Test
     fun `presigned url is issued to the uploader and to nobody else`() {

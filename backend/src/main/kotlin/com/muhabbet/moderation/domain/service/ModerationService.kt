@@ -50,8 +50,9 @@ open class ModerationService(
         if (blockerId == blockedId) {
             throw BusinessException(ErrorCode.BLOCK_SELF)
         }
-        if (!blockRepository.exists(blockerId, blockedId)) {
-            blockRepository.save(UserBlock(blockerId = blockerId, blockedId = blockedId))
+        // Idempotent by the unique constraint, not by a preceding exists(): a double tap used to
+        // pass the check twice and answer the second tap with a 500 (#899).
+        if (blockRepository.blockIfAbsent(blockerId, blockedId)) {
             log.info("User {} blocked {}", blockerId, blockedId)
         }
     }
