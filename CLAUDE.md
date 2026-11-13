@@ -60,10 +60,15 @@ this is the same trap as the test counts in the build section, and it has alread
 - `config/` — `AppConfig` (where domain services are wired so they stay Spring-free),
   `WebSocketConfig`, `RedisConfig`, `AsyncConfig`, `FirebaseConfig`, `JsonConfig`, and the
   `@ConfigurationProperties` holders (`MediaProperties`, `OtpProperties`, `SmsProperties`,
-  `InviteLinkProperties`, `MultiDeviceProperties`) plus `MessageServicePorts`.
+  `InviteLinkProperties`, `MultiDeviceProperties`, `LinkPreviewProperties`) plus `MessageServicePorts`.
   **`SecurityConfig` is NOT here** — it is in `security/`, which is where you should look for it.
 - `security/` — `SecurityConfig`, `JwtProvider`, `JwtAuthFilter`, `JwtProperties`,
-  `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`
+  `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`,
+  `SsrfSafeNetwork` (`SsrfSafeDns` + `SsrfSafeSocketFactory`). **Any new server-side outbound
+  fetch of a user-supplied URL goes through an OkHttp client built with both, `Proxy.NO_PROXY` and
+  redirects off** — `SafeHttpLinkPreviewFetcher` is the model (#916). Never check a hostname and
+  then hand the *name* to an HTTP client: it resolves again, and a rebinding DNS server answers the
+  second lookup with an internal address.
 - `exception/` — two files. `GlobalExceptionHandler.kt`, and `Exceptions.kt` holding both
   `BusinessException` and the `ErrorCode` enum. **There is no `ErrorCode.kt`** — grep `Exceptions.kt`
   for the entry you want rather than looking for a file named after the enum.

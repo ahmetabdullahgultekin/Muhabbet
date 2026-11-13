@@ -69,6 +69,10 @@ dependencies {
     // HTML parsing for link previews
     implementation("org.jsoup:jsoup:1.23.1")
 
+    // Link-preview HTTP client (#916). Declared rather than borrowed from MinIO's transitive copy,
+    // because the SSRF defence depends on its Dns and SocketFactory hooks; same version MinIO uses.
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-admin:9.10.0")
 

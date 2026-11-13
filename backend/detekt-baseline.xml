@@ -57,7 +57,6 @@
     <ID>SerialVersionUIDInSerializableClass:PinnedMessageJpaEntity.kt$PinnedMessageId : Serializable</ID>
     <ID>ThrowsCount:MessageService.kt$MessageService$private fun persistSend(command: SendMessageCommand): SendOutcome</ID>
     <ID>ThrowsCount:ModerationController.kt$ModerationController$@PostMapping("/reports") fun createReport( @RequestBody request: CreateReportRequest ): ResponseEntity&lt;*&gt;</ID>
-    <ID>ThrowsCount:SsrfGuard.kt$SsrfGuard$fun assertSafe(rawUrl: String): URI</ID>
     <ID>ThrowsCount:UserController.kt$UserController$@PatchMapping("/me") fun updateMe(@RequestBody request: UpdateProfileRequest): ResponseEntity&lt;ApiResponse&lt;UserProfile&gt;&gt;</ID>
     <ID>TooGenericExceptionThrown:NetgsmOtpSender.kt$NetgsmOtpSender$throw RuntimeException("Netgsm SMS failed: $response")</ID>
     <ID>TooManyFunctions:AppConfig.kt$AppConfig</ID>

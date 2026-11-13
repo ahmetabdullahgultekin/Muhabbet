@@ -36,6 +36,9 @@ import com.muhabbet.messaging.domain.port.out.EncryptionKeyRepository
 import com.muhabbet.messaging.domain.port.out.GroupEventRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
+import com.muhabbet.messaging.domain.port.out.LinkPreviewCachePort
+import com.muhabbet.messaging.domain.port.out.LinkPreviewFetchPort
+import com.muhabbet.messaging.domain.port.out.LinkPreviewQuotaPort
 import com.muhabbet.messaging.domain.port.out.MediaObjectPort
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -66,6 +69,7 @@ import com.muhabbet.messaging.domain.service.DisappearingMessageService
 import com.muhabbet.messaging.domain.service.EncryptionService
 import com.muhabbet.messaging.domain.service.GroupEventService
 import com.muhabbet.messaging.domain.service.GroupService
+import com.muhabbet.messaging.domain.service.LinkPreviewService
 import com.muhabbet.messaging.domain.service.InviteLinkService
 import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
@@ -89,7 +93,8 @@ import org.springframework.security.crypto.password.PasswordEncoder
     MediaProperties::class,
     MultiDeviceProperties::class,
     InviteLinkProperties::class,
-    TwoStepProperties::class
+    TwoStepProperties::class,
+    LinkPreviewProperties::class
 )
 class AppConfig {
 
@@ -540,5 +545,19 @@ class AppConfig {
         notificationTextPort: NotificationTextPort
     ): PushNotificationComposer = PushNotificationComposer(
         texts = notificationTextPort
+    )
+
+    @Bean
+    fun linkPreviewService(
+        linkPreviewFetchPort: LinkPreviewFetchPort,
+        linkPreviewCachePort: LinkPreviewCachePort,
+        linkPreviewQuotaPort: LinkPreviewQuotaPort,
+        linkPreviewProperties: LinkPreviewProperties
+    ): LinkPreviewService = LinkPreviewService(
+        fetcher = linkPreviewFetchPort,
+        cache = linkPreviewCachePort,
+        quota = linkPreviewQuotaPort,
+        successTtl = linkPreviewProperties.cacheTtl,
+        failureTtl = linkPreviewProperties.failureCacheTtl
     )
 }

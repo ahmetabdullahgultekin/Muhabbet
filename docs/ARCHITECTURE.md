@@ -135,7 +135,7 @@ The rules are enforced by ArchUnit tests in the backend suite, not by good inten
 | Package | Contents |
 |---|---|
 | `config/` | `AppConfig` (domain wiring), `RedisConfig` (incl. the pub/sub subscriber), `WebSocketConfig`, `AsyncConfig`, `FirebaseConfig`, `JsonConfig`, and the `@ConfigurationProperties` holders |
-| `security/` | `SecurityConfig`, `JwtProvider`, `JwtAuthFilter`, `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard` |
+| `security/` | `SecurityConfig`, `JwtProvider`, `JwtAuthFilter`, `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`, `SsrfSafeNetwork` (resolve-once DNS + guarded sockets for outbound fetches) |
 | `exception/` | `ErrorCode` — a single enum with **92** entries, each carrying an HTTP status and a default message — and `BusinessException`, `GlobalExceptionHandler` |
 | `web/` | `ApiResponseBuilder` — the only place the response envelope is constructed |
 

@@ -193,6 +193,17 @@ muhabbet:
     # want GIFs.
     attachment-origins: ${MEDIA_ATTACHMENT_ORIGINS:https://media.giphy.com,https://media0.giphy.com,https://media1.giphy.com,https://media2.giphy.com,https://media3.giphy.com,https://media4.giphy.com,https://i.giphy.com,https://stickers.giphy.com}
 
+  # Bounds on the server-side link-preview fetch (#916). See LinkPreviewProperties for each one.
+  link-preview:
+    total-timeout: 4s
+    connect-timeout: 2s
+    max-body-bytes: 524288
+    max-redirects: 5
+    max-concurrent-fetches: 8
+    fetches-per-user-per-minute: 30
+    cache-ttl: 6h
+    failure-cache-ttl: 10m
+
   invite:
     # Base of the shareable group invite URL the server puts in InviteLinkResponse.inviteUrl.
     # Matches the app link the Android manifest claims (https://muhabbet.app/invite/...), so a
