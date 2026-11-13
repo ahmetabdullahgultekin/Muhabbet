@@ -220,7 +220,12 @@ fun PhoneInputScreen(
  */
 private fun shouldFallbackToBackendOtp(code: PhoneAuthErrorCode): Boolean = when (code) {
     PhoneAuthErrorCode.RATE_LIMITED,
-    PhoneAuthErrorCode.CONFIGURATION -> true
+    PhoneAuthErrorCode.CONFIGURATION,
+    // #860: Firebase went silent, or verified the number and then could not sign in. Either way
+    // the user's number is fine and the backend can still send them a code.
+    PhoneAuthErrorCode.TIMEOUT,
+    PhoneAuthErrorCode.SIGN_IN_FAILED,
+    PhoneAuthErrorCode.UNAVAILABLE -> true
     PhoneAuthErrorCode.INVALID_PHONE,
     PhoneAuthErrorCode.UNKNOWN -> false
 }

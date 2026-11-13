@@ -75,6 +75,9 @@ jobs:
             exit 1
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # The tag IS the version (#863): it is passed to Gradle as muhabbet.versionName, from which
+          # versionName, versionCode and the generated BuildInfo all derive. No source edit per release.
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Fail early if the signing secrets are absent
         env:
@@ -140,14 +143,28 @@ jobs:
 
       # signingConfigs.release in mobile/composeApp/build.gradle.kts activates only when
       # MUHABBET_KEYSTORE_FILE is present in the environment, so these four drive it directly.
+      # Fails in seconds, before any R8 work, if the tag cannot be a version: Gradle refuses anything
+      # but MAJOR.MINOR.PATCH with minor and patch below 100, because versionCode is computed from it.
+      - name: Resolve the version from the tag
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: ./gradlew :mobile:composeApp:verifyAppVersionScheme :mobile:composeApp:printAppVersion "-Pmuhabbet.versionName=$VERSION"
+
+      # SENTRY_DSN reaches the manifest through a placeholder (build.gradle.kts). Without it every
+      # signed release shipped an empty io.sentry.dsn and Sentry never started (#354), so a crash in
+      # production — #633 was one — left no trace anywhere. Optional: an unset secret is reported,
+      # not fatal, because a release without crash reporting is still a working release.
       - name: Build signed APK and AAB
         env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           MUHABBET_KEYSTORE_PASSWORD: ${{ secrets.MUHABBET_KEYSTORE_PASSWORD }}
           MUHABBET_KEY_ALIAS: ${{ secrets.MUHABBET_KEY_ALIAS }}
           MUHABBET_KEY_PASSWORD: ${{ secrets.MUHABBET_KEY_PASSWORD }}
         run: |
-          ./gradlew :mobile:composeApp:verifyBuildInfoVersion
-          ./gradlew :mobile:composeApp:assembleRelease :mobile:composeApp:bundleRelease
+          [ -n "$SENTRY_DSN" ] || echo "::warning::SENTRY_DSN is not set — this release will not report crashes."
+          ./gradlew :mobile:composeApp:assembleRelease :mobile:composeApp:bundleRelease \
+            :mobile:composeApp:verifyReleaseArtifacts "-Pmuhabbet.versionName=$VERSION"
 
       - name: Verify the signature is the real release key
         id: verify
@@ -178,6 +195,20 @@ jobs:
             echo "::error::APK is not v2-signed; Android 11+ will reject it."; exit 1; }
 
           VERSION="${TAG#v}"
+
+          # The artifact, not the source, is what has to match the tag (#863). Read the version the
+          # APK itself declares; a mismatch means the tag did not reach Gradle, and publishing would
+          # put a build reporting one version under a release named for another.
+          AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)
+          [ -z "$AAPT2" ] && { echo "::error::aapt2 not found under $ANDROID_HOME/build-tools"; exit 1; }
+          BADGING=$("$AAPT2" dump badging "$APK" | head -1)
+          echo "$BADGING"
+          APK_NAME=$(printf '%s' "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          if [ "$APK_NAME" != "$VERSION" ]; then
+            echo "::error::APK declares versionName '$APK_NAME' but the tag is $TAG. Refusing to publish."
+            exit 1
+          fi
+
           cp "$APK" "muhabbet-$VERSION.apk"
           AAB=$(find mobile/composeApp/build/outputs/bundle/release -name '*.aab' | head -1)
           [ -n "$AAB" ] && cp "$AAB" "muhabbet-$VERSION.aab"
@@ -321,6 +352,17 @@ jobs:
                    -H 'Content-Type: application/octet-stream' --data-binary "@$AAB" \
                  | python3 -c 'import json,sys; print(json.load(sys.stdin)["versionCode"])')
           echo "Uploaded $AAB as versionCode $CODE"
+
+          # The R8 mapping for this exact build, so Play Console's crash and ANR stack traces are
+          # readable (#354). Part of the same edit: it is committed, or discarded, with the bundle.
+          MAPPING=mobile/composeApp/build/outputs/mapping/release/mapping.txt
+          if [ -f "$MAPPING" ]; then
+            api POST "$UPLOAD/edits/$EDIT/apks/$CODE/deobfuscationFiles/proguard?uploadType=media" \
+              -H 'Content-Type: application/octet-stream' --data-binary "@$MAPPING" > /dev/null
+            echo "Uploaded the R8 mapping for versionCode $CODE"
+          else
+            echo "::warning::No R8 mapping at $MAPPING — Play crash reports for $VERSION will be obfuscated."
+          fi
 
           # Release notes come from the GitHub release body, trimmed to Play's 500-character limit.
           # Turkish is the default listing language, so tr-TR is what the note is filed under.

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Benchmark build type only (#867): lets Macrobenchmark and the baseline-profile generator in
+    :mobile:baselineprofile profile the non-debuggable app over adb. Kept out of the release
+    manifest on purpose — release does not need to be profileable from the shell.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <profileable android:shell="true" tools:targetApi="29" />
+    </application>
+</manifest>

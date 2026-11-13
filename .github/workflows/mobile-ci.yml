@@ -261,51 +261,94 @@ jobs:
             bash .github/scripts/junit-summary.sh "$d"
           done >> "$GITHUB_STEP_SUMMARY"
 
-      # Skipped on a pull request into `dev`. There is ONE self-hosted runner and it is the
-      # production host, so a full APK assembly plus lint on every dev PR would queue behind
-      # itself and delay deploys. The compile, guardrail and unit-test steps above are what
-      # actually catch breakage and they still run; the APK is built in full on `main` and by
-      # `Mobile Release` for a tag. github.base_ref is empty on a push, so pushes are unaffected.
+      # #863: the tag -> version derivation, dry-run on every pull request. Mobile Release passes the
+      # tag as muhabbet.versionName; this proves a tag resolves to that versionName and its computed
+      # versionCode, and that the formula stays monotonic, without anyone having to cut a tag.
+      - name: Dry-run the release version derivation
+        if: steps.changes.outputs.mobile == 'true'
+        run: |
+          set -euo pipefail
+          out=$(./gradlew -q :mobile:composeApp:verifyAppVersionScheme :mobile:composeApp:printAppVersion -Pmuhabbet.versionName=0.99.98)
+          echo "$out"
+          echo "$out" | grep -qx 'versionName=0.99.98 versionCode=9998' || {
+            echo "::error::Tag v0.99.98 did not resolve to versionName 0.99.98 / versionCode 9998"; exit 1; }
+
+      # The debug APK used to be skipped on a pull request into `dev`, the working branch, to spare
+      # the ONE self-hosted runner (it is also the production host). It now runs: a pull request that
+      # broke resource merging, manifest merging or androidMain compilation passed dev CI and broke
+      # main. Incremental on the warm Gradle cache, it costs a few minutes (#865).
       - name: Build Android debug APK
-        if: github.base_ref != 'dev' && steps.changes.outputs.mobile == 'true'
+        if: steps.changes.outputs.mobile == 'true'
         run: ./gradlew :mobile:composeApp:assembleDebug
 
-      - name: Print APK signing certificate SHA-1 (register this in Firebase Console)
-        if: github.base_ref != 'dev' && steps.changes.outputs.mobile == 'true'
+      # Prints the certificate of the APK just built and nothing else. This step used to run
+      # `find` across the production host's whole filesystem on every run and print the fingerprint
+      # of every debug keystore it found there (#865).
+      - name: Print APK signing certificate (register this in Firebase Console)
+        if: steps.changes.outputs.mobile == 'true'
+        continue-on-error: true
         run: |
           APK=$(find mobile/composeApp/build/outputs/apk/debug -name "*.apk" | head -1)
-          if [ -n "$APK" ]; then
-            echo "=== APK Signing Certificate ==="
-            echo "APK: $APK"
-            APKSIGNER=$(find $ANDROID_HOME/build-tools -name "apksigner" | sort -V | tail -1)
-            if [ -n "$APKSIGNER" ]; then
-              "$APKSIGNER" verify --print-certs "$APK" 2>&1 | grep -i "SHA-1\|SHA-256\|certificate DN"
-            fi
-            echo "=== Fallback: all debug keystores ==="
-            find / -name "debug.keystore" 2>/dev/null | while read ks; do
-              echo "Keystore: $ks"
-              keytool -list -v -keystore "$ks" -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep -E "SHA1:|SHA256:"
-            done
-            echo "================================"
-            echo "Register the SHA1 above in Firebase Console"
-          else
-            echo "ERROR: No debug APK found"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          if [ -n "$APK" ] && [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs "$APK" 2>&1 | grep -i "SHA-1\|SHA-256\|certificate DN"
           fi
-        continue-on-error: true
 
+      # Blocking (#865). It ran with continue-on-error and no baseline, so a NewApi violation — the
+      # class of bug that crashed voice transcription on Android 8-11 (#381) — was printed and
+      # ignored. Findings that predate the gate are frozen in mobile/composeApp/lint-baseline.xml;
+      # anything new fails here. NewApi and InlinedApi are errors (build.gradle.kts `lint {}`).
       - name: Run Android lint
-        if: github.base_ref != 'dev' && steps.changes.outputs.mobile == 'true'
+        if: steps.changes.outputs.mobile == 'true'
         run: ./gradlew :mobile:composeApp:lintDebug
-        continue-on-error: true
 
       - name: Upload lint results
-        if: always() && github.base_ref != 'dev' && steps.changes.outputs.mobile == 'true'
+        if: always() && steps.changes.outputs.mobile == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: android-lint-results
           path: mobile/composeApp/build/reports/lint-results-*.html
           retention-days: 3
+
+      # The minified build, on pull requests (#864). R8 ran only when a tag was cut, so a missing
+      # keep rule became a release that crashed on launch — #633's failure class. `benchmark` is the
+      # release build type signed with the debug key, so no keystore is needed here.
+      # verifyBenchmarkArtifacts fails on a class reached by name that R8 removed, and on the APK
+      # size budget; the measured size lands in the step summary.
+      #
+      # R8 is the most expensive step in this job and the runner is the production host, so on a
+      # pull request into `dev` it runs only when something that changes R8's input changed: build
+      # logic, keep rules or dependency versions. Into `main`, and on push, it always runs.
+      - name: Decide whether the minified build is needed
+        id: minified
+        if: steps.changes.outputs.mobile == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$BASE_REF" != "dev" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          r8=$(bash .github/scripts/paths-changed.sh \
+            mobile/composeApp/build.gradle.kts \
+            mobile/composeApp/proguard-rules.pro \
+            mobile/designsystem/build.gradle.kts \
+            shared/build.gradle.kts \
+            build.gradle.kts \
+            settings.gradle.kts \
+            gradle.properties \
+            gradle/ \
+            .github/workflows/mobile-ci.yml)
+          echo "run=$r8" >> "$GITHUB_OUTPUT"
+
+      - name: Build and verify the minified APK
+        if: steps.minified.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          ./gradlew :mobile:composeApp:assembleBenchmark :mobile:composeApp:verifyBenchmarkArtifacts | tee minified.log
+          { echo "#### Minified APK (#864)"; grep -E '^benchmark APK:' minified.log; } >> "$GITHUB_STEP_SUMMARY"
 
       # ~128 MB a run. Twenty-six of these from February and March were still stored in August and
       # accounted for 3.10 GB of a 3.13 GB account total, which is what exhausted the artifact quota

@@ -20,22 +20,50 @@ enum class PhoneAuthErrorCode {
     /** The phone number was rejected as invalid by Firebase. */
     INVALID_PHONE,
 
-    /** Anything else / could not be classified — caller may inspect [PhoneVerificationResult.Error.message]. */
+    /**
+     * The SDK never answered the verification request (#860). Treated like a configuration failure
+     * by the login screen: the backend OTP is offered instead of an endless spinner.
+     */
+    TIMEOUT,
+
+    /**
+     * A credential was obtained but signing in with it failed, or yielded no ID token (#860). Used
+     * to hang the login screen on the auto-verification path, or to hand the backend an empty token.
+     */
+    SIGN_IN_FAILED,
+
+    /** Phone auth is not available on this platform or build at all (iOS today). */
+    UNAVAILABLE,
+
+    /** Anything else / could not be classified. */
     UNKNOWN
 }
 
+/**
+ * Outcome of starting phone verification. An error carries only a [PhoneAuthErrorCode], never a
+ * message: the SDK's text is English or device-localized and must not reach the UI (#860), which
+ * maps the code to its own string resource.
+ */
 sealed class PhoneVerificationResult {
     data class CodeSent(val verificationId: String) : PhoneVerificationResult()
     data class AutoVerified(val idToken: String) : PhoneVerificationResult()
-    data class Error(
-        val message: String,
-        val code: PhoneAuthErrorCode = PhoneAuthErrorCode.UNKNOWN
-    ) : PhoneVerificationResult()
+    data class Error(val code: PhoneAuthErrorCode) : PhoneVerificationResult()
 }
 
+/** Thrown by [FirebasePhoneAuth.verifyCode]; carries a code, not a user-visible message. */
+class PhoneAuthException(val code: PhoneAuthErrorCode) : Exception(code.name)
+
 interface FirebasePhoneAuth {
+    /** True only when the SDK can actually run here — not a constant (#860). */
     fun isAvailable(): Boolean
+
+    /**
+     * Starts verification. Calling it again for the same number after a `CodeSent` is a resend: the
+     * SDK's resend token from the first call is reused rather than starting from scratch (#860).
+     */
     suspend fun startVerification(phoneNumber: String): PhoneVerificationResult
+
+    /** Returns a non-blank ID token or throws [PhoneAuthException]. */
     suspend fun verifyCode(verificationId: String, code: String): String
 }
 

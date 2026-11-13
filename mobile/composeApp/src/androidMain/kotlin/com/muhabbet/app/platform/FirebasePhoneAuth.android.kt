@@ -4,108 +4,106 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseException
+import com.google.firebase.auth.AuthCredential
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.auth.auth
-import com.google.firebase.Firebase
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
+/**
+ * Firebase phone auth for Android (#860).
+ *
+ * The outcome logic lives in the platform-neutral [PhoneVerificationFlow], which is unit-tested
+ * with a fake driver; this class only adapts Firebase to [PhoneVerificationDriver]. Every Task is
+ * bridged with `kotlinx-coroutines-play-services`' `await()`, so a failed Task throws instead of —
+ * as the hand-written listeners did — silently never resuming.
+ */
 class AndroidFirebasePhoneAuth(
     private val activity: ComponentActivity
 ) : FirebasePhoneAuth {
 
-    private val firebaseAuth = Firebase.auth
+    private val flow = PhoneVerificationFlow(FirebaseDriver(activity))
 
-    override fun isAvailable(): Boolean = true
+    /**
+     * Was a hardcoded `true`, even in a build carrying the CI dummy `google-services.json`. Now true
+     * only when a FirebaseApp was initialised from real options and Play services is usable; when it
+     * is false the login screen goes straight to the backend OTP instead of failing into it.
+     */
+    override fun isAvailable(): Boolean {
+        val app = FirebaseApp.getApps(activity).firstOrNull() ?: return false
+        if (app.options.apiKey.isBlank() || app.options.apiKey == CI_DUMMY_API_KEY) return false
+        return GoogleApiAvailability.getInstance()
+            .isGooglePlayServicesAvailable(activity) == ConnectionResult.SUCCESS
+    }
 
     override suspend fun startVerification(phoneNumber: String): PhoneVerificationResult =
-        suspendCancellableCoroutine { cont ->
-            val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                override fun onCodeSent(
-                    verificationId: String,
-                    token: PhoneAuthProvider.ForceResendingToken
-                ) {
-                    if (cont.isActive) {
-                        cont.resume(PhoneVerificationResult.CodeSent(verificationId))
-                    }
-                }
-
-                override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                    firebaseAuth.signInWithCredential(credential)
-                        .addOnCompleteListener { task ->
-                            if (task.isSuccessful && cont.isActive) {
-                                task.result?.user?.getIdToken(true)
-                                    ?.addOnSuccessListener { result ->
-                                        if (cont.isActive) {
-                                            cont.resume(
-                                                PhoneVerificationResult.AutoVerified(
-                                                    result.token ?: ""
-                                                )
-                                            )
-                                        }
-                                    }
-                                    ?.addOnFailureListener {
-                                        if (cont.isActive) {
-                                            cont.resume(PhoneVerificationResult.Error(it.message ?: "Token error"))
-                                        }
-                                    }
-                            }
-                        }
-                }
-
-                override fun onVerificationFailed(e: FirebaseException) {
-                    if (cont.isActive) {
-                        cont.resume(
-                            PhoneVerificationResult.Error(
-                                message = e.message ?: "Verification failed",
-                                code = classifyFirebaseError(e)
-                            )
-                        )
-                    }
-                }
-            }
-
-            val options = PhoneAuthOptions.newBuilder(firebaseAuth)
-                .setPhoneNumber(phoneNumber)
-                .setTimeout(60L, TimeUnit.SECONDS)
-                .setActivity(activity)
-                .setCallbacks(callbacks)
-                .build()
-
-            PhoneAuthProvider.verifyPhoneNumber(options)
-        }
+        flow.start(phoneNumber)
 
     override suspend fun verifyCode(verificationId: String, code: String): String =
-        suspendCancellableCoroutine { cont ->
-            val credential = PhoneAuthProvider.getCredential(verificationId, code)
-            firebaseAuth.signInWithCredential(credential)
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        task.result?.user?.getIdToken(true)
-                            ?.addOnSuccessListener { result ->
-                                val token = result.token
-                                if (token != null) {
-                                    cont.resume(token)
-                                } else {
-                                    cont.resumeWithException(Exception("Failed to get ID token"))
-                                }
-                            }
-                            ?.addOnFailureListener { e ->
-                                cont.resumeWithException(e)
-                            }
-                    } else {
-                        cont.resumeWithException(
-                            task.exception ?: Exception("Verification failed")
-                        )
-                    }
-                }
+        flow.verifyCode(verificationId, code)
+
+    private companion object {
+        /** The api_key of the placeholder google-services.json that CI writes when no secret is set. */
+        const val CI_DUMMY_API_KEY = "CI_DUMMY_KEY"
+    }
+}
+
+/** The thin Firebase half of [PhoneVerificationFlow]. No outcome decisions are made here. */
+private class FirebaseDriver(
+    private val activity: ComponentActivity,
+    private val auth: FirebaseAuth = Firebase.auth,
+) : PhoneVerificationDriver<PhoneAuthCredential, PhoneAuthProvider.ForceResendingToken> {
+
+    override fun requestCode(
+        phoneNumber: String,
+        resendToken: PhoneAuthProvider.ForceResendingToken?,
+        onEvent: (PhoneVerificationEvent<PhoneAuthCredential, PhoneAuthProvider.ForceResendingToken>) -> Unit
+    ) {
+        val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+            override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) =
+                onEvent(PhoneVerificationEvent.CodeSent(id, token))
+
+            override fun onVerificationCompleted(credential: PhoneAuthCredential) =
+                onEvent(PhoneVerificationEvent.Completed(credential))
+
+            override fun onVerificationFailed(e: FirebaseException) =
+                onEvent(PhoneVerificationEvent.Failed(classifyFirebaseError(e)))
         }
+        val options = PhoneAuthOptions.newBuilder(auth)
+            .setPhoneNumber(phoneNumber)
+            .setTimeout(AUTO_RETRIEVAL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .setActivity(activity)
+            .setCallbacks(callbacks)
+            .apply { resendToken?.let { setForceResendingToken(it) } }
+            .build()
+        PhoneAuthProvider.verifyPhoneNumber(options)
+    }
+
+    override suspend fun signIn(credential: PhoneAuthCredential): String? = idTokenFor(credential)
+
+    override suspend fun signInWithCode(verificationId: String, code: String): String? =
+        idTokenFor(PhoneAuthProvider.getCredential(verificationId, code))
+
+    private suspend fun idTokenFor(credential: AuthCredential): String? = try {
+        val user = auth.signInWithCredential(credential).await().user
+        user?.getIdToken(true)?.await()?.token
+    } catch (e: FirebaseException) {
+        // Keep Firebase's own classification (e.g. a rejected code) instead of a generic failure.
+        throw PhoneAuthException(classifyFirebaseError(e))
+    }
+
+    private companion object {
+        const val AUTO_RETRIEVAL_TIMEOUT_SECONDS = 60L
+    }
 }
 
 /**

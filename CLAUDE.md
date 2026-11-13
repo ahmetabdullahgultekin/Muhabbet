@@ -312,8 +312,19 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
   which is now the `ConfirmDialog` composable inside
   `mobile/designsystem/.../components/MuhabbetDialog.kt` and **not a file of its own**.
 - `mobile/.../util/TextUtils.kt` — firstGrapheme() + parseFormattedText() utilities
-- `mobile/.../BuildInfo.kt` — Centralized version constant, pinned to `versionName`/`versionCode` by
-  the `verifyBuildInfoVersion` Gradle task, so the three cannot drift apart
+- **The app version has ONE source: `muhabbet.versionName` in the root `gradle.properties`** (#863).
+  `versionCode` is computed from it (`major*10000 + minor*100 + patch`), and `BuildInfo` is
+  **generated** into `build/` by `:mobile:composeApp:generateBuildInfo` — there is no `BuildInfo.kt`
+  in `src/` to edit. `Mobile Release` passes the tag as `-Pmuhabbet.versionName=…` and checks the
+  built APK's `versionName` against the tag, so a release needs no source edit. Only
+  `isDebugBuild()` (`DebugBuild.kt`, expect/actual) is hand-written.
+- **Release logging** (#354): `util/Log.kt` writes to stdout only in a debug build. A release build
+  writes nothing to logcat; WARN/ERROR become Sentry breadcrumbs after `LogRedactor` strips ids,
+  phone numbers, tokens and query strings. Keep using `Log.d/w/e` — do not add a `println`.
+- **Minified builds are verified on pull requests** (#864): the `benchmark` build type is release +
+  R8 signed with the debug key; `verifyBenchmarkArtifacts` fails on a class reached by name that R8
+  removed (`classesReachedByName` in `composeApp/build.gradle.kts`) and on the APK size budget.
+  `proguard-rules.pro` holds no library-wide keeps — add a targeted rule plus an entry to that list.
 - `docs/qa/mobile-ui-audit.md` — 87-issue mobile UI audit report
 - `mobile/.../data/repository/MediaUploadHelper.kt` — Centralized media upload with guaranteed compression
 - `mobile/composeApp/src/commonMain/sqldelight/com/muhabbet/app/db/MuhabbetDatabase.sq` — SQLDelight

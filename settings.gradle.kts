@@ -30,4 +30,7 @@ if (System.getenv("SKIP_MOBILE") != "true") {
     // security CI set SKIP_MOBILE=true and must stay configurable without one.
     include(":mobile:designsystem")
     include(":mobile:composeApp")
+    // Baseline-profile generator and startup benchmark (#867). Instruments composeApp's `benchmark`
+    // build type; it runs only on a device, but is configured here so it compiles with the app.
+    include(":mobile:baselineprofile")
 }

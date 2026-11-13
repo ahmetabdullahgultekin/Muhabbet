@@ -85,10 +85,26 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Sentry crash reporting — set DSN via environment or replace placeholder -->
+        <!--
+            Sentry crash reporting (#354). DSN, release and environment are manifest placeholders
+            filled by mobile/composeApp/build.gradle.kts from the build's single version source and
+            the SENTRY_DSN environment variable, so an empty DSN (every debug build) leaves Sentry
+            off. send-default-pii is pinned false: no IP address, no request bodies, no device user
+            name. The only identity a report carries is the user id SessionWiring sets deliberately,
+            and the app's own breadcrumbs are redacted at the source by util/Log.kt.
+        -->
         <meta-data
             android:name="io.sentry.dsn"
             android:value="${SENTRY_DSN}" />
+        <meta-data
+            android:name="io.sentry.release"
+            android:value="${SENTRY_RELEASE}" />
+        <meta-data
+            android:name="io.sentry.environment"
+            android:value="${SENTRY_ENVIRONMENT}" />
+        <meta-data
+            android:name="io.sentry.send-default-pii"
+            android:value="false" />
         <meta-data
             android:name="io.sentry.traces.sample-rate"
             android:value="0.2" />

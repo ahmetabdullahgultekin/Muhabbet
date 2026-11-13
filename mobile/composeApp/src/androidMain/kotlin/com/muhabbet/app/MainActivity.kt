@@ -12,6 +12,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import com.arkivanov.decompose.defaultComponentContext
 import com.muhabbet.app.di.androidPlatformModule
@@ -31,6 +32,12 @@ import java.util.Locale
 class MainActivity : FragmentActivity() {
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super.onCreate, as the library requires (#867): it applies the launch theme's
+        // splash on every API level (26-30 had none) and swaps in postSplashScreenTheme at the
+        // first frame, so the splash theme no longer stays the window theme for the app's life.
+        // No keep-on-screen condition yet: holding the splash until the session is resolved needs
+        // the session state machine (RootComponent) to expose that signal.
+        installSplashScreen()
         // Fully transparent bars, with the framework's own contrast scrim disabled, so the app
         // paints edge to edge and the theme decides what shows through. Both styles are declared
         // `dark` only to stop the framework auto-flipping icon colours from the system's night

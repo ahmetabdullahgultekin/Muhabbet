@@ -24,10 +24,12 @@ private class IosFirebasePhoneAuth : FirebasePhoneAuth {
     }
 
     override suspend fun startVerification(phoneNumber: String): PhoneVerificationResult {
-        return PhoneVerificationResult.Error("Firebase iOS SDK not configured")
+        return PhoneVerificationResult.Error(PhoneAuthErrorCode.UNAVAILABLE)
     }
 
     override suspend fun verifyCode(verificationId: String, code: String): String {
-        throw UnsupportedOperationException("Firebase iOS SDK not configured")
+        // Typed, not UnsupportedOperationException: unreachable while isAvailable() is false, and a
+        // caller that reaches it anyway gets the same code as startVerification.
+        throw PhoneAuthException(PhoneAuthErrorCode.UNAVAILABLE)
     }
 }

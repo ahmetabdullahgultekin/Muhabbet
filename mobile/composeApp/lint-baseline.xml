@@ -1,0 +1,605 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.3.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.3.1)" variant="all" version="9.3.1">
+
+    <issue
+        id="InlinedApi"
+        message="Field requires API level 29 (current min is 26): `android.media.MediaRecorder.OutputFormat#OGG`"
+        errorLine1="            setOutputFormat(MediaRecorder.OutputFormat.OGG)"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/platform/AudioRecorder.android.kt"
+            line="42"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="InlinedApi"
+        message="Field requires API level 29 (current min is 26): `android.media.MediaRecorder.AudioEncoder#OPUS`"
+        errorLine1="            setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/platform/AudioRecorder.android.kt"
+            line="43"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="OldTargetApi"
+        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details."
+        errorLine1="        targetSdk = 36"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="206"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UnusedAttribute"
+        message="Attribute `enableOnBackInvokedCallback` is only used in API level 33 and higher (current min is 26)"
+        errorLine1="        android:enableOnBackInvokedCallback=&quot;true&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/AndroidManifest.xml"
+            line="15"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="AppBundleLocaleChanges"
+        message="Found dynamic locale changes, but did not find corresponding Play Core library calls for downloading languages and splitting by language is not disabled in the `bundle` configuration"
+        errorLine1="        config.setLocale(locale)"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/MainActivity.kt"
+            line="169"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="AppLinkUrlError"
+        message="`http(s)` scheme and `host` attribute are missing, but are required for Android App Links"
+        errorLine1="            &lt;intent-filter android:autoVerify=&quot;true&quot;>"
+        errorLine2="             ~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/AndroidManifest.xml"
+            line="41"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="IntentFilterUniqueDataAttributes"
+        message="Consider splitting data tag into multiple tags with individual attributes to avoid confusion"
+        errorLine1="                &lt;data android:scheme=&quot;https&quot;"
+        errorLine2="                ^">
+        <location
+            file="src/androidMain/AndroidManifest.xml"
+            line="53"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="IntentFilterUniqueDataAttributes"
+        message="Consider splitting data tag into multiple tags with individual attributes to avoid confusion"
+        errorLine1="                &lt;data android:scheme=&quot;https&quot;"
+        errorLine2="                ^">
+        <location
+            file="src/androidMain/AndroidManifest.xml"
+            line="56"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.core:core-splashscreen than 1.0.1 is available: 1.2.0"
+        errorLine1="            implementation(&quot;androidx.core:core-splashscreen:1.0.1&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="140"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.work:work-runtime-ktx than 2.11.2 is available: 2.12.0"
+        errorLine1="            implementation(&quot;androidx.work:work-runtime-ktx:2.11.2&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="157"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of `compileSdk` than 36 is available: 37"
+        errorLine1="    compileSdk = 36"
+        errorLine2="    ~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="201"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.arkivanov.decompose:decompose than 3.5.0 is available: 3.6.2"
+        errorLine1="            implementation(&quot;com.arkivanov.decompose:decompose:$decompose&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="102"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.arkivanov.decompose:extensions-compose than 3.5.0 is available: 3.6.2"
+        errorLine1="            implementation(&quot;com.arkivanov.decompose:extensions-compose:$decompose&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="103"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-client-core than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-client-core:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="110"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-client-content-negotiation than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-client-content-negotiation:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="111"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-serialization-kotlinx-json than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-serialization-kotlinx-json:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="112"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-client-auth than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-client-auth:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="114"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-client-websockets than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-client-websockets:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="115"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.jetbrains.kotlinx:kotlinx-serialization-json than 1.11.0 is available: 1.13.0"
+        errorLine1="            implementation(&quot;org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="118"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.coil-kt.coil3:coil-compose than 3.5.0 is available: 3.6.3"
+        errorLine1="            implementation(&quot;io.coil-kt.coil3:coil-compose:$coil&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="123"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.coil-kt.coil3:coil-network-ktor3 than 3.5.0 is available: 3.6.3"
+        errorLine1="            implementation(&quot;io.coil-kt.coil3:coil-network-ktor3:$coil&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="124"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of app.cash.sqldelight:android-driver than 2.3.2 is available: 2.4.1"
+        errorLine1="            implementation(&quot;app.cash.sqldelight:android-driver:2.3.2&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="149"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.sentry:sentry-android than 8.53.0 is available: 8.64.0"
+        errorLine1="            implementation(&quot;io.sentry:sentry-android:8.53.0&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="168"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-client-mock than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-client-mock:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="188"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of io.ktor:ktor-client-darwin than 3.5.2 is available: 3.6.1"
+        errorLine1="            implementation(&quot;io.ktor:ktor-client-darwin:$ktor&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="193"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of app.cash.sqldelight:native-driver than 2.3.2 is available: 2.4.1"
+        errorLine1="            implementation(&quot;app.cash.sqldelight:native-driver:2.3.2&quot;)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="194"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;notification_app_name&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;notification_app_name&quot;>Muhabbet&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/res/values/strings.xml"
+            line="15"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="DataExtractionRules"
+        message="The attribute `android:allowBackup` is deprecated from Android 12 and higher and may be removed in future versions. Consider adding the attribute `android:dataExtractionRules` specifying an `@xml` resource which configures cloud backups and device transfers on Android 12 and higher."
+        errorLine1="        android:allowBackup=&quot;false&quot;"
+        errorLine2="                             ~~~~~">
+        <location
+            file="src/androidMain/AndroidManifest.xml"
+            line="14"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 26"
+        errorLine1="        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/platform/MuhabbetFirebaseMessagingService.kt"
+            line="178"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.">
+        <location
+            file="src/androidMain/res/mipmap-anydpi-v26"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.scale` instead?"
+        errorLine1="        Bitmap.createScaledBitmap(original, newWidth, newHeight, true).also {"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/platform/ImageCompressor.android.kt"
+            line="25"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="67"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().clear().apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="76"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;app_language&quot;, lang).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="82"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;pending_language_restart&quot;, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="90"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        if (pending) plainPrefs.edit().remove(&quot;pending_language_restart&quot;).apply()"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="95"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;haptics_enabled&quot;, enabled).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="102"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;enter_to_send&quot;, enabled).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="110"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;app_theme&quot;, theme).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="116"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;contact_sync_consent_at&quot;, timestamp).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="122"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().remove(&quot;contact_sync_consent_at&quot;).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="126"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;media_quality&quot;, quality).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="132"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;last_sync_timestamp&quot;, timestamp).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="138"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putBoolean(&quot;app_lock_enabled&quot;, enabled).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="149"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putString(&quot;app_lock_timeout&quot;, timeout).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="155"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;wallpaper_type&quot;, type).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="161"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        else plainPrefs.edit().putString(&quot;wallpaper_solid_color&quot;, color).apply()"
+        errorLine2="             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="168"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        else plainPrefs.edit().putString(&quot;wallpaper_gradient_id&quot;, id).apply()"
+        errorLine2="             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="175"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        else plainPrefs.edit().putString(&quot;wallpaper_custom_path&quot;, path).apply()"
+        errorLine2="             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="182"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;wallpaper_dark_mode&quot;, enabled).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="188"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;test_build_notice_ack_version&quot;, version).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="197"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;notification_permission_asked&quot;, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="208"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;contacts_permission_asked&quot;, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="218"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putBoolean(&quot;welcome_seen&quot;, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="224"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        plainPrefs.edit().putString(&quot;last_seen_version&quot;, version).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/androidMain/kotlin/com/muhabbet/app/di/PlatformModule.android.kt"
+            line="232"
+            column="9"/>
+    </issue>
+
+</issues>
