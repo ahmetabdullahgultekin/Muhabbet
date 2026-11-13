@@ -66,7 +66,10 @@ class ConversationPersistenceAdapter(
     }
 
     override fun findAllContactUserIds(userId: UUID): Set<UUID> =
-        memberRepo.findAllContactUserIds(userId)
+        memberRepo.findPeersEngagedBy(userId, RELATIONSHIP_TYPES)
+
+    override fun findUsersWhoEngagedWith(userId: UUID): Set<UUID> =
+        memberRepo.findUsersWhoEngagedWith(userId, RELATIONSHIP_TYPES)
 
     override fun sharesConversation(userId: UUID, otherUserId: UUID): Boolean =
         memberRepo.sharesConversationOfType(userId, otherUserId, RELATIONSHIP_TYPES)

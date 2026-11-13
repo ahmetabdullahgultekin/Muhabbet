@@ -65,7 +65,8 @@ class UserProfileBlockVisibilityTest {
             presencePort = presencePort,
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            blockDirectory = blockDirectory
+            blockDirectory = blockDirectory,
+            mediaOriginGuard = mockk(relaxed = true)
         )
 
         every { userRepository.findById(targetId) } returns target

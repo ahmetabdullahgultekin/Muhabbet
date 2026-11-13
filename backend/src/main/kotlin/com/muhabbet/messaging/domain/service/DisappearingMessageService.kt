@@ -1,5 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.messaging.domain.model.ConversationType
+import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ExpireDisappearingMessagesUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageDisappearingMessageUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
@@ -33,12 +35,29 @@ open class DisappearingMessageService(
          * hour; anything left over is picked up by the next run, oldest first.
          */
         internal const val EXPIRY_BATCH_LIMIT = 200
+
+        /**
+         * The durations a timer may be set to: what the app offers (30 s to one week) plus the
+         * 90-day option. Anything else is refused — a timer of a second or less is not a privacy
+         * setting but a way to delete every later message in the conversation.
+         */
+        val ALLOWED_TIMER_SECONDS: Set<Int> = setOf(30, 300, 3600, 86400, 604800, 7776000)
     }
 
     @Transactional
     override fun setDisappearTimer(conversationId: UUID, userId: UUID, seconds: Int?) {
+        if (seconds != null && seconds !in ALLOWED_TIMER_SECONDS) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
         val conversation = conversationRepository.findById(conversationId)
             ?: throw BusinessException(ErrorCode.CONV_NOT_FOUND)
+        val member = conversationRepository.findMember(conversationId, userId)
+            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        // The timer governs everyone's later messages. In a 1:1 chat either side may set it; in a
+        // group or channel it is an administrative decision, like the group's name.
+        if (conversation.type != ConversationType.DIRECT && member.role == MemberRole.MEMBER) {
+            throw BusinessException(ErrorCode.GROUP_PERMISSION_DENIED)
+        }
 
         val updated = conversation.copy(
             disappearAfterSeconds = seconds,

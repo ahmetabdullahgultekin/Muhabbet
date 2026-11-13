@@ -3,8 +3,13 @@ package com.muhabbet.messaging.domain.service
 import com.muhabbet.messaging.domain.model.CallSession
 import com.muhabbet.messaging.domain.model.CallStatus
 import com.muhabbet.messaging.domain.model.CallType
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -16,9 +21,21 @@ import java.util.concurrent.ConcurrentHashMap
  * Persists call history when calls end.
  */
 open class CallSignalingService(
-    private val callHistoryRepository: CallHistoryRepository
+    private val callHistoryRepository: CallHistoryRepository,
+    private val blockPolicy: BlockPolicyPort,
+    private val userDirectory: UserDirectoryPort,
+    private val clock: Clock
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    companion object {
+        /**
+         * How long a call may ring unanswered before it no longer counts as keeping either party
+         * busy. Checked lazily when someone next tries to ring them, so an abandoned ring cannot
+         * leave a user unreachable until the server restarts.
+         */
+        const val RING_TIMEOUT_SECONDS = 60L
+    }
 
     // callId -> CallSession
     private val activeCalls = ConcurrentHashMap<String, CallSession>()
@@ -31,6 +48,14 @@ open class CallSignalingService(
      * Throws if either user is already in an active call.
      */
     fun initiateCall(callId: String, callerId: UUID, calleeId: UUID, callType: CallType): CallSession {
+        // Calls follow the same rules as messages: a block in either direction stops them, and the
+        // callee has to be a real account. One refusal for all of them, so the answer does not say
+        // which. A call id already in use is refused rather than overwritten, or a second caller
+        // could take over someone else's call.
+        requireCallable(callId, callerId, calleeId)
+        expireStaleRing(callerId)
+        expireStaleRing(calleeId)
+
         // Check if caller is already in a call
         if (userActiveCalls.containsKey(callerId)) {
             throw CallBusyException(callerId)
@@ -45,10 +70,11 @@ open class CallSignalingService(
             callerId = callerId,
             calleeId = calleeId,
             callType = callType,
-            status = CallStatus.INITIATED
+            status = CallStatus.INITIATED,
+            startedAt = clock.instant()
         )
 
-        activeCalls[callId] = session
+        claimCallId(session)
         userActiveCalls[callerId] = callId
         userActiveCalls[calleeId] = callId
 
@@ -109,6 +135,43 @@ open class CallSignalingService(
     }
 
     /**
+     * Stores [session] under its id only if no call holds that id yet. Two initiations with the
+     * same id can both pass [requireCallable]; this is the atomic step that lets only one own it.
+     */
+    private fun claimCallId(session: CallSession) {
+        if (activeCalls.putIfAbsent(session.callId, session) != null) {
+            throw BusinessException(ErrorCode.CALL_INVALID_TARGET)
+        }
+    }
+
+    private fun requireCallable(callId: String, callerId: UUID, calleeId: UUID) {
+        val refused = callerId == calleeId ||
+            activeCalls.containsKey(callId) ||
+            blockPolicy.hasBlocked(calleeId, callerId) ||
+            blockPolicy.hasBlocked(callerId, calleeId) ||
+            !userDirectory.findDisplayInfo(listOf(calleeId)).containsKey(calleeId)
+        if (refused) {
+            throw BusinessException(ErrorCode.CALL_INVALID_TARGET)
+        }
+    }
+
+    /** Whether [userId] is one of the people in call [callId]; nobody else may answer or end it. */
+    fun isParticipant(callId: String, userId: UUID): Boolean {
+        val session = activeCalls[callId] ?: return false
+        return userId == session.callerId || userId == session.calleeId || userId in session.participantIds
+    }
+
+    /** Ends, as missed, a 1:1 call of [userId]'s that has rung unanswered past [RING_TIMEOUT_SECONDS]. */
+    private fun expireStaleRing(userId: UUID) {
+        val callId = userActiveCalls[userId] ?: return
+        val session = activeCalls[callId] ?: return
+        val ringingFor = Duration.between(session.startedAt, clock.instant()).seconds
+        if (!session.isGroupCall && session.status == CallStatus.INITIATED && ringingFor > RING_TIMEOUT_SECONDS) {
+            endCall(callId, CallStatus.MISSED)
+        }
+    }
+
+    /**
      * Initiates a group call. All members of the conversation can join.
      */
     fun initiateGroupCall(callId: String, callerId: UUID, conversationId: UUID, callType: CallType, participantIds: Set<UUID>): CallSession {
@@ -128,7 +191,7 @@ open class CallSignalingService(
             participantIds = participantIds
         )
 
-        activeCalls[callId] = session
+        claimCallId(session)
         userActiveCalls[callerId] = callId
 
         log.info("Group call initiated: callId={}, caller={}, conv={}, participants={}", callId, callerId, conversationId, participantIds.size)

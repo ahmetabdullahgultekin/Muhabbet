@@ -60,10 +60,12 @@ this is the same trap as the test counts in the build section, and it has alread
 - `config/` — `AppConfig` (where domain services are wired so they stay Spring-free),
   `WebSocketConfig`, `RedisConfig`, `AsyncConfig`, `FirebaseConfig`, `JsonConfig`, and the
   `@ConfigurationProperties` holders (`MediaProperties`, `OtpProperties`, `SmsProperties`,
-  `InviteLinkProperties`, `MultiDeviceProperties`) plus `MessageServicePorts`.
+  `InviteLinkProperties`, `MultiDeviceProperties`) plus `MessageServicePorts`, and `OtpModeGuard`
+  (refuses to boot with the OTP mock paths on outside the dev/test profiles).
   **`SecurityConfig` is NOT here** — it is in `security/`, which is where you should look for it.
 - `security/` — `SecurityConfig`, `JwtProvider`, `JwtAuthFilter`, `JwtProperties`,
-  `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`
+  `AuthenticatedUser`, `RateLimitFilter`, `WebSocketRateLimiter`, `InputSanitizer`, `SsrfGuard`,
+  `MediaOriginGuard` (the #679 origin rule, shared by message media and profile/group avatars)
 - `exception/` — two files. `GlobalExceptionHandler.kt`, and `Exceptions.kt` holding both
   `BusinessException` and the `ErrorCode` enum. **There is no `ErrorCode.kt`** — grep `Exceptions.kt`
   for the entry you want rather than looking for a file named after the enum.

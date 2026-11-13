@@ -196,6 +196,7 @@ muhabbet:
     max-video-size: 104857600        # 100 MB
     thumbnail-width: 320
     thumbnail-height: 320
+    max-image-pixels: ${MEDIA_MAX_IMAGE_PIXELS:67108864}  # 8192 x 8192; decoding costs memory per pixel
     # Origins other than our own MinIO that a message or status may point media at (#679). The
     # defaults are GIPHY's CDN hosts, because the GIF/sticker picker sends a URL straight off it and
     # never re-hosts the file — without them the send path would refuse every GIF. See

@@ -26,7 +26,23 @@ interface ConversationRepository {
      * absent from the map rather than mapped to zero.
      */
     fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int>
+    /**
+     * The people [userId] treats as contacts: everyone they share a DIRECT or GROUP conversation
+     * with **that [userId] has taken part in** — created, or sent a message in. This is what a
+     * "contacts" privacy setting of [userId]'s is checked against, and who receives their presence.
+     *
+     * Merely sharing a conversation is not enough, because anyone can arrange that: subscribe to a
+     * channel, or create a group or a 1:1 chat that includes someone. Channels never count, and a
+     * conversation someone else put [userId] in counts only once [userId] speaks in it.
+     */
     fun findAllContactUserIds(userId: UUID): Set<UUID>
+
+    /**
+     * The mirror image of [findAllContactUserIds]: everyone who shares a DIRECT or GROUP
+     * conversation with [userId] and has taken part in it. Answers "whose contacts-only things may
+     * [userId] see", and whose phone number [userId] is shown, in one query for a whole screen.
+     */
+    fun findUsersWhoEngagedWith(userId: UUID): Set<UUID>
 
     /**
      * True when [userId] and [otherUserId] are both members of at least one DIRECT or GROUP

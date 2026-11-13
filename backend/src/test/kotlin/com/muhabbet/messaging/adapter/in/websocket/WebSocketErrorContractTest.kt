@@ -60,7 +60,8 @@ class WebSocketErrorContractTest {
         webSocketRateLimiter = rateLimiter,
         presenceVisibility = PresenceVisibility(
             mockk<BlockPolicyPort>(relaxed = true),
-            mockk<ConversationRepository>(relaxed = true)
+            mockk<ConversationRepository>(relaxed = true),
+            mockk<com.muhabbet.messaging.domain.port.out.PresencePrivacyPort>(relaxed = true)
         ),
         checkSessionValidityUseCase = mockk<CheckSessionValidityUseCase>().also {
             every { it.isSessionValid(any(), any(), any()) } returns true

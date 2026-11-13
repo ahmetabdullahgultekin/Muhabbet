@@ -1,5 +1,6 @@
 package com.muhabbet.auth.adapter.`in`.web
 
+import com.muhabbet.auth.domain.model.PrivacyVisibility
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.port.out.BlockDirectoryPort
 import com.muhabbet.auth.domain.port.out.UserRepository
@@ -13,6 +14,7 @@ import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.model.UserProfile
 import com.muhabbet.shared.security.AuthenticatedUser
+import com.muhabbet.shared.security.MediaOriginGuard
 import com.muhabbet.shared.validation.ValidationRules
 import com.muhabbet.shared.web.ApiResponseBuilder
 import com.muhabbet.messaging.domain.model.ConversationType
@@ -35,7 +37,8 @@ class UserController(
     private val presencePort: PresencePort,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val blockDirectory: BlockDirectoryPort
+    private val blockDirectory: BlockDirectoryPort,
+    private val mediaOriginGuard: MediaOriginGuard
 ) {
 
     @GetMapping("/{userId}")
@@ -71,7 +74,8 @@ class UserController(
      * see. `onlineStatusVisibility` gates presence and last-seen; `aboutVisibility` gates the about
      * text. Both speak the same everyone/contacts/nobody vocabulary:
      * - "everyone": visible to any authenticated caller
-     * - "contacts": visible only to users who share a conversation with the target
+     * - "contacts": visible only to users the target has reached out to (created, or written in,
+     *   a 1:1 chat or group they share) — being put in a conversation by someone does not count
      * - "nobody": hidden from everyone except the user themselves
      *
      * `aboutVisibility` was stored and never consulted before — the column was written by
@@ -99,12 +103,8 @@ class UserController(
 
         val contactIds: Set<UUID> by lazy { conversationRepository.findAllContactUserIds(user.id) }
 
-        fun allows(visibility: String): Boolean = when (visibility.lowercase()) {
-            "everyone" -> true
-            "nobody" -> requesterId == user.id
-            "contacts" -> requesterId == user.id || requesterId in contactIds
-            else -> false
-        }
+        fun allows(visibility: String): Boolean =
+            PrivacyVisibility.allows(visibility, user.id, requesterId) { requesterId in contactIds }
 
         val presenceVisible = allows(user.onlineStatusVisibility)
         return VisibleProfile(
@@ -244,6 +244,12 @@ class UserController(
         request.about?.let {
             if (!ValidationRules.isValidAbout(it)) {
                 throw BusinessException(ErrorCode.VALIDATION_ERROR, "Hakkımda metni çok uzun")
+            }
+        }
+        // Every contact's phone fetches this URL unprompted, so it has to be one of ours (#679).
+        request.avatarUrl?.let {
+            if (!mediaOriginGuard.isAllowed(it)) {
+                throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
             }
         }
 

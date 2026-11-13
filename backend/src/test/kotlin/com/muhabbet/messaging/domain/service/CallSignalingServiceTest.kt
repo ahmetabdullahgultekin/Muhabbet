@@ -28,7 +28,18 @@ class CallSignalingServiceTest {
     @BeforeEach
     fun setUp() {
         callHistoryRepository = mockk(relaxed = true)
-        service = CallSignalingService(callHistoryRepository)
+        val users = mockk<com.muhabbet.messaging.domain.port.out.UserDirectoryPort>()
+        every { users.findDisplayInfo(any()) } answers {
+            firstArg<Collection<UUID>>().associateWith {
+                com.muhabbet.messaging.domain.port.out.UserDisplayInfo(it, null, null)
+            }
+        }
+        service = CallSignalingService(
+            callHistoryRepository,
+            mockk(relaxed = true),
+            users,
+            java.time.Clock.systemUTC()
+        )
     }
 
     @Nested

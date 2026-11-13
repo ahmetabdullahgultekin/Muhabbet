@@ -103,6 +103,9 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // The full suite (Spring contexts + Testcontainers) does not fit Gradle's 512 MB default;
+    // gradle.properties -Xmx applies to the daemon only, not to forked test JVMs.
+    maxHeapSize = "2g"
     finalizedBy(tasks.jacocoTestReport)
 }
 

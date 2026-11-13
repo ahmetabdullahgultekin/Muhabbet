@@ -54,7 +54,8 @@ class ConversationServiceTest {
         conversationService = ConversationService(
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            userRepository = userRepository
+            userRepository = userRepository,
+            blockPolicy = mockk(relaxed = true)
         )
 
         messageService = MessageService(

@@ -78,4 +78,32 @@ class SsrfGuardTest {
         val uri = SsrfGuard.assertSafe("https://8.8.8.8/")
         assertEquals("8.8.8.8", uri.host)
     }
+
+    @Test
+    fun `should reject when the address is in a shared or reserved range`() {
+        listOf(
+            "http://100.64.0.1/",        // CGNAT / overlay networks
+            "http://100.127.255.254/",
+            "http://0.1.2.3/",           // 0.0.0.0/8
+            "http://198.18.0.1/",        // benchmarking
+            "http://240.0.0.1/",         // reserved
+            "http://[64:ff9b::7f00:1]/", // NAT64 to 127.0.0.1
+            "http://[2002:7f00:1::]/"    // 6to4 wrapping 127.0.0.1
+        ).forEach { url ->
+            assertThrows(SsrfGuard.BlockedUrlException::class.java, { SsrfGuard.assertSafe(url) }, url)
+        }
+    }
+
+    @Test
+    fun `should reject when the url names a port other than the web defaults`() {
+        assertThrows(SsrfGuard.BlockedUrlException::class.java) {
+            SsrfGuard.assertSafe("http://93.184.215.14:6379/")
+        }
+    }
+
+    @Test
+    fun `should accept when the url names the default port explicitly`() {
+        SsrfGuard.assertSafe("https://93.184.215.14:443/")
+        SsrfGuard.assertSafe("http://93.184.215.14:80/")
+    }
 }

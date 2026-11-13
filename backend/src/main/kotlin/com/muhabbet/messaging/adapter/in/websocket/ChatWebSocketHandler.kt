@@ -328,6 +328,10 @@ class ChatWebSocketHandler(
     private fun handleTypingIndicator(userId: UUID, msg: WsMessage.TypingIndicator) {
         val conversationId = parseId(msg.conversationId, "conversationId")
         val members = conversationRepository.findMembersByConversationId(conversationId)
+        // Only a member can be typing in a conversation. The list is already loaded, so this costs
+        // nothing; a frame for someone else's conversation is dropped silently, like a stale one.
+        val sender = members.firstOrNull { it.userId == userId } ?: return
+        if (presenceVisibility.isSilentReader(sender, members.size)) return
         val recipientIds = members.map { it.userId }.filter { it != userId }
 
         val status = if (msg.isTyping) PresenceStatus.TYPING else PresenceStatus.ONLINE
@@ -392,8 +396,8 @@ class ChatWebSocketHandler(
         // direction the other left open, and the pair leaked both ways. The blocked person opened
         // the chat list to no dot, then watched it light up seconds later when the blocker's socket
         // connected, because `ConversationListScreen` writes this frame straight into its state.
-        val hidden = presenceVisibility.hiddenFromPresenceOf(userId, contactUserIds)
-        contactUserIds.filterNot { it in hidden }.forEach { contactId ->
+        // The broadcaster's own last-seen setting applies too: "nobody" means no contact is told.
+        presenceVisibility.presenceAudience(userId, contactUserIds).forEach { contactId ->
             if (sessionManager.isOnline(contactId)) {
                 sessionManager.sendToUser(contactId, json)
             }

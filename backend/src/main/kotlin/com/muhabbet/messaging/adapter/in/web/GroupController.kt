@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
+import com.muhabbet.auth.domain.model.PrivacyVisibility
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
@@ -11,7 +12,10 @@ import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.dto.UpdateGroupRequest
 import com.muhabbet.shared.dto.UpdateRoleRequest
 import com.muhabbet.shared.model.MemberRole as SharedMemberRole
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.security.AuthenticatedUser
+import com.muhabbet.shared.security.MediaOriginGuard
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -28,7 +32,8 @@ import java.util.UUID
 class GroupController(
     private val manageGroupUseCase: ManageGroupUseCase,
     private val userRepository: UserRepository,
-    private val presencePort: PresencePort
+    private val presencePort: PresencePort,
+    private val mediaOriginGuard: MediaOriginGuard
 ) {
 
     @PostMapping("/{conversationId}/members")
@@ -44,13 +49,19 @@ class GroupController(
         val onlineIds = presencePort.getOnlineUserIds(addedMembers.map { it.userId })
         val participants = addedMembers.map { m ->
             val user = userRepository.findById(m.userId)
+            // Adding someone does not make the adder one of their contacts, so only a member who
+            // shows their online status to everyone is reported online here. The chat list applies
+            // the full rule when it next loads.
+            val presenceShown = user?.onlineStatusVisibility?.lowercase() == PrivacyVisibility.EVERYONE
             ParticipantResponse(
                 userId = m.userId.toString(),
                 displayName = user?.displayName,
-                phoneNumber = user?.phoneNumber,
+                // Members are added by user id, so echoing their numbers back would turn any id
+                // into a phone number. The group's member list shows numbers by the usual rule.
+                phoneNumber = null,
                 avatarUrl = user?.avatarUrl,
                 role = SharedMemberRole.valueOf(m.role.name),
-                isOnline = m.userId in onlineIds
+                isOnline = presenceShown && m.userId in onlineIds
             )
         }
 
@@ -73,6 +84,10 @@ class GroupController(
         @RequestBody request: UpdateGroupRequest
     ): ResponseEntity<ApiResponse<ConversationResponse>> {
         val userId = AuthenticatedUser.currentUserId()
+        // Every member's phone fetches the group avatar unprompted, so it has to be one of ours (#679).
+        if (request.avatarUrl?.let { mediaOriginGuard.isAllowed(it) } == false) {
+            throw BusinessException(ErrorCode.MSG_MEDIA_NOT_ACCESSIBLE)
+        }
         val updated = manageGroupUseCase.updateGroupInfo(
             conversationId,
             userId,

@@ -73,7 +73,6 @@
     <ID>TooManyFunctions:WebSocketSessionManager.kt$WebSocketSessionManager</ID>
     <ID>UnusedParameter:GroupEventController.kt$GroupEventController$@PathVariable conversationId: UUID</ID>
     <ID>UnusedParameter:InviteLinkController.kt$InviteLinkController$@PathVariable conversationId: UUID</ID>
-    <ID>UnusedParameter:JoinRequestController.kt$JoinRequestController$@PathVariable conversationId: UUID</ID>
     <ID>UnusedPrivateProperty:BotService.kt$BotService$private val userRepository: UserRepository</ID>
     <ID>UnusedPrivateProperty:ChannelAnalyticsService.kt$ChannelAnalyticsService$private val log = LoggerFactory.getLogger(javaClass)</ID>
     <ID>UnusedPrivateProperty:ChannelAnalyticsService.kt$ChannelAnalyticsService$val member = conversationRepository.findMember(channelId, userId) ?: throw BusinessException(ErrorCode.CHANNEL_NOT_FOUND)</ID>

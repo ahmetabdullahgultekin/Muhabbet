@@ -4,6 +4,7 @@ import com.muhabbet.media.domain.port.`in`.GetMediaUrlUseCase
 import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.ResolvedAttachment
 import com.muhabbet.shared.config.MediaProperties
+import com.muhabbet.shared.security.MediaOriginGuard
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -26,26 +27,8 @@ class MediaAttachmentPolicyAdapter(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /**
-     * The origin the app publishes media on: the public endpoint where one is configured, and the
-     * internal one otherwise, which is exactly the choice `MinioMediaStorageAdapter.getPresignedUrl`
-     * makes when it rewrites a freshly signed URL. Both sides read the same property, so what this
-     * accepts is by construction what the server itself produces.
-     */
-    private val ownOrigin: String =
-        (mediaProperties.minio.publicEndpoint?.takeIf { it.isNotBlank() } ?: mediaProperties.minio.endpoint)
-            .trim()
-            .trimEnd('/')
-
-    /**
-     * Our own origin plus the third-party media origins the app itself sends from — GIPHY, for the
-     * GIF and sticker picker, which hands the client a CDN URL and never re-hosts it. See
-     * [MediaProperties.attachmentOrigins] for why a fixed third party does not reopen #679.
-     */
-    private val allowedOrigins: List<String> =
-        (listOf(ownOrigin) + mediaProperties.attachmentOrigins.map { it.trim().trimEnd('/') })
-            .filter { it.isNotEmpty() }
-            .distinct()
+    /** Same rule as profile and group avatars, so it lives in one place (#679). */
+    private val originGuard = MediaOriginGuard(mediaProperties)
 
     override fun resolveOwnUpload(mediaId: UUID, senderId: UUID): ResolvedAttachment? =
         try {
@@ -74,17 +57,5 @@ class MediaAttachmentPolicyAdapter(
      * Control characters and whitespace are refused outright for the same reason — a stripped or
      * kept `\n` is another way for two parsers to read one string differently.
      */
-    override fun isAllowedOrigin(url: String): Boolean {
-        if (url.length > MAX_URL_LENGTH) return false
-        if (url.any { it.isWhitespace() || it.isISOControl() }) return false
-        return allowedOrigins.any { url.startsWith("$it/") }
-    }
-
-    companion object {
-        /**
-         * A presigned MinIO URL runs to a few hundred characters. The cap is far above that and is
-         * here only so an unbounded `TEXT` column cannot be filled by a socket frame.
-         */
-        private const val MAX_URL_LENGTH = 2048
-    }
+    override fun isAllowedOrigin(url: String): Boolean = originGuard.isAllowed(url)
 }

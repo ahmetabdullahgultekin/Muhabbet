@@ -8,8 +8,8 @@ import java.util.UUID
 
 interface ManageGroupEventUseCase {
     fun createEvent(conversationId: UUID, userId: UUID, title: String, description: String?, eventTime: Instant, location: String?): GroupEventSummary
-    fun getEvents(conversationId: UUID): List<GroupEventSummary>
+    fun getEvents(conversationId: UUID, userId: UUID): List<GroupEventSummary>
     fun deleteEvent(eventId: UUID, userId: UUID)
     fun rsvp(eventId: UUID, userId: UUID, status: RsvpStatus): GroupEventRsvp
-    fun getRsvps(eventId: UUID): List<GroupEventRsvp>
+    fun getRsvps(conversationId: UUID, eventId: UUID, userId: UUID): List<GroupEventRsvp>
 }

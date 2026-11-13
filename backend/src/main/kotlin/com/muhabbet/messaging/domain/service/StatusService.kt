@@ -124,7 +124,9 @@ open class StatusService(
      */
     @Transactional(readOnly = true)
     override fun getContactStatusesForUser(viewerUserId: UUID): List<StatusGroup> {
-        val contactIds = conversationRepository.findAllContactUserIds(viewerUserId)
+        // Authors who count the viewer as a contact — not everyone the viewer shares a chat with,
+        // which the viewer could arrange on their own.
+        val contactIds = conversationRepository.findUsersWhoEngagedWith(viewerUserId)
         if (contactIds.isEmpty()) return emptyList()
 
         val authorIds = contactIds -

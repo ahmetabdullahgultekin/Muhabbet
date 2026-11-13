@@ -51,7 +51,9 @@ class LinkPreviewController {
             ?: doc.title()
         val description = doc.selectFirst("meta[property=og:description]")?.attr("content")
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
+        // The client loads this image itself, so only a plain web URL is passed on.
         val imageUrl = doc.selectFirst("meta[property=og:image]")?.attr("content")
+            ?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
         val siteName = doc.selectFirst("meta[property=og:site_name]")?.attr("content")
 
         return ApiResponseBuilder.ok(

@@ -227,6 +227,25 @@ class MediaServiceTest {
         }
 
         @Test
+        fun `should refuse as too large and store nothing when the image has too many pixels`() {
+            every { thumbnailPort.generateThumbnail(any(), any(), any(), any()) } throws
+                com.muhabbet.media.domain.port.out.ImageTooLargeException()
+
+            val command = UploadImageCommand(
+                uploaderId = uploaderId,
+                inputStream = ByteArrayInputStream(ByteArray(100)),
+                contentType = "image/png",
+                sizeBytes = 100L,
+                originalFilename = "bomb.png"
+            )
+
+            val ex = assertThrows<BusinessException> { mediaService.uploadImage(command) }
+
+            assertEquals(ErrorCode.MEDIA_TOO_LARGE, ex.errorCode)
+            io.mockk.verify(exactly = 0) { mediaStoragePort.putObject(any(), any(), any(), any()) }
+        }
+
+        @Test
         fun `should throw MEDIA_UPLOAD_FAILED when thumbnail generation fails`() {
             val imageBytes = ByteArray(100)
 
