@@ -176,7 +176,7 @@ These project-doc claims did **not** match the code. Fix them at the source so t
 #### Secret Management
 
 **P0-12. Production secrets were committed to git history (commit 3925f70) — rotation required**
-- *Evidence:* git show 3925f70 reveals .env.prod was tracked containing: POSTGRES_PASSWORD=<redacted>, REDIS_PASSWORD=<redacted>, JWT_SECRET=<redacted>. *(Correction 2026-11-12: the values that stood here did not match commit 3925f70's history; they were redacted and are tracked as a second exposure in docs/process/security-incident-2026-11-env-prod.md.)* Current .env.prod has different values, indicating rotation occurred, but the old credentials persist in git history indefinitely and are accessible to anyone with repo clone access.
+- *Evidence:* git show 3925f70 reveals .env.prod was tracked containing: POSTGRES_PASSWORD=<redacted — rotated>, REDIS_PASSWORD=<redacted — rotated>, JWT_SECRET=<redacted — rotated> Current .env.prod has different values, indicating rotation occurred, but the old credentials persist in git history indefinitely and are accessible to anyone with repo clone access.
 - *Impact:* If the repo is ever made public or shared with a contractor, historical production credentials are immediately visible. The old JWT_SECRET allows forging tokens that were valid until rotation; old DB/Redis passwords allow retrospective access to any backup made before rotation.
 - *Fix:* Confirm all three leaked secrets were rotated after removal (current .env.prod shows different values — good). Document the rotation date. Consider running `git filter-repo` to scrub commit 3925f70 from history before any public release. Add gitleaks as a pre-commit hook to prevent recurrence.
 

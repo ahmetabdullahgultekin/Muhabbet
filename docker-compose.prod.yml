@@ -29,19 +29,25 @@ services:
       DB_PORT: 5432
       DB_NAME: muhabbet
       DB_USERNAME: postgres
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
       REDIS_HOST: shared-redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.prod}
       MINIO_ENDPOINT: http://shared-minio:9000
       # Presigned URLs are signed against MINIO_ENDPOINT and then rewritten to this
       # host, so the Traefik route behind it must forward the signed host upstream
       # (cdn-muhabbet sets passHostHeader=false). Without this the app hands clients
       # a shared-minio:9000 URL that only resolves inside Docker.
-      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-https://cdn-muhabbet.116.203.222.213.nip.io}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      #
+      # Required, with no default. A default here once named a hostname tied to a server that no
+      # longer runs production, and presigned URLs carry a signature to whatever host this names.
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?set MINIO_PUBLIC_ENDPOINT in .env.prod}
+      # The backend signs as a bucket-scoped MinIO user, never as the root user, and each value has
+      # a variable of its own. `:?` makes Compose refuse to start when one is missing, rather than
+      # starting with an empty or well-known credential.
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY in .env.prod}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env.prod}
       MINIO_BUCKET: muhabbet-media
       # SMS_PROVIDER selects the OtpSender/OtpVerifier implementation: mock (default, writes the
       # code to the log), netgsm, twilio (Messages API, needs a purchased number) or twilio-verify
@@ -151,22 +157,17 @@ services:
 
   # Initialize MinIO bucket for Muhabbet media
   #
+  # Runs as the same bucket-scoped user as the backend, not as root. Creating the bucket is the only
+  # thing it does: no prefix of the bucket is readable anonymously. Thumbnails, like full media, are
+  # handed to clients as presigned, time-limited URLs (MediaService.getPresignedUrl), so an anonymous
+  # read policy would only add a permanent, unsigned way to fetch them.
+  #
   # The credentials reach `mc` through the environment, not through the entrypoint (#448). Written
-  # as `${MINIO_ROOT_PASSWORD}` they were interpolated by Compose at parse time and baked into
-  # .Config.Entrypoint, so `docker inspect muhabbet-minio-init` printed the MinIO root password —
-  # and unlike redis, which masks its own process title, `mc` does not, so it was also in
-  # `docker ps --no-trunc` and in /proc/<pid>/cmdline while the container ran. The container exits
-  # after a few seconds but its configuration keeps the secret until it is removed.
-  #
-  # `$$` escapes the interpolation so the string reaches the container literally and the
-  # container's own shell expands it from the environment below.
-  #
-  # This does not reach zero the way the Redis fix does — .Config.Env is inspectable too — but it
-  # opens no channel that was not already open: muhabbet-backend above must carry the same value
-  # as MINIO_SECRET_KEY in its own environment regardless. What it removes is the argv and
-  # process-table exposure, which was unique to this container. Closing the .Config.Env half needs
-  # a secret file mounted from the host, which is a change to the host's deployment contract
-  # rather than to this repository — see infra/redis.conf.example for that shape.
+  # as `${VAR}` they would be interpolated by Compose at parse time and baked into
+  # .Config.Entrypoint and the process table. `$$` escapes the interpolation so the string reaches
+  # the container literally and the container's own shell expands it from the environment below.
+  # .Config.Env is still inspectable by anyone with Docker access on the host; closing that needs a
+  # secret file mounted from the host — see infra/redis.conf.example for that shape.
   minio-init:
     image: minio/mc:latest
     container_name: muhabbet-minio-init
@@ -174,14 +175,13 @@ services:
       muhabbet-backend:
         condition: service_started
     environment:
-      MINIO_INIT_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_INIT_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_INIT_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY in .env.prod}
+      MINIO_INIT_SECRET_KEY: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env.prod}
     entrypoint: >
       /bin/sh -c "
       sleep 5;
       mc alias set local http://shared-minio:9000 \"$$MINIO_INIT_ACCESS_KEY\" \"$$MINIO_INIT_SECRET_KEY\";
       mc mb local/muhabbet-media --ignore-existing;
-      mc anonymous set download local/muhabbet-media/thumbnails;
       echo 'MinIO bucket initialized.';
       "
     networks:

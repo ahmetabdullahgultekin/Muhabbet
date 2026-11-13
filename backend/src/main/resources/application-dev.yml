@@ -1,4 +1,8 @@
 spring:
+  # Local-only credentials that match infra/docker-compose.yml. They live here, not in
+  # application.yml, so that no other profile can fall back to them.
+  datasource:
+    password: ${DB_PASSWORD:muhabbet_dev}
   jpa:
     properties:
       hibernate:
@@ -16,6 +20,10 @@ logging:
 
 # Dev overrides
 muhabbet:
+  media:
+    minio:
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
   otp:
     mock-enabled: true  # Logs OTP to console instead of sending SMS
   fcm:

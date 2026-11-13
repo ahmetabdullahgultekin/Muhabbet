@@ -31,8 +31,8 @@
 
 | Runner | Today (2026-11-12) | Target | Interim (billing lock not cleared, no second box) |
 |---|---|---|---|
-| `muhabbet-cx43` (production host, user `deploy` in `docker` group) | Runs every job of every workflow, PRs included | **Deregistered** | **Runner service stopped and deregistered (P0)**; no CI until hosted runners or a separate box. Accepted-risk variant only (owner decision, ADR-0031 D2): kept for `main`/tag jobs with the mitigations of §6 I2 |
-| `muhabbet-mordecai` — **the production host** (machine `mordecai`, runner user `deploy`, `~/actions-runner-muhabbet`; it runs `shared-postgres`/`shared-redis`/`shared-minio` and the backend) | Takes jobs since ≤ 2026-10-26, Dependabot PR jobs included (F24) | **Deregistered** | **Runner service stopped and deregistered (P0, before cx43)**; `deploy` removed from the `docker` group on that host |
+| `muhabbet-cx43` (was the production host until the move to mordecai; now stale for Muhabbet, user `deploy` in `docker` group) | Runs every job of every workflow, PRs included | **Deregistered** | **Runner service stopped and deregistered (P0)**; no CI until hosted runners or a separate box. Accepted-risk variant only (owner decision, ADR-0031 D2): kept for `main`/tag jobs with the mitigations of §6 I2 |
+| `muhabbet-mordecai` (the owner's machine and **the current production host** — identified 2026-11-12) | Takes jobs since ≤ 2026-10-26, Dependabot PRs included, with Docker access | **Deregistered** | Runner service stopped and deregistered, or labels changed to one nothing targets (**P0**); the same reasoning as for cx43 applies, and applies first |
 | GitHub-hosted | Refused: account billing lock (CICD-04) | All PR/push/schedule CI, release build | — |
 | Non-prod self-hosted (optional, e.g. device lab, netem) | — | Dedicated VM, `--ephemeral` JIT registration, unique custom label, `push: main`/tag workflows only, no release secrets (CICD-17) | — |
 
@@ -125,7 +125,7 @@ long-lived signing, device-CA, uplink or crypto key is generated before it.
 ## 8. Open questions (owner; not readable from this session)
 
 1. Current value of the fork-PR approval setting (CICD-01).
-2. ~~What `mordecai` is~~ — answered (F24): it is the production host. Still open: when its runner was registered (between 2026-09-02 and 2026-10-26) and whether any non-owner PR ever ran there (CICD-03).
+2. ~~What `mordecai` is~~ — answered 2026-11-12: the owner's own machine, now the production host (CICD-03).
 3. `production` environment protection and secret scoping (CICD MISS-02).
 4. Whether secret scanning, push protection and Dependabot alerts are enabled.
 5. The cause of the account billing lock and whether it can be lifted (CICD-04).

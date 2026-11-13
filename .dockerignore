@@ -1,0 +1,38 @@
+# Build context for docker-compose.prod.yml (context: .). backend/Dockerfile copies only named paths,
+# but the whole directory is still sent to the daemon and kept in the build cache, so anything secret
+# or bulky that sits in the checkout is excluded here. A future `COPY . .` must not be able to bake
+# a credential into an image.
+
+# Secrets and signing material
+.env
+.env.*
+!.env.example
+**/*.env
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+**/google-services.json
+**/GoogleService-Info.plist
+**/firebase-adminsdk*.json
+**/*-adminsdk*.json
+**/service-account*.json
+**/play-*.json
+local.properties
+
+# VCS, tooling and build output
+.git
+.github
+.claude
+.idea
+.gradle
+**/.gradle
+**/build
+**/.kotlin
+*.log
+
+# Not needed to build the backend image
+mobile
+docs
+infra

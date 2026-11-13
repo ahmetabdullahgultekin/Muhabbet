@@ -113,7 +113,7 @@ body:
       label: Log, ekran görüntüsü, stack trace
       description: >-
         Çökme varsa `adb logcat -d | grep -A40 FATAL`. Backend içinse
-        `ssh hetzner 'docker logs --since 5m muhabbet-backend'`. Ekran görüntüsünü buraya
+        sunucuda `docker logs --since 5m muhabbet-backend`. Ekran görüntüsünü buraya
         sürükleyebilirsin.
       render: shell
 
