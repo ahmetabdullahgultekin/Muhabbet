@@ -220,6 +220,23 @@ class DeviceLinkingServiceTest {
     }
 
     @Test
+    fun `revokeDevice clears the companion's push token`() {
+        // #908: a revoked device is no longer the account's, so it must stop being a push address.
+        val companionId = UUID.randomUUID()
+        val companion = Device(
+            id = companionId, userId = userId, platform = "web",
+            linkedByDeviceId = primaryDeviceId, pushToken = "companion-token"
+        )
+        every { deviceRepo.findById(companionId) } returns companion
+        val saved = slot<Device>()
+        every { deviceRepo.save(capture(saved)) } answers { firstArg() }
+
+        service.revokeDevice(userId, companionId)
+
+        assertNull(saved.captured.pushToken)
+    }
+
+    @Test
     fun `revokeDevice refuses to revoke the primary device`() {
         every { deviceRepo.findById(primaryDeviceId) } returns primaryDevice()
         val ex = assertThrows(BusinessException::class.java) { service.revokeDevice(userId, primaryDeviceId) }

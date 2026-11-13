@@ -1,7 +1,6 @@
 package com.muhabbet.auth.domain.service
 
 import com.muhabbet.auth.domain.model.Device
-import com.muhabbet.auth.domain.model.normalizeDeviceLocale
 import com.muhabbet.auth.domain.model.OtpRequest
 import com.muhabbet.auth.domain.model.User
 import com.muhabbet.auth.domain.model.UserStatus
@@ -10,7 +9,6 @@ import com.muhabbet.auth.domain.port.`in`.FirebaseVerifyUseCase
 import com.muhabbet.auth.domain.port.`in`.LogoutUseCase
 import com.muhabbet.auth.domain.port.`in`.OtpResult
 import com.muhabbet.auth.domain.port.`in`.RefreshTokenUseCase
-import com.muhabbet.auth.domain.port.`in`.RegisterPushTokenUseCase
 import com.muhabbet.auth.domain.port.`in`.RequestOtpUseCase
 import com.muhabbet.auth.domain.port.`in`.TokenResult
 import com.muhabbet.auth.domain.port.`in`.VerifyOtpUseCase
@@ -84,7 +82,7 @@ open class AuthService(
     private val twoStepAttemptRepository: TwoStepAttemptRepository,
     private val twoStepMaxAttempts: Int = 5,
     private val twoStepLockSeconds: Long = 900
-) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, RegisterPushTokenUseCase, FirebaseVerifyUseCase {
+) : RequestOtpUseCase, VerifyOtpUseCase, RefreshTokenUseCase, LogoutUseCase, FirebaseVerifyUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
@@ -434,21 +432,15 @@ open class AuthService(
     }
 
     @Transactional
-    override fun registerPushToken(userId: UUID, deviceId: UUID, pushToken: String, locale: String?) {
-        val devices = deviceRepository.findByUserId(userId)
-        val device = devices.find { it.id == deviceId }
-            ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Cihaz bulunamadı")
-        // An unusable or absent tag keeps what the device registered last rather than clearing it:
-        // the token rotation callback on the client has no language to report, and losing the
-        // language every time Firebase rotates a token would put the device back on the fallback.
-        val resolvedLocale = normalizeDeviceLocale(locale) ?: device.locale
-        deviceRepository.save(device.copy(pushToken = pushToken, locale = resolvedLocale))
-        log.info("Push token registered: userId={}, deviceId={}, locale={}", userId, deviceId, resolvedLocale)
-    }
-
-    @Transactional
     override fun logout(userId: UUID, deviceId: UUID) {
         refreshTokenRepository.revokeAllForDevice(userId, deviceId)
+        // The push token goes in the same transaction (#908). A signed-out device that keeps it is
+        // still a delivery address for this account, so the next person to use the phone would
+        // read this account's message previews in the tray. The app registers a token again on
+        // its next sign-in, so nothing is lost by clearing it.
+        deviceRepository.findById(deviceId)
+            ?.takeIf { it.userId == userId && it.pushToken != null }
+            ?.let { deviceRepository.save(it.copy(pushToken = null)) }
         log.info("Logout: userId={}, deviceId={}", userId, deviceId)
     }
 

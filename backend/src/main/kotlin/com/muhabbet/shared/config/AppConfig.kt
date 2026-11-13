@@ -18,6 +18,7 @@ import com.muhabbet.auth.domain.service.ContactSyncService
 import com.muhabbet.auth.domain.service.DeviceLinkingService
 import com.muhabbet.auth.domain.service.LastSeenService
 import com.muhabbet.auth.domain.service.LoginApprovalService
+import com.muhabbet.auth.domain.service.PushTokenService
 import com.muhabbet.auth.domain.service.TwoStepVerificationService
 import com.muhabbet.auth.domain.service.UserDataService
 import com.muhabbet.media.domain.port.out.MediaFileRepository
@@ -134,6 +135,14 @@ class AppConfig {
         twoStepAttemptRepository = twoStepAttemptRepository,
         twoStepMaxAttempts = twoStepProperties.maxAttempts,
         twoStepLockSeconds = twoStepProperties.lockSeconds
+    )
+
+    /** Push-token ownership: one token, one device (#908). See [PushTokenService]. */
+    @Bean
+    fun pushTokenService(
+        deviceRepository: DeviceRepository
+    ): PushTokenService = PushTokenService(
+        deviceRepository = deviceRepository
     )
 
     /**

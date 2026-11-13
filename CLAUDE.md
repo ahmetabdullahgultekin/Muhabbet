@@ -1133,6 +1133,15 @@ evidence that it works.
 - **VM IP changes**: If a VM is resized or reprovisioned, the IP may change. Update DNS A records accordingly. Android caches DNS aggressively — toggle airplane mode to flush.
 - **Spring Boot 4.x `@AutoConfigureMockMvc`**: Import path changed to `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`. The old 3.x path `org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc` is NOT available — causes "Unresolved reference 'web'" compile error.
 - **Flyway `validate-on-migrate: false`**: Lets an already-applied migration file be edited without the app refusing to start. Belongs only in `application-dev.yml` / `application-test.yml` (#429 — it had leaked into the main `application.yml`, so production silently ignored edited migrations too). In prod, never modify existing migrations — add a new one.
+- **`CREATE INDEX CONCURRENTLY` needs `spring.flyway.postgresql.transactional-lock: false`** (set in
+  `application.yml` since #908). Flyway's default lock is held in an open transaction, and a
+  concurrent index build waits for every older transaction — so the migration hangs startup forever,
+  in tests and on deploy alike. Keep a CONCURRENTLY statement in a file of its own (Flyway refuses to
+  mix it with transactional statements), and precede it with `DROP INDEX CONCURRENTLY IF EXISTS` so a
+  failed build's INVALID index cannot be kept by a retry.
+- **A push token belongs to one device** (#908): `devices.push_token` is globally unique (V29).
+  Move a token only through `DeviceRepository.detachPushTokenFromOtherDevices` (per-token advisory
+  lock) or `clearPushToken`; never null or copy the column from a row you happened to load.
 - **MinIO `@PostConstruct` in tests**: Any `@PostConstruct` that connects to MinIO on startup will crash the Spring test context if MinIO isn't running. Wrap in try-catch and log a warning instead of failing.
 - **MockK test stubs must match what the controller actually calls**: If the controller calls `statusService.getContactStatusesForUser(userId)`, stub THAT — not a different method like `manageStatusUseCase.getContactStatuses()`. Stubs that don't match throw `MockKException: no answer found`.
 - **Firebase credentials**: `infra/firebase-adminsdk.json` (gitignored, mounted in docker-compose.prod.yml).

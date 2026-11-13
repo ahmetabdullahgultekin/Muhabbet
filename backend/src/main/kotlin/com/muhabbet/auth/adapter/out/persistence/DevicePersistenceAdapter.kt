@@ -31,4 +31,12 @@ class DevicePersistenceAdapter(
 
     override fun findActiveByUserId(userId: UUID): List<Device> =
         springDataDeviceRepository.findByUserIdAndRevokedAtIsNull(userId).map { it.toDomain() }
+
+    override fun detachPushTokenFromOtherDevices(pushToken: String, keepDeviceId: UUID): Int {
+        springDataDeviceRepository.lockPushToken(pushToken)
+        return springDataDeviceRepository.detachPushTokenFromOthers(pushToken, keepDeviceId)
+    }
+
+    override fun clearPushToken(pushToken: String): Int =
+        springDataDeviceRepository.clearPushToken(pushToken)
 }

@@ -111,6 +111,19 @@ class OfflinePushSenderTest {
     }
 
     @Test
+    fun `should not push to a revoked device even if a token survived on its row`() {
+        // #908. Revocation clears the token, but the fan-out is the last line: a revoked companion
+        // is no longer the account's, so nothing about this account may reach it.
+        val revoked = device("token-revoked", locale = "tr").copy(revokedAt = Instant.now())
+
+        val sent = sendTo(revoked, device("token-live", locale = "tr"))
+
+        assertEquals(1, sent.size)
+        verify(exactly = 0) { pushNotificationPort.sendPush("token-revoked", any()) }
+        verify(exactly = 1) { pushNotificationPort.sendPush("token-live", any()) }
+    }
+
+    @Test
     fun `should still name the sender in the title`() {
         // The headline defect of #469. Regression guard: the language work must not walk it back.
         val sent = sendTo(device("token-en", locale = "en"))

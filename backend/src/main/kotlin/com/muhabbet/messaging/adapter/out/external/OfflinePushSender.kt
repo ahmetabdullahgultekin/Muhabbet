@@ -83,7 +83,9 @@ class OfflinePushSender(
         if (recipientIds.isEmpty()) return
         try {
             deviceRepository.findByUserIdIn(recipientIds)
-                .filter { !it.pushToken.isNullOrBlank() }
+                // A revoked companion no longer belongs to the account (#908); revocation clears
+                // its token too, but the fan-out does not trust a row it is about to address.
+                .filter { it.isActive && !it.pushToken.isNullOrBlank() }
                 .groupBy { it.locale }
                 .forEach { (localeTag, devices) ->
                     val push = pushComposer.compose(

@@ -142,7 +142,9 @@ open class DeviceLinkingService(
             return device // already revoked — idempotent
         }
 
-        val revoked = deviceRepository.save(device.copy(revokedAt = Instant.now()))
+        // The push token goes with it (#908): a revoked device is out of the fan-out set, and a
+        // token left on its row would still be a delivery address the moment anything read it.
+        val revoked = deviceRepository.save(device.copy(revokedAt = Instant.now(), pushToken = null))
         // Crypto boundary: DeviceLinkCrypto.dropSession(deviceId) would run here to enforce forward
         // secrecy on the peers — NotYetImplemented (libsignal block). The tombstone alone already
         // excludes the device from findActiveByUserId / the (future) fan-out set.
