@@ -19,6 +19,8 @@ open class PinnedMessageService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private val historyAccess = HistoryAccess(conversationRepository)
+
     companion object {
         private const val MAX_PINS_PER_CONVERSATION = 3
     }
@@ -33,6 +35,8 @@ open class PinnedMessageService(
         if (message.conversationId != conversationId) {
             throw BusinessException(ErrorCode.MSG_NOT_FOUND)
         }
+        // Nor may a member pin — and so learn of — something said before they joined (#874).
+        historyAccess.requireVisible(message, userId)
 
         // Idempotent: re-pinning an already-pinned message is a no-op that returns the existing pin.
         pinnedMessageRepository.find(conversationId, messageId)?.let { return it }

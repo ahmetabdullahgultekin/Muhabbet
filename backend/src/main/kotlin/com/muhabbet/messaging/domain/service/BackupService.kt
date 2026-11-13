@@ -1,6 +1,9 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.messaging.domain.model.HistoryPosition
+import com.muhabbet.messaging.domain.model.HistoryWindow
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.MessageCursor
 import com.muhabbet.messaging.domain.port.`in`.BackupInfo
 import com.muhabbet.messaging.domain.port.`in`.ManageBackupUseCase
 import com.muhabbet.messaging.domain.port.out.BackupArchivePort
@@ -35,6 +38,7 @@ open class BackupService(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val json = Json { prettyPrint = false; encodeDefaults = true }
+    private val historyAccess = HistoryAccess(conversationRepository)
 
     @Transactional
     override fun createBackup(userId: UUID): BackupInfo {
@@ -47,7 +51,7 @@ open class BackupService(
             val conversations = conversationRepository.findConversationsByUserId(userId)
             var messageCount = 0
             val convArchives = conversations.map { conv ->
-                val messages = fetchAllMessages(conv.id)
+                val messages = fetchAllMessages(conv.id, historyAccess.windowFor(conv.id, userId))
                 messageCount += messages.size
                 ConversationArchive(
                     conversationId = conv.id.toString(),
@@ -112,18 +116,24 @@ open class BackupService(
         }
     }
 
-    /** Page through a conversation's messages so a large history doesn't load in one shot. */
-    private fun fetchAllMessages(conversationId: UUID): List<Message> {
+    /**
+     * Page through the part of a conversation [window] lets this user read, so a large history
+     * doesn't load in one shot.
+     *
+     * A backup is a read like any other: it holds what the user could have scrolled to, and a
+     * group's messages from before they joined are not that (#874). Paged on the `(timestamp, id)`
+     * keyset — the old `before = page.minOf { serverTimestamp }` silently dropped every message that
+     * shared the oldest timestamp of a full page (#750).
+     */
+    private fun fetchAllMessages(conversationId: UUID, window: HistoryWindow): List<Message> {
         val all = mutableListOf<Message>()
-        var before: Instant? = null
+        var position: HistoryPosition = HistoryPosition.Latest
         while (true) {
-            val page = messageRepository.findByConversationId(conversationId, before, PAGE_SIZE)
+            val page = messageRepository.findHistory(conversationId, window, position, PAGE_SIZE)
             if (page.isEmpty()) break
             all += page
             if (page.size < PAGE_SIZE || all.size >= MAX_MESSAGES_PER_CONVERSATION) break
-            // findByConversationId returns newest-first within the window; page the next window
-            // using the oldest serverTimestamp seen so far.
-            before = page.minOf { it.serverTimestamp }
+            position = HistoryPosition.Before(MessageCursor.of(page.last()))
         }
         return all
     }

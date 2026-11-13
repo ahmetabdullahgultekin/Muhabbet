@@ -2,6 +2,7 @@ package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationType
+import com.muhabbet.messaging.domain.model.HistoryPosition
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.BackupArchivePort
 import com.muhabbet.messaging.domain.port.out.BackupRepository
@@ -62,9 +63,9 @@ class BackupServiceTest {
         val conv = Conversation(type = ConversationType.DIRECT)
         every { conversationRepository.findConversationsByUserId(userId) } returns listOf(conv)
         // First page returns the messages; second page (paging) returns empty to stop.
-        every { messageRepository.findByConversationId(conv.id, null, any()) } returns
+        every { messageRepository.findHistory(conv.id, any(), HistoryPosition.Latest, any()) } returns
             listOf(message(conv.id, "hello"), message(conv.id, "world"))
-        every { messageRepository.findByConversationId(conv.id, match { it != null }, any()) } returns emptyList()
+        every { messageRepository.findHistory(conv.id, any(), match { it is HistoryPosition.Before }, any()) } returns emptyList()
 
         val bytesSlot = slot<ByteArray>()
         every { archivePort.upload(eq(userId), any(), capture(bytesSlot), any(), any()) } answers {
@@ -109,8 +110,8 @@ class BackupServiceTest {
             viewOnce = true
         )
         every { conversationRepository.findConversationsByUserId(userId) } returns listOf(conv)
-        every { messageRepository.findByConversationId(conv.id, null, any()) } returns listOf(sealed)
-        every { messageRepository.findByConversationId(conv.id, match { it != null }, any()) } returns emptyList()
+        every { messageRepository.findHistory(conv.id, any(), HistoryPosition.Latest, any()) } returns listOf(sealed)
+        every { messageRepository.findHistory(conv.id, any(), match { it is HistoryPosition.Before }, any()) } returns emptyList()
 
         val bytesSlot = slot<ByteArray>()
         every { archivePort.upload(eq(userId), any(), capture(bytesSlot), any(), any()) } answers {
@@ -147,7 +148,7 @@ class BackupServiceTest {
     fun `should mark backup FAILED when archive upload throws`() {
         val conv = Conversation(type = ConversationType.DIRECT)
         every { conversationRepository.findConversationsByUserId(userId) } returns listOf(conv)
-        every { messageRepository.findByConversationId(conv.id, any(), any()) } returns emptyList()
+        every { messageRepository.findHistory(conv.id, any(), any(), any()) } returns emptyList()
         every { archivePort.upload(any(), any(), any(), any(), any()) } throws RuntimeException("minio down")
 
         val info = service.createBackup(userId)

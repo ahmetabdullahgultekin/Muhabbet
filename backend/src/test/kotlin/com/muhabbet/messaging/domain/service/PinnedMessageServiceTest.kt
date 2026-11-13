@@ -43,7 +43,8 @@ class PinnedMessageServiceTest {
     )
 
     private fun memberOk() {
-        every { conversationRepository.findMember(conversationId, userId) } returns mockk<ConversationMember>()
+        every { conversationRepository.findMember(conversationId, userId) } returns
+            ConversationMember(conversationId, userId, joinedAt = Instant.EPOCH)
     }
 
     @Test

@@ -1,17 +1,22 @@
 package com.muhabbet.messaging.domain.port.`in`
 
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryPosition
 import com.muhabbet.messaging.domain.model.Message
 import java.time.Instant
 import java.util.UUID
 
 interface GetMessageHistoryUseCase {
+    /**
+     * One page of the history [userId] may read in [conversationId] (#874), from [position], in the
+     * direction of travel (#876). `nextCursor` is the encoded position of the page's last item, set
+     * only when more rows lie beyond it.
+     */
     fun getMessages(
         conversationId: UUID,
         userId: UUID,
-        cursor: String?,
-        limit: Int,
-        direction: String = "before"
+        position: HistoryPosition,
+        limit: Int
     ): MessagePage
 
     /**

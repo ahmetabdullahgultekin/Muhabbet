@@ -54,7 +54,7 @@ class PollServiceTest {
             clientTimestamp = Instant.ofEpochMilli(1786993903882L)
         )
         every { conversationRepository.findMember(conversationId, member) } returns
-            TestData.member(conversationId = conversationId, userId = member)
+            TestData.member(conversationId = conversationId, userId = member, joinedAt = Instant.EPOCH)
         every { conversationRepository.findMember(conversationId, outsider) } returns null
         every { pollVoteRepository.findByMessageId(messageId) } returns emptyList()
     }

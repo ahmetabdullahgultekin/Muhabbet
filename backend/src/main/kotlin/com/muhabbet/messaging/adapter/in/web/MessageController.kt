@@ -2,6 +2,9 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryDirection
+import com.muhabbet.messaging.domain.model.HistoryPosition
+import com.muhabbet.messaging.domain.model.MessageCursor
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
@@ -57,9 +60,8 @@ class MessageController(
         val page = getMessageHistoryUseCase.getMessages(
             conversationId = conversationId,
             userId = userId,
-            cursor = cursor,
-            limit = limit,
-            direction = direction
+            position = historyPosition(direction, cursor),
+            limit = limit
         )
 
         val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(page.items, userId)
@@ -71,6 +73,21 @@ class MessageController(
             PaginatedResponse(items = items, nextCursor = page.nextCursor, hasMore = page.hasMore)
         )
     }
+
+    /**
+     * Validation only: both halves of the paging contract are refused when malformed rather than
+     * guessed at (#876). A bad cursor used to fall through to the newest page, which a scrolling
+     * client then appended again — a duplicate page and an infinite scroll.
+     */
+    private fun historyPosition(direction: String, cursor: String?): HistoryPosition {
+        val travel = HistoryDirection.fromWire(direction)
+            ?: throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        return HistoryPosition.of(travel, cursor?.let(::decodeCursor))
+            ?: throw BusinessException(ErrorCode.MSG_INVALID_CURSOR)
+    }
+
+    private fun decodeCursor(raw: String): MessageCursor =
+        MessageCursor.decode(raw) ?: throw BusinessException(ErrorCode.MSG_INVALID_CURSOR)
 
     @GetMapping("/conversations/{conversationId}/media")
     fun getMedia(

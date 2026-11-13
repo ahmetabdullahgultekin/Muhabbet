@@ -30,6 +30,8 @@ open class ReactionService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private val historyAccess = HistoryAccess(conversationRepository)
+
     @Transactional
     override fun addReaction(messageId: UUID, userId: UUID, emoji: String) {
         requireAllowedReaction(emoji)
@@ -91,7 +93,6 @@ open class ReactionService(
     private fun requireMemberOfMessageConversation(messageId: UUID, userId: UUID) {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
-        conversationRepository.findMember(message.conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        historyAccess.requireVisible(message, userId)
     }
 }

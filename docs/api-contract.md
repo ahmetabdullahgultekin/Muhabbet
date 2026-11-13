@@ -318,12 +318,36 @@ Create a new conversation.
 ---
 
 ### GET /api/v1/conversations/{conversationId}/messages
-Get message history.
+Get message history — the part of it the caller may read.
+
+**Visibility (#874):** in a `GROUP`, a member reads only messages stamped at or after their own
+`joinedAt`; a member removed and re-added starts again from the new join. `DIRECT` and `CHANNEL`
+history is unbounded. The same window applies to `/messages/since`, `/conversations/{id}/media`,
+`/search/messages`, `/messages/{id}/info` (404 for a message outside it) and the inbox preview.
+Scheduled messages that have not gone out yet are in nobody's history.
 
 **Query Params:**
-- `cursor` (optional): message ID to paginate from
-- `limit` (optional, default 50, max 100)
-- `direction` (optional, default `before`): `before` or `after` cursor
+- `cursor` (optional): an **opaque** token, exactly as returned in `nextCursor`. Clients must not
+  build or parse it. It encodes the `(serverTimestamp, id)` of a message, so a page boundary inside
+  a run of equal timestamps neither skips nor repeats a row (#750). A bare ISO-8601 timestamp — the
+  format before #750 — is still accepted as an exclusive "older than" bound.
+- `limit` (optional, default 50, clamped to 1–100)
+- `direction` (optional, default `before`):
+  - `before` — messages older than `cursor` (or the newest page with no cursor), **newest first**.
+  - `after` — messages newer than `cursor`, **oldest first**. Requires a `cursor`.
+
+  Results are in the direction of travel, and `nextCursor` is always the last item of the page, so a
+  client continues in the same direction by passing it back.
+
+**Errors:**
+| Code | HTTP | When |
+|---|---|---|
+| `MSG_INVALID_CURSOR` | 400 | `cursor` is not a token this server issued, or `direction=after` without one |
+| `VALIDATION_ERROR` | 400 | `direction` is neither `before` nor `after` |
+| `MSG_NOT_MEMBER` | 403 | The caller is not a member of the conversation |
+
+A malformed cursor used to be ignored, which returned the newest page again — a duplicate page and
+an infinite scroll. It is now refused.
 
 **Response (200):**
 ```json
@@ -344,7 +368,7 @@ Get message history.
         "clientTimestamp": "2026-02-11T14:24:59Z"
       }
     ],
-    "nextCursor": "018d8f3a-...",
+    "nextCursor": "djF8MjAyNi0wMi0xMVQxNDoyNTowMFp8MDE4ZDhmM2Et...",
     "hasMore": true
   }
 }

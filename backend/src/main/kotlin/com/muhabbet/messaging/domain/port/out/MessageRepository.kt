@@ -1,6 +1,8 @@
 package com.muhabbet.messaging.domain.port.out
 
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryPosition
+import com.muhabbet.messaging.domain.model.HistoryWindow
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import java.time.Instant
@@ -10,12 +12,30 @@ interface MessageRepository {
     fun save(message: Message): Message
     fun findById(id: UUID): Message?
     fun existsById(id: UUID): Boolean
-    fun findByConversationId(
+    /**
+     * One page of a conversation's readable history: not deleted, not a scheduled message that has
+     * yet to go out, inside [window], and on the far side of [position] — at most [limit] rows, in
+     * the direction of travel (see [HistoryPosition]).
+     *
+     * Keyset over `(serverTimestamp, id)`, so a page boundary that falls inside a run of equal
+     * timestamps neither skips nor repeats a row (#750). [window] has no default on purpose: every
+     * caller states whose history this is (#874).
+     */
+    fun findHistory(
         conversationId: UUID,
-        before: Instant?,
+        window: HistoryWindow,
+        position: HistoryPosition,
         limit: Int
     ): List<Message>
 
+    /**
+     * Messages across every conversation [userId] belongs to, stamped after [since] (default: seven
+     * days ago), oldest first. Background sync's catch-up read.
+     *
+     * Cross-conversation, so the [HistoryWindow] policy cannot be passed in as one value — the
+     * adapter applies `HistoryWindow.of` per row, in the query, against each membership's
+     * `joined_at`. `HistoryVisibilityIntegrationTest` pins the two to the same answer.
+     */
     fun findUndeliveredForUser(userId: UUID, since: Instant?): List<Message>
     /**
      * Every recipient's row for one message, in one call.
@@ -29,10 +49,14 @@ interface MessageRepository {
     fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
     fun markConversationRead(conversationId: UUID, userId: UUID)
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
-    fun getLastMessage(conversationId: UUID): Message?
-
-    // Batch operations for inbox optimization (avoids N+1 queries)
-    fun getLastMessages(conversationIds: List<UUID>): Map<UUID, Message>
+    /**
+     * The newest message [userId] may read in each of [conversationIds] — the inbox preview.
+     *
+     * Per user since #874: the conversation's newest message is exactly what a member who joined
+     * a group after it must not be shown, and before this the preview printed it in the inbox of
+     * everyone just added. A conversation with nothing visible is absent from the map.
+     */
+    fun getLastMessages(conversationIds: List<UUID>, userId: UUID): Map<UUID, Message>
     fun getUnreadCounts(conversationIds: List<UUID>, userId: UUID): Map<UUID, Int>
 
     // Message management
@@ -46,10 +70,19 @@ interface MessageRepository {
     fun getDeliveryStatuses(messageIds: List<UUID>): List<MessageDeliveryStatus>
 
     // Media messages for shared media screen
-    fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message>
+    fun findMediaByConversationId(conversationId: UUID, window: HistoryWindow, limit: Int, offset: Int): List<Message>
 
     // Search — membership-scoped: results are restricted to conversations the requesting user belongs to.
-    fun searchInConversation(conversationId: UUID, userId: UUID, query: String, limit: Int, offset: Int): List<Message>
+    fun searchInConversation(
+        conversationId: UUID,
+        userId: UUID,
+        window: HistoryWindow,
+        query: String,
+        limit: Int,
+        offset: Int
+    ): List<Message>
+
+    /** Cross-conversation, so the [HistoryWindow] policy is applied per row in the adapter, as in [findUndeliveredForUser]. */
     fun searchGlobal(userId: UUID, query: String, limit: Int, offset: Int): List<Message>
 
     // View-Once

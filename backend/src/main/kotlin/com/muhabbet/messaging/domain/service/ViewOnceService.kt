@@ -30,6 +30,8 @@ open class ViewOnceService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private val historyAccess = HistoryAccess(conversationRepository)
+
     /**
      * Burns a view-once message and hands back its media, once.
      *
@@ -51,8 +53,7 @@ open class ViewOnceService(
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 
-        conversationRepository.findMember(message.conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        historyAccess.requireVisible(message, userId)
 
         if (!message.viewOnce) {
             throw BusinessException(ErrorCode.VALIDATION_ERROR)

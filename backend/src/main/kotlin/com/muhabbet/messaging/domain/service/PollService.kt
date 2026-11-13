@@ -28,6 +28,8 @@ open class PollService(
 ) : ManagePollUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private val historyAccess = HistoryAccess(conversationRepository)
     private val json = Json { ignoreUnknownKeys = true }
 
     @Transactional
@@ -70,8 +72,7 @@ open class PollService(
     private fun requireMemberOfMessageConversation(messageId: UUID, userId: UUID): Message {
         val message = messageRepository.findById(messageId)
             ?: throw BusinessException(ErrorCode.POLL_MESSAGE_NOT_FOUND)
-        conversationRepository.findMember(message.conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        historyAccess.requireVisible(message, userId, notVisible = ErrorCode.POLL_MESSAGE_NOT_FOUND)
         return message
     }
 

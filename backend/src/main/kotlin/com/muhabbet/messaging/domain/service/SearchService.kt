@@ -4,8 +4,6 @@ import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SearchMessagesUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
-import com.muhabbet.shared.exception.BusinessException
-import com.muhabbet.shared.exception.ErrorCode
 import java.util.UUID
 
 /**
@@ -22,6 +20,8 @@ open class SearchService(
     private val messageRepository: MessageRepository
 ) : SearchMessagesUseCase {
 
+    private val historyAccess = HistoryAccess(conversationRepository)
+
     override fun searchGlobal(requestingUserId: UUID, query: String, limit: Int, offset: Int): List<Message> =
         messageRepository.searchGlobal(requestingUserId, query, limit, offset)
 
@@ -32,8 +32,7 @@ open class SearchService(
         limit: Int,
         offset: Int
     ): List<Message> {
-        conversationRepository.findMember(conversationId, requestingUserId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
-        return messageRepository.searchInConversation(conversationId, requestingUserId, query, limit, offset)
+        val window = historyAccess.windowFor(conversationId, requestingUserId)
+        return messageRepository.searchInConversation(conversationId, requestingUserId, window, query, limit, offset)
     }
 }

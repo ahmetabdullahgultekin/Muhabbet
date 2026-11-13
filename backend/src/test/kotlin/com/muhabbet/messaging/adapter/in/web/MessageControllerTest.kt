@@ -2,6 +2,8 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryPosition
+import com.muhabbet.messaging.domain.model.MessageCursor
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
@@ -25,8 +27,10 @@ import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import java.time.Instant
 import java.util.UUID
 
 class MessageControllerTest {
@@ -73,7 +77,7 @@ class MessageControllerTest {
             val statusMap = messages.associate { it.id to DeliveryStatus.DELIVERED }
 
             every {
-                getMessageHistoryUseCase.getMessages(conversationId, userId, null, 50, "before")
+                getMessageHistoryUseCase.getMessages(conversationId, userId, HistoryPosition.Latest, 50)
             } returns page
             every {
                 getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
@@ -91,7 +95,7 @@ class MessageControllerTest {
             val page = MessagePage(items = emptyList(), nextCursor = null, hasMore = false)
 
             every {
-                getMessageHistoryUseCase.getMessages(conversationId, userId, null, 50, "before")
+                getMessageHistoryUseCase.getMessages(conversationId, userId, HistoryPosition.Latest, 50)
             } returns page
             every {
                 getMessageHistoryUseCase.resolveDeliveryStatuses(emptyList(), userId)
@@ -104,22 +108,81 @@ class MessageControllerTest {
         }
 
         @Test
-        fun `should support cursor-based pagination`() {
+        fun `should pass a decoded cursor through as Before and echo the next cursor`() {
             val messages = listOf(TestData.textMessage())
+            val cursor = MessageCursor(Instant.parse("2026-11-13T10:00:00.123456Z"), UUID.randomUUID())
             val page = MessagePage(items = messages, nextCursor = "cursor-abc", hasMore = true)
-            val statusMap = messages.associate { it.id to DeliveryStatus.SENT }
 
             every {
-                getMessageHistoryUseCase.getMessages(conversationId, userId, "prev-cursor", 20, "before")
+                getMessageHistoryUseCase.getMessages(conversationId, userId, HistoryPosition.Before(cursor), 20)
             } returns page
-            every {
-                getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
-            } returns statusMap
+            every { getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId) } returns emptyMap()
 
-            val response = controller.getMessages(conversationId, "prev-cursor", 20, "before")
+            val response = controller.getMessages(conversationId, cursor.encode(), 20, "before")
 
             assert(response.body?.data?.nextCursor == "cursor-abc")
             assert(response.body?.data?.hasMore == true)
+        }
+
+        @Test
+        fun `should honour direction after instead of silently paging backwards`() {
+            // #876: the parameter used to be accepted and never read, so a gap fill after a
+            // reconnect was handed older messages and paged the wrong way.
+            val cursor = MessageCursor(Instant.parse("2026-11-13T10:00:00Z"), UUID.randomUUID())
+            val page = MessagePage(items = emptyList(), nextCursor = null, hasMore = false)
+            every {
+                getMessageHistoryUseCase.getMessages(conversationId, userId, HistoryPosition.After(cursor), 50)
+            } returns page
+            every { getMessageHistoryUseCase.resolveDeliveryStatuses(emptyList(), userId) } returns emptyMap()
+
+            controller.getMessages(conversationId, cursor.encode(), 50, "after")
+
+            verify(exactly = 1) {
+                getMessageHistoryUseCase.getMessages(conversationId, userId, HistoryPosition.After(cursor), 50)
+            }
+        }
+
+        @Test
+        fun `should keep accepting a legacy timestamp cursor for clients mid-scroll across the deploy`() {
+            val page = MessagePage(items = emptyList(), nextCursor = null, hasMore = false)
+            every { getMessageHistoryUseCase.getMessages(conversationId, userId, any(), 50) } returns page
+            every { getMessageHistoryUseCase.resolveDeliveryStatuses(emptyList(), userId) } returns emptyMap()
+
+            controller.getMessages(conversationId, "2026-11-13T10:00:00Z", 50, "before")
+
+            verify {
+                getMessageHistoryUseCase.getMessages(
+                    conversationId,
+                    userId,
+                    match { it is HistoryPosition.Before && it.cursor.serverTimestamp == Instant.parse("2026-11-13T10:00:00Z") },
+                    50
+                )
+            }
+        }
+
+        @Test
+        fun `should reject a malformed cursor instead of restarting at the newest page`() {
+            val ex = assertThrows<BusinessException> {
+                controller.getMessages(conversationId, "not-a-cursor", 50, "before")
+            }
+            assert(ex.errorCode == ErrorCode.MSG_INVALID_CURSOR)
+            verify(exactly = 0) { getMessageHistoryUseCase.getMessages(any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `should reject an unknown direction`() {
+            val ex = assertThrows<BusinessException> {
+                controller.getMessages(conversationId, null, 50, "sideways")
+            }
+            assert(ex.errorCode == ErrorCode.VALIDATION_ERROR)
+        }
+
+        @Test
+        fun `should reject direction after without a cursor`() {
+            val ex = assertThrows<BusinessException> {
+                controller.getMessages(conversationId, null, 50, "after")
+            }
+            assert(ex.errorCode == ErrorCode.MSG_INVALID_CURSOR)
         }
     }
 

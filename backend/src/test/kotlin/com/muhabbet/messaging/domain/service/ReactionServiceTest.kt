@@ -1,5 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.messaging.domain.model.Conversation
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -51,12 +53,28 @@ class ReactionServiceTest {
             clientTimestamp = Instant.ofEpochMilli(1786993903882L)
         )
         every { conversationRepository.findMember(conversationId, member) } returns
-            TestData.member(conversationId = conversationId, userId = member)
+            TestData.member(conversationId = conversationId, userId = member, joinedAt = Instant.EPOCH)
         every { conversationRepository.findMember(conversationId, outsider) } returns null
     }
 
     @Nested
     inner class Membership {
+
+        @Test
+        fun `should treat a group message from before the reactor joined as not found`() {
+            // #874: membership alone used to be enough to react to — and so learn of — anything the
+            // group had ever said, including what was said before this member was let in.
+            val newcomer = TestData.USER_ID_2
+            every { conversationRepository.findMember(conversationId, newcomer) } returns
+                TestData.member(conversationId = conversationId, userId = newcomer, joinedAt = Instant.now().plusSeconds(60))
+            every { conversationRepository.findById(conversationId) } returns
+                Conversation(id = conversationId, type = ConversationType.GROUP)
+
+            val e = assertThrows<BusinessException> { service.addReaction(messageId, newcomer, thumbsUp) }
+
+            assertEquals(ErrorCode.MSG_NOT_FOUND, e.errorCode)
+            verify(exactly = 0) { reactionRepository.save(any()) }
+        }
 
         @Test
         fun `should refuse to add a reaction from someone who is not in the conversation`() {

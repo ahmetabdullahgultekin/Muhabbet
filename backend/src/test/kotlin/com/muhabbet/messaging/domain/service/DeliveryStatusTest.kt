@@ -422,7 +422,7 @@ class DeliveryStatusTest {
 
         every { messageRepository.findById(messageId) } returns message
         every { conversationRepository.findMember(message.conversationId, senderId) } returns
-            ConversationMember(message.conversationId, senderId)
+            ConversationMember(message.conversationId, senderId, joinedAt = Instant.EPOCH)
         every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
             MessageDeliveryStatus(messageId, optedOut, DeliveryStatus.READ, readAt)
         )
@@ -446,7 +446,7 @@ class DeliveryStatusTest {
 
         every { messageRepository.findById(messageId) } returns message
         every { conversationRepository.findMember(message.conversationId, senderId) } returns
-            ConversationMember(message.conversationId, senderId)
+            ConversationMember(message.conversationId, senderId, joinedAt = Instant.EPOCH)
         every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
             MessageDeliveryStatus(messageId, recipientId, DeliveryStatus.READ, readAt)
         )
@@ -471,7 +471,7 @@ class DeliveryStatusTest {
 
         every { messageRepository.findById(messageId) } returns message
         every { conversationRepository.findMember(message.conversationId, requesterId) } returns
-            ConversationMember(message.conversationId, requesterId)
+            ConversationMember(message.conversationId, requesterId, joinedAt = Instant.EPOCH)
         every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
             MessageDeliveryStatus(messageId, requesterId, DeliveryStatus.READ, readAt)
         )

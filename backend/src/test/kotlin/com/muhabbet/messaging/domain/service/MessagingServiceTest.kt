@@ -8,8 +8,11 @@ import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryPosition
+import com.muhabbet.messaging.domain.model.HistoryWindow
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.MessageCursor
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
@@ -734,9 +737,10 @@ class MessagingServiceTest {
         )
 
         every { conversationRepository.findMember(convId, userA) } returns member
-        every { messageRepository.findByConversationId(convId, null, 51) } returns messages
+        every { conversationRepository.findById(convId) } returns Conversation(id = convId, type = ConversationType.DIRECT)
+        every { messageRepository.findHistory(convId, HistoryWindow.Unbounded, HistoryPosition.Latest, 51) } returns messages
 
-        val page = messageService.getMessages(convId, userA, null, 50, "before")
+        val page = messageService.getMessages(convId, userA, HistoryPosition.Latest, 50)
 
         assertEquals(1, page.items.size)
         assertFalse(page.hasMore)
@@ -748,7 +752,7 @@ class MessagingServiceTest {
         every { conversationRepository.findMember(convId, userA) } returns null
 
         val ex = assertThrows<BusinessException> {
-            messageService.getMessages(convId, userA, null, 50, "before")
+            messageService.getMessages(convId, userA, HistoryPosition.Latest, 50)
         }
         assertEquals(ErrorCode.MSG_NOT_MEMBER, ex.errorCode)
     }
@@ -768,13 +772,16 @@ class MessagingServiceTest {
         }
 
         every { conversationRepository.findMember(convId, userA) } returns member
-        every { messageRepository.findByConversationId(convId, null, 3) } returns messages
+        every { conversationRepository.findById(convId) } returns Conversation(id = convId, type = ConversationType.DIRECT)
+        every { messageRepository.findHistory(convId, HistoryWindow.Unbounded, HistoryPosition.Latest, 3) } returns messages
 
-        val page = messageService.getMessages(convId, userA, null, 2, "before")
+        val page = messageService.getMessages(convId, userA, HistoryPosition.Latest, 2)
 
         assertEquals(2, page.items.size)
         assertTrue(page.hasMore)
-        assertNotNull(page.nextCursor)
+        // The cursor is the (timestamp, id) of the page's last item, so the next page starts
+        // exactly after it even if the next row shares its timestamp (#750).
+        assertEquals(MessageCursor.of(messages[1]), page.nextCursor?.let { MessageCursor.decode(it) })
     }
 
     // ─── updateStatus ────────────────────────────────────
@@ -813,7 +820,7 @@ class MessagingServiceTest {
         )
 
         every { conversationRepository.findConversationsByUserId(userA) } returns listOf(conv)
-        every { messageRepository.getLastMessages(any()) } returns mapOf(convId to lastMsg)
+        every { messageRepository.getLastMessages(any(), any()) } returns mapOf(convId to lastMsg)
         every { messageRepository.getUnreadCounts(any(), eq(userA)) } returns mapOf(convId to 3)
         every { conversationRepository.findMembersByConversationIds(any()) } returns mapOf(
             convId to listOf(

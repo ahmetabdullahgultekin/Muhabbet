@@ -4,7 +4,10 @@ import com.muhabbet.messaging.adapter.out.persistence.entity.MessageDeliveryStat
 import com.muhabbet.messaging.adapter.out.persistence.entity.MessageJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageDeliveryStatusRepository
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageRepository
+import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryPosition
+import com.muhabbet.messaging.domain.model.HistoryWindow
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.out.MessageRepository
@@ -79,20 +82,31 @@ class MessagePersistenceAdapter(
     override fun existsById(id: UUID): Boolean =
         messageRepo.existsById(id)
 
-    override fun findByConversationId(conversationId: UUID, before: Instant?, limit: Int): List<Message> {
+    override fun findHistory(
+        conversationId: UUID,
+        window: HistoryWindow,
+        position: HistoryPosition,
+        limit: Int
+    ): List<Message> {
         val pageable = PageRequest.of(0, limit)
-        val entities = if (before != null) {
-            messageRepo.findByConversationIdBefore(conversationId, before, pageable)
-        } else {
-            messageRepo.findByConversationIdLatest(conversationId, pageable)
+        val visibleFrom = window.lowerBound()
+        val entities = when (position) {
+            HistoryPosition.Latest ->
+                messageRepo.findHistoryLatest(conversationId, visibleFrom, pageable)
+            is HistoryPosition.Before -> messageRepo.findHistoryBefore(
+                conversationId, visibleFrom, position.cursor.serverTimestamp, position.cursor.id, pageable
+            )
+            is HistoryPosition.After -> messageRepo.findHistoryAfter(
+                conversationId, visibleFrom, position.cursor.serverTimestamp, position.cursor.id, pageable
+            )
         }
         return entities.map { it.toDomain() }
     }
 
     override fun findUndeliveredForUser(userId: UUID, since: Instant?): List<Message> {
-        val sinceTime = since ?: Instant.now().minusSeconds(7 * 24 * 3600) // default: last 7 days
-        val pageable = PageRequest.of(0, 500) // cap at 500 messages per sync
-        return messageRepo.findMessagesSince(userId, sinceTime, pageable)
+        val sinceTime = since ?: Instant.now().minusSeconds(SYNC_DEFAULT_LOOKBACK_SECONDS)
+        val pageable = PageRequest.of(0, SYNC_PAGE_CAP)
+        return messageRepo.findMessagesSince(userId, sinceTime, ConversationType.GROUP, pageable)
             .map { it.toDomain() }
     }
 
@@ -130,13 +144,15 @@ class MessagePersistenceAdapter(
     override fun getUnreadCount(conversationId: UUID, userId: UUID): Int =
         deliveryStatusRepo.countUnread(conversationId, userId, DeliveryStatus.READ)
 
-    override fun getLastMessage(conversationId: UUID): Message? =
-        messageRepo.findLastByConversationId(conversationId)?.toDomain()
-
-    override fun getLastMessages(conversationIds: List<UUID>): Map<UUID, Message> {
+    /**
+     * Two rows can share a conversation's newest timestamp; the higher id wins, the same tie-break
+     * history uses, so the preview is the message the chat itself shows last.
+     */
+    override fun getLastMessages(conversationIds: List<UUID>, userId: UUID): Map<UUID, Message> {
         if (conversationIds.isEmpty()) return emptyMap()
-        return messageRepo.findLastMessagesByConversationIds(conversationIds)
-            .associate { it.conversationId to it.toDomain() }
+        return messageRepo.findLastMessagesByConversationIds(conversationIds, userId, ConversationType.GROUP)
+            .groupBy { it.conversationId }
+            .mapValues { (_, rows) -> rows.maxWith(compareBy({ it.serverTimestamp }, { it.id })).toDomain() }
     }
 
     override fun getUnreadCounts(conversationIds: List<UUID>, userId: UUID): Map<UUID, Int> {
@@ -161,7 +177,7 @@ class MessagePersistenceAdapter(
         return deliveryStatusRepo.findByMessageIdIn(messageIds).map { it.toDomain() }
     }
 
-    override fun findMediaByConversationId(conversationId: UUID, limit: Int, offset: Int): List<Message> {
+    override fun findMediaByConversationId(conversationId: UUID, window: HistoryWindow, limit: Int, offset: Int): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
         val contentTypes = listOf(
             com.muhabbet.messaging.domain.model.ContentType.IMAGE,
@@ -169,17 +185,26 @@ class MessagePersistenceAdapter(
             com.muhabbet.messaging.domain.model.ContentType.DOCUMENT,
             com.muhabbet.messaging.domain.model.ContentType.VOICE
         )
-        return messageRepo.findMediaByConversationId(conversationId, contentTypes, pageable).map { it.toDomain() }
+        return messageRepo.findMediaByConversationId(conversationId, contentTypes, window.lowerBound(), pageable)
+            .map { it.toDomain() }
     }
 
-    override fun searchInConversation(conversationId: UUID, userId: UUID, query: String, limit: Int, offset: Int): List<Message> {
+    override fun searchInConversation(
+        conversationId: UUID,
+        userId: UUID,
+        window: HistoryWindow,
+        query: String,
+        limit: Int,
+        offset: Int
+    ): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
-        return messageRepo.searchInConversation(conversationId, userId, query, pageable).map { it.toDomain() }
+        return messageRepo.searchInConversation(conversationId, userId, window.lowerBound(), query, pageable)
+            .map { it.toDomain() }
     }
 
     override fun searchGlobal(userId: UUID, query: String, limit: Int, offset: Int): List<Message> {
         val pageable = PageRequest.of(offset / limit.coerceAtLeast(1), limit)
-        return messageRepo.searchGlobal(userId, query, pageable).map { it.toDomain() }
+        return messageRepo.searchGlobal(userId, query, ConversationType.GROUP, pageable).map { it.toDomain() }
     }
 
     override fun markViewOnceViewed(messageId: UUID, viewedBy: UUID, viewedAt: Instant): Int =
@@ -197,4 +222,22 @@ class MessagePersistenceAdapter(
 
     override fun softDeleteExpired(messageIds: List<UUID>, deletedAt: Instant): Int =
         if (messageIds.isEmpty()) 0 else messageRepo.softDeleteExpired(messageIds, deletedAt)
+
+    /**
+     * A window as the `server_timestamp >= :visibleFrom` bound the queries take. Unbounded is the
+     * epoch rather than a null parameter: one query shape per read instead of two, and no reliance
+     * on how the driver types a null timestamp. No row predates 1970.
+     */
+    private fun HistoryWindow.lowerBound(): Instant = when (this) {
+        HistoryWindow.Unbounded -> Instant.EPOCH
+        is HistoryWindow.From -> visibleFrom
+    }
+
+    private companion object {
+        /** How far back a sync with no watermark reaches. */
+        const val SYNC_DEFAULT_LOOKBACK_SECONDS = 7L * 24 * 3600
+
+        /** At most this many messages per sync call. */
+        const val SYNC_PAGE_CAP = 500
+    }
 }

@@ -5,7 +5,9 @@ import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.HistoryPosition
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.MessageCursor
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
@@ -44,6 +46,8 @@ open class MessageService(
 ) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private val historyAccess = HistoryAccess(conversationRepository)
 
     companion object {
         // The `EDIT_WINDOW_MINUTES` alias that stood here is gone. #597 moved the rule into
@@ -300,28 +304,17 @@ open class MessageService(
     override fun getMessages(
         conversationId: UUID,
         userId: UUID,
-        cursor: String?,
-        limit: Int,
-        direction: String
+        position: HistoryPosition,
+        limit: Int
     ): MessagePage {
-        // Verify membership
-        conversationRepository.findMember(conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
-
-        val before = cursor?.let {
-            try {
-                Instant.parse(it)
-            } catch (e: Exception) {
-                null
-            }
-        }
+        val window = historyAccess.windowFor(conversationId, userId)
 
         val effectiveLimit = limit.coerceIn(1, 100)
-        val messages = messageRepository.findByConversationId(conversationId, before, effectiveLimit + 1)
+        val messages = messageRepository.findHistory(conversationId, window, position, effectiveLimit + 1)
 
         val hasMore = messages.size > effectiveLimit
         val page = if (hasMore) messages.take(effectiveLimit) else messages
-        val nextCursor = if (hasMore) page.lastOrNull()?.serverTimestamp?.toString() else null
+        val nextCursor = if (hasMore) page.lastOrNull()?.let { MessageCursor.of(it).encode() } else null
 
         return MessagePage(items = page, nextCursor = nextCursor, hasMore = hasMore)
     }
@@ -437,9 +430,13 @@ open class MessageService(
 
     @Transactional(readOnly = true)
     override fun getMediaMessages(conversationId: UUID, userId: UUID, limit: Int, offset: Int): List<Message> {
-        conversationRepository.findMember(conversationId, userId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
-        return messageRepository.findMediaByConversationId(conversationId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
+        val window = historyAccess.windowFor(conversationId, userId)
+        return messageRepository.findMediaByConversationId(
+            conversationId,
+            window,
+            limit.coerceIn(1, 100),
+            offset.coerceAtLeast(0)
+        )
     }
 
     @Transactional(readOnly = true)
@@ -453,9 +450,9 @@ open class MessageService(
             ?: throw BusinessException(ErrorCode.MSG_NOT_FOUND)
 
         // Authorize FIRST: only members of the conversation may read message info
-        // (content, senderId, recipient list). Closes the getMessageInfo IDOR.
-        conversationRepository.findMember(message.conversationId, requesterId)
-            ?: throw BusinessException(ErrorCode.MSG_NOT_MEMBER)
+        // (content, senderId, recipient list). Closes the getMessageInfo IDOR — and only for a
+        // message inside the requester's history window, or info becomes the way round #874.
+        historyAccess.requireVisible(message, requesterId)
 
         // The sender is not a recipient of their own message.
         val statuses = messageRepository.getDeliveryStatuses(listOf(messageId))
