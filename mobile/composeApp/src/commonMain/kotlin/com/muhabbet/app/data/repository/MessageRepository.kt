@@ -118,8 +118,16 @@ class MessageRepository(
         apiClient.delete<Unit>("/api/v1/starred/$messageId")
     }
 
-    suspend fun getStarredMessages(limit: Int = 50, offset: Int = 0): PaginatedResponse<Message> {
-        val response = apiClient.get<PaginatedResponse<Message>>("/api/v1/starred?limit=$limit&offset=$offset")
+    /**
+     * [cursor] is the previous page's `nextCursor`, server-minted and opaque. The endpoint pages by
+     * keyset since #906; it no longer reads an `offset`.
+     */
+    suspend fun getStarredMessages(limit: Int = 50, cursor: String? = null): PaginatedResponse<Message> {
+        val path = buildString {
+            append("/api/v1/starred?limit=$limit")
+            if (cursor != null) append("&cursor=${cursor.encodeURLParameter()}")
+        }
+        val response = apiClient.get<PaginatedResponse<Message>>(path)
         return response.data ?: PaginatedResponse(emptyList(), null, false)
     }
 

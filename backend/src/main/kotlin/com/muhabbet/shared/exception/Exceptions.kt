@@ -154,6 +154,10 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // View-Once & Announcement
     MSG_VIEW_ONCE_ALREADY_VIEWED(HttpStatus.CONFLICT, "Bu mesaj zaten görüntülendi"),
     MSG_PIN_LIMIT_REACHED(HttpStatus.CONFLICT, "Sabitlenmiş mesaj sınırına ulaşıldı"),
+
+    // A message the caller can see but may not bookmark (#906): view-once, because a bookmark is a
+    // way to see it again, or the caller's own scheduled message before it has been sent.
+    MSG_NOT_STARRABLE(HttpStatus.BAD_REQUEST, "Bu mesaj yıldızlanamaz"),
     MSG_ANNOUNCEMENT_ONLY(HttpStatus.FORBIDDEN, "Bu grupta sadece yöneticiler mesaj gönderebilir"),
 
     // A message or status named a media address this server does not serve (#679). BAD_REQUEST, not

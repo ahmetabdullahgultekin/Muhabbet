@@ -1,45 +1,39 @@
 package com.muhabbet.messaging.adapter.out.persistence
 
+import com.muhabbet.messaging.adapter.out.persistence.entity.MessageJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.entity.StarredMessageJpaEntity
-import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessageRepository
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataStarredMessageRepository
-import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.StarredCursor
+import com.muhabbet.messaging.domain.model.StarredMessage
 import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 @Component
 class StarredMessagePersistenceAdapter(
-    private val starredRepo: SpringDataStarredMessageRepository,
-    private val messageRepo: SpringDataMessageRepository
+    private val starredRepo: SpringDataStarredMessageRepository
 ) : StarredMessageRepository {
 
-    @Transactional
     override fun star(userId: UUID, messageId: UUID) {
-        if (!starredRepo.existsByUserIdAndMessageId(userId, messageId)) {
-            starredRepo.save(StarredMessageJpaEntity(userId = userId, messageId = messageId))
-        }
+        starredRepo.insertIfAbsent(userId, messageId)
     }
 
-    @Transactional
     override fun unstar(userId: UUID, messageId: UUID) {
         starredRepo.deleteByUserIdAndMessageId(userId, messageId)
     }
 
-    override fun isStarred(userId: UUID, messageId: UUID): Boolean {
-        return starredRepo.existsByUserIdAndMessageId(userId, messageId)
-    }
-
-    override fun getStarredMessages(userId: UUID, limit: Int, offset: Int): List<Message> {
-        val starred = starredRepo.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(offset / limit, limit))
-        if (starred.isEmpty()) return emptyList()
-        val messageIds = starred.map { it.messageId }
-        return messageRepo.findAllById(messageIds).map { it.toDomain() }
-    }
-
-    override fun getStarredMessageIds(userId: UUID, messageIds: List<UUID>): Set<UUID> {
-        return starredRepo.findStarredMessageIds(userId, messageIds).toSet()
+    override fun findVisibleStarred(userId: UUID, before: StarredCursor?, limit: Int): List<StarredMessage> {
+        val page = PageRequest.ofSize(limit)
+        val rows = if (before == null) {
+            starredRepo.findVisibleLatest(userId, page)
+        } else {
+            starredRepo.findVisibleBefore(userId, before.starredAt, before.starId, page)
+        }
+        return rows.map { row ->
+            val star = row[0] as StarredMessageJpaEntity
+            val message = row[1] as MessageJpaEntity
+            StarredMessage(starId = star.id, starredAt = star.createdAt, message = message.toDomain())
+        }
     }
 }

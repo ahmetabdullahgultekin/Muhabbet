@@ -41,6 +41,7 @@ import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
+import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.NotificationTextPort
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
@@ -54,6 +55,7 @@ import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
 import com.muhabbet.messaging.domain.service.PinnedMessageService
+import com.muhabbet.messaging.domain.service.StarredMessageService
 import com.muhabbet.messaging.domain.service.CallSignalingService
 import com.muhabbet.messaging.domain.service.ChannelService
 import com.muhabbet.messaging.domain.service.ChatWallpaperService
@@ -511,6 +513,17 @@ class AppConfig {
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         pinnedMessageRepository = pinnedMessageRepository
+    )
+
+    @Bean
+    fun starredMessageService(
+        messageRepository: MessageRepository,
+        conversationRepository: ConversationRepository,
+        starredMessageRepository: StarredMessageRepository
+    ): StarredMessageService = StarredMessageService(
+        messageRepository = messageRepository,
+        conversationRepository = conversationRepository,
+        starredMessageRepository = starredMessageRepository
     )
 
     @Bean

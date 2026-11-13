@@ -18,6 +18,16 @@ class HexagonalArchitectureTest {
             .withImportOption(ImportOption.DoNotIncludeTests())
             .importPackages("com.muhabbet")
 
+        /** Controllers that held an out-port before the rule existed (#906). May only shrink; #913 drains it. */
+        private val OUT_PORT_CONTROLLER_BASELINE = listOf(
+            "UserController",
+            "CallHistoryController",
+            "ConversationController",
+            "GroupController",
+            "ReactionController",
+            "ModerationController"
+        ).joinToString(separator = "|", prefix = ".*\\.(", postfix = ")(\\$.*)?")
+
         @JvmStatic
         @BeforeAll
         fun setUp() {
@@ -77,6 +87,24 @@ class HexagonalArchitectureTest {
             val rule: ArchRule = noClasses()
                 .that().resideInAPackage("..adapter.in.web..")
                 .should().dependOnClassesThat().resideInAPackage("..adapter.out.persistence.entity..")
+
+            rule.check(importedClasses)
+        }
+
+        /**
+         * Controllers reach the domain through in-ports only. A controller holding an out-port can
+         * skip the service — and with it whatever authorization the service applies — which is
+         * exactly how starred messages shipped with no membership check (#906).
+         *
+         * Ratcheted: the controllers named here predate the rule and still hold an out-port. The
+         * list may only shrink; a new controller, or one removed from the list, is held to it.
+         */
+        @Test
+        fun `controllers should not depend on out-ports`() {
+            val rule: ArchRule = noClasses()
+                .that().resideInAPackage("..adapter.in.web..")
+                .and().haveNameNotMatching(OUT_PORT_CONTROLLER_BASELINE)
+                .should().dependOnClassesThat().resideInAPackage("..domain.port.out..")
 
             rule.check(importedClasses)
         }
