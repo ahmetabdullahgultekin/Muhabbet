@@ -410,6 +410,10 @@ class UserDataQueryPersistenceAdapter(
             "DELETE FROM message_backups WHERE user_id = :userId",
             "DELETE FROM broadcast_list_members WHERE user_id = :userId",
             "DELETE FROM broadcast_lists WHERE owner_id = :userId",
+
+            // Which statuses this person has seen (#787). Ephemeral — the rows cascade away with
+            // the status within a day — but an erased account should not leave a trail until then.
+            "DELETE FROM status_views WHERE viewer_id = :userId",
         )
     }
 }

@@ -157,8 +157,19 @@
     <string name="group_members">Members</string>
     <string name="group_role_owner">Owner</string>
     <string name="group_role_admin">Admin</string>
-    <string name="group_member_you">(You)</string>
+    <string name="group_member_you">%1$s (You)</string>
     <string name="group_remove_failed">Failed to remove member</string>
+    <string name="group_member_action_view_profile">View profile</string>
+    <string name="group_member_action_make_admin">Make group admin</string>
+    <string name="group_member_action_dismiss_admin">Dismiss as admin</string>
+    <string name="group_role_update_failed">Couldn't change the role</string>
+    <plurals name="group_join_requests_header">
+        <item quantity="one">%1$d request to join</item>
+        <item quantity="other">%1$d requests to join</item>
+    </plurals>
+    <string name="group_join_request_approve">Approve</string>
+    <string name="group_join_request_reject">Decline</string>
+    <string name="group_join_request_failed">Couldn't answer the request</string>
 
     <!-- Logout Dialog -->
     <string name="logout_confirm_title">Log Out</string>
@@ -354,10 +365,10 @@
     <string name="status_add_photo">Add Photo</string>
     <string name="chat_context_info">Message Info</string>
     <string name="message_info_title">Message Info</string>
-    <string name="message_info_sent_at">Sent</string>
+    <string name="message_info_sent_at">Sent: %1$s</string>
     <string name="message_info_delivered_at">Delivered</string>
     <string name="message_info_read_at">Read</string>
-    <string name="profile_contact_name">Contact Name</string>
+    <string name="profile_contact_name">Contact name: %1$s</string>
 
     <!-- Round 5 — Media Viewer & Message Info -->
     <string name="media_viewer_forward">Forward</string>
@@ -477,7 +488,11 @@
 
     <!-- Account -->
     <string name="settings_account_section">Account</string>
-    <string name="settings_account_phone">Phone number</string>
+    <string name="settings_account_phone">Phone number: %1$s</string>
+    <plurals name="settings_storage_size_and_count">
+        <item quantity="one">%2$s (%1$d file)</item>
+        <item quantity="other">%2$s (%1$d files)</item>
+    </plurals>
     <string name="settings_account_phone_unknown">Unavailable</string>
     <string name="settings_account_delete">Delete Account</string>
     <string name="settings_account_delete_confirm">Your account and all data will be permanently deleted. This cannot be undone.</string>
@@ -532,13 +547,14 @@
     <string name="privacy_data_section">My Data</string>
     <string name="privacy_export_data">Download My Data</string>
     <string name="privacy_export_data_desc">Download a copy of all your personal data (KVKK Article 11)</string>
-    <string name="privacy_export_started">Data export started</string>
-    <string name="privacy_export_failed">Failed to start data export</string>
+    <string name="privacy_export_saved">Your data was saved</string>
+    <string name="privacy_export_failed">Your data could not be exported</string>
+    <string name="privacy_export_progress">Preparing your data (page %1$d)</string>
+    <string name="privacy_export_saving">Choose where to save it</string>
     <string name="privacy_delete_account">Delete My Account</string>
     <string name="privacy_delete_account_desc">Your account and all data will be permanently deleted</string>
     <string name="privacy_delete_confirm_title">Delete Account</string>
     <string name="privacy_delete_confirm_message">This action cannot be undone. All your messages, media files, and personal data will be permanently deleted.</string>
-    <string name="privacy_delete_success">Account deletion request received</string>
     <string name="privacy_visibility_section">Visibility</string>
     <string name="privacy_settings_loading">Loading privacy settings…</string>
     <string name="privacy_settings_load_failed">Could not load privacy settings</string>
@@ -612,6 +628,7 @@
     <string name="view_once_offline">A view-once photo cannot be sent while offline</string>
     <string name="view_once_photo">Photo</string>
     <string name="view_once_video">Video</string>
+    <string name="view_once_meta">%1$s · %2$s</string>
 
     <!-- App Lock -->
     <string name="app_lock_title">App Lock</string>
@@ -702,7 +719,10 @@
     <string name="broadcast_list_create">New List</string>
     <string name="broadcast_list_name_hint">List name</string>
     <string name="broadcast_detail_title">Broadcast List</string>
-    <string name="broadcast_detail_recipients">Recipients</string>
+    <plurals name="broadcast_detail_recipients">
+        <item quantity="one">%1$d recipient</item>
+        <item quantity="other">%1$d recipients</item>
+    </plurals>
     <string name="broadcast_detail_no_recipients">No recipients added yet</string>
 
     <!-- Community Add Group -->

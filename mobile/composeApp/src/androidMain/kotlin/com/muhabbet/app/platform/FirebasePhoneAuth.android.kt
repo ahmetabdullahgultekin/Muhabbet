@@ -25,12 +25,22 @@ class AndroidFirebasePhoneAuth(
     override fun isAvailable(): Boolean = true
 
     override suspend fun startVerification(phoneNumber: String): PhoneVerificationResult =
+        verify(phoneNumber, resendToken = null)
+
+    override suspend fun resendVerification(phoneNumber: String): PhoneVerificationResult =
+        verify(phoneNumber, resendToken = resendTokens[phoneNumber])
+
+    private suspend fun verify(
+        phoneNumber: String,
+        resendToken: PhoneAuthProvider.ForceResendingToken?
+    ): PhoneVerificationResult =
         suspendCancellableCoroutine { cont ->
             val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                 override fun onCodeSent(
                     verificationId: String,
                     token: PhoneAuthProvider.ForceResendingToken
                 ) {
+                    resendTokens[phoneNumber] = token
                     if (cont.isActive) {
                         cont.resume(PhoneVerificationResult.CodeSent(verificationId))
                     }
@@ -76,10 +86,21 @@ class AndroidFirebasePhoneAuth(
                 .setTimeout(60L, TimeUnit.SECONDS)
                 .setActivity(activity)
                 .setCallbacks(callbacks)
+                .apply { if (resendToken != null) setForceResendingToken(resendToken) }
                 .build()
 
             PhoneAuthProvider.verifyPhoneNumber(options)
         }
+
+    private companion object {
+        /**
+         * The token Firebase hands back with each sent code, by phone number. Process-scoped rather
+         * than per instance because the phone-number screen starts the verification and the code
+         * screen resends it, and each holds its own instance. Lost on process death; a resend
+         * without it still sends a code, Firebase just may ask for reCAPTCHA again.
+         */
+        val resendTokens = java.util.concurrent.ConcurrentHashMap<String, PhoneAuthProvider.ForceResendingToken>()
+    }
 
     override suspend fun verifyCode(verificationId: String, code: String): String =
         suspendCancellableCoroutine { cont ->

@@ -49,6 +49,7 @@ import com.muhabbet.composeapp.generated.resources.broadcast_detail_title
 import com.muhabbet.composeapp.generated.resources.unknown
 import com.muhabbet.composeapp.generated.resources.error_generic
 import com.muhabbet.shared.dto.BroadcastMemberResponse
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
@@ -130,7 +131,7 @@ fun BroadcastDetailScreen(
             ) {
                 item {
                     Text(
-                        text = "${stringResource(Res.string.broadcast_detail_recipients)} (${members.size})",
+                        text = pluralStringResource(Res.plurals.broadcast_detail_recipients, members.size, members.size),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(

@@ -39,6 +39,7 @@ import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
@@ -150,8 +151,6 @@ fun ActiveCallScreen(
         }
     }
 
-    val minutes = callDurationSeconds / 60
-    val seconds = callDurationSeconds % 60
 
     Box(
         modifier = Modifier
@@ -203,7 +202,7 @@ fun ActiveCallScreen(
             // the tri-state above exists to remove.
             if (mediaState != CallMediaState.CONNECTING) {
                 Text(
-                    text = "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}",
+                    text = DateTimeFormatter.formatDuration(callDurationSeconds),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary
                 )

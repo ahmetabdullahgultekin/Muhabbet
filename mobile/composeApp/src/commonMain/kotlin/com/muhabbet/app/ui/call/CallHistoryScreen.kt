@@ -40,6 +40,7 @@ import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.app.data.repository.CallRepository
 import com.muhabbet.shared.dto.CallHistoryResponse
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
@@ -204,10 +205,7 @@ fun CallHistoryScreen(
                                 text = buildString {
                                     append(if (isVideo) videoLabel else voiceLabel)
                                     call.durationSeconds?.let { dur ->
-                                        if (dur > 0) {
-                                            val m = dur / 60; val s = dur % 60
-                                            append(" · ${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}")
-                                        }
+                                        if (dur > 0) append(" · ${DateTimeFormatter.formatDuration(dur)}")
                                     }
                                 },
                                 style = MaterialTheme.typography.bodySmall,

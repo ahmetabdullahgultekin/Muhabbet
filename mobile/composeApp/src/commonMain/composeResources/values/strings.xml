@@ -161,8 +161,19 @@
     <string name="group_members">Üyeler</string>
     <string name="group_role_owner">Sahip</string>
     <string name="group_role_admin">Yönetici</string>
-    <string name="group_member_you">(Sen)</string>
+    <string name="group_member_you">%1$s (Sen)</string>
     <string name="group_remove_failed">Çıkarma başarısız</string>
+    <string name="group_member_action_view_profile">Profili görüntüle</string>
+    <string name="group_member_action_make_admin">Yönetici yap</string>
+    <string name="group_member_action_dismiss_admin">Yöneticilikten çıkar</string>
+    <string name="group_role_update_failed">Rol değiştirilemedi</string>
+    <plurals name="group_join_requests_header">
+        <item quantity="one">Katılma istekleri (%1$d)</item>
+        <item quantity="other">Katılma istekleri (%1$d)</item>
+    </plurals>
+    <string name="group_join_request_approve">Onayla</string>
+    <string name="group_join_request_reject">Reddet</string>
+    <string name="group_join_request_failed">İstek yanıtlanamadı</string>
 
     <!-- Logout Dialog -->
     <string name="logout_confirm_title">Çıkış Yap</string>
@@ -373,10 +384,10 @@
     <string name="status_add_photo">Fotoğraf Ekle</string>
     <string name="chat_context_info">Mesaj Bilgisi</string>
     <string name="message_info_title">Mesaj Bilgisi</string>
-    <string name="message_info_sent_at">Gönderilme</string>
+    <string name="message_info_sent_at">Gönderilme: %1$s</string>
     <string name="message_info_delivered_at">İletilme</string>
     <string name="message_info_read_at">Okunma</string>
-    <string name="profile_contact_name">Rehber Adı</string>
+    <string name="profile_contact_name">Rehber adı: %1$s</string>
 
     <!-- Round 5 — Media Viewer & Message Info -->
     <string name="media_viewer_forward">İlet</string>
@@ -501,7 +512,11 @@
 
     <!-- Account -->
     <string name="settings_account_section">Hesap</string>
-    <string name="settings_account_phone">Telefon numarası</string>
+    <string name="settings_account_phone">Telefon numarası: %1$s</string>
+    <plurals name="settings_storage_size_and_count">
+        <item quantity="one">%2$s (%1$d dosya)</item>
+        <item quantity="other">%2$s (%1$d dosya)</item>
+    </plurals>
     <string name="settings_account_phone_unknown">Yüklenemedi</string>
     <string name="settings_account_delete">Hesabı Sil</string>
     <string name="settings_account_delete_confirm">Hesabınız ve tüm verileriniz kalıcı olarak silinecektir. Bu işlem geri alınamaz.</string>
@@ -557,13 +572,14 @@
     <string name="privacy_data_section">Verilerim</string>
     <string name="privacy_export_data">Verilerimi İndir</string>
     <string name="privacy_export_data_desc">Tüm kişisel verilerinizin bir kopyasını indirin (KVKK Madde 11)</string>
-    <string name="privacy_export_started">Veri dışa aktarma başlatıldı</string>
-    <string name="privacy_export_failed">Veri dışa aktarma başlatılamadı</string>
+    <string name="privacy_export_saved">Verileriniz kaydedildi</string>
+    <string name="privacy_export_failed">Verileriniz dışa aktarılamadı</string>
+    <string name="privacy_export_progress">Verileriniz hazırlanıyor (sayfa %1$d)</string>
+    <string name="privacy_export_saving">Kaydedilecek yeri seçin</string>
     <string name="privacy_delete_account">Hesabımı Sil</string>
     <string name="privacy_delete_account_desc">Hesabınız ve tüm verileriniz kalıcı olarak silinir</string>
     <string name="privacy_delete_confirm_title">Hesabı Sil</string>
     <string name="privacy_delete_confirm_message">Bu işlem geri alınamaz. Tüm mesajlarınız, medya dosyalarınız ve kişisel verileriniz kalıcı olarak silinecektir.</string>
-    <string name="privacy_delete_success">Hesap silme isteği alındı</string>
     <string name="privacy_visibility_section">Görünürlük</string>
     <string name="privacy_settings_loading">Gizlilik ayarları yükleniyor…</string>
     <string name="privacy_settings_load_failed">Gizlilik ayarları yüklenemedi</string>
@@ -637,6 +653,7 @@
     <string name="view_once_offline">Bir kez görüntülenecek fotoğraf çevrimdışıyken gönderilemez</string>
     <string name="view_once_photo">Fotoğraf</string>
     <string name="view_once_video">Video</string>
+    <string name="view_once_meta">%1$s · %2$s</string>
 
     <!-- App Lock -->
     <string name="app_lock_title">Uygulama Kilidi</string>
@@ -729,7 +746,10 @@
     <string name="broadcast_list_create">Yeni Liste</string>
     <string name="broadcast_list_name_hint">Liste adı</string>
     <string name="broadcast_detail_title">Yayın Listesi</string>
-    <string name="broadcast_detail_recipients">Alıcılar</string>
+    <plurals name="broadcast_detail_recipients">
+        <item quantity="one">Alıcılar (%1$d)</item>
+        <item quantity="other">Alıcılar (%1$d)</item>
+    </plurals>
     <string name="broadcast_detail_no_recipients">Henüz alıcı eklenmedi</string>
 
     <!-- Community Add Group -->

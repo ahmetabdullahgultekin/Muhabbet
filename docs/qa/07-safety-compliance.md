@@ -44,17 +44,17 @@
 
 | Right | Endpoint | Status | Test |
 |-------|----------|--------|------|
-| Right to know | `GET /api/v1/users/data/export` | Deployed | P0 |
-| Right to access | `GET /api/v1/users/data/export` | Deployed | P0 |
+| Right to know | `GET /api/v1/users/me/data-export` | Deployed | P0 |
+| Right to access | `GET /api/v1/users/me/data-export` | Deployed | P0 |
 | Right to rectification | `PATCH /api/v1/users/me` | Deployed | P0 |
-| Right to erasure | `DELETE /api/v1/users/data/account` | Deployed (soft delete) | P0 |
-| Right to portability | `GET /api/v1/users/data/export` (JSON) | Deployed | P0 |
+| Right to erasure | `DELETE /api/v1/users/me` | Deployed (soft delete) | P0 |
+| Right to portability | `GET /api/v1/users/me/data-export` (JSON) | Deployed | P0 |
 | Right to object | Account deletion | Deployed | P0 |
 | Right to withdraw consent | Account deletion | Deployed | P0 |
 
 ### 2.3 Data Export Contents
 
-The data export endpoint (`GET /api/v1/users/data/export`) must include:
+The data export endpoint (`GET /api/v1/users/me/data-export`) must include:
 
 | Data Category | Included | Format |
 |--------------|----------|--------|

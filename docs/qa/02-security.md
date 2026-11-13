@@ -229,8 +229,8 @@ Expected: URL validation rejects non-HTTPS schemes
 
 | Requirement | Implementation | Status |
 |-------------|---------------|--------|
-| Right to access | `GET /api/v1/users/data/export` | Deployed |
-| Right to erasure | `DELETE /api/v1/users/data/account` (soft delete) | Deployed |
+| Right to access | `GET /api/v1/users/me/data-export` | Deployed |
+| Right to erasure | `DELETE /api/v1/users/me` (soft delete) | Deployed |
 | Data minimization | Only phone hash stored for contacts, not full number | Deployed |
 | Consent | Privacy policy acceptance on registration | Mobile UI done |
 | Data portability | Export includes messages, media, conversations | Deployed |

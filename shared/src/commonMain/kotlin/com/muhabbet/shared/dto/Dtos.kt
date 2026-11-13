@@ -317,7 +317,9 @@ data class StatusResponse(
     val content: String? = null,
     val mediaUrl: String? = null,
     val createdAt: Long,
-    val expiresAt: Long
+    val expiresAt: Long,
+    /** Whether the requesting viewer has seen this status (#787). Always false on your own. */
+    val viewed: Boolean = false
 )
 
 @Serializable

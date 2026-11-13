@@ -49,6 +49,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.shared.dto.StorageUsageResponse
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.SettingsInfoRow
@@ -480,7 +481,7 @@ internal fun AccountSection(phoneNumber: String) {
     // rendered a UUID under a phone-number label).
     val value = phoneNumber.ifBlank { stringResource(Res.string.settings_account_phone_unknown) }
     Text(
-        text = "${stringResource(Res.string.settings_account_phone)}: $value",
+        text = stringResource(Res.string.settings_account_phone, value),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth()
@@ -510,7 +511,7 @@ private fun StorageRow(label: String, bytes: Long, count: Int, color: Color) {
             )
         }
         Text(
-            text = "${formatBytes(bytes)} ($count)",
+            text = pluralStringResource(Res.plurals.settings_storage_size_and_count, count, count, formatBytes(bytes)),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -31,6 +31,13 @@ import androidx.compose.ui.Modifier
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.local.PrivacySettingsController
 import com.muhabbet.app.data.repository.AuthRepository
+import com.muhabbet.app.data.repository.DataExportRepository
+import com.muhabbet.app.platform.DocumentSaveResult
+import com.muhabbet.app.platform.rememberDocumentSaver
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import com.muhabbet.app.util.Log
 import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.ConfirmDialog
@@ -57,9 +64,11 @@ fun PrivacyDashboardScreen(
     onLogout: () -> Unit,
     onBlockedUsers: () -> Unit,
     authRepository: AuthRepository = koinInject(),
+    dataExportRepository: DataExportRepository = koinInject(),
     privacySettings: PrivacySettingsController = koinInject()
 ) {
-    var isExporting by remember { mutableStateOf(false) }
+    var exportState by remember { mutableStateOf<DataExportState>(DataExportState.Idle) }
+    fun dispatchExport(event: DataExportEvent) { exportState = reduceDataExport(exportState, event) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     // Server-backed, shared with Settings → Gizlilik. Every control on this screen used to be a
@@ -72,13 +81,58 @@ fun PrivacyDashboardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    val exportStartedMsg = stringResource(Res.string.privacy_export_started)
+    val exportSavedMsg = stringResource(Res.string.privacy_export_saved)
     val exportFailedMsg = stringResource(Res.string.privacy_export_failed)
-    val deleteSuccessMsg = stringResource(Res.string.privacy_delete_success)
     val errorMsg = stringResource(Res.string.error_generic)
     val saveFailedMsg = stringResource(Res.string.privacy_settings_save_failed)
 
     LaunchedEffect(Unit) { loadFailed = privacySettings.load().isFailure }
+
+    // The last step of the export: the user decides where the file goes, or backs out.
+    val documentSaver = rememberDocumentSaver(mimeType = EXPORT_MIME_TYPE) { result ->
+        dispatchExport(
+            when (result) {
+                DocumentSaveResult.SAVED -> DataExportEvent.Saved
+                DocumentSaveResult.CANCELLED -> DataExportEvent.SaveCancelled
+                DocumentSaveResult.FAILED -> DataExportEvent.Failed
+            }
+        )
+    }
+
+    // Outcomes are reported from the state, once, then acknowledged. Done and Failed are not busy,
+    // so the row's spinner is already gone while the snackbar's ~4 s suspension runs, and a
+    // cancelled picker reports nothing at all. Acknowledged comes after the snackbar because this
+    // effect is keyed on the state: changing it first would cancel the snackbar it is showing.
+    LaunchedEffect(exportState) {
+        val message = when (exportState) {
+            DataExportState.Done -> exportSavedMsg
+            DataExportState.Failed -> exportFailedMsg
+            else -> return@LaunchedEffect
+        }
+        snackbarHostState.showSnackbar(message)
+        dispatchExport(DataExportEvent.Acknowledged)
+    }
+
+    fun startExport() {
+        if (exportState.isBusy) return
+        dispatchExport(DataExportEvent.Started)
+        scope.launch {
+            try {
+                val document = dataExportRepository.exportAll { page ->
+                    dispatchExport(DataExportEvent.PageStarted(page))
+                }
+                val bytes = dataExportRepository.encode(document).encodeToByteArray()
+                dispatchExport(DataExportEvent.Assembled)
+                val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                documentSaver.save(dataExportFileName(today.toString()), bytes)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Data export failed", e)
+                dispatchExport(DataExportEvent.Failed)
+            }
+        }
+    }
 
     fun save(
         readReceiptsEnabled: Boolean? = null,
@@ -106,7 +160,9 @@ fun PrivacyDashboardScreen(
                 scope.launch {
                     try {
                         authRepository.deleteAccount()
-                        snackbarHostState.showSnackbar(deleteSuccessMsg)
+                        // Straight out (#780). This used to await a success snackbar first, and
+                        // `showSnackbar` suspends until it is dismissed — about four seconds spent
+                        // inside an account that no longer exists, with every control still live.
                         onLogout()
                     } catch (e: Exception) {
                         // deleteAccount() cleared the tokens before checking anything, so a 500 used
@@ -266,28 +322,14 @@ fun PrivacyDashboardScreen(
             item {
                 SettingsNavRow(
                     title = stringResource(Res.string.privacy_export_data),
-                    subtitle = stringResource(Res.string.privacy_export_data_desc),
+                    subtitle = when (val state = exportState) {
+                        is DataExportState.Fetching -> stringResource(Res.string.privacy_export_progress, state.page)
+                        DataExportState.Saving -> stringResource(Res.string.privacy_export_saving)
+                        else -> stringResource(Res.string.privacy_export_data_desc)
+                    },
                     icon = Muhabbet.icons.Download,
-                    loading = isExporting,
-                    onClick = {
-                        isExporting = true
-                        scope.launch {
-                            var exportFailed = false
-                            try {
-                                authRepository.exportData()
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Data export request failed", e)
-                                exportFailed = true
-                            }
-                            // Clear the spinner BEFORE reporting — showSnackbar suspends until
-                            // dismissed (~4s). Both outcomes: the "export started" confirmation
-                            // held the row spinner exactly as long as the failure one did.
-                            isExporting = false
-                            snackbarHostState.showSnackbar(
-                                if (exportFailed) exportFailedMsg else exportStartedMsg
-                            )
-                        }
-                    }
+                    loading = exportState.isBusy,
+                    onClick = ::startExport
                 )
             }
 
@@ -407,3 +449,5 @@ private fun KvkkRight(text: String) {
 }
 
 private const val TAG = "PrivacyDashboardScreen"
+
+private const val EXPORT_MIME_TYPE = "application/json"

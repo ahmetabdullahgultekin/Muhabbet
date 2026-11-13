@@ -35,9 +35,10 @@ class AuthComponent(
     fun onPhoneSubmitted(
         phoneNumber: String,
         mockCode: String? = null,
-        firebaseVerificationId: String? = null
+        firebaseVerificationId: String? = null,
+        codeExpiresAtMillis: Long? = null
     ) {
-        navigation.push(Config.OtpVerify(phoneNumber, mockCode, firebaseVerificationId))
+        navigation.push(Config.OtpVerify(phoneNumber, mockCode, firebaseVerificationId, codeExpiresAtMillis))
     }
 
     @OptIn(DelicateDecomposeApi::class)
@@ -71,7 +72,9 @@ class AuthComponent(
         @Serializable data class OtpVerify(
             val phoneNumber: String,
             val mockCode: String? = null,
-            val firebaseVerificationId: String? = null
+            val firebaseVerificationId: String? = null,
+            /** When the server's code stops working (#782); null on the Firebase path. */
+            val codeExpiresAtMillis: Long? = null
         ) : Config
         @Serializable data object ProfileSetup : Config
     }
@@ -85,8 +88,8 @@ fun AuthContent(component: AuthComponent) {
     ) { child ->
         when (val config = child.instance) {
             is AuthComponent.Config.PhoneInput -> PhoneInputScreen(
-                onPhoneSubmitted = { phone, mockCode, firebaseVerificationId ->
-                    component.onPhoneSubmitted(phone, mockCode, firebaseVerificationId)
+                onPhoneSubmitted = { phone, mockCode, firebaseVerificationId, codeExpiresAtMillis ->
+                    component.onPhoneSubmitted(phone, mockCode, firebaseVerificationId, codeExpiresAtMillis)
                 },
                 onFirebaseAutoVerified = { isNewUser -> component.onOtpVerified(isNewUser) }
             )
@@ -94,6 +97,7 @@ fun AuthContent(component: AuthComponent) {
                 phoneNumber = config.phoneNumber,
                 mockCode = config.mockCode,
                 firebaseVerificationId = config.firebaseVerificationId,
+                codeExpiresAtMillis = config.codeExpiresAtMillis,
                 onOtpVerified = component::onOtpVerified,
                 onBack = component::onBackFromOtp
             )

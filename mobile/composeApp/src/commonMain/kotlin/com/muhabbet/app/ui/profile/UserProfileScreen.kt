@@ -247,7 +247,7 @@ fun UserProfileScreen(
                         // Show contact name if different from display name
                         if (contactName != null && contactName != p.displayName) {
                             Text(
-                                text = stringResource(Res.string.profile_contact_name) + ": $contactName",
+                                text = stringResource(Res.string.profile_contact_name, contactName),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

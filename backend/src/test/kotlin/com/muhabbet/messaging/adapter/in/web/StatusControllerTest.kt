@@ -28,7 +28,7 @@ class StatusControllerTest {
     @BeforeEach
     fun setUp() {
         manageStatusUseCase = mockk()
-        controller = StatusController(manageStatusUseCase)
+        controller = StatusController(manageStatusUseCase, mockk(relaxed = true))
         setAuthenticatedUser(userId, TestData.DEVICE_ID_1)
     }
 

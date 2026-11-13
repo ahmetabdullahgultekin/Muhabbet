@@ -45,6 +45,8 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.app.data.repository.ConversationRepository
 import com.muhabbet.app.data.repository.GroupRepository
+import com.muhabbet.app.data.repository.JoinRequestRepository
+import com.muhabbet.shared.dto.JoinRequestResponse
 import com.muhabbet.app.data.repository.MediaUploadHelper
 import com.muhabbet.app.platform.ImagePickerLauncher
 import com.muhabbet.app.platform.PickedImage
@@ -82,6 +84,7 @@ fun GroupInfoScreen(
     onEventsClick: (() -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
     groupRepository: GroupRepository = koinInject(),
+    joinRequestRepository: JoinRequestRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject()
 ) {
@@ -98,12 +101,19 @@ fun GroupInfoScreen(
     var isUploadingPhoto by remember { mutableStateOf(false) }
     // Only ever set true when conversation?.avatarUrl is non-null — see the render sites below.
     var showPhotoViewer by remember { mutableStateOf(false) }
+    // #788: the member whose action sheet is open, and the one awaiting a removal confirmation.
+    var actionTarget by remember { mutableStateOf<ParticipantResponse?>(null) }
+    var removeTarget by remember { mutableStateOf<ParticipantResponse?>(null) }
+    var joinRequests by remember { mutableStateOf<List<JoinRequestResponse>>(emptyList()) }
+    var answeringRequestId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val currentUserId = remember { tokenStorage.getUserId() ?: "" }
     val updateFailedMsg = stringResource(Res.string.group_update_failed)
     val leaveFailedMsg = stringResource(Res.string.group_leave_failed)
     val removeFailedMsg = stringResource(Res.string.group_remove_failed)
+    val roleFailedMsg = stringResource(Res.string.group_role_update_failed)
+    val joinRequestFailedMsg = stringResource(Res.string.group_join_request_failed)
     val announcementEnabledMsg = stringResource(Res.string.announcement_mode_enabled)
     val announcementDisabledMsg = stringResource(Res.string.announcement_mode_disabled)
     val loadFailedMsg = stringResource(Res.string.error_load_failed)
@@ -155,6 +165,96 @@ fun GroupInfoScreen(
         ?.firstOrNull { it.userId == currentUserId }
         ?.role ?: MemberRole.MEMBER
     val isAdminOrOwner = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
+
+    // Join requests are an admin's to see (the server refuses anyone else), so they are only asked
+    // for once the role is known. Keyed on the role so a promotion mid-screen shows them.
+    LaunchedEffect(conversationId, canReviewJoinRequests(myRole)) {
+        if (!canReviewJoinRequests(myRole)) {
+            joinRequests = emptyList()
+            return@LaunchedEffect
+        }
+        runCatchingCancellable { joinRequestRepository.pending(conversationId) }
+            .onSuccess { joinRequests = it }
+            .onFailure { Log.e(TAG, "Failed to load join requests", it) }
+    }
+
+    fun answerJoinRequest(request: JoinRequestResponse, approve: Boolean) {
+        if (answeringRequestId != null) return
+        answeringRequestId = request.id
+        scope.launch {
+            val result = runCatchingCancellable {
+                if (approve) {
+                    joinRequestRepository.approve(conversationId, request.id)
+                    // The new member's row comes from the server, not from the request: it carries
+                    // the role and profile fields a request does not.
+                    conversation = conversationRepository.getConversations().items
+                        .firstOrNull { it.id == conversationId } ?: conversation
+                } else {
+                    joinRequestRepository.reject(conversationId, request.id)
+                }
+            }
+            answeringRequestId = null
+            result.onSuccess { joinRequests = joinRequests.filterNot { it.id == request.id } }
+                .onFailure { e ->
+                    Log.e(TAG, "Failed to answer join request ${request.id}", e)
+                    snackbarHostState.showSnackbar(joinRequestFailedMsg)
+                }
+        }
+    }
+
+    fun changeRole(member: ParticipantResponse, role: MemberRole) {
+        scope.launch {
+            runCatchingCancellable { groupRepository.updateMemberRole(conversationId, member.userId, role) }
+                .onSuccess {
+                    conversation = conversation?.let { current ->
+                        current.copy(participants = current.participants.map {
+                            if (it.userId == member.userId) it.copy(role = role) else it
+                        })
+                    }
+                }
+                .onFailure { e ->
+                    // Was a caller-less method; now that it has a caller, a refusal is reported and
+                    // logged rather than leaving the badge claiming a role the server never stored.
+                    Log.e(TAG, "Failed to change role of ${member.userId}", e)
+                    snackbarHostState.showSnackbar(roleFailedMsg)
+                }
+        }
+    }
+
+    MemberManagementDialogs(
+        actionTarget = actionTarget,
+        removeTarget = removeTarget,
+        myRole = myRole,
+        currentUserId = currentUserId,
+        onDismissSheet = { actionTarget = null },
+        onAction = { member, action ->
+            // The sheet closes first: a snackbar raised under a ModalBottomSheet renders behind it.
+            actionTarget = null
+            when (action) {
+                MemberAction.VIEW_PROFILE -> onMemberClick(member.userId)
+                MemberAction.MAKE_ADMIN -> changeRole(member, MemberRole.ADMIN)
+                MemberAction.DISMISS_ADMIN -> changeRole(member, MemberRole.MEMBER)
+                MemberAction.REMOVE -> removeTarget = member
+            }
+        },
+        onConfirmRemove = { member ->
+            removeTarget = null
+            scope.launch {
+                runCatchingCancellable { groupRepository.removeMember(conversationId, member.userId) }
+                    .onSuccess {
+                        conversation = conversation?.let { current ->
+                            current.copy(participants = current.participants.filter { it.userId != member.userId })
+                        }
+                    }
+                    .onFailure { e ->
+                        // The old catch swallowed this without a log line.
+                        Log.e(TAG, "Failed to remove ${member.userId}", e)
+                        snackbarHostState.showSnackbar(removeFailedMsg)
+                    }
+            }
+        },
+        onDismissRemove = { removeTarget = null }
+    )
 
     if (showEditDialog) {
         MuhabbetDialog(
@@ -333,25 +433,7 @@ fun GroupInfoScreen(
                 // Shared media row
                 if (onSharedMediaClick != null) {
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onSharedMediaClick)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Muhabbet.icons.Image,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                            )
-                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                            Text(
-                                text = stringResource(Res.string.shared_media_title),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
+                        GroupInfoLinkRow(Muhabbet.icons.Image, stringResource(Res.string.shared_media_title), onSharedMediaClick)
                         HorizontalDivider()
                     }
                 }
@@ -362,24 +444,8 @@ fun GroupInfoScreen(
                 // you". Creating and revoking are still admin-only, in the sheet and on the
                 // server — what a member gets here is Copy and Share.
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showInviteLinkSheet = true }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Muhabbet.icons.Link,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                        )
-                        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                        Text(
-                            text = stringResource(Res.string.invite_link_title),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                    GroupInfoLinkRow(Muhabbet.icons.Link, stringResource(Res.string.invite_link_title)) {
+                        showInviteLinkSheet = true
                     }
                     HorizontalDivider()
                 }
@@ -387,25 +453,7 @@ fun GroupInfoScreen(
                 // Events row
                 if (onEventsClick != null) {
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onEventsClick)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Muhabbet.icons.Calendar,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(MuhabbetSizes.IconLarge)
-                            )
-                            Spacer(Modifier.width(MuhabbetSpacing.Medium))
-                            Text(
-                                text = stringResource(Res.string.group_event_title),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
+                        GroupInfoLinkRow(Muhabbet.icons.Calendar, stringResource(Res.string.group_event_title), onEventsClick)
                         HorizontalDivider()
                     }
                 }
@@ -497,6 +545,14 @@ fun GroupInfoScreen(
                     }
                 }
 
+                // Pending invite-link requests, for admins (#788). Above the member list because
+                // answering one changes it.
+                joinRequestsSection(
+                    requests = joinRequests,
+                    busy = answeringRequestId != null,
+                    onAnswer = ::answerJoinRequest
+                )
+
                 // Members header
                 item {
                     Text(
@@ -507,102 +563,25 @@ fun GroupInfoScreen(
                     )
                 }
 
-                // Member list
+                // Member list. A tap opens the actions this viewer may take on that member (#788);
+                // when the only one is "view profile", the tap goes straight there as before.
                 val members = conversation?.participants ?: emptyList()
                 items(members, key = { it.userId }) { member ->
                     MemberItem(
                         member = member,
                         isCurrentUser = member.userId == currentUserId,
-                        canRemove = isAdminOrOwner && member.userId != currentUserId && member.role != MemberRole.OWNER,
-                        onClick = { if (!member.userId.equals(currentUserId)) onMemberClick(member.userId) },
-                        onRemove = {
-                            scope.launch {
-                                try {
-                                    groupRepository.removeMember(conversationId, member.userId)
-                                    conversation = conversation?.copy(
-                                        participants = (conversation?.participants ?: emptyList()).filter { it.userId != member.userId }
-                                    )
-                                } catch (_: Exception) {
-                                    snackbarHostState.showSnackbar(removeFailedMsg)
-                                }
+                        onClick = {
+                            val actions = memberActions(myRole, member.role, isSelf = member.userId == currentUserId)
+                            when {
+                                actions.isEmpty() -> Unit
+                                actions == listOf(MemberAction.VIEW_PROFILE) -> onMemberClick(member.userId)
+                                else -> actionTarget = member
                             }
                         }
                     )
                     HorizontalDivider()
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun MemberItem(
-    member: ParticipantResponse,
-    isCurrentUser: Boolean,
-    canRemove: Boolean,
-    onClick: () -> Unit = {},
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        com.muhabbet.designsystem.components.UserAvatar(
-            avatarUrl = member.avatarUrl,
-            displayName = member.displayName ?: "?",
-            size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarSmall
-        )
-        Spacer(Modifier.width(MuhabbetSpacing.Medium))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = (member.displayName ?: member.phoneNumber ?: stringResource(Res.string.unknown)) +
-                            if (isCurrentUser) " " + stringResource(Res.string.group_member_you) else "",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                if (member.role == MemberRole.OWNER) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {
-                        Text(
-                            stringResource(Res.string.group_role_owner),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline)
-                        )
-                    }
-                } else if (member.role == MemberRole.ADMIN) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiary,
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {
-                        Text(
-                            stringResource(Res.string.group_role_admin),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = MuhabbetSizes.GapHairline)
-                        )
-                    }
-                }
-            }
-            val phone = member.phoneNumber
-            if (phone != null) {
-                Text(
-                    text = phone,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        if (canRemove) {
-            MuhabbetIconButton(
-                icon = Muhabbet.icons.Delete,
-                contentDescription = stringResource(Res.string.group_remove_member),
-                onClick = onRemove,
-                tint = MaterialTheme.colorScheme.error
-            )
         }
     }
 }

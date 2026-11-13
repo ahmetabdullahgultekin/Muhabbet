@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.GroupJoinRequest
 import com.muhabbet.messaging.domain.port.`in`.ManageJoinRequestUseCase
 import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.shared.dto.JoinRequestResponse
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
 import org.springframework.http.ResponseEntity
@@ -15,15 +16,6 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 data class JoinRequestBody(val linkId: String? = null)
-
-data class JoinRequestResponse(
-    val id: String,
-    val conversationId: String,
-    val userId: String,
-    val status: String,
-    val createdAt: String,
-    val reviewedAt: String?
-)
 
 @RestController
 @RequestMapping("/api/v1/conversations/{conversationId}/join-requests")
@@ -46,8 +38,11 @@ class JoinRequestController(
     fun getPendingRequests(
         @PathVariable conversationId: UUID
     ): ResponseEntity<ApiResponse<List<JoinRequestResponse>>> {
-        val requests = manageJoinRequestUseCase.getPendingRequests(conversationId)
-        return ApiResponseBuilder.ok(requests.map { it.toResponse() })
+        val requesterId = AuthenticatedUser.currentUserId()
+        val requests = manageJoinRequestUseCase.getPendingRequests(conversationId, requesterId)
+        return ApiResponseBuilder.ok(
+            requests.map { it.request.toResponse(it.displayName, it.avatarUrl) }
+        )
     }
 
     @PostMapping("/{requestId}/approve")
@@ -56,7 +51,7 @@ class JoinRequestController(
         @PathVariable requestId: UUID
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageJoinRequestUseCase.approveJoin(requestId, userId)
+        manageJoinRequestUseCase.approveJoin(conversationId, requestId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 
@@ -66,16 +61,21 @@ class JoinRequestController(
         @PathVariable requestId: UUID
     ): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageJoinRequestUseCase.rejectJoin(requestId, userId)
+        manageJoinRequestUseCase.rejectJoin(conversationId, requestId, userId)
         return ApiResponseBuilder.ok(Unit)
     }
 }
 
-private fun GroupJoinRequest.toResponse() = JoinRequestResponse(
+/**
+ * The shared [JoinRequestResponse] (#788) — the backend used to answer with a private copy whose
+ * shape no client had ever read. The requester's name and avatar are filled only on the admin's
+ * pending list; never their phone number.
+ */
+private fun GroupJoinRequest.toResponse(displayName: String? = null, avatarUrl: String? = null) = JoinRequestResponse(
     id = id.toString(),
-    conversationId = conversationId.toString(),
     userId = userId.toString(),
+    displayName = displayName,
+    avatarUrl = avatarUrl,
     status = status.name,
-    createdAt = createdAt.toString(),
-    reviewedAt = reviewedAt?.toString()
+    createdAt = createdAt.toString()
 )

@@ -46,7 +46,7 @@ import org.koin.compose.koinInject
 
 @Composable
 fun PhoneInputScreen(
-    onPhoneSubmitted: (phoneNumber: String, mockCode: String?, firebaseVerificationId: String?) -> Unit,
+    onPhoneSubmitted: (phoneNumber: String, mockCode: String?, firebaseVerificationId: String?, codeExpiresAtMillis: Long?) -> Unit,
     onFirebaseAutoVerified: (isNewUser: Boolean) -> Unit = {},
     authRepository: AuthRepository = koinInject()
 ) {
@@ -138,7 +138,7 @@ fun PhoneInputScreen(
                             // Firebase Phone Auth flow
                             when (val result = firebasePhoneAuth.startVerification(phoneNumber)) {
                                 is PhoneVerificationResult.CodeSent -> {
-                                    onPhoneSubmitted(phoneNumber, null, result.verificationId)
+                                    onPhoneSubmitted(phoneNumber, null, result.verificationId, null)
                                 }
                                 is PhoneVerificationResult.AutoVerified -> {
                                     // Auto-verified, exchange Firebase token for our JWT
@@ -155,7 +155,7 @@ fun PhoneInputScreen(
                                     if (shouldFallbackToBackendOtp(result.code)) {
                                         try {
                                             val response = authRepository.requestOtp(phoneNumber)
-                                            onPhoneSubmitted(phoneNumber, response.mockCode, null)
+                                            onPhoneSubmitted(phoneNumber, response.mockCode, null, codeExpiresAt(response.ttlSeconds))
                                         } catch (_: Exception) {
                                             error = authFailedMsg
                                         }
@@ -167,7 +167,7 @@ fun PhoneInputScreen(
                         } else {
                             // Mock/backend OTP flow
                             val response = authRepository.requestOtp(phoneNumber)
-                            onPhoneSubmitted(phoneNumber, response.mockCode, null)
+                            onPhoneSubmitted(phoneNumber, response.mockCode, null, codeExpiresAt(response.ttlSeconds))
                         }
                     } catch (e: Exception) {
                         // Firebase may throw directly (rate limiting or misconfiguration). No
@@ -180,7 +180,7 @@ fun PhoneInputScreen(
                         if (useFirebase && e !is ApiException && shouldFallbackForRawMessage(e.message)) {
                             try {
                                 val response = authRepository.requestOtp(phoneNumber)
-                                onPhoneSubmitted(phoneNumber, response.mockCode, null)
+                                onPhoneSubmitted(phoneNumber, response.mockCode, null, codeExpiresAt(response.ttlSeconds))
                             } catch (_: Exception) {
                                 error = authFailedMsg
                             }

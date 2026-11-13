@@ -2,6 +2,7 @@ package com.muhabbet.auth.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.UserDataExport
 import com.muhabbet.auth.domain.port.`in`.ManageUserDataUseCase
+import com.muhabbet.shared.api.ApiRoutes
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.security.AuthenticatedUser
 import com.muhabbet.shared.web.ApiResponseBuilder
@@ -12,8 +13,12 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
+/**
+ * Paths come from [ApiRoutes.UserData], the same constants the mobile client calls (#780): the two
+ * sides drifted once already and both KVKK buttons answered 404 until they were made to share them.
+ */
 @RestController
-@RequestMapping("/api/v1/users/me")
+@RequestMapping(ApiRoutes.UserData.ME)
 class UserDataController(
     private val manageUserDataUseCase: ManageUserDataUseCase
 ) {
@@ -24,11 +29,11 @@ class UserDataController(
      * pass the previous response's `nextCursor` back as [messagesCursor]/[mediaCursor] to continue;
      * `hasMore = false` on both means the export is complete.
      */
-    @GetMapping("/data-export")
+    @GetMapping(ApiRoutes.UserData.DATA_EXPORT_SEGMENT)
     fun exportUserData(
-        @RequestParam(required = false) messagesCursor: String?,
-        @RequestParam(required = false) mediaCursor: String?,
-        @RequestParam(required = false, defaultValue = "200") pageSize: Int
+        @RequestParam(name = ApiRoutes.UserData.PARAM_MESSAGES_CURSOR, required = false) messagesCursor: String?,
+        @RequestParam(name = ApiRoutes.UserData.PARAM_MEDIA_CURSOR, required = false) mediaCursor: String?,
+        @RequestParam(name = ApiRoutes.UserData.PARAM_PAGE_SIZE, required = false, defaultValue = "200") pageSize: Int
     ): ResponseEntity<ApiResponse<UserDataExport>> {
         val userId = AuthenticatedUser.currentUserId()
         val export = manageUserDataUseCase.exportUserData(

@@ -132,8 +132,5 @@ fun VideoBubble(
     }
 }
 
-private fun formatDuration(seconds: Int): String {
-    val m = seconds / 60
-    val s = seconds % 60
-    return "$m:${s.toString().padStart(2, '0')}"
-}
+private fun formatDuration(seconds: Int): String =
+    com.muhabbet.app.util.DateTimeFormatter.formatDuration(seconds)

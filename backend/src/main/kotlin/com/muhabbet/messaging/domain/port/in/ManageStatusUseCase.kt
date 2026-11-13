@@ -33,5 +33,7 @@ data class StatusGroup(
     val statuses: List<Status>,
     /** Resolved server-side: the client must never fall back to rendering the raw user id. */
     val displayName: String? = null,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    /** Which of [statuses] the viewer has already seen (#787) — drives the seen/unseen ring. */
+    val viewedStatusIds: Set<UUID> = emptySet()
 )

@@ -2,6 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.`in`.ManageStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.RecordStatusViewUseCase
 import com.muhabbet.messaging.domain.port.`in`.StatusGroup
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.StatusCreateRequest
@@ -30,7 +31,8 @@ data class StatusCreateWithAudienceRequest(
 @RestController
 @RequestMapping("/api/v1/statuses")
 class StatusController(
-    private val manageStatusUseCase: ManageStatusUseCase
+    private val manageStatusUseCase: ManageStatusUseCase,
+    private val recordStatusViewUseCase: RecordStatusViewUseCase
 ) {
 
     @PostMapping
@@ -65,6 +67,17 @@ class StatusController(
         return ApiResponseBuilder.ok(groups.map { it.toDto() })
     }
 
+    /**
+     * Marks a status as seen by the caller (#787). Idempotent — the client calls it every time a
+     * status is shown, and a repeat changes nothing.
+     */
+    @PostMapping("/{statusId}/views")
+    fun recordView(@PathVariable statusId: UUID): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        recordStatusViewUseCase.recordView(statusId, userId)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
     @DeleteMapping("/{statusId}")
     fun deleteStatus(@PathVariable statusId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
@@ -72,18 +85,19 @@ class StatusController(
         return ApiResponseBuilder.ok(Unit)
     }
 
-    private fun Status.toResponse() = StatusResponse(
+    private fun Status.toResponse(viewed: Boolean = false) = StatusResponse(
         id = id.toString(),
         userId = userId.toString(),
         content = content,
         mediaUrl = mediaUrl,
         createdAt = createdAt.toEpochMilli(),
-        expiresAt = expiresAt.toEpochMilli()
+        expiresAt = expiresAt.toEpochMilli(),
+        viewed = viewed
     )
 
     private fun StatusGroup.toDto() = UserStatusGroup(
         userId = userId.toString(),
-        statuses = statuses.map { it.toResponse() },
+        statuses = statuses.map { it.toResponse(viewed = it.id in viewedStatusIds) },
         displayName = displayName,
         avatarUrl = avatarUrl
     )

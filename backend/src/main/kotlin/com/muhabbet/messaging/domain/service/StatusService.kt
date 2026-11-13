@@ -7,6 +7,7 @@ import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.port.out.StatusViewRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -19,7 +20,8 @@ open class StatusService(
     private val conversationRepository: ConversationRepository,
     private val userDirectory: UserDirectoryPort,
     private val blockPolicy: BlockPolicyPort,
-    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort
+    private val mediaAttachmentPolicy: MediaAttachmentPolicyPort,
+    private val statusViewRepository: StatusViewRepository
 ) : ManageStatusUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -138,13 +140,16 @@ open class StatusService(
 
         val byUser = visible.groupBy { it.userId }
         val displayInfo = userDirectory.findDisplayInfo(byUser.keys)
+        // One batched read for the whole tab, like the two block questions above (#787).
+        val viewed = statusViewRepository.findViewedStatusIds(viewerUserId, visible.map { it.id })
 
         return byUser.map { (userId, statuses) ->
             StatusGroup(
                 userId = userId,
                 statuses = statuses.sortedByDescending { it.createdAt },
                 displayName = displayInfo[userId]?.displayName,
-                avatarUrl = displayInfo[userId]?.avatarUrl
+                avatarUrl = displayInfo[userId]?.avatarUrl,
+                viewedStatusIds = statuses.map { it.id }.filterTo(mutableSetOf()) { it in viewed }
             )
         }
     }

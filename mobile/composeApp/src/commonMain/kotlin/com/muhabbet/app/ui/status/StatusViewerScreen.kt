@@ -48,7 +48,8 @@ import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.shared.dto.StatusResponse
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
-import kotlinx.coroutines.delay
+import androidx.compose.runtime.withFrameMillis
+import com.muhabbet.app.data.repository.StatusViewRecorder
 import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
@@ -66,13 +67,16 @@ fun StatusViewerScreen(
     displayName: String,
     onBack: () -> Unit,
     statusRepository: StatusRepository = koinInject(),
+    statusViewRecorder: StatusViewRecorder = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
     var statuses by remember { mutableStateOf<List<StatusResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var currentIndex by remember { mutableStateOf(0) }
-    var progress by remember { mutableStateOf(0f) }
-    var isPaused by remember { mutableStateOf(false) }
+    // #787: one playback state with a pure reducer, replacing currentIndex/progress/isPaused.
+    var playback by remember { mutableStateOf<StatusPlayback>(StatusPlayback.Loading(0)) }
+    fun dispatch(event: StatusPlaybackEvent) {
+        playback = reduceStatusPlayback(playback, event, statuses.size, MuhabbetDurations.StatusDisplayMs)
+    }
     var confirmDelete by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -153,7 +157,7 @@ fun StatusViewerScreen(
             dismissible = !isDeleting,
             destructive = true,
             onConfirm = {
-                val target = statuses.getOrNull(currentIndex)?.id
+                val target = statuses.getOrNull(playback.index)?.id
                 if (target != null) {
                     isDeleting = true
                     scope.launch {
@@ -166,7 +170,6 @@ fun StatusViewerScreen(
                                 // Re-read rather than removing locally: the server decides what is
                                 // still unexpired, and a viewer that trusted its own list would go
                                 // on playing a status the backend has dropped.
-                                currentIndex = 0
                                 load()
                             }
                         isDeleting = false
@@ -178,28 +181,43 @@ fun StatusViewerScreen(
         )
     }
 
-    // Auto-advance timer with pause support.
-    //
-    // `confirmDelete` is a pause reason in its own right rather than something that writes to
-    // `isPaused`: a state write from the composition body would run on every recomposition and
-    // fight the gesture handler that owns that flag. Keying the effect says the same thing without
-    // a second writer.
-    LaunchedEffect(currentIndex, statuses.size, isPaused, confirmDelete) {
-        if (statuses.isEmpty() || isPaused || confirmDelete) return@LaunchedEffect
-        progress = 0f
-        val totalMs = MuhabbetDurations.StatusDisplayMs
-        val stepMs = MuhabbetDurations.StatusProgressTickMs
-        val steps = totalMs / stepMs
-        for (i in 0..steps) {
-            if (isPaused || confirmDelete) return@LaunchedEffect
-            progress = i.toFloat() / steps
-            delay(stepMs)
+    // A new list (the first load, or a re-read after deleting your own status) starts from the top.
+    LaunchedEffect(statuses) { dispatch(StatusPlaybackEvent.Restart) }
+
+    // The URL AsyncImage last finished with (loaded or failed). A segment is ready when its media is
+    // that URL, or it has none. Compared rather than signalled directly, because re-entering a
+    // segment whose photo is already on screen (the restart after a delete) produces no new load
+    // and so no new callback — a one-shot signal would leave that segment waiting forever.
+    var settledMediaUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(playback, settledMediaUrl) {
+        val state = playback
+        if (state is StatusPlayback.Loading) {
+            val media = statuses.getOrNull(state.index)?.mediaUrl
+            if (media == null || media == settledMediaUrl) dispatch(StatusPlaybackEvent.MediaReady(state.index))
         }
-        if (currentIndex < statuses.lastIndex) {
-            currentIndex++
-        } else {
-            onBack()
+        if (state == StatusPlayback.Finished && statuses.isNotEmpty()) onBack()
+    }
+
+    // The clock. Runs only while a segment is playing and the delete dialog is closed, and feeds
+    // frame deltas into the reducer — so a pause (hold, or the dialog) simply stops the deltas and
+    // the elapsed time is still there when it resumes. It used to restart the segment from zero.
+    val isPlaying = playback is StatusPlayback.Playing
+    LaunchedEffect(isPlaying, confirmDelete) {
+        if (!isPlaying || confirmDelete) return@LaunchedEffect
+        var last = withFrameMillis { it }
+        while (playback is StatusPlayback.Playing) {
+            withFrameMillis { now ->
+                dispatch(StatusPlaybackEvent.Tick(now - last))
+                last = now
+            }
         }
+    }
+
+    // Seen once it has actually been on screen — Playing, not Loading — and never your own (#787).
+    val playingIndex = (playback as? StatusPlayback.Playing)?.index
+    LaunchedEffect(playingIndex) {
+        val shown = playingIndex?.let { statuses.getOrNull(it) } ?: return@LaunchedEffect
+        if (!isOwnStatus && !shown.viewed) statusViewRecorder.markViewed(shown.id)
     }
 
     Box(
@@ -233,7 +251,8 @@ fun StatusViewerScreen(
             // Coerced rather than indexed blindly. Deleting your own status shrinks this list
             // underneath the index the viewer is sitting on, and a stale index here is a crash
             // rather than a wrong frame. The empty case is already handled above.
-            val currentStatus = statuses[currentIndex.coerceIn(statuses.indices)]
+            val currentIndex = playback.index.coerceIn(statuses.indices)
+            val currentStatus = statuses[currentIndex]
 
             // Tap left/right + long-press to pause
             Row(
@@ -242,17 +261,15 @@ fun StatusViewerScreen(
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
-                                isPaused = true
+                                dispatch(StatusPlaybackEvent.Pause)
                                 tryAwaitRelease()
-                                isPaused = false
+                                dispatch(StatusPlaybackEvent.Resume)
                             },
                             onTap = { offset ->
                                 val halfWidth = size.width / 2
-                                if (offset.x < halfWidth) {
-                                    if (currentIndex > 0) currentIndex-- else onBack()
-                                } else {
-                                    if (currentIndex < statuses.lastIndex) currentIndex++ else onBack()
-                                }
+                                dispatch(
+                                    if (offset.x < halfWidth) StatusPlaybackEvent.Previous else StatusPlaybackEvent.Next
+                                )
                             }
                         )
                     }
@@ -269,6 +286,11 @@ fun StatusViewerScreen(
                 coil3.compose.AsyncImage(
                     model = currentStatus.mediaUrl,
                     contentDescription = statusMediaDescription,
+                    // The segment's clock starts when the photo is on screen, not when it was asked
+                    // for (#787). A failed load also releases it, or a broken image would stall the
+                    // whole story.
+                    onSuccess = { settledMediaUrl = currentStatus.mediaUrl },
+                    onError = { settledMediaUrl = currentStatus.mediaUrl },
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.Center),
@@ -279,7 +301,7 @@ fun StatusViewerScreen(
             StatusViewerChrome(
                 statuses = statuses,
                 currentIndex = currentIndex,
-                progress = progress,
+                progress = playback.segmentProgress(MuhabbetDurations.StatusDisplayMs),
                 displayName = displayName,
                 createdAt = currentStatus.createdAt,
                 showDelete = isOwnStatus,

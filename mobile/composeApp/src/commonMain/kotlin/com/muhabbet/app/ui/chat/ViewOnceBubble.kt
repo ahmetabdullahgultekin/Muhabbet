@@ -147,9 +147,13 @@ fun ViewOnceBubble(
                     // respond to a tap is precisely the dead control this app keeps finding in
                     // itself.
                     Text(
-                        text = "$typeLabel \u00b7 " + stringResource(
-                            if (isOwn) Res.string.view_once_not_opened_yet
-                            else Res.string.view_once_tap_to_view
+                        text = stringResource(
+                            Res.string.view_once_meta,
+                            typeLabel,
+                            stringResource(
+                                if (isOwn) Res.string.view_once_not_opened_yet
+                                else Res.string.view_once_tap_to_view
+                            )
                         ),
                         style = MaterialTheme.typography.labelSmall,
                         color = onBubbleColor.copy(alpha = 0.7f),

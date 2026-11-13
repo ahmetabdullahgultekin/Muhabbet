@@ -4,6 +4,9 @@ import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.app.data.remote.WsClient
 import com.muhabbet.app.data.repository.AuthRepository
 import com.muhabbet.app.data.repository.CallRepository
+import com.muhabbet.app.data.repository.DataExportRepository
+import com.muhabbet.app.data.repository.JoinRequestRepository
+import com.muhabbet.app.data.repository.StatusViewRecorder
 import com.muhabbet.app.data.repository.ChannelRepository
 import com.muhabbet.app.data.repository.BroadcastListRepository
 import com.muhabbet.app.data.repository.CommunityRepository
@@ -120,6 +123,9 @@ fun appModule(): Module = module {
     single { MediaUploadHelper(mediaRepository = get(), tokenStorage = get(), mediaEncryptor = get()) }
     single { GroupRepository(apiClient = get()) }
     single { StatusRepository(apiClient = get()) }
+    single { DataExportRepository(apiClient = get()) }
+    single { JoinRequestRepository(apiClient = get()) }
+    single { StatusViewRecorder(apiClient = get()) }
     single { ChannelRepository(apiClient = get()) }
     single { CallRepository(apiClient = get()) }
     single { EncryptionRepository(apiClient = get()) }

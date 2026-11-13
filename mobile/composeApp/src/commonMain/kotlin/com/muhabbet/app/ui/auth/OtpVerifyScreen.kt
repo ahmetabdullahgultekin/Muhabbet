@@ -30,7 +30,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.testTag
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.repository.AuthRepository
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.muhabbet.app.platform.PhoneVerificationResult
+import com.muhabbet.app.util.DateTimeFormatter
 import com.muhabbet.app.util.Log
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Clock
 import com.muhabbet.designsystem.components.MuhabbetOtpField
 import com.muhabbet.designsystem.components.MuhabbetStepRail
 import com.muhabbet.designsystem.theme.MuhabbetGradients
@@ -54,30 +59,44 @@ fun OtpVerifyScreen(
     phoneNumber: String,
     mockCode: String? = null,
     firebaseVerificationId: String? = null,
+    codeExpiresAtMillis: Long? = null,
     onOtpVerified: (isNewUser: Boolean) -> Unit,
     onBack: () -> Unit = {},
-    authRepository: AuthRepository = koinInject()
+    authRepository: AuthRepository = koinInject(),
+    nowMillis: () -> Long = { Clock.System.now().toEpochMilliseconds() }
 ) {
-    var otp by remember { mutableStateOf(mockCode ?: "") }
+    // Saveable: rotating the phone mid-sign-in used to empty the field.
+    var otp by rememberSaveable { mutableStateOf(mockCode ?: "") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     // The code this screen has already spent an attempt on. Null means nothing is outstanding.
     // A code and not a flag — see [shouldSubmitOtp].
     var submittedCode by remember { mutableStateOf<String?>(null) }
-    // The second factor (#566). `twoStepRequired` is set only by the server's own
-    // AUTH_2FA_PIN_REQUIRED — never guessed — so an account without one never sees this step.
-    var twoStepRequired by remember { mutableStateOf(false) }
+    // The PIN is deliberately NOT saveable: a secret has no business in the saved-instance bundle,
+    // which the system may write to disk on process death. Rotation costs the user a retype.
     var twoStepPin by remember { mutableStateOf("") }
     // The Firebase ID token from the first attempt, kept so the PIN retry does not have to redeem
     // the SMS code a second time. Firebase refuses a verification code it has already consumed, so
-    // without this the retry would fail before it ever reached our own backend.
+    // without this the retry would fail before it ever reached our own backend. Not saveable for
+    // the same reason as the PIN: it is a bearer credential.
     var firebaseIdToken by remember { mutableStateOf<String?>(null) }
-    var countdown by remember { mutableStateOf(if (firebaseVerificationId != null) 60 else 300) }
-    var isResending by remember { mutableStateOf(false) }
+    // Saveable, and replaced on every Firebase resend: a resent code belongs to a new verification
+    // id, and verifying it against the old one fails.
+    var verificationId by rememberSaveable { mutableStateOf(firebaseVerificationId) }
     val scope = rememberCoroutineScope()
 
     val firebasePhoneAuth = rememberFirebasePhoneAuth()
-    val useFirebase = firebaseVerificationId != null && firebasePhoneAuth != null
+    val useFirebase = verificationId != null && firebasePhoneAuth != null
+
+    // The stage, as one sealed value with a pure reducer (#782) — see OtpPhase. Initialised from the
+    // server's expiry instant when the caller has it, and saved, so neither rotation nor process
+    // death restarts the clock or drops the two-step stage.
+    var phase by rememberSaveable(stateSaver = OtpPhaseSaver) {
+        val ttl = if (firebaseVerificationId != null) FirebaseOtpTtlSeconds else BackendOtpTtlSeconds
+        mutableStateOf<OtpPhase>(OtpPhase.Entering(codeExpiresAtMillis ?: (nowMillis() + ttl * 1000L)))
+    }
+    fun dispatch(event: OtpEvent) { phase = reduceOtp(phase, event) }
+    var now by remember { mutableStateOf(nowMillis()) }
 
     val verifyFailedMsg = stringResource(Res.string.otp_verify_failed)
     val genericErrorMsg = stringResource(Res.string.error_generic)
@@ -90,11 +109,65 @@ fun OtpVerifyScreen(
         twoStepLocked = stringResource(Res.string.otp_error_two_step_locked),
     )
 
-    LaunchedEffect(Unit) {
-        while (countdown > 0) {
-            delay(1000)
-            countdown--
+    // Keyed on the stage itself, so a resend — which produces a new Entering(expiresAt) — starts a
+    // new ticker. The old one was keyed on Unit and ended for good at zero (#782). It wakes on the
+    // second boundary rather than every 1000 ms after an arbitrary start, so it cannot drift.
+    LaunchedEffect(phase) {
+        while (phase is OtpPhase.Entering) {
+            now = nowMillis()
+            dispatch(OtpEvent.Tick(now))
+            // Expiry supersedes any "wrong code" message about a code that no longer exists (#403).
+            if (phase == OtpPhase.Expired) error = null
+            delay(phase.millisUntilNextTick(now).coerceAtLeast(1L))
         }
+    }
+
+    val resend: () -> Unit = resend@{
+        if (!phase.canResend) return@resend
+        dispatch(OtpEvent.ResendRequested)
+        error = null
+        scope.launch {
+            try {
+                val phoneAuth = firebasePhoneAuth
+                if (useFirebase && phoneAuth != null) {
+                    // Firebase needs a new verification, with the ForceResendingToken from the first
+                    // one; it does not resend on its own. Before this the Firebase path had no Resend
+                    // at all, and an expired code meant starting sign-in again.
+                    when (val result = phoneAuth.resendVerification(phoneNumber)) {
+                        is PhoneVerificationResult.CodeSent -> {
+                            verificationId = result.verificationId
+                            firebaseIdToken = null
+                            dispatch(OtpEvent.CodeSent(nowMillis(), FirebaseOtpTtlSeconds))
+                        }
+                        is PhoneVerificationResult.AutoVerified -> {
+                            val verified = authRepository.verifyFirebaseToken(
+                                idToken = result.idToken,
+                                deviceName = getDeviceModel(),
+                                platform = getPlatformName()
+                            )
+                            onOtpVerified(verified.isNewUser)
+                        }
+                        is PhoneVerificationResult.Error -> {
+                            Log.w(TAG, "Firebase resend rejected: ${result.code}")
+                            error = genericErrorMsg
+                            dispatch(OtpEvent.ResendFailed)
+                        }
+                    }
+                } else {
+                    val response = authRepository.requestOtp(phoneNumber)
+                    dispatch(OtpEvent.CodeSent(nowMillis(), response.ttlSeconds))
+                }
+                otp = ""
+                submittedCode = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "OTP resend rejected: $e")
+                error = otpErrors.forFailure(e, genericErrorMsg)
+                dispatch(OtpEvent.ResendFailed)
+            }
+        }
+        Unit
     }
 
     // Hoisted out of the button's onClick so the boxed field can auto-submit on the sixth digit and
@@ -102,7 +175,7 @@ fun OtpVerifyScreen(
     val submit = submit@{
         val code = otp
         // Null until the server has said a PIN is needed, so an ordinary sign-in sends nothing new.
-        val pin = twoStepPin.takeIf { twoStepRequired }
+        val pin = twoStepPin.takeIf { phase.isTwoStep }
         // Guarded HERE, inside the handler, and not by the button's `enabled` alone. `enabled` is a
         // composition input: it is re-read when Compose recomposes, so two dispatches landing in the
         // same frame — the field auto-submitting on the sixth digit plus a tap, or two fast taps —
@@ -110,21 +183,24 @@ fun OtpVerifyScreen(
         // visible to the very next read on the same thread, so the second caller sees what the first
         // wrote microseconds earlier. `enabled` below still mirrors the same predicate, so the
         // button is visibly dead rather than silently inert.
-        if (!shouldSubmitOtp(code, pin, inFlight = isLoading, alreadySubmitted = submittedCode)) {
+        if (!phase.acceptsSubmission ||
+            !shouldSubmitOtp(code, pin, inFlight = isLoading, alreadySubmitted = submittedCode)
+        ) {
             return@submit
         }
+        val currentVerificationId = verificationId
         submittedCode = attemptKey(code, pin)
         isLoading = true
         error = null
         scope.launch {
             try {
-                if (useFirebase && firebasePhoneAuth != null && firebaseVerificationId != null) {
+                if (firebasePhoneAuth != null && currentVerificationId != null) {
                     // Firebase: verify code → get ID token → exchange with backend
                     // Remembered across attempts: Firebase refuses a verification code it has
                     // already redeemed, so a PIN retry that asked for a second token would fail
                     // before it ever reached our own backend.
                     val idToken = firebaseIdToken
-                        ?: firebasePhoneAuth.verifyCode(firebaseVerificationId, code)
+                        ?: firebasePhoneAuth.verifyCode(currentVerificationId, code)
                             .also { firebaseIdToken = it }
                     val result = authRepository.verifyFirebaseToken(
                         idToken = idToken,
@@ -151,13 +227,17 @@ fun OtpVerifyScreen(
                 // a 5xx, a Firebase error — releases the latch, so Verify stays usable without
                 // making the user retype a code that was never found wrong.
                 if (!consumedAnAttempt(e)) submittedCode = null
-                if (requiresTwoStepPin(e)) {
-                    // Not a failure to report — a step to show. The code was accepted; the account
-                    // simply has a second factor, and the same code goes out again with the PIN.
-                    twoStepRequired = true
-                    error = null
+                // The server's answer moves the stage: a PIN is needed, the code is spent, or it
+                // expired by the server's clock. Anything else leaves the stage where it was.
+                val stageChange = otpEventForFailure((e as? ApiException)?.code)
+                stageChange?.let(::dispatch)
+                // A PIN request is not a failure to report — a step to show. The code was accepted;
+                // the account simply has a second factor, and the same code goes out again with it.
+                // Server-side expiry is shown by the footer, not repeated in the error slot.
+                error = if (requiresTwoStepPin(e) || stageChange == OtpEvent.ServerExpired) {
+                    null
                 } else {
-                    error = otpErrors.forFailure(e, verifyFailedMsg)
+                    otpErrors.forFailure(e, verifyFailedMsg)
                 }
             } finally {
                 isLoading = false
@@ -243,7 +323,7 @@ fun OtpVerifyScreen(
         // Appears only after the server has asked for it. The account's own answer decides this,
         // never a client-side guess — a screen that offered a PIN box on spec would be telling the
         // user something about an account it has not been told anything about.
-        if (twoStepRequired) {
+        if (phase.isTwoStep) {
             Spacer(Modifier.height(MuhabbetSpacing.Large))
 
             Text(
@@ -275,74 +355,22 @@ fun OtpVerifyScreen(
 
         // One error slot, showing the newest reason. Once the code has expired, "that code is not
         // correct" is no longer true of anything — the code it referred to is gone — so showing both
-        // left the user to work out which of two red messages applied (#403). Expiry is rendered
-        // below and supersedes it.
-        // `|| twoStepRequired` for the same reason the button ignores the clock there: a wrong-PIN
-        // message must not be swallowed by an expiry notice about a code the server just accepted.
-        if (countdown > 0 || twoStepRequired) {
-            error?.let {
-                Spacer(Modifier.height(MuhabbetSpacing.Small))
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-            }
+        // left the user to work out which of two red messages applied (#403). Reaching Expired
+        // therefore clears the slot (see the ticker and the submit handler), and anything shown here
+        // afterwards is about the resend itself — a cooldown, no network — which the user needs.
+        error?.let {
+            Spacer(Modifier.height(MuhabbetSpacing.Small))
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center
+            )
         }
 
         Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-        if (countdown > 0) {
-            val minutes = countdown / 60
-            val seconds = countdown % 60
-            val timeStr = "${minutes}:${seconds.toString().padStart(2, '0')}"
-            Text(
-                text = stringResource(Res.string.otp_countdown, timeStr),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            Text(
-                text = stringResource(Res.string.otp_expired),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
-            )
-
-            Spacer(Modifier.height(MuhabbetSpacing.Small))
-
-            if (!useFirebase) {
-                // Resend only for mock/backend OTP (Firebase handles resend internally)
-                OutlinedButton(
-                    onClick = {
-                        isResending = true
-                        scope.launch {
-                            try {
-                                authRepository.requestOtp(phoneNumber)
-                                countdown = 300
-                                otp = ""
-                                error = null
-                            } catch (e: Exception) {
-                                Log.w(TAG, "OTP resend rejected: $e")
-                                error = otpErrors.forFailure(e, genericErrorMsg)
-                            } finally {
-                                isResending = false
-                            }
-                        }
-                    },
-                    enabled = !isResending
-                ) {
-                    if (isResending) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(MuhabbetSizes.IconSmall),
-                            strokeWidth = MuhabbetSizes.ProgressStrokeThin
-                        )
-                    } else {
-                        Text(stringResource(Res.string.otp_resend))
-                    }
-                }
-            }
-        }
+        OtpStageFooter(phase = phase, nowMillis = now, onResend = resend)
 
         Spacer(Modifier.height(MuhabbetSpacing.Large))
 
@@ -350,15 +378,15 @@ fun OtpVerifyScreen(
             onClick = submit,
             enabled = shouldSubmitOtp(
                 otp,
-                twoStepPin.takeIf { twoStepRequired },
+                twoStepPin.takeIf { phase.isTwoStep },
                 inFlight = isLoading,
                 alreadySubmitted = submittedCode
-            // The countdown gate does not apply once the PIN step is open. It is a client-side
-            // clock, and reaching this step means the server accepted the code seconds ago — on the
-            // Firebase path that clock is 60s, which is not long to be handed a second factor and
-            // asked to remember a PIN. If the code really has expired the server says so, and the
-            // screen shows that instead of a dead button with no explanation.
-            ) && (countdown > 0 || twoStepRequired),
+            // The clock gate does not apply once the PIN step is open (`acceptsSubmission` is true
+            // for AwaitingTwoStep). It is a client-side clock, and reaching this step means the
+            // server accepted the code seconds ago — on the Firebase path that clock is 60s, which
+            // is not long to be handed a second factor and asked to remember a PIN. If the code
+            // really has expired the server says so, and the stage moves to Expired.
+            ) && phase.acceptsSubmission,
             modifier = Modifier.fillMaxWidth().testTag("otp_verify")
         ) {
             if (isLoading) {
@@ -379,6 +407,54 @@ fun OtpVerifyScreen(
             onClick = onBack,
             role = MuhabbetButtonRole.Text
         )
+    }
+}
+
+/**
+ * What sits under the code field for each stage: the live countdown, or why the code can no longer
+ * be used plus the way to get a new one. Resend is offered on **both** paths now — Firebase used to
+ * have none (#782).
+ */
+@Composable
+private fun OtpStageFooter(phase: OtpPhase, nowMillis: Long, onResend: () -> Unit) {
+    when (phase) {
+        is OtpPhase.Entering -> Text(
+            text = stringResource(
+                Res.string.otp_countdown,
+                DateTimeFormatter.formatDuration(phase.remainingSeconds(nowMillis))
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OtpPhase.AwaitingTwoStep -> Unit
+        OtpPhase.Expired, OtpPhase.Locked, is OtpPhase.Resending -> {
+            // Locked carries its reason in the error slot (`otp_error_max_attempts`); Expired says
+            // so here. Resending keeps whichever line its fallback stage showed.
+            val after = (phase as? OtpPhase.Resending)?.after ?: phase
+            if (after == OtpPhase.Expired) {
+                Text(
+                    text = stringResource(Res.string.otp_expired),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.height(MuhabbetSpacing.Small))
+            }
+            val resending = phase is OtpPhase.Resending
+            OutlinedButton(
+                onClick = onResend,
+                enabled = !resending,
+                modifier = Modifier.testTag("otp_resend")
+            ) {
+                if (resending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(MuhabbetSizes.IconSmall),
+                        strokeWidth = MuhabbetSizes.ProgressStrokeThin
+                    )
+                } else {
+                    Text(stringResource(Res.string.otp_resend))
+                }
+            }
+        }
     }
 }
 

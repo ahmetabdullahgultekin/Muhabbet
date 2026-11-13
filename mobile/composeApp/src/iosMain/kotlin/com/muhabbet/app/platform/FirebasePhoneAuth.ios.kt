@@ -27,6 +27,10 @@ private class IosFirebasePhoneAuth : FirebasePhoneAuth {
         return PhoneVerificationResult.Error("Firebase iOS SDK not configured")
     }
 
+    override suspend fun resendVerification(phoneNumber: String): PhoneVerificationResult {
+        return PhoneVerificationResult.Error("Firebase iOS SDK not configured")
+    }
+
     override suspend fun verifyCode(verificationId: String, code: String): String {
         throw UnsupportedOperationException("Firebase iOS SDK not configured")
     }

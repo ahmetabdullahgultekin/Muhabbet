@@ -172,10 +172,28 @@ object DateTimeFormatter {
             "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
     }
 
-    /** Format seconds to "M:ss" for voice/call duration display */
+    /**
+     * A duration as a clock reading: "M:SS" under an hour, "H:MM:SS" from an hour on (#794).
+     *
+     * The one formatter for every elapsed or remaining time the app shows — voice and video
+     * lengths, the call timer, the OTP countdown, the call-history line. Those used to hand-build
+     * the string in four places with three different rules (`MM:SS`, `M:SS`, and none of them
+     * rolling over), so an hour-long call read "61:05" and the same length rendered differently on
+     * two screens. Negative input is clamped to zero: a countdown that overshoots by a tick shows
+     * "0:00", never "-1:59".
+     *
+     * Digits and colons only, with no words, so it needs no string resource: a caller that wants a
+     * sentence ("Code valid for: 4:59") passes this into a formatted resource as an argument.
+     */
     fun formatDuration(seconds: Int): String {
-        val mins = seconds / 60
-        val secs = seconds % 60
-        return "$mins:${secs.toString().padStart(2, '0')}"
+        val total = seconds.coerceAtLeast(0)
+        val hours = total / SECONDS_PER_HOUR
+        val mins = (total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
+        val secs = total % SECONDS_PER_MINUTE
+        val ss = secs.toString().padStart(2, '0')
+        return if (hours > 0) "$hours:${mins.toString().padStart(2, '0')}:$ss" else "$mins:$ss"
     }
+
+    private const val SECONDS_PER_MINUTE = 60
+    private const val SECONDS_PER_HOUR = 3600
 }

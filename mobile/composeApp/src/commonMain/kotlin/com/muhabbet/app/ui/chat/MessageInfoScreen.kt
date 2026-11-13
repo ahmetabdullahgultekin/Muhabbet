@@ -218,7 +218,7 @@ fun MessageInfoScreen(
                                         )
                                         Spacer(Modifier.width(MuhabbetSpacing.XSmall))
                                         Text(
-                                            text = "${stringResource(Res.string.message_info_sent_at)}: ${formatTimestamp(data.sentAt)}",
+                                            text = stringResource(Res.string.message_info_sent_at, formatTimestamp(data.sentAt)),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

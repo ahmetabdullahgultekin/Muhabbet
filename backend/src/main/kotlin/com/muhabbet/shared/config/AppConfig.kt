@@ -48,6 +48,8 @@ import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
 import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.messaging.domain.port.out.StatusViewRepository
+import com.muhabbet.messaging.domain.service.StatusViewService
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.messaging.domain.service.ViewOnceService
 import com.muhabbet.messaging.domain.service.BroadcastListService
@@ -279,13 +281,26 @@ class AppConfig {
         conversationRepository: ConversationRepository,
         userDirectory: UserDirectoryPort,
         blockPolicy: BlockPolicyPort,
-        mediaAttachmentPolicy: MediaAttachmentPolicyPort
+        mediaAttachmentPolicy: MediaAttachmentPolicyPort,
+        statusViewRepository: StatusViewRepository
     ): StatusService = StatusService(
         statusRepository = statusRepository,
         conversationRepository = conversationRepository,
         userDirectory = userDirectory,
         blockPolicy = blockPolicy,
-        mediaAttachmentPolicy = mediaAttachmentPolicy
+        mediaAttachmentPolicy = mediaAttachmentPolicy,
+        statusViewRepository = statusViewRepository
+    )
+
+    @Bean
+    fun statusViewService(
+        statusRepository: StatusRepository,
+        statusViewRepository: StatusViewRepository,
+        statusService: StatusService
+    ): StatusViewService = StatusViewService(
+        statusRepository = statusRepository,
+        statusViewRepository = statusViewRepository,
+        manageStatusUseCase = statusService
     )
 
     @Bean
@@ -450,11 +465,13 @@ class AppConfig {
     fun joinRequestService(
         joinRequestRepository: GroupJoinRequestRepository,
         conversationRepository: ConversationRepository,
-        inviteLinkRepository: GroupInviteLinkRepository
+        inviteLinkRepository: GroupInviteLinkRepository,
+        userDirectory: UserDirectoryPort
     ): JoinRequestService = JoinRequestService(
         joinRequestRepository = joinRequestRepository,
         conversationRepository = conversationRepository,
-        inviteLinkRepository = inviteLinkRepository
+        inviteLinkRepository = inviteLinkRepository,
+        userDirectory = userDirectory
     )
 
     @Bean

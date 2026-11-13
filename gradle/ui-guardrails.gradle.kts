@@ -163,6 +163,22 @@ val uiRules = listOf(
         "rawCombinedClickable",
         "Long-press comes from Modifier.longPressable, which takes the shape the ripple must follow — RectangleShape included.",
         Regex("""combinedClickable\("""), inPressableModifier
+    ),
+    UiRule(
+        // Starts at 0 and stays there (#794). A sentence glued together in Kotlin —
+        // `stringResource(x) + ": $name"`, `"${stringResource(x)} (${n})"`, `name + " " +
+        // stringResource(you)` — fixes the word order, the punctuation and the count in code, where a
+        // translator cannot reach them. Turkish is suffixing and verb-final, so the order English
+        // happens to want is the wrong one about as often as not, and a bare count is never
+        // pluralised. The resource takes the arguments (`%1$s`, `pluralStringResource`) instead.
+        //
+        // Line-based, like every rule here: it catches the three shapes the audit found — a `+` on
+        // either side of a `stringResource(...)` call, and `stringResource` interpolated into a
+        // template. A concatenation split across lines with the `+` at the far end of a long
+        // argument list can slip past; that is the price of a check that needs no Kotlin parser.
+        "concatenatedString",
+        "Build sentences in the string resource with %1\$s / plurals, not by gluing stringResource() results together in Kotlin.",
+        Regex("""stringResource\([^)]*\)\)?\s*\+|\+\s*stringResource\(|\$\{\s*(plural)?[sS]tringResource\(""")
     )
 )
 

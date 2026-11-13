@@ -28,6 +28,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import com.muhabbet.app.data.repository.StatusViewRecorder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,9 +103,13 @@ fun UpdatesTabScreen(
     statusRepository: StatusRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject(),
     mediaUploadHelper: MediaUploadHelper = koinInject(),
-    tokenStorage: TokenStorage = koinInject()
+    tokenStorage: TokenStorage = koinInject(),
+    statusViewRecorder: StatusViewRecorder = koinInject()
 ) {
     var statusGroups by remember { mutableStateOf<List<UserStatusGroup>>(emptyList()) }
+    // Views this session has reported (#787), merged with the server's `viewed` flag so the ring
+    // changes the moment the viewer closes, even if the reload overtakes the view report.
+    val locallyViewed by statusViewRecorder.viewed.collectAsState()
     // Your own statuses, which are NOT in `statusGroups` and cannot be: the contacts query filters
     // `m.userId != :userId`, so the poster is structurally excluded from the audience it describes
     // (#588). `GET /api/v1/statuses/me` is the reader for the other half; until now it had no
@@ -147,11 +153,9 @@ fun UpdatesTabScreen(
         isLoading = true
         errorMessage = null
         runCatchingCancellable {
+            // Ordered at render time (orderedForTray), since seen-ness also moves locally.
             statusGroups = statusRepository.getContactStatuses()
                 .filter { it.statuses.isNotEmpty() }
-                .sortedByDescending { group ->
-                    group.statuses.maxOfOrNull { it.createdAt } ?: 0L
-                }
         }.onFailure { e ->
             Log.e(TAG, "Failed to load contact statuses", e)
             errorMessage = loadFailed
@@ -439,7 +443,7 @@ fun UpdatesTabScreen(
                             )
                         }
 
-                        items(statusGroups, key = { it.userId }) { group ->
+                        items(statusGroups.orderedForTray(locallyViewed), key = { it.userId }) { group ->
                             // A locally-known name wins (it may be the address-book name), then the
                             // name the server resolved, and finally a plain label. Never the user
                             // id: its first eight characters read as a hex hash, which is what #507
@@ -463,11 +467,19 @@ fun UpdatesTabScreen(
                                     .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // Copper while there is something new; a quiet outline once every
+                                // status in the group has been seen (#787). It was copper for
+                                // everyone, always, because nothing recorded a view.
+                                val ringColor = if (group.isFullySeen(locallyViewed)) {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                }
                                 Surface(
                                     shape = CircleShape,
                                     modifier = Modifier
                                         .size(MuhabbetSizes.AvatarMedium)
-                                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                        .border(2.dp, ringColor, CircleShape)
                                 ) {
                                     UserAvatar(
                                         avatarUrl = avatarUrl,

@@ -843,7 +843,10 @@ evidence that it works.
   control (it gates presence and last-seen together); there is no separate `lastSeenVisibility`,
   and no `profilePhotoVisibility` anywhere in the schema. The shared DTO used to advertise both —
   it no longer does, and the backend now uses the shared DTOs rather than private copies.
-- **Backend**: `GET /api/v1/users/data/export`, `DELETE /api/v1/users/data/account`, and both
+- **Backend**: `GET /api/v1/users/me/data-export` and `DELETE /api/v1/users/me` in
+  `UserDataController` — paths shared with the client through `shared/.../api/ApiRoutes.kt`
+  (#780: the client called `/users/data/*`, which nothing maps, so both buttons were 404 on every
+  tap; the export is cursor-paginated and `DataExportRepository` walks it to the end) — and both
   `GET` and `PATCH /api/v1/users/me/privacy` in `UserController`, using the shared
   `UpdatePrivacyRequest` / `PrivacySettingsResponse`. The GET was added by #377 — without a read
   endpoint a settings screen can only guess, and the guess was the most permissive option.

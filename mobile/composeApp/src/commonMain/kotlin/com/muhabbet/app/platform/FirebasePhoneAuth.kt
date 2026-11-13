@@ -36,6 +36,17 @@ sealed class PhoneVerificationResult {
 interface FirebasePhoneAuth {
     fun isAvailable(): Boolean
     suspend fun startVerification(phoneNumber: String): PhoneVerificationResult
+
+    /**
+     * Sends a new code for a number [startVerification] already ran for (#782).
+     *
+     * Firebase does not resend by itself: an expired code needs a second verification, which on
+     * Android carries the `ForceResendingToken` from the first so the SMS is actually re-sent
+     * rather than deduplicated. The result carries a **new** verification id — the old one cannot
+     * verify the new code.
+     */
+    suspend fun resendVerification(phoneNumber: String): PhoneVerificationResult
+
     suspend fun verifyCode(verificationId: String, code: String): String
 }
 

@@ -184,8 +184,7 @@ private fun CommunityMemberItem(
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = displayName +
-                    if (isCurrentUser) " " + stringResource(Res.string.group_member_you) else "",
+                text = if (isCurrentUser) stringResource(Res.string.group_member_you, displayName) else displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1

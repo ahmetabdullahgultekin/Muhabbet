@@ -2,6 +2,7 @@ package com.muhabbet.app.data.repository
 
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiClient
+import com.muhabbet.shared.api.ApiRoutes
 import com.muhabbet.shared.dto.AuthTokenResponse
 import com.muhabbet.shared.dto.FirebaseVerifyRequest
 import com.muhabbet.shared.dto.PrivacySettingsResponse
@@ -124,12 +125,14 @@ class AuthRepository(
         )
     }
 
-    suspend fun exportData() {
-        apiClient.get<Unit>("/api/v1/users/data/export")
-    }
-
+    /**
+     * KVKK erasure of the signed-in account. The path is [ApiRoutes.UserData.ACCOUNT], shared with
+     * `UserDataController`: this used to call `/users/data/account`, which nothing maps, so every
+     * deletion answered 404 (#780). Tokens are cleared only after the server has accepted — a
+     * refused deletion must not sign the user out of an account that still exists.
+     */
     suspend fun deleteAccount() {
-        apiClient.delete<Unit>("/api/v1/users/data/account")
+        apiClient.delete<Unit>(ApiRoutes.UserData.ACCOUNT)
         tokenStorage.clear()
     }
 

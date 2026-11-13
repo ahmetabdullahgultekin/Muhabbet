@@ -4,6 +4,7 @@ import com.muhabbet.messaging.domain.model.Status
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
+import com.muhabbet.messaging.domain.port.out.StatusViewRepository
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.port.out.UserDisplayInfo
 import com.muhabbet.shared.TestData
@@ -35,6 +36,7 @@ class StatusServiceTest {
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var userDirectory: UserDirectoryPort
     private lateinit var blockPolicy: BlockPolicyPort
+    private lateinit var statusViewRepository: StatusViewRepository
     private lateinit var service: StatusService
 
     private val viewer = TestData.USER_ID_1
@@ -51,8 +53,11 @@ class StatusServiceTest {
         // in this file keeps meaning what it meant. Both directions, for the same reason.
         every { blockPolicy.findBlockedBy(any(), any()) } returns emptySet()
         every { blockPolicy.findBlockedAmong(any(), any()) } returns emptySet()
+        statusViewRepository = mockk()
+        every { statusViewRepository.findViewedStatusIds(any(), any()) } returns emptySet()
         service = StatusService(
-            statusRepository, conversationRepository, userDirectory, blockPolicy, TestMediaAttachmentPolicy()
+            statusRepository, conversationRepository, userDirectory, blockPolicy, TestMediaAttachmentPolicy(),
+            statusViewRepository
         )
     }
 
@@ -121,6 +126,28 @@ class StatusServiceTest {
                 { assertEquals(contact, groups.first().userId) },
                 { assertTrue(groups.none { it.userId == stranger }, "stranger must not appear") }
             )
+        }
+    }
+
+    @Nested
+    inner class SeenState {
+
+        @Test
+        fun `should mark exactly the statuses the viewer has already seen`() {
+            // #787: the Updates tab drew the same "unseen" ring for every contact forever because
+            // nothing recorded or returned a view.
+            val seen = status(contact, content = "seen")
+            val fresh = status(contact, content = "new")
+            every { conversationRepository.findAllContactUserIds(viewer) } returns setOf(contact)
+            every { statusRepository.findActiveByUserIds(setOf(contact)) } returns listOf(seen, fresh)
+            every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
+            every { statusViewRepository.findViewedStatusIds(viewer, any()) } returns setOf(seen.id)
+
+            val group = service.getContactStatusesForUser(viewer).single()
+
+            assertEquals(setOf(seen.id), group.viewedStatusIds)
+            // One batched read for the whole tray, not one per status.
+            verify(exactly = 1) { statusViewRepository.findViewedStatusIds(viewer, any()) }
         }
     }
 
