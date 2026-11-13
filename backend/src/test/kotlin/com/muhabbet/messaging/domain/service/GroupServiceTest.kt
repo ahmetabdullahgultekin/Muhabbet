@@ -18,6 +18,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -955,6 +956,102 @@ class GroupServiceTest {
                 groupService.setAnnouncementMode(groupId, ownerId, enabled = true)
             }
             assertEquals(ErrorCode.GROUP_NOT_FOUND, ex.errorCode)
+        }
+    }
+
+    // ─── Single-owner invariant (#890) ──────────────────────
+
+    @Nested
+    inner class SingleOwner {
+
+        private fun stubGroup(vararg members: ConversationMember) {
+            every { conversationRepository.findById(groupId) } returns groupConversation()
+            members.forEach { m -> every { conversationRepository.findMember(groupId, m.userId) } returns m }
+            every { conversationRepository.findMembersByConversationId(groupId) } returns members.toList()
+        }
+
+        @Test
+        fun `should refuse promoting a second member to OWNER`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER), member(groupId, memberId, MemberRole.MEMBER))
+
+            val ex = assertThrows<BusinessException> {
+                groupService.updateMemberRole(groupId, ownerId, memberId, MemberRole.OWNER)
+            }
+
+            assertEquals(ErrorCode.GROUP_OWNERSHIP_TRANSFER_REQUIRED, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.updateMemberRole(any(), any(), any()) }
+        }
+
+        @Test
+        fun `should refuse the owner demoting themselves`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER), member(groupId, memberId, MemberRole.MEMBER))
+
+            val ex = assertThrows<BusinessException> {
+                groupService.updateMemberRole(groupId, ownerId, ownerId, MemberRole.MEMBER)
+            }
+
+            assertEquals(ErrorCode.GROUP_OWNERSHIP_TRANSFER_REQUIRED, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.updateMemberRole(any(), any(), any()) }
+        }
+
+        @Test
+        fun `should demote the owner before promoting the new one when transferring`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER), member(groupId, memberId, MemberRole.MEMBER))
+
+            groupService.transferOwnership(groupId, ownerId, memberId)
+
+            verifyOrder {
+                conversationRepository.updateMemberRole(groupId, ownerId, MemberRole.ADMIN)
+                conversationRepository.updateMemberRole(groupId, memberId, MemberRole.OWNER)
+            }
+        }
+
+        @Test
+        fun `should broadcast both role changes of a transfer`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER), member(groupId, memberId, MemberRole.MEMBER))
+            val sent = mutableListOf<WsMessage>()
+            every { messageBroadcaster.broadcastToUsers(any(), capture(sent)) } returns Unit
+
+            groupService.transferOwnership(groupId, ownerId, memberId)
+
+            val roles = sent.filterIsInstance<WsMessage.GroupRoleUpdated>().associate { it.userId to it.newRole }
+            assertEquals(mapOf(ownerId.toString() to "ADMIN", memberId.toString() to "OWNER"), roles)
+        }
+
+        @Test
+        fun `should refuse a transfer requested by an admin`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER), member(groupId, adminId, MemberRole.ADMIN))
+
+            val ex = assertThrows<BusinessException> {
+                groupService.transferOwnership(groupId, adminId, adminId)
+            }
+
+            assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
+            verify(exactly = 0) { conversationRepository.updateMemberRole(any(), any(), any()) }
+        }
+
+        @Test
+        fun `should refuse a transfer to a non-member`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER))
+            every { conversationRepository.findMember(groupId, newUserId) } returns null
+
+            val ex = assertThrows<BusinessException> {
+                groupService.transferOwnership(groupId, ownerId, newUserId)
+            }
+
+            assertEquals(ErrorCode.GROUP_NOT_MEMBER, ex.errorCode)
+        }
+
+        @Test
+        fun `should remove the leaving owner before promoting the successor`() {
+            stubGroup(member(groupId, ownerId, MemberRole.OWNER), member(groupId, adminId, MemberRole.ADMIN))
+
+            groupService.leaveGroup(groupId, ownerId)
+
+            verifyOrder {
+                conversationRepository.removeMember(groupId, ownerId)
+                conversationRepository.updateMemberRole(groupId, adminId, MemberRole.OWNER)
+            }
         }
     }
 }

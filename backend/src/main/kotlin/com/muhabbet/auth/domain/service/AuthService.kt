@@ -21,7 +21,6 @@ import com.muhabbet.auth.domain.port.out.OtpRepository
 import com.muhabbet.auth.domain.port.out.OtpSender
 import com.muhabbet.auth.domain.port.out.OtpVerifier
 import com.muhabbet.auth.domain.port.out.PhoneHashRepository
-import com.muhabbet.auth.domain.port.out.RefreshTokenRecord
 import com.muhabbet.auth.domain.port.out.RefreshTokenRepository
 import com.muhabbet.auth.domain.port.out.TwoStepAttemptRepository
 import com.muhabbet.auth.domain.port.out.UserRepository
@@ -88,6 +87,9 @@ open class AuthService(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val secureRandom = SecureRandom()
+
+    /** Sign-in and refresh mint through the same issuer device linking uses (#884). */
+    private val tokenIssuer = DeviceTokenIssuer(jwtProvider, refreshTokenRepository, refreshTokenExpirySeconds)
 
     init {
         // Exactly one delivery path must exist. Neither means every login silently fails at the
@@ -362,26 +364,14 @@ open class AuthService(
             )
         }
 
-        // Generate tokens
-        val accessToken = jwtProvider.generateAccessToken(user.id, device.id, user.isAdmin)
-        val refreshToken = jwtProvider.generateRefreshToken()
-        val refreshTokenHash = sha256(refreshToken)
-
-        refreshTokenRepository.save(
-            RefreshTokenRecord(
-                userId = user.id,
-                deviceId = device.id,
-                tokenHash = refreshTokenHash,
-                expiresAt = Instant.now().plusSeconds(refreshTokenExpirySeconds)
-            )
-        )
+        val tokens = tokenIssuer.issue(user.id, device.id, user.isAdmin)
 
         log.info("{}: userId={}, deviceId={}, isNewUser={}", logPrefix, user.id, device.id, isNewUser)
 
         return AuthResult(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            expiresIn = jwtProvider.accessTokenExpirySeconds,
+            accessToken = tokens.accessToken,
+            refreshToken = tokens.refreshToken,
+            expiresIn = tokens.expiresIn,
             userId = user.id.toString(),
             deviceId = device.id.toString(),
             isNewUser = isNewUser
@@ -409,25 +399,14 @@ open class AuthService(
         // than carried over from the old token, so a grant or a revoke takes effect within one
         // access-token lifetime instead of persisting until the holder logs out.
         val isAdmin = userRepository.findById(record.userId)?.isAdmin ?: false
-        val newAccessToken = jwtProvider.generateAccessToken(record.userId, record.deviceId, isAdmin)
-        val newRefreshToken = jwtProvider.generateRefreshToken()
-        val newRefreshTokenHash = sha256(newRefreshToken)
-
-        refreshTokenRepository.save(
-            RefreshTokenRecord(
-                userId = record.userId,
-                deviceId = record.deviceId,
-                tokenHash = newRefreshTokenHash,
-                expiresAt = Instant.now().plusSeconds(refreshTokenExpirySeconds)
-            )
-        )
+        val tokens = tokenIssuer.issue(record.userId, record.deviceId, isAdmin)
 
         log.info("Token refreshed: userId={}, deviceId={}", record.userId, record.deviceId)
 
         return TokenResult(
-            accessToken = newAccessToken,
-            refreshToken = newRefreshToken,
-            expiresIn = jwtProvider.accessTokenExpirySeconds,
+            accessToken = tokens.accessToken,
+            refreshToken = tokens.refreshToken,
+            expiresIn = tokens.expiresIn,
             userId = record.userId.toString(),
             deviceId = record.deviceId.toString()
         )

@@ -49,6 +49,9 @@ class SecurityConfig(
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/ws/**").permitAll()
+                    // A companion completing a device link has no session yet; the single-use QR
+                    // token it presents is its credential, and the response issues its tokens (#884).
+                    .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/devices/link/complete").permitAll()
                     .requestMatchers("/actuator/info").permitAll()
                     // metrics + prometheus expose JVM/DB/Redis internals — admin only (P0-6).
                     // The nginx/Traefik admin-IP gate is an additional operator layer (see runbook).

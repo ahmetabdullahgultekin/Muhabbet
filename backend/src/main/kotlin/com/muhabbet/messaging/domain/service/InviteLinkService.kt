@@ -10,6 +10,7 @@ import com.muhabbet.messaging.domain.port.`in`.ManageInviteLinkUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
@@ -22,7 +23,9 @@ import java.util.UUID
 open class InviteLinkService(
     private val inviteLinkRepository: GroupInviteLinkRepository,
     private val joinRequestRepository: GroupJoinRequestRepository,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val admission: GroupAdmission,
+    private val transactions: TransactionRunner
 ) : ManageInviteLinkUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -111,17 +114,25 @@ open class InviteLinkService(
         log.info("Invite link revoked: id={}", linkId)
     }
 
-    @Transactional
+    /**
+     * Not `@Transactional`: the membership write commits inside [TransactionRunner.inTransaction]
+     * and the group is told afterwards, the boundary [GroupService] keeps (#888). Before, a link
+     * join added the row and told nobody.
+     */
     override fun joinViaLink(token: String, userId: UUID) {
+        val admitted = transactions.inTransaction { persistJoin(token, userId) }
+        admitted.value?.let { admission.announce(it, addedBy = userId) }
+    }
+
+    /** Non-null wrapper: [TransactionRunner.inTransaction] cannot return null. */
+    private data class JoinOutcome(val value: GroupAdmission.Admitted?)
+
+    private fun persistJoin(token: String, userId: UUID): JoinOutcome {
         val link = inviteLinkRepository.findByToken(token)
             ?: throw BusinessException(ErrorCode.INVITE_LINK_NOT_FOUND)
 
         if (link.expiresAt != null && link.expiresAt.isBefore(Instant.now())) {
             throw BusinessException(ErrorCode.INVITE_LINK_EXPIRED)
-        }
-
-        if (link.maxUses != null && link.useCount >= link.maxUses) {
-            throw BusinessException(ErrorCode.INVITE_LINK_MAX_USES)
         }
 
         // Check if already a member
@@ -147,14 +158,20 @@ open class InviteLinkService(
                 )
             )
             log.info("Join request created via invite link: conv={}, user={}", link.conversationId, userId)
-        } else {
-            // Directly add to conversation
-            conversationRepository.saveMember(
-                ConversationMember(conversationId = link.conversationId, userId = userId, role = MemberRole.MEMBER)
-            )
-            inviteLinkRepository.incrementUseCount(link.id)
-            log.info("User joined via invite link: conv={}, user={}", link.conversationId, userId)
+            return JoinOutcome(null)
         }
+
+        // The cap, the group-type check and the member row; then the use, claimed atomically. A
+        // spent link throws here and rolls the member row back with it, so concurrent joins through
+        // a single-use link admit exactly one person. There is deliberately no `useCount >= maxUses`
+        // pre-check: it would read a stale count and decide nothing the claim does not.
+        val admitted = admission.admit(link.conversationId, userId)
+            ?: throw BusinessException(ErrorCode.GROUP_ALREADY_MEMBER)
+        if (!inviteLinkRepository.claimUse(link.id)) {
+            throw BusinessException(ErrorCode.INVITE_LINK_MAX_USES)
+        }
+        log.info("User joined via invite link: conv={}, user={}", link.conversationId, userId)
+        return JoinOutcome(admitted)
     }
 
     @Transactional(readOnly = true)

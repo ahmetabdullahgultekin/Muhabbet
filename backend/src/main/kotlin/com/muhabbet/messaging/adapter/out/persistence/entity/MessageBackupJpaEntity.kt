@@ -1,5 +1,6 @@
 package com.muhabbet.messaging.adapter.out.persistence.entity
 
+import com.muhabbet.messaging.domain.model.BackupStatus
 import jakarta.persistence.*
 import java.time.Instant
 import java.util.UUID
@@ -9,7 +10,7 @@ import java.util.UUID
 class MessageBackupJpaEntity(
     @Id val id: UUID = UUID.randomUUID(),
     @Column(name = "user_id", nullable = false) val userId: UUID,
-    @Column(nullable = false, length = 20) var status: String = "PENDING",
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) var status: BackupStatus = BackupStatus.PENDING,
     @Column(name = "backup_url") var backupUrl: String? = null,
     @Column(name = "file_size_bytes") var fileSizeBytes: Long? = null,
     @Column(name = "message_count") var messageCount: Int? = null,

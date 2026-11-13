@@ -79,6 +79,7 @@ class ScheduledDeliveryIsolationTest {
     @BeforeEach
     fun setUp() {
         every { blockPolicy.hasBlocked(any(), any()) } returns false
+        every { messageRepository.claimScheduledDelivery(any()) } returns true
         every { conversationRepository.findById(any()) } answers {
             Conversation(id = firstArg(), type = ConversationType.GROUP)
         }
@@ -95,13 +96,13 @@ class ScheduledDeliveryIsolationTest {
         val poison = scheduled(UUID.randomUUID())
         val healthy = scheduled(UUID.randomUUID())
         every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(poison, healthy)
-        every { messageRepository.markAsDelivered(poison.id) } throws IllegalStateException("row is wedged")
+        every { messageRepository.claimScheduledDelivery(match { it.id == poison.id }) } throws IllegalStateException("row is wedged")
 
         val delivered = service().deliverScheduledMessages()
 
         assertEquals(1, delivered, "the healthy message should still have been delivered")
-        verify(exactly = 1) { messageBroadcaster.broadcastMessage(healthy, any()) }
-        verify(exactly = 0) { messageBroadcaster.broadcastMessage(poison, any()) }
+        verify(exactly = 1) { messageBroadcaster.broadcastMessage(match { it.id == healthy.id }, any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(match { it.id == poison.id }, any()) }
     }
 
     @Test
@@ -111,12 +112,12 @@ class ScheduledDeliveryIsolationTest {
         val first = scheduled(UUID.randomUUID())
         val second = scheduled(UUID.randomUUID())
         every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(first, second)
-        every { messageBroadcaster.broadcastMessage(first, any()) } throws RuntimeException("redis down")
+        every { messageBroadcaster.broadcastMessage(match { it.id == first.id }, any()) } throws RuntimeException("redis down")
 
         val delivered = service().deliverScheduledMessages()
 
         assertEquals(1, delivered)
-        verify(exactly = 1) { messageBroadcaster.broadcastMessage(second, any()) }
+        verify(exactly = 1) { messageBroadcaster.broadcastMessage(match { it.id == second.id }, any()) }
     }
 
     @Test

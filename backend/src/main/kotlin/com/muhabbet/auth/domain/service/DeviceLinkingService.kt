@@ -1,17 +1,21 @@
 package com.muhabbet.auth.domain.service
 
 import com.muhabbet.auth.domain.model.Device
+import com.muhabbet.auth.domain.model.DeviceLinkCompletion
 import com.muhabbet.auth.domain.model.DeviceLinkSession
-import com.muhabbet.auth.domain.model.DeviceLinkStatus
+import com.muhabbet.auth.domain.port.`in`.CompletedDeviceLink
+import com.muhabbet.auth.domain.port.`in`.DeviceLinkOffer
 import com.muhabbet.auth.domain.port.`in`.LinkDeviceUseCase
 import com.muhabbet.auth.domain.port.out.DeviceLinkSessionRepository
 import com.muhabbet.auth.domain.port.out.DeviceRepository
+import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
 import java.security.SecureRandom
-import java.time.Instant
+import java.time.Clock
+import java.util.Base64
 import java.util.UUID
 
 /**
@@ -23,12 +27,20 @@ import java.util.UUID
  * bundle is accepted and stored opaquely for that future slice, but linking succeeds (registry +
  * UX) without it.
  *
+ * The handshake is a state machine (#884): [DeviceLinkSession.complete] decides, and
+ * [DeviceLinkSessionRepository.claimCompletion] commits only if the row is still PENDING and
+ * unexpired, so one QR links exactly one device however many companions present it. Only the
+ * token's hash is stored, and completing issues the companion its own credentials.
+ *
  * Reachability is gated upstream by the `muhabbet.multi-device.enabled` flag at the controller, so
  * with the flag OFF this service is never invoked and the single-device path is unchanged.
  */
 open class DeviceLinkingService(
     private val deviceLinkSessionRepository: DeviceLinkSessionRepository,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val userRepository: UserRepository,
+    private val tokenIssuer: DeviceTokenIssuer,
+    private val clock: Clock = Clock.systemUTC()
 ) : LinkDeviceUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -41,7 +53,7 @@ open class DeviceLinkingService(
     }
 
     @Transactional
-    override fun beginLink(userId: UUID, primaryDeviceId: UUID): DeviceLinkSession {
+    override fun beginLink(userId: UUID, primaryDeviceId: UUID): DeviceLinkOffer {
         // The opener must be a device the user actually owns.
         val primary = deviceRepository.findById(primaryDeviceId)
             ?: throw BusinessException(ErrorCode.DEVICE_NOT_FOUND)
@@ -49,47 +61,48 @@ open class DeviceLinkingService(
             throw BusinessException(ErrorCode.DEVICE_NOT_FOUND)
         }
 
-        val activeCompanions = deviceRepository.findActiveByUserId(userId).count { it.isCompanion }
-        if (activeCompanions >= MAX_COMPANION_DEVICES) {
-            throw BusinessException(ErrorCode.DEVICE_LINK_LIMIT_REACHED)
-        }
+        requireCompanionSlot(userId)
 
+        val token = generateToken()
         val session = DeviceLinkSession(
             userId = userId,
             primaryDeviceId = primaryDeviceId,
-            linkToken = generateToken(),
-            expiresAt = Instant.now().plusSeconds(LINK_EXPIRY_SECONDS)
+            tokenHash = AuthService.sha256(token),
+            createdAt = clock.instant(),
+            expiresAt = clock.instant().plusSeconds(LINK_EXPIRY_SECONDS)
         )
         val saved = deviceLinkSessionRepository.save(session)
         log.info("Device link session opened: id={}, user={}, primary={}", saved.id, userId, primaryDeviceId)
-        return saved
+        return DeviceLinkOffer(saved, token)
     }
 
+    /**
+     * Everything here is one transaction, and a throw anywhere undoes all of it — the companion row
+     * and its refresh token included. That is what makes the claim safe to take *after* creating
+     * the device: the loser of a race rolls its device back.
+     */
     @Transactional
     override fun completeLink(
         linkToken: String,
         companionPlatform: String,
         companionDeviceName: String?,
         publicBundle: String?
-    ): Device {
-        val session = deviceLinkSessionRepository.findByLinkToken(linkToken)
+    ): CompletedDeviceLink {
+        val now = clock.instant()
+        val session = deviceLinkSessionRepository.findByTokenHash(AuthService.sha256(linkToken))
             ?: throw BusinessException(ErrorCode.DEVICE_LINK_TOKEN_INVALID)
 
-        if (session.status != DeviceLinkStatus.PENDING) {
-            throw BusinessException(ErrorCode.DEVICE_LINK_ALREADY_USED)
-        }
-        if (session.isExpired()) {
-            deviceLinkSessionRepository.save(session.copy(status = DeviceLinkStatus.EXPIRED))
-            throw BusinessException(ErrorCode.DEVICE_LINK_EXPIRED)
+        val completed = when (val decision = session.complete(now, companionPlatform, companionDeviceName, publicBundle)) {
+            // Expiry is derived from expires_at, not written: there is nothing to persist, so
+            // nothing to lose to the rollback this throw causes.
+            DeviceLinkCompletion.Expired -> throw BusinessException(ErrorCode.DEVICE_LINK_EXPIRED)
+            DeviceLinkCompletion.AlreadyUsed -> throw BusinessException(ErrorCode.DEVICE_LINK_ALREADY_USED)
+            is DeviceLinkCompletion.Completed -> decision.session
         }
 
         // Re-check the cap at completion (a concurrent link could have filled the last slot).
-        val activeCompanions = deviceRepository.findActiveByUserId(session.userId).count { it.isCompanion }
-        if (activeCompanions >= MAX_COMPANION_DEVICES) {
-            throw BusinessException(ErrorCode.DEVICE_LINK_LIMIT_REACHED)
-        }
+        requireCompanionSlot(session.userId)
 
-        // Register the companion in the device registry (owned by the same user).
         val companion = deviceRepository.save(
             Device(
                 userId = session.userId,
@@ -97,7 +110,7 @@ open class DeviceLinkingService(
                 deviceName = companionDeviceName,
                 displayName = companionDeviceName,
                 linkedByDeviceId = session.primaryDeviceId,
-                lastActiveAt = Instant.now(),
+                lastActiveAt = now,
                 isPrimary = false
             )
         )
@@ -107,21 +120,18 @@ open class DeviceLinkingService(
         // consuming `publicBundle`. It is intentionally NOT invoked: the registry + transport slice
         // ships without it (BLOCKED on the libsignal upgrade). We persist the public bundle opaquely
         // so the future crypto slice has what it needs, without faking any encryption now.
-        deviceLinkSessionRepository.save(
-            session.copy(
-                status = DeviceLinkStatus.COMPLETED,
-                companionPlatform = companionPlatform,
-                companionDeviceName = companionDeviceName,
-                publicBundle = publicBundle,
-                linkedDeviceId = companion.id,
-                completedAt = Instant.now()
-            )
-        )
+        if (!deviceLinkSessionRepository.claimCompletion(completed.copy(linkedDeviceId = companion.id), now)) {
+            throw BusinessException(ErrorCode.DEVICE_LINK_ALREADY_USED)
+        }
+
+        val isAdmin = userRepository.findById(session.userId)?.isAdmin ?: false
+        val tokens = tokenIssuer.issue(session.userId, companion.id, isAdmin)
+
         log.info(
             "Device linked: companion={}, user={}, platform={}, bundlePresent={}",
             companion.id, session.userId, companionPlatform, publicBundle != null
         )
-        return companion
+        return CompletedDeviceLink(companion, tokens)
     }
 
     @Transactional(readOnly = true)
@@ -142,7 +152,7 @@ open class DeviceLinkingService(
             return device // already revoked — idempotent
         }
 
-        val revoked = deviceRepository.save(device.copy(revokedAt = Instant.now()))
+        val revoked = deviceRepository.save(device.copy(revokedAt = clock.instant()))
         // Crypto boundary: DeviceLinkCrypto.dropSession(deviceId) would run here to enforce forward
         // secrecy on the peers — NotYetImplemented (libsignal block). The tombstone alone already
         // excludes the device from findActiveByUserId / the (future) fan-out set.
@@ -150,28 +160,17 @@ open class DeviceLinkingService(
         return revoked
     }
 
+    private fun requireCompanionSlot(userId: UUID) {
+        val activeCompanions = deviceRepository.findActiveByUserId(userId).count { it.isCompanion }
+        if (activeCompanions >= MAX_COMPANION_DEVICES) {
+            throw BusinessException(ErrorCode.DEVICE_LINK_LIMIT_REACHED)
+        }
+    }
+
+    /** 192 random bits, URL-safe base64 without padding (QR-friendly: no '+', '/' or '='). */
     private fun generateToken(): String {
         val bytes = ByteArray(TOKEN_BYTES)
         secureRandom.nextBytes(bytes)
-        // URL-safe base64 without padding (QR-friendly, no '+' '/' '=').
-        return bytes.toBase64UrlNoPadding()
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
-}
-
-private const val BASE64_URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-
-private fun ByteArray.toBase64UrlNoPadding(): String {
-    val sb = StringBuilder((size + 2) / 3 * 4)
-    var i = 0
-    while (i < size) {
-        val b0 = this[i].toInt() and 0xFF
-        val b1 = if (i + 1 < size) this[i + 1].toInt() and 0xFF else 0
-        val b2 = if (i + 2 < size) this[i + 2].toInt() and 0xFF else 0
-        sb.append(BASE64_URL[b0 ushr 2])
-        sb.append(BASE64_URL[(b0 and 0x03 shl 4) or (b1 ushr 4)])
-        if (i + 1 < size) sb.append(BASE64_URL[(b1 and 0x0F shl 2) or (b2 ushr 6)])
-        if (i + 2 < size) sb.append(BASE64_URL[b2 and 0x3F])
-        i += 3
-    }
-    return sb.toString()
 }

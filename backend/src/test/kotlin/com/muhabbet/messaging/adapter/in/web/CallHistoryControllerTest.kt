@@ -3,7 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.port.`in`.CallHistoryPage
 import com.muhabbet.messaging.domain.port.`in`.GetCallHistoryUseCase
-import com.muhabbet.messaging.domain.service.CallHistoryRecord
+import com.muhabbet.messaging.domain.model.CallHistoryRecord
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
@@ -43,8 +43,8 @@ class CallHistoryControllerTest {
                     callId = "call-123",
                     callerId = userId,
                     calleeId = TestData.USER_ID_2,
-                    callType = "VOICE",
-                    status = "COMPLETED",
+                    callType = com.muhabbet.messaging.domain.model.CallType.VOICE,
+                    status = com.muhabbet.messaging.domain.model.CallOutcome.ENDED,
                     startedAt = Instant.now(),
                     answeredAt = Instant.now(),
                     endedAt = Instant.now(),

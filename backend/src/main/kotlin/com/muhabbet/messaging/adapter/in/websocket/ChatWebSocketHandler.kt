@@ -117,7 +117,7 @@ class ChatWebSocketHandler(
                 is WsMessage.CallInitiate -> callFrameHandler.handleInitiate(session, userId, wsMessage)
                 is WsMessage.CallAnswer -> callFrameHandler.handleAnswer(session, userId, wsMessage)
                 is WsMessage.CallIceCandidate -> callFrameHandler.handleIce(userId, wsMessage)
-                is WsMessage.CallEnd -> callFrameHandler.handleEnd(userId, wsMessage)
+                is WsMessage.CallEnd -> callFrameHandler.handleEnd(session, userId, wsMessage)
                 else -> sessionManager.sendError(session, ErrorCode.VALIDATION_ERROR, "Unexpected message type from client")
             }
         } catch (e: BusinessException) {

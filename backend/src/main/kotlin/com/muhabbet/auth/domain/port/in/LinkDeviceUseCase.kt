@@ -2,7 +2,14 @@ package com.muhabbet.auth.domain.port.`in`
 
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
+import com.muhabbet.auth.domain.model.IssuedTokens
 import java.util.UUID
+
+/** A just-opened link session and its token — the only moment the plain token exists server-side. */
+data class DeviceLinkOffer(val session: DeviceLinkSession, val linkToken: String)
+
+/** A completed link: the companion's device row and the credentials it signs in with (#884). */
+data class CompletedDeviceLink(val device: Device, val tokens: IssuedTokens)
 
 /**
  * Companion-device linking (Tier 2 multi-device, slice S1 — the NON-CRYPTO scaffolding).
@@ -16,19 +23,20 @@ import java.util.UUID
 interface LinkDeviceUseCase {
 
     /** Primary device opens a link session; the returned token is rendered as a QR code. */
-    fun beginLink(userId: UUID, primaryDeviceId: UUID): DeviceLinkSession
+    fun beginLink(userId: UUID, primaryDeviceId: UUID): DeviceLinkOffer
 
     /**
      * Companion completes the handshake by presenting the scanned [linkToken]. Creates a new
-     * companion [Device] row owned by the same user and marks the session COMPLETED. The opaque
-     * [publicBundle] (companion's PUBLIC prekey material) is stored for the future crypto slice.
+     * companion [Device] row owned by the same user, marks the session COMPLETED and issues the
+     * companion its own access/refresh tokens. The opaque [publicBundle] (companion's PUBLIC prekey
+     * material) is stored for the future crypto slice.
      */
     fun completeLink(
         linkToken: String,
         companionPlatform: String,
         companionDeviceName: String?,
         publicBundle: String?
-    ): Device
+    ): CompletedDeviceLink
 
     /** All of the user's currently-linked (non-revoked) devices, for the management screen. */
     fun listDevices(userId: UUID): List<Device>

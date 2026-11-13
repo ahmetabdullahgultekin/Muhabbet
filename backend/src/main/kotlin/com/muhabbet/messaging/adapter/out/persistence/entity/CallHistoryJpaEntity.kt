@@ -1,7 +1,11 @@
 package com.muhabbet.messaging.adapter.out.persistence.entity
 
-import com.muhabbet.messaging.domain.service.CallHistoryRecord
+import com.muhabbet.messaging.domain.model.CallHistoryRecord
+import com.muhabbet.messaging.domain.model.CallOutcome
+import com.muhabbet.messaging.domain.model.CallType
 import jakarta.persistence.Column
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
@@ -24,10 +28,12 @@ class CallHistoryJpaEntity(
     val calleeId: UUID,
 
     @Column(name = "call_type", nullable = false)
-    val callType: String,
+    @Enumerated(EnumType.STRING)
+    val callType: CallType,
 
     @Column(name = "status", nullable = false)
-    val status: String,
+    @Enumerated(EnumType.STRING)
+    val status: CallOutcome,
 
     @Column(name = "started_at")
     val startedAt: Instant = Instant.now(),

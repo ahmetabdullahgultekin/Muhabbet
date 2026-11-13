@@ -188,9 +188,8 @@ class MessagePersistenceAdapter(
     override fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message> =
         messageRepo.findScheduledMessagesReadyToSend(now, PageRequest.of(0, limit)).map { it.toDomain() }
 
-    override fun markAsDelivered(messageId: UUID) {
-        messageRepo.markScheduledAsDelivered(messageId)
-    }
+    override fun claimScheduledDelivery(delivered: Message): Boolean =
+        messageRepo.claimScheduledDelivery(delivered.id, delivered.serverTimestamp, delivered.expiresAt) == 1
 
     override fun findExpiredMessages(now: Instant, limit: Int): List<Message> =
         messageRepo.findExpiredMessages(now, PageRequest.of(0, limit)).map { it.toDomain() }

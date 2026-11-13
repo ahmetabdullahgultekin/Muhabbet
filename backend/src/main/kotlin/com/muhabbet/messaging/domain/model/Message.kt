@@ -47,7 +47,56 @@ data class Message(
     // Message Scheduling
     val scheduledAt: Instant? = null,
     val isScheduled: Boolean = false
-)
+) {
+    /** Where this message is in its life, read from the stored flags (#872). */
+    val lifecycle: MessageLifecycle
+        get() = when {
+            isDeleted -> MessageLifecycle.Deleted
+            isScheduled -> MessageLifecycle.Scheduled(scheduledAt ?: serverTimestamp)
+            else -> MessageLifecycle.Live
+        }
+
+    /**
+     * Scheduled -> Live, if due at [now]. A delivered scheduled message is a message *sent at
+     * delivery time*: it is re-stamped with [now] — so it sorts where it lands and background sync
+     * (`since = last sync`) returns it — and its disappearing deadline, if the chat has one, is
+     * counted from [now] too. Both used to keep their scheduling-time values, so a message
+     * scheduled for next week in a 24-hour chat was swept before it was ever delivered.
+     *
+     * Pure: the caller must persist the result with a write conditional on the row still being
+     * scheduled, which is what makes delivery exactly-once.
+     */
+    fun deliverDue(now: Instant, disappearAfterSeconds: Int?): ScheduledDelivery = when (val state = lifecycle) {
+        MessageLifecycle.Live, MessageLifecycle.Deleted -> ScheduledDelivery.NotScheduled
+        is MessageLifecycle.Scheduled ->
+            if (state.at.isAfter(now)) {
+                ScheduledDelivery.NotDue
+            } else {
+                ScheduledDelivery.Due(
+                    copy(
+                        isScheduled = false,
+                        serverTimestamp = now,
+                        expiresAt = disappearAfterSeconds?.let { now.plusSeconds(it.toLong()) }
+                    )
+                )
+            }
+    }
+}
+
+/** A message's lifecycle: scheduled for later, live in the conversation, or deleted. */
+sealed interface MessageLifecycle {
+    data class Scheduled(val at: Instant) : MessageLifecycle
+    data object Live : MessageLifecycle
+    data object Deleted : MessageLifecycle
+}
+
+/** The outcome of [Message.deliverDue]. */
+sealed interface ScheduledDelivery {
+    /** The message as it must be stored and fanned out on delivery. */
+    data class Due(val message: Message) : ScheduledDelivery
+    data object NotDue : ScheduledDelivery
+    data object NotScheduled : ScheduledDelivery
+}
 
 data class MessageDeliveryStatus(
     val messageId: UUID,

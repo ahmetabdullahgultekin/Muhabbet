@@ -73,7 +73,17 @@ interface MessageRepository {
      * takes on. Unbounded, a backlog arrives as one list and — before #560 — as one transaction.
      */
     fun findScheduledMessagesReadyToSend(now: Instant, limit: Int): List<Message>
-    fun markAsDelivered(messageId: UUID)
+
+    /**
+     * Stores [delivered] — the result of `Message.deliverDue` — **only if the row is still
+     * scheduled and not deleted**, returning whether it did (#872).
+     *
+     * The flag is the claim. Two overlapping runs, or two instances, can select the same due row;
+     * the UPDATE's row lock serialises them and the loser re-reads `is_scheduled = false` and gets
+     * `false`, so it neither fans out nor pushes. Replaces an unconditional `markAsDelivered` that
+     * returned nothing and never re-stamped the time-dependent fields.
+     */
+    fun claimScheduledDelivery(delivered: Message): Boolean
 
     // Disappearing messages
 

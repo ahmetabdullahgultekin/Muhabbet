@@ -64,6 +64,7 @@ import com.muhabbet.messaging.domain.service.EncryptionService
 import com.muhabbet.messaging.domain.service.GroupEventService
 import com.muhabbet.messaging.domain.service.GroupService
 import com.muhabbet.messaging.domain.service.InviteLinkService
+import com.muhabbet.messaging.domain.service.GroupAdmission
 import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
 import com.muhabbet.messaging.domain.service.PollService
@@ -339,9 +340,13 @@ class AppConfig {
 
     @Bean
     fun callSignalingService(
-        callHistoryRepository: CallHistoryRepository
+        callSessionStore: com.muhabbet.messaging.domain.port.out.CallSessionStore,
+        callHistoryRepository: CallHistoryRepository,
+        blockPolicy: BlockPolicyPort
     ): CallSignalingService = CallSignalingService(
-        callHistoryRepository = callHistoryRepository
+        store = callSessionStore,
+        callHistoryRepository = callHistoryRepository,
+        blockPolicy = blockPolicy
     )
 
     @Bean
@@ -356,11 +361,13 @@ class AppConfig {
     @Bean
     fun moderationService(
         reportRepository: com.muhabbet.moderation.domain.port.out.ReportRepository,
-        blockRepository: com.muhabbet.moderation.domain.port.out.BlockRepository
+        blockRepository: com.muhabbet.moderation.domain.port.out.BlockRepository,
+        reportEvidencePort: com.muhabbet.moderation.domain.port.out.ReportEvidencePort
     ): com.muhabbet.moderation.domain.service.ModerationService =
         com.muhabbet.moderation.domain.service.ModerationService(
             reportRepository = reportRepository,
-            blockRepository = blockRepository
+            blockRepository = blockRepository,
+            evidence = reportEvidencePort
         )
 
     // ─── Phase 4: Message Backup ──────────────────────
@@ -370,13 +377,15 @@ class AppConfig {
         backupRepository: com.muhabbet.messaging.domain.port.out.BackupRepository,
         conversationRepository: ConversationRepository,
         messageRepository: com.muhabbet.messaging.domain.port.out.MessageRepository,
-        backupArchivePort: com.muhabbet.messaging.domain.port.out.BackupArchivePort
+        backupArchivePort: com.muhabbet.messaging.domain.port.out.BackupArchivePort,
+        transactions: TransactionRunner
     ): com.muhabbet.messaging.domain.service.BackupService =
         com.muhabbet.messaging.domain.service.BackupService(
             backupRepository = backupRepository,
             conversationRepository = conversationRepository,
             messageRepository = messageRepository,
-            backupArchivePort = backupArchivePort
+            backupArchivePort = backupArchivePort,
+            transactions = transactions
         )
 
     // ─── Phase 6: Channel Analytics ───────────────────
@@ -429,32 +438,61 @@ class AppConfig {
     @Bean
     fun deviceLinkingService(
         deviceLinkSessionRepository: DeviceLinkSessionRepository,
-        deviceRepository: DeviceRepository
+        deviceRepository: DeviceRepository,
+        userRepository: UserRepository,
+        jwtProvider: JwtProvider,
+        refreshTokenRepository: RefreshTokenRepository,
+        jwtProperties: JwtProperties
     ): DeviceLinkingService = DeviceLinkingService(
         deviceLinkSessionRepository = deviceLinkSessionRepository,
-        deviceRepository = deviceRepository
+        deviceRepository = deviceRepository,
+        userRepository = userRepository,
+        tokenIssuer = com.muhabbet.auth.domain.service.DeviceTokenIssuer(
+            jwtProvider = jwtProvider,
+            refreshTokenRepository = refreshTokenRepository,
+            refreshTokenExpirySeconds = jwtProperties.refreshTokenExpiry
+        )
+    )
+
+    @Bean
+    fun groupAdmission(
+        conversationRepository: ConversationRepository,
+        userDirectoryPort: UserDirectoryPort,
+        messageBroadcaster: MessageBroadcaster
+    ): GroupAdmission = GroupAdmission(
+        conversationRepository = conversationRepository,
+        userDirectory = userDirectoryPort,
+        messageBroadcaster = messageBroadcaster
     )
 
     @Bean
     fun inviteLinkService(
         inviteLinkRepository: GroupInviteLinkRepository,
         joinRequestRepository: GroupJoinRequestRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        groupAdmission: GroupAdmission,
+        transactions: TransactionRunner
     ): InviteLinkService = InviteLinkService(
         inviteLinkRepository = inviteLinkRepository,
         joinRequestRepository = joinRequestRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        admission = groupAdmission,
+        transactions = transactions
     )
 
     @Bean
     fun joinRequestService(
         joinRequestRepository: GroupJoinRequestRepository,
         conversationRepository: ConversationRepository,
-        inviteLinkRepository: GroupInviteLinkRepository
+        inviteLinkRepository: GroupInviteLinkRepository,
+        groupAdmission: GroupAdmission,
+        transactions: TransactionRunner
     ): JoinRequestService = JoinRequestService(
         joinRequestRepository = joinRequestRepository,
         conversationRepository = conversationRepository,
-        inviteLinkRepository = inviteLinkRepository
+        inviteLinkRepository = inviteLinkRepository,
+        admission = groupAdmission,
+        transactions = transactions
     )
 
     @Bean

@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.ScheduledDelivery
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
@@ -194,13 +195,15 @@ open class MessageService(
             throw BusinessException(ErrorCode.MSG_DUPLICATE)
         }
 
-        // Calculate expiresAt for disappearing messages
         val now = Instant.now()
-        val expiresAt = conversation?.disappearAfterSeconds?.let {
-            now.plusSeconds(it.toLong())
-        }
-
         val isScheduled = command.scheduledAt != null && command.scheduledAt.isAfter(now)
+
+        // A disappearing deadline counts from when the message reaches the chat. For a scheduled
+        // message that is delivery, so it gets none until `Message.deliverDue` sets one (#872) —
+        // stamping it now let the sweep delete a message nobody had yet received.
+        val expiresAt = conversation?.disappearAfterSeconds
+            ?.takeUnless { isScheduled }
+            ?.let { now.plusSeconds(it.toLong()) }
 
         val draft = Message(
             id = command.messageId,
@@ -649,7 +652,7 @@ open class MessageService(
     // ─── Scheduled Messages ──────────────────────────────────
 
     /**
-     * [markAsDelivered] and [softDelete] are `@Modifying` queries, and Hibernate refuses those
+     * [MessageRepository.claimScheduledDelivery] and [softDelete] are `@Modifying` queries, and Hibernate refuses those
      * outside a transaction. Without this annotation the whole loop throws on its first write,
      * every minute, forever, and the block check below would be unreachable code — which is what
      * had been happening, the same silent shape that stopped `last_seen_at` from ever being
@@ -683,13 +686,14 @@ open class MessageService(
             // uses the default REQUIRED propagation, so with an outer transaction still in place
             // every per-message call would simply join it and the isolation would be imaginary.
             try {
-                val outcome = transactions.inTransaction { deliverOneScheduled(message) }
+                val outcome = transactions.inTransaction { deliverOneScheduled(message, now) }
 
                 // Outside the transaction, as on the immediate send path (#491): the fan-out is
                 // blocking WebSocket writes and a push, and holding a pool connection across them
-                // is what capped the instance at twenty concurrent sends.
-                if (outcome.recipients != null) {
-                    messageBroadcaster.broadcastMessage(message, outcome.recipients)
+                // is what capped the instance at twenty concurrent sends. It carries the message as
+                // delivered — re-stamped — not as it was scheduled.
+                if (outcome.recipients != null && outcome.delivered != null) {
+                    messageBroadcaster.broadcastMessage(outcome.delivered, outcome.recipients)
                     delivered++
                     log.info("Scheduled message delivered: id={}, conv={}", message.id, message.conversationId)
                 }
@@ -718,15 +722,27 @@ open class MessageService(
      * result to a non-null type: Spring's template signals "no result" with null, so a block that
      * may legitimately return null would be indistinguishable from one that failed to run.
      */
-    private data class ScheduledOutcome(val recipients: List<ConversationMember>?)
+    private data class ScheduledOutcome(val recipients: List<ConversationMember>?, val delivered: Message? = null)
 
     /**
      * The persistence half of delivering one scheduled message, to be run in its own transaction.
+     *
+     * The claim comes first and decides everything (#872): only the run whose conditional UPDATE
+     * changed the row goes on to write delivery rows and fan out. A run that lost — an overlapping
+     * run, a second instance, or a sender who deleted it meanwhile — returns "nothing to send".
      */
-    private fun deliverOneScheduled(message: Message): ScheduledOutcome {
-        messageRepository.markAsDelivered(message.id)
-
+    private fun deliverOneScheduled(message: Message, now: Instant): ScheduledOutcome {
         val conversation = conversationRepository.findById(message.conversationId)
+
+        val delivered = when (val transition = message.deliverDue(now, conversation?.disappearAfterSeconds)) {
+            is ScheduledDelivery.Due -> transition.message
+            ScheduledDelivery.NotDue, ScheduledDelivery.NotScheduled -> return ScheduledOutcome(recipients = null)
+        }
+        if (!messageRepository.claimScheduledDelivery(delivered)) {
+            log.info("Scheduled message already claimed elsewhere, skipping: id={}", message.id)
+            return ScheduledOutcome(recipients = null)
+        }
+
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
 
         // A message can be scheduled before a block and come due after it. Withholding the
@@ -756,6 +772,6 @@ open class MessageService(
             }
         )
 
-        return ScheduledOutcome(recipients)
+        return ScheduledOutcome(recipients, delivered)
     }
 }

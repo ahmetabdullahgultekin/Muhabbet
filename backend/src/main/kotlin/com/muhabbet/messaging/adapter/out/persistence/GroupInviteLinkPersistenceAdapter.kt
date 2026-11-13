@@ -30,9 +30,5 @@ class GroupInviteLinkPersistenceAdapter(
         repo.save(entity)
     }
 
-    override fun incrementUseCount(id: UUID) {
-        val entity = repo.findById(id).orElse(null) ?: return
-        entity.useCount += 1
-        repo.save(entity)
-    }
+    override fun claimUse(id: UUID): Boolean = repo.claimUse(id) == 1
 }

@@ -296,8 +296,11 @@ open class CommunityService(
 
             // The announcement channel must always have an owner too, for the same reason a group
             // does — GroupService's own leave/role flows assume exactly one. Promoted before the
-            // leaving owner is removed from the channel below, never left ownerless in between.
+            // leaving owner is removed from the channel below, never left ownerless in between. The
+            // leaver is demoted first: V28's unique index admits one OWNER row per conversation at
+            // any instant, so promoting while they still hold it would fail the statement (#890).
             community.announcementGroupId?.let { channelId ->
+                conversationRepository.updateMemberRole(channelId, userId, MemberRole.MEMBER)
                 conversationRepository.updateMemberRole(channelId, successor.userId, MemberRole.OWNER)
             }
         }

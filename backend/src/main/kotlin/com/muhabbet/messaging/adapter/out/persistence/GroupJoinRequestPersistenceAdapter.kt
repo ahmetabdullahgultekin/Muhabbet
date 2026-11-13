@@ -24,4 +24,10 @@ class GroupJoinRequestPersistenceAdapter(
 
     override fun findByConversationIdAndUserIdAndStatus(conversationId: UUID, userId: UUID, status: JoinRequestStatus): GroupJoinRequest? =
         repo.findByConversationIdAndUserIdAndStatus(conversationId, userId, status)?.toDomain()
+
+    override fun markReviewed(reviewed: GroupJoinRequest): Boolean {
+        val reviewedBy = reviewed.reviewedBy ?: return false
+        val reviewedAt = reviewed.reviewedAt ?: return false
+        return repo.markReviewed(reviewed.id, reviewed.status.name, reviewedBy, reviewedAt) == 1
+    }
 }

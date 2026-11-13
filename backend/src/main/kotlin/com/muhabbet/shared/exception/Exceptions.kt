@@ -51,6 +51,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     GROUP_CANNOT_REMOVE_OWNER(HttpStatus.BAD_REQUEST, "Grup sahibi çıkarılamaz"),
     GROUP_OWNER_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "Grup sahibi gruptan ayrılamaz, önce sahipliği devredin"),
     GROUP_CANNOT_MODIFY_DIRECT(HttpStatus.BAD_REQUEST, "Direkt mesajlaşma grupları değiştirilemez"),
+    GROUP_OWNERSHIP_TRANSFER_REQUIRED(HttpStatus.CONFLICT, "Grup sahipliği yalnızca devir ile değiştirilebilir"),
 
     // Message management
     MSG_NOT_SENDER(HttpStatus.FORBIDDEN, "Sadece gönderen mesajı düzenleyebilir veya silebilir"),
@@ -83,6 +84,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     CALL_NOT_FOUND(HttpStatus.NOT_FOUND, "Arama bulunamadı"),
     CALL_USER_BUSY(HttpStatus.CONFLICT, "Kullanıcı zaten bir aramada"),
     CALL_INVALID_TARGET(HttpStatus.BAD_REQUEST, "Geçersiz arama hedefi"),
+    CALL_INVALID_STATE(HttpStatus.CONFLICT, "Arama bu işlem için uygun durumda değil"),
 
     // User / KVKK
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı"),
@@ -90,6 +92,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
 
     // Moderation
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "Rapor bulunamadı"),
+    REPORT_ALREADY_RESOLVED(HttpStatus.CONFLICT, "Rapor zaten sonuçlandırıldı"),
     BLOCK_SELF(HttpStatus.BAD_REQUEST, "Kendinizi engelleyemezsiniz"),
 
     // Bot
@@ -123,6 +126,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     // Join Requests
     JOIN_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Katılma isteği bulunamadı"),
     JOIN_REQUEST_ALREADY_EXISTS(HttpStatus.CONFLICT, "Katılma isteği zaten mevcut"),
+    JOIN_REQUEST_ALREADY_REVIEWED(HttpStatus.CONFLICT, "Katılma isteği zaten değerlendirildi"),
 
     // Communities
     COMMUNITY_NOT_FOUND(HttpStatus.NOT_FOUND, "Topluluk bulunamadı"),

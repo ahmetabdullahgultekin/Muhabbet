@@ -1,10 +1,10 @@
 package com.muhabbet.messaging.adapter.out.persistence
 
-import com.muhabbet.messaging.domain.port.out.BackupRepository
-import com.muhabbet.messaging.domain.port.out.MessageBackup
 import com.muhabbet.messaging.adapter.out.persistence.entity.MessageBackupJpaEntity
+import com.muhabbet.messaging.domain.model.BackupStatus
+import com.muhabbet.messaging.domain.model.MessageBackup
+import com.muhabbet.messaging.domain.port.out.BackupRepository
 import org.springframework.stereotype.Component
-import java.time.Instant
 import java.util.UUID
 
 @Component
@@ -34,20 +34,20 @@ class BackupPersistenceAdapter(
         return springDataBackupRepository.findByUserIdOrderByStartedAtDesc(userId).map { it.toDomain() }
     }
 
-    override fun updateStatus(
-        id: UUID, status: String, backupUrl: String?, fileSizeBytes: Long?,
-        messageCount: Int?, conversationCount: Int?, completedAt: Instant?, expiresAt: Instant?
-    ) {
-        springDataBackupRepository.findById(id).ifPresent { entity ->
-            entity.status = status
-            entity.backupUrl = backupUrl
-            entity.fileSizeBytes = fileSizeBytes
-            entity.messageCount = messageCount
-            entity.conversationCount = conversationCount
-            entity.completedAt = completedAt
-            entity.expiresAt = expiresAt
-            springDataBackupRepository.save(entity)
-        }
+    override fun finish(finished: MessageBackup): Boolean {
+        // EXPIRED is derived, never stored; PENDING is not an ending.
+        if (finished.status != BackupStatus.COMPLETED && finished.status != BackupStatus.FAILED) return false
+        return springDataBackupRepository.finish(
+            id = finished.id,
+            status = finished.status.name,
+            backupUrl = finished.backupUrl,
+            fileSizeBytes = finished.fileSizeBytes,
+            messageCount = finished.messageCount,
+            conversationCount = finished.conversationCount,
+            completedAt = finished.completedAt,
+            expiresAt = finished.expiresAt,
+            errorMessage = finished.errorMessage
+        ) == 1
     }
 
     private fun MessageBackupJpaEntity.toDomain() = MessageBackup(

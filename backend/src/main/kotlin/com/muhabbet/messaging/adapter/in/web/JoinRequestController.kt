@@ -46,7 +46,8 @@ class JoinRequestController(
     fun getPendingRequests(
         @PathVariable conversationId: UUID
     ): ResponseEntity<ApiResponse<List<JoinRequestResponse>>> {
-        val requests = manageJoinRequestUseCase.getPendingRequests(conversationId)
+        val userId = AuthenticatedUser.currentUserId()
+        val requests = manageJoinRequestUseCase.getPendingRequests(conversationId, userId)
         return ApiResponseBuilder.ok(requests.map { it.toResponse() })
     }
 

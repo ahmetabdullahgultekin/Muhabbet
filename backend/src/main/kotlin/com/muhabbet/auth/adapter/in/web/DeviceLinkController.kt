@@ -1,12 +1,14 @@
 package com.muhabbet.auth.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.Device
-import com.muhabbet.auth.domain.model.DeviceLinkSession
+import com.muhabbet.auth.domain.port.`in`.CompletedDeviceLink
+import com.muhabbet.auth.domain.port.`in`.DeviceLinkOffer
 import com.muhabbet.auth.domain.port.`in`.LinkDeviceUseCase
 import com.muhabbet.shared.config.MultiDeviceProperties
 import com.muhabbet.shared.dto.ApiResponse
 import com.muhabbet.shared.dto.DeviceLinkBeginResponse
 import com.muhabbet.shared.dto.DeviceLinkCompleteRequest
+import com.muhabbet.shared.dto.DeviceLinkCompleteResponse
 import com.muhabbet.shared.dto.LinkedDeviceResponse
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -43,23 +45,27 @@ class DeviceLinkController(
         requireEnabled()
         val userId = AuthenticatedUser.currentUserId()
         val primaryDeviceId = AuthenticatedUser.currentDeviceId()
-        val session = linkDeviceUseCase.beginLink(userId, primaryDeviceId)
-        return ApiResponseBuilder.created(session.toBeginResponse())
+        val offer = linkDeviceUseCase.beginLink(userId, primaryDeviceId)
+        return ApiResponseBuilder.created(offer.toBeginResponse())
     }
 
-    /** Companion presents the scanned token + its platform/name to finish the handshake. */
+    /**
+     * Companion presents the scanned token + its platform/name to finish the handshake, and gets
+     * back its own credentials. Reachable without a session (see `SecurityConfig`): the companion
+     * has none yet, and the single-use, 120-second, 192-bit token *is* its credential (#884).
+     */
     @PostMapping("/complete")
     fun complete(
         @RequestBody request: DeviceLinkCompleteRequest
-    ): ResponseEntity<ApiResponse<LinkedDeviceResponse>> {
+    ): ResponseEntity<ApiResponse<DeviceLinkCompleteResponse>> {
         requireEnabled()
-        val device = linkDeviceUseCase.completeLink(
+        val completed = linkDeviceUseCase.completeLink(
             linkToken = request.linkToken,
             companionPlatform = request.platform,
             companionDeviceName = request.deviceName,
             publicBundle = request.publicBundle
         )
-        return ApiResponseBuilder.created(device.toLinkedResponse())
+        return ApiResponseBuilder.created(completed.toCompleteResponse())
     }
 
     /** List the user's active (non-revoked) devices for the management screen. */
@@ -87,10 +93,26 @@ class DeviceLinkController(
     }
 }
 
-private fun DeviceLinkSession.toBeginResponse() = DeviceLinkBeginResponse(
-    sessionId = id.toString(),
+private fun DeviceLinkOffer.toBeginResponse() = DeviceLinkBeginResponse(
+    sessionId = session.id.toString(),
     linkToken = linkToken,
-    expiresAt = expiresAt.toString()
+    expiresAt = session.expiresAt.toString()
+)
+
+private fun CompletedDeviceLink.toCompleteResponse() = DeviceLinkCompleteResponse(
+    id = device.id.toString(),
+    platform = device.platform,
+    displayName = device.displayName ?: device.deviceName,
+    isPrimary = device.isPrimary,
+    isCompanion = device.isCompanion,
+    linkedByDeviceId = device.linkedByDeviceId?.toString(),
+    lastActiveAt = device.lastActiveAt?.toString(),
+    createdAt = device.createdAt.toString(),
+    revoked = !device.isActive,
+    userId = device.userId.toString(),
+    accessToken = tokens.accessToken,
+    refreshToken = tokens.refreshToken,
+    expiresIn = tokens.expiresIn
 )
 
 private fun Device.toLinkedResponse() = LinkedDeviceResponse(

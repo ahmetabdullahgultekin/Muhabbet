@@ -161,7 +161,7 @@ class UserDataServiceTest {
                 LoginApproval(userId = userId, status = LoginApprovalStatus.APPROVED, deviceName = "New Phone")
             )
             every { deviceLinkSessionRepository.findByUserId(userId) } returns listOf(
-                DeviceLinkSession(userId = userId, primaryDeviceId = deviceId, linkToken = "secret-token", expiresAt = Instant.now(), status = DeviceLinkStatus.COMPLETED)
+                DeviceLinkSession(userId = userId, primaryDeviceId = deviceId, tokenHash = "0".repeat(64), expiresAt = Instant.now(), status = DeviceLinkStatus.COMPLETED)
             )
 
             val export = service.exportUserData(userId)

@@ -31,6 +31,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -622,9 +623,10 @@ class MessagingServiceTest {
             id = UUID.randomUUID(),
             conversationId = convId,
             senderId = userA
-        )
+        ).asDueScheduled()
 
         every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(scheduled)
+        every { messageRepository.claimScheduledDelivery(any()) } returns true
         every { conversationRepository.findById(convId) } returns
             Conversation(id = convId, type = ConversationType.DIRECT)
         every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
@@ -648,10 +650,11 @@ class MessagingServiceTest {
         // ran" in the log. Delivery was silent for so long precisely because those two look alike
         // (#556).
         val convId = UUID.randomUUID()
-        val first = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA)
-        val second = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA)
+        val first = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA).asDueScheduled()
+        val second = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA).asDueScheduled()
 
         every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(first, second)
+        every { messageRepository.claimScheduledDelivery(any()) } returns true
         every { conversationRepository.findById(convId) } returns
             Conversation(id = convId, type = ConversationType.DIRECT)
         every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
@@ -664,6 +667,85 @@ class MessagingServiceTest {
 
         assertEquals(2, delivered)
         verify(exactly = 2) { messageBroadcaster.broadcastMessage(any(), recipientIdsMatch(userB)) }
+    }
+
+    private fun Message.asDueScheduled() =
+        copy(isScheduled = true, scheduledAt = Instant.now().minusSeconds(60), serverTimestamp = Instant.now().minusSeconds(3600))
+
+    /**
+     * #872: delivery is a claim. A run whose conditional UPDATE changed nothing — another run or
+     * instance got there first — must neither write delivery rows nor fan out, or the recipient is
+     * pushed the same message twice.
+     */
+    @Test
+    fun `should not deliver a scheduled message whose claim was lost to another run`() {
+        val convId = UUID.randomUUID()
+        val scheduled = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA).asDueScheduled()
+        every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(scheduled)
+        every { conversationRepository.findById(convId) } returns Conversation(id = convId, type = ConversationType.DIRECT)
+        every { messageRepository.claimScheduledDelivery(any()) } returns false
+
+        assertEquals(0, messageService.deliverScheduledMessages())
+
+        verify(exactly = 0) { messageRepository.saveDeliveryStatuses(any()) }
+        verify(exactly = 0) { messageBroadcaster.broadcastMessage(any(), any()) }
+    }
+
+    /** #872: the message is delivered as of now — re-stamped, with its disappearing window starting now. */
+    @Test
+    fun `should re-stamp a delivered scheduled message and start its disappearing window at delivery`() {
+        val convId = UUID.randomUUID()
+        val scheduled = TestData.textMessage(id = UUID.randomUUID(), conversationId = convId, senderId = userA).asDueScheduled()
+        every { messageRepository.findScheduledMessagesReadyToSend(any(), any()) } returns listOf(scheduled)
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT, disappearAfterSeconds = 86_400)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = userA),
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+        every { blockPolicy.hasBlocked(userB, userA) } returns false
+        val claimed = slot<Message>()
+        every { messageRepository.claimScheduledDelivery(capture(claimed)) } returns true
+        val before = Instant.now()
+
+        messageService.deliverScheduledMessages()
+
+        val delivered = claimed.captured
+        assertFalse(delivered.isScheduled)
+        assertFalse(delivered.serverTimestamp.isBefore(before), "delivery must re-stamp the server timestamp")
+        assertEquals(delivered.serverTimestamp.plusSeconds(86_400), delivered.expiresAt)
+        verify { messageBroadcaster.broadcastMessage(match { it.serverTimestamp == delivered.serverTimestamp }, any()) }
+    }
+
+    /** #872: a scheduled message in a disappearing chat gets no deadline until it is delivered. */
+    @Test
+    fun `should not start the disappearing window of a message scheduled for later`() {
+        val convId = UUID.randomUUID()
+        every { conversationRepository.findById(convId) } returns
+            Conversation(id = convId, type = ConversationType.DIRECT, disappearAfterSeconds = 86_400)
+        every { conversationRepository.findMembersByConversationId(convId) } returns listOf(
+            ConversationMember(conversationId = convId, userId = userA),
+            ConversationMember(conversationId = convId, userId = userB)
+        )
+        every { conversationRepository.findMember(convId, userA) } returns
+            ConversationMember(conversationId = convId, userId = userA)
+        every { blockPolicy.hasBlocked(any(), any()) } returns false
+        val saved = slot<Message>()
+        every { messageRepository.save(capture(saved)) } answers { firstArg() }
+
+        messageService.sendMessage(
+            SendMessageCommand(
+                messageId = UUID.randomUUID(),
+                conversationId = convId,
+                senderId = userA,
+                content = "next week",
+                clientTimestamp = Instant.now(),
+                scheduledAt = Instant.now().plusSeconds(7 * 86_400)
+            )
+        )
+
+        assertTrue(saved.captured.isScheduled)
+        assertNull(saved.captured.expiresAt)
     }
 
     @Test

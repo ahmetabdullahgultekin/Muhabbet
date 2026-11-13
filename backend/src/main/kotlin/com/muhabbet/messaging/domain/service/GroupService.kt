@@ -5,8 +5,10 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.Conversation
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.ConversationType
+import com.muhabbet.messaging.domain.model.GroupRoles
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.`in`.TransferGroupOwnershipUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
@@ -42,7 +44,7 @@ open class GroupService(
     private val messageBroadcaster: MessageBroadcaster,
     private val blockPolicy: BlockPolicyPort,
     private val transactions: TransactionRunner
-) : ManageGroupUseCase {
+) : ManageGroupUseCase, TransferGroupOwnershipUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -229,16 +231,63 @@ open class GroupService(
         permissions.requireGroup(conversationId)
 
         val requesterMember = permissions.requireMember(conversationId, requesterId)
-        if (requesterMember.role != MemberRole.OWNER) {
-            throw BusinessException(ErrorCode.GROUP_PERMISSION_DENIED, "Sadece grup sahibi rol değiştirebilir")
-        }
-
-        conversationRepository.findMember(conversationId, targetUserId)
+        val targetMember = conversationRepository.findMember(conversationId, targetUserId)
             ?: throw BusinessException(ErrorCode.GROUP_NOT_MEMBER)
 
-        conversationRepository.updateMemberRole(conversationId, targetUserId, newRole)
+        // The single-owner invariant lives in GroupRoles (#890): this can move people between
+        // MEMBER and ADMIN, never create or remove an owner.
+        when (val decision = GroupRoles.changeRole(requesterMember, targetMember, newRole)) {
+            is GroupRoles.RoleChange.Refused -> throw BusinessException(decision.refusal.toErrorCode())
+            is GroupRoles.RoleChange.Allowed ->
+                conversationRepository.updateMemberRole(conversationId, decision.target, decision.newRole)
+        }
 
         return conversationRepository.findMembersByConversationId(conversationId).map { it.userId }
+    }
+
+    override fun transferOwnership(conversationId: UUID, requesterId: UUID, newOwnerId: UUID) {
+        val outcome = transactions.inTransaction { persistTransfer(conversationId, requesterId, newOwnerId) }
+
+        // Both halves of the swap, so every client's member list stays right without a reload.
+        listOf(
+            outcome.transfer.previousOwner to GroupRoles.Transfer.PREVIOUS_OWNER_ROLE,
+            outcome.transfer.newOwner to MemberRole.OWNER
+        ).forEach { (userId, role) ->
+            messageBroadcaster.broadcastToUsers(
+                outcome.recipients,
+                WsMessage.GroupRoleUpdated(
+                    conversationId = conversationId.toString(),
+                    updatedBy = requesterId.toString(),
+                    userId = userId.toString(),
+                    newRole = role.name
+                )
+            )
+        }
+        log.info("Ownership of group {} transferred from {} to {}", conversationId, requesterId, newOwnerId)
+    }
+
+    private data class TransferOutcome(val transfer: GroupRoles.Transfer.Allowed, val recipients: List<UUID>)
+
+    private fun persistTransfer(conversationId: UUID, requesterId: UUID, newOwnerId: UUID): TransferOutcome {
+        permissions.requireGroup(conversationId)
+        val actor = permissions.requireMember(conversationId, requesterId)
+        val target = conversationRepository.findMember(conversationId, newOwnerId)
+            ?: throw BusinessException(ErrorCode.GROUP_NOT_MEMBER)
+
+        val transfer = when (val decision = GroupRoles.transferOwnership(actor, target)) {
+            is GroupRoles.Transfer.Refused -> throw BusinessException(decision.refusal.toErrorCode())
+            is GroupRoles.Transfer.Allowed -> decision
+        }
+
+        // Demote first: the V28 partial unique index allows one OWNER row per group at any instant,
+        // and these are two statements, not one.
+        conversationRepository.updateMemberRole(
+            conversationId, transfer.previousOwner, GroupRoles.Transfer.PREVIOUS_OWNER_ROLE
+        )
+        conversationRepository.updateMemberRole(conversationId, transfer.newOwner, MemberRole.OWNER)
+
+        val recipients = conversationRepository.findMembersByConversationId(conversationId).map { it.userId }
+        return TransferOutcome(transfer, recipients)
     }
 
     override fun leaveGroup(conversationId: UUID, userId: UUID) {
@@ -267,27 +316,23 @@ open class GroupService(
 
         val member = permissions.requireMember(conversationId, userId)
 
+        // The leaver's row goes first. When they are the owner the successor is promoted only after
+        // it has gone, so the group never holds two OWNER rows — which the V28 index would refuse.
+        val successor = if (member.role == MemberRole.OWNER) {
+            GroupRoles.successorOnLeave(conversationRepository.findMembersByConversationId(conversationId), userId)
+        } else {
+            null
+        }
+        conversationRepository.removeMember(conversationId, userId)
+
         if (member.role == MemberRole.OWNER) {
-            // Transfer ownership to oldest admin, then oldest member
-            val members = conversationRepository.findMembersByConversationId(conversationId)
-                .filter { it.userId != userId }
-                .sortedBy { it.joinedAt }
-
-            val newOwner = members.firstOrNull { it.role == MemberRole.ADMIN }
-                ?: members.firstOrNull()
-
-            if (newOwner == null) {
-                // Last member — just remove
-                conversationRepository.removeMember(conversationId, userId)
+            if (successor == null) {
                 log.info("Last member {} left group {}, group is empty", userId, conversationId)
                 return LeaveOutcome(recipients = null)
             }
-
-            conversationRepository.updateMemberRole(conversationId, newOwner.userId, MemberRole.OWNER)
-            log.info("Ownership transferred to {} in group {}", newOwner.userId, conversationId)
+            conversationRepository.updateMemberRole(conversationId, successor.userId, MemberRole.OWNER)
+            log.info("Ownership transferred to {} in group {}", successor.userId, conversationId)
         }
-
-        conversationRepository.removeMember(conversationId, userId)
 
         val remainingMembers = conversationRepository.findMembersByConversationId(conversationId)
         return LeaveOutcome(remainingMembers.map { it.userId })
@@ -314,6 +359,11 @@ open class GroupService(
     }
 
     // ─── Helpers ──────────────────────────────────────────────
+
+    private fun GroupRoles.Refusal.toErrorCode(): ErrorCode = when (this) {
+        GroupRoles.Refusal.NOT_OWNER -> ErrorCode.GROUP_PERMISSION_DENIED
+        GroupRoles.Refusal.OWNERSHIP_TRANSFER_REQUIRED -> ErrorCode.GROUP_OWNERSHIP_TRANSFER_REQUIRED
+    }
 
     /**
      * The invitees, keyed by id, once both ways an add can be refused have been ruled out.

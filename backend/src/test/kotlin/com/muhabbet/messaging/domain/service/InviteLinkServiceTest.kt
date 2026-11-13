@@ -5,6 +5,9 @@ import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
 import com.muhabbet.messaging.domain.port.out.GroupJoinRequestRepository
+import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
+import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
+import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
@@ -34,6 +37,8 @@ class InviteLinkServiceTest {
     private val inviteLinkRepository = mockk<GroupInviteLinkRepository>()
     private val joinRequestRepository = mockk<GroupJoinRequestRepository>()
     private val conversationRepository = mockk<ConversationRepository>()
+    private val userDirectory = mockk<UserDirectoryPort>()
+    private val messageBroadcaster = mockk<MessageBroadcaster>(relaxed = true)
     private lateinit var service: InviteLinkService
 
     private val groupId = TestData.GROUP_ID
@@ -44,7 +49,10 @@ class InviteLinkServiceTest {
 
     @BeforeEach
     fun setUp() {
-        service = InviteLinkService(inviteLinkRepository, joinRequestRepository, conversationRepository)
+        service = InviteLinkService(
+            inviteLinkRepository, joinRequestRepository, conversationRepository,
+            GroupAdmission(conversationRepository, userDirectory, messageBroadcaster), InlineTransactionRunner()
+        )
         every { conversationRepository.findById(groupId) } returns TestData.groupConversation(id = groupId)
     }
 
@@ -173,6 +181,59 @@ class InviteLinkServiceTest {
 
         assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         verify(exactly = 0) { inviteLinkRepository.deactivate(any()) }
+    }
+
+    // ─── Joining through a link (#888) ───────────────────
+
+    private fun givenOpenLink(maxUses: Int? = null) {
+        every { inviteLinkRepository.findByToken("token-abc") } returns link().copy(maxUses = maxUses)
+        every { conversationRepository.findMember(groupId, strangerId) } returns null
+        every { conversationRepository.findMembersByConversationId(groupId) } returns
+            listOf(TestData.member(conversationId = groupId, userId = ownerId, role = MemberRole.OWNER))
+        every { conversationRepository.saveMember(any()) } answers { firstArg() }
+        every { userDirectory.findDisplayInfo(any()) } returns emptyMap()
+    }
+
+    @Test
+    fun `should add the joiner and tell the whole group`() {
+        givenOpenLink()
+        every { inviteLinkRepository.claimUse(uuid(1)) } returns true
+
+        service.joinViaLink("token-abc", strangerId)
+
+        verify { conversationRepository.saveMember(match { it.userId == strangerId && it.role == MemberRole.MEMBER }) }
+        verify {
+            messageBroadcaster.broadcastToUsers(
+                match { it.toSet() == setOf(ownerId, strangerId) },
+                match { it is com.muhabbet.shared.protocol.WsMessage.GroupMemberAdded }
+            )
+        }
+    }
+
+    @Test
+    fun `should refuse the join when the claim on the link fails, and tell nobody`() {
+        givenOpenLink(maxUses = 1)
+        every { inviteLinkRepository.claimUse(uuid(1)) } returns false
+
+        val ex = assertThrows<BusinessException> { service.joinViaLink("token-abc", strangerId) }
+
+        assertEquals(ErrorCode.INVITE_LINK_MAX_USES, ex.errorCode)
+        verify(exactly = 0) { messageBroadcaster.broadcastToUsers(any(), any()) }
+    }
+
+    @Test
+    fun `should refuse a link join into a full group`() {
+        givenOpenLink()
+        every { conversationRepository.findMembersByConversationId(groupId) } returns
+            (1..com.muhabbet.shared.validation.ValidationRules.MAX_GROUP_MEMBERS).map {
+                TestData.member(conversationId = groupId, userId = UUID.randomUUID(), role = MemberRole.MEMBER)
+            }
+
+        val ex = assertThrows<BusinessException> { service.joinViaLink("token-abc", strangerId) }
+
+        assertEquals(ErrorCode.CONV_MAX_MEMBERS, ex.errorCode)
+        verify(exactly = 0) { conversationRepository.saveMember(any()) }
+        verify(exactly = 0) { inviteLinkRepository.claimUse(any()) }
     }
 
     private fun givenRole(userId: UUID, role: MemberRole) {

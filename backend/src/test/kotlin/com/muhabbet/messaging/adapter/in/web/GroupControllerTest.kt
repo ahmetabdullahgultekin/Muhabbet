@@ -4,6 +4,7 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.`in`.TransferGroupOwnershipUseCase
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
@@ -22,6 +23,7 @@ import java.util.UUID
 class GroupControllerTest {
 
     private lateinit var manageGroupUseCase: ManageGroupUseCase
+    private val transferGroupOwnershipUseCase: TransferGroupOwnershipUseCase = mockk(relaxed = true)
     private lateinit var userRepository: UserRepository
     private lateinit var presencePort: PresencePort
     private lateinit var controller: GroupController
@@ -34,7 +36,7 @@ class GroupControllerTest {
         manageGroupUseCase = mockk()
         userRepository = mockk()
         presencePort = mockk()
-        controller = GroupController(manageGroupUseCase, userRepository, presencePort)
+        controller = GroupController(manageGroupUseCase, transferGroupOwnershipUseCase, userRepository, presencePort)
         setAuthenticatedUser(userId, TestData.DEVICE_ID_1)
     }
 

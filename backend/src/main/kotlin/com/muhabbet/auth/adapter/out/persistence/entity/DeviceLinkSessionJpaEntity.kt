@@ -23,8 +23,9 @@ class DeviceLinkSessionJpaEntity(
     @Column(name = "primary_device_id", nullable = false)
     val primaryDeviceId: UUID,
 
-    @Column(name = "link_token", nullable = false, unique = true)
-    val linkToken: String,
+    /** SHA-256 hex of the QR token (V29). The plain `link_token` column is no longer written. */
+    @Column(name = "token_hash", nullable = false, unique = true)
+    val tokenHash: String,
 
     @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
@@ -55,7 +56,7 @@ class DeviceLinkSessionJpaEntity(
         id = id,
         userId = userId,
         primaryDeviceId = primaryDeviceId,
-        linkToken = linkToken,
+        tokenHash = tokenHash,
         status = status,
         companionPlatform = companionPlatform,
         companionDeviceName = companionDeviceName,
@@ -71,7 +72,7 @@ class DeviceLinkSessionJpaEntity(
             id = s.id,
             userId = s.userId,
             primaryDeviceId = s.primaryDeviceId,
-            linkToken = s.linkToken,
+            tokenHash = s.tokenHash,
             status = s.status,
             companionPlatform = s.companionPlatform,
             companionDeviceName = s.companionDeviceName,

@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.`in`.TransferGroupOwnershipUseCase
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.dto.AddMembersRequest
 import com.muhabbet.shared.dto.ApiResponse
@@ -27,6 +28,7 @@ import java.util.UUID
 @RequestMapping("/api/v1/conversations")
 class GroupController(
     private val manageGroupUseCase: ManageGroupUseCase,
+    private val transferGroupOwnershipUseCase: TransferGroupOwnershipUseCase,
     private val userRepository: UserRepository,
     private val presencePort: PresencePort
 ) {
@@ -105,6 +107,17 @@ class GroupController(
         val userId = AuthenticatedUser.currentUserId()
         val role = MemberRole.valueOf(request.role.name)
         manageGroupUseCase.updateMemberRole(conversationId, userId, targetUserId, role)
+        return ApiResponseBuilder.ok(Unit)
+    }
+
+    /** Hands the group to [targetUserId]; the caller, who must be the owner, becomes an admin (#890). */
+    @PostMapping("/{conversationId}/members/{targetUserId}/transfer-ownership")
+    fun transferOwnership(
+        @PathVariable conversationId: UUID,
+        @PathVariable targetUserId: UUID
+    ): ResponseEntity<ApiResponse<Unit>> {
+        val userId = AuthenticatedUser.currentUserId()
+        transferGroupOwnershipUseCase.transferOwnership(conversationId, userId, targetUserId)
         return ApiResponseBuilder.ok(Unit)
     }
 

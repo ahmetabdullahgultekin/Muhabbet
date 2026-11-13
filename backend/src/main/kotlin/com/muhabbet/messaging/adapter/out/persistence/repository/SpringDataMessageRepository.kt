@@ -101,6 +101,7 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
         WHERE m.expiresAt IS NOT NULL
           AND m.expiresAt <= :now
           AND m.isDeleted = false
+          AND m.isScheduled = false
         ORDER BY m.expiresAt ASC
         """
     )
@@ -173,7 +174,14 @@ interface SpringDataMessageRepository : JpaRepository<MessageJpaEntity, UUID> {
     )
     fun findScheduledMessagesReadyToSend(now: Instant, pageable: Pageable): List<MessageJpaEntity>
 
-    @Modifying
-    @Query("UPDATE MessageJpaEntity m SET m.isScheduled = false WHERE m.id = :messageId")
-    fun markScheduledAsDelivered(messageId: UUID)
+    /** The scheduled-delivery claim; 0 rows means another run delivered (or someone deleted) it first. */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        """
+        UPDATE MessageJpaEntity m
+        SET m.isScheduled = false, m.serverTimestamp = :deliveredAt, m.expiresAt = :expiresAt
+        WHERE m.id = :messageId AND m.isScheduled = true AND m.isDeleted = false
+        """
+    )
+    fun claimScheduledDelivery(messageId: UUID, deliveredAt: Instant, expiresAt: Instant?): Int
 }

@@ -1,17 +1,20 @@
 package com.muhabbet.messaging.domain.service
 
+import com.muhabbet.messaging.domain.model.BackupTransition
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.MessageBackup
 import com.muhabbet.messaging.domain.port.`in`.BackupInfo
 import com.muhabbet.messaging.domain.port.`in`.ManageBackupUseCase
 import com.muhabbet.messaging.domain.port.out.BackupArchivePort
 import com.muhabbet.messaging.domain.port.out.BackupRepository
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
-import com.muhabbet.messaging.domain.port.out.MessageBackup
 import com.muhabbet.messaging.domain.port.out.MessageRepository
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 
@@ -20,96 +23,87 @@ import java.util.UUID
  * messages to JSON, uploads the archive to object storage via [BackupArchivePort], and records
  * the resulting presigned URL + counts on the backup row.
  *
- * Replaces the previous placeholder that immediately marked backups COMPLETED with a null URL
- * and zero counts (no archive was ever produced — restore was impossible).
- *
- * Failure handling: any error during build/upload marks the backup FAILED (rather than a false
- * COMPLETED) so the UX and any retry logic can react truthfully.
+ * The lifecycle is [MessageBackup]'s: PENDING -> COMPLETED | FAILED, with EXPIRED derived (#897).
+ * Three transactions, not one. The PENDING row commits on its own, the build and upload run outside
+ * any transaction, and the ending is written in a transaction of its own. Before, all of it ran in
+ * one `@Transactional` method, so a failure thrown by a transactional repository during the build
+ * marked the transaction rollback-only and took the FAILED update — and the PENDING row — down with
+ * it: the user's backup simply vanished. It also held a pool connection across an upload.
  */
 open class BackupService(
     private val backupRepository: BackupRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val backupArchivePort: BackupArchivePort
+    private val backupArchivePort: BackupArchivePort,
+    private val transactions: TransactionRunner,
+    private val clock: Clock = Clock.systemUTC()
 ) : ManageBackupUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val json = Json { prettyPrint = false; encodeDefaults = true }
 
-    @Transactional
     override fun createBackup(userId: UUID): BackupInfo {
-        val backup = backupRepository.save(
-            MessageBackup(userId = userId, status = "PENDING")
-        )
-        log.info("Backup started: id={}, userId={}", backup.id, userId)
-
-        return try {
-            val conversations = conversationRepository.findConversationsByUserId(userId)
-            var messageCount = 0
-            val convArchives = conversations.map { conv ->
-                val messages = fetchAllMessages(conv.id)
-                messageCount += messages.size
-                ConversationArchive(
-                    conversationId = conv.id.toString(),
-                    messages = messages.map { it.toArchive() }
-                )
-            }
-
-            val archive = BackupArchive(
-                version = ARCHIVE_VERSION,
-                userId = userId.toString(),
-                createdAt = Instant.now().toString(),
-                conversationCount = convArchives.size,
-                messageCount = messageCount,
-                conversations = convArchives
-            )
-            val bytes = json.encodeToString(BackupArchive.serializer(), archive).encodeToByteArray()
-
-            val stored = backupArchivePort.upload(
-                userId = userId,
-                backupId = backup.id,
-                bytes = bytes
-            )
-
-            val completedAt = Instant.now()
-            val expiresAt = completedAt.plusSeconds(EXPIRY_SECONDS)
-            backupRepository.updateStatus(
-                id = backup.id,
-                status = "COMPLETED",
-                backupUrl = stored.presignedUrl,
-                fileSizeBytes = bytes.size.toLong(),
-                messageCount = messageCount,
-                conversationCount = convArchives.size,
-                completedAt = completedAt,
-                expiresAt = expiresAt
-            )
-            log.info(
-                "Backup completed: id={}, conversations={}, messages={}, bytes={}",
-                backup.id, convArchives.size, messageCount, bytes.size
-            )
-            backup.copy(
-                status = "COMPLETED",
-                backupUrl = stored.presignedUrl,
-                fileSizeBytes = bytes.size.toLong(),
-                messageCount = messageCount,
-                conversationCount = convArchives.size,
-                completedAt = completedAt,
-                expiresAt = expiresAt
-            ).toInfo()
-        } catch (e: Exception) {
-            log.error("Backup failed: id={}, userId={}: {}", backup.id, userId, e.message, e)
-            backupRepository.updateStatus(
-                id = backup.id,
-                status = "FAILED",
-                backupUrl = null,
-                fileSizeBytes = null,
-                messageCount = null,
-                conversationCount = null,
-                completedAt = Instant.now(),
-                expiresAt = null
-            )
-            backup.copy(status = "FAILED").toInfo()
+        val requested = transactions.inTransaction {
+            backupRepository.save(MessageBackup.request(userId, clock.instant()))
         }
+        log.info("Backup started: id={}, userId={}", requested.id, userId)
+
+        val transition = try {
+            build(requested)
+        } catch (e: Exception) {
+            log.error("Backup failed: id={}, userId={}: {}", requested.id, userId, e.message, e)
+            // The kind of failure, not its message: a message can carry content or paths.
+            requested.fail(reason = e.javaClass.simpleName, now = clock.instant())
+        }
+
+        val finished = when (transition) {
+            is BackupTransition.Moved -> transition.backup
+            // Unreachable while `requested` is the row this call just created, which is PENDING.
+            is BackupTransition.Rejected -> error("backup ${requested.id} left PENDING before it was built")
+        }
+        transactions.inTransaction { backupRepository.finish(finished) }
+        return finished.toInfo()
+    }
+
+    private fun build(requested: MessageBackup): BackupTransition {
+        val conversations = conversationRepository.findConversationsByUserId(requested.userId)
+        var messageCount = 0
+        val convArchives = conversations.map { conv ->
+            val messages = fetchAllMessages(conv.id)
+            messageCount += messages.size
+            ConversationArchive(
+                conversationId = conv.id.toString(),
+                messages = messages.map { it.toArchive() }
+            )
+        }
+
+        val archive = BackupArchive(
+            version = ARCHIVE_VERSION,
+            userId = requested.userId.toString(),
+            createdAt = clock.instant().toString(),
+            conversationCount = convArchives.size,
+            messageCount = messageCount,
+            conversations = convArchives
+        )
+        val bytes = json.encodeToString(BackupArchive.serializer(), archive).encodeToByteArray()
+
+        val stored = backupArchivePort.upload(
+            userId = requested.userId,
+            backupId = requested.id,
+            bytes = bytes
+        )
+        log.info(
+            "Backup completed: id={}, conversations={}, messages={}, bytes={}",
+            requested.id, convArchives.size, messageCount, bytes.size
+        )
+        return requested.complete(
+            backupUrl = stored.presignedUrl,
+            fileSizeBytes = bytes.size.toLong(),
+            messageCount = messageCount,
+            conversationCount = convArchives.size,
+            now = clock.instant(),
+            validFor = EXPIRY_SECONDS
+        )
     }
 
     /** Page through a conversation's messages so a large history doesn't load in one shot. */
@@ -157,7 +151,7 @@ open class BackupService(
 
     private fun MessageBackup.toInfo() = BackupInfo(
         id = id,
-        status = status,
+        status = effectiveStatus(clock.instant()).name,
         backupUrl = backupUrl,
         fileSizeBytes = fileSizeBytes,
         messageCount = messageCount,

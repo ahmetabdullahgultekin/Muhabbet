@@ -1,293 +1,334 @@
 package com.muhabbet.messaging.domain.service
 
-import com.muhabbet.messaging.domain.model.CallStatus
+import com.muhabbet.messaging.adapter.out.external.InMemoryCallSessionStore
+import com.muhabbet.messaging.domain.model.CallEvent
+import com.muhabbet.messaging.domain.model.CallHistoryRecord
+import com.muhabbet.messaging.domain.model.CallOutcome
+import com.muhabbet.messaging.domain.model.CallRefusal
+import com.muhabbet.messaging.domain.model.CallSession
+import com.muhabbet.messaging.domain.model.CallState
+import com.muhabbet.messaging.domain.model.CallTransition
 import com.muhabbet.messaging.domain.model.CallType
+import com.muhabbet.messaging.domain.port.`in`.CallPlacement
+import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
+import com.muhabbet.shared.exception.BusinessException
+import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.provider.Arguments
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.stream.Stream
 
+/** #878: the call lifecycle as a state machine, its actors, its store and its ring timeout. */
 class CallSignalingServiceTest {
 
-    private lateinit var callHistoryRepository: CallHistoryRepository
-    private lateinit var service: CallSignalingService
+    private val start = Instant.parse("2026-11-13T12:00:00Z")
+    private val caller = UUID.fromString("00000000-0000-0000-0000-00000000000a")
+    private val callee = UUID.fromString("00000000-0000-0000-0000-00000000000b")
+    private val outsider = UUID.fromString("00000000-0000-0000-0000-00000000000c")
 
-    private val callerId = UUID.randomUUID()
-    private val calleeId = UUID.randomUUID()
-    private val callId = "call-${UUID.randomUUID()}"
+    private val history = mutableListOf<CallHistoryRecord>()
+    private val callHistoryRepository = mockk<CallHistoryRepository>()
+    private val blockPolicy = mockk<BlockPolicyPort>()
+    private val clock = MutableClock(start)
+    private lateinit var service: CallSignalingService
 
     @BeforeEach
     fun setUp() {
-        callHistoryRepository = mockk(relaxed = true)
-        service = CallSignalingService(callHistoryRepository)
+        every { callHistoryRepository.save(any()) } answers { firstArg<CallHistoryRecord>().also(history::add) }
+        every { blockPolicy.hasBlocked(any(), any()) } returns false
+        service = CallSignalingService(InMemoryCallSessionStore(), callHistoryRepository, blockPolicy, clock)
     }
 
+    private fun ring(callId: String = "call-1", from: UUID = caller, to: UUID = callee): CallSession =
+        (service.placeCall(callId, from, to, CallType.VOICE) as CallPlacement.Ringing).session
+
+    // ─── The pure transition table ───────────────────────
+
     @Nested
-    inner class InitiateCall {
+    inner class Transitions {
+
+        private val ringing = CallSession("c", caller, callee, CallType.VOICE, start)
+        private val active = ringing.copy(state = CallState.Active(start.plusSeconds(5)))
+        private val ended = ringing.copy(state = CallState.Ended(CallOutcome.ENDED, start.plusSeconds(9)))
+        private val now = start.plusSeconds(10)
+
+        private fun table(): Stream<Arguments> = Stream.of(
+            // state, event, actor, expected (a CallState for a move, a CallRefusal for a refusal)
+            Arguments.of(ringing, CallEvent.Answer, callee, CallState.Active(now)),
+            Arguments.of(ringing, CallEvent.Answer, caller, CallRefusal.WRONG_ACTOR),
+            Arguments.of(ringing, CallEvent.Answer, outsider, CallRefusal.NOT_PARTICIPANT),
+            Arguments.of(ringing, CallEvent.Decline, callee, CallState.Ended(CallOutcome.DECLINED, now)),
+            Arguments.of(ringing, CallEvent.Decline, caller, CallRefusal.WRONG_ACTOR),
+            Arguments.of(ringing, CallEvent.Hangup, caller, CallState.Ended(CallOutcome.MISSED, now)),
+            Arguments.of(ringing, CallEvent.Hangup, callee, CallState.Ended(CallOutcome.DECLINED, now)),
+            Arguments.of(ringing, CallEvent.Hangup, outsider, CallRefusal.NOT_PARTICIPANT),
+            Arguments.of(ringing, CallEvent.RingTimeout, null, CallState.Ended(CallOutcome.MISSED, now)),
+            Arguments.of(ringing, CallEvent.RingTimeout, caller, CallRefusal.WRONG_ACTOR),
+            Arguments.of(active, CallEvent.Hangup, caller, CallState.Ended(CallOutcome.ENDED, now, start.plusSeconds(5))),
+            Arguments.of(active, CallEvent.Hangup, callee, CallState.Ended(CallOutcome.ENDED, now, start.plusSeconds(5))),
+            Arguments.of(active, CallEvent.Hangup, outsider, CallRefusal.NOT_PARTICIPANT),
+            Arguments.of(active, CallEvent.Answer, callee, CallRefusal.ILLEGAL_TRANSITION),
+            Arguments.of(active, CallEvent.Decline, callee, CallRefusal.ILLEGAL_TRANSITION),
+            Arguments.of(active, CallEvent.RingTimeout, null, CallRefusal.ILLEGAL_TRANSITION),
+            Arguments.of(ended, CallEvent.Answer, callee, CallRefusal.ILLEGAL_TRANSITION),
+            Arguments.of(ended, CallEvent.Hangup, caller, CallRefusal.ILLEGAL_TRANSITION),
+            Arguments.of(ended, CallEvent.RingTimeout, null, CallRefusal.ILLEGAL_TRANSITION),
+            Arguments.of(ended, CallEvent.Hangup, outsider, CallRefusal.NOT_PARTICIPANT)
+        )
 
         @Test
-        fun `should create call session when both users are free`() {
-            val session = service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-
-            assertEquals(callId, session.callId)
-            assertEquals(callerId, session.callerId)
-            assertEquals(calleeId, session.calleeId)
-            assertEquals(CallType.VOICE, session.callType)
-            assertEquals(CallStatus.INITIATED, session.status)
-            assertNotNull(session.startedAt)
-            assertNull(session.answeredAt)
-            assertNull(session.endedAt)
-        }
-
-        @Test
-        fun `should store call session for lookup`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-
-            val retrieved = service.getCall(callId)
-            assertNotNull(retrieved)
-            assertEquals(callId, retrieved!!.callId)
-        }
-
-        @Test
-        fun `should track active call for both users`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-
-            assertEquals(callId, service.getActiveCallForUser(callerId))
-            assertEquals(callId, service.getActiveCallForUser(calleeId))
-        }
-
-        @Test
-        fun `should throw when caller is already in a call`() {
-            val otherUser = UUID.randomUUID()
-            service.initiateCall(callId, callerId, otherUser, CallType.VOICE)
-
-            assertThrows<CallBusyException> {
-                service.initiateCall("call-2", callerId, calleeId, CallType.VOICE)
+        fun `should apply every row of the transition table`() {
+            table().forEach { row ->
+                val (from, event, actor, expected) = row.get().let { arrayOf(it[0], it[1], it[2], it[3]) }
+                val result = (from as CallSession).on(event as CallEvent, actor as UUID?, now)
+                val label = "${from.state} + $event by $actor"
+                when (expected) {
+                    is CallState -> assertEquals(CallTransition.Moved(from.copy(state = expected)), result, label)
+                    is CallRefusal -> assertEquals(CallTransition.Refused(expected), result, label)
+                    else -> error("bad row")
+                }
             }
         }
 
         @Test
-        fun `should throw when callee is already in a call`() {
-            val otherUser = UUID.randomUUID()
-            service.initiateCall(callId, otherUser, calleeId, CallType.VOICE)
+        fun `should record the talk time of an answered call`() {
+            val endedAfterTalk = (active.on(CallEvent.Hangup, caller, now) as CallTransition.Moved).session
 
-            assertThrows<CallBusyException> {
-                service.initiateCall("call-2", callerId, calleeId, CallType.VOICE)
+            val record = endedAfterTalk.toHistory()
+            assertEquals(CallOutcome.ENDED, record?.status)
+            assertEquals(5, record?.durationSeconds)
+        }
+
+        @Test
+        fun `should have no history row while a call is still going`() {
+            assertNull(ringing.toHistory())
+            assertNull(active.toHistory())
+        }
+    }
+
+    // ─── Placing ─────────────────────────────────────────
+
+    @Nested
+    inner class Placing {
+
+        @Test
+        fun `should ring the callee`() {
+            val session = ring()
+
+            assertEquals(CallState.Ringing, session.state)
+            assertEquals(caller, service.otherParty("call-1", callee))
+        }
+
+        @Test
+        fun `should report BUSY when the callee is already in a call`() {
+            ring("call-1", caller, callee)
+
+            assertEquals(CallPlacement.Busy, service.placeCall("call-2", outsider, callee, CallType.VOICE))
+        }
+
+        @Test
+        fun `should refuse a call id that is already in use instead of overwriting the live call`() {
+            ring("call-1", caller, callee)
+
+            val ex = assertThrows<BusinessException> { service.placeCall("call-1", outsider, UUID.randomUUID(), CallType.VOICE) }
+
+            assertEquals(ErrorCode.CALL_INVALID_TARGET, ex.errorCode)
+            assertEquals(caller, service.otherParty("call-1", callee), "the live call must be untouched")
+        }
+
+        @Test
+        fun `should refuse a call to oneself`() {
+            val ex = assertThrows<BusinessException> { service.placeCall("c", caller, caller, CallType.VOICE) }
+
+            assertEquals(ErrorCode.CALL_INVALID_TARGET, ex.errorCode)
+        }
+
+        @Test
+        fun `should not ring a callee who has blocked the caller`() {
+            every { blockPolicy.hasBlocked(callee, caller) } returns true
+
+            assertEquals(CallPlacement.Unreachable, service.placeCall("c", caller, callee, CallType.VOICE))
+            assertNull(service.otherParty("c", caller), "nothing was reserved")
+        }
+
+        @Test
+        fun `should not ring someone the caller has blocked`() {
+            every { blockPolicy.hasBlocked(caller, callee) } returns true
+
+            assertEquals(CallPlacement.Unreachable, service.placeCall("c", caller, callee, CallType.VOICE))
+        }
+
+        @Test
+        fun `should ring exactly one of two concurrent callers of the same callee`() {
+            val pool = Executors.newFixedThreadPool(8)
+            val gate = CountDownLatch(1)
+            val callers = List(8) { UUID.randomUUID() }
+            val results = callers.mapIndexed { i, from ->
+                pool.submit<CallPlacement> {
+                    gate.await()
+                    service.placeCall("race-$i", from, callee, CallType.VOICE)
+                }
             }
-        }
+            gate.countDown()
+            val placements = results.map { it.get(10, TimeUnit.SECONDS) }
+            pool.shutdown()
 
-        @Test
-        fun `should support video call type`() {
-            val session = service.initiateCall(callId, callerId, calleeId, CallType.VIDEO)
-
-            assertEquals(CallType.VIDEO, session.callType)
-        }
-    }
-
-    @Nested
-    inner class AnswerCall {
-
-        @Test
-        fun `should transition call to answered state`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-
-            val answered = service.answerCall(callId)
-
-            assertNotNull(answered)
-            assertEquals(CallStatus.ANSWERED, answered!!.status)
-            assertNotNull(answered.answeredAt)
-        }
-
-        @Test
-        fun `should return null when call does not exist`() {
-            val result = service.answerCall("nonexistent-call")
-
-            assertNull(result)
+            assertEquals(1, placements.count { it is CallPlacement.Ringing })
+            assertEquals(7, placements.count { it == CallPlacement.Busy })
         }
     }
 
+    // ─── Conducting ──────────────────────────────────────
+
     @Nested
-    inner class EndCall {
+    inner class Conducting {
 
         @Test
-        fun `should end call with default ENDED status`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
+        fun `should let the callee answer`() {
+            ring()
 
-            val ended = service.endCall(callId)
-
-            assertNotNull(ended)
-            assertEquals(CallStatus.ENDED, ended!!.status)
-            assertNotNull(ended.endedAt)
+            assertInstanceOf(CallState.Active::class.java, service.respond("call-1", callee, accepted = true).state)
         }
 
         @Test
-        fun `should end call with DECLINED status`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
+        fun `should not let the caller answer their own call`() {
+            ring()
 
-            val ended = service.endCall(callId, CallStatus.DECLINED)
+            val ex = assertThrows<BusinessException> { service.respond("call-1", caller, accepted = true) }
 
-            assertNotNull(ended)
-            assertEquals(CallStatus.DECLINED, ended!!.status)
+            assertEquals(ErrorCode.CALL_INVALID_STATE, ex.errorCode)
         }
 
         @Test
-        fun `should end call with MISSED status`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
+        fun `should not re-answer an answered call`() {
+            ring()
+            service.respond("call-1", callee, accepted = true)
 
-            val ended = service.endCall(callId, CallStatus.MISSED)
+            val ex = assertThrows<BusinessException> { service.respond("call-1", callee, accepted = true) }
 
-            assertNotNull(ended)
-            assertEquals(CallStatus.MISSED, ended!!.status)
+            assertEquals(ErrorCode.CALL_INVALID_STATE, ex.errorCode)
         }
 
         @Test
-        fun `should remove call from active calls`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-            service.endCall(callId)
+        fun `should treat a non-participant ending a call as an unknown call and write no history`() {
+            ring()
 
-            assertNull(service.getCall(callId))
+            val ex = assertThrows<BusinessException> { service.hangUp("call-1", outsider) }
+
+            assertEquals(ErrorCode.CALL_NOT_FOUND, ex.errorCode)
+            assertEquals(caller, service.otherParty("call-1", callee), "the call is still live")
+            verify(exactly = 0) { callHistoryRepository.save(any()) }
         }
 
         @Test
-        fun `should clear active call mappings for both users`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-            service.endCall(callId)
+        fun `should treat a non-participant answering as an unknown call`() {
+            ring()
 
-            assertNull(service.getActiveCallForUser(callerId))
-            assertNull(service.getActiveCallForUser(calleeId))
+            val ex = assertThrows<BusinessException> { service.respond("call-1", outsider, accepted = true) }
+
+            assertEquals(ErrorCode.CALL_NOT_FOUND, ex.errorCode)
         }
 
         @Test
-        fun `should persist call history on end`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-            service.answerCall(callId)
-            service.endCall(callId)
+        fun `should give an outsider no party to relay signalling to`() {
+            ring()
 
-            val historySlot = slot<CallHistoryRecord>()
-            verify { callHistoryRepository.save(capture(historySlot)) }
-
-            val history = historySlot.captured
-            assertEquals(callId, history.callId)
-            assertEquals(callerId, history.callerId)
-            assertEquals(calleeId, history.calleeId)
-            assertEquals("VOICE", history.callType)
-            assertEquals("ENDED", history.status)
-            assertNotNull(history.answeredAt)
-            assertNotNull(history.endedAt)
-            assertNotNull(history.durationSeconds)
+            assertNull(service.otherParty("call-1", outsider))
         }
 
         @Test
-        fun `should persist null duration when call was not answered`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-            service.endCall(callId, CallStatus.MISSED)
+        fun `should end an answered call, free both users and write ENDED with its duration`() {
+            ring()
+            service.respond("call-1", callee, accepted = true)
+            clock.advance(30)
 
-            val historySlot = slot<CallHistoryRecord>()
-            verify { callHistoryRepository.save(capture(historySlot)) }
+            service.hangUp("call-1", caller)
 
-            val history = historySlot.captured
-            assertNull(history.answeredAt)
-            assertNull(history.durationSeconds)
+            assertEquals(CallOutcome.ENDED, history.single().status)
+            assertEquals(30, history.single().durationSeconds)
+            assertEquals(CallType.VOICE, history.single().callType)
+            assertTrue(service.placeCall("call-2", caller, callee, CallType.VIDEO) is CallPlacement.Ringing)
         }
 
         @Test
-        fun `should return null when ending nonexistent call`() {
-            val result = service.endCall("nonexistent-call")
+        fun `should record a declined call`() {
+            ring()
 
-            assertNull(result)
+            service.respond("call-1", callee, accepted = false)
+
+            assertEquals(CallOutcome.DECLINED, history.single().status)
         }
 
         @Test
-        fun `should allow users to start new calls after ending`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-            service.endCall(callId)
+        fun `should not end a call twice`() {
+            ring()
+            service.hangUp("call-1", caller)
 
-            val newCallId = "call-new"
-            val newSession = service.initiateCall(newCallId, callerId, calleeId, CallType.VIDEO)
+            val ex = assertThrows<BusinessException> { service.hangUp("call-1", callee) }
 
-            assertNotNull(newSession)
-            assertEquals(newCallId, newSession.callId)
+            assertEquals(ErrorCode.CALL_NOT_FOUND, ex.errorCode)
+            assertEquals(1, history.size)
         }
     }
 
+    // ─── Ring timeout ────────────────────────────────────
+
     @Nested
-    inner class GetOtherParty {
+    inner class RingTimeout {
 
         @Test
-        fun `should return callee when given caller`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
+        fun `should leave a call ringing before the timeout`() {
+            ring()
+            clock.advance(CallSignalingService.RING_TIMEOUT_SECONDS - 1)
 
-            val other = service.getOtherParty(callId, callerId)
-
-            assertEquals(calleeId, other)
+            assertTrue(service.expireUnansweredCalls().isEmpty())
         }
 
         @Test
-        fun `should return caller when given callee`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
+        fun `should end an unanswered call as MISSED after the timeout and free both users`() {
+            ring()
+            clock.advance(CallSignalingService.RING_TIMEOUT_SECONDS)
 
-            val other = service.getOtherParty(callId, calleeId)
+            val expired = service.expireUnansweredCalls()
 
-            assertEquals(callerId, other)
+            assertEquals(listOf("call-1"), expired.map { it.callId })
+            assertEquals(CallOutcome.MISSED, history.single().status)
+            assertTrue(service.placeCall("call-2", callee, caller, CallType.VOICE) is CallPlacement.Ringing)
         }
 
         @Test
-        fun `should return null when user is not part of call`() {
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
+        fun `should not expire an answered call`() {
+            ring()
+            service.respond("call-1", callee, accepted = true)
+            clock.advance(CallSignalingService.RING_TIMEOUT_SECONDS * 10)
 
-            val other = service.getOtherParty(callId, UUID.randomUUID())
-
-            assertNull(other)
-        }
-
-        @Test
-        fun `should return null when call does not exist`() {
-            val other = service.getOtherParty("nonexistent", callerId)
-
-            assertNull(other)
+            assertTrue(service.expireUnansweredCalls().isEmpty())
         }
     }
 
-    @Nested
-    inner class ConcurrentCalls {
-
-        @Test
-        fun `should support multiple independent calls`() {
-            val user1 = UUID.randomUUID()
-            val user2 = UUID.randomUUID()
-            val user3 = UUID.randomUUID()
-            val user4 = UUID.randomUUID()
-
-            val call1 = "call-1"
-            val call2 = "call-2"
-
-            service.initiateCall(call1, user1, user2, CallType.VOICE)
-            service.initiateCall(call2, user3, user4, CallType.VIDEO)
-
-            assertNotNull(service.getCall(call1))
-            assertNotNull(service.getCall(call2))
-            assertEquals(call1, service.getActiveCallForUser(user1))
-            assertEquals(call2, service.getActiveCallForUser(user3))
-        }
-
-        @Test
-        fun `should handle history persistence failure gracefully`() {
-            every { callHistoryRepository.save(any()) } throws RuntimeException("DB error")
-
-            service.initiateCall(callId, callerId, calleeId, CallType.VOICE)
-
-            // Should not throw — persistence failure is logged, not propagated
-            val ended = service.endCall(callId)
-            assertNotNull(ended)
-        }
+    /** A clock a test can move forward. */
+    private class MutableClock(private var now: Instant) : Clock() {
+        fun advance(seconds: Long) { now = now.plusSeconds(seconds) }
+        override fun instant(): Instant = now
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+        override fun withZone(zone: ZoneId): Clock = this
     }
 }

@@ -857,6 +857,31 @@ data class LinkedDeviceResponse(
 )
 
 /**
+ * Body of POST /devices/link/complete: the new companion device **and the credentials it signs in
+ * with** (#884) — before, the companion got a device row and no way to authenticate as it.
+ *
+ * Deliberately a flat superset of [LinkedDeviceResponse] rather than a wrapper around it, so an
+ * existing client that decodes the response as [LinkedDeviceResponse] with `ignoreUnknownKeys`
+ * keeps working unchanged.
+ */
+@Serializable
+data class DeviceLinkCompleteResponse(
+    val id: String,
+    val platform: String,
+    val displayName: String? = null,
+    val isPrimary: Boolean,
+    val isCompanion: Boolean,
+    val linkedByDeviceId: String? = null,
+    val lastActiveAt: String? = null,
+    val createdAt: String,
+    val revoked: Boolean = false,
+    val userId: String,
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Long
+)
+
+/**
  * The payload the primary encodes into the QR image. Kept tiny and JSON-serializable so the
  * companion's scanner can decode it directly. `v` lets us evolve the QR format additively.
  */

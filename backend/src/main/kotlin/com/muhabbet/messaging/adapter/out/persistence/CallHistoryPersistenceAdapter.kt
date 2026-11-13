@@ -3,7 +3,7 @@ package com.muhabbet.messaging.adapter.out.persistence
 import com.muhabbet.messaging.adapter.out.persistence.entity.CallHistoryJpaEntity
 import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataCallHistoryRepository
 import com.muhabbet.messaging.domain.port.out.CallHistoryRepository
-import com.muhabbet.messaging.domain.service.CallHistoryRecord
+import com.muhabbet.messaging.domain.model.CallHistoryRecord
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
 import java.util.UUID

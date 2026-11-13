@@ -2,6 +2,9 @@ package com.muhabbet.auth.adapter.`in`.web
 
 import com.muhabbet.auth.domain.model.Device
 import com.muhabbet.auth.domain.model.DeviceLinkSession
+import com.muhabbet.auth.domain.model.IssuedTokens
+import com.muhabbet.auth.domain.port.`in`.CompletedDeviceLink
+import com.muhabbet.auth.domain.port.`in`.DeviceLinkOffer
 import com.muhabbet.auth.domain.port.`in`.LinkDeviceUseCase
 import com.muhabbet.shared.config.MultiDeviceProperties
 import com.muhabbet.shared.dto.DeviceLinkCompleteRequest
@@ -74,9 +77,12 @@ class DeviceLinkControllerTest {
 
     @Test
     fun `begin returns 201 with the QR token when the flag is ON`() {
-        every { useCase.beginLink(userId, deviceId) } returns DeviceLinkSession(
-            userId = userId, primaryDeviceId = deviceId,
-            linkToken = "QR-TOKEN", expiresAt = Instant.now().plusSeconds(120)
+        every { useCase.beginLink(userId, deviceId) } returns DeviceLinkOffer(
+            DeviceLinkSession(
+                userId = userId, primaryDeviceId = deviceId,
+                tokenHash = "h".repeat(64), expiresAt = Instant.now().plusSeconds(120)
+            ),
+            linkToken = "QR-TOKEN"
         )
 
         val response = controller(enabled = true).begin()
@@ -87,8 +93,9 @@ class DeviceLinkControllerTest {
     }
 
     @Test
-    fun `complete passes the request through and returns the linked device`() {
-        every { useCase.completeLink("tok", "web", "Web", "BUNDLE") } returns device()
+    fun `complete passes the request through and returns the linked device with its credentials`() {
+        every { useCase.completeLink("tok", "web", "Web", "BUNDLE") } returns
+            CompletedDeviceLink(device(), IssuedTokens("ACCESS", "REFRESH", 900))
 
         val response = controller(enabled = true)
             .complete(DeviceLinkCompleteRequest("tok", "web", "Web", "BUNDLE"))
@@ -96,6 +103,9 @@ class DeviceLinkControllerTest {
         assertEquals(201, response.statusCode.value())
         assertEquals("web", response.body?.data?.platform)
         assertEquals(true, response.body?.data?.isCompanion)
+        assertEquals("ACCESS", response.body?.data?.accessToken)
+        assertEquals("REFRESH", response.body?.data?.refreshToken)
+        assertEquals(userId.toString(), response.body?.data?.userId)
         verify { useCase.completeLink("tok", "web", "Web", "BUNDLE") }
     }
 

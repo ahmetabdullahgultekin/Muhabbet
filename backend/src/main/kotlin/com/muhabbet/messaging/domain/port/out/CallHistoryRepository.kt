@@ -1,6 +1,6 @@
 package com.muhabbet.messaging.domain.port.out
 
-import com.muhabbet.messaging.domain.service.CallHistoryRecord
+import com.muhabbet.messaging.domain.model.CallHistoryRecord
 import java.util.UUID
 
 interface CallHistoryRepository {
