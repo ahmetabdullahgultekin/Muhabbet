@@ -727,9 +727,10 @@ MVP — solo engineer. Core 1:1 messaging complete, moving to polish and group c
   what is missing, and supersedes every earlier account here. Two things from it are worth carrying:
   - **Nothing starts before an owner decision.**
     [`docs/adr/0009-call-media-infrastructure.md`](docs/adr/0009-call-media-infrastructure.md) is
-    *Proposed*, and it decides where the SFU runs. The production host is disqualified three ways
-    over (UFW opens no media UDP port, Traefik holds the 443 LiveKit's TLS fallback wants, and it is
-    also the single CI runner). Cost is not the discriminator — every option is under €100/year at
+    *Proposed*, and it decides where the SFU runs. The host it assessed — the Hetzner CX43, production
+    at the time — is disqualified three ways over (UFW opens no media UDP port, Traefik holds the 443
+    LiveKit's TLS fallback wants, and it was also the single CI runner). Production has since moved
+    to mordecai, which the ADR has not assessed. Cost is not the discriminator — every option is under €100/year at
     this scale.
   - **Calls will not be end-to-end encrypted, and must never be described as such.** An SFU
     terminates each participant's DTLS-SRTP session, so whoever runs it can listen.
@@ -1011,7 +1012,7 @@ evidence that it works.
   The token is minted from the service-account key with the OAuth2 JWT-bearer flow rather than
   `google-github-actions/auth`, because that action calls `iamcredentials.googleapis.com`, which is
   disabled on the project and made the first real run fail.
-- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.rollingcatsoftware.com` (the value lives in `.env.prod` — confirm it there)
+- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media: the host in `MINIO_PUBLIC_ENDPOINT` in the production `.env.prod`
   (Traefik file-provider route → `shared-minio:9000`, `passHostHeader: false` so presigned SigV4
   validates). The compose file has **no default** for `MINIO_PUBLIC_ENDPOINT`; it comes from
   `.env.prod`.

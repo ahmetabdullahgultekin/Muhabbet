@@ -20,8 +20,8 @@
 # muhabbet-app secret into the Muhabbet env file under the old name MINIO_ROOT_PASSWORD, because the
 # compose file of the time read it from there. The compose file now reads MINIO_SECRET_KEY instead
 # (and refuses to start without it), so that line must be renamed before the next deploy; see
-# docs/process/security-incident-2026-11-env-prod.md. The preflight below would now stop at the
-# compose-wiring check, which is intended: it must not run a second time unchanged.
+# docs/process/security-incident-2026-11-env-prod.md. The preflight below now stops (the env file no longer
+# holds the root password), which is intended: it must not run a second time unchanged.
 #
 # Run on the production host as root:   sudo bash rotate-minio-root.sh
 # Override paths with environment variables if they differ (see "Configuration" below).

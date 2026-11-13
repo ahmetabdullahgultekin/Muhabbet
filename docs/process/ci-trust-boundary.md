@@ -25,7 +25,7 @@
                                                        tags v*) → signed APK/AAB   host via a forced-command
                                                                                    SSH key or host-side pull
                                                                                             │
-                                                                              Hetzner cx43: runs the backend.
+                                                                              Production host (mordecai): runs the backend.
                                                                               NO Actions runner.
 ```
 
