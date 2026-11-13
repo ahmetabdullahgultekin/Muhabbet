@@ -137,7 +137,9 @@ Every piece of code in this project MUST adhere to these principles. These are n
 - **Prefer simple, linear code over clever abstractions.** Three similar lines > premature abstraction.
 - **No unnecessary generics.** Use concrete types unless abstraction is needed by 3+ callers.
 - **Avoid deep nesting.** Use early returns and guard clauses instead of nested `if-else`.
-- **Composables: Hoist state simply.** Use `mutableStateOf()` at the composable level, not custom ViewModel classes for simple screens.
+- **Composables render state; they do not own it** (ADR 0010, 2026-11-13). Screen state lives in the
+  destination's retained Store; only view-local ephemeral state (a menu's expanded flag, focus, an
+  animation) stays in `remember`/`rememberSaveable`.
 
 ### YAGNI (You Aren't Gonna Need It)
 
@@ -203,14 +205,24 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 - Local DB: SQLDelight
 - HTTP client: Ktor
 - WebSocket: Ktor WebSocket client
-- State management: **there are no ViewModels** (corrected 2026-08-21 — `grep -rl ViewModel
-  mobile/composeApp/src` returns nothing). Screens hold state in `remember { mutableStateOf(...) }`
-  and pull dependencies with `koinInject()`. State that spans screens lives in Koin **singletons**
-  exposing a `StateFlow` — `ThemeController`, `PrivacySettingsController`, `AppLockController`, and
-  `WsClient`'s connection state and inbound flow. **A value two screens display must come from one
-  of those singletons**; two screens each holding a `remember` copy is how the app once showed two
-  read-receipt switches that disagreed. Do not add a ViewModel layer to "fix" this — it is the
-  deliberate KISS choice, not an oversight.
+- State management — **target model, ADR 0010 (owner decision 2026-11-13, supersedes the
+  2026-08-21 "no ViewModels, deliberate KISS" rule):**
+  - Every destination is a Decompose child component with its own `ComponentContext`; every
+    stateful destination owns a `XxxStore` retained via `instanceKeeper`, exposing
+    `state: StateFlow<XxxUiState>`, `effects: Flow<XxxEffect>` and `onEvent(XxxEvent)`. Drafts and
+    other user input that must survive process death go through `stateKeeper`. HomeShell tabs are
+    `childPages`; dialogs/sheets that must survive recreation are `childSlot`.
+  - Screens are pure renderers `XxxScreen(state, onEvent)`; **no `koinInject` under `ui/`**.
+  - Lifecycles with more than two states are explicit sealed state machines with pure, tested
+    transition functions (ADR 0012).
+  - App-scoped state stays in Koin **singletons** exposing a `StateFlow` — `ThemeController`,
+    `PrivacySettingsController`, `AppLockController`, `WsClient` — and Stores observe them. **A value
+    two screens display must still come from one of those singletons**; two copies is how the app
+    once showed two read-receipt switches that disagreed.
+  - **Status at 2434324: not yet migrated.** Screens still hold state in `remember` and
+    `koinInject()` repositories; migration is tracked in epic #761 and ratcheted by `verifyUi`.
+    Do not add new screens in the old style.
+  - Not AndroidX `ViewModel`: `InstanceKeeper` is Decompose's equivalent and keeps one lifecycle model.
 - Architecture: Clean Architecture (data/domain/presentation per feature)
 
 ## Tech Stack Quick Reference
@@ -253,6 +265,11 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
   outside it fails the build. Shrink it, never regenerate it — and it *is* being shrunk (82 on
   2026-08-21, 78 on 2026-09-02), so count the `<ID>` elements rather than trusting a number here.
 - `infra/k6/` — k6 load test scripts (auth, API, WebSocket)
+- `docs/adr/0010`–`0013` — the 2026-11-13 programme decisions (#758): Stores on every screen,
+  Material 3 reachable only through the design system (compiler-enforced end state), explicit state
+  machines, one feedback engine for haptics/sound/motion with the tea-glass notification sound.
+  Findings and work items live in GitHub issues under umbrella **#758** and epics #759–#768, not in
+  repo documents.
 - `docs/design/muhabbet-design-system.md` — **The design system's reference document.** Module
   architecture, the Copper palette and its rationale, Manrope, depth/gradient/blur/motion/haptic
   rules, component catalogue, guardrail baselines, and what is still unverified.
