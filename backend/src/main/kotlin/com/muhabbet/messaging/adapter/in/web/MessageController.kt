@@ -7,7 +7,8 @@ import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
-import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.RecordReceiptUseCase
+import com.muhabbet.messaging.domain.model.Receipt
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import com.muhabbet.shared.dto.ApiResponse
@@ -41,7 +42,7 @@ class MessageController(
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val manageMessageUseCase: ManageMessageUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
-    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
+    private val recordReceiptUseCase: RecordReceiptUseCase,
     private val burnViewOnceUseCase: BurnViewOnceUseCase
 ) {
 
@@ -152,13 +153,14 @@ class MessageController(
      * for an existing decision, same shape as [sendMessage] above, not a new one.
      *
      * Silently a no-op for a `messageId` this caller has no delivery row for (already read, blocked,
-     * someone else's message) — [UpdateDeliveryStatusUseCase.updateStatus] already behaves this way
-     * for the WebSocket ack, so a client cannot use this to probe whether an arbitrary id exists.
+     * someone else's message) — [RecordReceiptUseCase.record] already behaves this way for the
+     * WebSocket ack, so a client cannot use this to probe whether an arbitrary id exists. A late call
+     * for a message already READ changes and publishes nothing (#870).
      */
     @PostMapping("/messages/{messageId}/delivered")
     fun markDelivered(@PathVariable messageId: UUID): ResponseEntity<ApiResponse<Unit>> {
         val userId = AuthenticatedUser.currentUserId()
-        updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.DELIVERED)
+        recordReceiptUseCase.record(Receipt.Delivered(messageId = messageId, readerId = userId))
         return ApiResponseBuilder.ok(Unit)
     }
 

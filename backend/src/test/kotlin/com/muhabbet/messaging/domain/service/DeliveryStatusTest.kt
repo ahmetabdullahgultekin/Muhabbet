@@ -9,7 +9,8 @@ import com.muhabbet.messaging.domain.port.out.ReadReceiptPolicyPort
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.shared.InlineTransactionRunner
 import com.muhabbet.shared.TestMediaAttachmentPolicy
-import io.mockk.*
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -56,7 +57,10 @@ class DeliveryStatusTest {
     }
 
     @Test
-    fun `should resolve DELIVERED when any recipient has DELIVERED status`() {
+    fun `should resolve SENT while any recipient has not received the message`() {
+        // #871: the sender's tick is the minimum across recipients. This used to resolve DELIVERED
+        // ("any recipient DELIVERED"), telling the sender of a group the message had arrived when
+        // one phone had it — and disagreeing with the live tick, which is now the same minimum.
         val messageId = UUID.randomUUID()
         val senderId = UUID.randomUUID()
         val recipientA = UUID.randomUUID()
@@ -66,6 +70,23 @@ class DeliveryStatusTest {
         every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
             MessageDeliveryStatus(messageId, recipientA, DeliveryStatus.DELIVERED),
             MessageDeliveryStatus(messageId, recipientB, DeliveryStatus.SENT)
+        )
+
+        val result = service.resolveDeliveryStatuses(listOf(message), senderId)
+        assertEquals(DeliveryStatus.SENT, result[messageId])
+    }
+
+    @Test
+    fun `should resolve DELIVERED once every recipient has the message`() {
+        val messageId = UUID.randomUUID()
+        val senderId = UUID.randomUUID()
+        val recipientA = UUID.randomUUID()
+        val recipientB = UUID.randomUUID()
+        val message = createMessage(messageId, senderId)
+
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, recipientA, DeliveryStatus.READ),
+            MessageDeliveryStatus(messageId, recipientB, DeliveryStatus.DELIVERED)
         )
 
         val result = service.resolveDeliveryStatuses(listOf(message), senderId)
@@ -143,50 +164,6 @@ class DeliveryStatusTest {
         // view of the conversation look unread.
         val result = service.resolveDeliveryStatuses(listOf(message), recipientId)
         assertEquals(DeliveryStatus.READ, result[messageId])
-    }
-
-    @Test
-    fun `should broadcast DELIVERED instead of READ when reader has read receipts disabled`() {
-        val messageId = UUID.randomUUID()
-        val senderId = UUID.randomUUID()
-        val recipientId = UUID.randomUUID()
-        val conversationId = UUID.randomUUID()
-        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
-
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
-        every { messageRepository.findById(messageId) } returns message
-        every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns setOf(recipientId)
-
-        service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
-
-        verify {
-            messageBroadcaster.broadcastStatusUpdate(
-                messageId, conversationId, recipientId, senderId, DeliveryStatus.DELIVERED
-            )
-        }
-        // The row itself is still written as READ.
-        verify { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) }
-    }
-
-    @Test
-    fun `should broadcast READ when reader has read receipts enabled`() {
-        val messageId = UUID.randomUUID()
-        val senderId = UUID.randomUUID()
-        val recipientId = UUID.randomUUID()
-        val conversationId = UUID.randomUUID()
-        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
-
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } returns Unit
-        every { messageRepository.findById(messageId) } returns message
-        every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipientId)) } returns emptySet()
-
-        service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
-
-        verify {
-            messageBroadcaster.broadcastStatusUpdate(
-                messageId, conversationId, recipientId, senderId, DeliveryStatus.READ
-            )
-        }
     }
 
     @Test
@@ -287,13 +264,24 @@ class DeliveryStatusTest {
         val sentOnlyMember = UUID.randomUUID()
         val message = createMessage(messageId, senderId)
 
-        // One member READ, one only DELIVERED, one only SENT — NOT all read.
+        // One member READ, one only DELIVERED, one only SENT — NOT all read, and not all delivered.
         every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
             MessageDeliveryStatus(messageId, readMember, DeliveryStatus.READ),
             MessageDeliveryStatus(messageId, deliveredMember, DeliveryStatus.DELIVERED),
             MessageDeliveryStatus(messageId, sentOnlyMember, DeliveryStatus.SENT)
         )
+        assertEquals(
+            DeliveryStatus.SENT,
+            service.resolveDeliveryStatuses(listOf(message), senderId)[messageId],
+            "One member has not received it, so the aggregate is the minimum: SENT (#871)"
+        )
 
+        // The last member's phone receives it: everyone has it, not everyone has read it.
+        every { messageRepository.getDeliveryStatuses(listOf(messageId)) } returns listOf(
+            MessageDeliveryStatus(messageId, readMember, DeliveryStatus.READ),
+            MessageDeliveryStatus(messageId, deliveredMember, DeliveryStatus.DELIVERED),
+            MessageDeliveryStatus(messageId, sentOnlyMember, DeliveryStatus.DELIVERED)
+        )
         assertEquals(
             DeliveryStatus.DELIVERED,
             service.resolveDeliveryStatuses(listOf(message), senderId)[messageId],
@@ -371,42 +359,9 @@ class DeliveryStatusTest {
         )
     }
 
-    @Test
-    fun `updateStatus persists the row and broadcasts to the sender`() {
-        val messageId = UUID.randomUUID()
-        val senderId = UUID.randomUUID()
-        val recipientId = UUID.randomUUID()
-        val conversationId = UUID.randomUUID()
-        val message = createMessage(messageId, senderId).copy(conversationId = conversationId)
-
-        every { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) } just Runs
-        every { messageRepository.findById(messageId) } returns message
-
-        service.updateStatus(messageId, recipientId, DeliveryStatus.READ)
-
-        verify(exactly = 1) { messageRepository.updateDeliveryStatus(messageId, recipientId, DeliveryStatus.READ) }
-        verify(exactly = 1) {
-            messageBroadcaster.broadcastStatusUpdate(messageId, conversationId, recipientId, senderId, DeliveryStatus.READ)
-        }
-    }
-
-    @Test
-    fun `markConversationRead bulk-marks the conversation and advances last-read for the reader`() {
-        val conversationId = UUID.randomUUID()
-        val readerId = UUID.randomUUID()
-
-        every { messageRepository.markConversationRead(conversationId, readerId) } just Runs
-        every { conversationRepository.updateLastReadAt(conversationId, readerId, any()) } just Runs
-
-        service.markConversationRead(conversationId, readerId)
-
-        verify(exactly = 1) { messageRepository.markConversationRead(conversationId, readerId) }
-        verify(exactly = 1) { conversationRepository.updateLastReadAt(conversationId, readerId, any()) }
-    }
-
     // ─── Message Info: the third publish path (#620) ─────────
     //
-    // updateStatus downgrades the live WS broadcast and resolveDeliveryStatuses downgrades the
+    // The receipt path downgrades the live WS broadcast and resolveDeliveryStatuses downgrades the
     // history aggregate. "Info" names each recipient individually and used to print the stored row
     // verbatim, so a reader with receipts off still showed up under "Read by", with the time they
     // opened the message. The switch promises "others won't see when you read their messages" —

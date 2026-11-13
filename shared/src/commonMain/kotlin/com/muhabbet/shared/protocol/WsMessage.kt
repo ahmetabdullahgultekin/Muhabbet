@@ -221,7 +221,10 @@ sealed class WsMessage {
     data class StatusUpdate(
         val messageId: String,
         val conversationId: String,
-        val userId: String,                 // who triggered the status change
+        val userId: String,                 // the recipient whose receipt triggered it (informational)
+        // The SENDER's aggregate tick for messageId: the minimum across all recipients (#871). In a
+        // group, READ means every member has read it. Apply it to messageId only, and never let it
+        // move a tick backwards — two updates for one message can arrive in either order.
         val status: MessageStatus,
         val timestamp: Long
     ) : WsMessage()

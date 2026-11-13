@@ -26,23 +26,21 @@ import java.util.UUID
 import com.muhabbet.shared.TestMediaAttachmentPolicy
 
 /**
- * #669 — the three message mutations #491 did not reach.
+ * #669 — the message mutations #491 did not reach.
  *
  * `sendMessage` got its boundary moved in #491 and `SendMessageTransactionBoundaryTest` pins it.
- * `updateStatus`, `deleteMessage` and `editMessage` kept the old shape for months: `@Transactional`
+ * The receipt path's boundary is pinned in `DeliveryReceiptServiceTest`, since #870 moved it out
+ * of `MessageService`. `deleteMessage` and `editMessage` kept the old shape for months: `@Transactional`
  * on the method, the WebSocket fan-out inside it. Both defects came with it — a Hikari connection
  * held across blocking socket writes to every member, and a client handed an event before the
  * transaction that produced it had committed.
- *
- * `updateStatus` is the one that mattered most by volume: it runs on every delivery and every read
- * receipt, roughly once per message delivered.
  *
  * A unit test cannot watch a connection go back into the pool, so it watches the thing that kept it
  * out: whether the broadcaster is reached from inside the transactional block. Two assertions per
  * site, the same pair `SendMessageTransactionBoundaryTest` makes — nothing goes out before the
  * commit, and nothing goes out at all if the commit fails.
  *
- * Restoring `@Transactional` to any of these three fails this file, which is the point of it: with
+ * Restoring `@Transactional` to either of these fails this file, which is the point of it: with
  * REQUIRED propagation the annotation would swallow the inner boundary and the fix would look
  * present in the source while doing nothing.
  */
@@ -106,53 +104,6 @@ class MessageMutationTransactionBoundaryTest {
             callsAtCommit = broadcasterCalls()
             return result
         }
-    }
-
-    // ─── updateStatus ────────────────────────────────────────
-
-    @Test
-    fun `should not broadcast until the transaction has committed when a delivery status is updated`() {
-        var broadcasts = 0
-        every { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) } answers
-            { broadcasts++; Unit }
-        val runner = RecordingRunner { broadcasts }
-
-        serviceWith(runner).updateStatus(messageId, recipient, DeliveryStatus.READ)
-
-        assertEquals(0, runner.callsAtCommit, "the status fan-out ran inside the transaction")
-        assertEquals(1, broadcasts, "the status fan-out did not run after the commit either")
-    }
-
-    @Test
-    fun `should not broadcast a delivery status when the transaction fails to commit`() {
-        assertThrows(IllegalStateException::class.java) {
-            serviceWith(FailingTransactionRunner(IllegalStateException("commit failed")))
-                .updateStatus(messageId, recipient, DeliveryStatus.READ)
-        }
-
-        verify(exactly = 0) { messageBroadcaster.broadcastStatusUpdate(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `should publish READ as DELIVERED when the reader has read receipts off`() {
-        every { readReceiptPolicy.findReadReceiptsDisabled(listOf(recipient)) } returns setOf(recipient)
-        val runner = RecordingRunner { 0 }
-
-        serviceWith(runner).updateStatus(messageId, recipient, DeliveryStatus.READ)
-
-        // The downgrade decision is made inside the transaction and carried out to the fan-out.
-        // Moving the boundary must not lose it: the stored row stays READ so the reader's own
-        // unread badge clears, and only what is published is softened.
-        verify {
-            messageBroadcaster.broadcastStatusUpdate(
-                messageId,
-                conversationId,
-                recipient,
-                sender,
-                DeliveryStatus.DELIVERED
-            )
-        }
-        verify { messageRepository.updateDeliveryStatus(messageId, recipient, DeliveryStatus.READ) }
     }
 
     // ─── deleteMessage ───────────────────────────────────────

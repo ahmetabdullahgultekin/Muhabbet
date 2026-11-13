@@ -50,6 +50,7 @@ import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.messaging.domain.port.out.UserDirectoryPort
 import com.muhabbet.messaging.domain.service.PushNotificationComposer
 import com.muhabbet.messaging.domain.service.ViewOnceService
+import com.muhabbet.messaging.domain.service.DeliveryReceiptService
 import com.muhabbet.messaging.domain.service.BroadcastListService
 import com.muhabbet.messaging.domain.service.CallHistoryService
 import com.muhabbet.messaging.domain.service.ChatFolderService
@@ -200,6 +201,25 @@ class AppConfig {
         readReceiptPolicy = ports.readReceiptPolicy,
         blockPolicy = ports.blockPolicy,
         mediaAttachmentPolicy = ports.mediaAttachmentPolicy,
+        transactions = transactions
+    )
+
+    /**
+     * Delivery and read receipts, kept out of [messageService] (#870): the lifecycle is its own
+     * state machine with its own concurrency story, and the send path never needs any of it.
+     */
+    @Bean
+    fun deliveryReceiptService(
+        messageRepository: MessageRepository,
+        conversationRepository: ConversationRepository,
+        messageBroadcaster: MessageBroadcaster,
+        readReceiptPolicy: ReadReceiptPolicyPort,
+        transactions: TransactionRunner
+    ): DeliveryReceiptService = DeliveryReceiptService(
+        messageRepository = messageRepository,
+        conversationRepository = conversationRepository,
+        messageBroadcaster = messageBroadcaster,
+        readReceiptPolicy = readReceiptPolicy,
         transactions = transactions
     )
 

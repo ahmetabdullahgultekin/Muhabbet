@@ -3,6 +3,7 @@ package com.muhabbet.messaging.domain.port.out
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
+import com.muhabbet.messaging.domain.model.ReceiptAdvance
 import java.time.Instant
 import java.util.UUID
 
@@ -26,8 +27,38 @@ interface MessageRepository {
      * back to it. A caller with one row passes a list of one.
      */
     fun saveDeliveryStatuses(statuses: List<MessageDeliveryStatus>)
-    fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus)
-    fun markConversationRead(conversationId: UUID, userId: UUID)
+
+    /**
+     * Moves [userId]'s row for [messageId] forward to [to], atomically, if and only if
+     * `stored.advance(to)` is `Applied` (#870). Returns the row's message coordinates when it moved,
+     * `null` when it did not — no row, or a receipt for a state already reached.
+     *
+     * One conditional statement, not a read followed by a save: the transition rule is the `WHERE`
+     * clause, so the database re-checks it against the committed row under the row lock and two
+     * racing receipts cannot both win. The return value is the publish decision — a caller must
+     * announce exactly the rows this reports, and nothing for a `null`.
+     *
+     * Requires a transaction.
+     */
+    fun advanceDeliveryStatus(messageId: UUID, userId: UUID, to: DeliveryStatus): ReceiptAdvance?
+
+    /**
+     * Marks READ, in one statement, every row of [readerId]'s in [conversationId] for a message sent
+     * by someone else, not deleted, and at or before [upToMessageId]'s server timestamp — and
+     * returns only the rows that statement actually moved forward. An [upToMessageId] that is not in
+     * [conversationId] matches nothing.
+     *
+     * Requires a transaction.
+     */
+    fun markReadUpTo(conversationId: UUID, readerId: UUID, upToMessageId: UUID): List<ReceiptAdvance>
+
+    /**
+     * The distinct states present among each message's recipient rows — at most three per message
+     * however many recipients it has. Enough to compute [DeliveryStatus.aggregate] without loading
+     * one row per member of a large group or channel on every receipt; a message absent from the
+     * map has no recipient rows.
+     */
+    fun findDeliveryStatusSets(messageIds: Collection<UUID>): Map<UUID, Set<DeliveryStatus>>
     fun getUnreadCount(conversationId: UUID, userId: UUID): Int
     fun getLastMessage(conversationId: UUID): Message?
 

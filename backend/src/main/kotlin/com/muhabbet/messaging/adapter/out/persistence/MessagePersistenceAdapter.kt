@@ -7,6 +7,7 @@ import com.muhabbet.messaging.adapter.out.persistence.repository.SpringDataMessa
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
+import com.muhabbet.messaging.domain.model.ReceiptAdvance
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
@@ -109,22 +110,99 @@ class MessagePersistenceAdapter(
         statuses.forEach { entityManager.persist(MessageDeliveryStatusJpaEntity.fromDomain(it)) }
     }
 
-    override fun updateDeliveryStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
-        val entity = deliveryStatusRepo.findByMessageIdAndUserId(messageId, userId) ?: return
-        // READ never regresses to DELIVERED. Two writers can now race for the same row: the
-        // WebSocket ack the recipient's own open chat sends, and the REST DELIVERED ack #596 added
-        // for a push that arrived while there was no socket to send one over. If that REST call is
-        // merely slow — the FCM background service got its ten seconds, the recipient meanwhile
-        // opened the chat and read it — it must not land after READ and drag the sender's tick
-        // backwards to a state that is no longer true.
-        if (entity.status == DeliveryStatus.READ && status != DeliveryStatus.READ) return
-        entity.status = status
-        entity.updatedAt = Instant.now()
-        deliveryStatusRepo.save(entity)
+    /**
+     * The transition rule as the `WHERE` clause (#870). `status IN (:from)` is
+     * [DeliveryStatus.advancesFrom] — the domain's own `advance` turned into a predicate — so a
+     * receipt for a state already reached matches no row, and the statement reports that by
+     * returning nothing.
+     *
+     * Why this is safe under concurrency and the read-then-save it replaces was not: PostgreSQL
+     * takes the row lock for an `UPDATE`, and a statement that had to wait for a concurrent writer
+     * re-evaluates its `WHERE` against the row that writer committed. A DELIVERED racing a READ
+     * either runs first (and READ then advances past it) or waits and finds READ, which is not in
+     * `advancesFrom(DELIVERED)`, and updates nothing. There is no interleaving in which DELIVERED is
+     * left stored over READ. JPA `save` wrote the whole row with no version check, so the old guard
+     * held only when nobody else was writing.
+     *
+     * Native SQL because the point is `RETURNING`: the rows that moved, in the same round trip as
+     * the move, with the sender to tell. JPQL bulk updates return a count, not rows.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    override fun advanceDeliveryStatus(messageId: UUID, userId: UUID, to: DeliveryStatus): ReceiptAdvance? {
+        val from = to.advancesFrom()
+        if (from.isEmpty()) return null
+        val rows = entityManager.createNativeQuery(
+            """
+            UPDATE message_delivery_status ds
+               SET status = :to, updated_at = :now
+              FROM messages m
+             WHERE ds.message_id = :messageId
+               AND ds.user_id = :userId
+               AND ds.status IN (:from)
+               AND m.id = ds.message_id
+            RETURNING ds.message_id, m.conversation_id, m.sender_id
+            """.trimIndent()
+        )
+            .setParameter("to", to.name)
+            .setParameter("now", Instant.now())
+            .setParameter("messageId", messageId)
+            .setParameter("userId", userId)
+            .setParameter("from", from.map { it.name })
+            .resultList
+        return rows.firstOrNull()?.let { toReceiptAdvance(it) }
     }
 
-    override fun markConversationRead(conversationId: UUID, userId: UUID) {
-        deliveryStatusRepo.markAllAsRead(conversationId, userId, DeliveryStatus.READ, Instant.now())
+    /**
+     * Same predicate as [advanceDeliveryStatus], over every unread row up to a point, in one
+     * statement — and, unlike the bulk JPQL update it replaces, it says which rows it moved. That
+     * list is what lets every message a READ receipt turned blue be published to its own sender,
+     * where before only the single acked message ever was (#870).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    override fun markReadUpTo(conversationId: UUID, readerId: UUID, upToMessageId: UUID): List<ReceiptAdvance> {
+        val rows = entityManager.createNativeQuery(
+            """
+            UPDATE message_delivery_status ds
+               SET status = :to, updated_at = :now
+              FROM messages m
+             WHERE ds.message_id = m.id
+               AND ds.user_id = :readerId
+               AND ds.status IN (:from)
+               AND m.conversation_id = :conversationId
+               AND m.sender_id <> :readerId
+               AND m.is_deleted = FALSE
+               AND m.server_timestamp <= (
+                   SELECT upto.server_timestamp FROM messages upto
+                    WHERE upto.id = :upToMessageId AND upto.conversation_id = :conversationId
+               )
+            RETURNING ds.message_id, m.conversation_id, m.sender_id
+            """.trimIndent()
+        )
+            .setParameter("to", DeliveryStatus.READ.name)
+            .setParameter("now", Instant.now())
+            .setParameter("readerId", readerId)
+            .setParameter("from", DeliveryStatus.READ.advancesFrom().map { it.name })
+            .setParameter("conversationId", conversationId)
+            .setParameter("upToMessageId", upToMessageId)
+            .resultList
+        return rows.map { toReceiptAdvance(it) }
+    }
+
+    override fun findDeliveryStatusSets(messageIds: Collection<UUID>): Map<UUID, Set<DeliveryStatus>> {
+        if (messageIds.isEmpty()) return emptyMap()
+        return deliveryStatusRepo.findDistinctStatuses(messageIds)
+            .groupBy({ it[0] as UUID }, { it[1] as DeliveryStatus })
+            .mapValues { (_, statuses) -> statuses.toSet() }
+    }
+
+    /** One `RETURNING ds.message_id, m.conversation_id, m.sender_id` row. */
+    private fun toReceiptAdvance(row: Any?): ReceiptAdvance {
+        val columns = row as Array<*>
+        return ReceiptAdvance(
+            messageId = columns[0] as UUID,
+            conversationId = columns[1] as UUID,
+            senderId = columns[2] as UUID
+        )
     }
 
     override fun getUnreadCount(conversationId: UUID, userId: UUID): Int =

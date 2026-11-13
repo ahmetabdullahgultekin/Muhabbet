@@ -7,10 +7,6 @@ enum class ContentType {
     TEXT, IMAGE, VOICE, VIDEO, DOCUMENT, LOCATION, CONTACT, POLL, STICKER, GIF
 }
 
-enum class DeliveryStatus {
-    SENT, DELIVERED, READ
-}
-
 data class Message(
     val id: UUID,
     val conversationId: UUID,

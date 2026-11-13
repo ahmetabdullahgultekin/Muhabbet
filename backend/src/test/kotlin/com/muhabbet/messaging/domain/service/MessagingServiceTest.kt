@@ -777,29 +777,6 @@ class MessagingServiceTest {
         assertNotNull(page.nextCursor)
     }
 
-    // ─── updateStatus ────────────────────────────────────
-
-    @Test
-    fun `should update delivery status and broadcast`() {
-        val messageId = UUID.randomUUID()
-        val convId = UUID.randomUUID()
-        val message = Message(
-            id = messageId, conversationId = convId, senderId = userA,
-            content = "test", clientTimestamp = Instant.now()
-        )
-
-        every { messageRepository.findById(messageId) } returns message
-
-        messageService.updateStatus(messageId, userB, DeliveryStatus.DELIVERED)
-
-        verify { messageRepository.updateDeliveryStatus(messageId, userB, DeliveryStatus.DELIVERED) }
-        verify {
-            messageBroadcaster.broadcastStatusUpdate(
-                messageId, convId, userB, userA, DeliveryStatus.DELIVERED
-            )
-        }
-    }
-
     // ─── getConversations ────────────────────────────────
 
     @Test

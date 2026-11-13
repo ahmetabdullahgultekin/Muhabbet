@@ -7,6 +7,8 @@ import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.model.MessageDeliveryStatus
+import com.muhabbet.messaging.domain.model.publishedStatus
+import com.muhabbet.messaging.domain.model.senderView
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.MessageInfo
@@ -14,7 +16,6 @@ import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
-import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MediaAttachmentPolicyPort
@@ -41,7 +42,7 @@ open class MessageService(
     private val blockPolicy: BlockPolicyPort,
     private val mediaAttachmentPolicy: MediaAttachmentPolicyPort,
     private val transactions: TransactionRunner
-) : SendMessageUseCase, GetMessageHistoryUseCase, UpdateDeliveryStatusUseCase, ManageMessageUseCase {
+) : SendMessageUseCase, GetMessageHistoryUseCase, ManageMessageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -326,82 +327,6 @@ open class MessageService(
         return MessagePage(items = page, nextCursor = nextCursor, hasMore = hasMore)
     }
 
-    /**
-     * The busiest of the sites #669 left behind: this runs on every delivery and every read
-     * receipt, roughly once per message delivered. It carries no `@Transactional` for the same
-     * reason [sendMessage] does not — the annotation would hold a pool connection across the
-     * status fan-out — and because [TransactionRunner] propagates as REQUIRED, leaving one on
-     * would have made the inner boundary a no-op that joined the outer transaction.
-     *
-     * The trade the move accepts: a broadcast that fails after the commit means a stored status
-     * nobody was pushed, so the sender keeps one tick until their client next loads history, which
-     * resolves the status from the same rows. Handing a client a receipt for a row a rollback then
-     * removed is the worse of the two, and that is the one this removes.
-     */
-    override fun updateStatus(messageId: UUID, userId: UUID, status: DeliveryStatus) {
-        val outcome = transactions.inTransaction { persistStatus(messageId, userId, status) }
-
-        val message = outcome.message ?: return
-        messageBroadcaster.broadcastStatusUpdate(
-            messageId,
-            message.conversationId,
-            userId,
-            message.senderId,
-            outcome.published
-        )
-
-        log.debug(
-            "Delivery status updated: msg={}, user={}, stored={}, published={}",
-            messageId,
-            userId,
-            status,
-            outcome.published
-        )
-    }
-
-    /**
-     * What the status transaction produced. A null [message] means the id did not resolve, so
-     * there is nobody to tell — the same early return the method used to take mid-transaction,
-     * expressed as a value because [TransactionRunner.inTransaction] binds its result to a
-     * non-null type.
-     */
-    private data class StatusOutcome(val message: Message?, val published: DeliveryStatus)
-
-    private fun persistStatus(messageId: UUID, userId: UUID, status: DeliveryStatus): StatusOutcome {
-        messageRepository.updateDeliveryStatus(messageId, userId, status)
-
-        val message = messageRepository.findById(messageId) ?: return StatusOutcome(null, status)
-        // A reader who has turned read receipts off still gets their own row stored as READ — that
-        // row is what clears their unread badge — but the sender must not be told. We downgrade what
-        // is *published*, never what is stored, because one column serves both concerns.
-        // Only READ can be downgraded, so DELIVERED acks skip the lookup entirely — this runs on
-        // every ack from every client.
-        val published = if (status == DeliveryStatus.READ) {
-            publishableStatus(userId, status, readReceiptPolicy.findReadReceiptsDisabled(listOf(userId)))
-        } else {
-            status
-        }
-        return StatusOutcome(message, published)
-    }
-
-    /**
-     * READ from a reader who has receipts off is published as DELIVERED — the sender learns the
-     * message arrived, never that it was opened. Every other status passes through untouched.
-     */
-    private fun publishableStatus(
-        readerId: UUID,
-        status: DeliveryStatus,
-        receiptsDisabled: Set<UUID>
-    ): DeliveryStatus =
-        if (status == DeliveryStatus.READ && readerId in receiptsDisabled) DeliveryStatus.DELIVERED else status
-
-    @Transactional
-    override fun markConversationRead(conversationId: UUID, userId: UUID) {
-        messageRepository.markConversationRead(conversationId, userId)
-        conversationRepository.updateLastReadAt(conversationId, userId, Instant.now())
-        log.debug("Conversation marked as read: conv={}, user={}", conversationId, userId)
-    }
-
     @Transactional(readOnly = true)
     override fun resolveDeliveryStatuses(messages: List<Message>, requestingUserId: UUID): Map<UUID, DeliveryStatus> {
         if (messages.isEmpty()) return emptyMap()
@@ -411,7 +336,7 @@ open class MessageService(
         val statusesByMessageId = allStatuses.groupBy { it.messageId }
         // One batched lookup for the whole page, and only for rows that are actually READ — the
         // port short-circuits on an empty collection, so a page nobody has read costs no query.
-        // Without this the live WS downgrade in [updateStatus] would be undone the moment the
+        // Without this the live WS downgrade in DeliveryReceiptService would be undone the moment the
         // sender scrolled or reopened the chat, because the stored row is still READ.
         val receiptsDisabled = readReceiptPolicy.findReadReceiptsDisabled(
             allStatuses.filter { it.status == DeliveryStatus.READ }.map { it.userId }
@@ -420,13 +345,10 @@ open class MessageService(
         return messages.associate { message ->
             val statuses = statusesByMessageId[message.id] ?: emptyList()
             val resolved = if (message.senderId == requestingUserId) {
-                // Sender perspective: aggregate across all recipients
-                // all READ → READ, any DELIVERED/READ → DELIVERED, else SENT
-                val visible = statuses.map { publishableStatus(it.userId, it.status, receiptsDisabled) }
-                if (visible.isEmpty()) DeliveryStatus.SENT
-                else if (visible.all { it == DeliveryStatus.READ }) DeliveryStatus.READ
-                else if (visible.any { it == DeliveryStatus.DELIVERED || it == DeliveryStatus.READ }) DeliveryStatus.DELIVERED
-                else DeliveryStatus.SENT
+                // Sender perspective: the minimum across recipients, through the same function the
+                // live receipt path publishes with — so a reload shows the tick the socket showed
+                // (#871). "Any recipient DELIVERED" used to count as delivered here.
+                senderView(statuses, receiptsDisabled)
             } else {
                 // Recipient perspective: their own status row
                 statuses.firstOrNull { it.userId == requestingUserId }?.status ?: DeliveryStatus.SENT
@@ -464,7 +386,7 @@ open class MessageService(
         // One batched lookup for the whole recipient list — resolving names one at a time was an N+1.
         val displayInfo = userDirectory.findDisplayInfo(statuses.map { it.userId })
 
-        // The third publish path, and the one that was missed. updateStatus downgrades the live WS
+        // The third publish path, and the one that was missed. The receipt path downgrades the live WS
         // broadcast and resolveDeliveryStatuses downgrades the history aggregate, but "Info" names
         // each recipient individually and printed the stored row verbatim — so a reader who had
         // turned read receipts off still appeared under "Read by", with the time they opened it.
@@ -483,7 +405,7 @@ open class MessageService(
                 // told about you, not what you are told about yourself.
                 val published =
                     if (status.userId == requesterId) status.status
-                    else publishableStatus(status.userId, status.status, receiptsDisabled)
+                    else status.publishedStatus(receiptsDisabled)
                 MessageRecipient(
                     userId = status.userId,
                     displayName = user?.displayName,

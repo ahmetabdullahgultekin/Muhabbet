@@ -2,10 +2,9 @@ package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.model.ContentType
-import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
-import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.RecordReceiptUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.exception.BusinessException
@@ -33,7 +32,7 @@ class ChatWebSocketHandler(
     private val jwtProvider: JwtProvider,
     private val sessionManager: WebSocketSessionManager,
     private val sendMessageUseCase: SendMessageUseCase,
-    private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
+    private val recordReceiptUseCase: RecordReceiptUseCase,
     private val conversationRepository: ConversationRepository,
     private val presencePort: PresencePort,
     private val recordLastSeenUseCase: RecordLastSeenUseCase,
@@ -249,20 +248,19 @@ class ChatWebSocketHandler(
         }
     }
 
+    /**
+     * Translation only: the wire frame becomes a [com.muhabbet.messaging.domain.model.Receipt] and the
+     * use case decides everything else (#870). A frame whose status is not a receipt is refused
+     * with a typed error instead of vanishing (#879) — see [toReceipt].
+     */
     private fun handleAckMessage(userId: UUID, msg: WsMessage.AckMessage) {
-        val status = when (msg.status) {
-            com.muhabbet.shared.model.MessageStatus.DELIVERED -> DeliveryStatus.DELIVERED
-            com.muhabbet.shared.model.MessageStatus.READ -> DeliveryStatus.READ
-            else -> return
-        }
-        if (status == DeliveryStatus.READ) {
-            // Bulk-update ALL messages in the conversation as read in DB
-            updateDeliveryStatusUseCase.markConversationRead(
-                parseId(msg.conversationId, "conversationId"), userId
+        recordReceiptUseCase.record(
+            msg.toReceipt(
+                readerId = userId,
+                messageId = parseId(msg.messageId, "messageId"),
+                conversationId = parseId(msg.conversationId, "conversationId")
             )
-        }
-        // Always broadcast StatusUpdate for the specific message to the sender
-        updateDeliveryStatusUseCase.updateStatus(parseId(msg.messageId, "messageId"), userId, status)
+        )
     }
 
     /**

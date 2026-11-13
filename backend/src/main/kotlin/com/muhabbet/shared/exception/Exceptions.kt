@@ -59,6 +59,7 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     MSG_EDIT_WINDOW_EXPIRED(HttpStatus.BAD_REQUEST, "Mesaj düzenleme süresi doldu"),
     MSG_INVALID_CURSOR(HttpStatus.BAD_REQUEST, "Geçersiz zaman damgası formatı"),
     MSG_INVALID_REACTION(HttpStatus.BAD_REQUEST, "Geçersiz tepki"),
+    MSG_INVALID_RECEIPT_STATUS(HttpStatus.BAD_REQUEST, "Geçersiz alındı bildirimi durumu"),
 
     // Status
     STATUS_NOT_FOUND(HttpStatus.NOT_FOUND, "Durum bulunamadı"),

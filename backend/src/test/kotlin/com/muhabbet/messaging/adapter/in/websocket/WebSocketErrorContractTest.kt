@@ -2,7 +2,7 @@ package com.muhabbet.messaging.adapter.`in`.websocket
 
 import com.muhabbet.auth.domain.port.`in`.RecordLastSeenUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
-import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.RecordReceiptUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
@@ -51,7 +51,7 @@ class WebSocketErrorContractTest {
         jwtProvider = jwtProvider,
         sessionManager = sessionManager,
         sendMessageUseCase = sendMessageUseCase,
-        updateDeliveryStatusUseCase = mockk<UpdateDeliveryStatusUseCase>(relaxed = true),
+        recordReceiptUseCase = mockk<RecordReceiptUseCase>(relaxed = true),
         conversationRepository = mockk<ConversationRepository>(relaxed = true),
         presencePort = mockk<PresencePort>(relaxed = true),
         recordLastSeenUseCase = mockk<RecordLastSeenUseCase>(relaxed = true),

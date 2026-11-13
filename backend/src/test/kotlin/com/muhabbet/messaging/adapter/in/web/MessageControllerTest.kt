@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.model.Receipt
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
@@ -11,7 +12,7 @@ import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
-import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.RecordReceiptUseCase
 import com.muhabbet.messaging.domain.port.`in`.ViewOnceReveal
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.dto.SendMessageRequest
@@ -34,7 +35,7 @@ class MessageControllerTest {
     private lateinit var getMessageHistoryUseCase: GetMessageHistoryUseCase
     private lateinit var manageMessageUseCase: ManageMessageUseCase
     private lateinit var sendMessageUseCase: SendMessageUseCase
-    private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
+    private lateinit var recordReceiptUseCase: RecordReceiptUseCase
     private lateinit var burnViewOnceUseCase: BurnViewOnceUseCase
     private lateinit var controller: MessageController
 
@@ -48,13 +49,13 @@ class MessageControllerTest {
         getMessageHistoryUseCase = mockk()
         manageMessageUseCase = mockk()
         sendMessageUseCase = mockk()
-        updateDeliveryStatusUseCase = mockk(relaxed = true)
+        recordReceiptUseCase = mockk(relaxed = true)
         burnViewOnceUseCase = mockk()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             manageMessageUseCase = manageMessageUseCase,
             sendMessageUseCase = sendMessageUseCase,
-            updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
+            recordReceiptUseCase = recordReceiptUseCase,
             burnViewOnceUseCase = burnViewOnceUseCase
         )
         setAuthenticatedUser(userId, deviceId)
@@ -330,7 +331,7 @@ class MessageControllerTest {
             val response = controller.markDelivered(messageId)
 
             assert(response.statusCode.value() == 200)
-            verify { updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.DELIVERED) }
+            verify { recordReceiptUseCase.record(Receipt.Delivered(messageId = messageId, readerId = userId)) }
         }
 
         @Test
@@ -339,7 +340,7 @@ class MessageControllerTest {
             // so this cannot be used to ack delivery on someone else's behalf.
             controller.markDelivered(messageId)
 
-            verify { updateDeliveryStatusUseCase.updateStatus(messageId, userId, DeliveryStatus.DELIVERED) }
+            verify { recordReceiptUseCase.record(Receipt.Delivered(messageId = messageId, readerId = userId)) }
         }
     }
 

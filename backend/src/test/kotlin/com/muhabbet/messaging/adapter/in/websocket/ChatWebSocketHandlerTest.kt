@@ -7,7 +7,7 @@ import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
-import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
+import com.muhabbet.messaging.domain.port.`in`.RecordReceiptUseCase
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.protocol.WsMessage
@@ -41,7 +41,7 @@ class ChatWebSocketHandlerTest {
     private lateinit var jwtProvider: JwtProvider
     private lateinit var sessionManager: WebSocketSessionManager
     private lateinit var sendMessageUseCase: SendMessageUseCase
-    private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
+    private lateinit var recordReceiptUseCase: RecordReceiptUseCase
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var presencePort: PresencePort
     private lateinit var recordLastSeenUseCase: RecordLastSeenUseCase
@@ -65,7 +65,7 @@ class ChatWebSocketHandlerTest {
 
         sessionManager = mockk(relaxed = true)
         sendMessageUseCase = mockk(relaxed = true)
-        updateDeliveryStatusUseCase = mockk(relaxed = true)
+        recordReceiptUseCase = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
         presencePort = mockk(relaxed = true)
         recordLastSeenUseCase = mockk(relaxed = true)
@@ -82,7 +82,7 @@ class ChatWebSocketHandlerTest {
             jwtProvider = jwtProvider,
             sessionManager = sessionManager,
             sendMessageUseCase = sendMessageUseCase,
-            updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
+            recordReceiptUseCase = recordReceiptUseCase,
             conversationRepository = conversationRepository,
             presencePort = presencePort,
             recordLastSeenUseCase = recordLastSeenUseCase,

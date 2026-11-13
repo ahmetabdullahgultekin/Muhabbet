@@ -4,14 +4,10 @@ import com.muhabbet.messaging.adapter.out.persistence.entity.MessageDeliveryStat
 import com.muhabbet.messaging.adapter.out.persistence.entity.MessageDeliveryStatusJpaEntity
 import com.muhabbet.messaging.domain.model.DeliveryStatus
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
-import java.time.Instant
 import java.util.UUID
 
 interface SpringDataMessageDeliveryStatusRepository : JpaRepository<MessageDeliveryStatusJpaEntity, MessageDeliveryStatusId> {
-
-    fun findByMessageIdAndUserId(messageId: UUID, userId: UUID): MessageDeliveryStatusJpaEntity?
 
     fun findByMessageIdIn(messageIds: List<UUID>): List<MessageDeliveryStatusJpaEntity>
 
@@ -41,20 +37,12 @@ interface SpringDataMessageDeliveryStatusRepository : JpaRepository<MessageDeliv
     )
     fun countUnreadByConversations(conversationIds: List<UUID>, userId: UUID, readStatus: DeliveryStatus): List<Array<Any>>
 
-    @Modifying
+    /** `(messageId, status)` pairs, one per distinct status per message — see `findDeliveryStatusSets`. */
     @Query(
         """
-        UPDATE MessageDeliveryStatusJpaEntity ds
-        SET ds.status = :newStatus, ds.updatedAt = :now
-        WHERE ds.userId = :userId
-          AND ds.status != :newStatus
-          AND ds.messageId IN (
-            SELECT m.id FROM MessageJpaEntity m
-            WHERE m.conversationId = :conversationId
-              AND m.senderId != :userId
-              AND m.isDeleted = false
-          )
+        SELECT DISTINCT ds.messageId, ds.status FROM MessageDeliveryStatusJpaEntity ds
+        WHERE ds.messageId IN :messageIds
         """
     )
-    fun markAllAsRead(conversationId: UUID, userId: UUID, newStatus: DeliveryStatus, now: Instant): Int
+    fun findDistinctStatuses(messageIds: Collection<UUID>): List<Array<Any>>
 }
