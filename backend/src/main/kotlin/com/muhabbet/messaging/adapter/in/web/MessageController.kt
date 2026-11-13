@@ -2,8 +2,11 @@ package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.ContentType
 import com.muhabbet.messaging.domain.model.DeliveryStatus
+import com.muhabbet.messaging.domain.model.Message as DomainMessage
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
+import com.muhabbet.messaging.domain.port.`in`.MessageAnnotations
+import com.muhabbet.messaging.domain.port.`in`.ResolveMessageAnnotationsUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
@@ -42,7 +45,8 @@ class MessageController(
     private val manageMessageUseCase: ManageMessageUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
     private val updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase,
-    private val burnViewOnceUseCase: BurnViewOnceUseCase
+    private val burnViewOnceUseCase: BurnViewOnceUseCase,
+    private val resolveMessageAnnotationsUseCase: ResolveMessageAnnotationsUseCase
 ) {
 
     @GetMapping("/conversations/{conversationId}/messages")
@@ -62,10 +66,7 @@ class MessageController(
             direction = direction
         )
 
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(page.items, userId)
-        val items = page.items.map { msg ->
-            msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
-        }
+        val items = toViewerMessages(page.items, userId)
 
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = page.nextCursor, hasMore = page.hasMore)
@@ -80,10 +81,7 @@ class MessageController(
     ): ResponseEntity<ApiResponse<PaginatedResponse<SharedMessage>>> {
         val userId = AuthenticatedUser.currentUserId()
         val messages = getMessageHistoryUseCase.getMediaMessages(conversationId, userId, limit, offset)
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
-        val items = messages.map { msg ->
-            msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
-        }
+        val items = toViewerMessages(messages, userId)
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = null, hasMore = messages.size >= limit)
         )
@@ -101,10 +99,7 @@ class MessageController(
         }
 
         val messages = getMessageHistoryUseCase.getMessagesSince(userId, since)
-        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId)
-        val items = messages.map { msg ->
-            msg.toSharedMessage(statusMap[msg.id].toMessageStatus())
-        }
+        val items = toViewerMessages(messages, userId)
 
         return ApiResponseBuilder.ok(
             PaginatedResponse(items = items, nextCursor = null, hasMore = false)
@@ -240,6 +235,22 @@ class MessageController(
                 viewedAt = reveal.viewedAt.toEpochMilli()
             )
         )
+    }
+
+    /**
+     * Every history read maps through here, so the delivery status and the viewer's annotations
+     * (stars, reactions, poll tallies — #775, #781, #783) are resolved once per page, in a fixed
+     * number of queries, and no reader can forget one of them.
+     */
+    private fun toViewerMessages(messages: List<DomainMessage>, viewerId: UUID): List<SharedMessage> {
+        val statusMap = getMessageHistoryUseCase.resolveDeliveryStatuses(messages, viewerId)
+        val annotations = resolveMessageAnnotationsUseCase.resolveAnnotations(messages, viewerId)
+        return messages.map { msg ->
+            msg.toSharedMessage(
+                resolvedStatus = statusMap[msg.id].toMessageStatus(),
+                annotations = annotations[msg.id] ?: MessageAnnotations.NONE
+            )
+        }
     }
 }
 

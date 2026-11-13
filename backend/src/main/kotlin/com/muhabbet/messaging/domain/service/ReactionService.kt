@@ -30,32 +30,34 @@ open class ReactionService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /**
+     * Idempotent: a second identical add writes nothing and still answers with the current state,
+     * so a retried or double-tapped request is indistinguishable from the first (#783).
+     */
     @Transactional
-    override fun addReaction(messageId: UUID, userId: UUID, emoji: String) {
+    override fun addReaction(messageId: UUID, userId: UUID, emoji: String): List<ReactionGroup> {
         requireAllowedReaction(emoji)
         requireMemberOfMessageConversation(messageId, userId)
 
-        val existing = reactionRepository.findByMessageIdAndUserIdAndEmoji(messageId, userId, emoji)
-        if (existing != null) {
-            return
-        }
-        reactionRepository.save(
+        val added = reactionRepository.addIfAbsent(
             Reaction(
                 messageId = messageId,
                 userId = userId,
                 emoji = emoji
             )
         )
-        log.debug("Reaction added: msg={}, user={}, emoji={}", messageId, userId, emoji)
+        log.debug("Reaction add: msg={}, user={}, emoji={}, written={}", messageId, userId, emoji, added)
+        return groupsOf(messageId)
     }
 
     @Transactional
-    override fun removeReaction(messageId: UUID, userId: UUID, emoji: String) {
+    override fun removeReaction(messageId: UUID, userId: UUID, emoji: String): List<ReactionGroup> {
         requireAllowedReaction(emoji)
         requireMemberOfMessageConversation(messageId, userId)
 
         reactionRepository.deleteByMessageIdAndUserIdAndEmoji(messageId, userId, emoji)
         log.debug("Reaction removed: msg={}, user={}, emoji={}", messageId, userId, emoji)
+        return groupsOf(messageId)
     }
 
     /**
@@ -66,8 +68,13 @@ open class ReactionService(
     override fun getReactions(messageId: UUID, userId: UUID): List<ReactionGroup> {
         requireMemberOfMessageConversation(messageId, userId)
 
-        val reactions = reactionRepository.findByMessageId(messageId)
-        return reactions.groupBy { it.emoji }
+        return groupsOf(messageId)
+    }
+
+    /** Read inside the caller's transaction, so it sees that transaction's own write. */
+    private fun groupsOf(messageId: UUID): List<ReactionGroup> =
+        reactionRepository.findByMessageId(messageId)
+            .groupBy { it.emoji }
             .map { (emoji, list) ->
                 ReactionGroup(
                     emoji = emoji,
@@ -75,7 +82,6 @@ open class ReactionService(
                     userIds = list.map { it.userId }
                 )
             }
-    }
 
     /**
      * Validated before the membership lookup on purpose: a rejected payload should cost no queries,

@@ -1,6 +1,8 @@
 package com.muhabbet.messaging.adapter.`in`.web
 
 import com.muhabbet.messaging.domain.model.Message
+import com.muhabbet.messaging.domain.port.`in`.MessageAnnotations
+import com.muhabbet.shared.model.PollTally
 import com.muhabbet.shared.model.ContentType as SharedContentType
 import com.muhabbet.shared.model.Message as SharedMessage
 import com.muhabbet.shared.model.MessageStatus
@@ -23,8 +25,18 @@ import kotlinx.datetime.Instant as KInstant
  * `mediaUrl` is a **presigned** URL that needs no credential to fetch. So a view-once message leaves
  * here with its media stripped, for the sender as well as the recipient. The blob is released once,
  * by `POST /messages/{id}/view-once`, in the transaction that burns it.
+ *
+ * ### Annotations (#775, #781, #783)
+ *
+ * [annotations] carries what the *viewer* sees around the message — their star, the reactions and
+ * which are theirs, a poll's tally — resolved for a whole page at once by
+ * `ResolveMessageAnnotationsUseCase`. Defaulting to [MessageAnnotations.NONE] keeps every caller that
+ * has no viewer (a freshly sent message, an edit echo) honest: "nothing known", never a guess.
  */
-fun Message.toSharedMessage(resolvedStatus: MessageStatus = MessageStatus.SENT): SharedMessage = SharedMessage(
+fun Message.toSharedMessage(
+    resolvedStatus: MessageStatus = MessageStatus.SENT,
+    annotations: MessageAnnotations = MessageAnnotations.NONE
+): SharedMessage = SharedMessage(
     id = id.toString(),
     conversationId = conversationId.toString(),
     senderId = senderId.toString(),
@@ -46,5 +58,9 @@ fun Message.toSharedMessage(resolvedStatus: MessageStatus = MessageStatus.SENT):
     // disappearing message was due. The app could only find out by reloading and noticing it gone
     // (#513). Every REST reader of a message goes through here, so history, search, starred and
     // background sync all learn the deadline at once.
-    expiresAt = expiresAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) }
+    expiresAt = expiresAt?.let { KInstant.fromEpochMilliseconds(it.toEpochMilli()) },
+    reactions = annotations.reactions,
+    myReactions = annotations.myReactions,
+    isStarred = annotations.isStarred,
+    poll = annotations.poll?.let { PollTally(counts = it.counts, totalVotes = it.totalVotes, myVote = it.myVote) }
 )

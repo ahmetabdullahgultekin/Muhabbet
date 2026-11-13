@@ -40,6 +40,7 @@ import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PinnedMessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
+import com.muhabbet.messaging.domain.port.out.StarredMessageRepository
 import com.muhabbet.messaging.domain.port.out.ReactionRepository
 import com.muhabbet.messaging.domain.port.out.StatusRepository
 import com.muhabbet.messaging.domain.port.out.NotificationTextPort
@@ -66,6 +67,7 @@ import com.muhabbet.messaging.domain.service.GroupService
 import com.muhabbet.messaging.domain.service.InviteLinkService
 import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
+import com.muhabbet.messaging.domain.service.MessageAnnotationService
 import com.muhabbet.messaging.domain.service.PollService
 import com.muhabbet.messaging.domain.service.ReactionService
 import com.muhabbet.messaging.domain.service.SearchService
@@ -299,11 +301,26 @@ class AppConfig {
     fun pollService(
         messageRepository: MessageRepository,
         pollVoteRepository: PollVoteRepository,
-        conversationRepository: ConversationRepository
+        conversationRepository: ConversationRepository,
+        messageBroadcaster: MessageBroadcaster,
+        transactions: TransactionRunner
     ): PollService = PollService(
         messageRepository = messageRepository,
         pollVoteRepository = pollVoteRepository,
-        conversationRepository = conversationRepository
+        conversationRepository = conversationRepository,
+        messageBroadcaster = messageBroadcaster,
+        transactions = transactions
+    )
+
+    @Bean
+    fun messageAnnotationService(
+        starredMessageRepository: StarredMessageRepository,
+        reactionRepository: ReactionRepository,
+        pollVoteRepository: PollVoteRepository
+    ): MessageAnnotationService = MessageAnnotationService(
+        starredMessageRepository = starredMessageRepository,
+        reactionRepository = reactionRepository,
+        pollVoteRepository = pollVoteRepository
     )
 
     @Bean
@@ -506,11 +523,15 @@ class AppConfig {
     fun pinnedMessageService(
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
-        pinnedMessageRepository: PinnedMessageRepository
+        pinnedMessageRepository: PinnedMessageRepository,
+        messageBroadcaster: MessageBroadcaster,
+        transactions: TransactionRunner
     ): PinnedMessageService = PinnedMessageService(
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
-        pinnedMessageRepository = pinnedMessageRepository
+        pinnedMessageRepository = pinnedMessageRepository,
+        messageBroadcaster = messageBroadcaster,
+        transactions = transactions
     )
 
     @Bean

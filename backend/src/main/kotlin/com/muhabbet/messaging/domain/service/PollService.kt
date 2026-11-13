@@ -6,11 +6,14 @@ import com.muhabbet.messaging.domain.port.`in`.ManagePollUseCase
 import com.muhabbet.messaging.domain.port.`in`.PollOptionInfo
 import com.muhabbet.messaging.domain.port.`in`.PollResult
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
+import com.muhabbet.messaging.domain.port.out.MessageBroadcaster
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.messaging.domain.port.out.PollVoteRepository
+import com.muhabbet.messaging.domain.port.out.TransactionRunner
 import com.muhabbet.shared.dto.PollData
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import com.muhabbet.shared.protocol.WsMessage
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Transactional
@@ -20,38 +23,74 @@ import java.util.UUID
  * A vote changes a count everyone in the conversation sees, and the results say what a group is
  * deciding. Both were reachable with nothing but a message id until #557 — no membership check
  * existed on either path.
+ *
+ * ### Why [vote] has no `@Transactional` (#781)
+ *
+ * A vote now fans out a `poll.updated` frame to every member, so other devices see the bars move
+ * instead of a frozen poll. Same rule as every other fan-out in this module: the write runs inside
+ * [TransactionRunner.inTransaction] and the broadcast happens after it has committed, so no member
+ * is told about a vote a rollback then removed, and no pooled connection is held across the socket
+ * writes. A method-level `@Transactional` here would absorb the inner one and undo both.
  */
 open class PollService(
     private val messageRepository: MessageRepository,
     private val pollVoteRepository: PollVoteRepository,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val messageBroadcaster: MessageBroadcaster,
+    private val transactions: TransactionRunner
 ) : ManagePollUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val json = Json { ignoreUnknownKeys = true }
 
-    @Transactional
-    override fun vote(messageId: UUID, userId: UUID, optionIndex: Int): PollResult {
-        val message = requireMemberOfMessageConversation(messageId, userId)
+    private class VoteOutcome(
+        val message: Message,
+        val pollData: PollData,
+        val votes: List<PollVote>,
+        val recipients: List<UUID>
+    )
 
-        val pollData = json.decodeFromString<PollData>(message.content)
-        if (optionIndex < 0 || optionIndex >= pollData.options.size) {
-            throw BusinessException(ErrorCode.POLL_INVALID_OPTION)
+    override fun vote(messageId: UUID, userId: UUID, optionIndex: Int): PollResult {
+        val outcome = transactions.inTransaction {
+            val message = requireMemberOfMessageConversation(messageId, userId)
+
+            val pollData = json.decodeFromString<PollData>(message.content)
+            if (optionIndex < 0 || optionIndex >= pollData.options.size) {
+                throw BusinessException(ErrorCode.POLL_INVALID_OPTION)
+            }
+
+            pollVoteRepository.upsert(
+                PollVote(
+                    messageId = messageId,
+                    userId = userId,
+                    optionIndex = optionIndex
+                )
+            )
+
+            VoteOutcome(
+                message = message,
+                pollData = pollData,
+                votes = pollVoteRepository.findByMessageId(messageId),
+                recipients = conversationRepository.findMembersByConversationId(message.conversationId)
+                    .map { it.userId }
+            )
         }
 
-        // Upsert vote (remove old, add new)
-        pollVoteRepository.deleteByMessageIdAndUserId(messageId, userId)
-        pollVoteRepository.save(
-            PollVote(
-                messageId = messageId,
-                userId = userId,
-                optionIndex = optionIndex
+        val tally = tallyPoll(outcome.pollData.options.size, outcome.votes, viewerId = null)
+        messageBroadcaster.broadcastToUsers(
+            outcome.recipients,
+            WsMessage.PollUpdated(
+                messageId = messageId.toString(),
+                conversationId = outcome.message.conversationId.toString(),
+                voterId = userId.toString(),
+                optionIndex = optionIndex,
+                counts = tally.counts,
+                totalVotes = tally.totalVotes
             )
         )
 
-        val votes = pollVoteRepository.findByMessageId(messageId)
         log.debug("Poll vote recorded: msg={}, user={}, option={}", messageId, userId, optionIndex)
-        return buildResult(messageId, pollData, votes, userId)
+        return buildResult(messageId, outcome.pollData, outcome.votes, userId)
     }
 
     @Transactional(readOnly = true)
@@ -81,16 +120,14 @@ open class PollService(
         votes: List<PollVote>,
         userId: UUID
     ): PollResult {
-        val voteCounts = votes.groupBy { it.optionIndex }.mapValues { it.value.size }
-        val myVote = votes.firstOrNull { it.userId == userId }?.optionIndex
-
+        val tally = tallyPoll(pollData.options.size, votes, userId)
         return PollResult(
             messageId = messageId,
             options = pollData.options.mapIndexed { index, text ->
-                PollOptionInfo(index = index, text = text, count = voteCounts[index] ?: 0)
+                PollOptionInfo(index = index, text = text, count = tally.counts[index])
             },
-            totalVotes = votes.size,
-            myVote = myVote
+            totalVotes = tally.totalVotes,
+            myVote = tally.myVote
         )
     }
 }

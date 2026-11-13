@@ -1,5 +1,6 @@
 package com.muhabbet.shared.protocol
 
+import com.muhabbet.shared.dto.PinnedMessageInfo
 import com.muhabbet.shared.model.CallEndReason
 import com.muhabbet.shared.model.CallType
 import com.muhabbet.shared.model.ContentType
@@ -328,7 +329,50 @@ sealed class WsMessage {
         val conversationId: String,
         val userId: String,
         val emoji: String,
-        val action: String  // "add" or "remove"
+        val action: String,  // "add" or "remove"
+        /**
+         * How many users hold [emoji] on this message **after** the change (#783).
+         *
+         * Authoritative, so a client sets the count rather than adding or subtracting one: the
+         * frame is not deduplicated, and a ±1 applied twice — after a reconnect, or as the echo of
+         * this device's own optimistic change — drifted the tally from the truth for good. Null
+         * only from a server older than this field, where a client may fall back to ±1.
+         */
+        val count: Int? = null
+    ) : WsMessage()
+
+    /**
+     * Server notifies that a poll's tally changed (#781).
+     *
+     * Carries the full [counts] after the vote rather than a delta, for the same reason as
+     * [MessageReaction.count]: applying it twice is harmless. [voterId] and [optionIndex] say whose
+     * vote moved where, which is how the voter's other devices learn their own `myVote`; every other
+     * recipient keeps theirs, because a vote never changes anyone else's choice.
+     */
+    @Serializable
+    @SerialName("poll.updated")
+    data class PollUpdated(
+        val messageId: String,
+        val conversationId: String,
+        val voterId: String,
+        val optionIndex: Int,
+        val counts: List<Int>,
+        val totalVotes: Int
+    ) : WsMessage()
+
+    /**
+     * Server notifies that the set of pinned messages in a conversation changed (#790).
+     *
+     * A full snapshot, oldest pin first, rather than "this one was added": there are at most three,
+     * the snapshot is idempotent, and a client that missed a frame is corrected by the next one
+     * instead of drifting.
+     */
+    @Serializable
+    @SerialName("message.pinned")
+    data class PinnedMessagesChanged(
+        val conversationId: String,
+        val changedBy: String,
+        val pins: List<PinnedMessageInfo>
     ) : WsMessage()
 
     /** Server heartbeat response */

@@ -6,9 +6,12 @@ import com.muhabbet.messaging.domain.model.Message
 import com.muhabbet.messaging.domain.port.`in`.BurnViewOnceUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetMessageHistoryUseCase
 import com.muhabbet.messaging.domain.port.`in`.ManageMessageUseCase
+import com.muhabbet.messaging.domain.port.`in`.MessageAnnotations
 import com.muhabbet.messaging.domain.port.`in`.MessageInfo
 import com.muhabbet.messaging.domain.port.`in`.MessagePage
 import com.muhabbet.messaging.domain.port.`in`.MessageRecipient
+import com.muhabbet.messaging.domain.port.`in`.PollCounts
+import com.muhabbet.messaging.domain.port.`in`.ResolveMessageAnnotationsUseCase
 import com.muhabbet.messaging.domain.port.`in`.SendMessageCommand
 import com.muhabbet.messaging.domain.port.`in`.SendMessageUseCase
 import com.muhabbet.messaging.domain.port.`in`.UpdateDeliveryStatusUseCase
@@ -22,12 +25,16 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.UUID
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
-import java.util.UUID
 
 class MessageControllerTest {
 
@@ -36,6 +43,7 @@ class MessageControllerTest {
     private lateinit var sendMessageUseCase: SendMessageUseCase
     private lateinit var updateDeliveryStatusUseCase: UpdateDeliveryStatusUseCase
     private lateinit var burnViewOnceUseCase: BurnViewOnceUseCase
+    private lateinit var resolveMessageAnnotationsUseCase: ResolveMessageAnnotationsUseCase
     private lateinit var controller: MessageController
 
     private val userId = TestData.USER_ID_1
@@ -50,12 +58,15 @@ class MessageControllerTest {
         sendMessageUseCase = mockk()
         updateDeliveryStatusUseCase = mockk(relaxed = true)
         burnViewOnceUseCase = mockk()
+        resolveMessageAnnotationsUseCase = mockk()
+        every { resolveMessageAnnotationsUseCase.resolveAnnotations(any(), any()) } returns emptyMap()
         controller = MessageController(
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             manageMessageUseCase = manageMessageUseCase,
             sendMessageUseCase = sendMessageUseCase,
             updateDeliveryStatusUseCase = updateDeliveryStatusUseCase,
-            burnViewOnceUseCase = burnViewOnceUseCase
+            burnViewOnceUseCase = burnViewOnceUseCase,
+            resolveMessageAnnotationsUseCase = resolveMessageAnnotationsUseCase
         )
         setAuthenticatedUser(userId, deviceId)
     }
@@ -466,6 +477,60 @@ class MessageControllerTest {
             } catch (ex: BusinessException) {
                 assert(ex.errorCode == ErrorCode.MSG_NOT_MEMBER)
             }
+        }
+    }
+
+    /**
+     * #775, #781, #783: a history page carries the viewer's stars, reactions and poll tallies, so a
+     * chat opens with them instead of without them, and no bubble has to fetch its own.
+     */
+    @Nested
+    inner class ViewerAnnotations {
+
+        @Test
+        fun `should carry each message's annotations for the viewer into the history page`() {
+            val starred = TestData.textMessage(id = UUID.randomUUID(), content = "starred")
+            val plain = TestData.textMessage(id = UUID.randomUUID(), content = "plain")
+            val messages = listOf(starred, plain)
+            every {
+                getMessageHistoryUseCase.getMessages(conversationId, userId, null, 50, "before")
+            } returns MessagePage(items = messages, nextCursor = null, hasMore = false)
+            every { getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId) } returns emptyMap()
+            every { resolveMessageAnnotationsUseCase.resolveAnnotations(messages, userId) } returns mapOf(
+                starred.id to MessageAnnotations(
+                    isStarred = true,
+                    reactions = mapOf("👍" to 2),
+                    myReactions = setOf("👍"),
+                    poll = PollCounts(counts = listOf(1, 0), totalVotes = 1, myVote = 0)
+                )
+            )
+
+            val items = controller.getMessages(conversationId, null, 50, "before").body?.data?.items.orEmpty()
+
+            val first = items.first { it.id == starred.id.toString() }
+            assertTrue(first.isStarred)
+            assertEquals(mapOf("👍" to 2), first.reactions)
+            assertEquals(setOf("👍"), first.myReactions)
+            assertEquals(listOf(1, 0), first.poll?.counts)
+            assertEquals(0, first.poll?.myVote)
+
+            val second = items.first { it.id == plain.id.toString() }
+            assertFalse(second.isStarred)
+            assertTrue(second.reactions.isEmpty())
+            assertNull(second.poll)
+        }
+
+        @Test
+        fun `should resolve annotations once per page, not once per message`() {
+            val messages = List(5) { TestData.textMessage(id = UUID.randomUUID(), content = "m$it") }
+            every {
+                getMessageHistoryUseCase.getMessages(conversationId, userId, null, 50, "before")
+            } returns MessagePage(items = messages, nextCursor = null, hasMore = false)
+            every { getMessageHistoryUseCase.resolveDeliveryStatuses(messages, userId) } returns emptyMap()
+
+            controller.getMessages(conversationId, null, 50, "before")
+
+            verify(exactly = 1) { resolveMessageAnnotationsUseCase.resolveAnnotations(messages, userId) }
         }
     }
 

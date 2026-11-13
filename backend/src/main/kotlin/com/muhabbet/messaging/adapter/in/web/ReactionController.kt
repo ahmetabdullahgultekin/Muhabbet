@@ -6,6 +6,7 @@ import com.muhabbet.messaging.domain.port.`in`.ReactionGroup
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.MessageRepository
 import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.shared.dto.MessageReactionsResponse
 import com.muhabbet.shared.dto.ReactionRequest
 import com.muhabbet.shared.dto.ReactionResponse
 import com.muhabbet.shared.protocol.WsMessage
@@ -31,29 +32,40 @@ class ReactionController(
     private val sessionManager: WebSocketSessionManager
 ) {
 
+    /**
+     * Answers with the message's reactions as the caller now sees them, and broadcasts the
+     * resulting count, so neither the caller nor any other member does arithmetic on a frame that
+     * may arrive twice (#783).
+     */
     @PostMapping("/{messageId}/reactions")
     fun addReaction(
         @PathVariable messageId: UUID,
         @RequestBody request: ReactionRequest
-    ): ResponseEntity<ApiResponse<Unit>> {
+    ): ResponseEntity<ApiResponse<MessageReactionsResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageReactionUseCase.addReaction(messageId, userId, request.emoji)
-        broadcastReaction(messageId, userId, request.emoji, "add")
-        return ApiResponseBuilder.ok(Unit)
+        val groups = manageReactionUseCase.addReaction(messageId, userId, request.emoji)
+        broadcastReaction(messageId, userId, request.emoji, "add", groups)
+        return ApiResponseBuilder.ok(groups.toMessageReactions(messageId, userId))
     }
 
     @DeleteMapping("/{messageId}/reactions/{emoji}")
     fun removeReaction(
         @PathVariable messageId: UUID,
         @PathVariable emoji: String
-    ): ResponseEntity<ApiResponse<Unit>> {
+    ): ResponseEntity<ApiResponse<MessageReactionsResponse>> {
         val userId = AuthenticatedUser.currentUserId()
-        manageReactionUseCase.removeReaction(messageId, userId, emoji)
-        broadcastReaction(messageId, userId, emoji, "remove")
-        return ApiResponseBuilder.ok(Unit)
+        val groups = manageReactionUseCase.removeReaction(messageId, userId, emoji)
+        broadcastReaction(messageId, userId, emoji, "remove", groups)
+        return ApiResponseBuilder.ok(groups.toMessageReactions(messageId, userId))
     }
 
-    private fun broadcastReaction(messageId: UUID, userId: UUID, emoji: String, action: String) {
+    private fun broadcastReaction(
+        messageId: UUID,
+        userId: UUID,
+        emoji: String,
+        action: String,
+        groups: List<ReactionGroup>
+    ) {
         val message = messageRepository.findById(messageId) ?: return
         val members = conversationRepository.findMembersByConversationId(message.conversationId)
         val wsMessage = wsJson.encodeToString(
@@ -63,7 +75,8 @@ class ReactionController(
                 conversationId = message.conversationId.toString(),
                 userId = userId.toString(),
                 emoji = emoji,
-                action = action
+                action = action,
+                count = groups.firstOrNull { it.emoji == emoji }?.count ?: 0
             )
         )
         members.forEach { member -> sessionManager.sendToUser(member.userId, wsMessage) }
@@ -75,6 +88,13 @@ class ReactionController(
         val reactions = manageReactionUseCase.getReactions(messageId, userId)
         return ApiResponseBuilder.ok(reactions.map { it.toDto() })
     }
+
+    private fun List<ReactionGroup>.toMessageReactions(messageId: UUID, viewerId: UUID) =
+        MessageReactionsResponse(
+            messageId = messageId.toString(),
+            reactions = associate { it.emoji to it.count },
+            myReactions = filter { viewerId in it.userIds }.map { it.emoji }.toSet()
+        )
 
     private fun ReactionGroup.toDto() = ReactionResponse(
         emoji = emoji,

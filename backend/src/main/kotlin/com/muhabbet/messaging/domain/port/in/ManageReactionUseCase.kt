@@ -3,8 +3,12 @@ package com.muhabbet.messaging.domain.port.`in`
 import java.util.UUID
 
 interface ManageReactionUseCase {
-    fun addReaction(messageId: UUID, userId: UUID, emoji: String)
-    fun removeReaction(messageId: UUID, userId: UUID, emoji: String)
+    /**
+     * Both writes answer with every reaction on the message **after** the change, so the caller can
+     * hand the client the server's truth instead of the client's guess (#783).
+     */
+    fun addReaction(messageId: UUID, userId: UUID, emoji: String): List<ReactionGroup>
+    fun removeReaction(messageId: UUID, userId: UUID, emoji: String): List<ReactionGroup>
 
     /**
      * [userId] is the caller, not a filter: the result names everyone who reacted, so it is only

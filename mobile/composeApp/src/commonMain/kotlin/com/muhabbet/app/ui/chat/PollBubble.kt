@@ -22,12 +22,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.data.chat.toTally
 import com.muhabbet.app.data.repository.MessageRepository
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetAlphas
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.PollData
-import com.muhabbet.shared.dto.PollResultResponse
+import com.muhabbet.shared.model.PollTally
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
@@ -47,6 +48,8 @@ fun PollBubble(
     messageId: String,
     pollContent: String,
     isOwn: Boolean,
+    /** The tally that arrived with the message (#781); null only when the payload carried none. */
+    tally: PollTally?,
     modifier: Modifier = Modifier,
     messageRepository: MessageRepository = koinInject()
 ) {
@@ -66,7 +69,10 @@ fun PollBubble(
     val optionChosen =
         if (isOwn) semanticColors.bubbleOwnInsetSelected else semanticColors.bubbleOtherInsetSelected
 
-    var pollResult by remember { mutableStateOf<PollResultResponse?>(null) }
+    // Keyed on the tally the message carries, so a `poll.updated` frame that replaced it in the chat
+    // state redraws the bars here (#781). The local write below only bridges the moment between a
+    // vote's answer and that frame.
+    var pollResult by remember(messageId, tally) { mutableStateOf(tally) }
     // A bubble has no snackbar host, so a failed vote is reported inline under the poll.
     var voteFailed by remember(messageId) { mutableStateOf(false) }
     val voteFailedText = stringResource(Res.string.error_action_failed)
@@ -78,8 +84,11 @@ fun PollBubble(
         }
     }
 
-    LaunchedEffect(messageId) {
-        runCatchingCancellable { pollResult = messageRepository.getPollResults(messageId) }
+    // Only for a poll whose payload had no tally. This used to run for every poll, every time its
+    // bubble re-entered the viewport — one request per poll per scroll pass (#781).
+    LaunchedEffect(messageId, tally == null) {
+        if (tally != null) return@LaunchedEffect
+        runCatchingCancellable { pollResult = messageRepository.getPollResults(messageId).toTally() }
             .onFailure { e ->
                 // Best-effort enrichment: the poll question and options still render from the message
                 // body, only the tallies are missing. Not worth interrupting the chat for.
@@ -101,7 +110,7 @@ fun PollBubble(
         Spacer(Modifier.height(MuhabbetSpacing.XSmall))
 
         pollData.options.forEachIndexed { index, optionText ->
-            val voteCount = pollResult?.votes?.getOrNull(index)?.count ?: 0
+            val voteCount = pollResult?.counts?.getOrNull(index) ?: 0
             val totalVotes = pollResult?.totalVotes ?: 0
             val fraction = if (totalVotes > 0) voteCount.toFloat() / totalVotes else 0f
             val isMyVote = pollResult?.myVote == index
@@ -123,7 +132,7 @@ fun PollBubble(
                             // scrolling it off screen mid-vote cancels the request. A plain catch
                             // read that as a failed vote and left the error behind on a bubble the
                             // user had already scrolled past.
-                            runCatchingCancellable { pollResult = messageRepository.votePoll(messageId, index) }
+                            runCatchingCancellable { pollResult = messageRepository.votePoll(messageId, index).toTally() }
                                 .onFailure { e ->
                                     // Nothing moves on the bar when a vote fails, so the tap reads
                                     // as if it registered. Say otherwise.

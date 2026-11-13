@@ -65,7 +65,7 @@ class ReactionServiceTest {
             }
 
             assertEquals(ErrorCode.MSG_NOT_MEMBER, e.errorCode)
-            verify(exactly = 0) { reactionRepository.save(any()) }
+            verify(exactly = 0) { reactionRepository.addIfAbsent(any()) }
         }
 
         @Test
@@ -92,11 +92,9 @@ class ReactionServiceTest {
 
         @Test
         fun `should still let a member react`() {
-            every { reactionRepository.findByMessageIdAndUserIdAndEmoji(messageId, member, thumbsUp) } returns null
-
             service.addReaction(messageId, member, thumbsUp)
 
-            verify(exactly = 1) { reactionRepository.save(any()) }
+            verify(exactly = 1) { reactionRepository.addIfAbsent(any()) }
         }
 
         @Test
@@ -121,7 +119,7 @@ class ReactionServiceTest {
             }
 
             assertEquals(ErrorCode.MSG_INVALID_REACTION, e.errorCode)
-            verify(exactly = 0) { reactionRepository.save(any()) }
+            verify(exactly = 0) { reactionRepository.addIfAbsent(any()) }
         }
 
         @Test
@@ -135,14 +133,12 @@ class ReactionServiceTest {
 
         @Test
         fun `should accept every emoji the reaction bar offers`() {
-            every { reactionRepository.findByMessageIdAndUserIdAndEmoji(messageId, member, any()) } returns null
-
             com.muhabbet.shared.validation.ValidationRules.ALLOWED_REACTIONS.forEach { emoji ->
                 service.addReaction(messageId, member, emoji)
             }
 
             verify(exactly = com.muhabbet.shared.validation.ValidationRules.ALLOWED_REACTIONS.size) {
-                reactionRepository.save(any())
+                reactionRepository.addIfAbsent(any())
             }
         }
 
@@ -153,6 +149,55 @@ class ReactionServiceTest {
             }
 
             assertEquals(ErrorCode.MSG_INVALID_REACTION, e.errorCode)
+        }
+    }
+
+    /**
+     * #783: a reaction write answers with the server's truth, and a repeat of the same add is a
+     * no-op rather than a duplicate — the client reconciles from this answer, and the broadcast count
+     * is taken from it.
+     */
+    @Nested
+    inner class AuthoritativeState {
+
+        private val other = TestData.USER_ID_2
+
+        private fun reaction(user: java.util.UUID, emoji: String) =
+            com.muhabbet.messaging.domain.model.Reaction(messageId = messageId, userId = user, emoji = emoji)
+
+        @Test
+        fun `should answer an add with every reaction on the message after the write`() {
+            every { reactionRepository.findByMessageId(messageId) } returns listOf(
+                reaction(member, thumbsUp),
+                reaction(other, thumbsUp),
+                reaction(other, "❤️")
+            )
+
+            val groups = service.addReaction(messageId, member, thumbsUp)
+
+            assertEquals(mapOf(thumbsUp to 2, "❤️" to 1), groups.associate { it.emoji to it.count })
+            assertEquals(true, member in groups.first { it.emoji == thumbsUp }.userIds)
+        }
+
+        @Test
+        fun `should answer a repeated add with the same state and write nothing new`() {
+            every { reactionRepository.addIfAbsent(any()) } returns false
+            every { reactionRepository.findByMessageId(messageId) } returns listOf(reaction(member, thumbsUp))
+
+            val groups = service.addReaction(messageId, member, thumbsUp)
+
+            assertEquals(listOf(1), groups.map { it.count })
+            verify(exactly = 1) { reactionRepository.addIfAbsent(any()) }
+        }
+
+        @Test
+        fun `should answer a removal with what is left`() {
+            every { reactionRepository.findByMessageId(messageId) } returns listOf(reaction(other, thumbsUp))
+
+            val groups = service.removeReaction(messageId, member, thumbsUp)
+
+            assertEquals(listOf(1), groups.map { it.count })
+            assertEquals(false, member in groups.single().userIds)
         }
     }
 }

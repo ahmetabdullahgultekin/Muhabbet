@@ -270,7 +270,7 @@ fun MessageBubble(
                         }
                         // Poll
                         if (message.contentType == ContentType.POLL) {
-                            PollBubble(messageId = message.id, pollContent = message.content, isOwn = isOwn, modifier = Modifier.fillMaxWidth())
+                            PollBubble(messageId = message.id, pollContent = message.content, isOwn = isOwn, tally = message.poll, modifier = Modifier.fillMaxWidth())
                         }
                         // GIF
                         if (message.contentType == ContentType.GIF && message.mediaUrl != null) {

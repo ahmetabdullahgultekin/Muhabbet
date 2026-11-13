@@ -359,6 +359,39 @@ data class ReactionResponse(
     val userIds: List<String>
 )
 
+/**
+ * A message's reactions as the caller sees them, returned by adding or removing one (#783).
+ *
+ * The same two fields `Message` carries, so a client reconciles its optimistic guess by copying
+ * them over rather than by arithmetic: whatever it guessed, this is the server's answer.
+ */
+@Serializable
+data class MessageReactionsResponse(
+    val messageId: String,
+    val reactions: Map<String, Int>,
+    val myReactions: Set<String>
+)
+
+// ─── Pinned Message DTOs ───────────────────────────────
+
+@Serializable
+data class PinMessageRequest(
+    val messageId: String
+)
+
+/**
+ * One pinned message in a conversation (#790). [pinnedAt] is ISO-8601, as it always was on the
+ * wire; the type moved here from the backend controller so the client decodes the same class the
+ * server encodes.
+ */
+@Serializable
+data class PinnedMessageInfo(
+    val conversationId: String,
+    val messageId: String,
+    val pinnedBy: String,
+    val pinnedAt: String
+)
+
 // ─── Encryption DTOs ───────────────────────────────────────
 
 @Serializable

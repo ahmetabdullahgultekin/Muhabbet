@@ -121,7 +121,38 @@ data class Message(
      *
      * Meaningless unless [viewOnce] is true.
      */
-    val viewOnceViewed: Boolean = false
+    val viewOnceViewed: Boolean = false,
+    /**
+     * Whether the user reading this payload has starred this message (#775).
+     *
+     * Per viewer, resolved by the server in one batch per page — never shared between members. It
+     * used to exist only as a `remember`ed set in the chat screen that nothing ever seeded, so every
+     * chat opened with every star empty and "Star" re-sent for messages already starred.
+     */
+    val isStarred: Boolean = false,
+    /**
+     * The tally of a [ContentType.POLL] message as this viewer sees it, or null for any other
+     * message, or when the payload did not carry one (#781).
+     *
+     * Rides in the history page so a chat with five polls costs no extra request per poll; it used
+     * to be fetched by each bubble every time it scrolled back into view. Live changes arrive as
+     * `WsMessage.PollUpdated` and replace the counts wholesale.
+     */
+    val poll: PollTally? = null
+)
+
+/**
+ * Vote counts of one poll, from one viewer's perspective (#781).
+ *
+ * [counts] is indexed exactly as the poll's options are (`PollData.options`), so it carries no
+ * option text: the text is already in the message body and two copies of it could disagree.
+ * [myVote] is the viewer's own option index, or null when they have not voted.
+ */
+@Serializable
+data class PollTally(
+    val counts: List<Int>,
+    val totalVotes: Int,
+    val myVote: Int? = null
 )
 
 @Serializable

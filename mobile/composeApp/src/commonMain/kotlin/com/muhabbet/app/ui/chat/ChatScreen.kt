@@ -35,6 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.muhabbet.app.data.chat.applyPollUpdate
+import com.muhabbet.app.data.chat.applyReactionFrame
+import com.muhabbet.app.data.chat.toggleReaction
+import com.muhabbet.app.data.chat.withServerReactions
+import com.muhabbet.app.data.chat.withStarred
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.data.remote.MessageQueuedException
@@ -216,6 +221,27 @@ fun ChatScreen(
             }
     }
 
+    // Reactions (#783): decided from the message as shown, applied before the server answers,
+    // replaced by the server's answer when it comes, rolled back when it does not.
+    fun toggleReaction(msg: Message, emoji: String) {
+        val toggle = msg.toggleReaction(emoji)
+        messages = messages.map { if (it.id == msg.id) toggle.optimistic else it }
+        scope.launch {
+            runCatchingCancellable {
+                if (toggle.add) messageRepository.addReaction(msg.id, emoji)
+                else messageRepository.removeReaction(msg.id, emoji)
+            }.onSuccess { answer ->
+                messages = messages.map { it.withServerReactions(answer) }
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
+                messages = messages.map {
+                    if (it.id == msg.id) it.copy(reactions = msg.reactions, myReactions = msg.myReactions) else it
+                }
+                snackbarHostState.showSnackbar(errorActionMsg)
+            }
+        }
+    }
+
     // Typing indicator
     var typingJob by remember { mutableStateOf<Job?>(null) }
     var isTypingSent by remember { mutableStateOf(false) }
@@ -248,7 +274,6 @@ fun ChatScreen(
     var replyingTo by remember { mutableStateOf<Message?>(null) }
     var forwardMessage by remember { mutableStateOf<Message?>(null) }
     var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
-    val starredIds = remember { mutableStateOf(setOf<String>()) }
 
     // View-once and announcement mode.
     //
@@ -609,22 +634,13 @@ fun ChatScreen(
                 // while the app was asleep or whose deadline this device never learned.
                 is WsMessage.MessageExpired -> if (ws.conversationId == conversationId) messages = messages.filterNot { it.id == ws.messageId }
                 is WsMessage.MessageEdited -> if (ws.conversationId == conversationId) messages = messages.map { m -> if (m.id == ws.messageId) m.copy(content = ws.newContent, editedAt = Instant.fromEpochMilliseconds(ws.editedAt)) else m }
+                // Set from the frame's authoritative count, not ±1: the frame is not deduplicated,
+                // and the echo of this device's own optimistic change arrives here too (#783).
                 is WsMessage.MessageReaction -> if (ws.conversationId == conversationId) {
-                    messages = messages.map { m ->
-                        if (m.id == ws.messageId) {
-                            val newReactions = m.reactions.toMutableMap()
-                            val newMyReactions = m.myReactions.toMutableSet()
-                            if (ws.action == "add") {
-                                newReactions[ws.emoji] = (newReactions[ws.emoji] ?: 0) + 1
-                                if (ws.userId == currentUserId) newMyReactions.add(ws.emoji)
-                            } else {
-                                val c = (newReactions[ws.emoji] ?: 1) - 1
-                                if (c <= 0) newReactions.remove(ws.emoji) else newReactions[ws.emoji] = c
-                                if (ws.userId == currentUserId) newMyReactions.remove(ws.emoji)
-                            }
-                            m.copy(reactions = newReactions, myReactions = newMyReactions)
-                        } else m
-                    }
+                    messages = messages.map { it.applyReactionFrame(ws, currentUserId) }
+                }
+                is WsMessage.PollUpdated -> if (ws.conversationId == conversationId) {
+                    messages = messages.map { it.applyPollUpdate(ws, currentUserId) }
                 }
                 else -> {}
             }
@@ -889,7 +905,6 @@ fun ChatScreen(
                     ChatMessageList(
                         messages = messages,
                         currentUserId = currentUserId,
-                        starredIds = starredIds.value,
                         audioPlayer = audioPlayer,
                         isLoadingMore = isLoadingMore,
                         peerTyping = peerTyping,
@@ -907,27 +922,20 @@ fun ChatScreen(
                                 forwardMessage = msg
                                 scope.launch { runCatchingCancellable { forwardConversations = conversationRepository.getConversations().items }.onFailure { e -> Log.e(TAG, "Failed to load forward targets", e)
                                 snackbarHostState.showSnackbar(errorLoadConversationsMsg) } } },
+                            // Optimistic, with rollback: the star is part of the message (#775).
                             onStar = { msg, isStarred -> contextMenuMessageId = null
-                                scope.launch { runCatchingCancellable { if (isStarred) { messageRepository.unstarMessage(msg.id)
-                                starredIds.value -= msg.id } else { messageRepository.starMessage(msg.id)
-                                starredIds.value += msg.id } }.onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
+                                messages = messages.map { if (it.id == msg.id) it.withStarred(!isStarred) else it }
+                                scope.launch { runCatchingCancellable { if (isStarred) messageRepository.unstarMessage(msg.id) else messageRepository.starMessage(msg.id) }
+                                .onFailure { e -> Log.e(TAG, "Failed to toggle star on ${msg.id}", e)
+                                messages = messages.map { if (it.id == msg.id) it.withStarred(isStarred) else it }
                                 snackbarHostState.showSnackbar(errorActionMsg) } } },
                             onEdit = { msg -> contextMenuMessageId = null; editingMessageId = msg.id; messageText = msg.content },
                             onDelete = { msg -> contextMenuMessageId = null; deleteTargetId = msg.id; showDeleteDialog = true },
                             onImageClick = { fullImage = it },
-                            onReactionToggle = { msg, emoji ->
-                                scope.launch {
-                                    runCatchingCancellable {
-                                        if (emoji in msg.myReactions) messageRepository.removeReaction(msg.id, emoji)
-                                        else messageRepository.addReaction(msg.id, emoji)
-                                    }.onFailure { e ->
-                                        Log.e(TAG, "Failed to toggle reaction on ${msg.id}", e)
-                                        snackbarHostState.showSnackbar(errorActionMsg)
-                                    }
-                                }
-                            },
-                            onQuickReaction = { msg, emoji -> scope.launch { runCatchingCancellable { messageRepository.addReaction(msg.id, emoji) }.onFailure { e -> Log.e(TAG, "Failed to add reaction to ${msg.id}", e)
-                                snackbarHostState.showSnackbar(errorActionMsg) } } },
+                            // One path for both, so a quick reaction with an emoji already mine
+                            // removes it instead of POSTing a duplicate (#783).
+                            onReactionToggle = { msg, emoji -> toggleReaction(msg, emoji) },
+                            onQuickReaction = { msg, emoji -> toggleReaction(msg, emoji) },
                             onInfo = { msg -> contextMenuMessageId = null; onMessageInfo?.invoke(msg.id) },
                             // Not bookkeeping — this call *is* the view.
                             //

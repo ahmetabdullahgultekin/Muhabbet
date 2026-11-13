@@ -78,7 +78,6 @@ internal class ChatMessageActions(
 internal fun ChatMessageList(
     messages: List<Message>,
     currentUserId: String,
-    starredIds: Set<String>,
     audioPlayer: AudioPlayer,
     isLoadingMore: Boolean,
     peerTyping: Boolean,
@@ -126,7 +125,8 @@ internal fun ChatMessageList(
                 item(key = message.id) {
                     val isOwn = message.senderId == currentUserId
                     val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
-                    val isStarred = message.id in starredIds
+                    // Server-resolved per viewer (#775); it used to come from a set nothing seeded.
+                    val isStarred = message.isStarred
                     val threshold = Muhabbet.gestures.SwipeReplyThreshold
                     val maxSwipe = Muhabbet.gestures.SwipeReplyMax
                     // Animatable, not a plain Float: releasing a drag below the threshold used to

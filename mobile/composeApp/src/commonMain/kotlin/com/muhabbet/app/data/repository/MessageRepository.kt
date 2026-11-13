@@ -6,6 +6,7 @@ import com.muhabbet.app.data.remote.ApiException
 import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.generateMessageId
 import com.muhabbet.shared.dto.MessageInfoResponse
+import com.muhabbet.shared.dto.MessageReactionsResponse
 import com.muhabbet.shared.dto.PaginatedResponse
 import com.muhabbet.shared.dto.PollResultResponse
 import com.muhabbet.shared.dto.PollVoteRequest
@@ -16,6 +17,7 @@ import com.muhabbet.shared.dto.ViewOnceRevealResponse
 import com.muhabbet.shared.model.Message
 import kotlin.coroutines.cancellation.CancellationException
 import io.ktor.http.encodeURLParameter
+import io.ktor.http.encodeURLPathPart
 
 class MessageRepository(
     private val apiClient: ApiClient,
@@ -144,17 +146,39 @@ class MessageRepository(
         return response.data ?: throw Exception("Vote failed")
     }
 
+    /**
+     * One poll's tally on its own. A history page already carries every poll's tally in
+     * `Message.poll` (#781), so a chat should need this only for a poll whose payload had none —
+     * never once per bubble per scroll, which is what it used to cost.
+     */
     suspend fun getPollResults(messageId: String): PollResultResponse {
         val response = apiClient.get<PollResultResponse>("/api/v1/polls/$messageId/results")
         return response.data ?: throw Exception("Failed to load poll results")
     }
 
-    suspend fun addReaction(messageId: String, emoji: String) {
-        apiClient.post<Unit>("/api/v1/messages/$messageId/reactions", ReactionRequest(emoji))
+    /**
+     * Both reaction writes answer with the message's reactions as the server now holds them (#783).
+     * A caller that applied the change optimistically replaces its guess with this answer — see
+     * `withServerReactions` — rather than waiting for the socket echo or doing arithmetic on it.
+     *
+     * Choose between the two with `toggleReaction`, never by the call site: the quick-reaction strip
+     * used to call [addReaction] for an emoji the user already had.
+     */
+    suspend fun addReaction(messageId: String, emoji: String): MessageReactionsResponse {
+        val response = apiClient.post<MessageReactionsResponse>(
+            "/api/v1/messages/$messageId/reactions",
+            ReactionRequest(emoji)
+        )
+        return response.data ?: throw IllegalStateException("REACTION_ADD_FAILED")
     }
 
-    suspend fun removeReaction(messageId: String, emoji: String) {
-        apiClient.delete<Unit>("/api/v1/messages/$messageId/reactions/$emoji")
+    suspend fun removeReaction(messageId: String, emoji: String): MessageReactionsResponse {
+        // Encoded: an emoji is several UTF-8 bytes and some carry a variation selector, none of
+        // which may appear raw in a path segment.
+        val response = apiClient.delete<MessageReactionsResponse>(
+            "/api/v1/messages/$messageId/reactions/${emoji.encodeURLPathPart()}"
+        )
+        return response.data ?: throw IllegalStateException("REACTION_REMOVE_FAILED")
     }
 
     suspend fun getReactions(messageId: String): List<ReactionResponse> {

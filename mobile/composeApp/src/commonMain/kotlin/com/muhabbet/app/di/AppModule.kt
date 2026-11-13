@@ -12,6 +12,7 @@ import com.muhabbet.app.data.repository.DeviceLinkRepository
 import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.data.repository.EncryptionRepository
 import com.muhabbet.app.data.repository.GroupRepository
+import com.muhabbet.app.data.repository.PinnedMessageRepository
 import com.muhabbet.app.data.repository.ConversationDirectory
 import com.muhabbet.app.data.repository.InviteLinkRepository
 import com.muhabbet.app.data.repository.MediaRepository
@@ -114,6 +115,7 @@ fun appModule(): Module = module {
     // Koin resolves get() by the parameter type — left implicit this fails at startup, not at
     // compile time.
     single { MessageRepository(apiClient = get(), localCache = get<com.muhabbet.app.data.local.LocalCache>()) }
+    single { PinnedMessageRepository(apiClient = get()) }
     // Media-blob E2E (Tier 1.4) — flag-gated (E2EConfig.mediaEncryptionActive), default OFF.
     single { com.muhabbet.app.crypto.MediaEncryptor() }
     single { MediaRepository(apiClient = get(), mediaEncryptor = get()) }
