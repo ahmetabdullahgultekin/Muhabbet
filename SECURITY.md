@@ -61,18 +61,27 @@ Muhabbet implements the following security measures:
   this file claimed numbers were stored only as hashes; that was false and has been corrected.
 - **KVKK compliance** — data export endpoint; account deletion anonymises the user record. Media blobs
   in object storage are not yet erased on account deletion (#327, open).
-- **Secrets** via environment variables, no credentials in code
+- **Secrets** are supplied by environment variables on the host. Production configuration has no
+  fallback credentials: the backend and the production compose file refuse to start when one is
+  missing. This has not always held — production values were committed in the past and are public in
+  the repository history; they are being rotated. See
+  [`docs/process/security-incident-2026-11-env-prod.md`](docs/process/security-incident-2026-11-env-prod.md).
+- **Media** — full images and thumbnails alike — is handed to clients as presigned, time-limited
+  URLs (currently up to 7 days). The storage bucket grants no anonymous read.
 - **End-to-end encryption is OFF.** Messages are encrypted in transit (TLS) and are readable by the
-  server. Signal Protocol key exchange, storage and a send/receive path exist behind a default-off
-  flag; the Android primitive does not currently compile against its pinned libsignal version, so
-  the flag must not be turned on. Treat message history on the server as plaintext when assessing
+  server. A Signal Protocol send/receive path exists behind a default-off flag, but libsignal is
+  not a dependency of the app and the Signal source files are disabled, so turning the flag on would
+  encrypt nothing. Treat message history on the server as plaintext when assessing
   impact. 1.0.0 is reserved for the release that changes this.
 
 ### CI/CD Security
 - **Trivy** vulnerability scanning (filesystem + Docker images)
-- **Gitleaks** secret detection in commits
+- **Gitleaks** secret detection — on pushes and pull requests to `main`/`develop` that touch backend,
+  shared, build or infra-script paths, and weekly over full history. Its default rules match
+  `KEY=value` files but did not flag secret values quoted inside Markdown prose, so a clean run is not
+  proof that no secret is present.
 - **CodeQL** static analysis for Java/Kotlin
-- **Automated scanning** on every push + weekly scheduled scans
+- All of the above run on those path-filtered triggers plus the weekly schedule, not on every push
 
 ## Scope
 

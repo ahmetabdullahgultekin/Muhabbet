@@ -31,8 +31,8 @@
 
 | Runner | Today (2026-11-12) | Target | Interim (billing lock not cleared, no second box) |
 |---|---|---|---|
-| `muhabbet-cx43` (production host, user `deploy` in `docker` group) | Runs every job of every workflow, PRs included | **Deregistered** | **Runner service stopped and deregistered (P0)**; no CI until hosted runners or a separate box. Accepted-risk variant only (owner decision, ADR-0031 D2): kept for `main`/tag jobs with the mitigations of §6 I2 |
-| `muhabbet-mordecai` (unknown machine) | Takes jobs since ≤ 2026-10-26 | Identified and documented, or deregistered | Label changed to one nothing targets (**P0**) |
+| `muhabbet-cx43` (was the production host until the move to mordecai; now stale for Muhabbet, user `deploy` in `docker` group) | Runs every job of every workflow, PRs included | **Deregistered** | **Runner service stopped and deregistered (P0)**; no CI until hosted runners or a separate box. Accepted-risk variant only (owner decision, ADR-0031 D2): kept for `main`/tag jobs with the mitigations of §6 I2 |
+| `muhabbet-mordecai` (the owner's machine and **the current production host** — identified 2026-11-12) | Takes jobs since ≤ 2026-10-26, Dependabot PRs included, with Docker access | **Deregistered** | Runner service stopped and deregistered, or labels changed to one nothing targets (**P0**); the same reasoning as for cx43 applies, and applies first |
 | GitHub-hosted | Refused: account billing lock (CICD-04) | All PR/push/schedule CI, release build | — |
 | Non-prod self-hosted (optional, e.g. device lab, netem) | — | Dedicated VM, `--ephemeral` JIT registration, unique custom label, `push: main`/tag workflows only, no release secrets (CICD-17) | — |
 
@@ -106,7 +106,7 @@ grants per job, `persist-credentials: false` on every checkout, secrets only thr
 |---|---|---|---|
 | I1 (**P0**) | Fork PR approval | Settings → Actions → General → "Require approval for all external contributors" | Setting screenshot |
 | I2 (**P0**) | No PR- or branch-supplied code on cx43 | **Stop and deregister the runner service on `cx43`** (`./svc.sh stop && ./svc.sh uninstall`, then `./config.sh remove --token <removal token>` on the host). No workflow-level guard suffices: workflow files come from the PR/branch being run, so `if: github.event_name != 'pull_request'` or removing `pull_request` triggers stops only well-behaved PRs — a same-repo PR deletes the `if:`, a PR adds a new `on: pull_request` workflow targeting `[self-hosted, linux, x64]`, or any write-access identity pushes a branch with an unfiltered `on: push` workflow. Workflow-restricted runner groups exist only for organisations/enterprises, not a user-owned repository. The fork guard `head.repo.full_name == github.repository` is likewise insufficient. **Accepted-risk variant** (owner decision with expiry in `APPROVAL.md`): keep `cx43` for `main`/tag jobs only with all of — no write-access identity but the owner; agent GitHub App without `workflows` permission (ADR-0032 D1); **no agent session holding an owner credential with the `workflow` scope or contents-write** (until ADR-0032 D1 is proven for the harness the variant is not available: agent sessions push with the owner's credential today, and commit 235c63dd, made by an agent, changed three workflows); the **`release-tags-create` ruleset** created in Phase 0 before the variant takes effect (otherwise any contents-write identity can push a `v*` tag that runs `mobile-release.yml` on `cx43` with the signing secrets); I1; the `if:` guard as hygiene; I5. After deregistration, `deploy-hetzner`, the weekly `security.yml` cron and Backend CI on `main` pushes queue and silently expire after 24 h; manual deploys (needed for rotation) follow CLAUDE.md with `--env-file .env.prod` and a `rollback-<date>` tag | Settings → Actions → Runners lists no runner on `cx43`; `systemctl list-units 'actions.runner.*'` on the host is empty. Variant: collaborators = owner only; App has no `workflows` permission; a throwaway branch pushed by the agent identity adding an `on: push` workflow on the self-hosted labels is refused and no job appears on `cx43`; a `v*` tag pushed by the agent identity is refused |
-| I3 (**P0**) | `mordecai` | Change its labels to one nothing targets, or remove it, until identified | Runners page |
+| I3 (**P0**) | `mordecai` (production host) | Stop and deregister its runner service as in I2, or change its labels to one nothing targets | Runners page; `systemctl list-units 'actions.runner.*'` on mordecai is empty |
 | I4 (**P0**) | Disable `dependabot-auto-merge.yml` | `gh workflow disable "Dependabot auto-merge"` | `gh workflow list --all` |
 | I5 | Fresh Gradle home on any remaining self-hosted job (accepted-risk variant only) | `GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home` per job (CICD-02 path 2: init-script planting) | Job log |
 | I6 | Release builds only after I2 | Signing on cx43 only under the accepted-risk variant, never as a boundary; no long-lived key of ADR-0031 D10 is ever created on cx43 | — |
@@ -123,7 +123,7 @@ long-lived signing, device-CA, uplink or crypto key is generated before it.
 ## 8. Open questions (owner; not readable from this session)
 
 1. Current value of the fork-PR approval setting (CICD-01).
-2. What `mordecai` is, who controls it, when it was registered (between 2026-09-02 and 2026-10-26) (CICD-03).
+2. ~~What `mordecai` is~~ — answered 2026-11-12: the owner's own machine, now the production host (CICD-03).
 3. `production` environment protection and secret scoping (CICD MISS-02).
 4. Whether secret scanning, push protection and Dependabot alerts are enabled.
 5. The cause of the account billing lock and whether it can be lifted (CICD-04).

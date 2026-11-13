@@ -43,8 +43,9 @@ data class MediaProperties(
     data class MinioProperties(
         val endpoint: String = "http://localhost:9000",
         val publicEndpoint: String? = null,
-        val accessKey: String = "minioadmin",
-        val secretKey: String = "minioadmin",
+        // Empty, not a well-known default: credentials come from configuration or not at all.
+        val accessKey: String = "",
+        val secretKey: String = "",
         val bucket: String = "muhabbet-media"
     )
 }

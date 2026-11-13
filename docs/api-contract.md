@@ -43,7 +43,7 @@ Request OTP for phone number.
 **Request:**
 ```json
 {
-  "phoneNumber": "+905321234567"
+  "phoneNumber": "+905001234567"
 }
 ```
 
@@ -72,7 +72,7 @@ Verify OTP and receive JWT tokens.
 **Request:**
 ```json
 {
-  "phoneNumber": "+905321234567",
+  "phoneNumber": "+905001234567",
   "otp": "123456",
   "deviceName": "Samsung Galaxy S24",
   "platform": "android",
@@ -165,7 +165,7 @@ Get current user profile.
 {
   "data": {
     "id": "550e8400-...",
-    "phoneNumber": "+905321234567",
+    "phoneNumber": "+905001234567",
     "displayName": "Ahmet",
     "avatarUrl": "https://...",
     "about": "Merhaba!",

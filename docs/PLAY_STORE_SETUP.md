@@ -33,7 +33,7 @@ whole flow is the Play Developer account itself, which already exists.
    Nothing else. It does not need financial or account-level permissions.
 
 5. **Put the key somewhere outside the repo** — next to the keystore is sensible:
-   `C:\Users\ahabg\.keystores\muhabbet-play-publisher.json`
+   e.g. `<keystore folder>/muhabbet-play-publisher.json`
 
    Do not commit it. `.gitignore` covers `*.json` at the keystore path only because that path is
    outside the repo entirely; inside the repo there is no safe place for it.
@@ -80,7 +80,7 @@ play {
 Then:
 
 ```bash
-export PLAY_SERVICE_ACCOUNT_JSON=C:/Users/ahabg/.keystores/muhabbet-play-publisher.json
+export PLAY_SERVICE_ACCOUNT_JSON=<keystore folder>/muhabbet-play-publisher.json
 ./gradlew :mobile:composeApp:publishReleaseBundle
 ```
 

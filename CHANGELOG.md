@@ -8,6 +8,32 @@ breaking changes; 1.0.0 is reserved for the first release that ships end-to-end 
 
 ## [Unreleased]
 
+### Security — production starts only with its own credentials, and no media is public
+
+- **The production compose file no longer falls back to any credential or host** (#745). Every
+  secret it passes on (`JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ACCESS_KEY`,
+  `MINIO_SECRET_KEY`) and `MINIO_PUBLIC_ENDPOINT` is now `${VAR:?}`, so a missing value stops the
+  deploy with a message naming it instead of starting with an empty value, the MinIO root user's
+  well-known name, or a media hostname tied to a server that no longer runs production. The backend
+  and `minio-init` read the MinIO secret from `MINIO_SECRET_KEY`, never from the root password.
+  **Owner action before deploying:** the bucket-scoped `muhabbet-app` secret currently sits in the
+  production `.env.prod` under the old name `MINIO_ROOT_PASSWORD`; rename that line to
+  `MINIO_SECRET_KEY`. A missed rename refuses to start rather than running without storage.
+- **Thumbnails are no longer readable without a signature.** `minio-init` granted anonymous
+  download on the bucket's `thumbnails/` prefix at every deploy, although the app already receives
+  thumbnails as presigned, time-limited URLs like all other media. The grant is gone from both
+  compose files; the live rule is removed on the host (`infra/scripts/harden-host.sh --apply`).
+- **The backend has no fallback credentials outside the `dev` and `test` profiles.** The MinIO
+  key pair and the database password used to default to well-known development values in
+  `application.yml`; those defaults now live only in `application-dev.yml`, so any other profile
+  refuses to start without explicit values (`CredentialDefaultsTest`, `ProdComposeCredentialsTest`).
+- **The Docker build context excludes secrets.** A new `.dockerignore` keeps env files, keystores,
+  Firebase and Google service files, `.git` and build output out of what is sent to the daemon, so a
+  future broad `COPY` cannot bake them into an image.
+- **Previously exposed values were removed from the current tree** of a planning document, and the
+  docs now state where production runs (#745). Rotation, not removal, is the remedy for values in
+  history; the record is `docs/process/security-incident-2026-11-env-prod.md`.
+
 ### Fixed — ticks, scheduled messages and retries tell the truth
 
 - **Read receipts can no longer be forged, and ticks no longer go backwards** (#299). A delivery

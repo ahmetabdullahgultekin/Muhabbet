@@ -229,7 +229,7 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
 | Testing | JUnit 5 + MockK + Testcontainers + ArchUnit |
 | Code quality | JaCoCo (coverage) + detekt (static analysis) |
 | Load testing | k6 |
-| CI/CD | GitHub Actions on self-hosted runner `muhabbet-cx43` (ONE runner, one job at a time) |
+| CI/CD | GitHub Actions on self-hosted runners — `muhabbet-mordecai` is the production host and `muhabbet-cx43` is stale; both are to be removed (#745) |
 
 ## Key Files
 - `docs/ARCHITECTURE.md` — **the system described for a human**, and the right place to send anyone
@@ -991,18 +991,16 @@ evidence that it works.
 > docker inspect muhabbet-backend --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
 > ```
 
-- **Server**: Hetzner CX43 (8 vCPU / 16 GB), IP 116.203.222.213, `deploy` user, `/opt/projects/Muhabbet/`
-- **SSH is `ssh hetzner`** — `~/.ssh/config` already aliases it to `User deploy`, the right host and
-  the right key, so no `-i` and no user are needed. **Root login is disabled** and refuses with
-  `Permission denied (publickey)`; the global preferences still say `root@` and are wrong. `deploy`
-  is in the docker group, so `docker logs|inspect|exec` work without sudo.
-- **Disk sits at ~92%** (12 GB free of 150 GB) and there is **no large safe reclaim**: 34 images are
-  all in use by 36 running containers, there are no dangling or `rollback-*` images, and the space
-  is genuinely spoken for by five projects. Check `df -h /` before any build, and do not add a
-  second runner here without solving this first.
-- **The self-hosted runner is `muhabbet-cx43` and runs ONE job at a time.** A queue of CI jobs
-  therefore delays deploys and releases — cancel superseded runs rather than waiting. It is the
-  production host, so anything heavy competes with the running backend.
+- **Production runs on the owner's own server, `mordecai`** (corrected 2026-11-12). It is **not**
+  the Hetzner CX43 any more, and every older note that says "the production host is the CX43" is
+  stale. Shell access to it is the owner's; an agent has none unless the owner grants it for a task.
+- **The Hetzner CX43 is CI-only for other projects.** It still carries a stale Muhabbet runner
+  (`muhabbet-cx43`) and a stale `.env.prod`, both due to be removed (#745). Do not deploy there and
+  do not run the incident scripts there expecting production.
+- **The runner `muhabbet-mordecai` is the owner's machine — the production host.** Not an unknown
+  machine, as #745's first notes said. Any job it takes, Dependabot bumps included, runs beside the
+  production secrets with Docker access; that is why the incident record asks for it to be removed
+  or for PR jobs to move to GitHub-hosted runners (`docs/process/security-incident-2026-11-env-prod.md`).
 - **JVM flags are set in `docker-compose.prod.yml` via `JAVA_TOOL_OPTIONS`** (#489). Without them
   the JVM took 25% of the container limit as heap and chose SerialGC. Verify a change took effect
   with `docker exec muhabbet-backend java -XX:+PrintFlagsFinal -version`, not by reading the file.
@@ -1011,9 +1009,13 @@ evidence that it works.
   The token is minted from the service-account key with the OAuth2 JWT-bearer flow rather than
   `google-github-actions/auth`, because that action calls `iamcredentials.googleapis.com`, which is
   disabled on the project and made the first real run fail.
-- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.116.203.222.213.nip.io`
+- **Hosts**: API `muhabbet-api.rollingcatsoftware.com`; media `cdn-muhabbet.rollingcatsoftware.com` (the value lives in `.env.prod` — confirm it there)
   (Traefik file-provider route → `shared-minio:9000`, `passHostHeader: false` so presigned SigV4
-  validates). Both are temporary nip.io/subdomain names pending a real domain.
+  validates). The compose file has **no default** for `MINIO_PUBLIC_ENDPOINT`; it comes from
+  `.env.prod`.
+- **MinIO credentials**: the backend and `minio-init` use the bucket-scoped user `muhabbet-app`
+  (`MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY`), never the MinIO root user, and the bucket grants no
+  anonymous read — thumbnails are presigned like everything else.
 - **Containers**: `muhabbet-backend` and `muhabbet-site` (the static site from `docs/site/`, on
   `muhabbet.rollingcatsoftware.com`), plus a one-shot `minio-init`. Postgres, Redis and MinIO are
   the **shared** instances (`shared-postgres`, `shared-redis`, `shared-minio`). There is no nginx
@@ -1021,17 +1023,16 @@ evidence that it works.
   serve its own static files.
 - **Docker runtime**: Java 21 (eclipse-temurin:21-jdk-jammy for build, 21-jre-jammy for runtime)
 - **Firebase**: Phone Auth enabled, Android app `com.muhabbet.app`, credentials path via `FIREBASE_CREDENTIALS_PATH` env var
-- **Deploy** — `--env-file .env.prod` is **mandatory**:
+- **Deploy** — on the production host, from the Muhabbet checkout; `--env-file .env.prod` is **mandatory**:
   ```bash
-  cd /opt/projects/Muhabbet
   sudo docker compose --env-file .env.prod -f docker-compose.prod.yml build muhabbet-backend
   sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d muhabbet-backend
   ```
   There is **no `.env`** in that directory, only `.env.prod`, and Compose reads `.env` by default.
-  Omit the flag and `JWT_SECRET`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `MINIO_ROOT_PASSWORD`
-  all resolve to empty; the JWT boot guard then refuses to start and the container crash-loops.
-  The error says the secret is too short, which is misleading — the secret in `.env.prod` is fine,
-  it simply was never loaded.
+  Omit the flag and Compose now stops with `set JWT_SECRET in .env.prod` (and the same for the
+  Postgres, Redis and MinIO variables): every secret is `${VAR:?}`, so a missing one refuses the
+  deploy instead of starting a container with an empty value. The backend itself has no fallback
+  credentials outside the `dev`/`test` profiles either.
 - **Before deploying**, tag the current image so `latest` being overwritten does not strand you:
   `docker tag <image-id> muhabbet-muhabbet-backend:rollback-$(date +%F)`
 - **Test users**: `+905000000001` (Test Bot), `+905000000002` — prefix 500 is unallocated in Turkey
@@ -1049,7 +1050,8 @@ evidence that it works.
 
   ```bash
   # in the app: enter 5000000001, tap Continue, then read the code
-  ssh hetzner 'docker logs --since 30s muhabbet-backend 2>&1 | grep -oE "code is [0-9]{6}" | tail -1'
+  # on the production host:
+  docker logs --since 30s muhabbet-backend 2>&1 | grep -oE "code is [0-9]{6}" | tail -1
   ```
 
   Two things that will still catch you out. There is a **60-second cooldown** per number
@@ -1119,7 +1121,7 @@ evidence that it works.
   - These are NOT the Kotlin class names — they're the serialized JSON type strings. Any external client (bot, web) must use these exact strings.
 - **Message delivery flow**: Client sends `message.send` → backend saves + returns `ack(OK)` to sender + broadcasts `message.new` to recipient → recipient sends `message.ack(DELIVERED)` then `message.ack(READ)` → backend broadcasts `message.status` to sender
 - **Single tick = SENT (ServerAck OK)**: Mobile shows clock while sending, single tick after ServerAck OK. Double tick (DELIVERED/READ) requires the OTHER client to send `message.ack` back — if recipient app is closed or not processing acks, sender stays at single tick forever
-- **MinIO pre-signed URLs in Docker**: MinIO is reached inside the Docker network; pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client configured with the public endpoint — the SDK makes internal API calls (GetBucketLocation) against it that fail through the proxy. **Solution**: generate with the internal client, then string-replace the endpoint — `url.replace(mediaProperties.minio.endpoint, publicEndpoint)`, in `MinioMediaStorageAdapter` and `MinioBackupArchiveAdapter`, with `MINIO_PUBLIC_ENDPOINT` supplying the public half. **The proxy is Traefik, not nginx** (the nginx description belonged to the legacy `infra/` stack that no longer deploys): a file-provider route sends `cdn-muhabbet.116.203.222.213.nip.io` to `shared-minio:9000` with `passHostHeader: false`, which is what makes the SigV4 signature validate.
+- **MinIO pre-signed URLs in Docker**: MinIO is reached inside the Docker network; pre-signed URLs contain the endpoint they were generated with. You CANNOT use a separate MinIO client configured with the public endpoint — the SDK makes internal API calls (GetBucketLocation) against it that fail through the proxy. **Solution**: generate with the internal client, then string-replace the endpoint — `url.replace(mediaProperties.minio.endpoint, publicEndpoint)`, in `MinioMediaStorageAdapter` and `MinioBackupArchiveAdapter`, with `MINIO_PUBLIC_ENDPOINT` supplying the public half. **The proxy is Traefik, not nginx** (the nginx description belonged to the legacy `infra/` stack that no longer deploys): a file-provider route sends the public media host (`MINIO_PUBLIC_ENDPOINT`) to `shared-minio:9000` with `passHostHeader: false`, which is what makes the SigV4 signature validate.
 - **KoinApplication vs KoinContext**: `KoinApplication` composable starts a NEW Koin instance — crashes with `KoinApplicationAlreadyStartedException` when Android Activity recreates. **Fix**: Use `GlobalContext.getOrNull() ?: startKoin { ... }.koin` + `KoinContext(context = koin)`.
 - **WsClient.send() callers must try-catch**: Even though `send()` correctly throws when disconnected, ALL callers in Composables must wrap in try-catch. Uncaught exceptions in `LaunchedEffect`/`scope.launch` kill the coroutine silently or crash the collector.
 - **Phone number normalization for contact sync**: Android contacts store numbers in various formats (05XX, 5XX, 90XX, +90XX with spaces/dashes). Backend stores hash of E.164 format (`+90XXXXXXXXX`). Mobile must normalize to E.164 BEFORE hashing, otherwise hashes won't match. Use `normalizeToE164()` from `util/PhoneNormalization.kt` (shared utility — do NOT duplicate).

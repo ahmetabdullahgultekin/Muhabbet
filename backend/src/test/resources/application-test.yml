@@ -1,4 +1,8 @@
 spring:
+  # Placeholders only. Integration tests replace the datasource with their Testcontainers values;
+  # nothing in the suite talks to a real MinIO.
+  datasource:
+    password: test
   jpa:
     hibernate:
       ddl-auto: validate
@@ -11,6 +15,10 @@ spring:
     validate-on-migrate: false
 
 muhabbet:
+  media:
+    minio:
+      access-key: test-access-key
+      secret-key: test-secret-key
   jwt:
     secret: test-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256
     access-token-expiry: 900
