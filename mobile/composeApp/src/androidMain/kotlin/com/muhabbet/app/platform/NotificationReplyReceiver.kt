@@ -156,7 +156,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
             // tray entry, never a sibling, so grouping it changed nothing.
             .setAutoCancel(true)
             .setContentIntent(
-                MuhabbetNotifications.openConversationIntent(context, conversationId, senderName)
+                MuhabbetNotifications.openConversationIntent(context, conversationId)
             )
 
         if (!sent) {

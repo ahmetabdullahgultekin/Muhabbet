@@ -57,6 +57,11 @@ kotlin {
             implementation("com.arkivanov.decompose:decompose:$decompose")
             implementation("com.arkivanov.decompose:extensions-compose:$decompose")
 
+            // collectAsStateWithLifecycle (ADR 0010): screens stop collecting a Store's state while
+            // the app is in the background. Pinned to the version Compose Multiplatform 1.11.1
+            // itself requires, so this adds the API without moving the resolved version.
+            implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.9.6")
+
             // DI — Koin
             implementation("io.insert-koin:koin-core:$koin")
             implementation("io.insert-koin:koin-compose:$koin")

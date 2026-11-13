@@ -37,8 +37,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep linking: muhabbet://chat/{conversationId} -->
-            <intent-filter android:autoVerify="true">
+            <!-- Deep linking: muhabbet://chat/{conversationId}. No autoVerify: verification is an
+                 https App Links concept and means nothing for a custom scheme (#815). -->
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

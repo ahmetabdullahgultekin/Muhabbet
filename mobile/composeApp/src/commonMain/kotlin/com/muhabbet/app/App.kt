@@ -16,6 +16,7 @@ import com.muhabbet.app.data.repository.PushTokenRegistrar
 import com.muhabbet.app.crypto.E2EConfig
 import com.muhabbet.app.data.repository.E2ESetupService
 import com.muhabbet.app.di.bootstrapOrReuseKoin
+import com.muhabbet.app.navigation.MainDependencies
 import com.muhabbet.app.navigation.RootComponent
 import com.muhabbet.app.navigation.RootContent
 import com.muhabbet.app.navigation.isSessionActive
@@ -33,7 +34,11 @@ import org.koin.compose.koinInject
 import org.koin.core.module.Module
 
 @Composable
-fun App(componentContext: ComponentContext, platformModule: Module) {
+fun App(
+    componentContext: ComponentContext,
+    platformModule: Module,
+    onBackWhileLocked: () -> Unit = {}
+) {
     val koin = remember { bootstrapOrReuseKoin(platformModule) }
 
     KoinContext(koin = koin) {
@@ -44,7 +49,8 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         // Inside it, the theme mode becoming state would put it under a boundary that recomposes on
         // every theme change — and a re-created RootComponent silently resets the user to the start
         // of the app.
-        val root = remember { RootComponent(componentContext, tokenStorage) }
+        val mainDependencies: MainDependencies = koinInject()
+        val root = remember { RootComponent(componentContext, tokenStorage, mainDependencies, onBackWhileLocked) }
         val themeMode by themeController.mode.collectAsState()
         val hapticsEnabled by themeController.hapticsEnabled.collectAsState()
 

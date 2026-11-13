@@ -16,6 +16,7 @@ import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.arkivanov.decompose.value.Value
+import com.arkivanov.essenty.backhandler.BackCallback
 import com.muhabbet.app.BuildInfo
 import com.muhabbet.app.data.local.TokenStorage
 import com.muhabbet.app.ui.notice.shouldShowTestBuildNotice
@@ -26,7 +27,14 @@ import kotlinx.serialization.Serializable
 
 class RootComponent(
     componentContext: ComponentContext,
-    private val tokenStorage: TokenStorage
+    private val tokenStorage: TokenStorage,
+    private val mainDependencies: MainDependencies,
+    /**
+     * What back does while App Lock's cover is up. On Android, `moveTaskToBack`: the app goes to the
+     * background exactly as back from a start screen would, and the stack under the cover is not
+     * touched (#803).
+     */
+    onBackWhileLocked: () -> Unit
 ) : ComponentContext by componentContext {
 
     private val navigation = StackNavigation<Config>()
@@ -52,7 +60,19 @@ class RootComponent(
     val testBuildNoticePending: Boolean =
         shouldShowTestBuildNotice(tokenStorage.getTestBuildNoticeAckVersion(), BuildInfo.VERSION)
 
+    /**
+     * Consumes back while the lock cover is shown — the highest priority in the app, so it wins over
+     * every screen's own modes and over the stack's pop (see `ScreenBack.kt`).
+     *
+     * Without it, back behind the cover popped screens the user could not see, and at the root it
+     * closed the app; a cover that lets input through to what it covers is not a lock.
+     */
+    private val lockCoverBackCallback = BackCallback(isEnabled = false, priority = BackCallback.PRIORITY_MAX) {
+        onBackWhileLocked()
+    }
+
     init {
+        backHandler.register(lockCoverBackCallback)
         // A device that has never recorded a version records one now, before any screen composes and
         // therefore before the release-notes sheet can ask (#672). Doing it here rather than in the
         // sheet keeps the two apart: the sheet decides whether to *show*, and it never has to reason
@@ -81,9 +101,14 @@ class RootComponent(
             Config.Main -> {
                 val openAtLanguageSettings = pendingLanguageSettings
                 pendingLanguageSettings = false
-                Child.Main(MainComponent(componentContext, ::onLogout, openAtLanguageSettings))
+                Child.Main(MainComponent(componentContext, mainDependencies, ::onLogout, openAtLanguageSettings))
             }
         }
+
+    /** Reported by `AppLockGate` as its cover appears and disappears. */
+    fun onLockCoverShown(shown: Boolean) {
+        lockCoverBackCallback.isEnabled = shown
+    }
 
     private fun onAuthComplete() {
         navigation.replaceAll(Config.Main)
@@ -163,7 +188,7 @@ fun RootContent(root: RootComponent) {
         // Last inside the Box, so the lock cover draws over the welcome flow rather than under it.
         // A lock that an introduction could hide would not be a lock.
         if (isMain) {
-            AppLockGate()
+            AppLockGate(onCoverShown = root::onLockCoverShown)
         }
     }
 }

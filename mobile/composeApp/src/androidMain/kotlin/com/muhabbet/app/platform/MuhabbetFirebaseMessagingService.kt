@@ -91,7 +91,7 @@ class MuhabbetFirebaseMessagingService : FirebaseMessagingService() {
         val notificationId = MuhabbetNotifications.notificationId(conversationId)
         val accentColor = MuhabbetNotifications.accentColor(context)
         val openPendingIntent =
-            MuhabbetNotifications.openConversationIntent(context, conversationId, senderName)
+            MuhabbetNotifications.openConversationIntent(context, conversationId)
         val sender = MuhabbetNotifications.senderPerson(senderName, senderId)
 
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager

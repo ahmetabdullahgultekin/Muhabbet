@@ -140,6 +140,28 @@ fun appModule(): Module = module {
     // App Lock (#378) — singleton for the same reason: AppLockScreen writes it, AppLockGate
     // (mounted once, above the whole authenticated app) reads it, and a second copy could disagree.
     single { com.muhabbet.app.data.local.AppLockController(tokenStorage = get()) }
+    // What the signed-in navigation builds its destinations from (ADR 0010). Each Store factory
+    // makes a fresh Store; the destination's InstanceKeeper decides when one is needed.
+    single {
+        val directory: ConversationDirectory = get()
+        val moderation: ModerationRepository = get()
+        val appLock: com.muhabbet.app.data.local.AppLockController = get()
+        val conversations: ConversationRepository = get()
+        val directChatOpener = com.muhabbet.app.ui.profile.DirectChatOpener { userId ->
+            conversations.createDirectConversation(userId).id
+        }
+        com.muhabbet.app.navigation.MainDependencies(
+            pendingChatOpen = get(),
+            conversationLookup = com.muhabbet.app.navigation.ConversationLookup { id ->
+                directory.lookUp(setOf(id))[id]
+            },
+            blockedUsersStore = { pending -> com.muhabbet.app.ui.privacy.BlockedUsersStore(moderation, pending) },
+            appLockSettingsStore = { com.muhabbet.app.ui.settings.AppLockSettingsStore(appLock) },
+            directChatStore = { userId, knownConversationId ->
+                com.muhabbet.app.ui.profile.DirectChatStore(userId, knownConversationId, directChatOpener)
+            }
+        )
+    }
     // Foreground/background state. Written in exactly one place (App.kt, from the lifecycle
     // RootComponent already carries) and read by any screen that must act when the user comes back
     // — an open chat re-asserting its read receipt, today. A singleton because a second copy could

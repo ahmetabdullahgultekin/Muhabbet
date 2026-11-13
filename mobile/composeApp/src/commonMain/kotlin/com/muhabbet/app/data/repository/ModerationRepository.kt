@@ -17,7 +17,7 @@ import com.muhabbet.shared.dto.CreateReportRequest
  */
 class ModerationRepository(
     private val apiClient: ApiClient
-) {
+) : BlockList {
 
     companion object {
         internal const val BASE_PATH = "/api/v1/moderation"
@@ -30,7 +30,7 @@ class ModerationRepository(
         apiClient.post<Unit>("$BLOCKS_PATH/$userId", Unit)
     }
 
-    suspend fun unblockUser(userId: String) {
+    override suspend fun unblockUser(userId: String) {
         apiClient.delete<Unit>("$BLOCKS_PATH/$userId")
     }
 
@@ -44,7 +44,7 @@ class ModerationRepository(
      * `data` (an empty-body 2xx) reads as "nobody blocked" rather than throwing; a real rejection
      * still throws via [com.muhabbet.app.data.remote.ApiException], same as every other call here.
      */
-    suspend fun getBlockedUsers(): List<BlockedUserResponse> =
+    override suspend fun getBlockedUsers(): List<BlockedUserResponse> =
         apiClient.get<List<BlockedUserResponse>>(BLOCKS_PATH).data ?: emptyList()
 
     /**

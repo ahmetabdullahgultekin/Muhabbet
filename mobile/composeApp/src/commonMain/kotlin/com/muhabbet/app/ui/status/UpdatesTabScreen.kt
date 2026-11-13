@@ -96,7 +96,6 @@ import com.muhabbet.designsystem.modifier.pressable
 fun UpdatesTabScreen(
     onStatusClick: (userId: String, displayName: String) -> Unit,
     onSettings: () -> Unit,
-    refreshKey: Int = 0,
     showTopBar: Boolean = true,
     statusRepository: StatusRepository = koinInject(),
     conversationRepository: ConversationRepository = koinInject(),
@@ -190,7 +189,7 @@ fun UpdatesTabScreen(
         isLoading = false
     }
 
-    LaunchedEffect(refreshKey) {
+    LaunchedEffect(Unit) {
         loadUpdates()
     }
 

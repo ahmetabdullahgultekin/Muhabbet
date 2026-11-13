@@ -42,6 +42,8 @@ internal object MuhabbetNotifications {
 
     const val EXTRA_CONVERSATION_ID = "conversationId"
     const val EXTRA_SENDER_NAME = "senderName"
+    /** See [NotificationLaunchToken]. Only on intents that launch `MainActivity`. */
+    const val EXTRA_LAUNCH_TOKEN = "launchToken"
     const val EXTRA_CONVERSATION_TYPE = "conversationType"
 
     /** Matches `PushNotificationComposer.KEY_SENDER_ID` on the server; unused before #595/#623. */
@@ -70,26 +72,30 @@ internal object MuhabbetNotifications {
     fun accentColor(context: Context): Int =
         ContextCompat.getColor(context, R.color.muhabbet_notification_accent)
 
-    /** The Activity-launching intent shared by a direct tap and a Conversations-section shortcut. */
+    /**
+     * The Activity-launching intent shared by a direct tap and a Conversations-section shortcut.
+     *
+     * Carries the conversation and [NotificationLaunchToken], which is how `MainActivity` tells this
+     * intent from one any other app could send it. It carries no name: the chat resolves its own
+     * title, and a name on an intent is whatever the intent's sender chose (#815).
+     */
     private fun conversationTargetIntent(
         context: Context,
-        conversationId: String?,
-        senderName: String?
+        conversationId: String?
     ): Intent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         if (conversationId != null) {
             putExtra(EXTRA_CONVERSATION_ID, conversationId)
-            putExtra(EXTRA_SENDER_NAME, senderName)
+            putExtra(EXTRA_LAUNCH_TOKEN, NotificationLaunchToken.current(context))
         }
     }
 
-    /** Opens the app on the named conversation. */
+    /** Opens the app on the given conversation. */
     fun openConversationIntent(
         context: Context,
-        conversationId: String?,
-        senderName: String?
+        conversationId: String?
     ): PendingIntent {
-        val intent = conversationTargetIntent(context, conversationId, senderName)
+        val intent = conversationTargetIntent(context, conversationId)
         return PendingIntent.getActivity(
             context,
             notificationId(conversationId),
@@ -126,7 +132,7 @@ internal object MuhabbetNotifications {
         sender: Person
     ) {
         runCatching {
-            val intent = conversationTargetIntent(context, conversationId, sender.name?.toString())
+            val intent = conversationTargetIntent(context, conversationId)
                 .apply { action = Intent.ACTION_VIEW }
 
             val shortcut = ShortcutInfoCompat.Builder(context, conversationId)

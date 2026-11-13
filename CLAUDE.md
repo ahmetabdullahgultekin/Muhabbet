@@ -219,9 +219,19 @@ Uses `kotlinx.serialization` for JSON — same serialization on both sides.
     `PrivacySettingsController`, `AppLockController`, `WsClient` — and Stores observe them. **A value
     two screens display must still come from one of those singletons**; two copies is how the app
     once showed two read-receipt switches that disagreed.
-  - **Status at 2434324: not yet migrated.** Screens still hold state in `remember` and
-    `koinInject()` repositories; migration is tracked in epic #761 and ratcheted by `verifyUi`.
-    Do not add new screens in the old style.
+  - **Status: foundation in place, most screens not yet migrated** (epic #761, ratcheted by
+    `verifyUi`). The toolkit is `app/presentation/`: `Store` (base class), `retainedStore`,
+    `componentScope`, `StateKeeper.saved`. Every Main/Auth entry already has its own
+    `ComponentContext` (`MainComponent.createChild`); unmigrated screens are `Child.Screen`. The
+    reference migrations to copy are **BlockedUsers** (Store + StateKeeper round trip), **AppLock
+    settings** (Store observing a singleton, platform prompt as an effect) and **About** (component
+    without a Store). Do not add new screens in the old style.
+  - Navigation: every open goes through `navigatedTo`/`replacedTopWith` (`NavDestination.kt`) —
+    one entry per destination, re-opening returns to it. `verifyUi` rule `delicatePush` = 0.
+  - Back resolves innermost first by Essenty priority (`presentation/ScreenBack.kt`): App Lock
+    cover (`PRIORITY_MAX`, root) > a destination's in-screen mode (`ScreenBackHandler`, or a
+    `BackCallback` from its component) > the stack pop (predictive back, registered through
+    `belowScreenModes()`; stacks use `handleBackButton = false`) > the platform.
   - Not AndroidX `ViewModel`: `InstanceKeeper` is Decompose's equivalent and keeps one lifecycle model.
 - Architecture: Clean Architecture (data/domain/presentation per feature)
 

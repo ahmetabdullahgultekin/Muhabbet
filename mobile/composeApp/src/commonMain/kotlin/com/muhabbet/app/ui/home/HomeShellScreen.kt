@@ -63,6 +63,7 @@ import com.muhabbet.composeapp.generated.resources.search_messages_placeholder
 import com.muhabbet.composeapp.generated.resources.settings_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import com.muhabbet.app.presentation.ScreenBackHandler
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
@@ -91,13 +92,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.muhabbet.designsystem.components.SectionHeader
 
-private enum class HomeTab {
-    COMMUNITIES,
-    CHATS,
-    UPDATES,
-    CALLS
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeShellScreen(
@@ -108,15 +102,20 @@ fun HomeShellScreen(
     onCommunityClick: (String) -> Unit = {},
     onCreateCommunity: () -> Unit = {},
     onOpenArchived: () -> Unit = {},
-    refreshKey: Int = 0,
     conversationRepository: ConversationRepository = koinInject(),
     messageRepository: MessageRepository = koinInject(),
     tokenStorage: TokenStorage = koinInject()
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(HomeTab.CHATS) }
+    var mode by rememberSaveable(stateSaver = HomeModeSaver) { mutableStateOf<HomeMode>(HomeMode.Browsing(START_TAB)) }
+    val selectedTab = mode.tab
+    val isSearchActive = mode is HomeMode.Searching
+    val searchQuery = (mode as? HomeMode.Searching)?.query.orEmpty()
     var showMoreMenu by remember { mutableStateOf(false) }
-    var isSearchActive by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+
+    // Back closes search, then returns to Chats, and only then leaves the app (#803).
+    ScreenBackHandler(enabled = mode.afterBack() != null) {
+        mode.afterBack()?.let { mode = it }
+    }
     // Message hits, separate from the conversation filter below. Until #638 this screen had no such
     // state at all: it filtered the loaded conversation list by name and never asked the server, so
     // searching for a word you had typed in a chat returned "No results found" while the message sat
@@ -188,7 +187,7 @@ fun HomeShellScreen(
     val selectTab: (HomeTab) -> Unit = { tab ->
         if (tab != selectedTab) {
             haptics.perform(MuhabbetHapticIntent.TabSwitched)
-            selectedTab = tab
+            mode = HomeMode.Browsing(tab)
         }
     }
 
@@ -218,7 +217,7 @@ fun HomeShellScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { newQuery ->
-                                searchQuery = newQuery
+                                mode = HomeMode.Searching(mode.tab, newQuery)
                                 // Two characters before asking the server. One character matches
                                 // most of a person's history and the request is wasted; zero
                                 // characters is the user clearing the field, which must clear the
@@ -258,8 +257,7 @@ fun HomeShellScreen(
                             icon = Muhabbet.icons.Back,
                             contentDescription = backDesc,
                             onClick = {
-                            isSearchActive = false
-                            searchQuery = ""
+                            mode = HomeMode.Browsing(mode.tab)
                         }
                         )
                     },
@@ -274,8 +272,7 @@ fun HomeShellScreen(
                             icon = Muhabbet.icons.Search,
                             contentDescription = searchDesc,
                             onClick = {
-                            isSearchActive = true
-                            searchQuery = ""
+                            mode = HomeMode.Searching(mode.tab)
                         }
                         )
                         Box {
@@ -360,8 +357,7 @@ fun HomeShellScreen(
                                 conversation = conv,
                                 target = target,
                                 onClick = {
-                                    isSearchActive = false
-                                    searchQuery = ""
+                                    mode = HomeMode.Browsing(mode.tab)
                                     onConversationClick(target)
                                 }
                             )
@@ -378,8 +374,7 @@ fun HomeShellScreen(
                                     currentUserId = currentUserId,
                                     fallbackName = defaultChatName,
                                     onClick = { target ->
-                                        isSearchActive = false
-                                        searchQuery = ""
+                                        mode = HomeMode.Browsing(mode.tab)
                                         messageResults = emptyList()
                                         onConversationClick(target)
                                     }
@@ -417,14 +412,12 @@ fun HomeShellScreen(
                             onSettings = onSettings,
                             onStatusClick = onStatusClick,
                             onOpenArchived = onOpenArchived,
-                            refreshKey = refreshKey,
                             showTopBar = false,
                             showStatusRow = false
                         )
                         HomeTab.UPDATES -> UpdatesTabScreen(
                             onStatusClick = onStatusClick,
                             onSettings = onSettings,
-                            refreshKey = refreshKey,
                             showTopBar = false
                         )
                         HomeTab.CALLS -> CallHistoryScreen(

@@ -85,6 +85,7 @@ import org.koin.compose.koinInject
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.app.ui.transition.handoffAvatar
+import com.muhabbet.app.presentation.ScreenBackHandler
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetTopBarDefaults
 import com.muhabbet.designsystem.components.MuhabbetIconButton
@@ -247,6 +248,16 @@ fun ChatScreen(
     var contextMenuMessageId by remember { mutableStateOf<String?>(null) }
     var replyingTo by remember { mutableStateOf<Message?>(null) }
     var forwardMessage by remember { mutableStateOf<Message?>(null) }
+
+    // Back cancels an edit, then a reply, before it leaves the chat (#803).
+    val pendingComposerBack = composerBack(isEditing = editingMessageId != null, isReplying = replyingTo != null)
+    ScreenBackHandler(enabled = pendingComposerBack != null) {
+        when (pendingComposerBack) {
+            ComposerBack.CancelEdit -> { editingMessageId = null; messageText = "" }
+            ComposerBack.CancelReply -> replyingTo = null
+            null -> Unit
+        }
+    }
     var forwardConversations by remember { mutableStateOf<List<ConversationResponse>>(emptyList()) }
     val starredIds = remember { mutableStateOf(setOf<String>()) }
 

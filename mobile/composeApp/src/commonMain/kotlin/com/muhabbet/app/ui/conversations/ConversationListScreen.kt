@@ -65,7 +65,6 @@ fun ConversationListScreen(
     onSettings: () -> Unit,
     onStatusClick: (userId: String, displayName: String) -> Unit = { _, _ -> },
     onOpenArchived: () -> Unit = {},
-    refreshKey: Int = 0,
     showTopBar: Boolean = true,
     showStatusRow: Boolean = true,
     conversationRepository: ConversationRepository = koinInject(),
@@ -159,8 +158,9 @@ fun ConversationListScreen(
         }
     }
 
-    // Load on initial + refreshKey changes
-    LaunchedEffect(refreshKey, showStatusRow) {
+    // Loaded when this list is composed, and kept current by the WebSocket collector below. Not on a
+    // navigation counter: popping Settings says nothing about whether conversations changed (#828).
+    LaunchedEffect(showStatusRow) {
         loadConversations()
         if (showStatusRow) {
             // Deliberately absorbed. The status row is an optional strip above a conversation list

@@ -52,6 +52,11 @@ private const val TERMS_URL = "https://muhabbet.rollingcatsoftware.com/terms.htm
  * manifest), and hand-writing one here would drift from the real dependency set the moment it
  * changed. Left as a follow-up rather than invented.
  */
+@Composable
+fun AboutScreen(component: AboutComponent) {
+    AboutScreen(onBack = component.onBack, onReleaseNotes = component.onReleaseNotes)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(onBack: () -> Unit, onReleaseNotes: () -> Unit) {

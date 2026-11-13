@@ -1,5 +1,6 @@
 package com.muhabbet.app
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
@@ -17,8 +18,11 @@ import com.arkivanov.decompose.defaultComponentContext
 import com.muhabbet.app.di.androidPlatformModule
 import com.muhabbet.app.di.bootstrapOrReuseKoin
 import com.muhabbet.app.navigation.ChatOpenRequest
+import com.muhabbet.app.navigation.DeepLink
+import com.muhabbet.app.navigation.DeepLinkParser
 import com.muhabbet.app.navigation.PendingChatOpen
 import com.muhabbet.app.platform.MuhabbetNotifications
+import com.muhabbet.app.platform.NotificationLaunchToken
 import java.util.Locale
 
 /**
@@ -51,8 +55,13 @@ class MainActivity : FragmentActivity() {
         val platformModule = androidPlatformModule(applicationContext)
 
         // Before setContent, so a notification that started the process has already parked its
-        // request by the time the composition first reads it.
-        handleChatIntent(intent, platformModule)
+        // request by the time MainComponent builds its initial stack (#823).
+        //
+        // Only on a fresh start (#815). A recreation — rotation, the language switch — or a restore
+        // after process death hands this Activity its original launch intent again, while Decompose
+        // restores a stack that already contains whatever that intent opened. Acting on it again
+        // pushed the chat a second time, and made a linked chat impossible to leave by rotating.
+        if (savedInstanceState == null) handleLaunchIntent(intent, platformModule)
 
         setContent {
             // Publish every Modifier.testTag as the Android view resource-id that uiautomator
@@ -60,7 +69,9 @@ class MainActivity : FragmentActivity() {
             // instrumentation can address a control only by its visible text — which breaks
             // for icon-only controls and for every locale but the one the test was written in.
             Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-                App(componentContext, platformModule)
+                // Back behind App Lock's cover sends the app to the background, as back from a start
+                // screen would, without touching the stack the cover hides (#803).
+                App(componentContext, platformModule, onBackWhileLocked = { moveTaskToBack(true) })
             }
         }
     }
@@ -90,54 +101,53 @@ class MainActivity : FragmentActivity() {
      * through `onCreate`. Handling only `onCreate` fixes the rarer path and leaves the common one
      * broken, which is indistinguishable from not fixing it.
      *
-     * `setIntent` so that `getIntent()` afterwards returns the new one rather than the stale
-     * launch intent; the platform does not do this for us.
+     * [handleLaunchIntent] replaces `getIntent()` with a consumed copy, so nothing later reads the
+     * request a second time; the platform does not do this for us.
      */
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
-        handleChatIntent(intent, androidPlatformModule(applicationContext))
+        handleLaunchIntent(intent, androidPlatformModule(applicationContext))
     }
 
     /**
-     * Parks a request to open a conversation, from either source that can carry one.
+     * Parks a request to open a conversation, if the intent carries a trustworthy one, and consumes
+     * the intent either way.
      *
-     * Until #594 the conversation id was written onto the notification's intent and read by nobody
-     * — `MainActivity` never called `getStringExtra`, so every tap landed on the conversation list.
-     * The `muhabbet://chat/{id}` intent-filter in the manifest had the same shape of problem: it
-     * was declared, so the link opened the app, and nothing then looked at the URL.
-     *
-     * Deliberately tolerant: a malformed link or an intent with nothing on it parks nothing and the
-     * app opens where it always does. There is no user-visible failure mode worth inventing here.
+     * Consumed means `getIntent()` is replaced by a copy with no data and no extras. Removing only the
+     * conversation extra, as this used to, left `intent.data` in place, so a `muhabbet://chat/{id}`
+     * link replayed on every recreation (#815).
      */
-    private fun handleChatIntent(intent: android.content.Intent?, platformModule: org.koin.core.module.Module) {
-        val intent = intent ?: return
+    private fun handleLaunchIntent(intent: Intent, platformModule: org.koin.core.module.Module) {
+        val request = chatOpenRequestFrom(intent)
+        setIntent(Intent(intent).apply {
+            data = null
+            replaceExtras(Bundle())
+        })
+        request ?: return
+        bootstrapOrReuseKoin(platformModule).get<PendingChatOpen>().request(request)
+    }
 
+    /**
+     * The two sources that may open a chat:
+     *  - one of this app's own notifications, recognised by [NotificationLaunchToken] — the Activity
+     *    is exported, so a bare `conversationId` extra could come from any installed app;
+     *  - a link, parsed by [DeepLinkParser], which accepts a well-formed conversation id and nothing
+     *    else.
+     *
+     * Neither supplies a name. The chat resolves its own title (#815).
+     */
+    private fun chatOpenRequestFrom(intent: Intent): ChatOpenRequest? {
         val fromNotification = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
-        val fromDeepLink = intent.data
-            ?.takeIf { it.host == DEEP_LINK_CHAT_HOST || it.pathSegments.firstOrNull() == DEEP_LINK_CHAT_HOST }
-            ?.pathSegments
-            ?.lastOrNull()
+            ?.takeIf { NotificationLaunchToken.matches(this, intent.getStringExtra(MuhabbetNotifications.EXTRA_LAUNCH_TOKEN)) }
+            ?.takeIf(DeepLinkParser::isUuid)
+        if (fromNotification != null) return ChatOpenRequest(conversationId = fromNotification)
 
-        val conversationId = (fromNotification ?: fromDeepLink)?.takeIf { it.isNotBlank() } ?: return
-
-        // Consumed on the way in so a configuration change — or the language switch, which recreates
-        // this Activity on purpose — cannot replay the same navigation a second time.
-        intent.removeExtra(MuhabbetNotifications.EXTRA_CONVERSATION_ID)
-
-        val isGroup = intent.getStringExtra(MuhabbetNotifications.EXTRA_CONVERSATION_TYPE) ==
-            MuhabbetNotifications.CONVERSATION_TYPE_GROUP
-
-        bootstrapOrReuseKoin(platformModule)
-            .get<PendingChatOpen>()
-            .request(
-                ChatOpenRequest(
-                    conversationId = conversationId,
-                    // Present for a notification, absent for a deep link — the consumer resolves it.
-                    displayName = intent.getStringExtra(MuhabbetNotifications.EXTRA_SENDER_NAME),
-                    isGroup = isGroup
-                )
-            )
+        val uri = intent.data ?: return null
+        return when (val link = DeepLinkParser.parse(uri.scheme, uri.host, uri.pathSegments)) {
+            is DeepLink.Chat -> ChatOpenRequest(conversationId = link.conversationId)
+            // No in-app join flow exists yet; an invite link opens the app where it always does.
+            is DeepLink.Invite, DeepLink.Unknown -> null
+        }
     }
 
     override fun onResume() {
@@ -164,11 +174,4 @@ class MainActivity : FragmentActivity() {
         resources.updateConfiguration(config, resources.displayMetrics)
     }
 
-    private companion object {
-        /**
-         * `muhabbet://chat/{id}` puts `chat` in the host; the `https://` app link puts it in the
-         * first path segment. Both filters are in the manifest, so both are checked.
-         */
-        const val DEEP_LINK_CHAT_HOST = "chat"
-    }
 }

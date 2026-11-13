@@ -460,6 +460,7 @@
     <string name="profile_unblock_confirm">Bu kişinin engelini kaldırmak istediğinize emin misiniz?</string>
     <string name="profile_unblock_success">Engel kaldırıldı</string>
     <string name="profile_unblock_failed">Engel kaldırılamadı</string>
+    <string name="profile_message_failed">Sohbet açılamadı</string>
     <string name="profile_report_confirm">Bu kişiyi şikayet etmek istediğinize emin misiniz?</string>
     <string name="profile_report_success">Şikayet gönderildi</string>
     <string name="profile_report_failed">Şikayet gönderilemedi</string>

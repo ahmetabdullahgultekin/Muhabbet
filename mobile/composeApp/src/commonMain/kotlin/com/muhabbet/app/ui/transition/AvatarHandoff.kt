@@ -3,8 +3,10 @@ package com.muhabbet.app.ui.transition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.State
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 
 /**
@@ -32,20 +34,30 @@ import androidx.compose.ui.Modifier
  * price is that *we* decide which of the two copies is the real one. See [handoffAvatar].
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
-@Immutable
+@Stable
 class AvatarHandoff(
     val scope: SharedTransitionScope,
+    activeConversationId: State<String?>
+) {
     /**
      * The conversation whose chat screen is currently on top of the stack, or null when it is not.
      *
      * This is the single source of truth for which side owns the avatar. It flips at the moment the
      * stack changes — which is the moment the transition begins — so no extra bookkeeping is needed
      * to know which direction we are travelling in.
+     *
+     * A snapshot-state read, so a stack change recomposes only the two avatars that read it (#831).
+     * This object used to be rebuilt with a plain value on every stack emission and provided through
+     * a *static* local, which invalidated every screen under the navigation host on every push.
      */
-    val activeConversationId: String?
-)
+    val activeConversationId: String? by activeConversationId
+}
 
-val LocalAvatarHandoff = staticCompositionLocalOf<AvatarHandoff?> { null }
+/**
+ * Dynamic rather than static: the provided instance is created once and never changes, so only its
+ * readers depend on it — but a static local would invalidate the whole subtree if it ever did.
+ */
+val LocalAvatarHandoff = compositionLocalOf<AvatarHandoff?> { null }
 
 /**
  * Marks this avatar as one half of the list ↔ chat handoff.

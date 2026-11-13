@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,6 +66,7 @@ import kotlin.time.TimeSource
  */
 @Composable
 fun AppLockGate(
+    onCoverShown: (Boolean) -> Unit,
     controller: AppLockController = koinInject(),
     appVisibility: AppVisibility = koinInject()
 ) {
@@ -118,6 +120,13 @@ fun AppLockGate(
     // immediately too, not only the very first lock of the process.
     LaunchedEffect(isLocked) {
         if (isLocked) launchAuth()
+    }
+
+    // Reported for exactly as long as the cover is composed, so back is consumed while it is up and
+    // released the moment it unlocks, disarms or the user signs out (#803).
+    DisposableEffect(Unit) {
+        onCoverShown(true)
+        onDispose { onCoverShown(false) }
     }
 
     Surface(

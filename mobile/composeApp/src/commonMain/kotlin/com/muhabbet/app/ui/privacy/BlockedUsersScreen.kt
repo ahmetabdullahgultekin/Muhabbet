@@ -18,17 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import com.muhabbet.app.data.repository.ModerationRepository
 import com.muhabbet.app.util.DateTimeFormatter
-import com.muhabbet.app.util.Log
-import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import com.muhabbet.designsystem.Muhabbet
@@ -43,9 +38,7 @@ import com.muhabbet.designsystem.components.UserAvatar
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.shared.dto.BlockedUserResponse
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
 
 /**
  * Everyone the signed-in user has blocked, with an unblock action per row. #613.
@@ -61,66 +54,53 @@ import org.koin.compose.koinInject
  * report would be worse than not showing it — see the issue for the fuller reasoning. Nothing here
  * should grow a second tab for that without deciding what the status column says first.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Binds [BlockedUsersComponent] to the pure screen below: collects state and performs effects. */
 @Composable
-fun BlockedUsersScreen(
-    onBack: () -> Unit,
-    moderationRepository: ModerationRepository = koinInject()
-) {
-    var blockedUsers by remember { mutableStateOf<List<BlockedUserResponse>?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var loadFailed by remember { mutableStateOf(false) }
-    var retryKey by remember { mutableStateOf(0) }
-    var pendingUnblock by remember { mutableStateOf<BlockedUserResponse?>(null) }
-
+fun BlockedUsersScreen(component: BlockedUsersComponent) {
+    val state by component.store.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     val loadFailedMsg = stringResource(Res.string.blocked_users_load_failed)
     val unblockSuccessMsg = stringResource(Res.string.profile_unblock_success)
     val unblockFailedMsg = stringResource(Res.string.profile_unblock_failed)
 
-    suspend fun load() {
-        val failure = runCatchingCancellable {
-            blockedUsers = moderationRepository.getBlockedUsers()
-        }.exceptionOrNull()
-        // Clear the spinner BEFORE reporting — showSnackbar suspends until dismissed (~4s).
-        isLoading = false
-        loadFailed = failure != null
-        if (failure != null) {
-            Log.e(TAG, "Failed to load blocked users", failure)
-            snackbarHostState.showSnackbar(loadFailedMsg)
+    LaunchedEffect(component.store) {
+        component.store.effects.collect { effect ->
+            snackbarHostState.showSnackbar(
+                when (effect) {
+                    BlockedUsersEffect.LoadFailed -> loadFailedMsg
+                    BlockedUsersEffect.Unblocked -> unblockSuccessMsg
+                    BlockedUsersEffect.UnblockFailed -> unblockFailedMsg
+                }
+            )
         }
     }
 
-    LaunchedEffect(retryKey) {
-        isLoading = true
-        load()
-    }
+    BlockedUsersScreen(
+        state = state,
+        onEvent = component.store::onEvent,
+        onBack = component.onBack,
+        snackbarHostState = snackbarHostState
+    )
+}
 
-    pendingUnblock?.let { target ->
+/** A pure renderer of [BlockedUsersUiState]: no repository, no coroutine, no state of its own. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BlockedUsersScreen(
+    state: BlockedUsersUiState,
+    onEvent: (BlockedUsersEvent) -> Unit,
+    onBack: () -> Unit,
+    snackbarHostState: SnackbarHostState
+) {
+    if (state.pendingUnblock != null) {
         ConfirmDialog(
             title = stringResource(Res.string.profile_unblock),
             message = stringResource(Res.string.profile_unblock_confirm),
             confirmLabel = stringResource(Res.string.profile_unblock),
             dismissLabel = stringResource(Res.string.cancel),
-            onConfirm = {
-                pendingUnblock = null
-                scope.launch {
-                    runCatchingCancellable { moderationRepository.unblockUser(target.userId) }
-                        .onSuccess {
-                            // Drop the row locally rather than re-fetching the whole list — the
-                            // server has nothing more to tell us about a block that no longer exists.
-                            blockedUsers = blockedUsers?.filterNot { it.userId == target.userId }
-                            snackbarHostState.showSnackbar(unblockSuccessMsg)
-                        }
-                        .onFailure { e ->
-                            Log.e(TAG, "Failed to unblock ${target.userId}", e)
-                            snackbarHostState.showSnackbar(unblockFailedMsg)
-                        }
-                }
-            },
-            onDismiss = { pendingUnblock = null }
+            onConfirm = { onEvent(BlockedUsersEvent.UnblockConfirmed) },
+            onDismiss = { onEvent(BlockedUsersEvent.UnblockDismissed) }
         )
     }
 
@@ -135,31 +115,32 @@ fun BlockedUsersScreen(
         }
     ) { padding ->
         val contentModifier = Modifier.fillMaxSize().padding(padding)
-        val loaded = blockedUsers
-        when {
-            isLoading -> MuhabbetLoadingState(contentModifier)
+        when (val content = state.content) {
+            BlockedUsersContent.Loading -> MuhabbetLoadingState(contentModifier)
 
-            loadFailed -> MuhabbetErrorState(
+            BlockedUsersContent.Failed -> MuhabbetErrorState(
                 message = stringResource(Res.string.error_generic),
                 modifier = contentModifier,
                 retryLabel = stringResource(Res.string.action_retry),
-                onRetry = { retryKey++ }
+                onRetry = { onEvent(BlockedUsersEvent.Retry) }
             )
 
-            loaded.isNullOrEmpty() -> MuhabbetEmptyState(
-                modifier = contentModifier,
-                icon = Muhabbet.icons.Block,
-                title = stringResource(Res.string.blocked_users_empty),
-                subtitle = stringResource(Res.string.blocked_users_empty_desc)
-            )
-
-            else -> LazyColumn(modifier = contentModifier) {
-                items(loaded, key = { it.userId }) { blocked ->
-                    BlockedUserItem(
-                        blocked = blocked,
-                        onUnblockClick = { pendingUnblock = blocked }
-                    )
-                    HorizontalDivider()
+            is BlockedUsersContent.Loaded -> if (content.users.isEmpty()) {
+                MuhabbetEmptyState(
+                    modifier = contentModifier,
+                    icon = Muhabbet.icons.Block,
+                    title = stringResource(Res.string.blocked_users_empty),
+                    subtitle = stringResource(Res.string.blocked_users_empty_desc)
+                )
+            } else {
+                LazyColumn(modifier = contentModifier) {
+                    items(content.users, key = { it.userId }) { blocked ->
+                        BlockedUserItem(
+                            blocked = blocked,
+                            onUnblockClick = { onEvent(BlockedUsersEvent.UnblockRequested(blocked)) }
+                        )
+                        HorizontalDivider()
+                    }
                 }
             }
         }
@@ -211,4 +192,3 @@ private fun BlockedUserItem(
     }
 }
 
-private const val TAG = "BlockedUsersScreen"

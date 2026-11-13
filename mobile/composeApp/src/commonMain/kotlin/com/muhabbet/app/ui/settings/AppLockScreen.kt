@@ -18,16 +18,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.muhabbet.app.config.AppLockTimeout
-import com.muhabbet.app.data.local.AppLockController
 import com.muhabbet.app.platform.rememberAppLockCapability
 import com.muhabbet.app.platform.rememberAppLockLauncher
 import com.muhabbet.designsystem.components.MuhabbetTopBar
@@ -36,7 +33,6 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
 import com.muhabbet.designsystem.components.MuhabbetScaffold
 import com.muhabbet.designsystem.components.MuhabbetSwitch
 
@@ -45,7 +41,7 @@ import com.muhabbet.designsystem.components.MuhabbetSwitch
  * reader + mechanism that actually enforces what this screen sets.
  *
  * Turning the lock ON demands a successful platform authentication first (`rememberAppLockLauncher`)
- * — this is the one place in the app that both writes [AppLockController.setEnabled] AND proves the
+ * — [AppLockSettingsStore] calls `AppLockController.setEnabled` only after the platform proves the
  * credential it is about to require actually works, rather than trusting the toggle. Turning it OFF
  * needs no such proof: leaving a lock is never the security-sensitive direction.
  *
@@ -53,24 +49,41 @@ import com.muhabbet.designsystem.components.MuhabbetSwitch
  * [Res.string.app_lock_unavailable] explaining why, per #545: "a phone with no enrolled fingerprint
  * must not be offered a lock it cannot open."
  */
+@Composable
+fun AppLockScreen(component: AppLockSettingsComponent) {
+    val store = component.store
+    val state by store.state.collectAsStateWithLifecycle()
+    val promptTitle = stringResource(Res.string.app_lock_title)
+    val promptSubtitle = stringResource(Res.string.app_lock_locked_subtitle)
+    // The platform prompt is a composable-scoped launcher, so it is performed here, as an effect the
+    // Store asked for; the Store decides what its result means.
+    val launchAuth = rememberAppLockLauncher(title = promptTitle, subtitle = promptSubtitle) { success ->
+        store.onEvent(AppLockSettingsEvent.AuthenticationFinished(success))
+    }
+    LaunchedEffect(store) {
+        store.effects.collect { effect ->
+            when (effect) {
+                AppLockSettingsEffect.Authenticate -> launchAuth()
+            }
+        }
+    }
+    AppLockScreen(
+        state = state,
+        capability = rememberAppLockCapability(),
+        onEvent = store::onEvent,
+        onBack = component.onBack
+    )
+}
+
+/** A pure renderer of [AppLockSettingsUiState]. [capability] is whether this device can open a lock. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppLockScreen(
-    onBack: () -> Unit,
-    controller: AppLockController = koinInject()
+    state: AppLockSettingsUiState,
+    capability: Boolean,
+    onEvent: (AppLockSettingsEvent) -> Unit,
+    onBack: () -> Unit
 ) {
-    val enabled by controller.enabled.collectAsState()
-    val timeout by controller.timeout.collectAsState()
-    val capability = rememberAppLockCapability()
-
-    var authFailed by remember { mutableStateOf(false) }
-    val promptTitle = stringResource(Res.string.app_lock_title)
-    val promptSubtitle = stringResource(Res.string.app_lock_locked_subtitle)
-    val launchAuth = rememberAppLockLauncher(title = promptTitle, subtitle = promptSubtitle) { success ->
-        authFailed = !success
-        if (success) controller.setEnabled(true)
-    }
-
     MuhabbetScaffold(
         topBar = {
             MuhabbetTopBar(
@@ -116,23 +129,15 @@ fun AppLockScreen(
                     fontWeight = FontWeight.Medium
                 )
                 MuhabbetSwitch(
-                    checked = enabled,
+                    checked = state.enabled,
                     enabled = capability,
-                    onCheckedChange = { turnOn ->
-                        if (turnOn) {
-                            // Not persisted here — see launchAuth's onResult above. A toggle that
-                            // remembered its position before the credential was proven to work is
-                            // exactly the trap #378 warns against: it would look armed and not be.
-                            authFailed = false
-                            launchAuth()
-                        } else {
-                            controller.setEnabled(false)
-                        }
-                    }
+                    // Not persisted here: AppLockSettingsStore arms the lock only after the
+                    // platform proves the credential works (#378).
+                    onCheckedChange = { turnOn -> onEvent(AppLockSettingsEvent.ToggleRequested(turnOn)) }
                 )
             }
 
-            if (authFailed) {
+            if (state.authFailed) {
                 Spacer(Modifier.height(MuhabbetSpacing.Small))
                 Text(
                     text = stringResource(Res.string.app_lock_auth_failed),
@@ -141,7 +146,7 @@ fun AppLockScreen(
                 )
             }
 
-            if (enabled) {
+            if (state.enabled) {
                 Spacer(Modifier.height(MuhabbetSpacing.XLarge))
                 HorizontalDivider()
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
@@ -165,14 +170,14 @@ fun AppLockScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = MuhabbetSizes.MinTouchTarget)
-                            .clickable { controller.setTimeout(key) }
+                            .clickable { onEvent(AppLockSettingsEvent.TimeoutSelected(key)) }
                             .padding(vertical = MuhabbetSpacing.Small),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)
                     ) {
                         RadioButton(
-                            selected = timeout == key,
-                            onClick = { controller.setTimeout(key) }
+                            selected = state.timeout == key,
+                            onClick = { onEvent(AppLockSettingsEvent.TimeoutSelected(key)) }
                         )
                         Text(text = label, style = MaterialTheme.typography.bodyLarge)
                     }

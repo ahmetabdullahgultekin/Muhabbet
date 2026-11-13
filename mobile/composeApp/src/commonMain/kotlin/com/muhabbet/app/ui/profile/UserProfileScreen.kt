@@ -55,6 +55,8 @@ import com.muhabbet.app.util.Log
 import com.muhabbet.app.util.runCatchingCancellable
 import com.muhabbet.shared.dto.MutualGroupResponse
 import com.muhabbet.shared.dto.UserProfileDetailResponse
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import com.muhabbet.composeapp.generated.resources.Res
 import com.muhabbet.composeapp.generated.resources.*
@@ -76,6 +78,8 @@ fun UserProfileScreen(
     conversationId: String? = null,
     onBack: () -> Unit,
     onMessageClick: (() -> Unit)? = null,
+    /** One emission per failed "Message" attempt (#806). */
+    messageFailures: Flow<Unit> = emptyFlow(),
     onGroupClick: ((conversationId: String, name: String) -> Unit)? = null,
     onSharedMediaClick: ((conversationId: String) -> Unit)? = null,
     conversationRepository: ConversationRepository = koinInject(),
@@ -104,6 +108,11 @@ fun UserProfileScreen(
     val unblockFailedMsg = stringResource(Res.string.profile_unblock_failed)
     val reportSuccessMsg = stringResource(Res.string.profile_report_success)
     val reportFailedMsg = stringResource(Res.string.profile_report_failed)
+    val messageFailedMsg = stringResource(Res.string.profile_message_failed)
+
+    LaunchedEffect(messageFailures) {
+        messageFailures.collect { snackbarHostState.showSnackbar(messageFailedMsg) }
+    }
 
     LaunchedEffect(userId) {
         runCatchingCancellable { profile = conversationRepository.getUserProfileDetail(userId) }

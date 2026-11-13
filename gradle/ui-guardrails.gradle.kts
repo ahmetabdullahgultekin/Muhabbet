@@ -163,6 +163,16 @@ val uiRules = listOf(
         "rawCombinedClickable",
         "Long-press comes from Modifier.longPressable, which takes the shape the ripple must follow — RectangleShape included.",
         Regex("""combinedClickable\("""), inPressableModifier
+    ),
+    UiRule(
+        // Starts at 0 and stays there (#825). Decompose's `push` is a DelicateDecomposeApi because it
+        // does not check whether the configuration is already on the stack; 23 calls of it are how a
+        // double tap stacked two Settings screens and a notification stacked a second chat. Every
+        // navigation now goes through `navigatedTo`/`replacedTopWith`, which return to an entry that
+        // is already there instead of adding a copy.
+        "delicatePush",
+        "Navigate with navigatedTo/replacedTopWith (NavDestination.kt), never a raw push: one entry per destination.",
+        Regex("""DelicateDecomposeApi|\.push\(|\bpushNew\(|\bpushToFront\(""")
     )
 )
 

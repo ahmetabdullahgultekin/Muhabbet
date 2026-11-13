@@ -440,6 +440,7 @@
     <string name="profile_unblock_confirm">Are you sure you want to unblock this user?</string>
     <string name="profile_unblock_success">User unblocked</string>
     <string name="profile_unblock_failed">Could not unblock user</string>
+    <string name="profile_message_failed">Could not open the chat</string>
     <string name="profile_report_confirm">Are you sure you want to report this user?</string>
     <string name="profile_report_success">Report submitted</string>
     <string name="profile_report_failed">Could not submit report</string>

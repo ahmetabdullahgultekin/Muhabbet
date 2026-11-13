@@ -88,9 +88,12 @@ fun <C : Any, T : Any> rootFade(): StackAnimation<C, T> = stackAnimation(
  * Not applied to `RootComponent`. That stack is one deep by construction — it only ever calls
  * `replaceAll` — so a back gesture there should leave the app, not animate between Auth and Main.
  *
- * @param onBack invoked when the gesture completes. It, not the stack's own `handleBackButton`,
- *   performs the pop: Essenty dispatches a back event to a single callback rather than broadcasting,
- *   and this one is registered later, so it takes precedence.
+ * @param backHandler pass `component.backHandler.belowScreenModes()` and `remember` the result: the
+ *   pop must rank below every destination's in-screen modes (#803), and a new animation per
+ *   recomposition would reset an in-flight gesture (#831).
+ * @param onBack invoked when the gesture (or a plain back press) completes. It is the stack's only
+ *   pop: the stacks are built with `handleBackButton = false`, because a stack-level callback would
+ *   outrank this one and pop without the animation.
  */
 @OptIn(ExperimentalDecomposeApi::class)
 fun <C : Any, T : Any> predictiveBack(
