@@ -207,9 +207,13 @@ muhabbet:
     credentials-path: ${FCM_CREDENTIALS_PATH:}
     enabled: ${FCM_ENABLED:false}
 
+  # Socket liveness and presence lifetime (#909). Bound by WebSocketProperties, which checks the
+  # invariants between the three at startup. The client's Ping cadence (WsClient) should match the
+  # interval.
   websocket:
-    heartbeat-interval-seconds: 30
-    heartbeat-timeout-seconds: 90
+    heartbeat-interval: ${WS_HEARTBEAT_INTERVAL:30s}
+    heartbeat-timeout: ${WS_HEARTBEAT_TIMEOUT:90s}
+    presence-ttl: ${WS_PRESENCE_TTL:60s}
 
   livekit:
     enabled: ${LIVEKIT_ENABLED:false}

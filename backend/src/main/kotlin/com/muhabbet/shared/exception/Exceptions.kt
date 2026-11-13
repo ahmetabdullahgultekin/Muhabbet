@@ -19,6 +19,12 @@ enum class ErrorCode(val httpStatus: HttpStatus, val defaultMessage: String) {
     AUTH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token süresi doldu"),
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "Token iptal edildi"),
     AUTH_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Yetkilendirme gerekli"),
+    /**
+     * Authenticated, but not allowed this resource — Spring Security's access-denied path (#915),
+     * e.g. a non-admin token on `/actuator/metrics`. Distinct from [AUTH_UNAUTHORIZED] on purpose:
+     * the client refreshes and retries on 401, and must not on 403.
+     */
+    AUTH_FORBIDDEN(HttpStatus.FORBIDDEN, "Bu işlem için yetkiniz yok"),
 
     // Messaging
     MSG_CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Konuşma bulunamadı"),

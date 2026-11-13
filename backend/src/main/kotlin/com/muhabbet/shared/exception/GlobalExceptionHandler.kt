@@ -1,7 +1,7 @@
 package com.muhabbet.shared.exception
 
-import com.muhabbet.shared.dto.ApiError
 import com.muhabbet.shared.dto.ApiResponse
+import com.muhabbet.shared.web.ErrorResponseWriter
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -18,7 +18,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.support.MissingServletRequestPartException
 import org.springframework.web.servlet.NoHandlerFoundException
 import org.springframework.web.servlet.resource.NoResourceFoundException
-import java.time.Instant
 
 /**
  * Turns every exception that escapes a controller into the project's error envelope.
@@ -220,8 +219,5 @@ class GlobalExceptionHandler {
         ResponseEntity.status(code.httpStatus).body(envelope(code, message))
 
     private fun envelope(code: ErrorCode, message: String): ApiResponse<Nothing> =
-        ApiResponse(
-            error = ApiError(code = code.name, message = message),
-            timestamp = Instant.now().toString()
-        )
+        ErrorResponseWriter.envelope(code, message)
 }
