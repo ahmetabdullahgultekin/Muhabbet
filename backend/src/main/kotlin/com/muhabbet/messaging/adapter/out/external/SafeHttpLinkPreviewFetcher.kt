@@ -1,6 +1,10 @@
 package com.muhabbet.messaging.adapter.out.external
 
 import com.muhabbet.messaging.domain.model.LinkPreview
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Busy
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Fetched
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Unavailable
 import com.muhabbet.messaging.domain.port.out.LinkPreviewFetchPort
 import com.muhabbet.shared.config.LinkPreviewProperties
 import com.muhabbet.shared.security.BlockedAddressException
@@ -45,8 +49,12 @@ import java.util.concurrent.TimeUnit
  *
  * And it is bounded, because a fetch on behalf of a caller should not be able to hold the server:
  * one wall-clock deadline across all hops, a byte cap on the one body that is read, a refusal to
- * read anything that is not HTML, and a bulkhead on concurrent fetches — when it is full the caller
- * gets an empty preview immediately rather than a Tomcat thread queued behind slow sites.
+ * read anything that is not HTML, and a bulkhead on concurrent fetches — when it is full the call
+ * returns [Busy] immediately rather than queueing a Tomcat thread behind slow sites. Busy is kept
+ * distinct from [Unavailable] because the service caches the latter for every user and must not
+ * cache the former: it describes this instance, not the URL.
+ *
+ * Hostnames of user-sent links are logged at DEBUG only; WARN says what was refused, not where.
  *
  * What it cannot bound: a JDK DNS lookup is not interruptible, so a pathologically slow resolver can
  * outlast the deadline by the resolver's own timeout. The bulkhead still caps how many such threads
@@ -79,31 +87,41 @@ class SafeHttpLinkPreviewFetcher internal constructor(
         .callTimeout(properties.totalTimeout)
         .build()
 
-    override fun fetch(url: String): LinkPreview? {
+    override fun fetch(url: String): LinkPreviewFetchResult {
         if (!inFlight.tryAcquire()) {
             log.warn("Link preview skipped: {} fetches already in flight", properties.maxConcurrentFetches)
-            return null
+            return Busy
         }
         return try {
             fetchFollowingRedirects(url, deadlineNanos = System.nanoTime() + properties.totalTimeout.toNanos())
         } catch (e: BlockedHostException) {
-            log.warn("Link preview refused, host resolves to an internal address: {}", e.message)
-            null
+            refused("host resolves to an internal address", e)
         } catch (e: BlockedAddressException) {
-            log.warn("Link preview refused, connection to an internal address: {}", e.message)
-            null
+            refused("connection to an internal address", e)
         } catch (e: SsrfGuard.BlockedUrlException) {
             log.info("Link preview refused: {}", e.message)
-            null
+            Unavailable
         } catch (e: IOException) {
             log.debug("Link preview fetch failed: {}", e.toString())
-            null
+            Unavailable
+        } catch (e: RuntimeException) {
+            // A page that makes Jsoup or OkHttp throw something unexpected is a page with no
+            // preview, not a 500 for the person who pasted it.
+            log.warn("Link preview fetch failed unexpectedly: {}", e.javaClass.name)
+            log.debug("Link preview failure detail", e)
+            Unavailable
         } finally {
             inFlight.release()
         }
     }
 
-    private fun fetchFollowingRedirects(initialUrl: String, deadlineNanos: Long): LinkPreview? {
+    private fun refused(reason: String, e: Exception): LinkPreviewFetchResult {
+        log.warn("Link preview refused, {}", reason)
+        log.debug("Link preview refusal detail: {}", e.message)
+        return Unavailable
+    }
+
+    private fun fetchFollowingRedirects(initialUrl: String, deadlineNanos: Long): LinkPreviewFetchResult {
         var current: URI = SsrfGuard.parseFetchable(initialUrl)
         repeat(properties.maxRedirects + 1) {
             val remaining = deadlineNanos - System.nanoTime()
@@ -122,18 +140,18 @@ class SafeHttpLinkPreviewFetcher internal constructor(
 
             call.execute().use { response ->
                 if (response.isRedirect) {
-                    val location = response.header("Location") ?: return null
+                    val location = response.header("Location") ?: return Unavailable
                     // A Location URI cannot parse is a broken redirect, not a reason to throw.
-                    val next = runCatching { current.resolve(location.trim()) }.getOrNull() ?: return null
+                    val next = runCatching { current.resolve(location.trim()) }.getOrNull() ?: return Unavailable
                     current = SsrfGuard.parseFetchable(next.toString())
                     return@repeat
                 }
-                if (!response.isSuccessful || !isHtml(response.body.contentType())) return null
-                return parse(initialUrl, current, response.body)
+                if (!response.isSuccessful || !isHtml(response.body.contentType())) return Unavailable
+                return Fetched(parse(initialUrl, current, response.body))
             }
         }
         log.info("Link preview refused: more than {} redirects", properties.maxRedirects)
-        return null
+        return Unavailable
     }
 
     private fun parse(requestedUrl: String, finalUrl: URI, body: ResponseBody): LinkPreview {

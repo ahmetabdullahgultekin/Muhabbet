@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.LinkPreview
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult
 import com.muhabbet.messaging.domain.port.`in`.GetLinkPreviewUseCase
 import com.muhabbet.messaging.domain.port.out.LinkPreviewCachePort
 import com.muhabbet.messaging.domain.port.out.LinkPreviewFetchPort
@@ -19,6 +20,12 @@ import java.util.UUID
  *
  * Failures are cached too, for less time: a URL that is blocked, unreachable or not HTML would
  * otherwise be re-fetched on every render of every bubble that contains it.
+ *
+ * **Busy is not a failure and is never cached.** When the fetcher has no free slot, nothing was
+ * learned about the URL; caching that as the URL's answer would let a few slow servers held open by
+ * a few accounts blank out every other user's previews for the failure TTL, through the shared
+ * cache. The caller gets an empty preview for this request only, and the budget unit it was charged
+ * is refunded, since no fetch was made on its behalf.
  */
 class LinkPreviewService(
     private val fetcher: LinkPreviewFetchPort,
@@ -38,7 +45,18 @@ class LinkPreviewService(
 
         if (!quota.tryConsume(requesterId)) throw BusinessException(ErrorCode.RATE_LIMITED)
 
-        val preview = fetcher.fetch(requested)?.copy(url = requested) ?: LinkPreview(url = requested)
+        return when (val result = fetcher.fetch(requested)) {
+            is LinkPreviewFetchResult.Fetched -> remember(result.preview.copy(url = requested))
+            LinkPreviewFetchResult.Unavailable -> remember(LinkPreview(url = requested))
+            LinkPreviewFetchResult.Busy -> {
+                quota.refund(requesterId)
+                LinkPreview(url = requested)
+            }
+        }
+    }
+
+    /** A page with no metadata is as much an answer about the URL as a refusal is: short TTL. */
+    private fun remember(preview: LinkPreview): LinkPreview {
         cache.put(preview, if (preview.isEmpty) failureTtl else successTtl)
         return preview
     }

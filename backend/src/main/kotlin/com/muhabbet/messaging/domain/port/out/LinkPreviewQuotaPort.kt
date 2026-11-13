@@ -13,4 +13,11 @@ interface LinkPreviewQuotaPort {
 
     /** Records one fetch about to be made for [userId] and reports whether it is within budget. */
     fun tryConsume(userId: UUID): Boolean
+
+    /**
+     * Returns one unit charged by [tryConsume] when the fetch it paid for was never made (the
+     * instance was busy). Best effort: it never takes the budget below zero, and a refund that lands
+     * in the next window simply has nothing to return.
+     */
+    fun refund(userId: UUID)
 }

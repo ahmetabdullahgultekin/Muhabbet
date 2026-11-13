@@ -1,13 +1,19 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.LinkPreview
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Busy
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Fetched
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Unavailable
 import com.muhabbet.messaging.domain.port.out.LinkPreviewCachePort
 import com.muhabbet.messaging.domain.port.out.LinkPreviewFetchPort
 import com.muhabbet.messaging.domain.port.out.LinkPreviewQuotaPort
 import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -43,7 +49,7 @@ class LinkPreviewServiceTest {
     @Test
     fun `should serve a second identical request from cache without fetching or charging the budget`() {
         every { quota.tryConsume(user) } returns true
-        every { fetcher.fetch(url) } returns LinkPreview(url, title = "A")
+        every { fetcher.fetch(url) } returns Fetched(LinkPreview(url, title = "A"))
 
         val first = service.getLinkPreview(user, url)
         val second = service.getLinkPreview(user, url)
@@ -57,7 +63,7 @@ class LinkPreviewServiceTest {
     fun `should share the cache across users`() {
         val other = UUID.randomUUID()
         every { quota.tryConsume(any()) } returns true
-        every { fetcher.fetch(url) } returns LinkPreview(url, title = "A")
+        every { fetcher.fetch(url) } returns Fetched(LinkPreview(url, title = "A"))
 
         service.getLinkPreview(user, url)
         service.getLinkPreview(other, url)
@@ -69,7 +75,7 @@ class LinkPreviewServiceTest {
     @Test
     fun `should cache a successful preview for the success ttl`() {
         every { quota.tryConsume(user) } returns true
-        every { fetcher.fetch(url) } returns LinkPreview(url, title = "A")
+        every { fetcher.fetch(url) } returns Fetched(LinkPreview(url, title = "A"))
 
         service.getLinkPreview(user, url)
 
@@ -79,7 +85,7 @@ class LinkPreviewServiceTest {
     @Test
     fun `should cache a failed fetch as an empty preview for the shorter failure ttl`() {
         every { quota.tryConsume(user) } returns true
-        every { fetcher.fetch(url) } returns null
+        every { fetcher.fetch(url) } returns Unavailable
 
         val preview = service.getLinkPreview(user, url)
 
@@ -88,6 +94,55 @@ class LinkPreviewServiceTest {
         assertEquals(failureTtl, cache.entries.getValue(url).second)
         service.getLinkPreview(user, url)
         verify(exactly = 1) { fetcher.fetch(url) }
+    }
+
+    @Test
+    fun `should cache a fetched page with no metadata for the failure ttl`() {
+        every { quota.tryConsume(user) } returns true
+        every { fetcher.fetch(url) } returns Fetched(LinkPreview(url))
+
+        service.getLinkPreview(user, url)
+
+        assertEquals(failureTtl, cache.entries.getValue(url).second)
+    }
+
+    @Test
+    fun `should not cache and should refund the budget when the fetcher is busy`() {
+        val spyCache = spyk(cache)
+        val busyService = LinkPreviewService(fetcher, spyCache, quota, successTtl, failureTtl)
+        every { quota.tryConsume(user) } returns true
+        every { quota.refund(user) } just Runs
+        every { fetcher.fetch(url) } returns Busy
+
+        val preview = busyService.getLinkPreview(user, url)
+
+        assertTrue(preview.isEmpty)
+        assertEquals(url, preview.url)
+        verify(exactly = 0) { spyCache.put(any(), any()) }
+        verify(exactly = 1) { quota.refund(user) }
+    }
+
+    @Test
+    fun `should fetch again on the next request after a busy refusal`() {
+        every { quota.tryConsume(user) } returns true
+        every { quota.refund(user) } just Runs
+        every { fetcher.fetch(url) } returnsMany listOf(Busy, Fetched(LinkPreview(url, title = "A")))
+
+        assertTrue(service.getLinkPreview(user, url).isEmpty)
+        assertEquals("A", service.getLinkPreview(user, url).title)
+
+        verify(exactly = 2) { fetcher.fetch(url) }
+        assertEquals(successTtl, cache.entries.getValue(url).second)
+    }
+
+    @Test
+    fun `should not refund the budget for a fetch that was made`() {
+        every { quota.tryConsume(user) } returns true
+        every { fetcher.fetch(url) } returns Unavailable
+
+        service.getLinkPreview(user, url)
+
+        verify(exactly = 0) { quota.refund(any()) }
     }
 
     @Test
@@ -121,7 +176,7 @@ class LinkPreviewServiceTest {
     @Test
     fun `should key the cache by the requested url, not wherever the page redirected to`() {
         every { quota.tryConsume(user) } returns true
-        every { fetcher.fetch(url) } returns LinkPreview("https://elsewhere.test/", title = "A")
+        every { fetcher.fetch(url) } returns Fetched(LinkPreview("https://elsewhere.test/", title = "A"))
 
         assertEquals(url, service.getLinkPreview(user, url).url)
         assertTrue(url in cache.entries)

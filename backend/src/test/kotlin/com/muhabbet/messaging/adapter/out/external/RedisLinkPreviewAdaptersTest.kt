@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.adapter.out.external
 
 import com.muhabbet.messaging.domain.model.LinkPreview
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult
 import com.muhabbet.messaging.domain.port.out.LinkPreviewFetchPort
 import com.muhabbet.messaging.domain.service.LinkPreviewService
 import com.muhabbet.shared.config.LinkPreviewProperties
@@ -86,9 +87,9 @@ class RedisLinkPreviewAdaptersTest {
         val fetches = AtomicInteger()
         val url = uniqueUrl()
         val fetcher = object : LinkPreviewFetchPort {
-            override fun fetch(url: String): LinkPreview {
+            override fun fetch(url: String): LinkPreviewFetchResult {
                 fetches.incrementAndGet()
-                return LinkPreview(url, title = "fetched")
+                return LinkPreviewFetchResult.Fetched(LinkPreview(url, title = "fetched"))
             }
         }
         val properties = LinkPreviewProperties(fetchesPerUserPerMinute = 100)
@@ -132,5 +133,57 @@ class RedisLinkPreviewAdaptersTest {
         val key = template.keys("linkpreview:quota:$user:*").single()
         val ttl = template.getExpire(key)
         assertTrue(ttl in 1..120, "expected a TTL of at most two minutes, was $ttl")
+    }
+
+    @Test
+    fun `a refund returns one unit of the budget`() {
+        val quota = RedisLinkPreviewQuotaAdapter(template, LinkPreviewProperties(fetchesPerUserPerMinute = 2))
+        val user = UUID.randomUUID()
+        avoidMinuteBoundary()
+
+        assertTrue(quota.tryConsume(user))
+        assertTrue(quota.tryConsume(user))
+        quota.refund(user)
+
+        assertTrue(quota.tryConsume(user), "the refunded unit is available again")
+        assertFalse(quota.tryConsume(user))
+    }
+
+    @Test
+    fun `a refund never takes the budget below zero or creates a bucket`() {
+        val quota = RedisLinkPreviewQuotaAdapter(template, LinkPreviewProperties(fetchesPerUserPerMinute = 1))
+        val user = UUID.randomUUID()
+        avoidMinuteBoundary()
+
+        repeat(3) { quota.refund(user) }
+        assertTrue(template.keys("linkpreview:quota:$user:*").isEmpty(), "a refund must not create a key")
+
+        assertTrue(quota.tryConsume(user))
+        assertFalse(quota.tryConsume(user), "earlier refunds must not have banked extra budget")
+    }
+
+    @Test
+    fun `a busy fetcher leaves nothing in the real cache and charges nothing`() {
+        val url = uniqueUrl()
+        val user = UUID.randomUUID()
+        val properties = LinkPreviewProperties(fetchesPerUserPerMinute = 1)
+        val cache = RedisLinkPreviewCacheAdapter(template)
+        val quota = RedisLinkPreviewQuotaAdapter(template, properties)
+        val busy = object : LinkPreviewFetchPort {
+            override fun fetch(url: String): LinkPreviewFetchResult = LinkPreviewFetchResult.Busy
+        }
+        val service = LinkPreviewService(busy, cache, quota, properties.cacheTtl, properties.failureCacheTtl)
+        avoidMinuteBoundary()
+
+        assertTrue(service.getLinkPreview(user, url).isEmpty)
+
+        assertNull(cache.get(url), "busy must not be cached as the URL's preview")
+        assertTrue(quota.tryConsume(user), "the unit charged for the busy attempt was refunded")
+    }
+
+    /** Fixed one-minute buckets: a test that straddles a boundary would see a legitimate reset. */
+    private fun avoidMinuteBoundary() {
+        val secondOfMinute = (System.currentTimeMillis() / 1000) % 60
+        if (secondOfMinute >= 58) Thread.sleep(3_000)
     }
 }

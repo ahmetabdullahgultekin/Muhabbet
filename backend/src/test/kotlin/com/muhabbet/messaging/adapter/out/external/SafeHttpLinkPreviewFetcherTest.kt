@@ -1,5 +1,10 @@
 package com.muhabbet.messaging.adapter.out.external
 
+import com.muhabbet.messaging.domain.model.LinkPreview
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Busy
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Fetched
+import com.muhabbet.messaging.domain.model.LinkPreviewFetchResult.Unavailable
 import com.muhabbet.shared.config.LinkPreviewProperties
 import com.muhabbet.shared.security.OutboundAddressPolicy
 import com.sun.net.httpserver.HttpExchange
@@ -7,7 +12,7 @@ import com.sun.net.httpserver.HttpServer
 import okhttp3.Dns
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -124,13 +129,12 @@ class SafeHttpLinkPreviewFetcherTest {
             )
         }
 
-        val preview = fetcher().fetch("http://news.test:$port/article")
+        val preview = fetcher().fetch("http://news.test:$port/article").fetched()
 
-        assertNotNull(preview)
-        assertEquals("Çay saati", preview?.title)
-        assertEquals("Bir açıklama", preview?.description)
-        assertEquals("http://news.test:$port/img/cover.jpg", preview?.imageUrl)
-        assertEquals("Haber", preview?.siteName)
+        assertEquals("Çay saati", preview.title)
+        assertEquals("Bir açıklama", preview.description)
+        assertEquals("http://news.test:$port/img/cover.jpg", preview.imageUrl)
+        assertEquals("Haber", preview.siteName)
     }
 
     @Test
@@ -140,9 +144,9 @@ class SafeHttpLinkPreviewFetcherTest {
         resolve("rebind.test", publicAddress, internalAddress)
         publicRoute("/") { respond(it, 200, "text/html", "<title>public page</title>") }
 
-        val preview = fetcher().fetch("http://rebind.test:$port/")
+        val preview = fetcher().fetch("http://rebind.test:$port/").fetched()
 
-        assertEquals("public page", preview?.title)
+        assertEquals("public page", preview.title)
         assertEquals(1, lookups.get(), "the name must be resolved exactly once per connection")
         assertEquals(0, internalHits.get(), "no request may reach the internal address")
     }
@@ -151,7 +155,7 @@ class SafeHttpLinkPreviewFetcherTest {
     fun `a name that resolves to an internal address is never connected to`() {
         resolve("internal.test", internalAddress)
 
-        assertNull(fetcher().fetch("http://internal.test:$port/"))
+        assertEquals(Unavailable, fetcher().fetch("http://internal.test:$port/"))
         assertEquals(0, internalHits.get())
     }
 
@@ -163,14 +167,14 @@ class SafeHttpLinkPreviewFetcherTest {
         val fetcher = SafeHttpLinkPreviewFetcher(LinkPreviewProperties(), policy, mixedDns)
         publicRoute("/") { respond(it, 200, "text/html", "<title>public</title>") }
 
-        assertNull(fetcher.fetch("http://mixed.test:$port/"))
+        assertEquals(Unavailable, fetcher.fetch("http://mixed.test:$port/"))
         assertEquals(0, publicHits.get())
         assertEquals(0, internalHits.get())
     }
 
     @Test
     fun `an ip literal pointing inside is refused at the socket - dns is never consulted for literals`() {
-        assertNull(fetcher().fetch("http://127.0.0.2:$port/latest/meta-data/"))
+        assertEquals(Unavailable, fetcher().fetch("http://127.0.0.2:$port/latest/meta-data/"))
         assertEquals(0, internalHits.get())
     }
 
@@ -179,7 +183,7 @@ class SafeHttpLinkPreviewFetcherTest {
         resolve("public.test", publicAddress)
         publicRoute("/") { redirect(it, "http://127.0.0.2:$port/secret") }
 
-        assertNull(fetcher().fetch("http://public.test:$port/"))
+        assertEquals(Unavailable, fetcher().fetch("http://public.test:$port/"))
         assertEquals(1, publicHits.get())
         assertEquals(0, internalHits.get(), "the redirect target must never be contacted")
     }
@@ -190,7 +194,7 @@ class SafeHttpLinkPreviewFetcherTest {
         resolve("shared-minio", internalAddress)
         publicRoute("/") { redirect(it, "http://shared-minio:$port/muhabbet-media/") }
 
-        assertNull(fetcher().fetch("http://public.test:$port/"))
+        assertEquals(Unavailable, fetcher().fetch("http://public.test:$port/"))
         assertEquals(0, internalHits.get())
     }
 
@@ -199,7 +203,7 @@ class SafeHttpLinkPreviewFetcherTest {
         resolve("public.test", publicAddress)
         publicRoute("/") { redirect(it, "file:///etc/passwd") }
 
-        assertNull(fetcher().fetch("http://public.test:$port/"))
+        assertEquals(Unavailable, fetcher().fetch("http://public.test:$port/"))
     }
 
     @Test
@@ -208,7 +212,7 @@ class SafeHttpLinkPreviewFetcherTest {
         publicRoute("/old") { redirect(it, "/new") }
         publicRoute("/new") { respond(it, 200, "text/html", "<title>moved here</title>") }
 
-        assertEquals("moved here", fetcher().fetch("http://public.test:$port/old")?.title)
+        assertEquals("moved here", fetcher().fetch("http://public.test:$port/old").fetched().title)
     }
 
     @Test
@@ -216,7 +220,7 @@ class SafeHttpLinkPreviewFetcherTest {
         resolve("loop.test", publicAddress)
         publicRoute("/") { redirect(it, "/") }
 
-        assertNull(fetcher(maxRedirects = 3).fetch("http://loop.test:$port/"))
+        assertEquals(Unavailable, fetcher(maxRedirects = 3).fetch("http://loop.test:$port/"))
         assertEquals(4, publicHits.get(), "the first request plus three redirects, then stop")
     }
 
@@ -232,8 +236,8 @@ class SafeHttpLinkPreviewFetcherTest {
         }
         val fetcher = fetcher(maxBodyBytes = 16L * 1024)
 
-        assertEquals("early", fetcher.fetch("http://big.test:$port/early")?.title)
-        assertNull(fetcher.fetch("http://big.test:$port/late")?.title, "a tag past the cap must not be seen")
+        assertEquals("early", fetcher.fetch("http://big.test:$port/early").fetched().title)
+        assertNull(fetcher.fetch("http://big.test:$port/late").fetched().title, "a tag past the cap must not be seen")
     }
 
     @Test
@@ -241,7 +245,7 @@ class SafeHttpLinkPreviewFetcherTest {
         resolve("files.test", publicAddress)
         publicRoute("/movie.mp4") { respond(it, 200, "video/mp4", "<title>not a page</title>") }
 
-        assertNull(fetcher().fetch("http://files.test:$port/movie.mp4"))
+        assertEquals(Unavailable, fetcher().fetch("http://files.test:$port/movie.mp4"))
     }
 
     @Test
@@ -256,7 +260,7 @@ class SafeHttpLinkPreviewFetcherTest {
         val preview = fetcher(totalTimeout = Duration.ofMillis(300)).fetch("http://slow.test:$port/")
         val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
 
-        assertNull(preview)
+        assertEquals(Unavailable, preview)
         assertTrue(elapsedMs < 2_000, "took ${elapsedMs}ms against a 300ms deadline")
     }
 
@@ -275,7 +279,7 @@ class SafeHttpLinkPreviewFetcherTest {
         val preview = fetcher(totalTimeout = Duration.ofMillis(500)).fetch("http://chain.test:$port/")
         val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
 
-        assertNull(preview)
+        assertEquals(Unavailable, preview)
         assertTrue(elapsedMs < 900, "took ${elapsedMs}ms against a 500ms total deadline")
     }
 
@@ -299,10 +303,26 @@ class SafeHttpLinkPreviewFetcherTest {
         release.countDown()
         first.get(5, TimeUnit.SECONDS)
 
-        assertNull(second)
+        assertEquals(Busy, second, "overload is a fact about this instance, not Unavailable for the URL")
         assertTrue(elapsedMs < 200, "the refused request waited ${elapsedMs}ms")
         assertEquals(1, publicHits.get(), "the refused request must not have been sent")
     }
+
+    @Test
+    fun `an unexpected runtime failure while reading the page is Unavailable, not an exception`() {
+        // A resolver that misbehaves with something other than an IOException stands in for any
+        // library surprise; the caller must get an answer about the URL, not a 500.
+        val brokenDns = object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> = error("boom")
+        }
+        val fetcher = SafeHttpLinkPreviewFetcher(LinkPreviewProperties(maxConcurrentFetches = 1), policy, brokenDns)
+
+        assertEquals(Unavailable, fetcher.fetch("http://broken.test:$port/"))
+        // The slot was released: a second call is not reported Busy.
+        assertEquals(Unavailable, fetcher.fetch("http://broken.test:$port/"))
+    }
+
+    private fun LinkPreviewFetchResult.fetched(): LinkPreview = assertInstanceOf(Fetched::class.java, this).preview
 
     private fun redirect(exchange: HttpExchange, location: String) {
         exchange.responseHeaders.add("Location", location)
