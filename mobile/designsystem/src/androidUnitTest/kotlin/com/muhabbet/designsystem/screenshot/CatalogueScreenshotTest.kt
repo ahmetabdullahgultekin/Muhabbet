@@ -253,7 +253,7 @@ class CatalogueScreenshotTest {
                 onConfirm = {},
                 onDismiss = {},
                 initialDateUtcMillis = FixedDate,
-                minDateUtcMillis = FixedDate,
+                minSelectableDayUtcMidnight = FixedDate,
                 error = "Bu saat geçti"
             )
         }

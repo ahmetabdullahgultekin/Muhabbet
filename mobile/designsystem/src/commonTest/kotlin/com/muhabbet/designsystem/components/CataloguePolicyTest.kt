@@ -156,6 +156,21 @@ class CataloguePolicyTest {
         assertTrue(dates.isSelectableYear(1970))
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test
+    fun should_follow_a_changed_minimum_when_the_selectable_dates_instance_is_kept() {
+        val day = 1_741_910_400_000L // 2025-03-14 00:00 UTC
+        var minimum: Long? = day
+        val dates = LiveSelectableDates { minimum }
+        assertFalse(dates.isSelectableDate(day - 24 * 60 * 60 * 1000L), "before the first minimum")
+
+        minimum = day - 2 * 24 * 60 * 60 * 1000L
+        assertTrue(dates.isSelectableDate(day - 24 * 60 * 60 * 1000L), "the same instance sees the new minimum")
+
+        minimum = null
+        assertTrue(dates.isSelectableYear(1970), "and no minimum at all")
+    }
+
     @Test
     fun should_compute_the_gregorian_year_when_given_an_epoch_day() {
         assertEquals(1970, yearOfUtcDay(0))

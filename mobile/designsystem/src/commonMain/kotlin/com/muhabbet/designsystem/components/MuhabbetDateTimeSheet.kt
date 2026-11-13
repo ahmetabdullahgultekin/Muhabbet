@@ -23,6 +23,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,7 +86,7 @@ fun MuhabbetDateTimeSheet(
     initialHour: Int = 0,
     initialMinute: Int = 0,
     is24Hour: Boolean = true,
-    minDateUtcMillis: Long? = null,
+    minSelectableDayUtcMidnight: Long? = null,
     error: String? = null
 ) {
     MuhabbetBottomSheet(
@@ -101,7 +102,7 @@ fun MuhabbetDateTimeSheet(
             initialHour = initialHour,
             initialMinute = initialMinute,
             is24Hour = is24Hour,
-            minDateUtcMillis = minDateUtcMillis,
+            minSelectableDayUtcMidnight = minSelectableDayUtcMidnight,
             error = error
         )
     }
@@ -114,8 +115,14 @@ fun MuhabbetDateTimeSheet(
  * way back to the calendar. The steps slide on the shared enter/exit transitions, and advancing
  * ticks `SegmentAdvanced` — the same feel as the sign-up rail, because it is the same idea.
  *
- * @param minDateUtcMillis days before this one cannot be picked (by calendar day, so "today" stays
- *   pickable whatever the time). Null allows any day.
+ * @param minSelectableDayUtcMidnight the first pickable day, as **the UTC midnight that names that
+ *   calendar day** — the same encoding the picker's own cells and [MuhabbetDateTime.dateUtcMillis]
+ *   use. For "today or later" pass the UTC midnight of the user's *local* date (for example
+ *   `LocalDate.now(zone).atStartOfDay(UTC)`), never "now": `now` is a UTC instant, and near
+ *   midnight it names a different day than the user's clock — in UTC+3 yesterday would stay
+ *   pickable until 03:00, and west of UTC today would become unpickable in the evening. The zone is
+ *   the caller's to know, so the conversion is the caller's to make. Any time within the day is
+ *   floored to it. Null allows any day. A change is honoured while the picker is open.
  * @param error shown under the active step — the caller's own validation, such as "that time has
  *   passed", which only the caller can judge because only it knows the zone.
  */
@@ -129,12 +136,16 @@ fun MuhabbetDateTimePicker(
     initialHour: Int = 0,
     initialMinute: Int = 0,
     is24Hour: Boolean = true,
-    minDateUtcMillis: Long? = null,
+    minSelectableDayUtcMidnight: Long? = null,
     error: String? = null
 ) {
     val haptics = LocalHaptics.current
     var step by rememberSaveable { mutableStateOf(MuhabbetDateTimeStep.Date) }
-    val selectable = remember(minDateUtcMillis) { selectableFrom(minDateUtcMillis) }
+    // rememberDatePickerState captures selectableDates once (it is saveable), so the object handed
+    // to it must stay the same and read the latest minimum itself; recreating it on change would be
+    // silently ignored.
+    val currentMinDay = rememberUpdatedState(minSelectableDayUtcMidnight)
+    val selectable = remember { LiveSelectableDates { currentMinDay.value } }
     val dateState = rememberDatePickerState(
         initialSelectedDateMillis = initialDateUtcMillis,
         initialDisplayedMonthMillis = initialDateUtcMillis,
@@ -226,14 +237,26 @@ fun MuhabbetDateTimePicker(
 }
 
 /**
- * Days on or after the calendar day containing [minDateUtcMillis]. Compared by day, not by
+ * A [SelectableDates] that asks [minDay] on every call, so a stable instance follows a changing
+ * minimum. Reads in composition are snapshot reads, so a calendar cell recomposes when it changes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+internal class LiveSelectableDates(private val minDay: () -> Long?) : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+        selectableFrom(minDay()).isSelectableDate(utcTimeMillis)
+
+    override fun isSelectableYear(year: Int): Boolean = selectableFrom(minDay()).isSelectableYear(year)
+}
+
+/**
+ * Days on or after the calendar day containing [minDayUtcMidnight]. Compared by day, not by
  * instant: M3 hands `isSelectableDate` the UTC midnight of each cell, so comparing against the raw
  * minimum would make today unpickable for the rest of the day.
  */
 @OptIn(ExperimentalMaterial3Api::class)
-internal fun selectableFrom(minDateUtcMillis: Long?): SelectableDates {
-    if (minDateUtcMillis == null) return AllDates
-    val minDay = minDateUtcMillis.floorDiv(MillisPerDay)
+internal fun selectableFrom(minDayUtcMidnight: Long?): SelectableDates {
+    if (minDayUtcMidnight == null) return AllDates
+    val minDay = minDayUtcMidnight.floorDiv(MillisPerDay)
     val minYear = yearOfUtcDay(minDay)
     return object : SelectableDates {
         override fun isSelectableDate(utcTimeMillis: Long): Boolean =

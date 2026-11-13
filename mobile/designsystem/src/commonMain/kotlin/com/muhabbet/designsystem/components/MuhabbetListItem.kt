@@ -23,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -114,8 +113,7 @@ fun MuhabbetListItem(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
-    onLongClickLabel: String? = null,
-    headlineColor: Color = MaterialTheme.colorScheme.onSurface
+    onLongClickLabel: String? = null
 ) {
     val haptics = LocalHaptics.current
     val textStyles = LocalTextStyles.current
@@ -130,11 +128,15 @@ fun MuhabbetListItem(
         label = "listItemSelection"
     )
 
+    // One role for both paths: a multi-select row must announce the same whether or not it also has
+    // a long-press action.
+    val role = if (selection == MuhabbetListSelection.None) Role.Button else Role.Checkbox
     val interaction = when {
         onLongClick != null -> Modifier.longPressable(
             shape = RectangleShape,
             enabled = enabled,
             onClickLabel = onClickLabel,
+            role = role,
             onLongClickLabel = onLongClickLabel,
             onLongClick = {
                 haptics.perform(MuhabbetHapticIntent.ItemLongPressed)
@@ -147,7 +149,7 @@ fun MuhabbetListItem(
             shape = RectangleShape,
             enabled = enabled,
             onClickLabel = onClickLabel,
-            role = if (selection == MuhabbetListSelection.None) Role.Button else Role.Checkbox,
+            role = role,
             onClick = onClick
         )
 
@@ -177,7 +179,7 @@ fun MuhabbetListItem(
             Text(
                 text = headline,
                 style = textStyles.ConversationTitle,
-                color = if (isSelected) selectedGround.content else headlineColor,
+                color = if (isSelected) selectedGround.content else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -283,7 +285,7 @@ private fun SelectionMark(visible: Boolean, modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = MuhabbetIcons.Sent,
+                imageVector = MuhabbetIcons.Selected,
                 contentDescription = null,
                 tint = colors.content,
                 modifier = Modifier.size(MuhabbetSizes.IconInline)

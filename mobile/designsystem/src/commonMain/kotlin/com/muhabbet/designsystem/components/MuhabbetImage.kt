@@ -27,8 +27,11 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import coil3.compose.AsyncImagePainter
+import coil3.PlatformContext
 import coil3.compose.LocalPlatformContext
 import coil3.compose.rememberAsyncImagePainter
+import coil3.compose.rememberConstraintsSizeResolver
+import coil3.size.SizeResolver
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.muhabbet.designsystem.theme.MuhabbetIcons
@@ -63,6 +66,18 @@ enum class MuhabbetImagePlaceholder {
  * Loads through Coil's singleton, which the app configures once with
  * [com.muhabbet.designsystem.image.InstallMuhabbetImageLoader].
  *
+ * **Decoded at the size it is laid out at, not at the file's size.** The request is sized from the
+ * composable's own layout constraints, so a 4000×3000 camera photo shown as a 48dp avatar decodes to
+ * roughly 48dp, not to ~48 MB of bitmap. This has to be done explicitly: unlike `AsyncImage`, the
+ * painter path never measures its layout, and Coil falls back to `Size.ORIGINAL` for any request
+ * with no size resolver. Give the image a bounded size (a `Modifier.size`, `fillMaxWidth` inside a
+ * bounded parent, an `aspectRatio`) — an axis left unbounded is decoded at its natural extent.
+ *
+ * @param model a URL, a file, any Coil data type, or a full [ImageRequest] when the caller needs to
+ *   set request options (a stable `memoryCacheKey`/`diskCacheKey` for presigned URLs, headers).
+ *   A caller's request is extended, not wrapped: its options are kept, and a size it set itself
+ *   wins over the layout size.
+ *
  * @param contentDescription what TalkBack says; the node reports `Role.Image`. Null makes the image
  *   decorative and removes it from the accessibility tree — correct when an adjacent label already
  *   says what it is.
@@ -94,10 +109,11 @@ fun MuhabbetImage(
     }
 
     val context = LocalPlatformContext.current
-    // The component owns the fade (over its own placeholder), so Coil's is switched off for this
-    // request: the loader's default crossfade exists for raw AsyncImage call sites only.
-    val request = remember(model, context) {
-        ImageRequest.Builder(context).data(model).crossfade(false).build()
+    // A layout modifier as well as a SizeResolver: it suspends the request until the frame below is
+    // measured, then resolves to those constraints.
+    val sizeResolver = rememberConstraintsSizeResolver()
+    val request = remember(model, context, sizeResolver) {
+        muhabbetImageRequest(model, context, sizeResolver)
     }
     val painter = rememberAsyncImagePainter(model = request, contentScale = contentScale)
     val state by painter.state.collectAsState()
@@ -105,13 +121,30 @@ fun MuhabbetImage(
         phase = state.toPhase(),
         painter = painter,
         contentDescription = contentDescription,
-        modifier = modifier,
+        modifier = modifier.then(sizeResolver),
         shape = shape,
         contentScale = contentScale,
         placeholder = placeholder,
         crossfade = crossfade,
         fallbackIcon = fallbackIcon
     )
+}
+
+/**
+ * The request [MuhabbetImage] executes for [model].
+ *
+ * - The component owns the fade (over its own placeholder), so Coil's is switched off: the loader's
+ *   default crossfade exists for raw `AsyncImage` call sites only.
+ * - The request is sized by [layoutSize] unless the caller's own [ImageRequest] already chose a size.
+ *   Without one Coil decodes at `Size.ORIGINAL`.
+ * - A caller's [ImageRequest] is rebuilt with `newBuilder`, never nested as the data of a second
+ *   request — nesting would hide every option it carries (cache keys, headers) from the pipeline.
+ */
+internal fun muhabbetImageRequest(model: Any, context: PlatformContext, layoutSize: SizeResolver): ImageRequest {
+    val builder = if (model is ImageRequest) model.newBuilder(context) else ImageRequest.Builder(context).data(model)
+    val callerSized = model is ImageRequest && model.defined.sizeResolver != null
+    if (!callerSized) builder.size(layoutSize)
+    return builder.crossfade(false).build()
 }
 
 /** The three things an image can be doing, from the user's side. */

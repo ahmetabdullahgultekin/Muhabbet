@@ -73,22 +73,9 @@ fun MuhabbetCountBadge(
             .clearAndSetSemantics { this.contentDescription = contentDescription ?: label },
         contentAlignment = Alignment.Center
     ) {
-        AnimatedContent(
-            targetState = count,
-            transitionSpec = {
-                val rising = targetState > initialState
-                (slideInVertically(MuhabbetMotion.offsetSpatialDefault()) { if (rising) it else -it } +
-                    fadeIn(MuhabbetMotion.effectsDefault()))
-                    .togetherWith(
-                        slideOutVertically(MuhabbetMotion.offsetSpatialDefault()) { if (rising) -it else it } +
-                            fadeOut(MuhabbetMotion.effectsDefault())
-                    )
-                    .using(SizeTransform(clip = true))
-            },
-            label = "countBadge"
-        ) { shown ->
+        CountBadgeContent(label = label, count = count) { shown ->
             Text(
-                text = formatBadgeCount(shown, max).orEmpty(),
+                text = shown,
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.content,
                 maxLines = 1
@@ -96,6 +83,36 @@ fun MuhabbetCountBadge(
         }
     }
 }
+
+/**
+ * The rolling text inside [MuhabbetCountBadge], with what each frame draws passed in so a test can
+ * count the frames alive mid-transition (the badge clears its children's semantics, so nothing else
+ * can see them).
+ *
+ * Keyed on [label], not on [count]: above the cap 150 → 160 is "99+" → "99+", which must not slide
+ * out and back in. The count rides along only to pick the direction.
+ */
+@Composable
+internal fun CountBadgeContent(label: String, count: Int, frame: @Composable (String) -> Unit) {
+    AnimatedContent(
+        targetState = BadgeFrame(label, count),
+        contentKey = { it.label },
+        transitionSpec = {
+            val rising = targetState.count > initialState.count
+            (slideInVertically(MuhabbetMotion.offsetSpatialDefault()) { if (rising) it else -it } +
+                fadeIn(MuhabbetMotion.effectsDefault()))
+                .togetherWith(
+                    slideOutVertically(MuhabbetMotion.offsetSpatialDefault()) { if (rising) -it else it } +
+                        fadeOut(MuhabbetMotion.effectsDefault())
+                )
+                .using(SizeTransform(clip = true))
+        },
+        label = "countBadge"
+    ) { shown -> frame(shown.label) }
+}
+
+/** What the badge animates between: the text it shows, and the count that produced it. */
+private data class BadgeFrame(val label: String, val count: Int)
 
 /**
  * The text a count badge shows, or null when it should not be drawn.

@@ -397,6 +397,16 @@ is follow-up work, screen by screen, each with its own ratchet. Notes worth know
 - **`MuhabbetImage`** owns its crossfade and switches Coil's off per request; the loader's default
   crossfade exists only for raw `AsyncImage` sites not yet migrated. The network fetcher is passed in
   by the app through `InstallMuhabbetImageLoader { components { … } }` — the library stays Ktor-free.
+  It **sizes every request from its own layout constraints** (`rememberConstraintsSizeResolver`):
+  the painter path never measures, and Coil decodes a request without a size resolver at
+  `Size.ORIGINAL` — a 48 MB bitmap for a 48dp avatar. `MuhabbetImageRequestTest` pins it. A caller's
+  `ImageRequest` is extended, not wrapped, so the stable `memoryCacheKey`/`diskCacheKey` that
+  presigned media URLs need (the URL changes on every fetch) reach the pipeline.
+- **The image disk cache holds private chat media in plaintext.** The app must call
+  `MuhabbetImageLoader.clearCaches` on logout and account deletion. On iOS it lives in
+  `Library/Caches`, not `NSTemporaryDirectory`, which the system empties aggressively.
+- **Search timing has one owner.** The field debounces and deduplicates; a screen Store fetches on
+  `onSearch` directly, or passes `debounce = Duration.ZERO` if it must own the timing itself.
 - **Checkbox and radio** set the 48dp minimum on their own node. M3 widens the *hit area* but leaves
   the semantics node at the 24dp glyph, which is what TalkBack's focus ring and accessibility
   scanners read; `CatalogueSemanticsTest` measured 24dp on the stock control.
