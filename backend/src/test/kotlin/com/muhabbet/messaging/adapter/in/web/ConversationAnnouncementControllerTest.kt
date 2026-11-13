@@ -63,7 +63,8 @@ class ConversationAnnouncementControllerTest {
             conversationRepository = mockk<ConversationRepository>(relaxed = true),
             userRepository = mockk<UserRepository>(),
             presencePort = mockk<PresencePort>(),
-            blockPolicy = mockk<BlockPolicyPort>()
+            blockPolicy = mockk<BlockPolicyPort>(),
+            phoneVisibility = mockk(relaxed = true)
         )
 
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(

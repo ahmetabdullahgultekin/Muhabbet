@@ -68,6 +68,11 @@ class ConversationPersistenceAdapter(
     override fun findAllContactUserIds(userId: UUID): Set<UUID> =
         memberRepo.findAllContactUserIds(userId)
 
+    override fun findDirectCounterpartsWhoDisclosed(viewerId: UUID, candidateIds: Collection<UUID>): Set<UUID> {
+        if (candidateIds.isEmpty()) return emptySet()
+        return memberRepo.findDirectCounterpartsWhoDisclosed(viewerId, candidateIds, ConversationType.DIRECT)
+    }
+
     override fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID? =
         directLookupRepo.findByUserIdLowAndUserIdHigh(userIdLow, userIdHigh)?.conversationId
 

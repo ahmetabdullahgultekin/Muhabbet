@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.messaging.domain.model.ConversationType
 import com.muhabbet.messaging.domain.port.`in`.CreateConversationUseCase
 import com.muhabbet.messaging.domain.port.`in`.GetConversationsUseCase
+import com.muhabbet.messaging.domain.port.`in`.ResolvePhoneVisibilityUseCase
 import com.muhabbet.messaging.domain.port.out.BlockPolicyPort
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.dto.AnnouncementModeResponse
@@ -11,7 +12,6 @@ import com.muhabbet.shared.dto.ConversationResponse
 import com.muhabbet.shared.dto.SetAnnouncementModeRequest
 import com.muhabbet.shared.dto.CreateConversationRequest
 import com.muhabbet.shared.dto.PaginatedResponse
-import com.muhabbet.shared.dto.ParticipantResponse
 import com.muhabbet.shared.model.MemberRole as SharedMemberRole
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.shared.security.AuthenticatedUser
@@ -37,7 +37,8 @@ class ConversationController(
     private val conversationRepository: com.muhabbet.messaging.domain.port.out.ConversationRepository,
     private val userRepository: UserRepository,
     private val presencePort: PresencePort,
-    private val blockPolicy: BlockPolicyPort
+    private val blockPolicy: BlockPolicyPort,
+    private val phoneVisibility: ResolvePhoneVisibilityUseCase
 ) {
 
     /**
@@ -81,6 +82,7 @@ class ConversationController(
         val memberUserIds = result.members.map { it.userId }
         val usersMap = userRepository.findAllByIds(memberUserIds).associateBy { it.id }
         val onlineIds = presencePort.getOnlineUserIds(memberUserIds) - presenceHiddenFrom(userId, memberUserIds)
+        val phoneVisibleIds = phoneVisibility.phoneVisibleParticipants(userId, memberUserIds)
 
         val response = ConversationResponse(
             id = result.conversation.id.toString(),
@@ -88,14 +90,12 @@ class ConversationController(
             name = result.conversation.name,
             avatarUrl = result.conversation.avatarUrl,
             participants = result.members.map { m ->
-                val user = usersMap[m.userId]
-                ParticipantResponse(
-                    userId = m.userId.toString(),
-                    displayName = user?.displayName,
-                    phoneNumber = user?.phoneNumber,
-                    avatarUrl = user?.avatarUrl,
+                participantResponseOf(
+                    userId = m.userId,
+                    user = usersMap[m.userId],
                     role = SharedMemberRole.valueOf(m.role.name),
-                    isOnline = m.userId in onlineIds
+                    isOnline = m.userId in onlineIds,
+                    phoneVisible = m.userId in phoneVisibleIds
                 )
             },
             lastMessagePreview = null,
@@ -120,6 +120,7 @@ class ConversationController(
         val usersMap = userRepository.findAllByIds(allParticipantIds).associateBy { it.id }
         val onlineIds =
             presencePort.getOnlineUserIds(allParticipantIds) - presenceHiddenFrom(userId, allParticipantIds)
+        val phoneVisibleIds = phoneVisibility.phoneVisibleParticipants(userId, allParticipantIds)
 
         val items = page.items.map { summary ->
             ConversationResponse(
@@ -128,14 +129,12 @@ class ConversationController(
                 name = summary.name,
                 avatarUrl = summary.avatarUrl,
                 participants = summary.participantIds.map { pid ->
-                    val user = usersMap[pid]
-                    ParticipantResponse(
-                        userId = pid.toString(),
-                        displayName = user?.displayName,
-                        phoneNumber = user?.phoneNumber,
-                        avatarUrl = user?.avatarUrl,
+                    participantResponseOf(
+                        userId = pid,
+                        user = usersMap[pid],
                         role = SharedMemberRole.MEMBER,
-                        isOnline = pid in onlineIds
+                        isOnline = pid in onlineIds,
+                        phoneVisible = pid in phoneVisibleIds
                     )
                 },
                 lastMessagePreview = summary.lastMessagePreview,

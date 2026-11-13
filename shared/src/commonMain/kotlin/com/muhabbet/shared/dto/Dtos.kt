@@ -164,6 +164,14 @@ data class ConversationResponse(
 data class ParticipantResponse(
     val userId: String,
     val displayName: String? = null,
+    /**
+     * **Conditional, and null by default (#902, KVKK data minimisation).** The server fills it in
+     * only for the viewer's own entry, and for a participant who made themselves known to the
+     * viewer one-to-one — created a DIRECT conversation with them or sent them a message in one —
+     * and has not blocked the viewer. Co-membership of a group, channel, community or community
+     * announcement group never discloses it. Clients must treat null as "not shared with you",
+     * not as "has no number", and fall back to [displayName].
+     */
     val phoneNumber: String? = null,
     val avatarUrl: String? = null,
     val role: MemberRole,

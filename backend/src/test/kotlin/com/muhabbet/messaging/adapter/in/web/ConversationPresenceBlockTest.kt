@@ -67,7 +67,8 @@ class ConversationPresenceBlockTest {
             conversationRepository = conversationRepository,
             userRepository = userRepository,
             presencePort = presencePort,
-            blockPolicy = blockPolicy
+            blockPolicy = blockPolicy,
+            phoneVisibility = mockk(relaxed = true)
         )
 
         every { userRepository.findAllByIds(any()) } returns listOf(

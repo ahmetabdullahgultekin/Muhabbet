@@ -27,6 +27,21 @@ interface ConversationRepository {
      */
     fun countMembersByConversationIds(conversationIds: List<UUID>): Map<UUID, Int>
     fun findAllContactUserIds(userId: UUID): Set<UUID>
+
+    /**
+     * Which of [candidateIds] have made themselves known to [viewerId] one-to-one: they share a
+     * DIRECT conversation with the viewer **and** created it or have sent a message in it (#902).
+     *
+     * Membership alone would not do. Anyone can open a direct conversation with any user id, and
+     * every group roster hands out user ids, so "shares a DM" on its own would let a stranger
+     * harvest a group's phone numbers by opening a DM with each member. Requiring the *other* side
+     * to have acted keeps the disclosure theirs to make: messaging someone, or answering them, is
+     * the moment they chose to talk to this person. Group, channel and community co-membership
+     * never counts.
+     *
+     * One query for the whole candidate set, none when it is empty.
+     */
+    fun findDirectCounterpartsWhoDisclosed(viewerId: UUID, candidateIds: Collection<UUID>): Set<UUID>
     fun findDirectConversation(userIdLow: UUID, userIdHigh: UUID): UUID?
     fun saveDirectLookup(userIdLow: UUID, userIdHigh: UUID, conversationId: UUID)
     fun updateLastReadAt(conversationId: UUID, userId: UUID, timestamp: java.time.Instant)

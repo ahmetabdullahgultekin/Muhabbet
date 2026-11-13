@@ -3,6 +3,7 @@ package com.muhabbet.messaging.adapter.`in`.web
 import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.`in`.ResolvePhoneVisibilityUseCase
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.dto.AddMembersRequest
 import com.muhabbet.shared.dto.ApiResponse
@@ -28,7 +29,8 @@ import java.util.UUID
 class GroupController(
     private val manageGroupUseCase: ManageGroupUseCase,
     private val userRepository: UserRepository,
-    private val presencePort: PresencePort
+    private val presencePort: PresencePort,
+    private val phoneVisibility: ResolvePhoneVisibilityUseCase
 ) {
 
     @PostMapping("/{conversationId}/members")
@@ -41,16 +43,17 @@ class GroupController(
 
         val addedMembers = manageGroupUseCase.addMembers(conversationId, userId, userIds)
 
-        val onlineIds = presencePort.getOnlineUserIds(addedMembers.map { it.userId })
+        val addedIds = addedMembers.map { it.userId }
+        val onlineIds = presencePort.getOnlineUserIds(addedIds)
+        // Adding someone to a group does not by itself entitle the adder to their number (#902).
+        val phoneVisibleIds = phoneVisibility.phoneVisibleParticipants(userId, addedIds)
         val participants = addedMembers.map { m ->
-            val user = userRepository.findById(m.userId)
-            ParticipantResponse(
-                userId = m.userId.toString(),
-                displayName = user?.displayName,
-                phoneNumber = user?.phoneNumber,
-                avatarUrl = user?.avatarUrl,
+            participantResponseOf(
+                userId = m.userId,
+                user = userRepository.findById(m.userId),
                 role = SharedMemberRole.valueOf(m.role.name),
-                isOnline = m.userId in onlineIds
+                isOnline = m.userId in onlineIds,
+                phoneVisible = m.userId in phoneVisibleIds
             )
         }
 

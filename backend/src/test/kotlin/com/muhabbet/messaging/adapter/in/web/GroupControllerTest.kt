@@ -4,6 +4,7 @@ import com.muhabbet.auth.domain.port.out.UserRepository
 import com.muhabbet.messaging.domain.model.ConversationMember
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.`in`.ManageGroupUseCase
+import com.muhabbet.messaging.domain.port.`in`.ResolvePhoneVisibilityUseCase
 import com.muhabbet.messaging.domain.port.out.PresencePort
 import com.muhabbet.shared.TestData
 import com.muhabbet.shared.exception.BusinessException
@@ -12,6 +13,8 @@ import com.muhabbet.shared.security.JwtClaims
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -24,6 +27,7 @@ class GroupControllerTest {
     private lateinit var manageGroupUseCase: ManageGroupUseCase
     private lateinit var userRepository: UserRepository
     private lateinit var presencePort: PresencePort
+    private lateinit var phoneVisibility: ResolvePhoneVisibilityUseCase
     private lateinit var controller: GroupController
 
     private val userId = TestData.USER_ID_1
@@ -34,7 +38,9 @@ class GroupControllerTest {
         manageGroupUseCase = mockk()
         userRepository = mockk()
         presencePort = mockk()
-        controller = GroupController(manageGroupUseCase, userRepository, presencePort)
+        phoneVisibility = mockk()
+        every { phoneVisibility.phoneVisibleParticipants(any(), any()) } returns emptySet()
+        controller = GroupController(manageGroupUseCase, userRepository, presencePort, phoneVisibility)
         setAuthenticatedUser(userId, TestData.DEVICE_ID_1)
     }
 
@@ -62,6 +68,33 @@ class GroupControllerTest {
 
             assert(response.statusCode.value() == 200)
             assert(response.body?.data?.size == 2)
+        }
+
+        @Test
+        fun `should carry phone number only for members the policy discloses to the adder`() {
+            val newMembers = listOf(
+                TestData.member(conversationId = groupId, userId = TestData.USER_ID_2),
+                TestData.member(conversationId = groupId, userId = TestData.USER_ID_3)
+            )
+            every { manageGroupUseCase.addMembers(groupId, userId, any()) } returns newMembers
+            every { presencePort.getOnlineUserIds(any()) } returns emptySet()
+            every { userRepository.findById(TestData.USER_ID_2) } returns
+                TestData.user(id = TestData.USER_ID_2, phoneNumber = TestData.PHONE_2)
+            every { userRepository.findById(TestData.USER_ID_3) } returns
+                TestData.user(id = TestData.USER_ID_3, phoneNumber = TestData.PHONE_3)
+            every {
+                phoneVisibility.phoneVisibleParticipants(userId, listOf(TestData.USER_ID_2, TestData.USER_ID_3))
+            } returns setOf(TestData.USER_ID_2)
+
+            val participants = controller.addMembers(
+                groupId,
+                com.muhabbet.shared.dto.AddMembersRequest(listOf(TestData.USER_ID_2.toString(), TestData.USER_ID_3.toString()))
+            ).body?.data.orEmpty().associateBy { it.userId }
+
+            assertEquals(
+                TestData.PHONE_2, participants[TestData.USER_ID_2.toString()]?.phoneNumber
+            )
+            assertNull(participants[TestData.USER_ID_3.toString()]?.phoneNumber)
         }
 
         @Test

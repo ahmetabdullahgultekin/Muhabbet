@@ -259,6 +259,7 @@ List conversations (inbox).
           {
             "userId": "770e8400-...",
             "displayName": "Mehmet",
+            "phoneNumber": null,
             "avatarUrl": "https://...",
             "role": "member",
             "isOnline": true
@@ -275,6 +276,12 @@ List conversations (inbox).
   }
 }
 ```
+
+**`participants[].phoneNumber` is conditional (#902, KVKK).** It is present for the viewer's own
+entry, and for a participant who created a DIRECT conversation with the viewer or has sent the
+viewer a message in one, unless that participant has blocked the viewer. Otherwise it is null or absent.
+Group, channel and community co-membership never discloses it. The same rule applies to
+`POST /conversations` and `POST /conversations/{id}/members`.
 
 ---
 

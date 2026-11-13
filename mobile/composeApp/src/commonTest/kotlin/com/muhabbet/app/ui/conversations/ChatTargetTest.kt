@@ -153,6 +153,17 @@ class ChatTargetTest {
     }
 
     @Test
+    fun resolveName_whenTheServerWithholdsTheNumber_fallsBackToTheNameTheyChose() {
+        // #902: a group co-member who never messaged you arrives with phoneNumber = null, even if
+        // their number happens to be in your address book. That must read as "not shared", never
+        // as a lookup against a null key or a blank title.
+        val name = participant("u2", displayName = "Ayşe", phoneNumber = null)
+            .resolveName(mapOf("+905000000002" to "Ayşe Teyze"))
+
+        assertEquals("Ayşe", name)
+    }
+
+    @Test
     fun resolveName_whenNothingIsKnown_returnsNullRatherThanTheUserId() {
         assertNull(participant("6cd15421-0000").resolveName())
     }

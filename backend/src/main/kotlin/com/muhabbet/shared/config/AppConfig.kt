@@ -73,6 +73,7 @@ import com.muhabbet.messaging.domain.service.LinkPreviewService
 import com.muhabbet.messaging.domain.service.InviteLinkService
 import com.muhabbet.messaging.domain.service.JoinRequestService
 import com.muhabbet.messaging.domain.service.MessageService
+import com.muhabbet.messaging.domain.service.PhoneVisibilityService
 import com.muhabbet.messaging.domain.service.PollService
 import com.muhabbet.messaging.domain.service.ReactionService
 import com.muhabbet.messaging.domain.service.SearchService
@@ -199,6 +200,15 @@ class AppConfig {
         conversationRepository = conversationRepository,
         messageRepository = messageRepository,
         userRepository = userRepository
+    )
+
+    @Bean
+    fun phoneVisibilityService(
+        conversationRepository: ConversationRepository,
+        blockPolicy: BlockPolicyPort
+    ): PhoneVisibilityService = PhoneVisibilityService(
+        conversationRepository = conversationRepository,
+        blockPolicy = blockPolicy
     )
 
     @Bean
