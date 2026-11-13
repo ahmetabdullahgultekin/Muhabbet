@@ -291,6 +291,52 @@ class SemanticColorContrastTest {
     fun should_meet_wcag_contrast_when_oled_scheme_roles() =
         assertAllSchemePairs("OledScheme", MuhabbetOledBlackColorScheme)
 
+    // ─── Component pairs (#847) ──────────────────────────────────
+
+    /**
+     * Pairs the second-wave components introduce, measured where they are actually drawn.
+     *
+     * - Every [MuhabbetTone] as a text pair: a pill's label sits on its own container.
+     * - The count badge's container as a non-text mark against each ground a badge lands on — the
+     *   list surface and the bottom bar's container. Its digits against that container are already
+     *   the declared `unreadBadge` pair above.
+     * - The search field's placeholder and glyphs (`onSurfaceVariant`) on the `inputField` ground,
+     *   which is a semantic container, not a scheme role, so the scheme pairs never reached it.
+     * - The tab indicator and a checked box are `primary` marks on `surface`, and an unchecked box is
+     *   an `outline` on `surface`; both are non-text and both are already in [schemePairsFor].
+     */
+    private fun componentPairsFor(name: String, s: ColorScheme, c: MuhabbetSemanticColors, dark: Boolean): List<Pair> =
+        MuhabbetTone.entries.map { tone ->
+            val pair = toneColors(tone, s, dark)
+            Pair("$name tone.$tone content/container", pair.content, pair.container, textFloor)
+        } + listOf(
+            Pair("$name unreadBadge.container/surface", c.unreadBadge.container, s.surface, nonTextFloor),
+            Pair("$name unreadBadge.container/surfaceContainer", c.unreadBadge.container, s.surfaceContainer, nonTextFloor),
+            Pair("$name onSurfaceVariant/inputField", s.onSurfaceVariant, c.inputField.container, textFloor)
+        )
+
+    private fun assertComponentPairs(name: String, s: ColorScheme, c: MuhabbetSemanticColors, dark: Boolean) {
+        val regressions = componentPairsFor(name, s, c, dark)
+            .map { it to contrast(over(it.foreground, it.background), it.background) }
+            .filter { (pair, ratio) -> ratio < pair.floor }
+            .map { (pair, ratio) -> "  ${pair.label}: ${format(ratio)}:1 (needs ${pair.floor}:1)" }
+        if (regressions.isNotEmpty()) {
+            fail("$name component pairs have ${regressions.size} WCAG contrast failure(s):\n${regressions.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun should_meet_wcag_contrast_when_light_component_pairs() =
+        assertComponentPairs("Light", MuhabbetLightColorScheme, LightSemanticColors, dark = false)
+
+    @Test
+    fun should_meet_wcag_contrast_when_dark_component_pairs() =
+        assertComponentPairs("Dark", MuhabbetDarkColorScheme, DarkSemanticColors, dark = true)
+
+    @Test
+    fun should_meet_wcag_contrast_when_oled_component_pairs() =
+        assertComponentPairs("Oled", MuhabbetOledBlackColorScheme, OledSemanticColors, dark = true)
+
     /**
      * The twelve wallpaper swatches, each against the foreground [readableContentOn] picks for it.
      *

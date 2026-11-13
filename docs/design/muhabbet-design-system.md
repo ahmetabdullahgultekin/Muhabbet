@@ -372,6 +372,38 @@ Components carry the haptic by default, so no screen has to remember.
 | `SettingsRow` (Nav/Switch/Radio/Info) | two incompatible geometries for the same row |
 | `SectionHeader` | a private reimplementation in the privacy dashboard |
 | `UserAvatar` | 16 sites, 6 different sizes |
+| `MuhabbetListItem` + `MuhabbetPersonRow` | ~14 hand-rolled avatar/name/subtitle/trailing rows (#847) |
+| `MuhabbetImage` + `MuhabbetImageLoader` / `InstallMuhabbetImageLoader` | 12 raw `AsyncImage`s with no placeholder, error or crossfade; Coil had never been configured |
+| `MuhabbetSearchField` | 5 search fields, each with its own debounce/min-length policy |
+| `MuhabbetSpinner` | 6 `CircularProgressIndicator(Modifier.size(…), strokeWidth = …)` copies |
+| `MuhabbetCountBadge` | raw M3 `Badge` + `count.toString()` in the nav bar and conversation row |
+| `MuhabbetPill` + `MuhabbetTone` | per-screen tag colours |
+| `MuhabbetCard` | 5 raw `Card`s on M3's default (invisible on OLED) elevation |
+| `MuhabbetTabs` (state and `PagerState` overloads) | — |
+| `MuhabbetCheckbox` / `MuhabbetRadio` | bare M3 controls with no haptic and a 24dp semantics node |
+| `MuhabbetPullRefresh` | the bare `PullToRefreshBox` that never performed `RefreshTriggered` |
+| `MuhabbetDateTimeSheet` / `MuhabbetDateTimePicker` | the scheduled-send `AlertDialog` taller than the screen |
+
+The second wave (#847) landed as components only; migrating the call sites in the right-hand column
+is follow-up work, screen by screen, each with its own ratchet. Notes worth knowing before using them:
+
+- **Sizes** live in `MuhabbetComponentSizes` (`theme/MuhabbetComponentTokens.kt`), not
+  `MuhabbetSizes`: each belongs to one component, and a screen borrowing `CountBadgeMinSize` as "a
+  small square" would pin the badge forever.
+- **`MuhabbetTone`** (`Neutral`, `Brand`, `Info`, `Success`, `Danger`) hands back a measured
+  container/content pair. `Success` is the one ground M3 has no role for, so the palette gained
+  `SuccessContainer*`; all five are in `SemanticColorContrastTest` with the badge-on-ground and
+  placeholder-on-`inputField` pairs.
+- **`MuhabbetImage`** owns its crossfade and switches Coil's off per request; the loader's default
+  crossfade exists only for raw `AsyncImage` sites not yet migrated. The network fetcher is passed in
+  by the app through `InstallMuhabbetImageLoader { components { … } }` — the library stays Ktor-free.
+- **Checkbox and radio** set the 48dp minimum on their own node. M3 widens the *hit area* but leaves
+  the semantics node at the 24dp glyph, which is what TalkBack's focus ring and accessibility
+  scanners read; `CatalogueSemanticsTest` measured 24dp on the stock control.
+- **`MuhabbetPullRefresh`**'s haptic timing is the sealed `PullRefreshArming` machine (ADR 0012):
+  once per pull, never while a refresh is running, re-armed only below the threshold.
+- **Search policy** is `effectiveSearchQuery` plus a debounce that re-checks after waiting, so the
+  keyboard's search key and the debounce cannot both send the same query.
 
 ### API shapes that make a bug unexpressible
 
@@ -388,6 +420,10 @@ same shape — a pairing where getting one half right and the other wrong is sil
 - `MuhabbetTextField.error` is one `String?` instead of `isError` plus `supportingText`. Only 3 of
   28 sites wired both; one without the other is a red outline with no explanation, or an explanation
   with nothing marked.
+- `MuhabbetListItem.selection` is one three-state enum (`None`/`Unselected`/`Selected`) rather than
+  `selectable` plus `selected`, so "selected but not selectable" cannot be written.
+- `MuhabbetCountBadge` draws nothing at zero and caps at `99+`; there is no way to render "0" or a
+  four-digit count in a one-digit circle.
 
 ---
 

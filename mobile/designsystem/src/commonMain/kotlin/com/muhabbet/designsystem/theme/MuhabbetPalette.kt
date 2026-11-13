@@ -106,6 +106,14 @@ internal object MuhabbetPalette {
     val DangerContainerDark = Color(0xFF8C1D18)
     val OnDangerDark = Color(0xFF52130F)
     val SurfaceHighestLight = Color(0xFFE7E0D9)
+
+    // The success tone's container pair, for MuhabbetPill (#847). M3 has no success role, so these
+    // are the one green ground the system declares; they are still "green only where it means
+    // connected" — a linked device, a verified number. Measured in SemanticColorContrastTest.
+    val SuccessContainerLight = Color(0xFFCFEBDB)
+    val OnSuccessContainerLight = Color(0xFF00391F)
+    val SuccessContainerDark = Color(0xFF184A33)
+    val OnSuccessContainerDark = Color(0xFFBEEBD2)
 }
 
 /*

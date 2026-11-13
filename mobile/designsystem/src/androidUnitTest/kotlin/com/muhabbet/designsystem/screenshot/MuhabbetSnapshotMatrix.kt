@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.theme.MuhabbetTheme
 import com.muhabbet.designsystem.theme.MuhabbetThemeMode
@@ -54,8 +55,19 @@ object MuhabbetSnapshotMatrix {
         fontScales.map { scale -> Variant("${theme.storageKey}_x${(scale * 10).toInt()}", theme, scale, LayoutDirection.Ltr) }
     } + Variant("light_x10_rtl", MuhabbetThemeMode.Light, 1.0f, LayoutDirection.Rtl)
 
-    /** Captures [content] in every theme × font scale, plus one RTL rendering in Light at 1.0. */
-    fun capture(rule: ComposeContentTestRule, component: String, content: @Composable () -> Unit) {
+    /**
+     * Captures [content] in every theme × font scale, plus one RTL rendering in Light at 1.0.
+     *
+     * @param wholeScreen capture every window rather than the content's own root. Needed for a
+     *   component that opens its own window — a bottom sheet, a dialog — which `onRoot()` cannot
+     *   see, and which could otherwise only be golden-tested by its body (#847).
+     */
+    fun capture(
+        rule: ComposeContentTestRule,
+        component: String,
+        wholeScreen: Boolean = false,
+        content: @Composable () -> Unit
+    ) {
         rule.mainClock.autoAdvance = false
         var current by mutableStateOf(variants.first())
         rule.setContent {
@@ -77,7 +89,8 @@ object MuhabbetSnapshotMatrix {
         variants.forEach { v ->
             current = v
             rule.mainClock.advanceTimeBy(SETTLE_MS)
-            rule.onRoot().captureRoboImage("$GOLDEN_ROOT/$component/${component}_${v.name}.png")
+            val path = "$GOLDEN_ROOT/$component/${component}_${v.name}.png"
+            if (wholeScreen) captureScreenRoboImage(path) else rule.onRoot().captureRoboImage(path)
         }
     }
 }
