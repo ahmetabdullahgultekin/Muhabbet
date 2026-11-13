@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.muhabbet.app.data.local.TokenStorage
@@ -268,6 +269,9 @@ fun ChatScreen(
     // again, which stopped the recording AND sent it in one motion — no cancel, no preview, no way
     // to keep talking past the length of one held press.
     val audioRecorder = rememberAudioRecorder()
+    // The voice gesture's thresholds are Dp tokens; the release decision needs the density the drag
+    // was measured in (#841).
+    val density = LocalDensity.current
     val audioPlayer = rememberAudioPlayer()
     var recordingPhase by remember { mutableStateOf<VoiceRecordingPhase>(VoiceRecordingPhase.Idle) }
     var recordingSeconds by remember { mutableStateOf(0) }
@@ -1112,7 +1116,7 @@ fun ChatScreen(
                     onRecordDragUpdate = { dx, dy -> recordingPhase = VoiceRecordingPhase.Held(dx, dy) },
                     onRecordLocked = { recordingPhase = VoiceRecordingPhase.Locked },
                     onRecordReleased = { dx, _ ->
-                        if (isVoiceRecordingCancelledAt(dx)) {
+                        if (isVoiceRecordingCancelledAt(dx, density)) {
                             audioRecorder.cancelRecording()
                             recordingPhase = VoiceRecordingPhase.Idle
                         } else {

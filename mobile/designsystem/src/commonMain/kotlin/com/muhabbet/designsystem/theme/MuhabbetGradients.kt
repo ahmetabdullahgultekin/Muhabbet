@@ -66,24 +66,35 @@ object MuhabbetGradients {
         )
 
     /**
-     * Deterministic two-stop fill for an avatar with no photo, seeded from the display name.
+     * Deterministic two-stop fill for an avatar with no photo, keyed on a stable identity.
      *
      * The cheapest high-impact change available: it turns a contact list of identical grey circles
-     * into something that looks art-directed, and because the seed is the name, the same person is
-     * the same colour on every device and across restarts.
+     * into something that looks art-directed, and because the seed is an identity, the same person
+     * is the same colour on every device and across restarts.
+     *
+     * [seed] should be a user or conversation **id**, not a display name (#838): a name is
+     * presentation — renaming a contact used to repaint them, and every unnamed user shared the
+     * colour of the "?" placeholder.
+     *
+     * Returns one of six brushes built once at class load, so an avatar in a scrolling list
+     * allocates no `Brush` per recomposition.
      *
      * Hues are picked off the copper ramp and its warm neighbours only — a random-hue rainbow would
      * fight the palette, and the point is that the list reads as one system.
      */
-    fun avatarFallback(seed: String): Brush {
-        val pairs = AvatarFallbackPairs
-        // Sum of code points rather than String.hashCode(): hashCode's contract does not guarantee
-        // stability across platforms, and this colour has to match on Android and iOS.
-        val index = (seed.sumOf { it.code } % pairs.size).let { if (it < 0) it + pairs.size else it }
-        val (top, bottom) = pairs[index]
-        return Brush.linearGradient(listOf(top, bottom))
-    }
+    fun avatarFallback(seed: String): Brush = AvatarFallbackBrushes[avatarFallbackIndex(seed)]
 }
+
+/**
+ * Which of the [AvatarFallbackPairs] a [seed] maps to.
+ *
+ * Sum of code points rather than String.hashCode(): hashCode's contract does not guarantee
+ * stability across platforms, and this colour has to match on Android and iOS.
+ */
+internal fun avatarFallbackIndex(seed: String): Int =
+    (seed.sumOf { it.code } % AvatarFallbackPairs.size).let { if (it < 0) it + AvatarFallbackPairs.size else it }
+
+internal val AvatarFallbackPairCount: Int get() = AvatarFallbackPairs.size
 
 /**
  * Chat wallpapers the user can pick from.
@@ -216,3 +227,7 @@ private val AvatarFallbackPairs: List<Pair<Color, Color>> = listOf(
     Color(0xFF6B5238) to Color(0xFFA8875C),
     Color(0xFF8A4438) to Color(0xFFC47A62)
 )
+
+/** One brush per pair, built once. Declared after the pairs: top-level vals initialise in order. */
+private val AvatarFallbackBrushes: List<Brush> =
+    AvatarFallbackPairs.map { (top, bottom) -> Brush.linearGradient(listOf(top, bottom)) }

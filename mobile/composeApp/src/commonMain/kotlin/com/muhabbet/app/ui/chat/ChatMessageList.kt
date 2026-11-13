@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -127,8 +128,10 @@ internal fun ChatMessageList(
                     val isOwn = message.senderId == currentUserId
                     val repliedMessage = message.replyToId?.let { rid -> messages.firstOrNull { it.id == rid } }
                     val isStarred = message.id in starredIds
-                    val threshold = Muhabbet.gestures.SwipeReplyThreshold
-                    val maxSwipe = Muhabbet.gestures.SwipeReplyMax
+                    // Dp tokens, resolved to px once for the pointer deltas they are compared with (#841).
+                    val density = LocalDensity.current
+                    val threshold = with(density) { Muhabbet.gestures.SwipeReplyThreshold.toPx() }
+                    val maxSwipe = with(density) { Muhabbet.gestures.SwipeReplyMax.toPx() }
                     // Animatable, not a plain Float: releasing a drag below the threshold used to
                     // snap the bubble back to zero in one frame. It now springs back, which is what
                     // the gesture promised while the finger was down.

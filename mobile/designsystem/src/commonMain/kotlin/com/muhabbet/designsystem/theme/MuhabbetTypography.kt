@@ -9,6 +9,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.muhabbet.designsystem.generated.resources.Res
 import com.muhabbet.designsystem.generated.resources.manrope_bold
@@ -235,3 +236,10 @@ class MuhabbetTextStyles internal constructor(typography: Typography) {
  * the theme — which is every real screen — it is always the Manrope-bearing instance.
  */
 val LocalTextStyles = staticCompositionLocalOf { MuhabbetTextStyles(MuhabbetTypeScale) }
+
+/**
+ * The granularity of shrink-to-fit text (`TextAutoSize.StepBased`), as used by the bottom bar's
+ * labels (#770). A quarter sp is below what the eye can tell apart, so a label shrinks smoothly to
+ * the largest size that fits rather than jumping a whole point.
+ */
+internal val AutoSizeStep: TextUnit = 0.25.sp

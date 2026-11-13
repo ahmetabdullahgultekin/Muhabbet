@@ -534,6 +534,7 @@
     <string name="privacy_export_data_desc">Download a copy of all your personal data (KVKK Article 11)</string>
     <string name="privacy_export_started">Data export started</string>
     <string name="privacy_export_failed">Failed to start data export</string>
+    <string name="privacy_export_in_progress">Preparing your data</string>
     <string name="privacy_delete_account">Delete My Account</string>
     <string name="privacy_delete_account_desc">Your account and all data will be permanently deleted</string>
     <string name="privacy_delete_confirm_title">Delete Account</string>

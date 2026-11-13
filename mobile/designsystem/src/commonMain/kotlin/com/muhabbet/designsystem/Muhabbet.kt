@@ -3,6 +3,7 @@ package com.muhabbet.designsystem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import com.muhabbet.designsystem.theme.LocalHaptics
+import com.muhabbet.designsystem.theme.LocalReducedMotion
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.LocalTextStyles
 import com.muhabbet.designsystem.theme.LocalThemeMode
@@ -50,6 +51,13 @@ object Muhabbet {
     /** Semantic haptic intents. Respects the user's preference; no-op outside the theme. */
     val haptics: MuhabbetHaptics
         @Composable @ReadOnlyComposable get() = LocalHaptics.current
+
+    /**
+     * The user's reduced-motion preference (#842). Pass it to the policy-aware members of [motion]
+     * — `Muhabbet.motion.enterFadeUp(Muhabbet.reducedMotion)` — and skip loops when it is true.
+     */
+    val reducedMotion: Boolean
+        @Composable @ReadOnlyComposable get() = LocalReducedMotion.current
 
     // Constant token sets — no composition needed, so callable from anywhere.
     val spacing get() = MuhabbetSpacing

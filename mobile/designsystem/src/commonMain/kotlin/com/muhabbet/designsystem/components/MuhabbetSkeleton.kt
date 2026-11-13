@@ -1,11 +1,11 @@
 package com.muhabbet.designsystem.components
 
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,12 +28,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -42,6 +51,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.theme.MuhabbetCorners
+import com.muhabbet.designsystem.theme.LocalReducedMotion
 import com.muhabbet.designsystem.theme.MuhabbetDurations
 import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -52,39 +62,59 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 
 /**
- * The shimmer phase, hoisted so a list of placeholders animates as one.
+ * The shimmer's clock, hoisted so a list of placeholders animates as one.
  *
- * The previous implementation created a `rememberInfiniteTransition` inside each skeleton row, so
- * ten placeholder rows meant ten independent infinite animations recomposing on their own clocks —
- * both wasteful and visibly wrong, since a real shimmer sweeps across the whole list rather than
- * each row pulsing to its own beat.
+ * Two earlier designs were each wrong in a different way, and this shape exists to rule out both:
+ *
+ *  - One `rememberInfiniteTransition` per row: ten rows, ten unsynchronised clocks.
+ *  - One clock, but its *value* provided through a `staticCompositionLocalOf<Float>` (#835). A
+ *    static local changing invalidates the whole subtree under the provider, so every skeleton
+ *    block — and everything else inside the host — was recomposed, re-laid-out and re-allocated on
+ *    every frame of a loop that never ends while loading is in progress.
+ *
+ * What is provided now never changes: a [ShimmerClock] wrapping the animation's `State`. Nothing
+ * reads that state during composition; the draw node reads it, so a frame of shimmer invalidates
+ * draw and nothing else.
  */
-private val LocalShimmerPhase = staticCompositionLocalOf<Float?> { null }
+@Stable
+internal sealed interface ShimmerClock {
+    /** Reduced motion (#842): no sweep at all, the placeholder is a flat surface. */
+    data object Static : ShimmerClock
+
+    /** 0..1 across one sweep. Read only inside a draw lambda. */
+    class Animated(val phase: State<Float>) : ShimmerClock
+}
+
+private val LocalShimmerClock = staticCompositionLocalOf<ShimmerClock?> { null }
 
 /**
  * Runs one shimmer clock for everything inside.
  *
- * Wrap a list of skeletons in this; each [Modifier.shimmer] inside picks the shared phase up.
- * Using a skeleton outside it still works — it falls back to its own transition.
+ * Wrap a list of skeletons in this; each [Modifier.shimmer] inside picks the shared clock up.
+ * Using a skeleton outside it still works — it falls back to its own clock.
  */
 @Composable
 fun ShimmerHost(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalShimmerPhase provides rememberShimmerPhase(), content = content)
+    CompositionLocalProvider(LocalShimmerClock provides rememberShimmerClock(), content = content)
 }
 
 @Composable
-private fun rememberShimmerPhase(): Float {
+private fun rememberShimmerClock(): ShimmerClock {
+    if (LocalReducedMotion.current) return ShimmerClock.Static
     val transition = rememberInfiniteTransition(label = "shimmer")
-    val phase by transition.animateFloat(
+    // Deliberately not `by`: delegating would read the value here, in composition, which is the
+    // exact per-frame recomposition this clock exists to avoid. The returned State is the same
+    // instance on every recomposition, so the clock below is stable too.
+    val phase = transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(MuhabbetMotion.Duration.ShimmerSweepMs),
+            animation = tween(MuhabbetMotion.Duration.ShimmerSweepMs, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "shimmerPhase"
     )
-    return phase
+    return remember(phase) { ShimmerClock.Animated(phase) }
 }
 
 /**
@@ -93,26 +123,94 @@ private fun rememberShimmerPhase(): Float {
  * A moving highlight, not a pulsing alpha. The alpha pulse this replaces reads as "something is
  * broken and blinking"; a sweep reads as "content is on its way", which is the whole job of a
  * skeleton.
+ *
+ * Composable only to resolve the theme colours and the clock; the per-frame work lives in
+ * [ShimmerNode]'s draw, which allocates nothing.
  */
 @Composable
 fun Modifier.shimmer(shape: Shape = MaterialTheme.shapes.small): Modifier {
-    val phase = LocalShimmerPhase.current ?: rememberShimmerPhase()
-    val base = MaterialTheme.colorScheme.surfaceContainerHigh
-    val highlight = MaterialTheme.colorScheme.surfaceContainerHighest
-
-    // Travels well past the edges so the highlight enters and leaves rather than appearing mid-surface.
-    val travel = 2000f
-    val x = (phase * 2f - 0.5f) * travel
+    val clock = LocalShimmerClock.current ?: rememberShimmerClock()
     return this
         .clip(shape)
-        .background(
-            Brush.linearGradient(
-                colors = listOf(base, highlight, base),
-                start = Offset(x - travel / 2f, 0f),
-                end = Offset(x, 0f)
+        .then(
+            ShimmerElement(
+                clock = clock,
+                base = MaterialTheme.colorScheme.surfaceContainerHigh,
+                highlight = MaterialTheme.colorScheme.surfaceContainerHighest
             )
         )
 }
+
+private data class ShimmerElement(
+    val clock: ShimmerClock,
+    val base: Color,
+    val highlight: Color
+) : ModifierNodeElement<ShimmerNode>() {
+    override fun create() = ShimmerNode(clock, base, highlight)
+
+    override fun update(node: ShimmerNode) {
+        node.clock = clock
+        node.setColors(base, highlight)
+        node.invalidateDraw()
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "shimmer"
+    }
+}
+
+/**
+ * Draws the base surface, then a highlight band translated across it.
+ *
+ * The band's brush is built once per colour pair (and per band width, which only changes when the
+ * element resizes) and *moved* with a translation each frame, so a running shimmer allocates no
+ * `Brush` and no `Offset` per frame (#835). The band is sized and travels as a fraction of the
+ * element's own width, so the sweep looks the same at mdpi and xxxhdpi and on a 48dp avatar or a
+ * full-width line — the old 2000 px travel was a different speed on every density.
+ */
+internal class ShimmerNode(
+    var clock: ShimmerClock,
+    private var base: Color,
+    private var highlight: Color
+) : Modifier.Node(), DrawModifierNode {
+
+    private var band: Brush? = null
+    private var bandWidth = -1f
+
+    fun setColors(base: Color, highlight: Color) {
+        if (base != this.base || highlight != this.highlight) {
+            this.base = base
+            this.highlight = highlight
+            band = null
+        }
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawRect(base)
+        val animated = clock as? ShimmerClock.Animated
+        if (animated != null && size.width > 0f) {
+            val width = size.width * ShimmerBandFraction
+            val brush = band?.takeIf { bandWidth == width }
+                ?: Brush.horizontalGradient(listOf(base, highlight, base), startX = 0f, endX = width)
+                    .also { band = it; bandWidth = width }
+            // Reading the phase here, in draw, is what keeps a frame of shimmer out of composition.
+            val left = shimmerBandLeft(animated.phase.value, size.width, width)
+            translate(left = left) { drawRect(brush, size = Size(width, size.height)) }
+        }
+        drawContent()
+    }
+}
+
+/**
+ * Where the highlight band's left edge sits for a [phase] of 0..1: entirely off the start edge at 0,
+ * entirely off the end edge at 1, so the highlight enters and leaves rather than appearing
+ * mid-surface. Pure so the geometry is testable at any width.
+ */
+internal fun shimmerBandLeft(phase: Float, elementWidth: Float, bandWidth: Float): Float =
+    -bandWidth + phase * (elementWidth + bandWidth)
+
+/** The highlight band as a fraction of the element it sweeps. */
+private const val ShimmerBandFraction = 0.6f
 
 /** A placeholder block: use for a title line, a preview line, a thumbnail. */
 @Composable

@@ -559,6 +559,8 @@
     <string name="privacy_export_data_desc">Tüm kişisel verilerinizin bir kopyasını indirin (KVKK Madde 11)</string>
     <string name="privacy_export_started">Veri dışa aktarma başlatıldı</string>
     <string name="privacy_export_failed">Veri dışa aktarma başlatılamadı</string>
+    <!-- Spoken as the export row's state while it is busy (#837); the spinner itself is silent. -->
+    <string name="privacy_export_in_progress">Verileriniz hazırlanıyor</string>
     <string name="privacy_delete_account">Hesabımı Sil</string>
     <string name="privacy_delete_account_desc">Hesabınız ve tüm verileriniz kalıcı olarak silinir</string>
     <string name="privacy_delete_confirm_title">Hesabı Sil</string>

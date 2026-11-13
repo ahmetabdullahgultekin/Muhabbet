@@ -9,12 +9,16 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -22,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -30,6 +35,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
@@ -54,15 +62,52 @@ import com.muhabbet.designsystem.theme.MuhabbetSpacing
  * the row — this was the one component in the catalogue setting no colour, shape or motion of its
  * own, and it is the whole of the Settings surface.
  */
+/**
+ * What a whole row does when activated — the row, not the control drawn inside it, owns the
+ * interaction (#837).
+ *
+ * Before, a switch row was clickable *and* contained a separately clickable switch: two focusable
+ * nodes for one setting ("Read receipts, double-tap to activate", then "Off, switch"), the row
+ * itself carrying no state, and a tap on the larger target bypassing the switch's haptic. A radio
+ * row had the same double node. Each variant here maps to exactly one accessibility node with the
+ * right role and state, and the control inside is drawn with a null callback.
+ */
+@Immutable
+internal sealed interface RowInteraction {
+    /** Not interactive: a [SettingsInfoRow], or a nav row that is disabled or busy. */
+    data object None : RowInteraction
+
+    /** Opens something. `Role.Button`. */
+    class Navigate(val onClick: () -> Unit) : RowInteraction
+
+    /** A two-state setting. `Role.Switch` with a toggleable state. */
+    class Toggle(val checked: Boolean, val enabled: Boolean, val onCheckedChange: (Boolean) -> Unit) : RowInteraction
+
+    /** One option of a group. `Role.RadioButton`; must sit inside a [SettingsRadioGroup]. */
+    class Select(val selected: Boolean, val onSelect: () -> Unit) : RowInteraction
+}
+
+/**
+ * The haptic a row interaction should produce, or null for none. Pure, so the rule "re-selecting
+ * the option that is already selected is not feedback-worthy" is testable without a device.
+ */
+internal fun RowInteraction.hapticFor(): MuhabbetHapticIntent? = when (this) {
+    RowInteraction.None, is RowInteraction.Navigate -> null
+    is RowInteraction.Toggle -> toggleHaptic(!checked)
+    is RowInteraction.Select -> if (selected) null else MuhabbetHapticIntent.SegmentAdvanced
+}
+
 @Composable
 private fun RowFrame(
-    onClick: (() -> Unit)?,
+    interaction: RowInteraction,
     modifier: Modifier = Modifier,
+    stateDescription: String? = null,
     content: @Composable RowScope.() -> Unit
 ) {
-    // Built only when the row is actually clickable: a row with no action (SettingsInfoRow) has no
+    // Built only when the row is actually interactive: a row with no action (SettingsInfoRow) has no
     // press state to track, and this keeps it from paying for one every recomposition.
-    val pressModifier = if (onClick != null) {
+    val interactionModifier = if (interaction != RowInteraction.None) {
+        val haptics = LocalHaptics.current
         val interactionSource = remember { MutableInteractionSource() }
         val pressed by interactionSource.collectIsPressedAsState()
         val scale by animateFloatAsState(
@@ -70,9 +115,37 @@ private fun RowFrame(
             animationSpec = MuhabbetMotion.spatialFast(),
             label = "settingsRowPress"
         )
+        val indication = LocalIndication.current
+        val haptic = interaction.hapticFor()
+        val perform = { haptic?.let(haptics::perform) }
         Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
+            .then(
+                when (interaction) {
+                    is RowInteraction.Navigate -> Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = indication,
+                        role = Role.Button,
+                        onClick = interaction.onClick
+                    )
+                    is RowInteraction.Toggle -> Modifier.toggleable(
+                        value = interaction.checked,
+                        interactionSource = interactionSource,
+                        indication = indication,
+                        enabled = interaction.enabled,
+                        role = Role.Switch,
+                        onValueChange = { perform(); interaction.onCheckedChange(it) }
+                    )
+                    is RowInteraction.Select -> Modifier.selectable(
+                        selected = interaction.selected,
+                        interactionSource = interactionSource,
+                        indication = indication,
+                        role = Role.RadioButton,
+                        onClick = { perform(); interaction.onSelect() }
+                    )
+                    RowInteraction.None -> Modifier
+                }
+            )
     } else {
         Modifier
     }
@@ -81,7 +154,16 @@ private fun RowFrame(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = MuhabbetSizes.MinTouchTarget)
-            .then(pressModifier)
+            .then(interactionModifier)
+            .then(
+                // Merged, so the state is read with the row's title: a busy row has no click action
+                // to merge it otherwise, and TalkBack would read the state and the title apart.
+                if (stateDescription != null) {
+                    Modifier.semantics(mergeDescendants = true) { this.stateDescription = stateDescription }
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = MuhabbetSpacing.Large, vertical = MuhabbetSpacing.Medium),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Medium),
@@ -146,6 +228,9 @@ private fun SettingsIconTile(
  * @param loading swaps the leading icon for a spinner *and* stops the row accepting taps. The one
  *   row that kicks off async work (data export) had been re-deriving that pairing itself, and
  *   getting only half of it right would mean a second export firing on a double tap.
+ * @param loadingDescription what a screen reader hears as the row's state while [loading] — the
+ *   spinner is otherwise silent, and a row that has stopped responding with no explanation reads as
+ *   broken. Supplied by the caller; this module has no strings.
  */
 @Composable
 fun SettingsNavRow(
@@ -157,9 +242,14 @@ fun SettingsNavRow(
     iconContentDescription: String? = null,
     destructive: Boolean = false,
     enabled: Boolean = true,
-    loading: Boolean = false
+    loading: Boolean = false,
+    loadingDescription: String? = null
 ) {
-    RowFrame(onClick = if (enabled && !loading) onClick else null, modifier = modifier) {
+    RowFrame(
+        interaction = if (enabled && !loading) RowInteraction.Navigate(onClick) else RowInteraction.None,
+        modifier = modifier,
+        stateDescription = if (loading) loadingDescription else null
+    ) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(MuhabbetSizes.IconLarge),
@@ -194,7 +284,9 @@ fun SettingsNavRow(
  * A row carrying a switch.
  *
  * The whole row toggles, not just the switch — both previous implementations only accepted a tap on
- * the switch itself.
+ * the switch itself. The row is the one accessibility node (`Role.Switch`, with its on/off state);
+ * the switch is drawn with a null callback, and the ToggleOn/ToggleOff haptic fires from the row, so
+ * it is felt whichever part was tapped (#837).
  */
 @Composable
 fun SettingsSwitchRow(
@@ -205,18 +297,32 @@ fun SettingsSwitchRow(
     subtitle: String? = null,
     enabled: Boolean = true
 ) {
-    RowFrame(onClick = if (enabled) ({ onCheckedChange(!checked) }) else null, modifier = modifier) {
+    RowFrame(interaction = RowInteraction.Toggle(checked, enabled, onCheckedChange), modifier = modifier) {
         RowLabels(title, subtitle, Modifier.weight(1f))
-        MuhabbetSwitch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+        MuhabbetSwitch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 
 /**
- * One option in a radio group.
+ * The container for a set of [SettingsRadioRow]s. It is what tells a screen reader the options are
+ * one group ("1 of 3"), so every radio row belongs inside one (#837).
+ */
+@Composable
+fun SettingsRadioGroup(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = modifier.selectableGroup(), content = content)
+}
+
+/**
+ * One option in a radio group. Place it inside a [SettingsRadioGroup].
  *
  * Both previous call sites duplicated the selection body verbatim on the `Row` *and* on the
  * `RadioButton`, so every option carried its side effects twice — including, in the language
- * picker, an app restart.
+ * picker, an app restart. Now the row is the single `Role.RadioButton` node and the radio is drawn
+ * with a null callback. The segment haptic fires only when the selection actually changes;
+ * re-tapping the current option is not feedback-worthy (#837).
  */
 @Composable
 fun SettingsRadioRow(
@@ -226,13 +332,8 @@ fun SettingsRadioRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null
 ) {
-    val haptics = LocalHaptics.current
-    val select = {
-        haptics.perform(MuhabbetHapticIntent.SegmentAdvanced)
-        onSelect()
-    }
-    RowFrame(onClick = select, modifier = modifier) {
-        RadioButton(selected = selected, onClick = select)
+    RowFrame(interaction = RowInteraction.Select(selected, onSelect), modifier = modifier) {
+        RadioButton(selected = selected, onClick = null)
         RowLabels(title, subtitle, Modifier.weight(1f))
     }
 }
@@ -250,7 +351,7 @@ fun SettingsInfoRow(
     value: String? = null,
     icon: ImageVector? = null
 ) {
-    RowFrame(onClick = null, modifier = modifier) {
+    RowFrame(interaction = RowInteraction.None, modifier = modifier) {
         if (icon != null) {
             // Neutral, not accented: this row does nothing when tapped, and an accented tile would
             // promise otherwise.

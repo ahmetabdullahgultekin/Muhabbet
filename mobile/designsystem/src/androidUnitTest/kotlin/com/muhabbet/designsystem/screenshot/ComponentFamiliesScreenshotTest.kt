@@ -14,7 +14,6 @@ import com.muhabbet.designsystem.components.ChatStartIllustration
 import com.muhabbet.designsystem.components.ContactsRingIllustration
 import com.muhabbet.designsystem.components.EditableAvatar
 import com.muhabbet.designsystem.components.EmptyChatsIllustration
-import com.muhabbet.designsystem.components.EmptySearchIllustration
 import com.muhabbet.designsystem.components.MuhabbetBrandMark
 import com.muhabbet.designsystem.components.MuhabbetDivider
 import com.muhabbet.designsystem.components.MuhabbetEmptyState
@@ -39,6 +38,7 @@ import com.muhabbet.designsystem.components.MuhabbetTopBar
 import com.muhabbet.designsystem.components.SectionHeader
 import com.muhabbet.designsystem.components.SettingsInfoRow
 import com.muhabbet.designsystem.components.SettingsNavRow
+import com.muhabbet.designsystem.components.SettingsRadioGroup
 import com.muhabbet.designsystem.components.SettingsRadioRow
 import com.muhabbet.designsystem.components.SettingsSwitchRow
 import com.muhabbet.designsystem.components.ShimmerHost
@@ -75,11 +75,18 @@ class ComponentFamiliesScreenshotTest {
         }
     }
 
+    // The second field is held to 288dp — a 320dp phone less its two screen margins — where the
+    // fixed 312dp row used to run off the edge (#840).
     @Test
     fun otpField() = MuhabbetSnapshotMatrix.capture(rule, "otpfield") {
         Column(verticalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Large)) {
             MuhabbetOtpField(value = "342", onValueChange = {})
-            MuhabbetOtpField(value = "342156", onValueChange = {}, isError = true)
+            MuhabbetOtpField(
+                value = "342156",
+                onValueChange = {},
+                isError = true,
+                modifier = Modifier.width(Muhabbet.sizes.BubbleMaxWidth - Muhabbet.spacing.XXLarge)
+            )
         }
     }
 
@@ -90,16 +97,37 @@ class ComponentFamiliesScreenshotTest {
             SettingsNavRow(title = "Engellenen kişiler", subtitle = "3 kişi", icon = Muhabbet.icons.Person, onClick = {})
             MuhabbetDivider()
             SettingsSwitchRow(title = "Okundu bilgisi", subtitle = "Kapalıyken siz de göremezsiniz", checked = true, onCheckedChange = {})
-            SettingsRadioRow(title = "Herkes", selected = true, onSelect = {})
-            SettingsRadioRow(title = "Kişilerim", selected = false, onSelect = {})
+            SettingsRadioGroup(Modifier) {
+                SettingsRadioRow(title = "Herkes", selected = true, onSelect = {})
+                SettingsRadioRow(title = "Kişilerim", selected = false, onSelect = {})
+            }
             SettingsInfoRow(title = "Sürüm", value = "0.3.11")
             SettingsNavRow(title = "Verilerimi dışa aktar", loading = true, onClick = {})
             SettingsNavRow(title = "Hesabı sil", destructive = true, icon = Muhabbet.icons.Delete, onClick = {})
         }
     }
 
+    /**
+     * Second row (#838, #839, #840): a photo URL that cannot load must still show the initials
+     * gradient, never an empty disc — this module has no network fetcher, so the URL fails exactly
+     * as an expired presigned one does; a phone-number name shows the person glyph; a flag name
+     * keeps the whole flag; and the initial is artwork, so it is the same size at every font scale.
+     */
     @Test
     fun avatars() = MuhabbetSnapshotMatrix.capture(rule, "avatar") {
+        Column(verticalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Medium)) {
+            AvatarRow()
+            Row(horizontalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Medium)) {
+                UserAvatar(avatarUrl = "https://media.invalid/expired.jpg", displayName = "Zeynep", size = Muhabbet.sizes.AvatarSmall, seed = "user-1")
+                UserAvatar(avatarUrl = null, displayName = "+905000000001", size = Muhabbet.sizes.AvatarMedium, seed = "user-2")
+                UserAvatar(avatarUrl = null, displayName = "\uD83C\uDDF9\uD83C\uDDF7 Ankara", size = Muhabbet.sizes.AvatarLarge, seed = "user-3")
+                UserAvatar(avatarUrl = null, displayName = "Ömer", size = Muhabbet.sizes.AvatarHero, seed = "user-4")
+            }
+        }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun AvatarRow() {
         Row(horizontalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Medium)) {
             UserAvatar(avatarUrl = null, displayName = "İsmail Şahin", size = Muhabbet.sizes.AvatarSmall)
             UserAvatar(avatarUrl = null, displayName = "ılgaz", size = Muhabbet.sizes.AvatarMedium)
@@ -156,7 +184,6 @@ class ComponentFamiliesScreenshotTest {
     fun illustrations() = MuhabbetSnapshotMatrix.capture(rule, "illustration") {
         Column(Modifier.width(Muhabbet.sizes.BubbleMaxWidth), verticalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Large)) {
             EmptyChatsIllustration(title = "Sohbet yok", subtitle = "İlk mesajı gönderin")
-            EmptySearchIllustration(title = "Sonuç bulunamadı")
             Row(horizontalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Large)) {
                 ContactsRingIllustration()
                 ChatStartIllustration()
@@ -164,29 +191,39 @@ class ComponentFamiliesScreenshotTest {
         }
     }
 
+    // The bars span the whole capture (a 360dp phone less the matrix's margins) as they span the
+    // screen in the app; the top bar and FABs keep the narrower column they were recorded in.
     @Test
     fun chrome() = MuhabbetSnapshotMatrix.capture(rule, "chrome") {
-        Column(Modifier.width(Muhabbet.sizes.BubbleMaxWidth)) {
-            MuhabbetTopBar(
-                title = "Ayarlar",
-                onBack = {},
-                backContentDescription = "Geri",
-                actions = { MuhabbetIconButton(icon = Muhabbet.icons.Search, contentDescription = "Ara", onClick = {}) },
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Large)) {
-                MuhabbetFab(icon = Muhabbet.icons.Add, contentDescription = "Yeni sohbet", onClick = {})
-                MuhabbetExtendedFab(text = "Yeni grup", icon = Muhabbet.icons.Group, onClick = {})
+        Column {
+            Column(Modifier.width(Muhabbet.sizes.BubbleMaxWidth)) {
+                MuhabbetTopBar(
+                    title = "Ayarlar",
+                    onBack = {},
+                    backContentDescription = "Geri",
+                    actions = { MuhabbetIconButton(icon = Muhabbet.icons.Search, contentDescription = "Ara", onClick = {}) },
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Muhabbet.spacing.Large)) {
+                    MuhabbetFab(icon = Muhabbet.icons.Add, contentDescription = "Yeni sohbet", onClick = {})
+                    MuhabbetExtendedFab(text = "Yeni grup", icon = Muhabbet.icons.Group, onClick = {})
+                }
             }
-            MuhabbetNavBar(
-                items = listOf(
-                    MuhabbetNavItem(icon = Muhabbet.icons.Person, label = "Sohbetler", badgeCount = 3),
-                    MuhabbetNavItem(icon = Muhabbet.icons.Notifications, label = "Güncellemeler"),
-                    MuhabbetNavItem(icon = Muhabbet.icons.Group, label = "Topluluklar"),
-                    MuhabbetNavItem(icon = Muhabbet.icons.Settings, label = "Aramalar"),
-                ),
-                selectedIndex = 0,
-                onSelect = {},
-            )
+            // Both locales (#770): Turkish has the longest tab names, English the second longest.
+            listOf(
+                listOf("Sohbetler", "Güncellemeler", "Topluluklar", "Aramalar"),
+                listOf("Chats", "Updates", "Communities", "Calls"),
+            ).forEach { labels ->
+                MuhabbetNavBar(
+                    items = listOf(
+                        MuhabbetNavItem(icon = Muhabbet.icons.Person, label = labels[0], badgeCount = 3),
+                        MuhabbetNavItem(icon = Muhabbet.icons.Notifications, label = labels[1]),
+                        MuhabbetNavItem(icon = Muhabbet.icons.Group, label = labels[2]),
+                        MuhabbetNavItem(icon = Muhabbet.icons.Settings, label = labels[3]),
+                    ),
+                    selectedIndex = 0,
+                    onSelect = {},
+                )
+            }
         }
     }
 

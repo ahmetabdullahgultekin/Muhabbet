@@ -36,6 +36,7 @@ import com.muhabbet.composeapp.generated.resources.welcome_contacts_skip
 import com.muhabbet.composeapp.generated.resources.welcome_next
 import com.muhabbet.composeapp.generated.resources.welcome_ready_action
 import com.muhabbet.composeapp.generated.resources.welcome_skip
+import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.MuhabbetButton
 import com.muhabbet.designsystem.components.MuhabbetButtonRole
 import com.muhabbet.designsystem.components.MuhabbetStepRail
@@ -147,11 +148,12 @@ fun WelcomeFlow(
             }
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                val reduced = Muhabbet.reducedMotion
                 AnimatedContent(
                     targetState = step,
                     // The app's own shared enter/exit pair, so a step change moves like every other
                     // arriving surface in the app rather than like a stock Compose crossfade.
-                    transitionSpec = { MuhabbetMotion.enterFadeUp togetherWith MuhabbetMotion.exitFadeDown },
+                    transitionSpec = { MuhabbetMotion.enterFadeUp(reduced) togetherWith MuhabbetMotion.exitFadeDown(reduced) },
                     label = "welcomeStep"
                 ) { current ->
                     when (current) {

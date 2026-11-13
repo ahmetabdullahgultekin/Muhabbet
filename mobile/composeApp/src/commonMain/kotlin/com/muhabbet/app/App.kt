@@ -1,6 +1,8 @@
 package com.muhabbet.app
 
+import com.muhabbet.designsystem.image.muhabbetImageLoader
 import com.muhabbet.designsystem.theme.MuhabbetTheme
+import coil3.compose.setSingletonImageLoaderFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +59,10 @@ fun App(componentContext: ComponentContext, platformModule: Module) {
         LaunchedEffect(Unit) {
             CrashReporter.init()
         }
+
+        // The one Coil configuration (#838) — cache sizes and why are documented on the factory.
+        // Installed before the first AsyncImage composes; later calls are ignored by Coil.
+        setSingletonImageLoaderFactory { context -> muhabbetImageLoader(context) }
 
         MuhabbetTheme(mode = themeMode, hapticsEnabled = hapticsEnabled) {
             SessionLifecycle(root)

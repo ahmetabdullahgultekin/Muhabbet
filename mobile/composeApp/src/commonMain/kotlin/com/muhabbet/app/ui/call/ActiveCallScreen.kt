@@ -169,13 +169,14 @@ fun ActiveCallScreen(
             // UserAvatar rather than a hand-rolled initial. The old expression,
             // `(otherUserName ?: "?").take(1).uppercase()`, was wrong twice over: `uppercase()` is
             // locale-independent, so "ismail" gave "I" where Turkish wants "İ", and `take(1)` cuts a
-            // surrogate pair or an emoji in half. `UserAvatar` routes through `firstGrapheme`, which
-            // has handled both since Phase 1 — this screen was simply not using it.
+            // surrogate pair or an emoji in half. `UserAvatar` routes through `avatarInitial`, which
+            // segments by grapheme cluster and upper-cases the Turkish way (#839).
             //
             // It breathes while the call is still connecting, and stops once it is up.
             UserAvatar(
                 avatarUrl = null,
                 displayName = otherUserName ?: otherUserId,
+                seed = otherUserId,
                 size = MuhabbetSizes.AvatarCall,
                 modifier = Modifier.breathing(enabled = mediaState == CallMediaState.CONNECTING)
             )

@@ -54,6 +54,7 @@ import com.muhabbet.designsystem.Muhabbet
 import com.muhabbet.designsystem.components.SettingsInfoRow
 import com.muhabbet.designsystem.components.SettingsNavRow
 import com.muhabbet.designsystem.components.SettingsSwitchRow
+import com.muhabbet.designsystem.components.SettingsRadioGroup
 import com.muhabbet.designsystem.components.SettingsRadioRow
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -267,21 +268,23 @@ internal fun LanguageSection(tokenStorage: TokenStorage, restartApp: () -> Unit)
     SettingsSectionTitle(stringResource(Res.string.settings_language))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    AppLanguage.entries.forEach { language ->
-        SettingsRadioRow(
-            title = languageLabel(language),
-            selected = language == selected,
-            onSelect = {
-                // Written every time, including for the row already filled in: on a device whose
-                // locale the app happens to match there is no stored preference at all, and pinning
-                // it is what keeps the app in this language if the device's ever changes.
-                tokenStorage.setLanguage(language.code)
-                if (languageNeedsRestart(language, rendered)) {
-                    tokenStorage.setPendingLanguageRestart()
-                    restartApp()
+    SettingsRadioGroup {
+        AppLanguage.entries.forEach { language ->
+            SettingsRadioRow(
+                title = languageLabel(language),
+                selected = language == selected,
+                onSelect = {
+                    // Written every time, including for the row already filled in: on a device whose
+                    // locale the app happens to match there is no stored preference at all, and pinning
+                    // it is what keeps the app in this language if the device's ever changes.
+                    tokenStorage.setLanguage(language.code)
+                    if (languageNeedsRestart(language, rendered)) {
+                        tokenStorage.setPendingLanguageRestart()
+                        restartApp()
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 }
 
@@ -307,12 +310,14 @@ internal fun ThemeSection(themeController: ThemeController) {
     SettingsSectionTitle(stringResource(Res.string.settings_theme))
     Spacer(Modifier.height(MuhabbetSpacing.Small))
 
-    MuhabbetThemeMode.entries.forEach { mode ->
-        SettingsRadioRow(
-            title = themeLabel(mode),
-            selected = selectedTheme == mode,
-            onSelect = { themeController.set(mode) }
-        )
+    SettingsRadioGroup {
+        MuhabbetThemeMode.entries.forEach { mode ->
+            SettingsRadioRow(
+                title = themeLabel(mode),
+                selected = selectedTheme == mode,
+                onSelect = { themeController.set(mode) }
+            )
+        }
     }
 }
 

@@ -9,8 +9,9 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,8 +33,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import com.muhabbet.designsystem.theme.LocalHaptics
+import com.muhabbet.designsystem.theme.LocalReducedMotion
 import com.muhabbet.designsystem.theme.MuhabbetCorners
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetMotion
@@ -71,6 +75,10 @@ fun MuhabbetOtpField(
     onFilled: (String) -> Unit = {}
 ) {
     val haptics = LocalHaptics.current
+    val reduced = LocalReducedMotion.current
+    // Dp, converted here: a px amplitude was a 4dp twitch on a 3x phone and an 8dp lurch on a 1.5x
+    // tablet (#841).
+    val shakeAmplitude = with(LocalDensity.current) { MuhabbetSizes.OtpShakeAmplitude.toPx() }
     val focusRequester = remember { FocusRequester() }
     var isFocused by remember { mutableStateOf(false) }
     val shake = remember { Animatable(0f) }
@@ -81,14 +89,17 @@ fun MuhabbetOtpField(
     LaunchedEffect(isError) {
         if (isError) {
             haptics.perform(MuhabbetHapticIntent.InputRejected)
+            // Reduced motion: the haptic and the red borders carry the rejection; the box row stays
+            // put (#842).
+            if (reduced) return@LaunchedEffect
             shake.animateTo(
                 targetValue = 0f,
                 animationSpec = keyframes {
                     durationMillis = ShakeDurationMs
-                    ShakeAmplitude at 60
-                    -ShakeAmplitude * 0.75f at 120
-                    ShakeAmplitude * 0.5f at 180
-                    -ShakeAmplitude * 0.25f at 240
+                    shakeAmplitude at 60
+                    -shakeAmplitude * 0.75f at 120
+                    shakeAmplitude * 0.5f at 180
+                    -shakeAmplitude * 0.25f at 240
                     0f at ShakeDurationMs
                 }
             )
@@ -122,9 +133,16 @@ fun MuhabbetOtpField(
         // buffer. Transparent rather than zero-sized so the touch target stays the boxes' size.
         cursorBrush = SolidColor(Color.Transparent),
         decorationBox = {
-            Row(horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small)) {
+            // The boxes share the width they are given rather than demanding a fixed 312dp: on a
+            // 320dp phone with screen margins that row used to run off the edge (#840). Each box
+            // takes an equal share, capped at its design width, and the row stays centred.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(MuhabbetSpacing.Small, Alignment.CenterHorizontally)
+            ) {
                 repeat(length) { index ->
                     OtpDigitBox(
+                        modifier = Modifier.weight(1f, fill = false),
                         digit = value.getOrNull(index),
                         isActive = isFocused && index == value.length.coerceAtMost(length - 1),
                         isError = isError,
@@ -139,7 +157,13 @@ fun MuhabbetOtpField(
 }
 
 @Composable
-private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean, masked: Boolean) {
+private fun OtpDigitBox(
+    digit: Char?,
+    isActive: Boolean,
+    isError: Boolean,
+    masked: Boolean,
+    modifier: Modifier = Modifier
+) {
     val borderColor by animateColorAsState(
         targetValue = when {
             isError -> MaterialTheme.colorScheme.error
@@ -152,9 +176,13 @@ private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean, maske
     )
     val boxShape = RoundedCornerShape(MuhabbetCorners.Medium)
     Box(
-        modifier = Modifier
-            .width(MuhabbetSizes.OtpBoxWidth)
-            .height(MuhabbetSizes.OtpBoxHeight)
+        // Minimums, not fixed sizes (#840): at 2.0x the 24sp digit's line box alone is 64dp, and a
+        // fixed 56dp box clipped it top and bottom. The box grows with the digit instead; its width
+        // is the row's equal share, never more than the design width.
+        modifier = modifier
+            .widthIn(max = MuhabbetSizes.OtpBoxWidth)
+            .fillMaxWidth()
+            .heightIn(min = MuhabbetSizes.OtpBoxHeight)
             .background(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 shape = boxShape
@@ -170,7 +198,9 @@ private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean, maske
             // Masked at the point of drawing rather than by a VisualTransformation: the real field
             // is invisible here, so there is nothing for a transformation to transform.
             text = digit?.let { if (masked) MaskGlyph else it.toString() }.orEmpty(),
-            style = MaterialTheme.typography.headlineSmall,
+            // The line box trimmed to the glyph, so the digit centres optically in the box and the
+            // box grows only by what the digit actually needs.
+            style = MaterialTheme.typography.headlineSmall.copy(lineHeightStyle = TrimmedLineHeight),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
@@ -180,5 +210,8 @@ private fun OtpDigitBox(digit: Char?, isActive: Boolean, isError: Boolean, maske
 /** U+2022 BULLET — the same glyph `PasswordVisualTransformation` uses by default. */
 private const val MaskGlyph = "\u2022"
 
-private const val ShakeAmplitude = 12f
+private val TrimmedLineHeight = LineHeightStyle(
+    alignment = LineHeightStyle.Alignment.Center,
+    trim = LineHeightStyle.Trim.Both
+)
 private const val ShakeDurationMs = 320

@@ -269,6 +269,7 @@ fun PrivacyDashboardScreen(
                     subtitle = stringResource(Res.string.privacy_export_data_desc),
                     icon = Muhabbet.icons.Download,
                     loading = isExporting,
+                    loadingDescription = stringResource(Res.string.privacy_export_in_progress),
                     onClick = {
                         isExporting = true
                         scope.launch {

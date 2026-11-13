@@ -36,6 +36,14 @@ class ControlsScreenshotTest {
                 MuhabbetButton(text = "İleri · Ğüşıöç · $role", onClick = {}, role = role)
             }
             MuhabbetButton(text = "Devre dışı", onClick = {}, enabled = false)
+            // #771: an icon and a label long enough to wrap are centred as a group, line by line,
+            // and stop at two lines.
+            MuhabbetButton(
+                text = "Gruba katılmak için davet bağlantısını paylaş ve onayla",
+                onClick = {},
+                leadingIcon = Muhabbet.icons.Group,
+                role = MuhabbetButtonRole.Secondary
+            )
         }
     }
 

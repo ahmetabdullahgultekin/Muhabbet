@@ -4,6 +4,9 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.snap
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
@@ -51,6 +54,10 @@ import androidx.compose.animation.core.LinearEasing
  * An `object`, not a CompositionLocal: nothing in this app varies motion by theme, and an object is
  * callable from non-composable code. If per-theme motion is ever needed, Compose's own
  * `LocalMotionScheme` is the mechanical migration and no call site changes.
+ *
+ * The one thing that *does* vary motion is the user: [LocalReducedMotion] carries the OS setting,
+ * and the policy-aware members below take it as a parameter rather than reading it themselves, so
+ * they stay callable from `transitionSpec` lambdas and other non-composable code (#842).
  */
 object MuhabbetMotion {
 
@@ -103,16 +110,31 @@ object MuhabbetMotion {
      *
      * Content rises a fraction of its own height rather than a fixed dp: the same spec then reads
      * correctly on a bubble and on a bottom sheet.
+     *
+     * **[reduced] is required, not defaulted** (#842). These used to be plain `val`s with no notion
+     * of the user's Reduce Motion / Remove animations preference, so every caller slid content
+     * regardless. A defaulted parameter would let a new call site forget the policy just as easily;
+     * a required one makes it pass [LocalReducedMotion] or say `false` on purpose. Reduced keeps the
+     * fade — a fade is not motion in the vestibular sense, and dropping it too would make content
+     * pop in, which is its own small shock — and removes the travel.
      */
-    val enterFadeUp: EnterTransition
-        get() = fadeIn(effectsFast()) + slideInVertically(offsetSpatialDefault()) { it / 8 }
+    fun enterFadeUp(reduced: Boolean): EnterTransition =
+        if (reduced) fadeIn(effectsFast()) else fadeIn(effectsFast()) + slideInVertically(offsetSpatialDefault()) { it / 8 }
 
-    val exitFadeDown: ExitTransition
-        get() = fadeOut(effectsFast()) + slideOutVertically(offsetSpatialDefault()) { it / 8 }
+    fun exitFadeDown(reduced: Boolean): ExitTransition =
+        if (reduced) fadeOut(effectsFast()) else fadeOut(effectsFast()) + slideOutVertically(offsetSpatialDefault()) { it / 8 }
 
     /** For things that originate from a point — a sent message, a reaction bar, a menu. */
-    val enterPop: EnterTransition
-        get() = fadeIn(effectsFast()) + scaleIn(spatialDefault(), initialScale = 0.92f)
+    fun enterPop(reduced: Boolean): EnterTransition =
+        if (reduced) fadeIn(effectsFast()) else fadeIn(effectsFast()) + scaleIn(spatialDefault(), initialScale = 0.92f)
+
+    /**
+     * The policy-aware spatial spring: under reduced motion a position change *snaps* rather than
+     * travels. Effects specs (colour, alpha) have no reduced variant — changing a colour is not
+     * motion, and snapping it would only make state changes harsher.
+     */
+    fun <T> spatialDefault(reduced: Boolean): FiniteAnimationSpec<T> =
+        if (reduced) snap() else spatialDefault()
 
     /**
      * Duration-based specs, only where a spring genuinely cannot express the intent — a crossfade
@@ -122,12 +144,27 @@ object MuhabbetMotion {
         const val ContentSwapMs: Int = 220
         const val ShimmerSweepMs: Int = 1200
         const val ThemeCrossfadeMs: Int = 300
+
+        /** One half-cycle of the empty-chats illustration's float. Slow enough to read as idle. */
+        const val IllustrationFloatMs: Int = 2000
     }
 
     /** Entering content decelerates hard; leaving content accelerates away. */
     val EmphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
     val EmphasizedAccelerate: Easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 }
+
+/**
+ * Whether the user asked the OS for reduced motion (#842). Provided by [MuhabbetTheme] from the
+ * platform setting — Android's *Remove animations* (animator duration scale 0), iOS Reduce Motion —
+ * and read by every design-system component that moves things or runs a loop.
+ *
+ * Static, not dynamic: it changes only when the user flips an OS setting, and when it does every
+ * animated component genuinely needs to re-decide.
+ *
+ * Defaults to `false` outside a theme so a component in a bare preview still animates.
+ */
+val LocalReducedMotion = staticCompositionLocalOf { false }
 
 /**
  * A slow scale pulse, for something that is waiting on someone else.
@@ -140,12 +177,16 @@ object MuhabbetMotion {
  * it competes with the two buttons that matter. There is no haptic attached: repeating haptics are
  * the fastest way to make a phone feel broken, and this repeats for as long as the call rings.
  *
+ * Inert under [LocalReducedMotion].
+ *
  * @param enabled when false the modifier is inert, so a caller can stop the pulse the moment the
  *   call connects without swapping modifier chains.
  */
 @Composable
 fun Modifier.breathing(enabled: Boolean = true): Modifier {
-    if (!enabled) return this
+    // Reduced motion: still. The pulse is a "waiting" signal, but the call screen also says so in
+    // words, and a looping scale is precisely what a vestibular-sensitive user turned motion off for.
+    if (!enabled || LocalReducedMotion.current) return this
     val transition = rememberInfiniteTransition(label = "breathing")
     val scale by transition.animateFloat(
         initialValue = 1f,

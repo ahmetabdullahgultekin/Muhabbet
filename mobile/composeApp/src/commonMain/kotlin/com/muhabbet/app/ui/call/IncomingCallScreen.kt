@@ -85,6 +85,7 @@ fun IncomingCallScreen(
             UserAvatar(
                 avatarUrl = null,
                 displayName = callerName ?: callerId,
+                seed = callerId,
                 size = MuhabbetSizes.AvatarCall,
                 modifier = Modifier.breathing()
             )

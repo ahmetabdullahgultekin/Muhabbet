@@ -227,6 +227,7 @@ fun UserProfileScreen(
                         UserAvatar(
                             avatarUrl = p.avatarUrl,
                             displayName = p.displayName ?: "?",
+                            seed = userId,
                             size = MuhabbetSizes.AvatarHero,
                             // No photo means no navigation: a full-screen gradient isn't worth it (#615).
                             modifier = if (p.avatarUrl != null) {

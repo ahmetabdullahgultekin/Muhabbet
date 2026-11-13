@@ -39,6 +39,7 @@ import com.muhabbet.designsystem.theme.MuhabbetSizes
  *   your photo" and "change the group photo" are not the same sentence.
  * @param isUploading swaps the badge for a spinner and disables the tap, so a second pick cannot
  *   race the first.
+ * @param seed the stable identity [UserAvatar] keys its fallback colour on — the user or group id.
  * @param onViewPhoto opens the current photo full-screen. Null keeps this component exactly as it
  *   was before #615 — pure "tap anywhere to change" — for any caller not yet wired to a viewer.
  */
@@ -53,7 +54,8 @@ fun EditableAvatar(
     isUploading: Boolean = false,
     isGroup: Boolean = false,
     avatarContentDescription: String? = null,
-    onViewPhoto: (() -> Unit)? = null
+    onViewPhoto: (() -> Unit)? = null,
+    seed: String = displayName
 ) {
     Box(contentAlignment = Alignment.Center, modifier = modifier) {
         UserAvatar(
@@ -62,6 +64,7 @@ fun EditableAvatar(
             size = size,
             isGroup = isGroup,
             contentDescription = avatarContentDescription,
+            seed = seed,
             modifier = if (onViewPhoto != null && avatarUrl != null) {
                 Modifier.pressable(shape = CircleShape, onClick = onViewPhoto)
             } else {

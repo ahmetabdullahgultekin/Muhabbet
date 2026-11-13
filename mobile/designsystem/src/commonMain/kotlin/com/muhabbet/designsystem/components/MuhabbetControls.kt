@@ -4,10 +4,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -18,10 +22,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import com.muhabbet.designsystem.theme.LocalHaptics
 import com.muhabbet.designsystem.theme.MuhabbetHapticIntent
 import com.muhabbet.designsystem.theme.MuhabbetMotion
+import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
 
 /**
@@ -52,6 +60,16 @@ enum class MuhabbetButtonRole {
  *
  * The scale is a spatial spring rather than a duration, so an interrupted press settles instead of
  * snapping back.
+ *
+ * **Long labels** (#771): a label is centred on every line and stops at two lines with an ellipsis.
+ * Before, it inherited `Text`'s defaults — start-aligned and unbounded — so at 2.0× font scale the
+ * second line hugged the left edge of a symmetric pill, and nothing stopped a label from growing the
+ * button without limit. The button keeps its 48dp minimum height and grows with the second line.
+ *
+ * @param leadingIcon drawn before the label; the icon and the label are centred together as one
+ *   group, whatever the label's line count.
+ * @param content replaces the label entirely, for the rare button that is not icon-plus-text. It
+ *   takes over the whole policy above, so prefer [leadingIcon] when that is all that is needed.
  */
 @Composable
 fun MuhabbetButton(
@@ -60,6 +78,7 @@ fun MuhabbetButton(
     modifier: Modifier = Modifier,
     role: MuhabbetButtonRole = MuhabbetButtonRole.Primary,
     enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
     content: (@Composable RowScope.() -> Unit)? = null
 ) {
     val haptics = LocalHaptics.current
@@ -79,7 +98,7 @@ fun MuhabbetButton(
         )
         onClick()
     }
-    val label: @Composable RowScope.() -> Unit = content ?: { Text(text) }
+    val label: @Composable RowScope.() -> Unit = content ?: { ButtonLabel(text, leadingIcon) }
 
     when (role) {
         MuhabbetButtonRole.Primary -> Button(
@@ -121,31 +140,66 @@ fun MuhabbetButton(
 }
 
 /**
+ * The default button content: an optional icon and a centred label of at most [ButtonLabelMaxLines].
+ *
+ * The `Row` the Material button lays this out in already centres its children horizontally, so the
+ * icon and the text are centred as a group; `TextAlign.Center` is what centres the *lines* within
+ * the text once it wraps.
+ */
+@Composable
+private fun RowScope.ButtonLabel(text: String, leadingIcon: ImageVector?) {
+    if (leadingIcon != null) {
+        Icon(
+            imageVector = leadingIcon,
+            contentDescription = null,
+            modifier = Modifier.size(MuhabbetSizes.IconSmall)
+        )
+        Spacer(Modifier.width(MuhabbetSpacing.Small))
+    }
+    Text(
+        text = text,
+        textAlign = TextAlign.Center,
+        maxLines = ButtonLabelMaxLines,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+/**
  * A switch that reports which way it went.
  *
  * `ToggleOn` and `ToggleOff` are distinct haptics, so turning something off feels different from
  * turning it on without looking. Eight `Switch` call sites get this for free.
+ *
+ * @param onCheckedChange null when a parent owns the interaction (a toggleable row); the switch is
+ *   then drawn but not separately focusable, so a screen reader meets one control, not two.
  */
 @Composable
 fun MuhabbetSwitch(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
     val haptics = LocalHaptics.current
     Switch(
         checked = checked,
-        onCheckedChange = {
-            haptics.perform(
-                if (it) MuhabbetHapticIntent.ToggleOn else MuhabbetHapticIntent.ToggleOff
-            )
-            onCheckedChange(it)
+        // Null makes the switch a pure indicator — not focusable, not clickable — for a parent that
+        // owns the toggle itself, as SettingsSwitchRow does (#837). The haptic then belongs to that
+        // parent, which is why it is only attached when there is a callback to attach it to.
+        onCheckedChange = onCheckedChange?.let { change ->
+            { checkedNow: Boolean ->
+                haptics.perform(toggleHaptic(checkedNow))
+                change(checkedNow)
+            }
         },
         modifier = modifier,
         enabled = enabled
     )
 }
+
+/** The haptic for a toggle landing in [checked]: on and off feel different on purpose. */
+internal fun toggleHaptic(checked: Boolean): MuhabbetHapticIntent =
+    if (checked) MuhabbetHapticIntent.ToggleOn else MuhabbetHapticIntent.ToggleOff
 
 /**
  * The one divider.
@@ -167,3 +221,6 @@ fun MuhabbetDivider(
 }
 
 private const val PressedScale = 0.97f
+
+/** Two lines and no more: a third line would make the button taller than the content it ends. */
+internal const val ButtonLabelMaxLines = 2

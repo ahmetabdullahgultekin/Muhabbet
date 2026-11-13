@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -75,8 +76,9 @@ fun VoiceRecordGestureButton(
     modifier: Modifier = Modifier
 ) {
     val haptics = Muhabbet.haptics
-    val cancelThresholdPx = Muhabbet.gestures.VoiceCancelThresholdPx
-    val lockThresholdPx = Muhabbet.gestures.VoiceLockThresholdPx
+    val density = LocalDensity.current
+    val cancelThresholdPx = with(density) { Muhabbet.gestures.VoiceCancelThreshold.toPx() }
+    val lockThresholdPx = with(density) { Muhabbet.gestures.VoiceLockThreshold.toPx() }
 
     val held = phase as? VoiceRecordingPhase.Held
     val isHeld = held != null
@@ -180,7 +182,8 @@ private const val MinLockHintAlpha = 0.35f
  */
 @Composable
 internal fun RecordingHintRow(recordingSeconds: Int, dragX: Float, modifier: Modifier = Modifier) {
-    val cancelProgress = (-dragX / Muhabbet.gestures.VoiceCancelThresholdPx).coerceIn(0f, 1f)
+    val cancelThresholdPx = with(LocalDensity.current) { Muhabbet.gestures.VoiceCancelThreshold.toPx() }
+    val cancelProgress = (-dragX / cancelThresholdPx).coerceIn(0f, 1f)
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         RecordingDot()
         Spacer(Modifier.width(MuhabbetSpacing.Small))

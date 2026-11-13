@@ -25,6 +25,7 @@ import com.muhabbet.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import com.muhabbet.designsystem.components.MuhabbetDialog
+import com.muhabbet.designsystem.components.SettingsRadioGroup
 import com.muhabbet.designsystem.components.SettingsRadioRow
 
 @Composable
@@ -55,15 +56,17 @@ fun MediaQualityDialog(
                 )
                 Spacer(Modifier.height(MuhabbetSpacing.Large))
 
-                qualityOptions.forEach { (quality, label) ->
-                    SettingsRadioRow(
-                        title = label,
-                        selected = selectedQuality == quality,
-                        onSelect = {
-                            selectedQuality = quality
-                            tokenStorage.setMediaQuality(quality.storageKey)
-                        }
-                    )
+                SettingsRadioGroup {
+                    qualityOptions.forEach { (quality, label) ->
+                        SettingsRadioRow(
+                            title = label,
+                            selected = selectedQuality == quality,
+                            onSelect = {
+                                selectedQuality = quality
+                                tokenStorage.setMediaQuality(quality.storageKey)
+                            }
+                        )
+                    }
                 }
             }
         }

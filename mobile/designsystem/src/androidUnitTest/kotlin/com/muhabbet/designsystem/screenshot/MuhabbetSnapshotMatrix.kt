@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -58,8 +59,10 @@ object MuhabbetSnapshotMatrix {
     fun capture(rule: ComposeContentTestRule, component: String, content: @Composable () -> Unit) {
         rule.mainClock.autoAdvance = false
         var current by mutableStateOf(variants.first())
+        var composed: Variant? = null
         rule.setContent {
             val v = current
+            SideEffect { composed = v }
             MuhabbetTheme(mode = v.theme, hapticsEnabled = false) {
                 val base = LocalDensity.current
                 CompositionLocalProvider(
@@ -76,7 +79,16 @@ object MuhabbetSnapshotMatrix {
         }
         variants.forEach { v ->
             current = v
+            // Recompose with the new variant *before* moving the clock. A state write from the test
+            // thread reaches the recomposer only when snapshot apply notifications are sent, and
+            // advancing a paused clock does not send them — so without this every frame rendered
+            // the previous variant, and each golden carried its predecessor's theme and font scale
+            // (light_x13 was really light_x10, dark_x10 was light_x20). waitForIdle sends them and
+            // recomposes; with auto-advance off it does not move the clock, so timing is unchanged.
+            rule.waitForIdle()
             rule.mainClock.advanceTimeBy(SETTLE_MS)
+            // The harness checks itself: a golden filed under one variant must be a rendering of it.
+            check(composed == v) { "capturing ${v.name} but the composition last applied ${composed?.name}" }
             rule.onRoot().captureRoboImage("$GOLDEN_ROOT/$component/${component}_${v.name}.png")
         }
     }

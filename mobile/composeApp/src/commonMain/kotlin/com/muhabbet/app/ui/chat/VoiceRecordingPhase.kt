@@ -1,5 +1,6 @@
 package com.muhabbet.app.ui.chat
 
+import androidx.compose.ui.unit.Density
 import com.muhabbet.app.platform.RecordedAudio
 import com.muhabbet.designsystem.theme.MuhabbetGestures
 
@@ -54,5 +55,9 @@ sealed class VoiceRecordingPhase {
  * depend on real touch hardware — the arithmetic decision, as opposed to the drag itself — has a
  * name and a unit test. Lock is deliberately not decided here: it is evaluated continuously while
  * still held, not at release, because the finger can be lifted straight through the lock threshold.
+ *
+ * Takes the [density] the drag was measured in: the threshold is a Dp token, so the same physical
+ * distance cancels on every screen (#841).
  */
-fun isVoiceRecordingCancelledAt(dragX: Float): Boolean = dragX <= -MuhabbetGestures.VoiceCancelThresholdPx
+fun isVoiceRecordingCancelledAt(dragX: Float, density: Density): Boolean =
+    dragX <= -with(density) { MuhabbetGestures.VoiceCancelThreshold.toPx() }

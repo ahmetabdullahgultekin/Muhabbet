@@ -82,8 +82,8 @@ fun ConnectionStrip(
 
     AnimatedVisibility(
         visible = visible,
-        enter = MuhabbetMotion.enterFadeUp,
-        exit = MuhabbetMotion.exitFadeDown
+        enter = MuhabbetMotion.enterFadeUp(Muhabbet.reducedMotion),
+        exit = MuhabbetMotion.exitFadeDown(Muhabbet.reducedMotion)
     ) {
         Surface(
             color = MaterialTheme.colorScheme.secondaryContainer,

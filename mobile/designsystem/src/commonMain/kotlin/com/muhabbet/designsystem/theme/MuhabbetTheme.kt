@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.muhabbet.designsystem.platform.SystemBarsEffect
+import com.muhabbet.designsystem.platform.rememberSystemReducedMotion
 import kotlin.math.pow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -451,6 +452,15 @@ object MuhabbetSizes {
     val OtpBoxWidth: Dp = 44.dp
     val OtpBoxHeight: Dp = 56.dp
 
+    /** How far a rejected code's box row travels on its first shake hop. Dp, not px (#841). */
+    val OtpShakeAmplitude: Dp = 6.dp
+
+    /**
+     * The empty-chats artwork. Its drawing is specified in fractions of this box, so the picture is
+     * the same at every density rather than a px-sized cluster in a growing circle (#841).
+     */
+    val EmptyChatsIllustration: Dp = 120.dp
+
     /** One segment of the sign-up progress rail. */
     val StepRailSegmentWidth: Dp = 28.dp
     val StepRailSegmentHeight: Dp = 4.dp
@@ -592,23 +602,33 @@ object MuhabbetDurations {
 // ─── Gesture tokens ─────────────────────────────────────────
 
 object MuhabbetGestures {
-    const val SwipeReplyThreshold: Float = 80f
-    const val SwipeReplyMax: Float = 120f
+    /*
+     * Every threshold here is a Dp (#841). They were px floats compared straight against pointer
+     * deltas, so the gesture's physical distance depended on the screen: 80 px is 23dp on a 3.5x
+     * phone — an accidental reply on a slightly diagonal scroll — and 53dp on a 1.5x tablet. Call
+     * sites convert with `LocalDensity` (or a `Density` receiver) at the gesture, once.
+     */
+
+    /** How far a bubble must be dragged to the right before releasing replies to it. */
+    val SwipeReplyThreshold: Dp = 64.dp
+
+    /** How far the bubble follows the finger at most — past the threshold, so arming is visible. */
+    val SwipeReplyMax: Dp = 96.dp
 
     /**
-     * How far left the record button must be dragged, in px, before releasing discards the
-     * recording instead of stopping it. Evaluated only at release — dragging past it and back is a
+     * How far left the record button must be dragged before releasing discards the recording
+     * instead of stopping it. Evaluated only at release — dragging past it and back is a
      * deliberate "undo", matching [MuhabbetHapticIntent.SwipeArmed]/[MuhabbetHapticIntent.SwipeCommitted]
      * firing once each rather than on every frame past the line.
      */
-    const val VoiceCancelThresholdPx: Float = 140f
+    val VoiceCancelThreshold: Dp = 96.dp
 
     /**
-     * How far up the record button must be dragged, in px, before the recording locks hands-free.
-     * Unlike the cancel threshold this fires the instant it is crossed, not at release — the whole
-     * point of locking is that the finger can then be lifted without ending the recording.
+     * How far up the record button must be dragged before the recording locks hands-free. Unlike
+     * the cancel threshold this fires the instant it is crossed, not at release — the whole point of
+     * locking is that the finger can then be lifted without ending the recording.
      */
-    const val VoiceLockThresholdPx: Float = 100f
+    val VoiceLockThreshold: Dp = 72.dp
 }
 
 // ─── Elevation tokens ──────────────────────────────────────
@@ -627,6 +647,7 @@ object MuhabbetElevation {
 fun MuhabbetTheme(
     mode: MuhabbetThemeMode = MuhabbetThemeMode.System,
     hapticsEnabled: Boolean = true,
+    reducedMotion: Boolean? = null,
     content: @Composable () -> Unit
 ) {
     // Only System consults the OS. Light/Dark/Oled are explicit user choices and are honoured
@@ -664,7 +685,12 @@ fun MuhabbetTheme(
     val typography = rememberMuhabbetTypography()
     val textStyles = remember(typography) { MuhabbetTextStyles(typography) }
 
+    // The OS accessibility setting, unless a caller pins it (screenshot tests render both policies).
+    // Read once here so no component has to know where the setting lives on each platform (#842).
+    val reduced = reducedMotion ?: rememberSystemReducedMotion()
+
     CompositionLocalProvider(
+        LocalReducedMotion provides reduced,
         LocalSemanticColors provides semanticColors,
         LocalThemeMode provides resolved,
         LocalHaptics provides haptics,

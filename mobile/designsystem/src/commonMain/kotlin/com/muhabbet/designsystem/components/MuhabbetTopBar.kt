@@ -100,9 +100,10 @@ fun MuhabbetTopBar(
             }
         },
         title = {
+            val reduced = Muhabbet.reducedMotion
             AnimatedContent(
                 targetState = title,
-                transitionSpec = { MuhabbetMotion.enterFadeUp togetherWith MuhabbetMotion.exitFadeDown },
+                transitionSpec = { MuhabbetMotion.enterFadeUp(reduced) togetherWith MuhabbetMotion.exitFadeDown(reduced) },
                 label = "topBarTitle"
             ) { animatedTitle ->
                 Text(

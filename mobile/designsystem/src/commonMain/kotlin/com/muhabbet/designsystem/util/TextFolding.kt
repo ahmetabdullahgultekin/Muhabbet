@@ -21,7 +21,7 @@ package com.muhabbet.designsystem.util
  * hundred contacts is a feature, not a false positive.
  *
  * This is therefore **not a lowercase implementation and must never be used for display.** For a
- * displayed initial see `firstGrapheme`, which preserves the `i`/`İ` distinction precisely because
+ * displayed initial see `avatarInitial`, which preserves the `i`/`İ` distinction precisely because
  * there it is the whole point.
  */
 fun foldForSearch(text: String): String = buildString(text.length) {

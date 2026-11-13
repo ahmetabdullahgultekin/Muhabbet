@@ -27,6 +27,7 @@ import com.muhabbet.designsystem.theme.MuhabbetIcons
 import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
 import com.muhabbet.designsystem.theme.MuhabbetSpacing
+import com.muhabbet.designsystem.theme.LocalReducedMotion
 import com.muhabbet.designsystem.theme.containerColor
 
 /**
@@ -45,7 +46,8 @@ private fun AppearingColumn(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val visibleState = remember { MutableTransitionState(false) }.apply { targetState = true }
-    AnimatedVisibility(visibleState = visibleState, enter = MuhabbetMotion.enterFadeUp, modifier = modifier) {
+    val enter = MuhabbetMotion.enterFadeUp(reduced = LocalReducedMotion.current)
+    AnimatedVisibility(visibleState = visibleState, enter = enter, modifier = modifier) {
         Column(horizontalAlignment = horizontalAlignment, verticalArrangement = verticalArrangement, content = content)
     }
 }

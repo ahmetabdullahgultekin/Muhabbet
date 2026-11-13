@@ -2,6 +2,7 @@ package com.muhabbet.app.ui.chat
 
 import androidx.compose.animation.core.TargetBasedAnimation
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.ui.unit.Density
 import com.muhabbet.designsystem.theme.MuhabbetGestures
 import com.muhabbet.designsystem.theme.MuhabbetMotion
 import kotlinx.coroutines.test.runTest
@@ -25,7 +26,7 @@ class SwipeReplyOffsetTest {
         val springBack = TargetBasedAnimation(
             animationSpec = MuhabbetMotion.spatialDefault(),
             typeConverter = Float.VectorConverter,
-            initialValue = MuhabbetGestures.SwipeReplyMax,
+            initialValue = MaxSwipePx,
             targetValue = 0f
         )
 
@@ -42,7 +43,7 @@ class SwipeReplyOffsetTest {
 
     @Test
     fun should_never_leave_its_domain_when_the_swipe_offset_is_driven_out_of_range() = runTest {
-        val offset = swipeReplyOffset(MuhabbetGestures.SwipeReplyMax)
+        val offset = swipeReplyOffset(MaxSwipePx)
 
         offset.snapTo(-1f)
         assertEquals(
@@ -52,14 +53,20 @@ class SwipeReplyOffsetTest {
                 "constructor rejects a negative Dp and crashes the app."
         )
 
-        offset.snapTo(MuhabbetGestures.SwipeReplyMax + 50f)
+        offset.snapTo(MaxSwipePx + 50f)
         assertEquals(
-            MuhabbetGestures.SwipeReplyMax,
+            MaxSwipePx,
             offset.value,
             "The bubble must not shift further than the gesture token allows."
         )
     }
 }
+
+/**
+ * The gesture token is a Dp (#841); the offset it bounds is in px, as the pointer deltas are. 3.5x
+ * is the densest common phone, where a px-typed token used to be the shortest physical swipe.
+ */
+private val MaxSwipePx: Float = with(Density(3.5f)) { MuhabbetGestures.SwipeReplyMax.toPx() }
 
 /** Half a frame at 60 Hz: fine enough that a ~270 ms undershoot cannot be sampled over. */
 private const val SampleIntervalNanos = 8_000_000L

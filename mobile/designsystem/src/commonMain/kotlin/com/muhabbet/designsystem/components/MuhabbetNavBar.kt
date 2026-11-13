@@ -23,13 +23,23 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Badge
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,10 +54,14 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.em
+import com.muhabbet.designsystem.theme.AutoSizeStep
+import com.muhabbet.designsystem.theme.LocalReducedMotion
 import com.muhabbet.designsystem.theme.LocalSemanticColors
 import com.muhabbet.designsystem.theme.MuhabbetMotion
 import com.muhabbet.designsystem.theme.MuhabbetSizes
@@ -121,10 +135,11 @@ fun MuhabbetNavBar(
     if (items.isEmpty()) return
     val lastIndex = items.lastIndex
 
-    // Spatial: this is a thing moving across a distance, so it is allowed to overshoot and settle.
+    // Spatial: this is a thing moving across a distance, so it is allowed to overshoot and settle —
+    // unless the user asked for reduced motion, in which case the mark simply moves (#842).
     val railPosition by animateFloatAsState(
         targetValue = selectedIndex.coerceIn(0, lastIndex).toFloat(),
-        animationSpec = MuhabbetMotion.spatialDefault(),
+        animationSpec = MuhabbetMotion.spatialDefault(LocalReducedMotion.current),
         label = "navRailPosition"
     )
 
@@ -212,6 +227,7 @@ private fun NavRail(
 private fun Density.railOffsetPx(position: Float, itemWidth: Dp, lastIndex: Int): Int =
     (position.coerceIn(0f, lastIndex.toFloat()) * itemWidth.toPx()).roundToInt()
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RowScope.NavItem(
     item: MuhabbetNavItem,
@@ -234,33 +250,87 @@ private fun RowScope.NavItem(
         label = "navItemLift"
     )
 
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .heightIn(min = MuhabbetSizes.NavItemMinHeight)
-            // `selectable` is what publishes `selected` and `Role.Tab` to the accessibility tree;
-            // the explicit `semantics` block below states the same thing so that the guarantee
-            // survives someone swapping this for a plain `clickable`.
-            .selectable(
-                selected = selected,
-                role = Role.Tab,
-                onClick = onClick
-            )
-            .semantics { this.selected = selected }
-            .padding(vertical = MuhabbetSpacing.Small)
-            .then(item.testTag?.let { Modifier.testTag(it) } ?: Modifier),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        NavItemIcon(item = item, tint = contentColor, lift = { lift })
-        Spacer(Modifier.height(MuhabbetSizes.GapHairline))
-        Text(
-            text = item.label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = contentColor,
+    // Long-press shows the full name: the label may be shrunk or, as a last resort, ellipsised to fit
+    // its quarter of the bar, and a sighted user must still be able to find out where a tab goes
+    // (#770). This is the platform convention for icon-led controls on both Android and iOS.
+    //
+    // The weight sits on a plain Box around the tooltip: TooltipBox lays its content out inside its
+    // own wrapper, so a RowScope modifier handed to it never reaches the Row and the first tab took
+    // the whole bar.
+    Box(Modifier.weight(1f)) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+            tooltip = { PlainTooltip { Text(item.label) } },
+            state = rememberTooltipState()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = MuhabbetSizes.NavItemMinHeight)
+                    // `selectable` is what publishes `selected` and `Role.Tab` to the accessibility
+                    // tree; the explicit `semantics` block below states the same thing so that the
+                    // guarantee survives someone swapping this for a plain `clickable`.
+                    .selectable(
+                        selected = selected,
+                        role = Role.Tab,
+                        onClick = onClick
+                    )
+                    .semantics { this.selected = selected }
+                    .padding(vertical = MuhabbetSpacing.Small)
+                    .then(item.testTag?.let { Modifier.testTag(it) } ?: Modifier),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                NavItemIcon(item = item, tint = contentColor, lift = { lift })
+                Spacer(Modifier.height(MuhabbetSizes.GapHairline))
+                NavItemLabel(label = item.label, selected = selected, color = { contentColor })
+            }
+        }
+    }
+}
+
+/**
+ * The tab's name, kept on one line and legible at every font scale (#770).
+ *
+ * A bottom-bar label is a name, not prose, and in Turkish the names are single long words —
+ * "Güncellemeler", "Topluluklar". Wrapping one to two lines would break the word itself, so the
+ * policy is the one iOS applies to tab bars and Material recommends for navigation labels:
+ *
+ *  1. **Scale with the user's font only up to [NavLabelMaxFontScale].** Beyond that the bar would
+ *     need more than a quarter of the width per tab, which no phone has.
+ *  2. **Then shrink to fit**, in small steps, down to [NavLabelMinFontScale] of the base size — so
+ *     at 1.3× on a 360dp phone "Güncellemeler" is a little smaller than "Sohbetler" rather than
+ *     "Güncelle…".
+ *  3. Only past that floor, ellipsis — and the long-press tooltip and the screen-reader name (the
+ *     icon's description, the full label) always carry the complete word.
+ */
+@Composable
+private fun NavItemLabel(label: String, selected: Boolean, color: () -> Color) {
+    val base = MaterialTheme.typography.labelMedium
+    val density = LocalDensity.current
+    // The cap is applied to the *density* the label lays out in, not by dividing sp values: sp is
+    // converted to pixels by the density's own font-scale converter, which on Android 14+ is
+    // non-linear, so arithmetic on sp would not land where it means to.
+    val capped = remember(density) { cappedFontScaleDensity(density, NavLabelMaxFontScale) }
+    CompositionLocalProvider(LocalDensity provides capped) {
+        BasicText(
+            text = label,
+            style = base.copy(
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                // labelMedium's tracking is absolute (sp), so it does not shrink with the text and
+                // costs a 13-letter Turkish name most of a glyph per letter. A one-word name in a
+                // quarter of the bar needs the width more than the air.
+                letterSpacing = 0.em
+            ),
+            color = color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = base.fontSize * (NavLabelMinFontScale / capped.fontScale),
+                maxFontSize = base.fontSize,
+                stepSize = AutoSizeStep
+            ),
             // The icon already carries the description, and `selectable` merges this whole column
             // into one node — leaving both means TalkBack says "Chats, Chats, tab, selected". The
             // description defaults to the label, so what is announced still matches what is on
@@ -269,6 +339,26 @@ private fun RowScope.NavItem(
         )
     }
 }
+
+/**
+ * [density] with its font scale capped at [maxFontScale]. Below the cap it is returned unchanged,
+ * so a user at 1.0x or 1.2x gets exactly their own setting.
+ */
+internal fun cappedFontScaleDensity(density: Density, maxFontScale: Float): Density =
+    if (density.fontScale <= maxFontScale) density else Density(density.density, maxFontScale)
+
+/** Material 3's guidance for navigation labels; iOS caps tab bar labels the same way. */
+internal const val NavLabelMaxFontScale = 1.3f
+
+/**
+ * The smallest a label may be shrunk to fit, relative to its 1.0× size: 12sp becomes 9sp.
+ *
+ * Measured, not picked: "Güncellemeler" in Manrope Medium needs about 9sp to fit a quarter of a
+ * 360dp phone (Manrope is a wide face — the same word in Roboto fits at 11sp). 9sp is the size iOS
+ * tab bars bottom out at, and Manrope's tall x-height keeps it legible there; the alternative at
+ * this width is breaking a single word across two lines, or an ellipsis, both of which lose the name.
+ */
+internal const val NavLabelMinFontScale = 0.75f
 
 @Composable
 private fun NavItemIcon(

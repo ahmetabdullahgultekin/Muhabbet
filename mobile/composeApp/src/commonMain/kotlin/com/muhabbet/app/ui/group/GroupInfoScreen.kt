@@ -287,6 +287,7 @@ fun GroupInfoScreen(
                             EditableAvatar(
                                 avatarUrl = groupAvatarUrl,
                                 displayName = conversation?.name ?: "G",
+                                seed = conversationId,
                                 size = MuhabbetSizes.AvatarXLarge,
                                 changePhotoContentDescription = stringResource(Res.string.group_change_photo),
                                 onPickPhoto = { photoPickerLauncher.launch() },
@@ -299,6 +300,7 @@ fun GroupInfoScreen(
                             UserAvatar(
                                 avatarUrl = groupAvatarUrl,
                                 displayName = conversation?.name ?: "G",
+                                seed = conversationId,
                                 size = MuhabbetSizes.AvatarXLarge,
                                 isGroup = true,
                                 contentDescription = stringResource(Res.string.cd_group_avatar),
@@ -550,6 +552,7 @@ private fun MemberItem(
         com.muhabbet.designsystem.components.UserAvatar(
             avatarUrl = member.avatarUrl,
             displayName = member.displayName ?: "?",
+            seed = member.userId,
             size = com.muhabbet.designsystem.theme.MuhabbetSizes.AvatarSmall
         )
         Spacer(Modifier.width(MuhabbetSpacing.Medium))
